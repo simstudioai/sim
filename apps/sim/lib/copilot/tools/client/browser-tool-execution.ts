@@ -74,6 +74,7 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_click: false,
   browser_click_at: false,
   browser_type: false,
+  browser_fill_form: false,
   browser_insert_text: false,
   browser_press_key: false,
   browser_scroll: false,
@@ -87,7 +88,7 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
 
 const SESSION_CLOSED_MESSAGE =
   'The agent browser session is closed, so this browser tool cannot run. ' +
-  'Call browser_navigate or browser_open_tab to start a new session, or report the situation to the user. ' +
+  'Call browser_open_url, browser_navigate, or browser_open_tab to start a new session, or report the situation to the user. ' +
   'Do not retry other browser tools until a new session is open.'
 /** Tool events older than this are replays, not live instructions — never act on them. */
 const MAX_EVENT_AGE_MS = 120_000
@@ -983,10 +984,16 @@ async function doExecuteBrowserTool(
     }
     nativeActionPending = false
     if (cancelled) return
+    const formStopped =
+      toolName === 'browser_fill_form' && isRecordLike(result) && result.completed === false
     reportTerminalCompletion(
       {
-        status: ASYNC_TOOL_CONFIRMATION_STATUS.success,
-        message: 'Browser action completed',
+        status: formStopped
+          ? ASYNC_TOOL_CONFIRMATION_STATUS.error
+          : ASYNC_TOOL_CONFIRMATION_STATUS.success,
+        message: formStopped
+          ? 'Form filling stopped; inspect the partial result'
+          : 'Browser action completed',
         data: sanitizeResultForModel(toolName, result),
       },
       'Failed to report successful browser tool completion'

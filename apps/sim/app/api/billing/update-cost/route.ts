@@ -396,6 +396,38 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       )
     }
 
+    const pgCode = getPostgresErrorCode(error)
+    const pgConstraint = getPostgresConstraintName(error)
+    const reconciliationOutcome =
+      error instanceof ThresholdSettlementError && !error.retryable
+        ? BILLING_CALLBACK_OUTCOME.billingPeriodElapsed
+        : pgCode === '23503' && pgConstraint === 'usage_log_user_id_user_id_fk'
+          ? BILLING_CALLBACK_OUTCOME.billingUserNotFound
+          : undefined
+
+    /** Old markerless clients treat every 409 as a successful duplicate. */
+    if (reconciliationOutcome && !isMarkerlessLegacy) {
+      logger.warn(`[${requestId}] Billing callback requires reconciliation`, {
+        code: reconciliationOutcome.code,
+        duration,
+        billingProtocol:
+          req.headers.get(COPILOT_BILLING_PROTOCOL_HEADER) ?? COPILOT_BILLING_PROTOCOL.legacy,
+      })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.ReconciliationRequired)
+      span.setAttribute(TraceAttr.HttpStatusCode, 409)
+      span.setAttribute(TraceAttr.BillingDurationMs, duration)
+      return NextResponse.json(
+        {
+          success: false,
+          code: reconciliationOutcome.code,
+          error: reconciliationOutcome.message,
+          retryable: false,
+          requestId,
+        },
+        { status: 409 }
+      )
+    }
+
     if (error instanceof ThresholdSettlementError) {
       logger.error(`[${requestId}] Retryable threshold settlement failure`, {
         settlementErrorCode: error.code,
@@ -425,8 +457,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     // lock timeout) — Drizzle's "Failed query" wrapper alone cannot
     // distinguish them, which made the dead-workspace incident undiagnosable
     // from logs.
-    const pgCode = getPostgresErrorCode(error)
-    const pgConstraint = getPostgresConstraintName(error)
     logger.error(`[${requestId}] Cost update failed`, {
       error: toError(error).message,
       ...(pgCode && { pgCode }),

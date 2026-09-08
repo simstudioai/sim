@@ -7,11 +7,16 @@ vi.mock('@/lib/core/config/env', () => ({
 
 import {
   buildQuickBooksCreatePaymentBody,
+  buildQuickBooksCreateSalesDocumentBody,
   buildQuickBooksUpdatePaymentBody,
+  buildQuickBooksUpdateSalesDocumentBody,
   parseQuickBooksInvoiceAllocations,
   parseQuickBooksSalesLines,
 } from '@/tools/quickbooks/sales_utils'
 import { getQuickBooksOperationError } from '@/tools/quickbooks/utils'
+import { quickbooksVoidCustomerPaymentTool } from '@/tools/quickbooks/void_customer_payment'
+import { quickbooksVoidInvoiceTool } from '@/tools/quickbooks/void_invoice'
+import { quickbooksVoidSalesReceiptTool } from '@/tools/quickbooks/void_sales_receipt'
 
 describe('QuickBooks sales monetary validation', () => {
   it.each([
@@ -272,5 +277,201 @@ describe('QuickBooks customer payment allocations', () => {
       ],
       PrivateNote: 'New note',
     })
+  })
+})
+
+describe('QuickBooks payment allocation replacement', () => {
+  const paymentWithCreditMemo = {
+    Id: 'payment-1',
+    TotalAmt: 30,
+    Line: [
+      { Amount: 10, LinkedTxn: [{ TxnId: 'credit-memo-1', TxnType: 'CreditMemo' }] },
+      { Amount: 5, LinkedTxn: [{ TxnId: 'expense-1', TxnType: 'Expense' }] },
+      { Amount: 15, LinkedTxn: [{ TxnId: 'invoice-1', TxnType: 'Invoice' }] },
+    ],
+  }
+
+  it('keeps every non-invoice linked line when replacing invoice allocations', () => {
+    expect(
+      buildQuickBooksUpdatePaymentBody(
+        {
+          accessToken: 'token',
+          realmId: 'realm',
+          paymentId: 'payment-1',
+          syncToken: '0',
+          invoiceAllocations: [{ invoiceId: 'invoice-2', amount: 15 }],
+          unapplyOmittedInvoices: true,
+        },
+        paymentWithCreditMemo
+      ).Line
+    ).toEqual([
+      { Amount: 10, LinkedTxn: [{ TxnId: 'credit-memo-1', TxnType: 'CreditMemo' }] },
+      { Amount: 5, LinkedTxn: [{ TxnId: 'expense-1', TxnType: 'Expense' }] },
+      { Amount: 15, LinkedTxn: [{ TxnId: 'invoice-2', TxnType: 'Invoice' }] },
+    ])
+  })
+
+  it('counts carried-forward lines against the payment total', () => {
+    expect(() =>
+      buildQuickBooksUpdatePaymentBody(
+        {
+          accessToken: 'token',
+          realmId: 'realm',
+          paymentId: 'payment-1',
+          syncToken: '0',
+          invoiceAllocations: [{ invoiceId: 'invoice-2', amount: 16 }],
+          unapplyOmittedInvoices: true,
+        },
+        paymentWithCreditMemo
+      )
+    ).toThrow('Invoice allocation amounts cannot exceed totalAmount')
+  })
+})
+
+describe('QuickBooks sales line numeric bounds', () => {
+  it('accepts a zero amount, quantity, and unit price', () => {
+    expect(
+      parseQuickBooksSalesLines([
+        { lineType: 'item', amount: 0, itemId: 'item-1', quantity: 0, unitPrice: 0 },
+      ])
+    ).toEqual([
+      {
+        lineType: 'item',
+        amount: 0,
+        itemId: 'item-1',
+        description: undefined,
+        quantity: 0,
+        unitPrice: 0,
+        serviceDate: undefined,
+      },
+    ])
+  })
+})
+
+describe('QuickBooks sales document bodies', () => {
+  const line = { lineType: 'item' as const, amount: 10, itemId: 'item-1' }
+
+  it('emits the documented detail types for item and description lines', () => {
+    expect(
+      buildQuickBooksCreateSalesDocumentBody({
+        accessToken: 'token',
+        realmId: 'realm',
+        customerId: 'customer-1',
+        lines: [line, { lineType: 'description', description: 'Thanks' }],
+      }).Line
+    ).toEqual([
+      {
+        Amount: 10,
+        DetailType: 'SalesItemLineDetail',
+        SalesItemLineDetail: { ItemRef: { value: 'item-1' } },
+      },
+      { DetailType: 'DescriptionOnly', Description: 'Thanks', DescriptionLineDetail: {} },
+    ])
+  })
+
+  it('omits CustomerRef on a receipt created without a customer', () => {
+    expect(
+      buildQuickBooksCreateSalesDocumentBody(
+        { accessToken: 'token', realmId: 'realm', customerId: '', lines: [line] },
+        { customerOptional: true }
+      )
+    ).not.toHaveProperty('CustomerRef')
+  })
+
+  it('still requires a customer on the documents that list CustomerRef', () => {
+    expect(() =>
+      buildQuickBooksCreateSalesDocumentBody({
+        accessToken: 'token',
+        realmId: 'realm',
+        customerId: '',
+        lines: [line],
+      })
+    ).toThrow()
+  })
+
+  it('rejects values past the documented QuickBooks maximum lengths', () => {
+    expect(() =>
+      buildQuickBooksCreateSalesDocumentBody({
+        accessToken: 'token',
+        realmId: 'realm',
+        customerId: 'customer-1',
+        lines: [line],
+        documentNumber: 'D'.repeat(22),
+      })
+    ).toThrow('documentNumber cannot exceed 21 characters')
+
+    expect(() =>
+      buildQuickBooksCreateSalesDocumentBody({
+        accessToken: 'token',
+        realmId: 'realm',
+        customerId: 'customer-1',
+        lines: [line],
+        customerMemo: 'M'.repeat(1001),
+      })
+    ).toThrow('customerMemo cannot exceed 1000 characters')
+
+    expect(() => parseQuickBooksSalesLines([{ ...line, description: 'x'.repeat(4001) }])).toThrow(
+      'lines[0].description cannot exceed 4000 characters'
+    )
+  })
+
+  it('builds a sparse update body carrying the identifiers and the patch', () => {
+    expect(
+      buildQuickBooksUpdateSalesDocumentBody({
+        accessToken: 'token',
+        realmId: 'realm',
+        transactionId: 'invoice-1',
+        syncToken: '3',
+        privateNote: 'Updated',
+      })
+    ).toEqual({
+      Id: 'invoice-1',
+      SyncToken: '3',
+      sparse: true,
+      PrivateNote: 'Updated',
+    })
+  })
+})
+
+describe('QuickBooks void request shapes', () => {
+  const params = {
+    accessToken: 'token',
+    realmId: '123',
+    quickBooksEnvironment: 'sandbox' as const,
+    transactionId: 'txn-1',
+    syncToken: '4',
+    confirmVoid: true,
+  }
+
+  it('voids an invoice through operation=void with no sparse flag', () => {
+    const url = new URL(quickbooksVoidInvoiceTool.request.url(params))
+    expect(url.pathname).toContain('/invoice')
+    expect(url.searchParams.get('operation')).toBe('void')
+    expect(url.searchParams.get('include')).toBeNull()
+    expect(quickbooksVoidInvoiceTool.request.body?.(params)).toEqual({
+      Id: 'txn-1',
+      SyncToken: '4',
+    })
+  })
+
+  it.each([
+    ['payment', quickbooksVoidCustomerPaymentTool],
+    ['salesreceipt', quickbooksVoidSalesReceiptTool],
+  ])('voids %s through operation=update&include=void with sparse', (resource, tool) => {
+    const url = new URL(tool.request.url(params))
+    expect(url.pathname).toContain(`/${resource}`)
+    expect(url.searchParams.get('operation')).toBe('update')
+    expect(url.searchParams.get('include')).toBe('void')
+    expect(tool.request.body?.(params)).toEqual({
+      Id: 'txn-1',
+      SyncToken: '4',
+      sparse: true,
+    })
+  })
+
+  it('refuses to void a sales receipt without explicit confirmation', () => {
+    expect(() =>
+      quickbooksVoidSalesReceiptTool.request.body?.({ ...params, confirmVoid: false })
+    ).toThrow('Confirm void before voiding the sales receipt')
   })
 })

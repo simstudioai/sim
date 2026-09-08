@@ -16,8 +16,11 @@ import {
   TextQuote,
   Unlink,
 } from '@sim/emcn/icons'
+import type { MappablePosition } from '@tiptap/core'
+import type { Node } from '@tiptap/pm/model'
 import {
   PluginKey,
+  type Selection,
   type SelectionBookmark,
   TextSelection,
   type Transaction,
@@ -58,6 +61,56 @@ function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'updatePosition')
 }
 
+type CapturedSelection =
+  | { anchor: MappablePosition; head: MappablePosition; bookmark?: never }
+  | { bookmark: SelectionBookmark; anchor?: never; head?: never }
+
+interface LinkSelection {
+  target: CapturedSelection
+  original: CapturedSelection
+}
+
+/** Collaborative positions survive the full-document replacements used to apply Yjs updates. */
+function captureSelection(editor: Editor): CapturedSelection {
+  const { selection } = editor.state
+  return selection instanceof TextSelection
+    ? {
+        anchor: editor.utils.createMappablePosition(selection.anchor),
+        head: editor.utils.createMappablePosition(selection.head),
+      }
+    : { bookmark: selection.getBookmark() }
+}
+
+function mapSelection(
+  editor: Editor,
+  selection: CapturedSelection,
+  transaction: Transaction
+): CapturedSelection {
+  return selection.bookmark
+    ? { bookmark: selection.bookmark.map(transaction.mapping) }
+    : {
+        anchor: editor.utils.getUpdatedPosition(selection.anchor, transaction).position,
+        head: editor.utils.getUpdatedPosition(selection.head, transaction).position,
+      }
+}
+
+function resolveSelection(selection: CapturedSelection, doc: Node): Selection {
+  return selection.bookmark
+    ? selection.bookmark.resolve(doc)
+    : TextSelection.between(
+        doc.resolve(selection.anchor.position),
+        doc.resolve(selection.head.position)
+      )
+}
+
+/** Keep the editing target separate from the selection restored when the user cancels. */
+function captureLinkSelection(editor: Editor): LinkSelection | null {
+  const original = captureSelection(editor)
+  if (editor.state.selection.empty) editor.commands.extendMarkRange('link')
+  const { selection } = editor.state
+  return selection.empty ? null : { target: captureSelection(editor), original }
+}
+
 interface EditorBubbleMenuProps {
   editor: Editor
   /** The editor's scrollable viewport, so the toolbar repositions with the selection as the pane scrolls. */
@@ -79,7 +132,7 @@ export function EditorBubbleMenu({
 }: EditorBubbleMenuProps) {
   const [linkValue, setLinkValue] = useState<string | null>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
-  const linkRangeRef = useRef<SelectionBookmark | null>(null)
+  const linkSelectionRef = useRef<LinkSelection | null>(null)
   const isEditingLink = linkValue !== null
 
   const [bubbleMenuKey] = useState(() => new PluginKey('markdownBubbleMenu'))
@@ -122,18 +175,25 @@ export function EditorBubbleMenu({
       transaction: Transaction
       appendedTransactions?: Transaction[]
     }) => {
-      let bookmark = linkRangeRef.current
-      if (!bookmark) return
-      for (const change of [transaction, ...appendedTransactions])
-        bookmark = bookmark.map(change.mapping)
-      const selection = bookmark.resolve(editor.state.doc)
-      linkRangeRef.current =
-        selection instanceof TextSelection && !selection.empty ? bookmark : null
-      if (!linkRangeRef.current) setLinkValue(null)
+      let captured = linkSelectionRef.current
+      if (!captured) return
+      for (const change of [transaction, ...appendedTransactions]) {
+        captured = {
+          target: mapSelection(editor, captured.target, change),
+          original: mapSelection(editor, captured.original, change),
+        }
+      }
+      const selection = resolveSelection(captured.target, editor.state.doc)
+      linkSelectionRef.current =
+        selection instanceof TextSelection && !selection.empty ? captured : null
+      if (!linkSelectionRef.current) setLinkValue(null)
     }
     const exitOnCollapse = () => {
       const { from, to } = editor.state.selection
-      if (from === to) setLinkValue(null)
+      if (from === to) {
+        linkSelectionRef.current = null
+        setLinkValue(null)
+      }
     }
     editor.on('selectionUpdate', exitOnCollapse)
     editor.on('transaction', mapLinkRange)
@@ -144,10 +204,8 @@ export function EditorBubbleMenu({
   }, [editor])
 
   /**
-   * Linear-style reveal: the toolbar stays hidden while the pointer is down (the drag gate in
-   * `shouldShow`) and surfaces on release. `mouseup`/`blur` listen on `window` so a release outside
-   * the editor — or off-screen, where no `mouseup` fires — still clears the drag flag; otherwise it
-   * could wedge `true` and suppress the toolbar for later keyboard selections.
+   * Window-level release/cancel/blur handlers clear the drag gate even outside the editor,
+   * preventing a lost pointer release from suppressing later keyboard selections.
    */
   useEffect(() => {
     const dom = editor.view.dom
@@ -163,19 +221,23 @@ export function EditorBubbleMenu({
     const onWindowBlur = () => {
       isPointerDownRef.current = false
     }
-    dom.addEventListener('mousedown', onPointerDown)
-    window.addEventListener('mouseup', onPointerUp)
+    dom.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onWindowBlur)
     window.addEventListener('blur', onWindowBlur)
     return () => {
-      dom.removeEventListener('mousedown', onPointerDown)
-      window.removeEventListener('mouseup', onPointerUp)
+      dom.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onWindowBlur)
       window.removeEventListener('blur', onWindowBlur)
     }
   }, [editor, bubbleMenuKey])
 
   const openLinkEditor = () => {
     if (!editor.isEditable || editor.isActive('codeBlock') || editor.isActive('code')) return
-    linkRangeRef.current = editor.state.selection.getBookmark()
+    const captured = captureLinkSelection(editor)
+    if (!captured) return
+    linkSelectionRef.current = captured
     setLinkValue(editor.getAttributes('link').href ?? '')
   }
 
@@ -192,10 +254,11 @@ export function EditorBubbleMenu({
       )
         return
       if (event.key?.toLowerCase() !== 'k') return
-      const { from, to } = editor.state.selection
-      if (from === to || editor.isActive('codeBlock') || editor.isActive('code')) return
+      if (editor.isActive('codeBlock') || editor.isActive('code')) return
+      const captured = captureLinkSelection(editor)
+      if (!captured) return
       event.preventDefault()
-      linkRangeRef.current = editor.state.selection.getBookmark()
+      linkSelectionRef.current = captured
       setLinkValue(editor.getAttributes('link').href ?? '')
     }
     dom.addEventListener('keydown', openLinkOnShortcut)
@@ -206,18 +269,30 @@ export function EditorBubbleMenu({
 
   const commitCapturedLink = (href: string) => {
     if (editor.isDestroyed || !editor.isEditable) return
-    const selection = linkRangeRef.current?.resolve(editor.state.doc)
+    const captured = linkSelectionRef.current
+    const selection = captured && resolveSelection(captured.target, editor.state.doc)
     if (selection instanceof TextSelection && !selection.empty) {
       applyLink(
         editor.chain().focus().setTextSelection({ from: selection.from, to: selection.to }),
         href
       )
     }
-    linkRangeRef.current = null
+    linkSelectionRef.current = null
     setLinkValue(null)
   }
   const commitLink = () => commitCapturedLink(linkValue ?? '')
   const removeLink = () => commitCapturedLink('')
+
+  const cancelLink = () => {
+    const captured = linkSelectionRef.current
+    linkSelectionRef.current = null
+    setLinkValue(null)
+    if (!captured || editor.isDestroyed) return
+    editor.view.dispatch(
+      editor.state.tr.setSelection(resolveSelection(captured.original, editor.state.doc))
+    )
+    editor.commands.focus()
+  }
 
   const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
   const canFocus = useCallback(
@@ -229,6 +304,7 @@ export function EditorBubbleMenu({
     pluginKey: bubbleMenuKey,
     roving: !isEditingLink,
     canFocus,
+    onEscape: isEditingLink ? cancelLink : undefined,
   })
 
   const shouldShow = useCallback(
@@ -267,7 +343,7 @@ export function EditorBubbleMenu({
               value={linkValue ?? ''}
               onChange={setLinkValue}
               onCommit={commitLink}
-              onCancel={() => setLinkValue(null)}
+              onCancel={cancelLink}
             />
             {active.link && (
               <ToolbarButton icon={Unlink} label='Remove link' onClick={removeLink} />

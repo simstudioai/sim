@@ -651,7 +651,13 @@ function operationFor(
   return {
     operationId: operation.operationId,
     summary: operation.summary,
-    description: operation.description,
+    description: operation.applicationOperation.oauthScope
+      ? `${operation.description}\n\nOAuth scope: \`${operation.applicationOperation.oauthScope}\`.`
+      : operation.description,
+    'x-sim-operation': operation.applicationOperation.id,
+    ...(operation.applicationOperation.oauthScope
+      ? { 'x-oauth-scope': operation.applicationOperation.oauthScope }
+      : {}),
     tags: [...operation.tags],
     ...(operation.deprecated === undefined ? {} : { deprecated: operation.deprecated }),
     ...(operation.security === undefined ? {} : { security: operation.security }),
@@ -666,6 +672,15 @@ function validateOperationMetadata(
   definition: OpenApiDocumentDefinition,
   label: string
 ): void {
+  nonEmpty(operation.applicationOperation.id, `${label} application operation id`)
+  const security = operation.security ?? definition.security
+  if (security.some((requirement) => 'oauthBearer' in requirement)) {
+    invariant(
+      operation.applicationOperation.oauthScope === 'api:read' ||
+        operation.applicationOperation.oauthScope === 'api:write',
+      `${label} must declare its canonical application's OAuth scope`
+    )
+  }
   nonEmpty(operation.operationId, `${label} operationId`)
   nonEmpty(operation.summary, `${label} summary`)
   nonEmpty(operation.description, `${label} description`)

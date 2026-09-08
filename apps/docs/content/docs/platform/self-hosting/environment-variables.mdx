@@ -123,6 +123,12 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).
 
+## Sign in with Sim
+
+| Variable | Description |
+| --- | --- |
+| `OAUTH_PROVIDER_ENABLED` | Fallback for the global `oauth-provider` feature flag when AppConfig is disabled or no AppConfig document has been loaded. Set to `true` only after the migration is applied and every older app instance is drained. With AppConfig, use `"oauth-provider": { "enabled": true }` in the existing `feature-flags` document instead. `DISABLE_AUTH=true` always forces it off. See [Authentication](/platform/self-hosting/authentication#sign-in-with-sim) |
+
 ## Integration Credentials
 
 <Callout type="warn">
@@ -245,6 +251,7 @@ Enterprise features are unlocked by configuration rather than billing on self-ho
 |----------|-------------|
 | `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
 | `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
 | `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |
@@ -311,7 +318,7 @@ Setting the variable to an empty string does **not** remove it: the chart reads 
 Null the variable in every layer that sets it. If it appears in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry lets the `envDefaults` value apply again and the limit stays in force. With External Secrets, also drop the key from `externalSecrets.remoteRefs.app`, which keeps syncing it independently. Confirm what the pod will actually receive before rolling out:
 
 ```bash
-helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+helm template sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 -f values.yaml | grep -A1 FREE_TABLE   # expect no output
 ```
 
 `null` deletion has no effect under `helm upgrade --reuse-values` — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm 3.14+). If you deploy with Argo CD, put the `null` in `valueFiles` or the `values` string rather than `valuesObject`, which strips nulls. On Docker Compose, delete the line from your `.env` file.

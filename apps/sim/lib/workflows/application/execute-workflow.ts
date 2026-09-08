@@ -18,7 +18,7 @@ export interface ExecuteWorkflowInput {
   selectedOutputs?: string[]
   requestedTimeoutSeconds?: number
   abortSignal?: AbortSignal
-  mode: 'sync' | 'async' | 'stream'
+  mode: 'sync' | 'async' | 'stream' | 'sync-result-stream'
   requestHeaders: Headers
   includeThinking?: boolean
   includeToolCalls?: boolean

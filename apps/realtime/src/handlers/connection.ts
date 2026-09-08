@@ -16,6 +16,13 @@ const logger = createLogger('ConnectionHandlers')
  */
 const PRESENCE_BEARING_TYPES = new Set<RoomRef['type']>([ROOM_TYPES.WORKFLOW, ROOM_TYPES.TABLE])
 
+const pendingDisconnects = new Set<Promise<void>>()
+
+/** Keep Redis available until disconnect listeners finish removing presence. */
+export async function waitForConnectionCleanup(): Promise<void> {
+  await Promise.all(pendingDisconnects)
+}
+
 export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('error', (error) => {
     logger.error(`Socket ${socket.id} error:`, error)
@@ -28,7 +35,7 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
   // `disconnecting` (not `disconnect`): here `socket.rooms` is still populated and
   // authoritative, so presence is cleaned up even if the Redis room-set key was
   // evicted or TTL-expired (which would leave the manager's stored rooms empty).
-  socket.on('disconnecting', async (reason) => {
+  const handleDisconnect = async (reason: string) => {
     try {
       // Snapshot the live Socket.IO room membership SYNCHRONOUSLY, before any
       // await: Socket.IO clears `socket.rooms` via leaveAll() as soon as the
@@ -91,5 +98,11 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
     } catch (error) {
       logger.error(`Error handling disconnect for socket ${socket.id}:`, error)
     }
+  }
+
+  socket.on('disconnecting', (reason) => {
+    const cleanup = handleDisconnect(reason)
+    pendingDisconnects.add(cleanup)
+    void cleanup.finally(() => pendingDisconnects.delete(cleanup))
   })
 }

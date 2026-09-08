@@ -4,7 +4,7 @@ import {
   isPayloadSizeLimitError,
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import { ensureFileNameExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -240,16 +240,13 @@ export function encodeFilenameForHeader(storageKey: string): string {
   return `filename="${asciiSafe}"; filename*=UTF-8''${encodeExtValue(filename)}`
 }
 
+/**
+ * Derives the served filename from the CALLER's content type (`getSecureFileHeaders`
+ * downgrades `text/html`) before the header decision, so a derived `.html` name gets the
+ * same forced-attachment treatment a stored `.html` file gets.
+ */
 export function createFileResponse(file: FileResponse): NextResponse {
-  // Sim pages store an extensionless name and serve/download as compiled
-  // HTML — re-append the extension so the saved file opens in a browser.
-  // Decided from the CALLER's content type (getSecureFileHeaders downgrades
-  // text/html), and BEFORE the header decision, so the .html name gets the
-  // same forced-attachment treatment a legacy .html file gets.
-  const servedFilename =
-    file.contentType === 'text/html' && !/\.[A-Za-z0-9]{1,8}$/.test(file.filename)
-      ? `${file.filename}.html`
-      : file.filename
+  const servedFilename = ensureFileNameExtension(file.filename, file.contentType)
 
   const { contentType, disposition } = getSecureFileHeaders(servedFilename, file.contentType)
 

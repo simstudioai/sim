@@ -1,7 +1,8 @@
 import { v2ListChatDeploymentsContract } from '@/lib/api/contracts/v2/chat-deployments'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { chatDeploymentOperations, listChatDeployments } from '@/lib/chat-deployments/application'
+import { listChatDeployments } from '@/lib/chat-deployments/application'
+import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
 import {
   chatDeploymentWorkspaceErrorPolicy,
   toV2ChatDeploymentListItem,

@@ -9,6 +9,7 @@ import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
+import type { ExecutionResult } from '@/executor/types'
 import type { AgentStreamSink } from '@/providers/stream-events'
 
 const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
@@ -100,6 +101,39 @@ describe('createStreamingResponse', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
+  })
+
+  it('emits an immediate keepalive and repeats it while execution is silent', async () => {
+    vi.useFakeTimers()
+    let finishExecution!: (result: ExecutionResult) => void
+    try {
+      const stream = await createStreamingResponse({
+        requestId: 'request-keepalive',
+        executionId: 'execution-1',
+        streamConfig: {},
+        executeFn: async () =>
+          await new Promise<ExecutionResult>((resolve) => {
+            finishExecution = resolve
+          }),
+      })
+      const reader = stream.getReader()
+      const decoder = new TextDecoder()
+
+      expect(decoder.decode((await reader.read()).value)).toBe(': keepalive\n\n')
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(decoder.decode((await reader.read()).value)).toBe(': keepalive\n\n')
+
+      finishExecution({
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+        metadata: { duration: 1 },
+      })
+      while (!(await reader.read()).done) {}
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('forwards raw execution state to terminal logging', async () => {

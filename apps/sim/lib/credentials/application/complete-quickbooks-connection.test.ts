@@ -159,6 +159,30 @@ describe('completeQuickBooksConnection', () => {
     })
   })
 
+  it('never persists the Intuit identity token', async () => {
+    queueTableRows(account, [])
+    mocks.exchangeAuthorizationCode.mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      idToken: 'intuit-oidc-identity-jwt',
+      accessTokenExpiresIn: 3600,
+      refreshTokenExpiresIn: 8_726_400,
+      scope: '',
+    })
+
+    await completeQuickBooksConnection.execute({
+      principal,
+      input: {
+        draftId: 'draft-1',
+        code: 'authorization-code',
+        realmId: '1234567890',
+        redirectUri: 'https://sim.test/api/auth/oauth2/callback/quickbooks',
+      },
+    })
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ idToken: null }))
+  })
+
   it('fails before token exchange when the draft does not carry encrypted app credentials', async () => {
     mocks.getActiveDraft.mockResolvedValueOnce({
       id: 'draft-1',

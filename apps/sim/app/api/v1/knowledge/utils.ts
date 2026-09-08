@@ -58,7 +58,7 @@ export async function resolveKnowledgeBase(
  */
 export async function resolveV1KnowledgeAccessScope(
   userId: string,
-  rateLimit: { keyType?: 'personal' | 'workspace' },
+  rateLimit: { keyType?: 'personal' | 'workspace' | 'oauth_access_token' },
   workspaceId: string | undefined
 ): Promise<KnowledgeAccessScope> {
   if (rateLimit.keyType === 'workspace') return WORKSPACE_ACCESS_SCOPE

@@ -163,11 +163,11 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           { text: ', with heading', field: 'promptsTitle' },
         ],
         list_channels: [
+          'List Slack conversations',
           {
-            text: 'List up to',
+            text: ', in pages of',
             field: 'channelLimit',
-            after: 'channels',
-            core: true,
+            after: 'items',
           },
         ],
         list_members: [
@@ -762,13 +762,25 @@ Do not include any explanations, markdown formatting, or other text outside the 
     },
     {
       id: 'channelLimit',
-      title: 'Channel Limit',
+      title: 'Conversations Per Page',
       type: 'short-input',
       placeholder: '100',
       condition: {
         field: 'operation',
         value: 'list_channels',
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'channelMaxPages',
+      title: 'Max Pages',
+      type: 'short-input',
+      placeholder: '200',
+      condition: {
+        field: 'operation',
+        value: 'list_channels',
+      },
+      mode: 'advanced',
     },
     // List Members specific fields
     {
@@ -1911,6 +1923,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           emojiName,
           includePrivate,
           channelLimit,
+          channelMaxPages,
           memberLimit,
           includeDeleted,
           userLimit,
@@ -2127,7 +2140,26 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           case 'list_channels': {
             baseParams.includePrivate = includePrivate !== 'false'
             baseParams.excludeArchived = true
-            baseParams.limit = channelLimit ? Number.parseInt(channelLimit, 10) : 100
+            const hasChannelLimit =
+              channelLimit !== undefined &&
+              channelLimit !== null &&
+              (typeof channelLimit !== 'string' || Boolean(channelLimit.trim()))
+            const parsedLimit = hasChannelLimit ? Number(channelLimit) : 100
+            if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
+              throw new Error('Conversations per page must be an integer between 1 and 200')
+            }
+            baseParams.limit = parsedLimit
+            const hasChannelMaxPages =
+              channelMaxPages !== undefined &&
+              channelMaxPages !== null &&
+              (typeof channelMaxPages !== 'string' || Boolean(channelMaxPages.trim()))
+            if (hasChannelMaxPages) {
+              const parsedMaxPages = Number(channelMaxPages)
+              if (!Number.isInteger(parsedMaxPages) || parsedMaxPages < 1 || parsedMaxPages > 200) {
+                throw new Error('Max pages must be an integer between 1 and 200')
+              }
+              baseParams.maxPages = parsedMaxPages
+            }
             if (paginationCursor) {
               baseParams.cursor = String(paginationCursor).trim()
             }
@@ -2393,7 +2425,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
     // List Channels inputs
     includePrivate: { type: 'string', description: 'Include private channels (true/false)' },
-    channelLimit: { type: 'string', description: 'Maximum number of channels to return' },
+    channelLimit: { type: 'string', description: 'Conversations to request per Slack page' },
+    channelMaxPages: { type: 'string', description: 'Maximum Slack pages to fetch (max 200)' },
     // List Members inputs
     memberLimit: { type: 'string', description: 'Maximum number of members to return' },
     // List Users inputs
@@ -2600,13 +2633,14 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     },
     hasMore: {
       type: 'boolean',
-      description: 'Whether there are more messages in the thread',
+      description:
+        'Whether more thread messages or provider pages remain beyond the fetched window',
     },
 
     // slack_get_channel_history / slack_get_thread_replies pagination outputs
     pages: {
       type: 'number',
-      description: 'Number of pages fetched during a paginated history/replies read',
+      description: 'Number of provider pages fetched during a paginated read',
     },
     threadTs: {
       type: 'string',
@@ -2623,7 +2657,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     channels: {
       type: 'json',
       description:
-        'Array of accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
+        'Array of up to 10,000 accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
     },
     count: {
       type: 'number',

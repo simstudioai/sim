@@ -131,7 +131,11 @@ export function OrganizationMemberLists({
         name={member.name}
         email={member.email}
         image={member.image}
-        status={`Joined ${formatDate(new Date(member.createdAt))}`}
+        status={
+          member.suspendedAt
+            ? 'Deactivated by your directory'
+            : `Joined ${formatDate(new Date(member.createdAt))}`
+        }
         roleControl={
           editable ? (
             <ChipDropdown
@@ -311,7 +315,11 @@ export function OrganizationMemberLists({
         name={member.name}
         email={member.email}
         image={member.image}
-        status={`Joined ${formatDate(new Date(member.createdAt))}`}
+        status={
+          member.suspendedAt
+            ? 'Deactivated by your directory'
+            : `Joined ${formatDate(new Date(member.createdAt))}`
+        }
         roleControl={
           <RoleLockTooltip reason={lockReason}>
             <ChipDropdown

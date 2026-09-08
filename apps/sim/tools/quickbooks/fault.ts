@@ -13,6 +13,22 @@ const QUICKBOOKS_MAX_FAULT_FIELD_CHARS = 500
 const QUICKBOOKS_FAULT_FIELDS = ['code', 'Message', 'Detail', 'element'] as const
 
 /**
+ * Documented `Fault.type` classifications, which separate a rejected payload
+ * from an expired or unauthorized token. Intuit's own pages render these both
+ * with and without the `Fault` suffix — `type="ValidationFault"` in one sample,
+ * `type="Validation"` in another — so they are matched by prefix and reported
+ * under a single spelling.
+ */
+const QUICKBOOKS_FAULT_TYPES = ['Authentication', 'Authorization', 'Validation', 'System'] as const
+
+function normalizeQuickBooksFaultType(value: unknown): string | undefined {
+  const type = typeof value === 'string' ? value.trim() : ''
+  if (!type) return undefined
+  const known = QUICKBOOKS_FAULT_TYPES.find((candidate) => type.startsWith(candidate))
+  return known ? `${known}Fault` : truncate(type, QUICKBOOKS_MAX_FAULT_FIELD_CHARS, '')
+}
+
+/**
  * Intuit error code and message for an outdated `SyncToken`.
  * @see Fault sample `{"Message": "Stale Object Error", "code": "5010"}`
  */
@@ -25,6 +41,8 @@ const QUICKBOOKS_STALE_OBJECT_GUIDANCE =
 export interface SanitizedQuickBooksFault {
   Fault: {
     Error: Array<Record<string, string>>
+    /** Documented Intuit fault classification, normalized by prefix. */
+    type?: string
     /**
      * Count of `Error` entries dropped by {@link QUICKBOOKS_MAX_FAULT_ERRORS}.
      * Preserved across repeated sanitization so a value that round-trips
@@ -72,9 +90,12 @@ export function sanitizeQuickBooksFaultData(data: unknown): SanitizedQuickBooksF
   const carriedOmitted = typeof priorOmitted === 'number' && priorOmitted > 0 ? priorOmitted : 0
   const omittedErrorCount = carriedOmitted + Math.max(0, usableErrorCount - sanitizedErrors.length)
 
+  const type = normalizeQuickBooksFaultType((fault as Record<string, unknown>).type)
+
   return {
     Fault: {
       Error: sanitizedErrors,
+      ...(type ? { type } : {}),
       ...(omittedErrorCount > 0 ? { omittedErrorCount } : {}),
     },
   }
@@ -91,7 +112,8 @@ function hasQuickBooksStaleObjectError(fault: SanitizedQuickBooksFault): boolean
 /**
  * Renders a sanitized fault as a single human-readable detail string.
  *
- * Each entry becomes `code: Message: Detail (element)`. Entries dropped by the
+ * The documented fault classification leads, then each entry becomes
+ * `code: Message: Detail (element)`. Entries dropped by the
  * sanitizer are reported as a trailing count, and a stale-`SyncToken` fault
  * gains explicit remediation guidance because retrying is never correct.
  */
@@ -110,6 +132,7 @@ export function formatQuickBooksFaultDetail(fault: SanitizedQuickBooksFault): st
 
   const omitted = fault.Fault.omittedErrorCount ?? 0
   return [
+    details.length > 0 && fault.Fault.type ? `${fault.Fault.type}:` : '',
     details.join('; '),
     omitted > 0
       ? `(${omitted} additional QuickBooks error${omitted === 1 ? '' : 's'} omitted)`

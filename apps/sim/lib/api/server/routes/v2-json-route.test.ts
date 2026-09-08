@@ -30,6 +30,8 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import {
+  admitOptionalV2Request,
+  admitV2Request,
   defineV2JsonRoute,
   type V2ErrorPolicy,
   v2ApiKeyAuth,
@@ -38,7 +40,7 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes/v2-json-route'
 
-const operation = { id: 'widgets.update' } as const
+const operation = { id: 'widgets.update', capability: 'none', oauthScope: 'api:write' } as const
 const principal: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',
   userId: 'user-1',
@@ -148,7 +150,11 @@ describe('defineV2JsonRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.preauthRate.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt,
+    })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
 
@@ -226,14 +232,14 @@ describe('defineV2JsonRoute', () => {
 
   it('renders invalid credentials as 401 without continuing admission', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
+      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
     )
 
     const response = await createHandler()(request())
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'UNAUTHORIZED', message: 'API key required' },
+      error: { code: 'UNAUTHORIZED', message: 'API key or OAuth access token required' },
     })
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
   })
@@ -327,7 +333,12 @@ describe('defineV2JsonRoute', () => {
     const present = vi.fn<(result: Result) => { data: { value: string } }>()
     const onSuccess = vi.fn()
     const mapInput = vi.fn<(input: ParsedRequest<typeof contract>) => Input>()
-    const response = await createHandler({ execute, present, onSuccess, mapInput })(request({}))
+    const response = await createHandler({
+      execute,
+      present,
+      onSuccess,
+      mapInput,
+    })(request({}))
 
     expect(response.status).toBe(400)
     expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
@@ -384,7 +395,10 @@ describe('defineV2JsonRoute', () => {
 
     expect(response.status).toBe(499)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'CLIENT_CLOSED_REQUEST', message: 'Client cancelled request' },
+      error: {
+        code: 'CLIENT_CLOSED_REQUEST',
+        message: 'Client cancelled request',
+      },
     })
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
@@ -440,7 +454,10 @@ describe('defineV2JsonRoute', () => {
 
     expect(response.status).toBe(413)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
+      error: {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Request body is too large',
+      },
     })
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
@@ -452,7 +469,12 @@ describe('defineV2JsonRoute', () => {
         maxBodyBytes,
         payloadTooLargeResponse: () =>
           NextResponse.json(
-            { error: { code: 'PAYLOAD_TOO_LARGE', message: 'Import archive is too large' } },
+            {
+              error: {
+                code: 'PAYLOAD_TOO_LARGE',
+                message: 'Import archive is too large',
+              },
+            },
             { status: 413 }
           ),
       },
@@ -460,7 +482,10 @@ describe('defineV2JsonRoute', () => {
 
     expect(response.status).toBe(413)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Import archive is too large' },
+      error: {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Import archive is too large',
+      },
     })
   })
 })
@@ -481,7 +506,11 @@ describe('defineV2JsonRoute unreadable body classification', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.preauthRate.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt,
+    })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
 
@@ -526,7 +555,10 @@ describe('defineV2JsonRoute unreadable body classification', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Request body must be valid JSON',
+      },
     })
   })
 
@@ -568,7 +600,12 @@ describe('defineV2JsonRoute unreadable body classification', () => {
       parseOptions: {
         invalidJsonResponse: () =>
           NextResponse.json(
-            { error: { code: 'BAD_REQUEST', message: 'Import archive is not JSON' } },
+            {
+              error: {
+                code: 'BAD_REQUEST',
+                message: 'Import archive is not JSON',
+              },
+            },
             { status: 400 }
           ),
       },
@@ -598,7 +635,10 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
     path: '/api/v2/widgets/[widgetId]',
     params: z.object({ widgetId: z.string() }).strict(),
     query: z.object({ workspaceId: z.string().min(1) }).strict(),
-    response: { mode: 'json', schema: z.object({ data: z.object({ value: z.string() }) }) },
+    response: {
+      mode: 'json',
+      schema: z.object({ data: z.object({ value: z.string() }) }),
+    },
   })
 
   type HeadInput = { widgetId: string; workspaceId: string }
@@ -620,7 +660,10 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
       headSafe: false,
       rateLimit: v2RateLimits.publicApi,
       errorPolicy: v2OrchestrationErrorPolicy,
-      mapInput: ({ params, query }) => ({ widgetId: params.widgetId, ...query }),
+      mapInput: ({ params, query }) => ({
+        widgetId: params.widgetId,
+        ...query,
+      }),
       useCase,
       present: (result) => ({ data: result }),
     })
@@ -638,7 +681,11 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.preauthRate.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt,
+    })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
 
@@ -738,7 +785,10 @@ const presenterContract = defineRouteContract({
   response: {
     mode: 'json',
     status: 201,
-    schema: z.object({ data: z.object({ value: z.string() }), nextCursor: z.string() }),
+    schema: z.object({
+      data: z.object({ value: z.string() }),
+      nextCursor: z.string(),
+    }),
   },
 })
 
@@ -752,7 +802,11 @@ describe('defineV2JsonRoute presentation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.preauthRate.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt,
+    })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
 
@@ -776,7 +830,10 @@ describe('defineV2JsonRoute presentation', () => {
     const response = await handler(
       new NextRequest('http://localhost/api/v2/widgets/widget-1/pages?sort=asc&workspaceId=ws-1', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': 'secret',
+        },
         body: JSON.stringify({ value: 'ok' }),
       }),
       { params: Promise.resolve({ widgetId: 'widget-1' }) }
@@ -795,5 +852,170 @@ describe('defineV2JsonRoute presentation', () => {
         body: { value: 'ok' },
       })
     )
+  })
+})
+
+describe('defineV2JsonRoute OAuth scope admission', () => {
+  const oauthAuth = (scopes: readonly string[]) =>
+    ({
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        clientId: 'sim-cli',
+        tokenId: 'token-1',
+        scopes,
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      rateLimitSubjectIds: ['oauth-token:token-1', 'user:user-1'],
+      rateLimitSubscription: null,
+      keyType: 'oauth_access_token',
+      keyExpiresAt: null,
+    }) as unknown as V2ApiKeyAuthContext
+
+  function bearerRequest(): NextRequest {
+    return new NextRequest('http://localhost/api/v2/widgets', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer sim_oat_x',
+      },
+      body: JSON.stringify({ value: 'ok' }),
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.preauthRate.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt,
+    })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('refuses a read-only token on a semantic write before the use case runs', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+    const execute = vi.fn()
+
+    const response = await createHandler({ execute })(bearerRequest(), {
+      params: undefined,
+    })
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('www-authenticate')).toContain('insufficient_scope')
+    expect(response.headers.get('www-authenticate')).toContain('api:write')
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('admits the same token once the grant carries api:write', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read', 'api:write']))
+
+    const response = await createHandler()(bearerRequest(), {
+      params: undefined,
+    })
+
+    expect(response.status).toBe(201)
+  })
+
+  it('returns a bearer challenge when the token expires after authentication', async () => {
+    const expiredAuth = oauthAuth(['api:write'])
+    expiredAuth.principal = {
+      ...expiredAuth.principal,
+      expiresAt: new Date(0),
+    } as V2ApiKeyAuthContext['principal']
+    v2RouteMocks.authenticate.mockResolvedValue(expiredAuth)
+    const execute = vi.fn()
+
+    const response = await createHandler({ execute })(bearerRequest(), { params: undefined })
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toContain('Bearer')
+    expect(execute).not.toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
+  })
+
+  it('admits a read-only token on a semantic read using POST', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+    const readOperation = { ...operation, oauthScope: 'api:read' } as const
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation: readOperation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation: readOperation, execute: async ({ input }) => input },
+      present: (result) => ({ data: result }),
+    })
+
+    const response = await handler(bearerRequest(), { params: undefined })
+
+    expect(response.status).toBe(201)
+  })
+
+  it('leaves an API-key principal alone, which carries no scopes at all', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+
+    const response = await createHandler()(request(), { params: undefined })
+
+    expect(response.status).toBe(201)
+  })
+
+  it('enforces write scope through raw-route admission', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+
+    const admission = await admitV2Request(
+      bearerRequest(),
+      operation,
+      v2ApiKeyAuth,
+      v2RateLimits.publicApi
+    )
+
+    expect(admission.success).toBe(false)
+    if (admission.success) throw new Error('Expected admission to fail')
+    expect(admission.response.status).toBe(403)
+    expect(admission.response.headers.get('www-authenticate')).toContain('api:write')
+  })
+
+  it('enforces write scope through optional raw-route admission when a credential is present', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+
+    const admission = await admitOptionalV2Request(
+      bearerRequest(),
+      operation,
+      v2ApiKeyAuth,
+      v2RateLimits.publicApi
+    )
+
+    expect(admission.success).toBe(false)
+    if (admission.success) throw new Error('Expected admission to fail')
+    expect(admission.response.status).toBe(403)
+    expect(admission.response.headers.get('www-authenticate')).toContain('api:write')
+  })
+
+  it('allows a semantic read through raw POST admission', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+
+    const admission = await admitV2Request(
+      bearerRequest(),
+      { ...operation, oauthScope: 'api:read' },
+      v2ApiKeyAuth,
+      v2RateLimits.publicApi
+    )
+
+    expect(admission.success).toBe(true)
+  })
+
+  it('requires api:write for an effectful raw GET', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+    const request = new NextRequest('http://localhost/api/v2/widgets', {
+      headers: { authorization: 'Bearer sim_oat_x' },
+    })
+
+    const admission = await admitV2Request(request, operation, v2ApiKeyAuth, v2RateLimits.publicApi)
+
+    expect(admission.success).toBe(false)
+    if (admission.success) throw new Error('Expected admission to fail')
+    expect(admission.response.headers.get('www-authenticate')).toContain('api:write')
   })
 })

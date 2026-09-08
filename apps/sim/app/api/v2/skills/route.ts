@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import { v2CreateSkillContract, v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
@@ -69,7 +70,7 @@ export const POST = defineV2JsonRoute({
   mapInput: ({ body }) => ({ ...body, source: 'api' as const }),
   useCase: createSkillUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (principal.kind !== 'personal_api_key') return
+    if (!isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'skill_created',

@@ -111,6 +111,64 @@ describe('executeTool', () => {
     expect(grant).toHaveBeenCalledTimes(navigations.length)
   })
 
+  it('keeps the 400ms hydration grace without rediscovering a completed load', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const navigation = driver.executeTool('chat-test', 'browser_navigate', {
+        url: 'http://127.0.0.1/loaded',
+      })
+      void navigation.then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(contents.loadURL).toHaveBeenCalledWith('http://127.0.0.1/loaded')
+
+      await vi.advanceTimersByTimeAsync(399)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(settled).toBe(true)
+      await expect(navigation).resolves.toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('still waits for a replacement load after loadURL has resolved', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.isLoading).mockReturnValue(true)
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const navigation = driver.executeTool('chat-test', 'browser_navigate', {
+        url: 'http://127.0.0.1/loading',
+      })
+      void navigation.then(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(500)
+      expect(settled).toBe(false)
+      vi.mocked(contents.isLoading).mockReturnValue(false)
+      for (const [event, listener] of vi.mocked(contents.on).mock.calls) {
+        if (String(event) === 'did-stop-loading') {
+          const onLoadComplete = listener as (...args: unknown[]) => void
+          onLoadComplete()
+        }
+      }
+      await vi.advanceTimersByTimeAsync(399)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(settled).toBe(true)
+      await expect(navigation).resolves.toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reports an aborted navigation when Chromium never leaves the current URL', async () => {
     vi.useFakeTimers()
     try {
@@ -2013,6 +2071,210 @@ describe('credential protection', () => {
       .mock.calls.filter(([called]) => called === method)
   }
 
+  async function openForm(
+    options: {
+      refuseAt?: number
+      retainValue?: boolean
+      afterWrite?: (index: number) => void
+      waitForWrite?: Promise<void>
+    } = {}
+  ) {
+    const contents = await openPage()
+    const values = ['', '']
+    const writes: number[] = []
+    const dialogs: string[] = []
+    let selectionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+      const encoded = expression.match(/\.apply\(null, (\[[^\n]*\])\)/)?.[1]
+      const args: unknown[] = encoded ? JSON.parse(encoded) : []
+      const index = Number(args[0]) - 1
+      if (isPageCall(expression, 'collectSnapshot'))
+        return {
+          url: 'https://example.com/login',
+          title: 'Form',
+          outline: '- combobox "First" [ref=1]\n- combobox "Second" [ref=2]',
+          truncated: false,
+          refIds: [1, 2],
+          refLineIndexes: { 1: 0, 2: 1 },
+          nextElementId: 3,
+        }
+      if (isPageCall(expression, 'readPageActionState'))
+        return {
+          url: contents.getURL(),
+          dialogs: [...dialogs],
+          popups: [],
+          observationTruncated: false,
+        }
+      if (isPageCall(expression, 'readFormFieldState')) {
+        if (index === options.refuseAt) return { error: 'password' }
+        return {
+          matchesRequested: values[index] === args[2],
+          valueLength: values[index].length,
+          valuePreview: values[index],
+          redacted: false,
+        }
+      }
+      if (isPageCall(expression, 'clickElement'))
+        return { dispatched: false, x: 24, y: 48, element: 'Select' }
+      if (isPageCall(expression, 'selectOptionInElement')) {
+        writes.push(index)
+        await options.waitForWrite
+        const requested = String(args[1])
+        if (options.retainValue !== false) values[index] = requested
+        options.afterWrite?.(index)
+        return { selected: requested, value: requested }
+      }
+      if (isPageCall(expression, 'readSelectElementState')) {
+        selectionReads++
+        return { selected: values[index], value: values[index] }
+      }
+      return undefined
+    })
+    const snapshot = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    expect(snapshot, JSON.stringify(snapshot)).toMatchObject({ ok: true })
+    return { contents, values, writes, dialogs, selectionReads: () => selectionReads }
+  }
+
+  const formFields = [
+    { elementId: 1, kind: 'select', value: 'first' },
+    { elementId: 2, kind: 'select', value: 'second' },
+  ]
+
+  it('fills known form fields in order and verifies every final value', async () => {
+    const form = await openForm()
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(result.result, JSON.stringify(result)).toMatchObject({ completed: true })
+    expect(form.writes).toEqual([0, 1])
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: true,
+        completedCount: 2,
+        results: [
+          { index: 0, verified: true, valuePreview: 'first' },
+          { index: 1, verified: true, valuePreview: 'second' },
+        ],
+      },
+    })
+  })
+
+  it.each([
+    { fields: [] },
+    {
+      fields: Array.from({ length: 9 }, (_, elementId) => ({ elementId, kind: 'text', text: 'x' })),
+    },
+    { fields: [formFields[0], { ...formFields[1], submit: true }] },
+    { fields: [formFields[0], formFields[0]] },
+    { fields: [{ elementId: 0, kind: 'text', text: 'x'.repeat(4097) }] },
+  ])('validates the entire bounded form payload before writing', async (params) => {
+    const form = await openForm()
+    expect(await driver.executeTool('chat-test', 'browser_fill_form', params)).toMatchObject({
+      ok: false,
+    })
+    expect(form.writes).toEqual([])
+  })
+
+  it('preflights later secret fields before changing earlier fields', async () => {
+    const form = await openForm({ refuseAt: 1 })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([])
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 0, stoppedIndex: 1 },
+    })
+  })
+
+  it('does not mistake dispatch or weak effects for a retained requested value', async () => {
+    const form = await openForm({ retainValue: false })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([0])
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        completedCount: 0,
+        stoppedIndex: 0,
+        results: [{ verified: false }],
+        doNotRetry: true,
+      },
+    })
+  })
+
+  it('returns verified partial results and skips later fields when a dialog opens', async () => {
+    const form: Awaited<ReturnType<typeof openForm>> = await openForm({
+      afterWrite: () => form.dialogs.push('Confirm'),
+    })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([0])
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        completedCount: 1,
+        results: [{ verified: true }],
+        doNotRetry: true,
+      },
+    })
+  })
+
+  it('stops before the next field after same-document navigation', async () => {
+    const form: Awaited<ReturnType<typeof openForm>> = await openForm({
+      afterWrite: () => vi.mocked(form.contents.getURL).mockReturnValue('https://example.com/next'),
+    })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([0])
+    expect(result).toMatchObject({ ok: true, result: { completed: false, doNotRetry: true } })
+  })
+
+  it('detects a later field changing an earlier completed field', async () => {
+    const form: Awaited<ReturnType<typeof openForm>> = await openForm({
+      afterWrite: (index) => {
+        if (index === 1) form.values[0] = 'changed'
+      },
+    })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        stoppedIndex: 0,
+        results: [{ verified: false }, { verified: true }],
+      },
+    })
+  })
+
+  it('prevents later form writes after cancellation even if the pending page call resolves late', async () => {
+    let releaseWrite: () => void = () => {}
+    const waitForWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const form = await openForm({ waitForWrite })
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_fill_form',
+      { fields: formFields },
+      'cancel-form'
+    )
+    await vi.waitFor(() => expect(form.writes).toEqual([0]))
+    driver.cancelTool('chat-test', 'cancel-form')
+    expect(await pending).toMatchObject({ ok: false, error: expect.stringContaining('cancelled') })
+    releaseWrite()
+    await vi.waitFor(() => expect(form.selectionReads()).toBe(1))
+    expect(form.writes).toEqual([0])
+  })
+
   function mockScreenshotImage(size: { width: number; height: number } | null): void {
     vi.mocked(nativeImage.createFromBuffer).mockReturnValueOnce({
       isEmpty: vi.fn(() => size === null),
@@ -2199,6 +2461,35 @@ describe('credential protection', () => {
     })
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
   })
+
+  it('accepts empty text and sends it through native insertion to clear a field', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      focusElementForTyping: { focused: true, kind: 'input', x: 24, y: 48 },
+      readActiveElementState: { activeElement: 'input', valueLength: 0, valuePreview: '' },
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_type', { elementId: 0, text: '' })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true, trusted: true } })
+    expect(cdpCalls(contents, 'Input.insertText')).toEqual([['Input.insertText', { text: '' }]])
+  })
+
+  it.each([{}, { text: undefined }, { text: null }, { text: 7 }, { text: false }])(
+    'rejects missing or nonstring text before native input',
+    async (params) => {
+      const contents = await openPage()
+      const result = await driver.executeTool('chat-test', 'browser_type', {
+        elementId: 0,
+        ...params,
+      })
+
+      expect(result).toMatchObject({ ok: false, error: expect.stringContaining('text') })
+      expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+      expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+    }
+  )
 
   it('types through a focused combobox suggestions popup without pointer probing', async () => {
     const contents = await openPage()
@@ -2406,7 +2697,7 @@ describe('credential protection', () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: 'Scroll direction must be "up" or "down".',
+      error: 'Scroll direction must be "up", "down", "left", or "right".',
     })
     expect(
       vi
@@ -2414,6 +2705,35 @@ describe('credential protection', () => {
         .mock.calls.some(([expression]) => isPageCall(String(expression), 'scrollPage'))
     ).toBe(false)
   })
+
+  it.each(['left', 'right'])(
+    'accepts browser_scroll %s and returns horizontal movement',
+    async (direction) => {
+      const contents = await openPage()
+      const movedBy = direction === 'left' ? -100 : 100
+      respondWith(contents, {
+        scrollPage: {
+          target: 'Table columns',
+          targetSource: 'viewport-center',
+          movedBy,
+          scrollLeft: 300,
+          scrollWidth: 1_000,
+          clientWidth: 200,
+          atLeft: false,
+          atRight: false,
+          atTop: true,
+          atBottom: true,
+        },
+      })
+
+      expect(
+        await driver.executeTool('chat-test', 'browser_scroll', { direction, amount: 100 })
+      ).toMatchObject({
+        ok: true,
+        result: { movedBy, scrollLeft: 300, atLeft: false, atRight: false },
+      })
+    }
+  )
 
   it('confirms a click when the requested target changes semantic state', async () => {
     const contents = await openPage()

@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
  * Credential groups collect OAuth credentials from people outside the workspace

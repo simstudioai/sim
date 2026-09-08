@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkspaceInvitation,
@@ -97,6 +98,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       } catch (error) {
         if (error instanceof WorkspaceInvitationError) {
           failed.push({ email: error.email ?? normalizedEmail, error: error.message })
+          continue
+        }
+        /** A directory-managed address is refused with its reason, like any other per-email refusal. */
+        if (error instanceof ForbiddenOperationError) {
+          failed.push({ email: normalizedEmail, error: error.message })
           continue
         }
 

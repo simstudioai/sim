@@ -31,6 +31,11 @@ export function verifyQuickBooksSignature(
   )
 }
 
+function unauthorized(requestId: string, reason: string): NextResponse {
+  logger.warn(`[${requestId}] ${reason}`)
+  return new NextResponse('Unauthorized', { status: 401 })
+}
+
 export function verifyQuickBooksSignatureAgainstVerifierTokens(
   rawBody: string,
   signature: string | null,
@@ -41,12 +46,10 @@ export function verifyQuickBooksSignatureAgainstVerifierTokens(
     new Set(verifierTokens.map((token) => token.trim()).filter(Boolean))
   )
   if (configuredTokens.length === 0) {
-    logger.warn(`[${requestId}] QuickBooks webhook verifier token is not configured`)
-    return new NextResponse('Unauthorized', { status: 401 })
+    return unauthorized(requestId, 'QuickBooks webhook verifier token is not configured')
   }
   if (!signature) {
-    logger.warn(`[${requestId}] QuickBooks webhook is missing intuit-signature`)
-    return new NextResponse('Unauthorized', { status: 401 })
+    return unauthorized(requestId, 'QuickBooks webhook is missing intuit-signature')
   }
 
   const receivedSignature = signature.trim()
@@ -56,10 +59,37 @@ export function verifyQuickBooksSignatureAgainstVerifierTokens(
     isValid = safeCompare(expected, receivedSignature) || isValid
   }
   if (!isValid) {
-    logger.warn(`[${requestId}] QuickBooks webhook signature verification failed`)
-    return new NextResponse('Unauthorized', { status: 401 })
+    return unauthorized(requestId, 'QuickBooks webhook signature verification failed')
   }
   return null
+}
+
+/**
+ * Verifies the delivery against verifier tokens produced one at a time, stopping at the first
+ * match so an app-level webhook does not decrypt every connected account before acknowledging.
+ */
+export async function verifyQuickBooksSignatureAgainstVerifierTokenStream(
+  rawBody: string,
+  signature: string | null,
+  verifierTokens: AsyncIterable<string>,
+  requestId: string
+): Promise<NextResponse | null> {
+  if (!signature) {
+    return unauthorized(requestId, 'QuickBooks webhook is missing intuit-signature')
+  }
+
+  const receivedSignature = signature.trim()
+  let sawConfiguredToken = false
+  for await (const verifierToken of verifierTokens) {
+    const trimmedToken = verifierToken.trim()
+    if (!trimmedToken) continue
+    sawConfiguredToken = true
+    if (safeCompare(hmacSha256Base64(rawBody, trimmedToken), receivedSignature)) return null
+  }
+  if (!sawConfiguredToken) {
+    return unauthorized(requestId, 'QuickBooks webhook verifier token is not configured')
+  }
+  return unauthorized(requestId, 'QuickBooks webhook signature verification failed')
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -131,14 +161,17 @@ export const quickBooksHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const event = asRecord(body) ?? {}
     const eventType = typeof event.type === 'string' ? event.type : ''
-    const { parseQuickBooksWebhookType } = await import('@/triggers/quickbooks/quickbooks')
+    const { getQuickBooksTriggerDefinitionByEntity, parseQuickBooksWebhookType } = await import(
+      '@/triggers/quickbooks/quickbooks'
+    )
     const parsed = parseQuickBooksWebhookType(eventType)
+    const definition = parsed ? getQuickBooksTriggerDefinitionByEntity(parsed.entity) : undefined
 
     return {
       input: {
         eventId: typeof event.id === 'string' ? event.id : '',
         eventType,
-        entityType: parsed?.entity ?? '',
+        entityType: definition?.entityType ?? '',
         action: parsed?.action ?? '',
         entityId: typeof event.intuitentityid === 'string' ? event.intuitentityid : '',
         realmId: typeof event.intuitaccountid === 'string' ? event.intuitaccountid : '',

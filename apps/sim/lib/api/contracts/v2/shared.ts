@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
+import { FORBIDDEN_DETAIL_CODES } from '@/lib/core/application/forbidden'
 import {
   FolderPathError,
   MAX_FOLDER_PATH_BYTES,
@@ -186,6 +183,21 @@ export const v2ResourceWebUrlSchema = z
   .url()
   .describe('Canonical absolute URL for opening this resource in the Sim web application.')
 
+export const v2ForbiddenDetailCodeSchema = z.enum(FORBIDDEN_DETAIL_CODES).meta({
+  id: 'V2ForbiddenDetailCode',
+  title: 'Forbidden detail code',
+  description: 'Stable cause code for an actionable `403` response.',
+})
+
+const v2ActionableForbiddenDetailsSchema = z
+  .object({ code: v2ForbiddenDetailCodeSchema })
+  .catchall(z.unknown().describe('Additional context for this refusal.'))
+  .meta({
+    id: 'V2ActionableForbiddenDetails',
+    title: 'Actionable forbidden details',
+    description: 'Machine-readable cause and optional context for an actionable `403` response.',
+  })
+
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
   error: z
@@ -193,15 +205,13 @@ export const v2ErrorResponseSchema = z.object({
       code: z.string().describe('Stable machine-readable error code.'),
       message: z.string().describe('Human-readable explanation of the error.'),
       details: z
-        .unknown()
+        .union([
+          v2ActionableForbiddenDetailsSchema,
+          z.unknown().describe('Other structured context defined by the specific error.'),
+        ])
         .optional()
         .describe(
-          [
-            'Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:',
-            ...FORBIDDEN_DETAIL_CODES.map(
-              (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
-            ),
-          ].join('\n')
+          'Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.'
         ),
     })
     .describe('Canonical error details.'),

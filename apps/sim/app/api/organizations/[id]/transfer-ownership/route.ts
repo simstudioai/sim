@@ -148,6 +148,7 @@ export const POST = withRouteHandler(
         userId: session.user.id,
         organizationId,
         memberId: selfMember.id,
+        spareSessionToken: session.session.token,
       })
 
       if (!removeResult.success) {

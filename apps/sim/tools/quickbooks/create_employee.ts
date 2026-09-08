@@ -19,6 +19,7 @@ import {
 import {
   optionalQuickBooksString,
   parseQuickBooksAddress,
+  quickBooksDisplayName,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
 } from '@/tools/quickbooks/values'
@@ -129,7 +130,7 @@ export const quickbooksCreateEmployeeTool: ToolConfig<
         throw new Error('At least one of givenName or familyName must be supplied')
       }
       return filterUndefined({
-        DisplayName: optionalQuickBooksString(params.displayName),
+        DisplayName: quickBooksDisplayName(params.displayName, 'displayName'),
         GivenName: givenName,
         FamilyName: familyName,
         PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),

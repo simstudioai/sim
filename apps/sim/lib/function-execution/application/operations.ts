@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 export const functionExecutionOperations = {
   // permission-group-exempt: running a Function block is the workflow executing its own code; no group key names code execution, and a gate here would fail runs the group permits

@@ -44,7 +44,7 @@ async function resolveWorkspaceContext(workspaceId: string): Promise<SecretWorks
 }
 
 function principalUserId(
-  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' }>
+  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
 ): string {
   return principal.userId
 }

@@ -190,9 +190,7 @@ describe('createAuthRequest', () => {
     const prefixed = 'https://host.test/sim'
     const auth = createAuthRequest()
 
-    expect(buildApprovalUrl(prefixed, auth, 'platform')).toMatch(
-      /^https:\/\/host\.test\/sim\/cli\/auth\?/
-    )
+    expect(buildApprovalUrl(prefixed, auth)).toMatch(/^https:\/\/host\.test\/sim\/cli\/auth\?/)
 
     // `spyOn`, like the rest of this file: `restoreAllMocks` in teardown undoes
     // it, whereas a `stubGlobal` would outlive the test and leak this
@@ -210,13 +208,18 @@ describe('createAuthRequest', () => {
 
   it('omits an absent workspace rather than sending it blank', () => {
     const auth = createAuthRequest()
-    expect(buildApprovalUrl(ENDPOINT, auth, 'platform')).not.toContain('workspace=')
-    expect(buildApprovalUrl(ENDPOINT, auth, 'platform', 'ws_1')).toContain('workspace=ws_1')
+    expect(buildApprovalUrl(ENDPOINT, auth)).not.toContain('workspace=')
+    expect(buildApprovalUrl(ENDPOINT, auth, 'ws_1')).toContain('workspace=ws_1')
+  })
+
+  it('always requests a platform API key', () => {
+    const url = new URL(buildApprovalUrl(ENDPOINT, createAuthRequest()))
+    expect(url.searchParams.get('scope')).toBe('platform')
   })
 
   it('never puts the poll secret in the browser URL', () => {
     const auth = createAuthRequest()
-    const url = buildApprovalUrl(ENDPOINT, auth, 'platform', 'ws_1')
+    const url = buildApprovalUrl(ENDPOINT, auth, 'ws_1')
     expect(url).toContain(encodeURIComponent(auth.challenge))
     expect(url).not.toContain(auth.pollSecret)
   })

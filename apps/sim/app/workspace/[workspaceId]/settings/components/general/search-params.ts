@@ -1,13 +1,12 @@
 import { parseAsStringLiteral } from 'nuqs/server'
 
 /**
- * The sub-view open inside General. Only `privacy` exists today; the literal
- * parser means an unknown value from an old link falls back to General rather
- * than rendering an empty detail pane.
+ * General's sub-view. Unknown values fall back to General rather than rendering
+ * an empty detail pane.
  */
 export const generalViewParam = {
   key: 'view',
-  parser: parseAsStringLiteral(['privacy'] as const),
+  parser: parseAsStringLiteral(['privacy', 'authorized-apps'] as const),
 } as const
 
 /** Opening the sub-view is a destination — Back should return to General. */

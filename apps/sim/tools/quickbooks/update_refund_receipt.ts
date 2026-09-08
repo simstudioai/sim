@@ -17,7 +17,7 @@ export const quickbooksUpdateRefundReceiptTool: InternalToolConfig<
 > = {
   id: 'quickbooks_update_refund_receipt',
   name: 'QuickBooks Update Refund Receipt',
-  description: 'Read, merge, and full-update a refund receipt using its current sync token',
+  description: 'Sparse-update a refund receipt using its current sync token',
   version: '1.0.0',
   params: {
     accessToken: {

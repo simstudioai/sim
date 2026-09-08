@@ -8,8 +8,8 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
   RUN_RETENTION,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   withRequestBodyErrors,
@@ -19,6 +19,7 @@ import {
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
+import { logOperations } from '@/lib/logs/application/operations'
 
 const RUN_ID = 'e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13'
 const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
@@ -161,9 +162,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListLogsContract,
     logsOperation({
+      applicationOperation: logOperations.list,
       operationId: 'listLogs',
       summary: 'List Logs',
-      description: `List workflow execution logs for a workspace with filters, selectable detail, sorting by start time, duration, cost, or status, and opaque cursor pagination. Chat and Sim-agent job runs join the sequence with \`includeJobRuns=true\`, which is accepted only under \`sortBy=startedAt\` — their cost is stored as a document and their status is not comparable, so they cannot participate in the other orderings. Each item's \`files\` lists only the files the run itself produced, addressed by \`downloadPath\`; input attachments a caller supplied are read through the files API instead. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List logs with filters, selectable detail, sorting, and cursor pagination. \`includeJobRuns=true\` includes chat and Sim-agent jobs only with \`sortBy=startedAt\`, because other orderings are unsupported. \`files\` contains only run-produced files; use the files API for input attachments. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of execution logs matching the filters.' },
     }),
@@ -186,9 +188,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetLogContract,
     logsOperation({
+      applicationOperation: logOperations.readDetail,
       operationId: 'getLog',
       summary: 'Get Log',
-      description: `Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty \`traceSpans\` array does not mean the run recorded none. ${FOLDER_TREE_TOO_LARGE} ${RUN_RETENTION}`,
+      description: `Retrieve a run's workflow snapshot, trace spans, final output, and cost. Trace spans have separate retention, so an empty \`traceSpans\` array does not prove none were recorded. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested diagnostic log representation.' },
     }),
@@ -212,9 +215,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetLogStatsContract,
     logsOperation({
+      applicationOperation: logOperations.readStats,
       operationId: 'getLogStats',
       summary: 'Get Log Statistics',
-      description: `Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans \`startDate\` through \`endDate\` when both are supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding \`endDate\` when only \`endDate\` was supplied. A supplied \`startDate\` is still used verbatim, so a \`startDate\` without an \`endDate\` yields \`[startDate, now]\`, which can be any width. The window is divided into exactly \`segmentCount\` equal buckets whose width is \`max(60000, floor(windowMs / segmentCount))\` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past \`timeBounds.end\` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and \`workflowsTruncated\` reports whether the cap applied; the workspace totals are always computed from every workflow. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Return workspace/workflow counts, success, errors, and latency. Defaults span runs, or 24 hours if empty; supplied bounds stay exact. Buckets are one-minute minimum and may pass the end. Folders include descendants; \`workflowsTruncated\` marks capped series, totals include all. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Bucketed execution statistics for the workspace.' },
     }),
@@ -263,8 +267,8 @@ export const logsOpenApiDocument = defineOpenApiDocument({
       description: 'Query workflow execution logs and retrieve complete run diagnostics.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,

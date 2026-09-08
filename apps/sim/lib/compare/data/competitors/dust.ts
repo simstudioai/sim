@@ -15,6 +15,35 @@ export const dustProfile: CompetitorProfile = {
   },
   oneLiner:
     'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools in a shared, multiplayer workspace, then deploy them to chat, Slack, and other surfaces.',
+  leadAnswer: [
+    'Dust is primarily an enterprise AI agent platform built for teams that want no-code agents connected to company data in a shared, multiplayer workspace. Sim is an open-source AI workspace built for teams that want to build, deploy, and manage agents visually, conversationally, or with code. Choose Dust when you want zero visual/flow layer and prefer building purely through forms, text, and templates guided by a conversational assistant. Sim is a stronger fit when you need a visual canvas, self-hosting, real-time multiplayer editing, or environment promotion across dev, QA, and prod.',
+  ],
+  betterThanAnswer: [
+    'Sim is the stronger fit when you need explicit control over how an agent is built, hosted, and promoted to production. Dust is the stronger fit when you want that control abstracted away, with agents assembled from forms, instructions, templates, and conversation inside a managed workspace. Choose on that axis: explicit workflow and deployment control, or a builder centered on forms and conversation.',
+  ],
+  sectionIntros: {
+    platform: [
+      'Sim offers a visual canvas, supported self-hosting, live canvas editing, and workspace promotion. Dust provides a hosted, form-based agent builder with shared conversations and Git-based configuration management.',
+    ],
+    pricing: [
+      'Sim charges for usage through credits and supports bring-your-own provider keys. Dust combines per-seat subscriptions with monthly AI credit allocations.',
+    ],
+    security: [
+      'Sim emphasizes self-hosting and configurable workspace controls, while Dust documents a broader set of managed-service compliance options. Enterprise features and deployment choices affect the exact controls available in each product.',
+    ],
+    aiCapabilities: [
+      'Sim provides explicit workflow controls for areas such as evaluation, approvals, iteration, and parallel execution. Dust centers these capabilities on conversational agents that choose among configured tools.',
+    ],
+    integrations: [
+      'Sim provides a larger workflow-oriented integration surface and supports custom code, SDKs, MCP publishing, and event triggers. Dust combines managed connections, APIs, triggers, and MCP-based tools around its conversational agent model.',
+    ],
+    observability: [
+      'Sim documents block-level traces, retries, alerts, data export, asynchronous runs, and execution limits. Dust documents workspace analytics and background triggers, but several run-level durability controls are not described publicly.',
+    ],
+    support: [
+      'Both products provide documentation and learning resources. Sim emphasizes its open-source community and an Enterprise dedicated-support option, while Dust also documents community forums and enterprise onboarding.',
+    ],
+  },
   standoutFeatures: [
     {
       title:

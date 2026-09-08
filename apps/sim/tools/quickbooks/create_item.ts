@@ -14,6 +14,7 @@ import {
 } from '@/tools/quickbooks/utils'
 import {
   optionalQuickBooksString,
+  quickBooksItemName,
   quickBooksReference,
   quickBooksWritableItemType,
   requiredQuickBooksString,
@@ -52,7 +53,7 @@ export const quickbooksCreateItemTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Unique item name',
+      description: 'Unique item name, up to 100 characters, without tabs, new lines, or colons',
     },
     itemType: {
       type: 'string',
@@ -128,7 +129,7 @@ export const quickbooksCreateItemTool: ToolConfig<
       const incomeAccountId = optionalQuickBooksString(params.incomeAccountId)
       const expenseAccountId = optionalQuickBooksString(params.expenseAccountId)
       return filterUndefined({
-        Name: requiredQuickBooksString(params.name, 'name'),
+        Name: quickBooksItemName(requiredQuickBooksString(params.name, 'name')),
         Type: type,
         IncomeAccountRef:
           incomeAccountId === undefined

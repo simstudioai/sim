@@ -3,8 +3,11 @@ import { Command } from 'commander'
 import {
   configPath,
   OUTPUT_FORMATS,
+  oauthIssuerForEndpoint,
   readConfigProfile,
+  readStoredCredential,
   resolveAuthenticationProfileName,
+  withCredentialsLock,
   writeConfigProfile,
 } from '../config/index'
 import {
@@ -80,7 +83,7 @@ export function configureCommand(): Command {
     .option('--set-output <format>', `Default output format (${OUTPUT_FORMATS.join(' | ')})`)
     .option('--unset <key...>', 'Remove settings (endpoint, workspace, output)')
     .action(
-      (
+      async (
         options: {
           setEndpoint?: string
           setWorkspace?: string
@@ -106,7 +109,6 @@ export function configureCommand(): Command {
         // `configure --profile x --set-…` is a documented way to create a
         // profile, so the name is allowed to be one that does not exist yet.
         const profile = profileFrom(command, { allowUnknownProfile: true })
-        const authProfile = resolveAuthenticationProfileName(profile.name)
         const updates: Record<string, string | null> = {}
 
         requireValue(options.setEndpoint, '--set-endpoint', 'endpoint')
@@ -114,12 +116,6 @@ export function configureCommand(): Command {
         requireValue(options.setOutput, '--set-output', 'output')
 
         if (options.setEndpoint) {
-          if (authProfile !== profile.name) {
-            throw new SimApiError(
-              `Profile "${profile.name}" shares its endpoint with authentication profile "${authProfile}". Run: sim configure --profile ${authProfile} --set-endpoint ${options.setEndpoint}`,
-              0
-            )
-          }
           updates.endpoint = normalizeEndpoint(options.setEndpoint, '--set-endpoint')
         }
         if (options.setWorkspace) {
@@ -142,12 +138,6 @@ export function configureCommand(): Command {
               0
             )
           }
-          if (key === 'endpoint' && authProfile !== profile.name) {
-            throw new SimApiError(
-              `Profile "${profile.name}" shares its endpoint with authentication profile "${authProfile}". Run: sim configure --profile ${authProfile} --unset endpoint`,
-              0
-            )
-          }
           updates[key] = null
         }
 
@@ -163,16 +153,43 @@ export function configureCommand(): Command {
           return
         }
 
-        // An unset against a profile with nothing stored writes nothing — the
-        // file layer refuses to conjure a section for a removal — so reporting
-        // an update would claim a change that did not happen.
         const removalOnly = Object.values(updates).every((value) => value === null)
-        if (removalOnly && Object.keys(readConfigProfile(profile.name)).length === 0) {
+        const changed = await withCredentialsLock(async () => {
+          const authProfile = resolveAuthenticationProfileName(profile.name)
+          const credential = readStoredCredential(authProfile)
+
+          if (Object.hasOwn(updates, 'endpoint')) {
+            const endpoint = updates.endpoint
+            if (authProfile !== profile.name) {
+              const action = endpoint ? `--set-endpoint ${redact(endpoint)}` : '--unset endpoint'
+              throw new SimApiError(
+                `Profile "${redact(profile.name)}" shares its endpoint with authentication profile "${redact(authProfile)}". Run: sim configure --profile ${quoteProfileArgument(authProfile)} ${action}`,
+                0
+              )
+            }
+            if (
+              credential?.kind === 'oauth' &&
+              ((endpoint && oauthIssuerForEndpoint(endpoint) !== credential.oauth.issuer) ||
+                (!endpoint && Object.hasOwn(readConfigProfile(authProfile), 'endpoint')))
+            ) {
+              throw new SimApiError(
+                `Profile "${redact(profile.name)}" has an OAuth login bound to ${redact(credential.oauth.issuer)}. Run sim logout before ${endpoint ? 'changing' : 'removing'} its endpoint.`,
+                0
+              )
+            }
+          }
+
+          if (removalOnly && Object.keys(readConfigProfile(profile.name)).length === 0) {
+            return false
+          }
+          writeConfigProfile(profile.name, updates)
+          return true
+        })
+
+        if (!changed) {
           console.log(chalk.dim(`No settings stored for profile "${profile.name}".`))
           return
         }
-
-        writeConfigProfile(profile.name, updates)
         console.log(chalk.green(`✓ Updated profile "${profile.name}" in ${configPath()}`))
       }
     )

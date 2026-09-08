@@ -234,6 +234,25 @@ describe('fetchExternalUrlToWorkspace', () => {
     )
   })
 
+  it('names a bare download path by the response content type', async () => {
+    secureFetchWithPinnedIPSpy.mockResolvedValueOnce(makeResponse('jpeg bytes', 'image/jpeg'))
+
+    const result = await fetchExternalUrlToWorkspace({
+      url: 'https://cdn.example.com/assets/8f1c/download',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(result.filename).toBe('download.jpg')
+    expect(uploadWorkspaceFileSpy).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      expect.any(Buffer),
+      'download.jpg',
+      'image/jpeg'
+    )
+  })
+
   it('forwards custom headers to the fetch', async () => {
     secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
 

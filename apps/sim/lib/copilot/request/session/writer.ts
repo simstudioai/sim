@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
 import { createEvent } from './event'
-import { encodeSSEComment, encodeSSEEnvelope } from './sse'
+import { encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
 
 const logger = createLogger('StreamWriter')
@@ -17,12 +18,18 @@ export interface StreamWriterOptions {
   streamId: string
   chatId?: string
   requestId: string
+  /** Charges this stream's replay buffer to the user's cross-stream byte ceiling. */
+  userId?: string
   keepaliveMs?: number
 }
+
+/** Result used when the soft stop is already latched, so no further append is attempted. */
+const PERSISTENCE_ALREADY_STOPPED = { persisted: true } as const
 
 export class StreamWriter {
   private readonly streamId: string
   private readonly chatId: string | undefined
+  private readonly userId: string | undefined
   private requestId: string
   private readonly keepaliveMs: number
   private readonly flushIntervalMs: number
@@ -33,6 +40,7 @@ export class StreamWriter {
   private flushTimer: ReturnType<typeof setTimeout> | null = null
   private _clientDisconnected = false
   private _sawComplete = false
+  private _persistenceStopped = false
   private nextSeq = 0
   private pendingEnvelopes: PersistedStreamEventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
@@ -41,6 +49,7 @@ export class StreamWriter {
   constructor(options: StreamWriterOptions) {
     this.streamId = options.streamId
     this.chatId = options.chatId
+    this.userId = options.userId
     this.requestId = options.requestId
     this.keepaliveMs = options.keepaliveMs ?? DEFAULT_KEEPALIVE_MS
     this.flushIntervalMs = DEFAULT_PERSIST_FLUSH_INTERVAL_MS
@@ -54,6 +63,14 @@ export class StreamWriter {
 
   get sawComplete(): boolean {
     return this._sawComplete
+  }
+
+  /**
+   * The replay buffer stopped accepting writes because this stream exhausted its byte
+   * budget. Live delivery is unaffected; only a resume would come back short.
+   */
+  get persistenceStopped(): boolean {
+    return this._persistenceStopped
   }
 
   updateRequestId(id: string): void {
@@ -151,6 +168,9 @@ export class StreamWriter {
   }
 
   private queuePersistence(envelope: PersistedStreamEventEnvelope): void {
+    // Once the budget has refused, every later batch would be refused too; stop
+    // paying for the round trip.
+    if (this._persistenceStopped) return
     this.pendingEnvelopes.push(envelope)
     if (this.pendingEnvelopes.length >= this.flushMaxBatch) {
       this.flushPendingPersistence()
@@ -174,9 +194,40 @@ export class StreamWriter {
     this.pendingEnvelopes = []
     this.persistenceTail = this.persistenceTail
       .catch(() => undefined)
-      .then(() => appendEvents(batch))
-      .then(() => {
+      .then(() =>
+        /*
+          Re-checked here, not only at enqueue: a batch queued while an earlier append was
+          in flight would otherwise land after that append had already stopped persistence,
+          leaving a replay that holds later events but not the refused ones — a hole a
+          resuming client cannot detect.
+        */
+        this._persistenceStopped
+          ? PERSISTENCE_ALREADY_STOPPED
+          : appendEvents(batch, {
+              streamId: this.streamId,
+              ...(this.userId ? { userId: this.userId } : {}),
+            })
+      )
+      .then((result) => {
         this.lastPersistenceError = null
+        if (!result.persisted) {
+          /*
+            A budget refusal is deliberate, not a fault: it is left out of
+            `lastPersistenceError` so `flush()` does not rethrow it. That throw would
+            reach `finalizeStream`'s error-path flush and reject the response stream,
+            ending a turn whose bytes the user already has. Stop persisting instead —
+            a resume comes back short, which the caller can see.
+          */
+          this._persistenceStopped = true
+          logger.warn('Stream replay buffer stopped: byte budget exhausted', {
+            streamId: this.streamId,
+            requestId: this.requestId,
+            resource: result.refusal.resource,
+            attemptedBytes: result.refusal.attemptedBytes,
+            currentBytes: result.refusal.currentBytes,
+            limitBytes: result.refusal.limitBytes,
+          })
+        }
       })
       .catch((error) => {
         this.lastPersistenceError = toError(error)

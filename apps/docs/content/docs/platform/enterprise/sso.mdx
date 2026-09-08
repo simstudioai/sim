@@ -278,7 +278,7 @@ With **Automatic** provisioning, no invitation is required for organization memb
   Sign-in must start from Sim. Launching from your identity provider's app portal (Microsoft's **My Apps**, Okta's dashboard tile) sends an unsolicited assertion, which Sim rejects. This is deliberate — accepting them would let anyone replay an assertion into your tenant — but it means an IdP-initiated test fails even when the configuration is correct.
 </Callout>
 
-SSO provisioning creates internal organization members but does not grant workspace access. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats. Existing invitations and external access take precedence over automatic provisioning so their intended role and workspace grants are preserved.
+SSO provisioning creates internal organization members but does not grant workspace access. To grant workspace access from your identity provider, use [directory provisioning](/platform/enterprise/scim) and map a pushed group to a workspace. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats. Existing invitations and external access take precedence over automatic provisioning so their intended role and workspace grants are preserved.
 
 <Callout type="info">
   Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
@@ -305,7 +305,7 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "Does disabling someone in the identity provider remove their Sim access?",
-    answer: "No. Disabling the IdP account blocks future SSO authentication, but Sim does not currently receive SCIM deprovisioning or IdP logout events to remove membership or revoke active Sim sessions. Remove or suspend the user in Sim as part of offboarding."
+    answer: "With [directory provisioning](/platform/enterprise/scim) connected, yes: your identity provider sends the deactivation, and Sim blocks sign-in and stops their API keys while leaving everything they own intact. With SSO alone, disabling the IdP account only blocks future SSO authentication — remove or suspend the user in Sim as part of offboarding."
   },
   {
     question: "Can I still use email/password login after enabling SSO?",
@@ -341,6 +341,10 @@ Self-hosted deployments use environment variables instead of the billing/plan ch
 # Required
 SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
+
+# Optional: directory provisioning (SCIM), configured from the SSO settings page
+SCIM_ENABLED=true
+NEXT_PUBLIC_SCIM_ENABLED=true
 
 # Required if you want users auto-added to your organization on first SSO sign-in
 ORGANIZATIONS_ENABLED=true

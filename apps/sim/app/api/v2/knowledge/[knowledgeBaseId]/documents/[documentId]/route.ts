@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   V2_WRITABLE_TAG_SLOTS,
   type V2UpdateKnowledgeDocumentBody,
@@ -136,7 +137,7 @@ export const DELETE = defineV2JsonRoute({
   }),
   useCase: deleteKnowledgeDocument,
   onSuccess: ({ principal, input }) => {
-    if (principal.kind === 'personal_api_key') {
+    if (isUserCredentialPrincipal(principal)) {
       captureServerEvent(
         principal.userId,
         'knowledge_base_document_deleted',

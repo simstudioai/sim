@@ -44,5 +44,7 @@ export { quickbooksUpdateRefundReceiptTool } from '@/tools/quickbooks/update_ref
 export { quickbooksUpdateSalesReceiptTool } from '@/tools/quickbooks/update_sales_receipt'
 export { quickbooksUpdateVendorTool } from '@/tools/quickbooks/update_vendor'
 export { quickbooksUpdateVendorCreditTool } from '@/tools/quickbooks/update_vendor_credit'
+export { quickbooksVoidBillPaymentTool } from '@/tools/quickbooks/void_bill_payment'
 export { quickbooksVoidCustomerPaymentTool } from '@/tools/quickbooks/void_customer_payment'
 export { quickbooksVoidInvoiceTool } from '@/tools/quickbooks/void_invoice'
+export { quickbooksVoidSalesReceiptTool } from '@/tools/quickbooks/void_sales_receipt'

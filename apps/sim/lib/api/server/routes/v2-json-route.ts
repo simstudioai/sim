@@ -15,13 +15,24 @@ import {
   authenticateV2ApiKey,
   type V2ApiKeyAuthContext,
   V2ApiKeyUnauthenticatedError,
+  type V2CredentialType,
 } from '@/lib/api/server/routes/v2-api-key-auth'
+import {
+  hasV2Credential,
+  readV2CredentialHeaders,
+} from '@/lib/api/server/routes/v2-credential-headers'
 import {
   type ParsedRequest,
   type ParseRequestOptions,
   parseRequest,
 } from '@/lib/api/server/validation'
-import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
+import {
+  type ApplicationOperation,
+  InsufficientScopeError,
+  OAuthAccessTokenExpiredError,
+  type OperationUseCase,
+  requireOAuthOperationScope,
+} from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -48,9 +59,13 @@ export class V2RouteInfrastructureError extends Error {
   }
 }
 
+/**
+ * The v2 credential policy: an API key in `x-api-key`, or a Sim OAuth access
+ * token as `Authorization: Bearer`.
+ */
 export const v2ApiKeyAuth = {
   authenticate(request: NextRequest) {
-    return authenticateV2ApiKey(request.headers.get('x-api-key'))
+    return authenticateV2ApiKey(readV2CredentialHeaders(request.headers))
   },
 } as const
 
@@ -313,9 +328,24 @@ async function admitAuthenticatedV2Request(
     auth = await authPolicy.authenticate(request)
   } catch (error) {
     if (error instanceof V2ApiKeyUnauthenticatedError) {
-      return { success: false, response: v2Error('UNAUTHORIZED', error.message) }
+      return {
+        success: false,
+        response: v2Error('UNAUTHORIZED', error.message, {
+          authChallenge: error.challenge,
+        }),
+      }
     }
     throw new V2RouteInfrastructureError('authentication', error)
+  }
+
+  try {
+    requireOAuthOperationScope(auth.principal, operation)
+  } catch (error) {
+    if (error instanceof InsufficientScopeError || error instanceof OAuthAccessTokenExpiredError) {
+      const response = v2CaughtOrchestrationError(error)
+      if (response) return { success: false, response }
+    }
+    throw error
   }
 
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
@@ -357,7 +387,7 @@ export async function admitOptionalV2Request(
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
-  if (!request.headers.has('x-api-key')) return { success: true }
+  if (!hasV2Credential(request.headers)) return { success: true }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
@@ -372,7 +402,7 @@ export async function admitOptionalV2Request(
  * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
  */
 export interface V2CredentialFacts {
-  readonly keyType: 'personal' | 'workspace'
+  readonly keyType: V2CredentialType
   readonly keyExpiresAt: Date | null
 }
 
@@ -425,7 +455,6 @@ export function defineV2JsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
-
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -446,7 +475,11 @@ export function defineV2JsonRoute<
       if (options.beforeParse) {
         const rawParams = context?.params ? await context.params : {}
         try {
-          await options.beforeParse({ request, principal: auth.principal, params: rawParams })
+          await options.beforeParse({
+            request,
+            principal: auth.principal,
+            params: rawParams,
+          })
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response

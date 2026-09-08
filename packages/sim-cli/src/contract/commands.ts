@@ -133,7 +133,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status and current-period credit usage (credits and storage require a personal API key)',
+      'Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -153,19 +153,19 @@ export const CLI_CONTRACT: CliContract = {
   listBillingLogs: {
     command: 'billing logs',
     allWorkspaces: true,
-    // Which ledger answered depends on the key, and the counts otherwise read
+    // Which ledger answered depends on the credential, and the counts otherwise read
     // as a bug next to `billing status`. Said in the describe for the reason
     // `billing status` says its own caveat. The trailing parenthetical is what
     // keeps the generated docs heading unchanged.
     describe:
-      "List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)",
+      "List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
       source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
       period: { describe: 'Billing period' },
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },
     },
-    // Which ledger answered: a personal key reports only the calling user's
+    // Which ledger answered: a user credential reports only the calling user's
     // events, a workspace key the whole workspace. The difference was silent —
     // same workspace, same window, same flags, a strictly smaller result.
     pageNote: { path: 'scope', label: 'scope' },
@@ -981,7 +981,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required)',
+          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
       },
     },
     columns: [
@@ -1000,7 +1000,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required)',
+          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
       },
     },
   },

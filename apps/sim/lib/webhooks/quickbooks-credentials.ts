@@ -59,10 +59,14 @@ async function decryptValidatedClientConfig(
   }
 }
 
-/** Loads every verifier token configured for the Intuit app addressed by its non-secret route key. */
-export async function getQuickBooksWebhookVerifierTokensByAppKey(
+/**
+ * Yields every distinct verifier token configured for the Intuit app addressed by its non-secret
+ * route key, decrypting one account at a time so a caller that stops at the first match never pays
+ * for the whole app's fan-out.
+ */
+export async function* streamQuickBooksWebhookVerifierTokensByAppKey(
   appKey: string
-): Promise<string[]> {
+): AsyncGenerator<string> {
   const normalizedAppKey = normalizeQuickBooksWebhookAppKey(appKey)
   const rows = await db
     .select({
@@ -82,16 +86,18 @@ export async function getQuickBooksWebhookVerifierTokensByAppKey(
     throw new Error('QuickBooks webhook app account limit exceeded')
   }
 
-  const verifierTokens = new Set<string>()
+  const yieldedTokens = new Set<string>()
   for (const row of rows) {
     const config = await decryptValidatedClientConfig(
       row.accountId,
       row.oauthConfig,
       normalizedAppKey
     )
-    if (config) verifierTokens.add(config.webhookVerifierToken)
+    const verifierToken = config?.webhookVerifierToken
+    if (!verifierToken || yieldedTokens.has(verifierToken)) continue
+    yieldedTokens.add(verifierToken)
+    yield verifierToken
   }
-  return Array.from(verifierTokens)
 }
 
 /** Loads the user-owned Intuit app configuration behind one QuickBooks OAuth credential. */

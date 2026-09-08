@@ -1,15 +1,21 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const HUMAN_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 const DISCOVERY_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
 const EXECUTION_PRINCIPAL_POLICY = {
@@ -34,6 +40,7 @@ const EXECUTION_PRINCIPAL_POLICY = {
 export const mcpServerOperations = {
   list: defineWorkspaceOperation({
     id: 'mcp_servers.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
@@ -48,6 +55,7 @@ export const mcpServerOperations = {
   }),
   discoverTools: defineWorkspaceOperation({
     id: 'mcp_servers.tools.discover',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'mcp_tools.use',
@@ -78,6 +86,7 @@ export const mcpServerOperations = {
    */
   listWorkflowDeployments: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -93,6 +102,7 @@ export const mcpServerOperations = {
    */
   readWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.read_server',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -100,6 +110,7 @@ export const mcpServerOperations = {
   }),
   listWorkflowDeploymentTools: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.list_tools',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -107,6 +118,7 @@ export const mcpServerOperations = {
   }),
   createWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.create_server',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -127,6 +139,7 @@ export const mcpServerOperations = {
    */
   updateWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.update_server',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -134,6 +147,7 @@ export const mcpServerOperations = {
   }),
   deleteWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.delete_server',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -141,6 +155,7 @@ export const mcpServerOperations = {
   }),
   deployWorkflowTool: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.deploy_tool',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -148,6 +163,7 @@ export const mcpServerOperations = {
   }),
   undeployWorkflowTool: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.undeploy_tool',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
@@ -155,6 +171,7 @@ export const mcpServerOperations = {
   }),
   read: defineWorkspaceOperation({
     id: 'mcp_servers.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
@@ -162,6 +179,7 @@ export const mcpServerOperations = {
   }),
   create: defineWorkspaceOperation({
     id: 'mcp_servers.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
@@ -169,6 +187,7 @@ export const mcpServerOperations = {
   }),
   register: defineWorkspaceOperation({
     id: 'mcp_servers.register',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
@@ -176,6 +195,7 @@ export const mcpServerOperations = {
   }),
   update: defineWorkspaceOperation({
     id: 'mcp_servers.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
@@ -183,6 +203,7 @@ export const mcpServerOperations = {
   }),
   reconfigure: defineWorkspaceOperation({
     id: 'mcp_servers.reconfigure',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
@@ -190,6 +211,7 @@ export const mcpServerOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'mcp_servers.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',

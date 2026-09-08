@@ -4,6 +4,7 @@ import type {
   QuickBooksCreateDepositParams,
   QuickBooksCreateJournalEntryParams,
   QuickBooksDepositLineInput,
+  QuickBooksGlobalTaxCalculation,
   QuickBooksJournalEntityType,
   QuickBooksJournalLineInput,
   QuickBooksJournalPostingType,
@@ -13,6 +14,8 @@ import type {
 import {
   assertQuickBooksSparseUpdate,
   optionalQuickBooksString,
+  quickBooksCurrencyRef,
+  quickBooksGlobalTaxCalculation,
   quickBooksReference,
   requiredQuickBooksString,
   validateQuickBooksDate,
@@ -28,6 +31,16 @@ const JOURNAL_LINE_KEYS = new Set([
   'entityId',
 ])
 const DEPOSIT_LINE_KEYS = new Set(['amount', 'accountId', 'description'])
+
+/**
+ * JournalEntry is the one entity in this module whose `GlobalTaxCalculation`
+ * Intuit documents without `NotApplicable`: "Allowed values are: TaxExcluded,
+ * TaxInclusive."
+ */
+const JOURNAL_ENTRY_GLOBAL_TAX_CALCULATIONS: readonly QuickBooksGlobalTaxCalculation[] = [
+  'TaxExcluded',
+  'TaxInclusive',
+]
 
 function parseJsonArray(value: unknown, fieldName: string): unknown[] | undefined {
   if (value == null || value === '') return undefined
@@ -241,11 +254,13 @@ export function buildQuickBooksDepositLines(lines: QuickBooksDepositLineInput[])
 }
 
 function transactionHeader(params: {
+  currencyCode?: string
   transactionDate?: string
   documentNumber?: string
   privateNote?: string
 }): Record<string, unknown> {
   return filterUndefined({
+    CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     DocNumber: optionalQuickBooksString(params.documentNumber),
     PrivateNote: optionalQuickBooksString(params.privateNote),
@@ -262,10 +277,14 @@ export function buildQuickBooksCreateJournalEntryBody(
   params: QuickBooksCreateJournalEntryParams
 ): Record<string, unknown> {
   requirePostingConfirmation(params.confirmPosting)
-  return {
+  return filterUndefined({
     ...transactionHeader(params),
+    GlobalTaxCalculation: quickBooksGlobalTaxCalculation(
+      params.globalTaxCalculation,
+      JOURNAL_ENTRY_GLOBAL_TAX_CALCULATIONS
+    ),
     Line: buildQuickBooksJournalLines(params.lines),
-  }
+  })
 }
 
 export function buildQuickBooksUpdateJournalEntryBody(
@@ -285,23 +304,31 @@ export function buildQuickBooksUpdateJournalEntryBody(
 export function buildQuickBooksCreateDepositBody(
   params: QuickBooksCreateDepositParams
 ): Record<string, unknown> {
-  return {
+  return filterUndefined({
     DepositToAccountRef: quickBooksReference(params.depositAccountId, 'depositAccountId'),
     ...transactionHeader(params),
+    GlobalTaxCalculation: quickBooksGlobalTaxCalculation(params.globalTaxCalculation),
     Line: buildQuickBooksDepositLines(params.lines),
-  }
+  })
 }
 
+/**
+ * Intuit documents the Deposit sparse update as "only elements specified in the
+ * request are updated. Missing elements are left untouched", so
+ * `DepositToAccountRef` is sent only when the caller is actually changing it.
+ */
 export function buildQuickBooksUpdateDepositBody(
   params: QuickBooksUpdateDepositParams
 ): Record<string, unknown> {
-  const body = {
+  const body = filterUndefined({
     Id: requiredQuickBooksString(params.depositId, 'depositId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
-    DepositToAccountRef: quickBooksReference(params.depositAccountId, 'depositAccountId'),
+    DepositToAccountRef: params.depositAccountId
+      ? quickBooksReference(params.depositAccountId, 'depositAccountId')
+      : undefined,
     ...transactionHeader(params),
-  }
-  assertQuickBooksSparseUpdate(body, 4)
+  }) as Record<string, unknown>
+  assertQuickBooksSparseUpdate(body)
   return body
 }

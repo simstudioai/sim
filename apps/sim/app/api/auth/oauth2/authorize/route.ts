@@ -1,8 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeOAuth2Contract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
+import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
+import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -22,10 +26,118 @@ const logger = createLogger('OAuth2Authorize')
 
 export const dynamic = 'force-dynamic'
 
+const { GET: betterAuthGET } = toNextJsHandler(auth.handler)
+
+const OAUTH_AUTHORIZE_PARAMETERS = new Set([
+  'response_type',
+  'client_id',
+  'redirect_uri',
+  'scope',
+  'state',
+  'request_uri',
+  'code_challenge',
+  'code_challenge_method',
+  'nonce',
+  'prompt',
+  'resource',
+])
+
+/** Returns the first ambiguous OAuth authorization parameter. */
+function repeatedOAuthAuthorizeParameter(request: NextRequest): string | null {
+  for (const name of OAUTH_AUTHORIZE_PARAMETERS) {
+    if (request.nextUrl.searchParams.getAll(name).length <= 1) continue
+    return name
+  }
+  return null
+}
+
 /**
- * Browser-initiated entrypoint for linking a generic OAuth2 account.
+ * Whether this is a client asking Sim to sign its user in — the OAuth provider's
+ * authorize request — rather than a user linking an external account.
+ *
+ * This route sits on the same path Better Auth mounts the provider's authorize
+ * endpoint, so the catch-all never sees it. Connector links use only the
+ * contract's draft/provider/workspace fields; any provider-specific parameter
+ * keeps even a malformed OAuth request out of the credential-linking flow.
+ */
+function isOAuthProviderAuthorize(request: NextRequest): boolean {
+  for (const name of OAUTH_AUTHORIZE_PARAMETERS) {
+    if (request.nextUrl.searchParams.has(name)) return true
+  }
+  return false
+}
+
+/**
+ * Browser-initiated entrypoint for linking a generic OAuth2 account, and the
+ * OAuth provider's authorize endpoint when the request is a client's.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
+  if (isOAuthProviderAuthorize(request)) {
+    if (!(await isOAuthProviderEnabled())) {
+      return NextResponse.json(
+        { error: 'OAuth provider is not enabled' },
+        { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
+      )
+    }
+    const repeatedParameter = repeatedOAuthAuthorizeParameter(request)
+    if (repeatedParameter) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        `OAuth parameter ${repeatedParameter} appears more than once.`
+      )
+    }
+    const params = request.nextUrl.searchParams
+    if (!params.has('client_id')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The client_id parameter is required.'
+      )
+    }
+    if (!params.has('redirect_uri')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The redirect_uri parameter is required.'
+      )
+    }
+    if (params.has('resource')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The resource parameter is not supported.'
+      )
+    }
+    if (params.has('request_uri')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The request_uri parameter is not supported.'
+      )
+    }
+    const responseType = params.get('response_type')
+    if (!responseType) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The response_type parameter is required.'
+      )
+    }
+    if (responseType !== 'code') {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'unsupported_response_type',
+        'Only the code response type is supported.'
+      )
+    }
+    const pkceError = validateOAuthPkceAuthorizationRequest(params)
+    if (pkceError) {
+      return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
+    }
+    return betterAuthGET(request)
+  }
+
   const baseUrl = getBaseUrl()
 
   const session = await getSession()

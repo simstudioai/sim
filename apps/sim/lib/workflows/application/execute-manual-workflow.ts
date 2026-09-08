@@ -19,7 +19,7 @@ import {
 interface ManualExecutionInput
   extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
   input?: unknown
-  mode: 'sync' | 'stream'
+  mode: 'sync' | 'stream' | 'sync-result-stream'
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {

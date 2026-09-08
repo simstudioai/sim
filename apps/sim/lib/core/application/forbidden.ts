@@ -12,9 +12,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
  *
  * The set is closed and exhaustive over the refusals a caller can act on, for
  * two reasons. A union type makes an unlisted spelling a compile error rather
- * than a new undocumented value on the wire, and the OpenAPI 403 description is
- * generated from these same members, so a code cannot be emitted without being
- * published.
+ * than a new undocumented value on the wire, and the OpenAPI details schema
+ * publishes these same members as an enum.
  *
  * Deliberately absent: the cross-tenant refusals (`NoWorkspaceAccessError`,
  * `WorkspaceApiKeyScopeAuthorizationError`,
@@ -64,56 +63,13 @@ export const FORBIDDEN_DETAIL_CODES = [
   'PERMISSION_GROUP_CAPABILITY_BLOCKED',
   /** The workspace does not permit the integration the request names. */
   'INTEGRATION_NOT_ALLOWED',
+  /** The OAuth access token was not granted the scope this operation needs. */
+  'INSUFFICIENT_SCOPE',
+  /** The organization's identity provider owns this membership, so Sim will not change it. */
+  'SCIM_MANAGED_MEMBERSHIP',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
-
-/**
- * What each code means to a caller, in the words the generated OpenAPI 403
- * description publishes.
- *
- * The `Record` is the completeness gate: adding a member to
- * {@link FORBIDDEN_DETAIL_CODES} fails to compile until it is documented here,
- * so a code cannot reach the wire undocumented.
- */
-export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, string> = {
-  INSUFFICIENT_WORKSPACE_ROLE:
-    'The caller has access to the workspace but its role is below the one this operation requires.',
-  PERSONAL_API_KEYS_DISABLED:
-    "The workspace's organization does not allow personal API keys. Use a workspace API key.",
-  WORKSPACE_KEY_OPERATION_NOT_PERMITTED:
-    'This operation is not available to a workspace-scoped API key. Use a personal API key.',
-  PRINCIPAL_KIND_NOT_PERMITTED: 'This operation does not accept the caller’s kind of API key.',
-  ORGANIZATION_MEMBERSHIP_REQUIRED: 'The caller is not a member of the organization it named.',
-  ORGANIZATION_ADMIN_REQUIRED:
-    'The caller is a member of the organization but not an admin or owner.',
-  ENTERPRISE_PLAN_REQUIRED: 'The organization has no active enterprise subscription.',
-  ORGANIZATION_PLAN_REQUIRED:
-    'The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).',
-  AUDIT_LOGS_DISABLED: 'Audit logging is not enabled for this deployment.',
-  SKILL_EDITOR_ACCESS_REQUIRED:
-    'The caller can write in the workspace but is not an editor of this skill.',
-  SECRET_ADMIN_ACCESS_REQUIRED:
-    'The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.',
-  WORKSPACE_RESOURCE_LIMIT_REACHED:
-    'The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.',
-  PUBLIC_SHARING_NOT_ALLOWED:
-    "The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.",
-  CREDENTIAL_ADMIN_ACCESS_REQUIRED:
-    'The caller can reach the workspace but cannot administer this credential.',
-  MCP_SERVER_URL_NOT_ALLOWED:
-    'The supplied MCP server URL is outside the allowed domains or resolves to an internal address.',
-  WORKSPACE_PLAN_CAPABILITY_REQUIRED:
-    "The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.",
-  CHAT_AUTH_MODE_NOT_PERMITTED:
-    "The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.",
-  CONNECTOR_MANAGED_RESOURCE_READ_ONLY:
-    'This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.',
-  PERMISSION_GROUP_CAPABILITY_BLOCKED:
-    "The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.",
-  INTEGRATION_NOT_ALLOWED:
-    "The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS.",
-}
 
 /**
  * A `forbidden` orchestration failure that names its cause.

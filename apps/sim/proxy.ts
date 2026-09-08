@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
@@ -45,17 +47,17 @@ const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
  * to miss.
  */
 const DEFAULT_API_EXPOSED_HEADERS =
-  'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
+  'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
 const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
 const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
 
 /** v2 execute: run identity and modes use the v2 wire names while streaming negotiates its protocol. */
 const WORKFLOW_EXECUTE_V2_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Run-Id, X-Sim-Stream-Protocol'
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Run-Id, X-Sim-Stream-Protocol'
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
@@ -84,6 +86,15 @@ const CORS_RULES: readonly CorsRule[] = [
       credentials: false,
       methods: 'GET, POST, OPTIONS',
       headers: 'Content-Type, Authorization, Accept',
+    }),
+  },
+  {
+    match: (p) => p.startsWith('/api/auth/.well-known/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, Accept',
     }),
   },
   {
@@ -318,7 +329,14 @@ export async function proxy(request: NextRequest) {
   if (redirect) return applyIndexingPolicy(request, redirect)
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
-    if (hasActiveSession) {
+    const { rawCallbackUrl } = resolveAuthRedirect({
+      redirect: url.searchParams.get('redirect'),
+      callbackUrl: url.searchParams.get('callbackUrl'),
+      inviteFlow: url.searchParams.get('invite_flow'),
+    })
+    const isOAuthSignIn =
+      isOAuthAuthorizationCallback(rawCallbackUrl, url.origin) && (await isOAuthProviderEnabled())
+    if (hasActiveSession && !isOAuthSignIn) {
       return applyIndexingPolicy(request, NextResponse.redirect(new URL('/workspace', request.url)))
     }
     const response = NextResponse.next()

@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   v2DeleteSkillContract,
   v2GetSkillContract,
@@ -51,7 +52,7 @@ export const PATCH = defineV2JsonRoute({
   }),
   useCase: updateSkillUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (principal.kind !== 'personal_api_key') return
+    if (!isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'skill_updated',
@@ -81,7 +82,7 @@ export const DELETE = defineV2JsonRoute({
   }),
   useCase: deleteSkillUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (principal.kind !== 'personal_api_key') return
+    if (!isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'skill_deleted',

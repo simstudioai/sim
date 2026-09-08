@@ -104,8 +104,10 @@ export interface ExecuteWorkflowServiceParams {
    * `async`: enqueue and return the queue receipt.
    * `stream`: return an SSE Response (agent-stream protocol negotiated from
    * `requestHeaders`).
+   * `sync-result-stream`: start the same work as `sync` and return its pending
+   * result so an HTTP surface can emit transport heartbeats while it runs.
    */
-  mode?: 'sync' | 'async' | 'stream'
+  mode?: 'sync' | 'async' | 'stream' | 'sync-result-stream'
   /** Original request headers — stream-protocol negotiation only. */
   requestHeaders?: Headers
   includeThinking?: boolean
@@ -162,13 +164,38 @@ export interface ExecuteWorkflowServiceStream {
   executionId: string
 }
 
-export type ExecuteWorkflowServiceResult =
+/**
+ * A prepared synchronous run that a streaming surface can present while the
+ * exact same execution promise used by `sync` is pending.
+ */
+export interface ExecuteWorkflowServicePendingRun {
+  ok: true
+  executionId: string
+  pending: Promise<ExecuteWorkflowServiceTerminalResult>
+  cancel: () => void
+}
+
+export interface ExecuteWorkflowServiceFailureResult {
+  ok: false
+  failure: ExecuteWorkflowServiceFailure
+}
+
+export type ExecuteWorkflowServiceTerminalResult =
   | ExecuteWorkflowServiceRun
+  | ExecuteWorkflowServiceFailureResult
+
+export type ExecuteWorkflowServiceResult =
+  | ExecuteWorkflowServiceTerminalResult
   | ExecuteWorkflowServiceQueued
   | ExecuteWorkflowServiceStream
-  | { ok: false; failure: ExecuteWorkflowServiceFailure }
+  | ExecuteWorkflowServicePendingRun
 
-function failure(f: ExecuteWorkflowServiceFailure): ExecuteWorkflowServiceResult {
+export type ExecuteWorkflowServiceImmediateResult = Exclude<
+  ExecuteWorkflowServiceResult,
+  ExecuteWorkflowServicePendingRun
+>
+
+function failure(f: ExecuteWorkflowServiceFailure): ExecuteWorkflowServiceFailureResult {
   return { ok: false, failure: f }
 }
 
@@ -206,6 +233,15 @@ async function compactServiceOutput<T>(
   return compacted
 }
 
+export function executeWorkflowService(
+  params: ExecuteWorkflowServiceParams & { mode: 'sync-result-stream' }
+): Promise<ExecuteWorkflowServicePendingRun | ExecuteWorkflowServiceFailureResult>
+export function executeWorkflowService(
+  params: ExecuteWorkflowServiceParams & { mode?: 'sync' | 'async' | 'stream' }
+): Promise<ExecuteWorkflowServiceImmediateResult>
+export function executeWorkflowService(
+  params: ExecuteWorkflowServiceParams
+): Promise<ExecuteWorkflowServiceResult>
 export async function executeWorkflowService(
   params: ExecuteWorkflowServiceParams
 ): Promise<ExecuteWorkflowServiceResult> {
@@ -267,6 +303,32 @@ export async function executeWorkflowService(
 
   let executionIdClaim: ExecutionIdClaim | null = null
   let executionIdClaimCommitted = false
+  let executionIdClaimTransferred = false
+
+  const settleExecutionIdClaim = async () => {
+    if (!executionIdClaim || executionIdClaimCommitted) return
+
+    try {
+      executionIdClaimCommitted = await hasDurableExecutionOwner(executionId)
+    } catch (error) {
+      executionIdClaimCommitted = true
+      reqLogger.warn('Unable to verify execution ID ownership; retaining claim', {
+        error: toError(error).message,
+        executionId,
+      })
+    }
+
+    if (executionIdClaimCommitted) return
+    try {
+      await releaseExecutionIdClaim(executionIdClaim)
+      executionIdClaim = null
+    } catch (error) {
+      reqLogger.warn('Failed to release pre-start execution ID claim', {
+        error: toError(error).message,
+        executionId,
+      })
+    }
+  }
 
   try {
     try {
@@ -622,191 +684,214 @@ export async function executeWorkflowService(
       rejectLargeInlineOutput,
     }
 
-    try {
-      const snapshot = new ExecutionSnapshot(
-        metadata,
-        workflow,
-        processedInput,
-        workflowVariables,
-        selectedOutputs
-      )
+    const runSynchronousWorkflow = async (): Promise<ExecuteWorkflowServiceTerminalResult> => {
+      try {
+        const snapshot = new ExecutionSnapshot(
+          metadata,
+          workflow,
+          processedInput,
+          workflowVariables,
+          selectedOutputs
+        )
 
-      const result = await executeWorkflowCore({
-        snapshot,
-        callbacks: {},
-        loggingSession,
-        includeFileBase64,
-        base64MaxBytes,
-        abortSignal: timeoutController.signal,
-        runFromBlock,
-      })
+        const result = await executeWorkflowCore({
+          snapshot,
+          callbacks: {},
+          loggingSession,
+          includeFileBase64,
+          base64MaxBytes,
+          abortSignal: timeoutController.signal,
+          runFromBlock,
+        })
 
-      await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
+        await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
-      if (result.status === 'cancelled' && isRequestAborted() && !timeoutController.isTimedOut()) {
-        reqLogger.info('Execution cancelled by client disconnect')
-        await loggingSession.markAsFailed('Client cancelled request')
+        if (
+          result.status === 'cancelled' &&
+          isRequestAborted() &&
+          !timeoutController.isTimedOut()
+        ) {
+          reqLogger.info('Execution cancelled by client disconnect')
+          await loggingSession.markAsFailed('Client cancelled request')
+          return {
+            ok: true,
+            executionId,
+            workflowId,
+            status: 'cancelled',
+            aborted: 'client',
+            output: undefined,
+            error: { message: 'Client cancelled request', code: 'CANCELLED' },
+            resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
+            hasResponseBlock: false,
+          }
+        }
+
+        if (
+          result.status === 'cancelled' &&
+          timeoutController.isTimedOut() &&
+          timeoutController.timeoutMs
+        ) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          reqLogger.info('Execution timed out', { timeoutMs: timeoutController.timeoutMs })
+          await loggingSession.markAsFailed(timeoutErrorMessage)
+          const compactTimeoutOutput = await compactServiceOutput(result.output, compactionContext)
+          return {
+            ok: true,
+            executionId,
+            workflowId,
+            status: 'failed',
+            aborted: 'timeout',
+            output: compactTimeoutOutput,
+            error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
+            resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
+            hasResponseBlock: false,
+            startedAt: result.metadata?.startTime,
+            endedAt: result.metadata?.endTime,
+            durationMs: result.metadata?.duration,
+          }
+        }
+
+        const outputWithBase64 =
+          includeFileBase64 && !rejectLargeInlineOutput
+            ? ((await hydrateUserFilesWithBase64(result.output, {
+                requestId,
+                workspaceId,
+                workflowId,
+                executionId,
+                largeValueExecutionIds: [executionId],
+                largeValueKeys: result.metadata?.largeValueKeys ?? [],
+                fileKeys: result.metadata?.fileKeys ?? [],
+                allowLargeValueWorkflowScope: false,
+                userId: actorUserId,
+                principal,
+                maxBytes: base64MaxBytes,
+                preserveLargeValueMetadata: true,
+              })) as NormalizedBlockOutput)
+            : result.output
+
+        const compactOutput = await compactServiceOutput(outputWithBase64, compactionContext)
+
+        const status: ExecuteWorkflowServiceRun['status'] =
+          result.status === 'paused'
+            ? 'paused'
+            : result.status === 'cancelled'
+              ? 'cancelled'
+              : result.success
+                ? 'completed'
+                : 'failed'
+
         return {
           ok: true,
           executionId,
           workflowId,
-          status: 'cancelled',
-          aborted: 'client',
-          output: undefined,
-          error: { message: 'Client cancelled request', code: 'CANCELLED' },
+          status,
+          aborted: null,
+          output: compactOutput,
+          error:
+            status === 'failed' || (status === 'cancelled' && result.error)
+              ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
+              : null,
           resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
-          hasResponseBlock: false,
+          hasResponseBlock: workflowHasResponseBlock(result),
+          startedAt: result.metadata?.startTime,
+          endedAt: result.metadata?.endTime,
+          durationMs: result.metadata?.duration,
         }
-      }
+      } catch (error: unknown) {
+        const errorMessage = getErrorMessage(error, 'Unknown error')
+        const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
-      if (
-        result.status === 'cancelled' &&
-        timeoutController.isTimedOut() &&
-        timeoutController.timeoutMs
-      ) {
-        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
-        reqLogger.info('Execution timed out', { timeoutMs: timeoutController.timeoutMs })
-        await loggingSession.markAsFailed(timeoutErrorMessage)
-        const compactTimeoutOutput = await compactServiceOutput(result.output, compactionContext)
+        if (isRequestAborted() && !timeoutController.isTimedOut()) {
+          reqLogger.info('Execution aborted after client disconnect')
+          return {
+            ok: true,
+            executionId,
+            workflowId,
+            status: 'cancelled',
+            aborted: 'client',
+            output: undefined,
+            error: { message: 'Client cancelled request', code: 'CANCELLED' },
+            resolvedSecretTraceProvenance:
+              executionResult?.executionState?.resolvedSecretTraceProvenance,
+            hasResponseBlock: false,
+          }
+        }
+
+        if (
+          error instanceof PayloadSizeLimitError &&
+          rejectLargeInlineOutput &&
+          error.label === 'Workflow execution response'
+        ) {
+          return failure({
+            kind: 'output_too_large',
+            message: 'Workflow execution response exceeds maximum size',
+            statusCode: 413,
+            code: 'workflow_response_too_large',
+            executionId,
+          })
+        }
+
+        reqLogger.error(`Execution failed: ${errorMessage}`)
+
+        let compactErrorOutput: NormalizedBlockOutput | undefined
+        if (executionResult && Object.hasOwn(executionResult, 'output')) {
+          try {
+            compactErrorOutput = await compactServiceOutput(
+              executionResult.output,
+              compactionContext
+            )
+          } catch (compactError) {
+            if (
+              compactError instanceof PayloadSizeLimitError &&
+              rejectLargeInlineOutput &&
+              compactError.label === 'Workflow execution response'
+            ) {
+              return failure({
+                kind: 'output_too_large',
+                message: 'Workflow execution response exceeds maximum size',
+                statusCode: 413,
+                code: 'workflow_response_too_large',
+                executionId,
+              })
+            }
+            throw compactError
+          }
+        }
+
         return {
           ok: true,
           executionId,
           workflowId,
           status: 'failed',
-          aborted: 'timeout',
-          output: compactTimeoutOutput,
-          error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
-          resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
-          hasResponseBlock: false,
-          startedAt: result.metadata?.startTime,
-          endedAt: result.metadata?.endTime,
-          durationMs: result.metadata?.duration,
-        }
-      }
-
-      const outputWithBase64 =
-        includeFileBase64 && !rejectLargeInlineOutput
-          ? ((await hydrateUserFilesWithBase64(result.output, {
-              requestId,
-              workspaceId,
-              workflowId,
-              executionId,
-              largeValueExecutionIds: [executionId],
-              largeValueKeys: result.metadata?.largeValueKeys ?? [],
-              fileKeys: result.metadata?.fileKeys ?? [],
-              allowLargeValueWorkflowScope: false,
-              userId: actorUserId,
-              principal,
-              maxBytes: base64MaxBytes,
-              preserveLargeValueMetadata: true,
-            })) as NormalizedBlockOutput)
-          : result.output
-
-      const compactOutput = await compactServiceOutput(outputWithBase64, compactionContext)
-
-      const status: ExecuteWorkflowServiceRun['status'] =
-        result.status === 'paused'
-          ? 'paused'
-          : result.status === 'cancelled'
-            ? 'cancelled'
-            : result.success
-              ? 'completed'
-              : 'failed'
-
-      return {
-        ok: true,
-        executionId,
-        workflowId,
-        status,
-        aborted: null,
-        output: compactOutput,
-        error:
-          status === 'failed' || (status === 'cancelled' && result.error)
-            ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
-            : null,
-        resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
-        hasResponseBlock: workflowHasResponseBlock(result),
-        startedAt: result.metadata?.startTime,
-        endedAt: result.metadata?.endTime,
-        durationMs: result.metadata?.duration,
-      }
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, 'Unknown error')
-      const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-
-      if (isRequestAborted() && !timeoutController.isTimedOut()) {
-        reqLogger.info('Execution aborted after client disconnect')
-        return {
-          ok: true,
-          executionId,
-          workflowId,
-          status: 'cancelled',
-          aborted: 'client',
-          output: undefined,
-          error: { message: 'Client cancelled request', code: 'CANCELLED' },
+          aborted: null,
+          output: compactErrorOutput,
+          error: classifyExecutionError(error, executionResult),
           resolvedSecretTraceProvenance:
             executionResult?.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: false,
+          startedAt: executionResult?.metadata?.startTime,
+          endedAt: executionResult?.metadata?.endTime,
+          durationMs: executionResult?.metadata?.duration,
         }
+      } finally {
+        abortSignal?.removeEventListener('abort', abortFromRequest)
+        timeoutController.cleanup()
       }
+    }
 
-      if (
-        error instanceof PayloadSizeLimitError &&
-        rejectLargeInlineOutput &&
-        error.label === 'Workflow execution response'
-      ) {
-        return failure({
-          kind: 'output_too_large',
-          message: 'Workflow execution response exceeds maximum size',
-          statusCode: 413,
-          code: 'workflow_response_too_large',
-          executionId,
-        })
-      }
-
-      reqLogger.error(`Execution failed: ${errorMessage}`)
-
-      let compactErrorOutput: NormalizedBlockOutput | undefined
-      if (executionResult && Object.hasOwn(executionResult, 'output')) {
-        try {
-          compactErrorOutput = await compactServiceOutput(executionResult.output, compactionContext)
-        } catch (compactError) {
-          if (
-            compactError instanceof PayloadSizeLimitError &&
-            rejectLargeInlineOutput &&
-            compactError.label === 'Workflow execution response'
-          ) {
-            return failure({
-              kind: 'output_too_large',
-              message: 'Workflow execution response exceeds maximum size',
-              statusCode: 413,
-              code: 'workflow_response_too_large',
-              executionId,
-            })
-          }
-          throw compactError
-        }
-      }
-
+    const pending = runSynchronousWorkflow()
+    if (mode === 'sync-result-stream') {
+      /** Keep the claim until the pending run can prove whether durable ownership exists. */
+      executionIdClaimTransferred = true
       return {
         ok: true,
         executionId,
-        workflowId,
-        status: 'failed',
-        aborted: null,
-        output: compactErrorOutput,
-        error: classifyExecutionError(error, executionResult),
-        resolvedSecretTraceProvenance:
-          executionResult?.executionState?.resolvedSecretTraceProvenance,
-        hasResponseBlock: false,
-        startedAt: executionResult?.metadata?.startTime,
-        endedAt: executionResult?.metadata?.endTime,
-        durationMs: executionResult?.metadata?.duration,
+        pending: pending.finally(settleExecutionIdClaim),
+        cancel: abortFromRequest,
       }
-    } finally {
-      abortSignal?.removeEventListener('abort', abortFromRequest)
-      timeoutController.cleanup()
     }
+
+    return await pending
   } catch (error) {
     reqLogger.error('Failed to start workflow execution', { error: toError(error).message })
     if (executionId) await releaseExecutionSlot(executionId)
@@ -816,28 +901,7 @@ export async function executeWorkflowService(
       statusCode: 500,
     })
   } finally {
-    if (executionIdClaim && !executionIdClaimCommitted) {
-      try {
-        executionIdClaimCommitted = await hasDurableExecutionOwner(executionId)
-      } catch (error) {
-        executionIdClaimCommitted = true
-        reqLogger.warn('Unable to verify execution ID ownership; retaining claim', {
-          error: toError(error).message,
-          executionId,
-        })
-      }
-    }
-
-    if (executionIdClaim && !executionIdClaimCommitted) {
-      try {
-        await releaseExecutionIdClaim(executionIdClaim)
-      } catch (error) {
-        reqLogger.warn('Failed to release pre-start execution ID claim', {
-          error: toError(error).message,
-          executionId,
-        })
-      }
-    }
+    if (!executionIdClaimTransferred) await settleExecutionIdClaim()
   }
 }
 

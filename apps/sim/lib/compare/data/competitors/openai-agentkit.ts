@@ -31,11 +31,39 @@ export const openaiAgentkitProfile: CompetitorProfile = {
   },
   oneLiner:
     "OpenAI AgentKit bundled a visual Agent Builder, ChatKit embeddable chat UI, Connector Registry, Guardrails, and Evals for building agentic workflows on OpenAI's models. But OpenAI is winding down Agent Builder and Evals, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
+  sectionIntros: {
+    platform: [
+      'Sim offers a visual builder, supported self-hosting, and promotion across environments. OpenAI Agent Builder is a hosted visual canvas that OpenAI is retiring, leaving the code-first Agents SDK as its successor.',
+    ],
+    pricing: [
+      { text: 'Sim combines a per-user subscription', href: '/pricing' },
+      ' with usage credits and bring-your-own-key exemptions, while OpenAI charges for model tokens and tools without a dedicated AgentKit plan. Estimate workflow volume, token consumption, and paid tool calls when comparing total cost.',
+    ],
+    security: [
+      'OpenAI publishes a broader certification portfolio, while Sim provides more direct infrastructure control through ',
+      { text: 'self-hosting', href: 'https://docs.sim.ai/platform/self-hosting' },
+      ' and configurable credential, retention, session, and audit policies.',
+    ],
+    aiCapabilities: [
+      'Sim provides visual and natural-language building across ',
+      { text: 'multiple model providers', href: 'https://docs.sim.ai/introduction' },
+      ". Agent Builder's visual selector is limited to OpenAI models and is being retired, although the separate Agents SDK can reach other providers through code-level adapters.",
+    ],
+    integrations: [
+      'Sim publishes integration and trigger counts for its first-party automation catalog, while OpenAI combines a smaller documented connector set with access to external MCP servers, which are third-party endpoints OpenAI does not review.',
+    ],
+    observability: [
+      'Both products provide run tracing, but their operational models differ. Sim includes visual workflow alerts and error branches, while several OpenAI retry, checkpoint, and recovery capabilities require developers to configure the Agents SDK in code.',
+    ],
+    support: [
+      'OpenAI documents 24/7 support and service commitments for qualifying enterprise offerings, while Sim lists dedicated Enterprise support without publishing response-time or uptime terms. Buyers who require contractual guarantees should confirm the exact coverage with each vendor.',
+    ],
+  },
   standoutFeatures: [
     {
       title: 'An official, open-source Agents SDK wired natively to its own models',
       description:
-        "The Agents SDK, openai-agents-python, is open source under the MIT license with over 27,500 GitHub stars and natively wired into OpenAI's own model lineup. It's the path OpenAI is steering AgentKit users toward as Agent Builder and Evals wind down (full shutdown November 30, 2026), and a team fully committed to an all-OpenAI, code-first stack gets that directly.",
+        "The Agents SDK, openai-agents-python, is open source under the MIT license with over 27,500 GitHub stars and natively wired into OpenAI's own model lineup. It's the path OpenAI is steering AgentKit users toward as Agent Builder and Evals wind down, and a team fully committed to an all-OpenAI, code-first stack gets that directly.",
       shortDescription: 'Open-source code-first framework, natively wired to OpenAI models.',
       source: {
         url: 'https://github.com/openai/openai-agents-python',
@@ -120,7 +148,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Visual canvas (Agent Builder) for drag-and-drop multi-agent workflow construction, paired with a code-first alternative (Agents SDK, Python/TypeScript)',
         detail:
-          'Agent Builder was a visual, node-based canvas for creating and versioning multi-agent workflows with typed inputs/outputs and live-data preview. It is being deprecated (shutdown November 30, 2026) in favor of the code-first Agents SDK, making the long-term builder paradigm code-based rather than visual.',
+          'Agent Builder was a visual, node-based canvas for creating and versioning multi-agent workflows with typed inputs/outputs and live-data preview. It is being deprecated in favor of the code-first Agents SDK, making the long-term builder paradigm code-based rather than visual.',
         shortValue: 'Visual canvas, deprecated in favor of code-first SDK',
         confidence: 'verified',
         sources: [
@@ -213,7 +241,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'No dev/qa/prod-style environment promotion for full projects. Only single-workflow versioning and code export',
         detail:
-          "Agent Builder workflows export as code (Agents SDK, Python or TypeScript) or JSON templates, and templates can sync with a Git repo for reuse, but there's no built-in feature to clone a whole project and promote it between dev/qa/prod environments. Promoting environments means exporting to code and managing them yourself, which lines up with third-party reviews noting Agent Builder lacks production-grade deployment pipelines. Agent Builder is being deprecated, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
+          "Agent Builder workflows export as code (Agents SDK, Python or TypeScript) or JSON templates, and templates can sync with a Git repo for reuse, but there's no built-in feature to clone a whole project and promote it between dev/qa/prod environments. Promoting environments means exporting to code and managing them yourself, which lines up with third-party reviews noting Agent Builder lacks production-grade deployment pipelines.",
         shortValue: 'No built-in dev/qa/prod promotion',
         confidence: 'estimated',
         sources: [
@@ -352,9 +380,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       customBlocks: {
         value:
-          "No: Agent Builder has no feature to publish a workflow as a named, encapsulated block that other org members can drop into their own separate workflows. Its full node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no 'workflow as a block' node, and publishing only creates a versioned snapshot consumable via the API or embedded through ChatKit, not a reusable canvas block for teammates.",
+          'No: Agent Builder has no feature to publish a workflow as a named, encapsulated block that other org members can drop into their own separate workflows.',
         detail:
-          "Publishing a workflow in Agent Builder produces a versioned object callable via API or embeddable through ChatKit, but that is deploying one workflow as an endpoint, not turning it into a block that appears in other users' canvases with inputs auto-derived from its Start node and internals hidden. Team-level reuse in the documented deployment paths (templates, ChatKit, SDK code export) means copying a template, embedding a chat surface, or exporting code, none of which give other builders a live, encapsulated block that stays in sync with the source workflow's latest published version. Agent Builder itself is also being wound down, with full shutdown November 30, 2026.",
+          "Its node palette has no 'workflow as a block' node, and the documented reuse paths (templates, ChatKit, SDK code export) give teammates a copy or an endpoint, never a live encapsulated block that stays in sync with the source workflow's latest published version.",
         shortValue: 'No dedicated publish-as-reusable-block feature found',
         confidence: 'estimated',
         sources: [
@@ -451,7 +479,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Yes: Evals (datasets, trace grading, automated prompt optimization) and a separate open-source Guardrails layer, but Evals is being deprecated alongside Agent Builder',
         detail:
-          'AgentKit shipped Datasets, Trace grading, and Automated prompt optimization under Evals, plus an open-source modular Guardrails safety layer (PII masking, jailbreak detection). Evals goes read-only October 31, 2026 and is fully shut down November 30, 2026, alongside Agent Builder.',
+          'AgentKit shipped Datasets, Trace grading, and Automated prompt optimization under Evals, plus an open-source modular Guardrails safety layer (PII masking, jailbreak detection). Evals is being retired alongside Agent Builder.',
         shortValue: 'Evals plus Guardrails (Evals sunsetting)',
         confidence: 'verified',
         sources: [
@@ -523,7 +551,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "No: Agent Builder/AgentKit has no dedicated feature for defining a reusable, named prompt or knowledge snippet that multiple agents can share by reference. OpenAI's separate reusable-prompts feature is itself being phased out and is scheduled to shut down November 30, 2026, alongside Agent Builder. A distinct 'Agent Skills' concept exists only in the unrelated Codex product line, not in AgentKit.",
+          "No: Agent Builder/AgentKit has no dedicated feature for defining a reusable, named prompt or knowledge snippet that multiple agents can share by reference. A distinct 'Agent Skills' concept exists only in the unrelated Codex product line, not in AgentKit.",
         detail:
           'OpenAI recommends migrating reusable prompts to code-managed, versioned helper files instead, which is the opposite direction of a built-in skills feature.',
         shortValue: 'No dedicated cross-agent skill/snippet feature',
@@ -544,8 +572,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       nativeChatDeployment: {
         value:
           'Yes: ChatKit is a native toolkit for embedding a publicly deployable, customizable chat-based agent surface (web widget) backed by a published Agent Builder workflow ID or the Agents SDK, distinct from just a form/API/webhook target.',
-        detail:
-          'ChatKit remains available even as Agent Builder itself is being wound down (shutdown November 30, 2026).',
+        detail: 'ChatKit remains available even as Agent Builder itself is being wound down.',
         shortValue: 'Yes, via ChatKit embeddable chat surface',
         confidence: 'verified',
         sources: [

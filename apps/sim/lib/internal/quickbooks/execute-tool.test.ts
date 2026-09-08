@@ -73,6 +73,94 @@ function request(overrides: Partial<InternalToolOperationCall> = {}): InternalTo
   }
 }
 
+const AUTH_INPUT = {
+  accessToken: 'token',
+  realmId: '123',
+  quickBooksEnvironment: 'sandbox',
+} as const
+
+const PROVIDER_OPERATIONS: ReadonlyArray<
+  [string, ReturnType<typeof vi.fn>, Record<string, unknown>, Record<string, unknown>]
+> = [
+  [
+    'quickbooks_create_bill_payment',
+    mocks.createBillPayment,
+    {
+      vendorId: 'vendor-1',
+      totalAmount: 25,
+      paymentType: 'check',
+      paymentAccountId: 'account-1',
+    },
+    { totalAmount: '25' },
+  ],
+  [
+    'quickbooks_update_bill',
+    mocks.updateBill,
+    { billId: 'bill-1', syncToken: '3' },
+    { billId: '' },
+  ],
+  [
+    'quickbooks_update_bill_payment',
+    mocks.updateBillPayment,
+    { billPaymentId: 'bill-payment-1', syncToken: '3' },
+    { billPaymentId: '' },
+  ],
+  [
+    'quickbooks_update_credit_memo',
+    mocks.updateCreditMemo,
+    { transactionId: 'credit-memo-1', syncToken: '3' },
+    { transactionId: '' },
+  ],
+  [
+    'quickbooks_update_customer_payment',
+    mocks.updateCustomerPayment,
+    { paymentId: 'payment-1', syncToken: '3' },
+    { paymentId: '' },
+  ],
+  [
+    'quickbooks_update_employee',
+    mocks.updateEmployee,
+    { employeeId: 'employee-1', syncToken: '3' },
+    { employeeId: '' },
+  ],
+  [
+    'quickbooks_update_item',
+    mocks.updateItem,
+    { itemId: 'item-1', syncToken: '3' },
+    { unitPrice: 'free' },
+  ],
+  [
+    'quickbooks_update_purchase',
+    mocks.updatePurchase,
+    { purchaseId: 'purchase-1', syncToken: '3' },
+    { purchaseId: '' },
+  ],
+  [
+    'quickbooks_update_purchase_order',
+    mocks.updatePurchaseOrder,
+    { purchaseOrderId: 'purchase-order-1', syncToken: '3' },
+    { purchaseOrderId: '' },
+  ],
+  [
+    'quickbooks_update_refund_receipt',
+    mocks.updateRefundReceipt,
+    { transactionId: 'refund-receipt-1', syncToken: '3' },
+    { transactionId: '' },
+  ],
+  [
+    'quickbooks_update_vendor',
+    mocks.updateVendor,
+    { vendorId: 'vendor-1', syncToken: '3' },
+    { syncToken: '' },
+  ],
+  [
+    'quickbooks_update_vendor_credit',
+    mocks.updateVendorCredit,
+    { vendorCreditId: 'vendor-credit-1', syncToken: '3' },
+    { vendorCreditId: '' },
+  ],
+]
+
 describe('executeQuickBooksTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -99,44 +187,85 @@ describe('executeQuickBooksTool', () => {
     }
   })
 
-  it.each([
-    ['quickbooks_create_bill_payment', mocks.createBillPayment],
-    ['quickbooks_update_bill', mocks.updateBill],
-    ['quickbooks_update_bill_payment', mocks.updateBillPayment],
-    ['quickbooks_update_credit_memo', mocks.updateCreditMemo],
-    ['quickbooks_update_customer_payment', mocks.updateCustomerPayment],
-    ['quickbooks_update_employee', mocks.updateEmployee],
-    ['quickbooks_update_item', mocks.updateItem],
-    ['quickbooks_update_purchase', mocks.updatePurchase],
-    ['quickbooks_update_purchase_order', mocks.updatePurchaseOrder],
-    ['quickbooks_update_refund_receipt', mocks.updateRefundReceipt],
-    ['quickbooks_update_vendor', mocks.updateVendor],
-    ['quickbooks_update_vendor_credit', mocks.updateVendorCredit],
-  ])('dispatches %s through its internal provider operation', async (toolId, operation) => {
-    const controller = new AbortController()
-    const operationRequest = request({
-      toolId,
-      input: {
-        accessToken: 'token',
-        realmId: '123',
-        quickBooksEnvironment: 'sandbox',
-        entityId: 'entity-1',
-      },
-      signal: controller.signal,
-    })
+  it.each(PROVIDER_OPERATIONS)(
+    'dispatches %s through its internal provider operation',
+    async (toolId, operation, operationInput) => {
+      const controller = new AbortController()
+      const operationRequest = request({
+        toolId,
+        input: { ...AUTH_INPUT, ...operationInput },
+        signal: controller.signal,
+      })
 
-    const response = await executeQuickBooksTool(operationRequest)
+      const response = await executeQuickBooksTool(operationRequest)
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        success: true,
+        output: { id: 'entity-1' },
+      })
+      expect(operation).toHaveBeenCalledWith(
+        { ...AUTH_INPUT, ...operationInput },
+        controller.signal
+      )
+    }
+  )
+
+  it.each(PROVIDER_OPERATIONS)(
+    'rejects %s input the contract refuses',
+    async (toolId, operation, operationInput, invalidOverride) => {
+      const response = await executeQuickBooksTool(
+        request({ toolId, input: { ...AUTH_INPUT, ...operationInput, ...invalidOverride } })
+      )
+
+      expect(response.status).toBe(400)
+      expect(operation).not.toHaveBeenCalled()
+    }
+  )
+
+  it('drops keys no provider operation contract declares', async () => {
+    const response = await executeQuickBooksTool(
+      request({
+        toolId: 'quickbooks_update_vendor',
+        input: { ...AUTH_INPUT, vendorId: 'vendor-1', syncToken: '3', credential: 'credential-1' },
+      })
+    )
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      output: { id: 'entity-1' },
-    })
-    expect(operation).toHaveBeenCalledWith(
-      operationRequest.input,
-      controller.signal,
-      operationRequest.context
+    expect(mocks.updateVendor).toHaveBeenCalledWith(
+      { ...AUTH_INPUT, vendorId: 'vendor-1', syncToken: '3' },
+      undefined
     )
+  })
+
+  it('rejects provider operations without trusted user identity', async () => {
+    const response = await executeQuickBooksTool(
+      request({
+        toolId: 'quickbooks_update_vendor',
+        input: { ...AUTH_INPUT, vendorId: 'vendor-1', syncToken: '3' },
+        context: { workflowId: 'workflow-1' },
+      })
+    )
+
+    expect(response.status).toBe(401)
+    expect(mocks.updateVendor).not.toHaveBeenCalled()
+  })
+
+  it('rejects oversized provider operation input before dispatch', async () => {
+    const response = await executeQuickBooksTool(
+      request({
+        toolId: 'quickbooks_update_vendor',
+        input: {
+          ...AUTH_INPUT,
+          vendorId: 'vendor-1',
+          syncToken: '3',
+          extra: 'x'.repeat(1024 * 1024 + 1),
+        },
+      })
+    )
+
+    expect(response.status).toBe(413)
+    expect(mocks.updateVendor).not.toHaveBeenCalled()
   })
 
   it('dispatches downloads with trusted execution context', async () => {

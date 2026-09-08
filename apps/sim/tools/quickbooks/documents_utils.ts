@@ -71,6 +71,12 @@ interface QuickBooksFileType {
  * Extension allowlist for QuickBooks attachments. Each entry follows Intuit's
  * published extension/content-type table, tolerates common browser and OS MIME
  * aliases, and normalizes them to one canonical content type before upload.
+ *
+ * Sending `image/jpeg` for a `.jpg` file is deliberate and must not be "fixed" back to
+ * `image/jpg`. Intuit's Attachable upload sample sends `image/jpg` while the read response for
+ * that same file returns `image/jpeg`, so QuickBooks normalizes on ingest; and the
+ * `attachablerequest` model has no `ContentType` property at all, which makes the multipart
+ * metadata content type advisory rather than contractual.
  */
 const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
   ai: {
@@ -207,8 +213,14 @@ export function sanitizeQuickBooksFileName(value: string | undefined, fallback: 
   return (value ? sanitize(value) : undefined) ?? sanitize(fallback) ?? 'quickbooks-file'
 }
 
+/**
+ * Returns the lowercased extension, or an empty string when the name carries none. Splitting on
+ * `.` alone would report a dotless name as its own extension, so an unattachable `backup` file
+ * would be refused as "the backup file type" instead of as an extensionless one.
+ */
 function getQuickBooksFileExtension(fileName: string): string {
-  return fileName.split('.').pop()?.toLowerCase() ?? ''
+  const separator = fileName.lastIndexOf('.')
+  return separator > 0 ? fileName.slice(separator + 1).toLowerCase() : ''
 }
 
 /**
@@ -273,9 +285,17 @@ export function sanitizeQuickBooksAttachable(
   return safeAttachment as QuickBooksAttachable
 }
 
+/**
+ * Parses an Intuit Attachable envelope for any operation that returns one.
+ *
+ * `operationLabel` names the operation in the nested-fault error message. It defaults to the
+ * upload wording because the upload path is the older caller; every other caller passes its own
+ * label so a read failure is not reported as a failed upload.
+ */
 export async function parseQuickBooksAttachableResponse(
   response: Response,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  operationLabel = 'attachment upload'
 ): Promise<{ attachment: QuickBooksAttachable; time: string | null }> {
   const data = await parseQuickBooksJson<QuickBooksAttachableEnvelope>(
     response,
@@ -286,7 +306,7 @@ export async function parseQuickBooksAttachableResponse(
   const sanitizedFault = sanitizeQuickBooksFaultData({ Fault: nestedFault })
   if (sanitizedFault) {
     throw new Error(
-      `QuickBooks attachment upload failed: ${formatQuickBooksFaultDetail(sanitizedFault)}`
+      `QuickBooks ${operationLabel} failed: ${formatQuickBooksFaultDetail(sanitizedFault)}`
     )
   }
   const attachment = data.Attachable ?? data.AttachableResponse?.[0]?.Attachable
@@ -303,6 +323,12 @@ export async function parseQuickBooksAttachableResponse(
   }
 }
 
+/**
+ * Builds the `file_metadata_01` part of an Attachable multipart upload.
+ *
+ * Intuit's `attachablerequest` model has exactly one free-text field, `Note`, so `description`
+ * and `note` both land there and `note` wins when a caller supplies both.
+ */
 export function buildQuickBooksAttachableMetadata(
   targetType: QuickBooksAttachmentTargetType,
   targetId: string,

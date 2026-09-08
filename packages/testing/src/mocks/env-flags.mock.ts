@@ -35,6 +35,7 @@ export interface EnvFlagsMockState {
   isInboxEnabled: boolean
   isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
+  isScimEnabled: boolean
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
@@ -80,6 +81,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
@@ -89,6 +91,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,
+  isScimEnabled: false,
   isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,

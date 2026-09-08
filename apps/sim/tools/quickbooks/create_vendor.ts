@@ -16,6 +16,7 @@ import {
 import {
   optionalQuickBooksString,
   parseQuickBooksAddress,
+  quickBooksDisplayName,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
 } from '@/tools/quickbooks/values'
@@ -132,7 +133,7 @@ export const quickbooksCreateVendorTool: ToolConfig<
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
-      const displayName = optionalQuickBooksString(params.displayName)
+      const displayName = quickBooksDisplayName(params.displayName, 'displayName')
       const givenName = optionalQuickBooksString(params.givenName)
       const familyName = optionalQuickBooksString(params.familyName)
       if (displayName === undefined && givenName === undefined && familyName === undefined) {

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 import { MAX_ID_LENGTH } from '../../apps/sim/lib/api/contracts/primitives'
 import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
@@ -22,6 +23,7 @@ import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
 type JsonObject = Record<string, unknown>
 
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete'])
+const MAX_DESCRIPTION_WORDS = 80
 
 const DOCUMENTS = [
   workflowsOpenApiDocument,
@@ -32,6 +34,78 @@ const DOCUMENTS = [
   billingOpenApiDocument,
   resourcesOpenApiDocument,
 ] as const
+
+/** Reads route admission policy without importing its database and provider implementations. */
+async function routeApplicationOperation(routePath: string, method: string): Promise<unknown> {
+  const sourcePath = path.resolve(
+    import.meta.dirname,
+    '../../apps/sim/app',
+    `.${routePath}`,
+    'route.ts'
+  )
+  const source = ts.createSourceFile(
+    sourcePath,
+    readFileSync(sourcePath, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true
+  )
+  let handler: ts.Expression | undefined
+  const imports = new Map<string, { module: string; name: string }>()
+  function visit(node: ts.Node): void {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === method) {
+      handler = node.initializer
+    }
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const bindings = node.importClause?.namedBindings
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const item of bindings.elements) {
+          imports.set(item.name.text, {
+            module: node.moduleSpecifier.text,
+            name: item.propertyName?.text ?? item.name.text,
+          })
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  if (!handler || !ts.isCallExpression(handler))
+    throw new Error(`Missing ${method} handler: ${sourcePath}`)
+  let operation: ts.Expression | undefined
+  const options = handler.arguments[0]
+  if (options && ts.isObjectLiteralExpression(options)) {
+    const property = options.properties.find(
+      (item) => ts.isPropertyAssignment(item) && item.name.getText(source) === 'operation'
+    )
+    if (property && ts.isPropertyAssignment(property)) operation = property.initializer
+  } else {
+    function findAdmission(node: ts.Node): void {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        ['admitV2Request', 'admitOptionalV2Request'].includes(node.expression.text)
+      ) {
+        if (operation) throw new Error(`Ambiguous admission policy: ${sourcePath}`)
+        operation = node.arguments[1]
+      }
+      ts.forEachChild(node, findAdmission)
+    }
+    findAdmission(handler)
+  }
+  if (
+    !operation ||
+    !ts.isPropertyAccessExpression(operation) ||
+    !ts.isIdentifier(operation.expression)
+  ) {
+    throw new Error(`Unresolved admission policy: ${sourcePath}`)
+  }
+  const imported = imports.get(operation.expression.text)
+  if (!imported || !imported.module.endsWith('/operations')) {
+    throw new Error(`Admission policy must reference its operation registry: ${sourcePath}`)
+  }
+  const registryModule = (await import(imported.module)) as Record<string, Record<string, unknown>>
+  return registryModule[imported.name]?.[operation.name.text]
+}
 
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
   ['apps/docs/openapi-v2-workflows.json', 38],
@@ -67,6 +141,26 @@ function operations(spec: JsonObject): JsonObject[] {
     }
   }
   return result
+}
+
+function oversizedDescriptions(value: unknown, location: string, out: string[]): void {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => oversizedDescriptions(item, `${location}[${index}]`, out))
+    return
+  }
+
+  for (const [key, nested] of Object.entries(value as JsonObject)) {
+    const nestedLocation = `${location}.${key}`
+    if (key === 'description' && typeof nested === 'string') {
+      const wordCount = nested.trim() ? nested.trim().split(/\s+/).length : 0
+      if (wordCount > MAX_DESCRIPTION_WORDS) {
+        out.push(`${nestedLocation} (${wordCount} words)`)
+      }
+      continue
+    }
+    oversizedDescriptions(nested, nestedLocation, out)
+  }
 }
 
 function isStructuredObject(schema: JsonObject): boolean {
@@ -152,6 +246,36 @@ function anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
 }
 
 describe('generated OpenAPI documents', () => {
+  it('documents the same canonical operation and OAuth scope each route admits', async () => {
+    for (const document of DOCUMENTS) {
+      for (const route of document.routes) {
+        const runtimeOperation = await routeApplicationOperation(
+          route.contract.path,
+          route.contract.method
+        )
+        expect(runtimeOperation, `${route.contract.method} ${route.contract.path}`).toBe(
+          route.operation.applicationOperation
+        )
+        const generated = getOperation(
+          generatedDocument(document),
+          route.contract.path.replace(/\[([^\]]+)\]/g, '{$1}'),
+          route.contract.method.toLowerCase()
+        )
+        expect(generated['x-sim-operation']).toBe(route.operation.applicationOperation.id)
+        expect(generated['x-oauth-scope']).toBe(route.operation.applicationOperation.oauthScope)
+      }
+    }
+  })
+
+  it('keeps every description concise without padding simple fields', () => {
+    const outliers: string[] = []
+    for (const document of DOCUMENTS) {
+      oversizedDescriptions(generatedDocument(document), document.output, outliers)
+    }
+
+    expect(outliers).toEqual([])
+  })
+
   it('covers the complete public v2 operation surface with canonical errors', () => {
     const outputs = DOCUMENTS.map((document) => document.output)
     expect(new Set(outputs).size).toBe(DOCUMENTS.length)
@@ -200,8 +324,12 @@ describe('generated OpenAPI documents', () => {
       'Workflow Runs',
     ])
     expect(execute.tags).toEqual(['Workflows'])
-    expect(execute.security).toEqual([{ apiKey: [] }, {}])
-    expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
+    expect(execute.security).toEqual([{ apiKey: [] }, { oauthBearer: [] }, {}])
+    expect(Object.keys(executeOkContent).sort()).toEqual([
+      'application/json',
+      'application/x-ndjson',
+      'text/event-stream',
+    ])
     expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
 
     const resume = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}/resume', 'post')

@@ -6,6 +6,7 @@ import {
 import type {
   QuickBooksAccountingMethod,
   QuickBooksAgingMethod,
+  QuickBooksReportDateMacro,
   QuickBooksReportSummarizeBy,
   QuickBooksRunFinancialReportParams,
 } from '@/tools/quickbooks/types'
@@ -23,6 +24,7 @@ const QUICKBOOKS_REPORT_SUMMARIZE_VALUES: Record<
   year: 'Year',
   customer: 'Customers',
   vendor: 'Vendors',
+  employee: 'Employees',
   item: 'ProductsAndServices',
   class: 'Classes',
   department: 'Departments',
@@ -41,10 +43,43 @@ const QUICKBOOKS_AGING_METHOD_VALUES: Record<Exclude<QuickBooksAgingMethod, 'def
   current: 'Current',
 }
 
+/**
+ * Intuit's `date_macro` values, spelled exactly as the report query models document them.
+ */
+const QUICKBOOKS_REPORT_DATE_MACRO_VALUES: Record<
+  Exclude<QuickBooksReportDateMacro, 'default'>,
+  string
+> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  this_week: 'This Week',
+  last_week: 'Last Week',
+  this_week_to_date: 'This Week-to-date',
+  last_week_to_date: 'Last Week-to-date',
+  next_week: 'Next Week',
+  next_4_weeks: 'Next 4 Weeks',
+  this_month: 'This Month',
+  last_month: 'Last Month',
+  this_month_to_date: 'This Month-to-date',
+  last_month_to_date: 'Last Month-to-date',
+  next_month: 'Next Month',
+  this_fiscal_quarter: 'This Fiscal Quarter',
+  last_fiscal_quarter: 'Last Fiscal Quarter',
+  this_fiscal_quarter_to_date: 'This Fiscal Quarter-to-date',
+  last_fiscal_quarter_to_date: 'Last Fiscal Quarter-to-date',
+  next_fiscal_quarter: 'Next Fiscal Quarter',
+  this_fiscal_year: 'This Fiscal Year',
+  last_fiscal_year: 'Last Fiscal Year',
+  this_fiscal_year_to_date: 'This Fiscal Year-to-date',
+  last_fiscal_year_to_date: 'Last Fiscal Year-to-date',
+  next_fiscal_year: 'Next Fiscal Year',
+}
+
 const QUICKBOOKS_REPORT_FILTER_PARAMS: Record<QuickBooksReportFilter, string> = {
   customerId: 'customer',
   vendorId: 'vendor',
   accountId: 'account',
+  employeeId: 'employee',
   itemId: 'item',
   classId: 'class',
   departmentId: 'department',
@@ -163,28 +198,41 @@ function addQuickBooksTransactionListFilters(
     QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType,
     'sourceAccountType'
   )
-  const controls = {
+  const definition = QUICKBOOKS_REPORTS[params.reportType]
+  const documentNumber = optionalQuickBooksString(params.documentNumber)
+
+  /**
+   * `group_by`, `appaid`, and `arpaid` are documented beyond Transaction List — by
+   * `inventoryvaluationdetailquery` and by the customer and vendor balance models respectively —
+   * so each is gated on the requesting report's own definition. The remaining four controls are
+   * documented only by `transactionlistquery`.
+   */
+  const perReportControls: Array<[string, string | undefined, boolean]> = [
+    ['group_by', groupBy, definition.groupBy],
+    ['appaid', accountsPayablePaid, definition.accountsPayablePaid],
+    ['arpaid', accountsReceivablePaid, definition.accountsReceivablePaid],
+  ]
+  for (const [param, value, supported] of perReportControls) {
+    if (value === undefined) continue
+    if (!supported) throw new Error(`${params.reportType} does not support ${param}`)
+    url.searchParams.set(param, value)
+  }
+
+  const transactionListControls = {
     transaction_type: transactionType,
-    group_by: groupBy,
-    appaid: accountsPayablePaid,
-    arpaid: accountsReceivablePaid,
     cleared: clearedStatus,
-    docnum: optionalQuickBooksString(params.documentNumber),
+    docnum: documentNumber,
     source_account_type: sourceAccountType,
   }
-  const supplied = Object.entries(controls).find(([, value]) => value !== undefined)
+  const supplied = Object.entries(transactionListControls).find(([, value]) => value !== undefined)
   if (params.reportType !== 'transaction_list') {
     if (supplied) throw new Error(`${params.reportType} does not support ${supplied[0]}`)
     return
   }
 
-  if (transactionType) url.searchParams.set('transaction_type', transactionType)
-  if (groupBy) url.searchParams.set('group_by', groupBy)
-  if (accountsPayablePaid) url.searchParams.set('appaid', accountsPayablePaid)
-  if (accountsReceivablePaid) url.searchParams.set('arpaid', accountsReceivablePaid)
-  if (clearedStatus) url.searchParams.set('cleared', clearedStatus)
-  if (controls.docnum) url.searchParams.set('docnum', controls.docnum)
-  if (sourceAccountType) url.searchParams.set('source_account_type', sourceAccountType)
+  for (const [param, value] of Object.entries(transactionListControls)) {
+    if (value) url.searchParams.set(param, value)
+  }
 }
 
 /**
@@ -213,6 +261,20 @@ export function resolveQuickBooksReportEndpoint(params: QuickBooksRunFinancialRe
   }
 
   const dateParams: Array<[string, string]> = []
+
+  const dateMacro = params.dateMacro ?? 'default'
+  if (dateMacro !== 'default') {
+    if (!definition.dateMacro) {
+      throw new Error(`${params.reportType} does not support dateMacro`)
+    }
+    if (startDate || endDate) {
+      throw new Error('dateMacro cannot be combined with startDate or endDate')
+    }
+    const value = QUICKBOOKS_REPORT_DATE_MACRO_VALUES[dateMacro]
+    if (!value) throw new Error(`Unsupported QuickBooks date macro: ${String(dateMacro)}`)
+    dateParams.push(['date_macro', value])
+  }
+
   if (startDate) dateParams.push(['start_date', startDate])
   if (endDate) {
     dateParams.push([definition.dateMode === 'as_of' ? 'report_date' : 'end_date', endDate])
@@ -248,6 +310,18 @@ export function applyQuickBooksReportParams(
     const value = QUICKBOOKS_REPORT_SUMMARIZE_VALUES[summarizeBy]
     if (!value) throw new Error(`Unsupported QuickBooks report summarization: ${summarizeBy}`)
     url.searchParams.set('summarize_column_by', value)
+  }
+
+  if (params.quickZoomUrl !== undefined) {
+    if (typeof params.quickZoomUrl !== 'boolean') {
+      throw new Error('quickZoomUrl must be a boolean')
+    }
+    if (params.quickZoomUrl) {
+      if (!definition.quickZoomUrl) {
+        throw new Error(`${params.reportType} does not support quickZoomUrl`)
+      }
+      url.searchParams.set('qzurl', 'true')
+    }
   }
 
   for (const filter of Object.keys(QUICKBOOKS_REPORT_FILTER_PARAMS) as QuickBooksReportFilter[]) {

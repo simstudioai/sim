@@ -8,8 +8,8 @@ import {
   type ErrorResponseId,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
 } from '@/lib/api/contracts/v2/openapi/shared'
@@ -19,6 +19,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { billingOperations } from '@/lib/billing/application/operations'
 
 const BILLING_STATUS_EXAMPLE = {
   data: {
@@ -78,6 +79,7 @@ const routes = [
   defineOpenApiRoute(
     v2GetBillingStatusContract,
     billingOperation({
+      applicationOperation: billingOperations.readStatus,
       operationId: 'getBillingStatus',
       summary: 'Get Billing Status',
       description:
@@ -104,6 +106,7 @@ const routes = [
   defineOpenApiRoute(
     v2ListBillingLogsContract,
     billingOperation({
+      applicationOperation: billingOperations.listLogs,
       operationId: 'listBillingLogs',
       summary: 'List Billing Logs',
       description:
@@ -153,8 +156,8 @@ export const billingOpenApiDocument = defineOpenApiDocument({
       description: 'Inspect billing standing, credit allowance, storage quota, and usage history.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,

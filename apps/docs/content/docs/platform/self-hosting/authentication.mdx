@@ -79,6 +79,82 @@ Providers are then registered in the app under **Settings → Organization → S
 
 See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
 
+## Sign in with Sim
+
+Your deployment can act as an OAuth 2.0 authorization server using authorization
+code with PKCE and current OAuth security guidance. The Sim CLI uses it when
+enabled; see [CLI authentication](/cli/authentication).
+
+The global `oauth-provider` feature flag controls availability. Keep it off while
+applying the database migration, then deploy and drain every older app instance
+before enabling it.
+
+If your deployment uses AWS AppConfig, add this entry to the existing
+`feature-flags` document and deploy that configuration:
+
+```json
+{
+  "oauth-provider": { "enabled": true }
+}
+```
+
+Preserve the document's other entries. This flag is global: use `enabled`, not
+workspace, organization, user, or admin targeting. Set `enabled` to `false` to
+turn it off; changes take effect as instances refresh their AppConfig cache.
+
+When AppConfig is disabled or no AppConfig document has been loaded, the
+fallback is:
+
+```bash
+OAUTH_PROVIDER_ENABLED=true
+```
+
+In that fallback mode, unset or false keeps the provider off. An available
+AppConfig document takes precedence over this variable, including when the
+`oauth-provider` entry is missing or disabled. AppConfig fetch failures retain
+the last successfully loaded document.
+
+When the provider is off, discovery at `/.well-known/oauth-authorization-server`
+returns 404 and the CLI falls back to the pairing-code handoff.
+`DISABLE_AUTH=true` also forces the provider off because the authorization flow
+requires a real Better Auth user session.
+
+Access tokens are opaque and last an hour; refresh tokens rotate on every use.
+Each login has a fixed thirty-day lifetime that refreshing does not extend.
+Token validation checks current grants, so revoking a grant under
+**Settings → General → Authorized apps** stops the app on its very next request. These
+settings remain available for reviewing and revoking existing grants while the
+provider is off, and scheduled OAuth token cleanup continues.
+
+### Registering an app
+
+Dynamic client registration is switched off, so clients are created by an
+operator. Both `db:migrate` and the development `db:push` command install the
+OAuth lifecycle triggers and register the Sim CLI. Repeating either command
+preserves existing grants and client customizations. Register other apps with:
+
+```bash
+DATABASE_URL=… \
+BETTER_AUTH_SECRET=… \
+OAUTH_CLIENT_ID=my-app \
+OAUTH_CLIENT_NAME="My App" \
+OAUTH_REDIRECT_URIS=https://my-app.example/callback \
+OAUTH_SCOPES=api:read \
+bun run apps/sim/scripts/create-oauth-client.ts
+```
+
+Add `OAUTH_CLIENT_PUBLIC=true` for a native or CLI app that cannot keep a
+secret; it then authenticates with PKCE alone. The provider exposes
+`offline_access`, `api:read`, and `api:write` for API authorization; it does not
+expose OpenID Connect identity scopes or issue ID tokens. A confidential
+client's secret is printed once and cannot be read back. Confidential clients
+use `client_secret_basic`; the registration command prints the token
+authentication method alongside the client ID.
+
+Redirect URIs must be `https`, or `http` on a loopback address, and are matched
+exactly — except a loopback URI, where any port matches, because a native app
+cannot know its port in advance.
+
 ## Controlling who can sign up
 
 | Variable | Effect |

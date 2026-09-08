@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { quickbooksCreatePurchaseOrderTool } from '@/tools/quickbooks/create_purchase_order'
 import {
   buildQuickBooksCreateBillBody,
   buildQuickBooksCreateBillPaymentBody,
+  buildQuickBooksCreatePurchaseBody,
+  buildQuickBooksCreatePurchaseOrderBody,
   buildQuickBooksUpdateBillBody,
   buildQuickBooksUpdateBillPaymentBody,
   buildQuickBooksUpdatePurchaseBody,
@@ -156,6 +159,112 @@ describe('QuickBooks BillPayment allocation behavior', () => {
         billAllocations: [{ billId: 'bill-1', amount: 125 }],
       })
     ).toThrow('cannot exceed totalAmount')
+  })
+})
+
+describe('QuickBooks multicurrency and non-US tax fields on creates', () => {
+  it('emits CurrencyRef and GlobalTaxCalculation on a Bill when they are supplied', () => {
+    expect(
+      buildQuickBooksCreateBillBody({
+        ...BASE_PARAMS,
+        currencyCode: 'cad',
+        globalTaxCalculation: 'TaxInclusive',
+      })
+    ).toMatchObject({
+      CurrencyRef: { value: 'CAD' },
+      GlobalTaxCalculation: 'TaxInclusive',
+    })
+  })
+
+  it('omits both fields when they are not supplied', () => {
+    const body = buildQuickBooksCreateBillBody(BASE_PARAMS)
+
+    expect(body).not.toHaveProperty('CurrencyRef')
+    expect(body).not.toHaveProperty('GlobalTaxCalculation')
+  })
+
+  it('rejects a currency code that is not three letters and an undocumented tax value', () => {
+    expect(() => buildQuickBooksCreateBillBody({ ...BASE_PARAMS, currencyCode: 'CANADA' })).toThrow(
+      'ISO 4217'
+    )
+    expect(() =>
+      buildQuickBooksCreateBillBody({ ...BASE_PARAMS, globalTaxCalculation: 'Inclusive' })
+    ).toThrow('globalTaxCalculation must be one of')
+  })
+
+  it('emits CurrencyRef, DocNumber, and APAccountRef on a BillPayment', () => {
+    expect(
+      buildQuickBooksCreateBillPaymentBody({
+        accessToken: 'token',
+        realmId: '123',
+        quickBooksEnvironment: 'sandbox',
+        vendorId: 'vendor-1',
+        totalAmount: 100,
+        paymentType: 'check',
+        paymentAccountId: 'bank-1',
+        apAccountId: 'ap-1',
+        currencyCode: 'GBP',
+        documentNumber: 'CHK-1001',
+      })
+    ).toMatchObject({
+      CurrencyRef: { value: 'GBP' },
+      APAccountRef: { value: 'ap-1' },
+      DocNumber: 'CHK-1001',
+    })
+  })
+
+  it('emits CurrencyRef on a Purchase', () => {
+    expect(
+      buildQuickBooksCreatePurchaseBody({
+        accessToken: 'token',
+        realmId: '123',
+        quickBooksEnvironment: 'sandbox',
+        paymentType: 'cash',
+        paymentAccountId: 'bank-1',
+        lines: [{ lineType: 'account', amount: 20, accountId: 'account-1' }],
+        currencyCode: 'EUR',
+      })
+    ).toMatchObject({ CurrencyRef: { value: 'EUR' } })
+  })
+})
+
+describe('QuickBooks item-based expense lines', () => {
+  it('accepts an item line without an itemId, as ItemRef is optional', () => {
+    const body = buildQuickBooksCreateBillBody({
+      ...BASE_PARAMS,
+      lines: [{ lineType: 'item', amount: 20 }],
+    })
+
+    expect(body.Line).toEqual([
+      {
+        Amount: 20,
+        DetailType: 'ItemBasedExpenseLineDetail',
+        ItemBasedExpenseLineDetail: {},
+      },
+    ])
+  })
+})
+
+describe('QuickBooks Purchase Order due date', () => {
+  it('exposes dueDate so the DueDate the builder already sends is reachable', () => {
+    expect(quickbooksCreatePurchaseOrderTool.params.dueDate).toMatchObject({
+      type: 'string',
+      required: false,
+    })
+  })
+
+  it('sends DueDate on a created Purchase Order', () => {
+    expect(
+      buildQuickBooksCreatePurchaseOrderBody({
+        accessToken: 'token',
+        realmId: '123',
+        quickBooksEnvironment: 'sandbox',
+        vendorId: 'vendor-1',
+        apAccountId: 'ap-1',
+        lines: [{ lineType: 'account', amount: 20, accountId: 'account-1' }],
+        dueDate: '2026-01-31',
+      })
+    ).toMatchObject({ DueDate: '2026-01-31' })
   })
 })
 

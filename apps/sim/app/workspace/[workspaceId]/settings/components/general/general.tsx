@@ -19,6 +19,7 @@ import {
 } from '@sim/emcn'
 import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
@@ -49,6 +50,12 @@ import {
   useUserProfile,
 } from '@/hooks/queries/user-profile'
 import { clearUserData } from '@/stores'
+
+const AuthorizedApps = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps').then(
+    (module) => module.AuthorizedApps
+  )
+)
 
 const logger = createLogger('General')
 
@@ -273,7 +280,11 @@ export function General() {
   const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
 
   if (view === 'privacy') {
-    return <PrivacyView onBack={() => setView(null)} />
+    return <PrivacyView onBack={() => setView(null, { history: 'replace' })} />
+  }
+
+  if (view === 'authorized-apps' && !isAuthDisabled) {
+    return <AuthorizedApps onBack={() => setView(null, { history: 'replace' })} />
   }
 
   const actions: SettingsAction[] = [
@@ -596,9 +607,15 @@ export function General() {
 
         {!isAuthDisabled && (
           <SettingsSection label='Account'>
-            <div className='flex items-center justify-between'>
-              <Label>Delete account</Label>
-              <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
+            <div className='flex flex-col gap-4'>
+              <div className='flex items-center justify-between'>
+                <Label>Authorized apps</Label>
+                <Chip onClick={() => setView('authorized-apps')}>Manage</Chip>
+              </div>
+              <div className='flex items-center justify-between'>
+                <Label>Delete account</Label>
+                <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
+              </div>
             </div>
           </SettingsSection>
         )}

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   quickBooksHandler,
   verifyQuickBooksSignature,
+  verifyQuickBooksSignatureAgainstVerifierTokenStream,
   verifyQuickBooksSignatureAgainstVerifierTokens,
 } from '@/lib/webhooks/providers/quickbooks'
 import {
@@ -48,8 +49,72 @@ describe('QuickBooks webhook provider', () => {
     expect(isQuickBooksEventMatch('quickbooks_bill_events', event.type, ['updated'])).toBe(false)
   })
 
+  it('stops decrypting verifier tokens once one matches the signature', async () => {
+    const body = JSON.stringify([event])
+    const signature = crypto.createHmac('sha256', 'first-verifier').update(body).digest('base64')
+    const yielded: string[] = []
+    async function* tokens(): AsyncGenerator<string> {
+      for (const token of ['first-verifier', 'second-verifier']) {
+        yielded.push(token)
+        yield token
+      }
+    }
+
+    expect(
+      await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+        body,
+        signature,
+        tokens(),
+        'request-stream-1'
+      )
+    ).toBeNull()
+    expect(yielded).toEqual(['first-verifier'])
+  })
+
+  it('fails closed when no streamed verifier token matches', async () => {
+    const body = JSON.stringify([event])
+    async function* tokens(): AsyncGenerator<string> {
+      yield 'first-verifier'
+    }
+    async function* noTokens(): AsyncGenerator<string> {}
+
+    expect(
+      (
+        await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+          body,
+          'invalid',
+          tokens(),
+          'request-stream-2'
+        )
+      )?.status
+    ).toBe(401)
+    expect(
+      (
+        await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+          body,
+          'irrelevant',
+          noTokens(),
+          'request-stream-3'
+        )
+      )?.status
+    ).toBe(401)
+    expect(
+      (
+        await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+          body,
+          null,
+          tokens(),
+          'request-stream-4'
+        )
+      )?.status
+    ).toBe(401)
+  })
+
   it('normalizes Intuit void events to the configured voided action', async () => {
-    for (const entity of ['invoice', 'payment']) {
+    for (const [entity, entityType] of [
+      ['invoice', 'Invoice'],
+      ['payment', 'Payment'],
+    ]) {
       const voidEvent = { ...event, type: `qbo.${entity}.void.v1` }
       expect(
         isQuickBooksEventMatch(`quickbooks_${entity}_events`, voidEvent.type, ['voided'])
@@ -64,7 +129,7 @@ describe('QuickBooks webhook provider', () => {
       })
       expect(result.input).toMatchObject({
         eventType: `qbo.${entity}.void.v1`,
-        entityType: entity,
+        entityType,
         action: 'voided',
       })
     }
@@ -81,7 +146,7 @@ describe('QuickBooks webhook provider', () => {
     expect(result.input).toEqual({
       eventId: 'event-1',
       eventType: 'qbo.invoice.updated.v1',
-      entityType: 'invoice',
+      entityType: 'Invoice',
       action: 'updated',
       entityId: '123',
       realmId: '456',

@@ -254,6 +254,7 @@ export const deploymentFeaturesSchema = z.object({
   dataRetention: z.boolean(),
   inbox: z.boolean(),
   sandboxes: z.boolean(),
+  scim: z.boolean(),
   sessionPolicies: z.boolean(),
   sso: z.boolean(),
   usageMonitoring: z.boolean(),

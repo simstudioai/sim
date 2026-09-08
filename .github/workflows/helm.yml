@@ -5,6 +5,8 @@ on:
     branches: [main, staging, dev]
     paths:
       - 'helm/sim/**'
+      # Repository-level Artifact Hub metadata, republished by the publish job.
+      - 'helm/artifacthub-repo.yml'
       - '.github/workflows/helm.yml'
       # The image inventory is generated from the chart and checked here, so a
       # change to its generator has to run this workflow too.
@@ -14,6 +16,8 @@ on:
     branches: [main, staging, dev]
     paths:
       - 'helm/sim/**'
+      # Repository-level Artifact Hub metadata, republished by the publish job.
+      - 'helm/artifacthub-repo.yml'
       - '.github/workflows/helm.yml'
       # The image inventory is generated from the chart and checked here, so a
       # change to its generator has to run this workflow too.
@@ -34,6 +38,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
@@ -125,11 +131,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          # The version gate only reads history and fetches a public branch, so
+          # it never needs the token left behind in .git/config.
+          persist-credentials: false
       - name: Require a Chart.yaml version bump when chart content changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          base="origin/${{ github.base_ref }}"
-          git fetch origin "${{ github.base_ref }}"
+          base="origin/${BASE_REF}"
+          git fetch origin "${BASE_REF}"
           merge_base=$(git merge-base "$base" HEAD)
           changed=$(git diff --name-only "$merge_base" HEAD)
           if echo "$changed" | grep -q '^helm/sim/'; then
@@ -151,6 +162,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
@@ -181,3 +194,291 @@ jobs:
 
       - name: Run helm test
         run: helm test sim --namespace sim --timeout 5m
+
+  # Publishes the chart to GHCR as an OCI artifact. Self-hosters cannot admit a
+  # chart pulled from a git checkout — they need an immutable, versioned artifact
+  # they can pin by digest and mirror into an internal registry — so shipping the
+  # chart in-repo only is the same as not shipping it.
+  #
+  # Lives here rather than in a `publish-*.yml` of its own so it can gate on the
+  # jobs above: nothing is published unless the chart linted, unit-tested,
+  # rendered clean under kubeconform, and actually installed on a kind cluster.
+  # A separate workflow would race those instead of waiting for them.
+  publish:
+    name: Publish chart to GHCR
+    needs: [chart, install]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read # Read the chart source.
+      packages: write # Push the chart, its signature, and its attestations to GHCR.
+      id-token: write # Sigstore signs against the runner's OIDC identity; no key material is stored.
+      attestations: write # Let actions/attest-build-provenance record the SLSA provenance.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.16.4
+
+      # oras also reads ~/.docker/config.json, so this one login covers both the
+      # chart push and the Artifact Hub metadata push below.
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package chart
+        id: package
+        run: |
+          set -euo pipefail
+          chart=$(helm show chart helm/sim)
+          name=$(printf '%s\n' "$chart" | awk '/^name:/ {print $2}')
+          version=$(printf '%s\n' "$chart" | awk '/^version:/ {print $2}')
+          helm package helm/sim --destination dist
+          {
+            echo "name=${name}"
+            echo "version=${version}"
+            echo "path=dist/${name}-${version}.tgz"
+            echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}"
+          } >> "$GITHUB_OUTPUT"
+
+      # `appVersion` is what the image tags default to, so a stale one publishes
+      # a chart that silently installs an old Sim -- and because published chart
+      # versions are immutable, every stale value is frozen forever. It sat six
+      # releases behind before this check existed, bumped only by hand.
+      #
+      # BEHIND is the failure. AHEAD is normal and must not be blocked: a
+      # version tag is cut by the main-branch merge commit that releases it
+      # (detect-version in ci.yml), so appVersion legitimately names a release
+      # that does not exist yet while that release is still being built. Failing
+      # on any mismatch would race that workflow and block the very publish the
+      # bump was for. `helm/sim/ci/kind-values.yaml` documents the same
+      # circularity, and it is why appVersion went unbumped for so long.
+      #
+      # Compares against the latest GitHub release rather than a hardcoded value
+      # so the check cannot go stale itself. Prereleases and drafts are excluded:
+      # the `/releases/latest` endpoint already returns neither.
+      - name: appVersion does not lag the app release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          app_version=$(helm show chart helm/sim | awk '/^appVersion:/ {print $2}' | tr -d '"')
+          latest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+          if [ -z "$latest" ]; then
+            echo "::error::Could not resolve the latest release; refusing to publish unverified."
+            exit 1
+          fi
+          if [ "$app_version" = "$latest" ]; then
+            echo "appVersion ${app_version} matches the latest release."
+            exit 0
+          fi
+          oldest=$(printf '%s\n%s\n' "$app_version" "$latest" | sort -V | head -1)
+          if [ "$oldest" = "$app_version" ]; then
+            echo "::error::Chart.yaml appVersion is ${app_version} but the latest release is ${latest}. Bump appVersion (and the chart version) so the chart does not publish an install pinned to an older Sim."
+            exit 1
+          fi
+          echo "::notice::appVersion ${app_version} is ahead of the latest release ${latest}, which is expected while that release is still being cut."
+
+      # Chart versions are immutable once published: whoever pinned a version
+      # must keep resolving the same bytes forever. The PR gate above already
+      # forces a version bump on every chart change, so a version that is
+      # already in the registry means this commit changed something outside
+      # `helm/sim/`.
+      #
+      # The lookup must fail CLOSED. Treating every non-zero exit as "absent"
+      # would let a transient 5xx, an expired token, or a DNS blip re-push an
+      # existing version and move a tag consumers have already pinned — and
+      # same-version runs are routine, since the path filter also fires on
+      # `package.json` and workflow edits.
+      #
+      # Verified against the pinned Helm (v3.16.4): an absent version AND an
+      # absent repository both report `<ref>: not found`, so a first publish
+      # still proceeds, while `denied`, `unauthorized`, and `dial tcp` failures
+      # do not match and stop the job instead.
+      - name: Skip if this version is already published
+        id: exists
+        env:
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+          NAME: ${{ steps.package.outputs.name }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          set -euo pipefail
+          if err=$(helm show chart "oci://${REPOSITORY}" --version "${VERSION}" 2>&1 >/dev/null); then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${NAME} ${VERSION} is already published; skipping."
+          elif printf '%s\n' "$err" | grep -q ': not found'; then
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$err"
+            echo "::error::Could not determine whether ${NAME} ${VERSION} is already published. Refusing to push, because an unchecked push can overwrite a published version."
+            exit 1
+          fi
+
+      # `helm push` takes the namespace only — it derives the repository
+      # basename from the chart's name and the tag from its version, so the
+      # result is ghcr.io/<owner>/charts/sim:<version>.
+      - name: Push chart
+        id: push
+        if: steps.exists.outputs.already == 'false'
+        env:
+          CHART_PATH: ${{ steps.package.outputs.path }}
+        run: |
+          set -euo pipefail
+          output=$(helm push "${CHART_PATH}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts" 2>&1)
+          printf '%s\n' "$output"
+          digest=$(printf '%s\n' "$output" | grep -oE 'sha256:[a-f0-9]{64}' | head -1 || true)
+          if [ -z "$digest" ]; then
+            echo "::error::helm push did not report a digest; refusing to sign an unidentified artifact"
+            exit 1
+          fi
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Cosign
+        if: steps.exists.outputs.already == 'false'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Signed by digest, never by tag: a tag is a mutable pointer, so signing
+      # one would attest to whatever it happens to reference later. The verify
+      # is not ceremony — it fails the run if the signature we just wrote cannot
+      # be read back with the identity we expect, which is the whole point of
+      # publishing a signature at all.
+      - name: Sign and verify chart
+        if: steps.exists.outputs.already == 'false'
+        env:
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          ref="${REPOSITORY}@${DIGEST}"
+          cosign sign --yes "$ref"
+          cosign verify "$ref" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+      # Stored alongside the chart so a mirrored registry carries the
+      # attestation with it, rather than only being retrievable from GitHub.
+      - name: Attest build provenance
+        if: steps.exists.outputs.already == 'false'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.package.outputs.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
+
+      # Artifact Hub reads repository metadata from the reserved `artifacthub.io`
+      # tag on the chart's own OCI repository. Pushed on every run, including
+      # version-skip runs, so an edit to the metadata file alone still lands.
+      - name: Publish Artifact Hub metadata
+        env:
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+        # Run from `helm/` so the layer's title annotation is the bare
+        # `artifacthub-repo.yml`, matching Artifact Hub's documented command. A
+        # path-qualified argument records `helm/artifacthub-repo.yml` instead.
+        working-directory: helm
+        run: |
+          set -euo pipefail
+          oras push "${REPOSITORY}:artifacthub.io" \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+
+      - name: Summary
+        env:
+          ALREADY: ${{ steps.exists.outputs.already }}
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+          VERSION: ${{ steps.package.outputs.version }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          {
+            if [ "${ALREADY}" = "true" ]; then
+              echo "### Chart ${VERSION} was already published — nothing to do"
+            else
+              echo "### Published chart ${VERSION}"
+              echo
+              echo "Digest: \`${DIGEST}\`"
+            fi
+            echo
+            echo '```bash'
+            echo "helm install sim oci://${REPOSITORY} --version ${VERSION}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The classic HTTP repo, published alongside the OCI artifact above. Both is
+  # what the ecosystem actually does: Bitnami, cert-manager, ingress-nginx,
+  # prometheus-community, Grafana, Argo and external-secrets all still serve an
+  # index.yaml, because plenty of clusters, GitOps configs and mirroring tools
+  # only speak `helm repo add`. OCI is the modern path, not yet the only one.
+  #
+  # Separate from the OCI job on purpose: chart-releaser needs `contents: write`
+  # to cut a release and push the index, and there is no reason to hand that to
+  # the job holding the signing identity.
+  publish-http:
+    name: Publish chart to the Helm repo
+    needs: [chart, install]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: write # Cut the chart release and push index.yaml to the pages branch.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # chart-releaser diffs against the previous tag to decide which charts
+          # changed, so it needs the full history rather than a shallow clone.
+          fetch-depth: 0
+          # chart-releaser authenticates with CR_TOKEN, not the checkout credential.
+          persist-credentials: false
+
+      # Creating the pages branch and turning on GitHub Pages are one-time
+      # manual steps that no workflow can do for itself. Skip loudly rather than
+      # failing main when they have not happened yet -- the OCI publish is
+      # independent and must not be held hostage to this.
+      - name: Check the pages branch exists
+        id: pages
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No gh-pages branch, so the HTTP chart repo was not updated. Create it and point GitHub Pages at it to activate this job. The OCI publish is unaffected."
+          fi
+
+      - name: Configure Git
+        if: steps.pages.outputs.exists == 'true'
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          git config user.name "${ACTOR}"
+          git config user.email "${ACTOR}@users.noreply.github.com"
+
+      # chart-releaser writes index.yaml to the pages branch and attaches the
+      # .tgz to a GitHub release, which is where index.yaml points -- so the
+      # packages stay reachable no matter which domain serves the index.
+      - name: Run chart-releaser
+        if: steps.pages.outputs.exists == 'true'
+        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
+        with:
+          charts_dir: helm
+          # Re-running on an already-released version must be a no-op, the same
+          # way the OCI publish above refuses to move a published version.
+          skip_existing: true
+          # A chart release must never take the "Latest" badge from the
+          # application release it packages.
+          mark_as_latest: false
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Keeps chart releases visually distinct from the vX.Y.Z app releases
+          # they share the list with.
+          CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}"

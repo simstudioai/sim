@@ -42,6 +42,16 @@ const BOUNDARY_POLICY_BASELINE = {
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
+  // SCIM discovery documents (RFC 7644 section 4). Each serves a fixed document
+  // describing what this server implements and accepts no params, query, or body,
+  // so there is no input to validate and no contract to bind. They are deliberately
+  // unauthenticated: a provider negotiates against them before it holds a
+  // credential. Wrapped in withRouteHandler by `defineScimDiscoveryRoute`.
+  'apps/sim/app/api/scim/v2/ServiceProviderConfig/route.ts',
+  'apps/sim/app/api/scim/v2/ResourceTypes/route.ts',
+  'apps/sim/app/api/scim/v2/ResourceTypes/[id]/route.ts',
+  'apps/sim/app/api/scim/v2/Schemas/route.ts',
+  'apps/sim/app/api/scim/v2/Schemas/[id]/route.ts',
   // Catch-all JSON 404 for unknown /api/v2 paths. It has no contract by
   // construction: it exists precisely for requests that match no operation, so
   // there is no input to validate and its only response is the fixed v2 error
@@ -61,6 +71,11 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
   'apps/sim/app/api/auth/[...all]/route.ts',
+  /** OAuth protocol routes use bounded form or bearer parsing instead of JSON contracts. */
+  'apps/sim/app/api/auth/oauth2/revoke/route.ts',
+  'apps/sim/app/api/auth/oauth2/token/route.ts',
+  /** Input-less RFC 8414 aliases return Better Auth metadata with Sim's supported surface. */
+  'apps/sim/app/api/auth/.well-known/oauth-authorization-server/route.ts',
   // Better Auth handles validation for the Stripe webhook handler.
   'apps/sim/app/api/auth/webhook/stripe/route.ts',
   // Routes with no client-supplied input that previously had no-op
@@ -84,11 +99,13 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/settings/allowed-providers/route.ts',
   'apps/sim/app/api/settings/allowed-integrations/route.ts',
   'apps/sim/app/api/settings/allowed-mcp-domains/route.ts',
+  'apps/sim/app/api/cron/scim-reconcile/route.ts',
   'apps/sim/app/api/cron/cleanup-tasks/route.ts',
   'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
   'apps/sim/app/api/cron/cleanup-table-row-ttl/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
   'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
+  'apps/sim/app/api/cron/cleanup-oauth-tokens/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/billing-cycle-close/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
@@ -169,9 +186,9 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
 const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
-  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]/
+  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]|\bimport\s*\{[^}]*\bdefineScimRoute\b[^}]*\}\s*from\s*['"]@\/ee\/scim\/lib\/route['"]/
 const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
-  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute)\s*\(/
+  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute|defineScimRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
 const CONTRACT_SERVER_HELPER_PATTERN = /\bparseToolRequest\(/

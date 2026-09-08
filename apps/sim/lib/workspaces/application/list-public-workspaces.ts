@@ -1,10 +1,13 @@
 import type { ListSortOrder } from '@/lib/api/list-query'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import {
   authorizeWorkspaceOperation,
   type OperationUseCase,
   requireAllowedWorkspacePrincipal,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { workspaceOperations } from '@/lib/workspaces/application/operations'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import {
@@ -31,6 +34,8 @@ export interface ListPublicWorkspacesResult {
 type WorkspaceRow = Awaited<
   ReturnType<typeof listAccessibleWorkspaceRowsForUser>
 >[number]['workspace']
+
+const WORKSPACE_CAPABILITY_CONCURRENCY = 8
 
 function compareWorkspaceRows(
   left: WorkspaceRow,
@@ -75,9 +80,34 @@ export const listPublicWorkspaces: OperationUseCase<
     }
 
     const accessible = await listAccessibleWorkspaceRowsForUser(principal.userId, 'active')
-    const sorted = accessible
-      .filter(({ workspace }) => workspace.allowPersonalApiKeys)
-      .map(({ workspace }) => workspace)
+    const candidates = accessible.filter(({ workspace }) => workspace.allowPersonalApiKeys)
+    const governed = await mapWithConcurrency(
+      candidates,
+      WORKSPACE_CAPABILITY_CONCURRENCY,
+      async ({ workspace }) => {
+        const personalCredentialsWithheld = await isWorkspaceCapabilityWithheld(
+          principal.userId,
+          workspace.id,
+          'personal_api_key.use',
+          workspace.organizationId
+        )
+        if (personalCredentialsWithheld) return null
+
+        if (principal.kind !== 'oauth_access_token' || principal.clientId !== SIM_CLI_CLIENT_ID) {
+          return workspace
+        }
+
+        const cliWithheld = await isWorkspaceCapabilityWithheld(
+          principal.userId,
+          workspace.id,
+          'cli.use',
+          workspace.organizationId
+        )
+        return cliWithheld ? null : workspace
+      }
+    )
+    const sorted = governed
+      .filter((workspace): workspace is WorkspaceRow => workspace !== null)
       .sort((left, right) => compareWorkspaceRows(left, right, input.sortBy, input.sortOrder))
     const page = sorted.slice(input.offset, input.offset + input.limit)
     const details = await getPublicWorkspaceDetails(page.map(({ id }) => id))

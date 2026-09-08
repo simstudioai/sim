@@ -58,9 +58,9 @@ export const quickbooksUpdateDepositTool: ToolConfig<
     },
     depositAccountId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Current QuickBooks account receiving the deposit',
+      description: 'Replacement QuickBooks account receiving the deposit',
     },
     transactionDate: {
       type: 'string',

@@ -307,6 +307,58 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * time. Dropped rather than renamed — there is no field for the value to move to.
    */
   vanta: [{ from: 'uploadMimeType', to: '_removed_uploadMimeType' }],
+  /**
+   * Three unrelated QuickBooks changes land here.
+   *
+   * The by-ID read moved off `transactionId`, which the shipped block shared
+   * with every update and void. `tools.config.params` republishes that one
+   * stored value as the read target AND as `paymentId`, `billId`,
+   * `journalEntryId` and the rest, so a bill ID entered under Read Purchasing
+   * Transactions survived a switch to Update Purchase Order and addressed the
+   * wrong entity while the block still validated. `transactionId` stays live
+   * for the mutations, so the rename is scoped to the three read operations
+   * and a mutation's target is left where it is.
+   *
+   * The three `summarize_column_by` subsets collapsed into `reportSummarizeBy`,
+   * which kept its ID. Every value the retired dropdowns could hold is in the
+   * collapsed option list — Intuit documents the identical twelve values on all
+   * fourteen report models that advertise the control, which is why the subsets
+   * collapsed at all — so the stored value moves as-is rather than being
+   * dropped, and no value guard is needed. The renames are unconditional so
+   * that an occupied `reportSummarizeBy` wins and the retired key is discarded:
+   * a block created before the collapse was seeded with `reportSummarizeBy`
+   * too, so its live pick must never be clobbered by a subset control that was
+   * hidden for the selected report type. The value is therefore recovered
+   * exactly where nothing owns the target — YAML- and Copilot-authored blocks,
+   * which persist only the fields they set. Order decides which subset wins if
+   * a hand-authored state carries more than one; the three were mutually
+   * exclusive per report type, so at most one can hold a real pick.
+   *
+   * `attachmentFileName` split: it now carries an `attachmentKind: 'file'`
+   * clause for the upload path and the download-side name moved to
+   * `downloadAttachmentFileName`. The source ID is still the upload override,
+   * so the rename is scoped to the download operation and an add-side value
+   * stays put.
+   */
+  quickbooks: [
+    {
+      from: 'transactionId',
+      to: 'readTransactionId',
+      whenOperation: [
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
+      ],
+    },
+    { from: 'reportCustomerSalesSummarizeBy', to: 'reportSummarizeBy' },
+    { from: 'reportVendorExpenseSummarizeBy', to: 'reportSummarizeBy' },
+    { from: 'reportTimeSummarizeBy', to: 'reportSummarizeBy' },
+    {
+      from: 'attachmentFileName',
+      to: 'downloadAttachmentFileName',
+      whenOperation: ['quickbooks_download_attachment'],
+    },
+  ],
 }
 
 /** Reads the value out of a stored subblock entry, tolerating a bare value. */

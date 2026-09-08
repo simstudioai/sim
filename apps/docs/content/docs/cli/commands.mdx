@@ -52,7 +52,7 @@ These apply to every command, and may be written before or after it.
 | [`sim workflows`](/cli/workflows) | Manage workflows |
 | [`sim workspaces`](/cli/workspaces) | Manage workspaces |
 
-## Authorize this terminal and store an API key for the profile
+## Sign in through the browser and store the login for the profile
 
 ```bash
 sim login [options]
@@ -64,13 +64,15 @@ sim login [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <scope>` | No | Key space to mint from: platform or copilot. Defaults to `platform`. |
-| `--no-browser` | No | Print the URL instead of opening a browser. |
-| `-y, --yes` | No | Overwrite an existing profile without prompting. |
+| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates a permanent key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
+| `--no-browser` | No | Print the approval URL without opening it (either login method). |
+| `--read-only` | No | Ask only for permission to read, never to change anything. |
+| `--callback-port <port>` | No | Pin the local port the browser returns to. |
+| `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 
 </CommandTable>
 
-## Remove the profile's stored API key
+## Sign out and remove the profile's stored login
 
 ```bash
 sim logout [options]

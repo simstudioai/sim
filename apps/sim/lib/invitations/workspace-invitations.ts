@@ -43,6 +43,11 @@ import {
   type WorkspaceInvitePolicy,
 } from '@/lib/workspaces/policy'
 import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
+import { isScimDeploymentEnabled } from '@/ee/scim/lib/entitlement'
+import {
+  assertInviteeNotScimManaged,
+  scimManagedUserPredicate,
+} from '@/ee/scim/lib/managed-membership'
 
 /**
  * What the invitee becomes in the organization. `member` and `admin` are
@@ -477,10 +482,26 @@ export async function createWorkspaceInvitation({
   const allWorkspaceIds = context.targets.map((target) => target.workspaceId)
 
   const existingUser = await db
-    .select({ id: user.id })
+    .select({
+      id: user.id,
+      scimManaged:
+        organizationId && isScimDeploymentEnabled()
+          ? scimManagedUserPredicate(organizationId, user.id)
+          : sql<boolean>`false`,
+    })
     .from(user)
     .where(sql`lower(${user.email}) = ${normalizedEmail}`)
     .then((rows) => rows[0])
+
+  /**
+   * When the organization has made its identity provider the source of truth for
+   * membership, a Sim invitation to someone the directory already provisions is
+   * redundant at best and reverted at worst. Read as part of the lookup above so
+   * the common case costs no extra query.
+   */
+  if (organizationId) {
+    await assertInviteeNotScimManaged({ organizationId, managed: existingUser?.scimManaged })
+  }
 
   const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
   let existingOrganizationRole = existingMembership?.role

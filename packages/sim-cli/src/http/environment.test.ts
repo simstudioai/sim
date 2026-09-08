@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { resetEnvironmentNotices, warnIfKeyOverCleartext, warnIfProxyIgnored } from './environment'
+import {
+  resetEnvironmentNotices,
+  warnIfCredentialOverCleartext,
+  warnIfProxyIgnored,
+} from './environment'
 
 let writes: string[]
 let originalWrite: typeof process.stderr.write
@@ -70,7 +74,7 @@ describe('a proxy the request will not go through', () => {
 
 describe('an API key crossing the network in the clear', () => {
   it('reports a key sent to a remote host over http', () => {
-    warnIfKeyOverCleartext('http://sim.internal.example', true)
+    warnIfCredentialOverCleartext('http://sim.internal.example', true)
     expect(writes.join('')).toContain('sim.internal.example')
     expect(writes.join('')).toContain('over http')
   })
@@ -78,14 +82,14 @@ describe('an API key crossing the network in the clear', () => {
   it('stays silent for the documented local development case', () => {
     // `http://localhost:3000` is what the README and the login example use.
     for (const host of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://api.localhost']) {
-      warnIfKeyOverCleartext(host, true)
+      warnIfCredentialOverCleartext(host, true)
     }
     expect(writes).toEqual([])
   })
 
   it('stays silent over https, and when there is no key to leak', () => {
-    warnIfKeyOverCleartext('https://sim.example', true)
-    warnIfKeyOverCleartext('http://sim.internal.example', false)
+    warnIfCredentialOverCleartext('https://sim.example', true)
+    warnIfCredentialOverCleartext('http://sim.internal.example', false)
     expect(writes).toEqual([])
   })
 })

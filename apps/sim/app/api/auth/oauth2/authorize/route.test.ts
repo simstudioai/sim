@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
@@ -9,6 +9,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 
 const mocks = vi.hoisted(() => ({
+  betterAuthGET: vi.fn(),
   getSession: vi.fn(),
   linkAccount: vi.fn(),
   getBaseUrl: vi.fn(),
@@ -19,11 +20,19 @@ const mocks = vi.hoisted(() => ({
   decryptQuickBooksClientConfig: vi.fn(),
   createQuickBooksState: vi.fn(),
   getCanonicalScopes: vi.fn(),
+  oauthEnabled: vi.fn(),
+}))
+
+vi.mock('better-auth/next-js', () => ({
+  toNextJsHandler: () => ({ GET: mocks.betterAuthGET }),
 }))
 
 vi.mock('@/lib/auth/auth', () => ({
   getSession: mocks.getSession,
-  auth: { api: { oAuth2LinkAccount: mocks.linkAccount } },
+  auth: { handler: {}, api: { oAuth2LinkAccount: mocks.linkAccount } },
+}))
+vi.mock('@/lib/auth/oauth-provider-feature', () => ({
+  isOAuthProviderEnabled: mocks.oauthEnabled,
 }))
 vi.mock('@/lib/core/utils/urls', () => ({
   SITE_URL: 'https://www.sim.ai',
@@ -82,6 +91,8 @@ function linkResponse(url = 'https://provider.example/authorize') {
 describe('OAuth2 authorize route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.oauthEnabled.mockResolvedValue(true)
     mocks.getBaseUrl.mockReturnValue(BASE_URL)
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -104,6 +115,7 @@ describe('OAuth2 authorize route', () => {
     })
     mocks.linkAccount.mockResolvedValue(linkResponse())
     mocks.getPerRequestScopes.mockReturnValue(undefined)
+    mocks.betterAuthGET.mockResolvedValue(new Response(null, { status: 302 }))
     mocks.getCanonicalScopes.mockReturnValue([
       'openid',
       'profile',
@@ -119,25 +131,216 @@ describe('OAuth2 authorize route', () => {
     mocks.createQuickBooksState.mockReturnValue('signed-state')
   })
 
-  it('creates a canonical application draft for a legacy connect URL', async () => {
-    const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
+  it('forwards a provider request without entering the connector flow', async () => {
+    const providerRequest = request({
+      client_id: 'client-1',
+      response_type: 'code',
+      redirect_uri: 'https://client.example/callback',
+      providerId: 'google-email',
+      draftId: 'draft-1',
+    })
 
-    expect(response.headers.get('location')).toBe('https://provider.example/authorize')
-    expect(mocks.createConnection).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: WORKSPACE_ID, providerId: 'google-email' },
-      })
-    )
-    expect(mocks.linkAccount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          providerId: 'google-email',
-          callbackURL: expect.stringContaining('credentialDraftId=draft-1'),
-        }),
-      })
-    )
+    const response = await GET(providerRequest)
+
+    expect(response.status).toBe(302)
+    expect(mocks.betterAuthGET).toHaveBeenCalledWith(providerRequest)
+    expect(mocks.getSession).not.toHaveBeenCalled()
+    expect(mocks.launchConnection).not.toHaveBeenCalled()
+    expect(mocks.createConnection).not.toHaveBeenCalled()
   })
+
+  it('applies a runtime flag change to the next authorization request', async () => {
+    const providerRequest = () =>
+      request({
+        client_id: 'client-1',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+      })
+    expect((await GET(providerRequest())).status).toBe(302)
+    mocks.betterAuthGET.mockClear()
+
+    mocks.oauthEnabled.mockResolvedValue(false)
+    const disabled = await GET(providerRequest())
+    expect(disabled.status).toBe(404)
+    expect(disabled.headers.get('cache-control')).toBe('no-store')
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+    expect(mocks.getSession).not.toHaveBeenCalled()
+
+    mocks.oauthEnabled.mockResolvedValue(true)
+    expect((await GET(providerRequest())).status).toBe(302)
+    expect(mocks.betterAuthGET).toHaveBeenCalledOnce()
+  })
+
+  it('keeps an OAuth request missing client_id out of the connector flow', async () => {
+    const response = await GET(
+      request({ response_type: 'code', redirect_uri: 'https://client.example/callback' })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
+    expect(mocks.getSession).not.toHaveBeenCalled()
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it.each(['scope', 'state', 'nonce', 'prompt'])(
+    'does not let an isolated %s parameter enter the connector flow',
+    async (parameter) => {
+      const response = await GET(
+        request({
+          providerId: 'google-email',
+          workspaceId: WORKSPACE_ID,
+          [parameter]: 'value',
+        })
+      )
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
+      expect(mocks.getSession).not.toHaveBeenCalled()
+      expect(mocks.createConnection).not.toHaveBeenCalled()
+      expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    'response_type',
+    'client_id',
+    'redirect_uri',
+    'scope',
+    'state',
+    'request_uri',
+    'code_challenge',
+    'code_challenge_method',
+    'nonce',
+    'prompt',
+    'resource',
+  ])('rejects a repeated OAuth provider %s before Better Auth', async (parameter) => {
+    const url = new URL('/api/auth/oauth2/authorize', BASE_URL)
+    url.searchParams.set('client_id', 'sim-cli')
+    url.searchParams.append(parameter, 'first')
+    url.searchParams.append(parameter, 'second')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{ code_challenge: 'a'.repeat(43) }, 'unpaired challenge'],
+    [{ code_challenge_method: 'S256' }, 'unpaired method'],
+    [{ code_challenge: 'a'.repeat(42), code_challenge_method: 'S256' }, 'malformed challenge'],
+    [{ code_challenge: 'a'.repeat(43), code_challenge_method: 'plain' }, 'unsupported method'],
+  ])('rejects %s PKCE parameters before Better Auth', async (parameters) => {
+    const response = await GET(
+      request({
+        client_id: 'sim-cli',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        ...parameters,
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it('accepts a canonical S256 challenge and rejects unsupported resource audiences', async () => {
+    const acceptedRequest = request({
+      client_id: 'sim-cli',
+      response_type: 'code',
+      redirect_uri: 'https://client.example/callback',
+      code_challenge: 'a'.repeat(43),
+      code_challenge_method: 'S256',
+    })
+    const accepted = await GET(acceptedRequest)
+    const resource = await GET(
+      request({
+        client_id: 'sim-cli',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        resource: 'https://api.example.test',
+      })
+    )
+
+    expect(accepted.status).toBe(302)
+    expect(mocks.betterAuthGET).toHaveBeenCalledWith(acceptedRequest)
+    expect(resource.status).toBe(400)
+    await expect(resource.json()).resolves.toMatchObject({ error: 'invalid_request' })
+  })
+
+  it('redirects a malformed request only to its registered callback with state and issuer', async () => {
+    queueTableRows(schemaMock.oauthClient, [
+      { disabled: false, redirectUris: ['http://127.0.0.1/callback'] },
+    ])
+
+    const response = await GET(
+      request({
+        client_id: 'sim-cli',
+        response_type: 'code',
+        redirect_uri: 'http://127.0.0.1:43123/callback',
+        state: 'state-1',
+        code_challenge: 'too-short',
+        code_challenge_method: 'S256',
+      })
+    )
+    const location = new URL(response.headers.get('location') ?? '')
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(location.origin).toBe('http://127.0.0.1:43123')
+    expect(location.searchParams.get('error')).toBe('invalid_request')
+    expect(location.searchParams.get('state')).toBe('state-1')
+    expect(location.searchParams.get('iss')).toBe(`${BASE_URL}/api/auth`)
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it('returns the authorization-specific error code to a registered callback', async () => {
+    queueTableRows(schemaMock.oauthClient, [
+      { disabled: false, redirectUris: ['https://client.example/callback'] },
+    ])
+
+    const response = await GET(
+      request({
+        client_id: 'client-1',
+        response_type: 'token',
+        redirect_uri: 'https://client.example/callback',
+        state: 'state-1',
+      })
+    )
+    const location = new URL(response.headers.get('location') ?? '')
+
+    expect(response.status).toBe(302)
+    expect(location.searchParams.get('error')).toBe('unsupported_response_type')
+    expect(location.searchParams.get('state')).toBe('state-1')
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])(
+    'preserves legacy connector linking when the provider is enabled=%s',
+    async (enabled) => {
+      mocks.oauthEnabled.mockResolvedValue(enabled)
+      const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
+
+      expect(response.headers.get('location')).toBe('https://provider.example/authorize')
+      expect(mocks.createConnection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          input: { workspaceId: WORKSPACE_ID, providerId: 'google-email' },
+        })
+      )
+      expect(mocks.linkAccount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            providerId: 'google-email',
+            callbackURL: expect.stringContaining('credentialDraftId=draft-1'),
+          }),
+        })
+      )
+      expect(mocks.oauthEnabled).not.toHaveBeenCalled()
+    }
+  )
 
   it('requires a configured OAuth client before creating a legacy draft', async () => {
     mocks.requireClient.mockImplementationOnce(() => {

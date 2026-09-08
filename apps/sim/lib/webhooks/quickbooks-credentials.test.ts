@@ -20,8 +20,16 @@ import {
   buildQuickBooksWebhookAccountIdPattern,
   buildQuickBooksWebhookRoutingKey,
   getQuickBooksWebhookClientConfigByCredentialId,
-  getQuickBooksWebhookVerifierTokensByAppKey,
+  streamQuickBooksWebhookVerifierTokensByAppKey,
 } from '@/lib/webhooks/quickbooks-credentials'
+
+async function collectVerifierTokens(appKey: string): Promise<string[]> {
+  const tokens: string[] = []
+  for await (const token of streamQuickBooksWebhookVerifierTokensByAppKey(appKey)) {
+    tokens.push(token)
+  }
+  return tokens
+}
 
 const CLIENT_CONFIG: QuickBooksOAuthClientConfig = {
   clientId: 'client-id',
@@ -51,9 +59,7 @@ describe('QuickBooks webhook credential lookup', () => {
       },
     ])
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).resolves.toEqual([
-      'verifier-token',
-    ])
+    await expect(collectVerifierTokens(APP_KEY)).resolves.toEqual(['verifier-token'])
     expect(mockDecryptSecret).toHaveBeenCalledWith('encrypted-config')
   })
 
@@ -73,10 +79,27 @@ describe('QuickBooks webhook credential lookup', () => {
         decrypted: JSON.stringify({ ...CLIENT_CONFIG, webhookVerifierToken: 'second-verifier' }),
       })
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).resolves.toEqual([
+    await expect(collectVerifierTokens(APP_KEY)).resolves.toEqual([
       'first-verifier',
       'second-verifier',
     ])
+  })
+
+  it('decrypts one account at a time so an early match skips the rest of the app', async () => {
+    queueTableRows(
+      account,
+      Array.from({ length: 10 }, (_, index) => ({
+        accountId: createQuickBooksAccountId(String(index + 1), `subject-${index}`, CLIENT_CONFIG),
+        oauthConfig: 'encrypted-config',
+      }))
+    )
+
+    for await (const token of streamQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)) {
+      expect(token).toBe('verifier-token')
+      break
+    }
+
+    expect(mockDecryptSecret).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed instead of loading an unbounded number of app accounts', async () => {
@@ -88,7 +111,7 @@ describe('QuickBooks webhook credential lookup', () => {
       }))
     )
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).rejects.toThrow(
+    await expect(collectVerifierTokens(APP_KEY)).rejects.toThrow(
       'QuickBooks webhook app account limit exceeded'
     )
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1001)
@@ -128,7 +151,7 @@ describe('QuickBooks webhook credential lookup', () => {
       decrypted: JSON.stringify({ ...CLIENT_CONFIG, clientId: 'different-app' }),
     })
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).resolves.toEqual([])
+    await expect(collectVerifierTokens(APP_KEY)).resolves.toEqual([])
   })
 
   it('escapes wildcard characters in the app-scoped account lookup', async () => {

@@ -54,6 +54,7 @@ export const BillingRouteOutcome = {
   DuplicateIdempotencyKey: 'duplicate_idempotency_key',
   InternalError: 'internal_error',
   InvalidBody: 'invalid_body',
+  ReconciliationRequired: 'reconciliation_required',
 } as const
 
 export type BillingRouteOutcomeKey = keyof typeof BillingRouteOutcome
