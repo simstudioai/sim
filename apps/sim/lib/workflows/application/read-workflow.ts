@@ -18,25 +18,48 @@ export interface ReadWorkflowInput {
   assertedWorkspaceId?: string
 }
 
+function resolveReadContext({
+  principal,
+  input,
+}: {
+  principal: Principal
+  input: ReadWorkflowInput
+}) {
+  return resolveActiveWorkflowApplicationContext({
+    workflowId: input.workflowId,
+    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
+  })
+}
+
+async function loadWorkflowFolderPath(workspaceId: string, folderId: string | null) {
+  const index = await loadActiveFolderPathIndex(workspaceId, 'workflow', undefined, {
+    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+  })
+  return workflowFolderPathForId(index, folderId)
+}
+
+/** Reads canonical workflow metadata and location without loading the workflow graph. */
+export const readWorkflowMetadata = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.read,
+  resolveContext: resolveReadContext,
+  async execute({ context }) {
+    return {
+      workflow: context.workflow,
+      folderPath: await loadWorkflowFolderPath(context.workspaceId, context.workflow.folderId),
+    }
+  },
+})
+
 export const readWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.read,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ReadWorkflowInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolveReadContext,
   async execute({ principal, context }) {
     const snapshot = await loadWorkflowReadSnapshot(context.workflowId, context.workspaceId)
     const workflow = snapshot.workflowRecord
     if (!workflow || workflow.archivedAt || workflow.workspaceId !== context.workspaceId) {
       throw new OrchestrationError('not_found', 'Workflow not found')
     }
-    const folderIndex = await loadActiveFolderPathIndex(
-      context.workspaceId,
-      'workflow',
-      undefined,
-      { maxRows: MAX_FOLDERS_PER_WORKSPACE }
-    )
+    const folderPath = await loadWorkflowFolderPath(context.workspaceId, workflow.folderId)
     const inputs = extractInputFieldsFromBlocks(snapshot.normalizedData?.blocks ?? {})
     logger.info('Read workflow', {
       workspaceId: context.workspaceId,
@@ -47,7 +70,7 @@ export const readWorkflow = defineAuthorizedWorkflowUseCase({
       workflow,
       workspaceId: context.workspaceId,
       inputs,
-      folderPath: workflowFolderPathForId(folderIndex, workflow.folderId),
+      folderPath,
     }
   },
 })
