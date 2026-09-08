@@ -153,7 +153,6 @@ export const executeSlackListConversationsOperation: InternalToolOperationImplem
       count: channels.length,
       hasMore: Boolean(nextCursor),
       nextCursor,
-      pages: 1,
     },
   }
 }

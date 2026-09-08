@@ -107,9 +107,5 @@ export const slackListChannelsTool: InternalToolConfig<
       description: 'Cursor to fetch the next page; null when there are no more pages',
       optional: true,
     },
-    pages: {
-      type: 'number',
-      description: 'Number of Slack conversation pages fetched in this invocation (always 1)',
-    },
   },
 }

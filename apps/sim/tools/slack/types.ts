@@ -1163,7 +1163,6 @@ export interface SlackListChannelsResponse extends ToolResponse {
     count: number
     hasMore: boolean
     nextCursor: string | null
-    pages: number
   }
 }
 

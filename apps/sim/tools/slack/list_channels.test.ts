@@ -38,6 +38,7 @@ describe('Slack list channels', () => {
     expect(slackListChannelsTool.request).toBeUndefined()
     expect(slackListChannelsTool.oauth?.requiredScopes).toEqual([])
     expect(slackListChannelsTool.params).not.toHaveProperty('maxPages')
+    expect(slackListChannelsTool.outputs).not.toHaveProperty('pages')
   })
 
   it('remains available through the caller’s own Assistant account without model-supplied tokens', () => {
@@ -125,7 +126,6 @@ describe('Slack list channels', () => {
         count: 3,
         hasMore: true,
         nextCursor: 'cursor-2',
-        pages: 1,
       },
     })
   })
@@ -178,7 +178,6 @@ describe('Slack list channels', () => {
       count: 1,
       hasMore: true,
       nextCursor: 'cursor-2',
-      pages: 1,
     })
     if (typeof first.output.nextCursor !== 'string') throw new Error('Expected a next cursor')
 
@@ -197,7 +196,6 @@ describe('Slack list channels', () => {
       count: 1,
       hasMore: false,
       nextCursor: null,
-      pages: 1,
     })
   })
 
@@ -214,7 +212,6 @@ describe('Slack list channels', () => {
       count: 0,
       hasMore: true,
       nextCursor: 'cursor-2',
-      pages: 1,
     })
   })
 
@@ -228,7 +225,7 @@ describe('Slack list channels', () => {
       const result = await executeSlackListConversationsOperation(BASE_PARAMS)
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
-      expect(result.output).toMatchObject({ hasMore: false, nextCursor: null, pages: 1 })
+      expect(result.output).toMatchObject({ hasMore: false, nextCursor: null })
     }
   )
 
