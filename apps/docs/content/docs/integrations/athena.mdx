@@ -323,7 +323,7 @@ List tables and their column/partition metadata for an Athena database
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tables` | array | Table metadata \(name, type, columns, partition keys\) |
+| `tables` | array | Table metadata \(name, type, columns, partition keys, parameters\) |
 |   ↳ `name` | string | Table name |
 |   ↳ `tableType` | string | Table type |
 |   ↳ `createTime` | number | Table creation time \(Unix epoch ms\) |
@@ -336,6 +336,7 @@ List tables and their column/partition metadata for an Athena database
 |     ↳ `name` | string | Partition key name |
 |     ↳ `type` | string | Partition key data type |
 |     ↳ `comment` | string | Partition key comment |
+|   ↳ `parameters` | json | Key/value table properties \(e.g., classification, location\) |
 | `nextToken` | string | Pagination token for next page |
 
 ### Athena Get Query Runtime Statistics

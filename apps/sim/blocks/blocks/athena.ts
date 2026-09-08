@@ -702,9 +702,12 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
         const parsedMaxResults = maxResults ? Number.parseInt(String(maxResults), 10) : undefined
         const connection = { awsRegion, awsAccessKeyId, awsSecretAccessKey }
         const resultReuseEnabled = parseBoolean(rest.resultReuseEnabled)
-        const resultReuseMaxAgeInMinutes = rest.resultReuseMaxAgeInMinutes
-          ? Number.parseInt(String(rest.resultReuseMaxAgeInMinutes), 10)
-          : undefined
+        const resultReuseMaxAgeInMinutes =
+          rest.resultReuseMaxAgeInMinutes !== undefined &&
+          rest.resultReuseMaxAgeInMinutes !== null &&
+          rest.resultReuseMaxAgeInMinutes !== ''
+            ? Number.parseInt(String(rest.resultReuseMaxAgeInMinutes), 10)
+            : undefined
 
         switch (operation) {
           case 'start_query':

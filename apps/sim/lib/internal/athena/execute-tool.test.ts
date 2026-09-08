@@ -226,6 +226,24 @@ describe('executeAthenaTool', () => {
     )
     expect(missingWorkGroup.status).toBe(400)
     expect(mockOperations.executeAthenaListPreparedStatements).not.toHaveBeenCalled()
+
+    const badStatementName = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_get_prepared_statement',
+        input: { ...PREPARED_WORKGROUP, statementName: '1-bad name' },
+      })
+    )
+    expect(badStatementName.status).toBe(400)
+    expect(mockOperations.executeAthenaGetPreparedStatement).not.toHaveBeenCalled()
+
+    const badWorkGroup = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_get_work_group',
+        input: { ...CONNECTION, workGroup: 'my wg' },
+      })
+    )
+    expect(badWorkGroup.status).toBe(400)
+    expect(mockOperations.executeAthenaGetWorkGroup).not.toHaveBeenCalled()
   })
 
   it('preserves the provider error envelope', async () => {

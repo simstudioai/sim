@@ -23,6 +23,7 @@ export const athenaWorkGroupSchema = z
   .trim()
   .min(1, 'Workgroup is required')
   .max(128, 'Workgroup must be at most 128 characters')
+  .regex(/^[a-zA-Z0-9._-]+$/, 'Workgroup may only contain letters, digits, ".", "_", and "-"')
 
 /**
  * Optional workgroup; blank strings from unfilled inputs are treated as omitted.
@@ -40,6 +41,10 @@ export const athenaStatementNameSchema = z
   .trim()
   .min(1, 'Statement name is required')
   .max(256, 'Statement name must be at most 256 characters')
+  .regex(
+    /^[a-zA-Z_][a-zA-Z0-9_@:]+$/,
+    'Statement name must start with a letter or underscore and contain only letters, digits, "_", "@", and ":"'
+  )
 
 /**
  * Builds the optional `maxResults` field with Athena's documented bounds for the operation.
