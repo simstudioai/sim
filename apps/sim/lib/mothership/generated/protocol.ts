@@ -67,6 +67,17 @@ const WorkspaceInventorySchema = z.object({
   truncated: z.array(z.string()),
 });
 
+/** Composer choices are a closed catalog; credentials and provider routes stay server-owned. */
+export const ModelSelectionSchema = z
+  .object({
+    model: z.enum(["gpt-6-astra", "claude-opus-5"]),
+    fastMode: z.boolean().default(false),
+  })
+  .refine((selection) => !selection.fastMode || selection.model === "gpt-6-astra", {
+    message: "Fast mode is available only for GPT-6 Astra",
+  });
+export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
+
 export const ChatPayloadSchema = z.strictObject({
   simConnection: SimConnection.optional(),
   message: z.string().min(1),
@@ -109,6 +120,7 @@ export const ChatPayloadSchema = z.strictObject({
   origin: z.enum(["task"]).optional(),
   /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  modelSelection: ModelSelectionSchema.optional(),
   /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
   inventory: WorkspaceInventorySchema.optional(),
 });
@@ -135,6 +147,8 @@ export interface StreamToolReplay {
 
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
+  effort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+  modelSelection?: ModelSelection | undefined;
   simConnection?: SimConnection | undefined;
   message: string;
   userId: string;

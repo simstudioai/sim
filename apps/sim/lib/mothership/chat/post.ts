@@ -46,7 +46,12 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
-import { type ChatRequest, PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import {
+  type ChatRequest,
+  type ModelSelection,
+  ModelSelectionSchema,
+  PROTOCOL_VERSION,
+} from '@/lib/mothership/generated/protocol'
 import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -268,6 +273,7 @@ const ChatMessageSchema = z
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
     effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+    modelSelection: ModelSelectionSchema.optional(),
     clientCapabilities: z.array(z.string()).optional(),
     desktopCapabilities: z
       .object({
@@ -338,6 +344,7 @@ type UnifiedChatBranch =
         userPermission?: string
         userTimezone?: string
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        modelSelection?: ModelSelection
         workflowId: string
         workflowName?: string
         workspaceId: string
@@ -388,6 +395,7 @@ type UnifiedChatBranch =
         workspaceContext?: string
         vfs?: VfsSnapshotV1
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        modelSelection?: ModelSelection
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -709,6 +717,7 @@ async function resolveBranch(params: {
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
             effort: payloadParams.effort,
+            modelSelection: payloadParams.modelSelection,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
@@ -770,6 +779,7 @@ async function resolveBranch(params: {
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
           effort: payloadParams.effort,
+          modelSelection: payloadParams.modelSelection,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
@@ -1233,6 +1243,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
                 effort: body.effort,
+                modelSelection: body.modelSelection,
                 workflowId: branch.workflowId,
                 workflowName: branch.workflowName,
                 workspaceId: branch.workspaceId,
@@ -1260,6 +1271,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
                 effort: body.effort,
+                modelSelection: body.modelSelection,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
