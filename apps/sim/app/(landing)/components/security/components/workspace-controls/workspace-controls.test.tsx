@@ -20,7 +20,7 @@ describe('WorkspaceControls', () => {
     expect(html).toContain('max-lg:grid-cols-2')
     expect(html).toContain('max-sm:grid-cols-1')
     expect(html.match(/<li /g)).toHaveLength(6)
-    expect(html).toContain('>SSO</h3>')
+    expect(html).toContain('>SSO &amp; SCIM</h3>')
     expect(html).toContain('>Self-hosting</h3>')
     expect(html).not.toContain('Open source')
   })

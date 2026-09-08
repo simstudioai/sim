@@ -16,7 +16,6 @@ import {
 import { TerminalWindow } from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
-import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -46,6 +45,7 @@ import {
   parseQuestionAnswerMessage,
   QuestionDisplay,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import {
   resolveOAuthChipTarget,
   useOAuthChipConnection,
@@ -1781,22 +1781,6 @@ export function SpecialTags({
   }
 }
 
-interface PendingTagIndicatorProps {
-  /** Activity phrase next to the loader; crossfades on change. */
-  label: string
-}
-
-/**
- * Renders the turn-level activity shimmer.
- */
-export function PendingTagIndicator({ label }: PendingTagIndicatorProps) {
-  return (
-    <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' label={label} labelRatio={0.7} />
-    </div>
-  )
-}
-
 interface OptionsDisplayProps {
   data: OptionsTagData
   onSelect?: (id: string) => void
@@ -1932,31 +1916,17 @@ export function WorkspaceResourceDisplay({
 
   const context = toChatMessageContext(data, resource.title)
 
-  const mentionContent = (
-    <>
-      <ContextMentionIcon
-        context={context}
-        className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
-      />
-      {resource.title}
-    </>
-  )
-
-  const classes =
-    'inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
-
-  if (!onSelect) {
-    return <span className={classes}>{mentionContent}</span>
-  }
-
   return (
-    <button
-      type='button'
-      onClick={() => onSelect(resource)}
-      className={cn(classes, 'cursor-pointer transition-colors hover-hover:bg-[var(--surface-6)]')}
-    >
-      {mentionContent}
-    </button>
+    <ResourceMention
+      icon={
+        <ContextMentionIcon
+          context={context}
+          className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
+        />
+      }
+      title={resource.title}
+      onSelect={onSelect ? () => onSelect(resource) : undefined}
+    />
   )
 }
 

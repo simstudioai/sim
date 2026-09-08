@@ -52,7 +52,7 @@ export const dustProfile: CompetitorProfile = {
         "Dust's Agent Builder is entirely form and text based, name, description, instructions, model, tools, knowledge, guided by a conversational 'Sidekick' assistant, with no visual canvas at all (its earlier block-based 'Dust Apps' product is deprecated). Agents deploy natively into a shared, multiplayer workspace and out to Slack, Teams, and other chat surfaces. A team that wants agents assembled purely from plain-language instructions and templates, with no drag-and-drop layer to learn or maintain, gets that directly. Teams that do want infrastructure-as-code can also define Skills and agent configurations as files in a Git repository and sync them via an official GitHub Action, with the same PR review and rollback workflow as application code.",
       shortDescription: 'No visual/flow canvas at all, only forms, text, and conversation.',
       source: {
-        url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
+        url: 'https://docs.dust.tt/docs/changelog#gitops-sync-for-skills-&-agent-configurations-with-github-action',
         label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
         asOf: '2026-07-02',
       },
@@ -215,7 +215,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/eu-data-hosting-option-available',
+            url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
             asOf: '2026-07-08',
           },
@@ -260,7 +260,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
+            url: 'https://docs.dust.tt/docs/changelog#gitops-sync-for-skills-&-agent-configurations-with-github-action',
             label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
             asOf: '2026-07-02',
           },
@@ -275,7 +275,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/prompt-version-history',
+            url: 'https://docs.dust.tt/docs/changelog#-prompt-version-history',
             label: 'Prompt version history | Dust changelog',
             asOf: '2026-07-02',
           },
@@ -837,7 +837,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/eu-data-hosting-option-available',
+            url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
             asOf: '2026-07-02',
           },

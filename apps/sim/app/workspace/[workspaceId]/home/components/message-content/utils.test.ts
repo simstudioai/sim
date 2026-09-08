@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { collectMessageSources, deriveMessagePhase, resolveToolDisplayState } from './utils'
+import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
+import { deriveMessagePhase, resolveToolDisplayState } from './utils'
 
 describe('deriveMessagePhase', () => {
   it('is streaming whenever the transport is live', () => {

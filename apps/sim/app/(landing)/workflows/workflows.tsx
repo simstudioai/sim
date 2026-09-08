@@ -23,6 +23,19 @@ const WORKFLOWS_CONFIG: SolutionsProductPageConfig = {
       'Sim Workflows is the visual builder in the open-source AI workspace. Teams connect models, integrations, code, and workspace data into reusable AI workflows. Start runs manually, on a schedule, or from an event, then deploy a version as an API, a chat, or an MCP tool.',
     visual: <ProductHeroPreview product='workflows' />,
   },
+  codeExample: {
+    title: 'Deploy and run from your terminal.',
+    description:
+      'Use the Sim CLI to deploy a workflow you’ve built, run it, and follow its progress from your terminal.',
+    filename: 'workflows.sh',
+    commands: [
+      'sim workflows list',
+      'sim workflows deploy \\',
+      '  "$WORKFLOW_ID"',
+      'sim workflows run \\',
+      '  "$WORKFLOW_ID" --follow',
+    ],
+  },
   features: [
     {
       id: 'build',

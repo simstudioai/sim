@@ -3,18 +3,21 @@
 import { useRef, useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
 import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn/icons'
+import { HeroChatReply } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-chat-reply'
+import { HeroToolCallItem } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-tool-call-item'
 import { HeroChatWelcome } from '@/app/(landing)/components/hero/components/hero-chat-welcome'
 import { HERO_TOOLTIP_OFFSET } from '@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots'
 import { useElapsedReveal } from '@/app/(landing)/hooks/use-elapsed-reveal'
 import {
-  AgentGroup,
   type AgentGroupItem,
-  ChatContent,
-  PendingTagIndicator,
+  AgentGroupView,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
+import {
+  parseQuestionAnswerMessage,
   QuestionDisplay,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components'
-import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/pending-tag-indicator'
 import { SendButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/send-button/send-button'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -207,7 +210,8 @@ export function HeroChatLoop({
             <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking…'} />
           )}
           {showBuilding && (
-            <AgentGroup
+            <AgentGroupView
+              ToolCallComponent={HeroToolCallItem}
               agentName='workflow'
               agentLabel='Workflow Agent'
               items={WORKFLOW_AGENT_BUILDING_ITEMS}
@@ -220,23 +224,24 @@ export function HeroChatLoop({
           )}
           {showReply && (
             <>
-              <AgentGroup
+              <AgentGroupView
+                ToolCallComponent={HeroToolCallItem}
                 agentName='workflow'
                 agentLabel='Workflow Agent'
                 items={WORKFLOW_AGENT_ITEMS}
                 defaultExpanded
               />
-              <AgentGroup
+              <AgentGroupView
+                ToolCallComponent={HeroToolCallItem}
                 agentName='mothership'
                 agentLabel='Sim'
                 items={SIM_ITEMS}
                 defaultExpanded
               />
-              <ChatContent
+              <HeroChatReply
                 content={replyMessage}
-                messageId='landing-hero-reply'
                 isStreaming={!replyComplete}
-                onWorkspaceResourceSelect={onOpenWorkflowResource}
+                onOpenWorkflowResource={onOpenWorkflowResource}
               />
               {replyComplete && (
                 <QuestionDisplay

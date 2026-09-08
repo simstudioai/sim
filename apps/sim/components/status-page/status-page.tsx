@@ -13,7 +13,7 @@ export function StatusPageContent({ title, description, children }: StatusPageCo
       <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
         {title}
       </h1>
-      <p className='text-[var(--text-muted)] text-lg'>{description}</p>
+      <p className='text-[var(--text-body)] text-lg'>{description}</p>
       <div className='mt-3 flex flex-wrap items-center justify-center gap-2'>{children}</div>
     </div>
   )

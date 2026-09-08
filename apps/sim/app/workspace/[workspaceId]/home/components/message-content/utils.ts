@@ -21,30 +21,9 @@ import {
 } from '@sim/emcn'
 import { Calendar, Clock, Cursor, Globe, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
-import {
-  parseSpecialTags,
-  type SourceTagData,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
-
-/**
- * Every distinct `<source>` cited across the given prose, in first-cited order,
- * for the footer strip. Callers pass the text segments the message actually
- * renders as its answer.
- */
-export function collectMessageSources(texts: readonly string[]): SourceTagData[] {
-  const byUrl = new Map<string, SourceTagData>()
-  for (const text of texts) {
-    for (const segment of parseSpecialTags(text, false).segments) {
-      if (segment.type === 'source' && !byUrl.has(segment.data.url)) {
-        byUrl.set(segment.data.url, segment.data)
-      }
-    }
-  }
-  return [...byUrl.values()]
-}
 
 const TOOL_ICONS: Record<string, IconComponent> = {
   mothership: Blimp,

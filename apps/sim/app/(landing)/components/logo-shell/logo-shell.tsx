@@ -5,14 +5,9 @@ import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/component
 import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
 
 /**
- * The canonical light, logo-only page frame - a Sim wordmark linking home, no
- * marketing menus, on the platform's light tokens (the `light` class pins
- * light mode regardless of visitor theme). It is the shared base for every
- * surface that wants minimal chrome: the global 404, and the `(interfaces)`
- * group (which adds a support footer). The `(auth)` group uses its own
- * `AuthShell` with the same look. The home link is a document navigation, like
- * `AuthShell`'s, so the marketing surface initializes its own theme store
- * instead of inheriting this shell's forced-light document.
+ * Logo-only page frame shared by status pages and public interfaces. Interfaces
+ * default to light tokens; status pages inherit the active theme. The home link
+ * uses document navigation so marketing initializes its own theme store.
  *
  * Children decide their own layout: pass `center` for a single centered column
  * (404 message, simple gates); omit it for full-width content (the live chat
@@ -25,11 +20,18 @@ interface LogoShellProps {
   center?: boolean
   /** Optional footer rendered after the content (e.g. a support footer). */
   footer?: ReactNode
+  /** Status pages follow the active theme; public interfaces retain their light appearance. */
+  theme?: 'light' | 'inherit'
 }
 
-export function LogoShell({ children, center = false, footer }: LogoShellProps) {
+export function LogoShell({ children, center = false, footer, theme = 'light' }: LogoShellProps) {
   return (
-    <div className='light desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div
+      className={cn(
+        'desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
+        theme === 'light' && 'light'
+      )}
+    >
       <DesktopTitleBarLane />
       <header>
         <nav className={cn('flex items-center py-4', LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>

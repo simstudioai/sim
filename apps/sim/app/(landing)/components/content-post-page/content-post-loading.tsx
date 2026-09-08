@@ -1,10 +1,11 @@
-import { Skeleton } from '@sim/emcn'
+import { cn, Skeleton } from '@sim/emcn'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 
 /** Shared loading skeleton for a content section's post-detail route. */
 export function ContentPostLoading() {
   return (
     <article className='w-full bg-[var(--bg)]'>
-      <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
         <div className='mb-6'>
           <Skeleton className='h-[16px] w-[100px] rounded-[4px] bg-[var(--surface-hover)]' />
         </div>
@@ -32,8 +33,8 @@ export function ContentPostLoading() {
 
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-      <div className='mx-auto w-full max-w-[1728px]'>
-        <div className='mx-20 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+        <div className='border-[var(--border)] border-x'>
           <div className='mx-auto max-w-[900px] px-6 py-16'>
             <div className='space-y-4'>
               <Skeleton className='h-[16px] w-full rounded-[4px] bg-[var(--surface-hover)]' />

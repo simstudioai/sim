@@ -135,11 +135,17 @@ export function MobileNav({ stars }: MobileNavProps) {
               <span className='px-3 pt-2.5 pb-1 text-[13px] text-[var(--text-muted)]'>
                 {menu.label}
               </span>
+              {menu.index && (
+                <Link
+                  href={menu.index.href}
+                  onClick={() => updateOpen(false)}
+                  className={SHEET_ROW}
+                >
+                  {menu.index.label}
+                </Link>
+              )}
               {menu.sections.map((section) => (
                 <div key={section.label} className='flex flex-col'>
-                  <span className='px-3 pt-1.5 pb-0.5 text-[11px] text-[var(--text-muted)]'>
-                    {section.label}
-                  </span>
                   {section.items.map((item) => {
                     const label = item.brand ? `${item.brand} ${item.title}` : item.title
 

@@ -23,6 +23,13 @@ const FILES_CONFIG: SolutionsProductPageConfig = {
       'Sim Files is shared file storage in the open-source AI workspace where teams build, deploy, and manage AI agents. Organize uploads in folders, preview documents, edit markdown, and use the File block to read content, pass attachments, and save outputs from agent runs.',
     visual: <ProductHeroPreview product='files' />,
   },
+  codeExample: {
+    title: 'Read and write from your terminal.',
+    description:
+      'List workspace files, download inputs, and upload finished reports with the Sim CLI.',
+    filename: 'files.sh',
+    commands: ['sim files list', 'sim files get "$FILE_ID"', 'sim files upload ./report.pdf'],
+  },
   features: [
     {
       id: 'organize',

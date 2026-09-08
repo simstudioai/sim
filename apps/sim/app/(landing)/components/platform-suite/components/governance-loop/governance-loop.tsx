@@ -3,24 +3,13 @@
 import { useState } from 'react'
 import { Badge, cn } from '@sim/emcn'
 import { Building, Download } from '@sim/emcn/icons'
-import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
+import {
+  PLATFORM_LOOP_DESIGN,
+  PLATFORM_LOOP_RESET_FADE_MS,
+} from '@/app/(landing)/components/shared/platform-loop-constants'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter/segmented-meter'
-
-const SIDEBAR_CHATS = [
-  'Cost of the support agent',
-  'Who can deploy to production?',
-  'Error rate this week',
-  'Export June run history',
-] as const
-const SIDEBAR_WORKFLOWS = [
-  'Support ticket routing',
-  'Lead enrichment',
-  'Invoice matching',
-  'Weekly digest',
-  'Churn-risk alerts',
-] as const
 
 /** The organization's monthly budget and where spend stands against it. */
 const BUDGET = 6_000
@@ -111,7 +100,13 @@ export function GovernanceLoop() {
   const percent = Math.round((spendShown / BUDGET) * 100)
 
   return (
-    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS}>
+    <ResponsiveDesignStage
+      width={PLATFORM_LOOP_DESIGN.width}
+      height={PLATFORM_LOOP_DESIGN.height}
+      align='start'
+      className='pointer-events-none absolute inset-0'
+      contentClassName='bg-[var(--surface-1)] p-2'
+    >
       <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           key={cycleId}
@@ -237,6 +232,6 @@ export function GovernanceLoop() {
           </div>
         </div>
       </div>
-    </HeroLoopShell>
+    </ResponsiveDesignStage>
   )
 }

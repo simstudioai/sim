@@ -35,7 +35,7 @@ import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
  */
 
 const LINK_CLASS =
-  'text-left text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
+  'text-left text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]'
 
 interface FooterLinkItem {
   label: string
@@ -56,8 +56,7 @@ interface FooterProps {
 
 /**
  * Platform modules link to their local landing pages (internal link equity
- * stays on the ranking pages); docs-only surfaces (MCP, API, Self Hosting)
- * and Status remain external.
+ * stays on the ranking pages); docs-only surfaces remain external.
  */
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Overview', href: '/platform' },
@@ -70,17 +69,20 @@ const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Logs', href: '/logs' },
   { label: 'MCP', href: 'https://docs.sim.ai/agents/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
+  { label: 'CLI', href: 'https://docs.sim.ai/cli', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/platform/self-hosting', external: true },
-  { label: 'Status', href: 'https://status.sim.ai', external: true },
 ]
 
 const RESOURCES_LINKS: FooterItem[] = [
+  { label: 'Customers', href: '/customers' },
   { label: 'Blog', href: '/blog' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Library', href: '/library' },
   { label: 'Careers', href: '/careers' },
   { label: 'Changelog', href: '/changelog' },
   { label: 'Contact', href: '/contact' },
+  { label: 'Status', href: 'https://status.sim.ai', external: true },
+  { label: 'Security', href: 'https://trust.sim.ai', external: true },
 ]
 
 /** Top model providers, sourced from the catalog so labels/hrefs never drift. */
@@ -210,7 +212,9 @@ export function Footer({ showConsentPreferences = false }: FooterProps) {
 
         <FooterWordmarkLoop className='mt-[120px] max-sm:mt-16 max-lg:mt-[88px]' />
 
-        <p className='mt-16 text-[var(--text-muted)] text-sm'>© 2026 Sim. All rights reserved.</p>
+        <p className='mt-16 text-[var(--text-secondary)] text-sm'>
+          © 2026 Sim. All rights reserved.
+        </p>
       </div>
     </footer>
   )

@@ -4,6 +4,7 @@ import {
   LANDING_CONTENT_WIDTH,
   LANDING_GUTTER,
 } from '@/app/(landing)/components/landing-layout'
+import { ProductCodeExample } from '@/app/(landing)/components/solutions-page/components/solutions-product-page/components/product-code-example'
 import { ProductFeature } from '@/app/(landing)/components/solutions-page/components/solutions-product-page/components/product-feature'
 import { ProductShowcase } from '@/app/(landing)/components/solutions-page/components/solutions-product-page/components/product-showcase'
 import { SolutionsStructuredData } from '@/app/(landing)/components/solutions-page/components/solutions-structured-data'
@@ -52,6 +53,7 @@ export function SolutionsProductPage({ config }: SolutionsProductPageProps) {
             ))}
           </div>
         </div>
+        {config.codeExample && <ProductCodeExample example={config.codeExample} />}
       </main>
     </>
   )

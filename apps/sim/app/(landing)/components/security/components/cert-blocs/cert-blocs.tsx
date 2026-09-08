@@ -115,7 +115,7 @@ export function CertBlocs({ href }: CertBlocsProps) {
           <a
             href={href}
             {...OUTBOUND_LINK}
-            aria-label={`${title} details, Sim Trust Center`}
+            aria-label={`${title} Details, Sim Trust Center`}
             onPointerEnter={(event) => {
               if (event.pointerType === 'touch') return
               setDrawn(true)
@@ -145,7 +145,7 @@ export function CertBlocs({ href }: CertBlocsProps) {
             <span className='text-[18px] text-[var(--text-primary)] leading-[1.3]'>{title}</span>
             <span
               className={cn(
-                'mt-2 inline-flex items-center gap-1 text-[var(--text-muted)]',
+                'mt-2 inline-flex items-center gap-1 text-[var(--text-secondary)]',
                 'transition-colors duration-150 ease-out hover-hover:group-hover:text-[var(--text-primary)]',
                 HOME_TYPE.meta
               )}

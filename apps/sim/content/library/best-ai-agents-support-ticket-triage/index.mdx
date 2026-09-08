@@ -117,7 +117,7 @@ That pattern gives you room to add the controls a production system needs. You c
 
 The tradeoff is engineering responsibility. Someone has to deploy, upgrade, secure, and monitor the system. Support staff who only want to adjust a queue rule may need help from the team that owns the workflow. Agent-heavy n8n flows can require more wiring than a platform designed around AI workflows from the start.
 
-Licensing deserves a close read if you plan to embed, resell, or commercially host the product. [n8n publishes its source under the Sustainable Use License](https://docs.n8n.io/sustainable-use-license/) rather than a permissive open-source license such as Apache 2.0.
+Licensing deserves a close read if you plan to embed, resell, or commercially host the product. [n8n publishes its source under the Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) rather than a permissive open-source license such as Apache 2.0.
 
 **Pricing:** [n8n offers paid Cloud plans based on workflow executions and a self-hosted Community Edition](https://n8n.io/pricing/). Self-hosting removes the n8n subscription but not the cost of infrastructure, operations, or model calls.
 
@@ -154,11 +154,11 @@ You still have to configure the knowledge sources, triage categories, routing ru
 | Platform | Pricing model | Hosting | Setup effort | Best for |
 | --- | --- | --- | --- | --- |
 | Sim | Per-seat plans plus usage credits | Cloud or Apache 2.0 self-hosted | Medium | Classification and routing in one auditable workflow |
-| Zapier | [Task-based automation plus separate Agents activity](https://zapier.com/pricing) | [Cloud](https://zapier.com/security) | Low | Broad connector coverage and familiar no-code automation |
+| Zapier | [Task-based automation plus separate Agents activity](https://zapier.com/pricing) | [Cloud](https://zapier.com/security-compliance) | Low | Broad connector coverage and familiar no-code automation |
 | Make | [Credit-based scenario operations](https://www.make.com/en/pricing) | [Cloud](https://www.make.com/en/security) | Medium | Visual branching and data mapping |
 | n8n | [Execution-based Cloud plans or Community Edition](https://n8n.io/pricing/) | [Cloud or self-hosted](https://docs.n8n.io/hosting/) | High | Technical teams that want code and infrastructure control |
-| Gumloop | [Credit-based Free, Pro, and Enterprise plans](https://www.gumloop.com/pricing) | [Cloud](https://www.gumloop.com/security) | Low | Managed AI-first workflows for operations teams |
-| Botpress | [Subscription plus AI spend](https://botpress.com/pricing) | [Managed cloud](https://botpress.com/trust-center) | Medium | Customer conversations, escalation, and human handoff |
+| Gumloop | [Credit-based Free, Pro, and Enterprise plans](https://www.gumloop.com/pricing) | [Cloud](https://trust.gumloop.com) | Low | Managed AI-first workflows for operations teams |
+| Botpress | [Subscription plus AI spend](https://botpress.com/pricing) | [Managed cloud](https://app.drata.com/trust/9cb618e1-0c38-11ee-865f-029d78a187d9) | Medium | Customer conversations, escalation, and human handoff |
 
 Do not pick from the table by counting features. Start with the work around the classification step. If one ticket needs to touch many unrelated business applications, [Zapier's catalog](https://zapier.com/apps) may matter more than a unified workflow. If your engineers already operate self-hosted automation, [n8n's self-hosted option](https://docs.n8n.io/hosting/) may be easier to adopt than another platform. If the ticket is part of a live customer conversation, [Botpress's handoff workflow](https://botpress.com/docs/learn/reference/human-handoff) provides support-specific behavior that a general canvas makes you build.
 

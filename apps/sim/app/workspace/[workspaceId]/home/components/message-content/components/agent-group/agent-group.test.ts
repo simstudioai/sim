@@ -4,9 +4,10 @@
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
+import { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
+import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
+import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import type { ToolCallData, ToolCallStatus } from '../../../../types'
-import type { AgentGroupItem } from './agent-group'
-import { AgentGroup, isAgentGroupResolved } from './agent-group'
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   isBrowserAgentAvailable: () => true,

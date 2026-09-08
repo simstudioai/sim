@@ -25,6 +25,18 @@ const KNOWLEDGE_CONFIG: SolutionsProductPageConfig = {
     summary:
       'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Knowledge Base brings uploaded documents and connected sources into searchable collections. Teams can inspect indexed passages, manage source syncs, and retrieve relevant information with source metadata from their workflows.',
   },
+  codeExample: {
+    title: 'Search knowledge from your terminal.',
+    description:
+      'Ask the Sim CLI for relevant passages from a knowledge base and bring that context into your own tools.',
+    filename: 'knowledge.sh',
+    commands: [
+      'sim knowledge list',
+      'sim knowledge search \\',
+      '  --kb "$KNOWLEDGE_BASE_ID" \\',
+      '  --query "refund policy"',
+    ],
+  },
   features: [
     {
       id: 'connect-sources',

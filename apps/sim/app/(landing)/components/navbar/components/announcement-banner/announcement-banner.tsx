@@ -23,12 +23,13 @@ export function AnnouncementBanner() {
           LANDING_GUTTER
         )}
       >
-        <span className='truncate'>{LATEST_UPDATE.title}</span>
+        <span className='ml-[19px] truncate'>{LATEST_UPDATE.title}</span>
         <Link
           href={LATEST_UPDATE.href}
+          aria-label={`Read article: ${LATEST_UPDATE.title}`}
           className='group/link inline-flex shrink-0 items-center gap-1.5 font-normal text-[#B4B4B4] transition-colors duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover-hover:text-[#F8F8F8] focus-visible:text-[#F8F8F8] focus-visible:outline focus-visible:outline-1 focus-visible:outline-current focus-visible:outline-offset-2 dark:text-[var(--text-tertiary)] dark:focus-visible:text-[var(--text-primary)] dark:hover-hover:text-[var(--text-primary)]'
         >
-          Learn more
+          Read article
           <ArrowRight
             aria-hidden='true'
             className='-translate-x-1 size-[13px] shrink-0 opacity-0 transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/link:translate-x-0 group-hover/link:opacity-100 group-focus-visible/link:translate-x-0 group-focus-visible/link:opacity-100 motion-reduce:translate-x-0 motion-reduce:transition-none'

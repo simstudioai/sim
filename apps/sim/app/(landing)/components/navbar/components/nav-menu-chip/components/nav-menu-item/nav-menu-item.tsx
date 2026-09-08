@@ -16,7 +16,7 @@ import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wo
 
 interface NavMenuItemProps {
   item: NavMenuItemData
-  /** Keeps the previewed destination in its hover treatment while the menu is open. */
+  /** Highlights the description of the previewed destination while the menu is open. */
   active?: boolean
   /** Called when the row is activated, so the parent menu can close. */
   onSelect?: () => void
@@ -46,13 +46,8 @@ export function NavMenuItem({ item, active = false, onSelect, onActivate }: NavM
           </ChipTag>
         ) : null}
         <span className='text-[var(--text-body)] transition-colors'>{title}</span>
-        <span
-          className={cn(
-            'flex size-3 shrink-0 items-center justify-center transition-opacity duration-200 ease-out group-hover/link:opacity-100 group-focus-visible/link:opacity-100 motion-reduce:transition-none',
-            active ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          <ChevronArrow active={active} />
+        <span className='flex size-3 shrink-0 items-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover/link:opacity-100 group-focus-visible/link:opacity-100 motion-reduce:transition-none'>
+          <ChevronArrow />
         </span>
       </span>
       <span

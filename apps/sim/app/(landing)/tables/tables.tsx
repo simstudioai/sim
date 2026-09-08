@@ -23,6 +23,13 @@ const TABLES_CONFIG: SolutionsProductPageConfig = {
     summary:
       'Sim Tables is the built-in database in the open-source AI workspace where teams build, deploy, and manage AI agents. Teams organize typed records, filter and edit rows, add enrichment and workflow columns, and use Table blocks to query, insert, and update data across agent runs.',
   },
+  codeExample: {
+    title: 'Work with data from your terminal.',
+    description:
+      'Find your tables and query their rows with the Sim CLI. Use the results in your own scripts and tools.',
+    filename: 'tables.sh',
+    commands: ['sim tables list', 'sim tables rows query \\', '  "$TABLE_ID" --limit 10'],
+  },
   features: [
     {
       id: 'records',

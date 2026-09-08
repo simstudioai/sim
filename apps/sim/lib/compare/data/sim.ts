@@ -888,7 +888,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label: 'Sim codebase: permission groups',
             asOf: '2026-07-04',
           },
@@ -935,7 +935,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label:
               'Sim codebase: PermissionGroupConfig (allowedModelProviders, deniedModels, deniedTools)',
             asOf: '2026-07-02',
@@ -961,7 +961,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label: 'Sim codebase: PermissionGroupConfig (allowedIntegrations)',
             asOf: '2026-07-02',
           },

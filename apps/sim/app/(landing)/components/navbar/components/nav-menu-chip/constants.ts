@@ -209,6 +209,7 @@ export const RESOURCES_MENU: NavMenu = {
  */
 export const CUSTOMERS_MENU: NavMenu = {
   label: 'Customers',
+  index: { label: 'All customers', href: '/customers' },
   eyebrow: 'Customers',
   heading: 'Teams building with Sim',
   description: 'How enterprise teams build, govern, and operate AI agents with Sim.',

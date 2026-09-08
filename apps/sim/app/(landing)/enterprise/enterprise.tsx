@@ -27,6 +27,17 @@ const ENTERPRISE_CONFIG: SolutionsProductPageConfig = {
       'Sim is the open-source AI workspace where enterprise teams build, deploy, and manage AI agents. Manage organization members and workspace permissions, control usage, and inspect agent runs in one place. Teams can connect their business tools and knowledge while keeping access and operations visible across the organization.',
     visual: <ProductHeroPreview product='enterprise' />,
   },
+  codeExample: {
+    title: 'Inspect runs from your terminal.',
+    description:
+      'Use the Sim CLI to find failed executions and inspect a run’s trace within the workspaces you can access.',
+    filename: 'operations.sh',
+    commands: [
+      'sim workspaces list',
+      'sim logs list --level error',
+      'sim logs get "$RUN_ID" --trace',
+    ],
+  },
   features: [
     {
       id: 'governance',

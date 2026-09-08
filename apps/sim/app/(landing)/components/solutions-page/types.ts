@@ -149,4 +149,13 @@ export interface SolutionsProductFeatureConfig {
 /** Product pages lead with an interactive demo and two supporting visual cards. */
 export interface SolutionsProductPageConfig extends Omit<SolutionsPageConfig, 'rows'> {
   features: readonly SolutionsProductFeatureConfig[]
+  codeExample?: SolutionsProductCodeExampleConfig
+}
+
+/** A real CLI example accompanying the interactive product demonstrations. */
+export interface SolutionsProductCodeExampleConfig {
+  title: string
+  description: string
+  filename: string
+  commands: readonly string[]
 }

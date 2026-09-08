@@ -46,21 +46,36 @@ vi.mock('@/app/(landing)/components/hero/components/hero-chat-welcome', () => ({
 vi.mock('@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots', () => ({
   HERO_TOOLTIP_OFFSET: 8,
 }))
-vi.mock('@/app/workspace/[workspaceId]/home/components/message-content/components', () => ({
-  AgentGroup: (props: AgentGroupProps) => {
-    renderAgentGroup(props)
-    return <section aria-label={props.agentLabel}>{props.agentLabel}</section>
-  },
-  PendingTagIndicator: (props: { label: string }) => {
-    renderPendingIndicator(props)
-    return <output>{props.label}</output>
-  },
-  ChatContent: ({ content }: { content: string }) => <p>{content}</p>,
-  QuestionDisplay: () => <p>What would you like to do next?</p>,
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view',
+  () => ({
+    AgentGroupView: (props: AgentGroupProps) => {
+      renderAgentGroup(props)
+      return <section aria-label={props.agentLabel}>{props.agentLabel}</section>
+    },
+  })
+)
+vi.mock('@/app/(landing)/components/hero/components/hero-chat-loop/hero-tool-call-item', () => ({
+  HeroToolCallItem: () => null,
+}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/pending-tag-indicator',
+  () => ({
+    PendingTagIndicator: (props: { label: string }) => {
+      renderPendingIndicator(props)
+      return <output>{props.label}</output>
+    },
+  })
+)
+vi.mock('@/app/(landing)/components/hero/components/hero-chat-loop/hero-chat-reply', () => ({
+  HeroChatReply: ({ content }: { content: string }) => <p>{content}</p>,
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/question',
-  () => ({ parseQuestionAnswerMessage: () => undefined })
+  () => ({
+    parseQuestionAnswerMessage: () => undefined,
+    QuestionDisplay: () => <p>What would you like to do next?</p>,
+  })
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/user-input/components/send-button/send-button',

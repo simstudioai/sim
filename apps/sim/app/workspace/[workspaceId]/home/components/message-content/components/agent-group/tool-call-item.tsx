@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
-import { ShimmerText } from '@/components/ui'
 import {
   CallIntegrationTool,
   PrepareFileEdit,
@@ -12,6 +11,7 @@ import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
+import { ToolCallRow } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-row'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'
@@ -36,7 +36,7 @@ export function CircleStop({ className }: { className?: string }) {
   )
 }
 
-interface ToolCallItemProps {
+export interface ToolCallItemProps {
   toolName: string
   displayTitle: string
   status: ToolCallStatus
@@ -238,17 +238,10 @@ export function ToolCallItem({
   }
 
   return (
-    <div className='flex min-w-0 items-center gap-[6px] pl-6'>
-      {BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />}
-      {isExecuting ? (
-        <ShimmerText className='min-w-0 truncate text-[13px] leading-[18px] [--shimmer-rest:var(--text-secondary)]'>
-          {title}
-        </ShimmerText>
-      ) : (
-        <span className='min-w-0 truncate text-[13px] text-[var(--text-secondary)] leading-[18px]'>
-          {title}
-        </span>
-      )}
-    </div>
+    <ToolCallRow
+      title={title}
+      isExecuting={isExecuting}
+      icon={BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />}
+    />
   )
 }

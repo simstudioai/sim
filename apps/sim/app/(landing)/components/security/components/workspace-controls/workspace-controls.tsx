@@ -21,7 +21,7 @@ import {
  * page's lightest text tier, so each cell reads title first and the outline
  * mark never competes with it.
  */
-const CONTROL_QUIET = 'text-[var(--text-muted)]'
+const CONTROL_QUIET = 'text-[var(--text-secondary)]'
 
 /**
  * The feature rail's caption measure (15px/1.45), so a control reads as the
@@ -45,8 +45,8 @@ interface Control {
 
 const CONTROLS: readonly Control[] = [
   {
-    title: 'SSO',
-    description: 'Sim access follows your identity provider, with verified domains.',
+    title: 'SSO & SCIM',
+    description: 'Connect your identity provider for sign-in and automatic member provisioning.',
     Mark: SsoMark,
   },
   {

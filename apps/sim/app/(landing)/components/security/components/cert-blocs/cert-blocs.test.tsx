@@ -33,7 +33,7 @@ describe('CertBlocs', () => {
     const stars = document.querySelectorAll('[data-cert-stars] path')
     expect(stars).toHaveLength(12)
     expect([...stars].every((star) => star.getAttribute('pathLength') === '1')).toBe(true)
-    expect(html).toContain('GDPR details, Sim Trust Center')
+    expect(html).toContain('GDPR Details, Sim Trust Center')
   })
 })
 

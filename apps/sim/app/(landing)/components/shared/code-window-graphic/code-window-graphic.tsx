@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import styles from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic.module.css'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 
 /** One inline run of code text inside a {@link CodeWindowGraphic} line. */
 export interface CodeSegment {
@@ -65,7 +65,6 @@ export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicPr
   return (
     <FeatureGraphicShell>
       <div
-        aria-hidden='true'
         className={cn(
           'absolute top-5 right-0 bottom-0 left-0 rounded-tl-xl border-t border-l',
           OUTLINE_INK
@@ -80,13 +79,19 @@ export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicPr
           <span className='text-[var(--text-inverse)] text-base'>{filename}</span>
         </div>
 
-        <div className='space-y-2 p-4 font-mono text-[var(--text-muted-inverse)] text-caption leading-[1.7]'>
+        <div className='space-y-2 overflow-x-auto p-4 font-mono text-[var(--text-muted-inverse)] text-caption leading-[1.7] max-sm:text-[11px]'>
           {lines.map((line, index) => (
-            <div key={index} className={cn('flex gap-3', LINE_STEP_CLASSES[index])}>
-              <span className='w-3 select-none text-right text-[var(--text-muted-inverse)]'>
+            <div
+              key={index}
+              className={cn('flex w-max min-w-full gap-3', LINE_STEP_CLASSES[index])}
+            >
+              <span
+                aria-hidden='true'
+                className='w-3 shrink-0 select-none text-right text-[var(--text-muted-inverse)]'
+              >
                 {index + 1}
               </span>
-              <code className='truncate whitespace-pre'>
+              <code className='whitespace-pre'>
                 {line.map((segment, segmentIndex) => (
                   <span
                     key={segmentIndex}

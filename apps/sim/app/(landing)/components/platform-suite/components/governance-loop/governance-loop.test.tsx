@@ -15,8 +15,8 @@ vi.mock('@sim/emcn/icons', () => ({
   Download: () => <svg aria-hidden='true' />,
 }))
 
-vi.mock('@/app/(landing)/components/shared/hero-loop-shell', () => ({
-  HeroLoopShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+vi.mock('@/app/(landing)/components/shared/responsive-design-stage', () => ({
+  ResponsiveDesignStage: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
 vi.mock('@/app/(landing)/hooks/use-motion-safe-cycle', async () => {

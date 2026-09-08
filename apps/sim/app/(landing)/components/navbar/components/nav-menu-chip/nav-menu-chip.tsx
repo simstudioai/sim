@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChipChevronDown, chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
+import Link from 'next/link'
 import { flushSync } from 'react-dom'
+import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import {
   HOME_INSET,
   LANDING_CONTENT_WIDTH,
@@ -199,6 +201,16 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                       )}
                     </div>
                     {menu.marquee === 'customers' && <NavMenuLogoMarquee />}
+                    {menu.index && (
+                      <Link
+                        href={menu.index.href}
+                        onClick={handleSelect}
+                        className='group/link flex items-center justify-between rounded-lg px-2 py-1 text-[var(--text-body)] text-small transition-colors hover:bg-[var(--surface-hover)]'
+                      >
+                        {menu.index.label}
+                        <ChevronArrow />
+                      </Link>
+                    )}
                   </div>
                 </div>
               )}
