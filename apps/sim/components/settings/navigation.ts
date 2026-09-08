@@ -8,6 +8,7 @@ import {
   Globe,
   GridOffset,
   HexSimple,
+  Integration,
   Key,
   KeySquare,
   Lock,
@@ -43,6 +44,7 @@ export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin
 export type SelfHostSettingsSection = 'general' | 'billing' | 'chat-keys'
 
 export type OrganizationSettingsSection =
+  | 'integrations'
   | 'search-mcp'
   | 'members'
   | 'billing'
@@ -880,27 +882,63 @@ export const ORGANIZATION_PLANE_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSec
   )
 )
 
-export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] = [
-  {
-    id: 'search-mcp',
-    label: 'Search MCP',
-    description: 'Search your sources from other apps.',
-    icon: Server,
-    group: 'organization',
-  },
-  ...buildUnifiedSettingsCatalog()
-    .filter((item) => item.organizationSection !== undefined)
-    .sort((left, right) => left.order - right.order)
-    .flatMap((item) =>
-      item.organizationSection
-        ? [{ ...item, id: item.organizationSection, group: 'organization' }]
-        : []
-    ),
-]
-
 export const ORGANIZATION_SETTINGS_GROUPS = [
+  { key: 'account', title: 'Account' },
   { key: 'organization', title: 'Organization' },
+  { key: 'governance', title: 'Governance' },
+  { key: 'sim-search', title: 'Sim Search' },
 ] as const
+
+type OrganizationSettingsGroup = (typeof ORGANIZATION_SETTINGS_GROUPS)[number]['key']
+
+/**
+ * Every organization section under its sidebar group, in sidebar order. The
+ * organization's Subscription sits under Account exactly where the workspace
+ * plane keeps it; then what the organization is, how it is governed, and Sim
+ * Search. A section added to the union without a row here fails to compile.
+ */
+const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, OrganizationSettingsGroup> =
+  {
+    billing: 'account',
+    members: 'organization',
+    usage: 'organization',
+    whitelabeling: 'organization',
+    'audit-logs': 'governance',
+    'access-control': 'governance',
+    sso: 'governance',
+    sessions: 'governance',
+    'data-retention': 'governance',
+    'data-drains': 'governance',
+    integrations: 'sim-search',
+    'search-mcp': 'sim-search',
+  }
+
+export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] = (
+  Object.keys(ORGANIZATION_SECTION_GROUPS) as OrganizationSettingsSection[]
+).map((id) => {
+  const group = ORGANIZATION_SECTION_GROUPS[id]
+  if (id === 'integrations') {
+    return {
+      id,
+      label: 'Integrations',
+      description: 'Set up the sources your organization searches.',
+      icon: Integration,
+      group,
+    }
+  }
+  if (id === 'search-mcp') {
+    return {
+      id,
+      label: 'Search MCP',
+      description: 'Search your sources from other apps.',
+      icon: Server,
+      group,
+    }
+  }
+  const item = buildUnifiedSettingsCatalog().find((entry) => entry.organizationSection === id)
+  if (!item) throw new Error(`Organization settings section "${id}" has no registry entry`)
+  return { ...item, id, group }
+})
 
 export function getOrganizationSettingsHref(
   organizationId: string,
@@ -1000,6 +1038,8 @@ export function isOrganizationSettingsSectionAvailable(
 ): boolean {
   if (section === 'members' || section === 'search-mcp') return true
   if (section === 'billing') return features.billingEnabled
+  /* Sim Search itself is enterprise on the hosted product; self-hosted gates it by flag, not by section. */
+  if (section === 'integrations') return !features.hosted || features.hasEnterprisePlan
   if (features.hosted) return features.hasEnterprisePlan
   return features.selfHosted[section] ?? false
 }

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   filters: vi.fn(),
   setSource: vi.fn(),
   connect: vi.fn(),
-  setup: vi.fn(),
 }))
 
 vi.mock('nuqs', () => ({
@@ -34,12 +33,6 @@ vi.mock(
 )
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: mocks.context,
-}))
-vi.mock('@/app/o/[organizationId]/integrations/slack-account-setup', () => ({
-  OrganizationSlackAccountSetup: () => null,
-}))
-vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
-  SearchSourceSetup: mocks.setup,
 }))
 vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-showcase', () => ({
   IntegrationTile: () => null,
@@ -105,8 +98,7 @@ describe('organization integrations role and source paths', () => {
       searchAccess: { memberScoped: true, sourceMirrored: true },
     })
     mocks.sources.mockReturnValue({ data: [memberSource, centralSource], isPending: false })
-    mocks.filters.mockReturnValue({ search: '', setSearch: vi.fn() })
-    mocks.setup.mockReturnValue(null)
+    mocks.filters.mockReturnValue({ tab: null, search: '', setSearch: vi.fn() })
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -137,26 +129,32 @@ describe('organization integrations role and source paths', () => {
     expect(document.body.textContent).toContain('4 searchable documents')
     await act(async () => buttons('Connect account')[0].click())
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
-    expect(mocks.setup).toHaveBeenCalledWith(
-      expect.objectContaining({ scope, canAdmin: false }),
-      undefined
-    )
   })
 
-  it('gives admins source setup and management while retaining their own enrollment action', async () => {
+  it('shows an organization admin exactly what a member sees, with no setup or management', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
       searchAccess: { memberScoped: true, sourceMirrored: true },
     })
     await render()
-    expect(buttons('Add source')).toHaveLength(1)
-    expect(buttons('Manage')).toHaveLength(1)
+    expect(buttons('Add source')).toHaveLength(0)
+    expect(buttons('Manage')).toHaveLength(0)
+    expect(document.querySelector('[aria-label$="source actions"]')).toBeNull()
     expect(buttons('Connect account')).toHaveLength(1)
-    await act(async () => buttons('Add source')[0].click())
-    expect(mocks.setSource).toHaveBeenCalledWith('')
-    await act(async () => buttons('Manage')[0].click())
-    expect(mocks.setSource).toHaveBeenCalledWith('central-source', { history: 'push' })
+  })
+
+  it('lists only the sources the viewer connected under Mine', async () => {
+    mocks.filters.mockReturnValue({ tab: 'mine', search: '', setSearch: vi.fn() })
+    await render()
+    expect(document.body.textContent).toContain('You haven’t connected any sources yet.')
+    mocks.sources.mockReturnValue({
+      data: [{ ...memberSource, viewerMembership: 'connected' }, centralSource],
+      isPending: false,
+    })
+    await render()
+    expect(document.body.textContent).toContain('Gmail')
+    expect(document.body.textContent).not.toContain('Engineering')
   })
 
   it('does not offer connection to an unavailable source or setup to a member with no sources', async () => {

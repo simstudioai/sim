@@ -29,7 +29,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
-import { OrganizationMenuItems } from '@/components/organization-menu-items/organization-menu-items'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
@@ -538,7 +537,6 @@ function WorkspaceHeaderImpl({
                screen with nothing able to scroll to them. */
             className='flex max-h-[var(--radix-dropdown-menu-content-available-height,400px)] w-64 max-w-[calc(100vw-24px)] flex-col overflow-y-auto'
           >
-            <OrganizationMenuItems onNavigate={() => setIsWorkspaceMenuOpen(false)} />
             {isWorkspacesLoading ? (
               <div className='px-2 py-[5px] text-[var(--text-secondary)] text-caption'>
                 Loading workspaces...

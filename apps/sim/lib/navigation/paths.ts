@@ -31,11 +31,11 @@ export function organizationRoutes(organizationId: string) {
   return {
     root,
     home: `${root}/home`,
+    search: `${root}/search`,
     integrations: `${root}/integrations`,
     skills: `${root}/skills`,
     settings: `${root}/settings`,
     settingsSection: (section: string) => `${root}/settings/${section}`,
-    workspaces: `${root}/workspaces`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
   } as const
 }

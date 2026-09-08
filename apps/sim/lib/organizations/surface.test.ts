@@ -44,10 +44,22 @@ describe('getOrganizationSurfaceContext', () => {
     queueTableRows(organization, [
       { id: 'org-1', name: 'Acme', slug: 'acme', logo: 'https://cdn/logo.png' },
     ])
+    queueTableRows(member, [{ memberCount: 3 }])
 
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toEqual({
-      organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: 'https://cdn/logo.png' },
-      viewer: { role: 'admin', isAdmin: true, canInviteMembers: true, canUsePersonalApiKeys: true },
+      organization: {
+        id: 'org-1',
+        name: 'Acme',
+        slug: 'acme',
+        logo: 'https://cdn/logo.png',
+        memberCount: 3,
+      },
+      viewer: {
+        role: 'admin',
+        isAdmin: true,
+        canInviteMembers: true,
+        canUsePersonalApiKeys: true,
+      },
       searchAccess: { memberScoped: true, sourceMirrored: false },
     })
     expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })
@@ -56,6 +68,7 @@ describe('getOrganizationSurfaceContext', () => {
   it('normalizes a missing logo to null', async () => {
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: undefined }])
+    queueTableRows(member, [{ memberCount: 1 }])
 
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
       organization: { logo: null },
@@ -73,6 +86,7 @@ describe('getOrganizationSurfaceContext', () => {
     async ({ role, policyDisabled, deploymentDisabled, allowed }) => {
       queueTableRows(member, [{ role }])
       queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+      queueTableRows(member, [{ memberCount: 1 }])
       featureFlags.invitationsDisabled = deploymentDisabled
       mockPermissionConfig.mockResolvedValue({
         ...DEFAULT_PERMISSION_GROUP_CONFIG,

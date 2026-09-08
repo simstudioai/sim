@@ -9,7 +9,10 @@ import {
   CollapsedSidebarMenu,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
-import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import {
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_SECTION_GAP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 
 /** Stands in for a chip row while the list loads, so it carries no margin either. */
@@ -96,11 +99,10 @@ interface ChatsSectionProps {
 }
 
 /**
- * The organization's chats: the first section of the scroll region, so it carries no
- * section gap — the divider padding above it is the whole distance, exactly as the
- * workspace sidebar spaces its own Chats. Expanded, a collapsible list of every chat —
- * no paging, the scroll region carries the length; collapsed, a hover flyout off the
- * rail glyph.
+ * The organization's chats, the section beneath Workspaces, spaced from it by the
+ * section gap exactly as the workspace sidebar spaces its own sections. Expanded, a
+ * collapsible list of every chat — no paging, the scroll region carries the length;
+ * collapsed, a hover flyout off the rail glyph.
  */
 export function ChatsSection({
   chats,
@@ -114,7 +116,11 @@ export function ChatsSection({
   const hover = useHoverMenu()
 
   return (
-    <SidebarSection title='Chats' railCollapsed={isCollapsed} className='chats-section shrink-0'>
+    <SidebarSection
+      title='Chats'
+      railCollapsed={isCollapsed}
+      className={cn(SIDEBAR_SECTION_GAP_CLASS, 'chats-section shrink-0')}
+    >
       {isCollapsed ? (
         <div className='px-2'>
           <CollapsedSidebarMenu

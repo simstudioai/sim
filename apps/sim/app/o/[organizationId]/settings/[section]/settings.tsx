@@ -8,6 +8,7 @@ import {
 } from '@/components/settings/navigation'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { OrganizationIntegrationsSetup } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup'
 import { OrganizationSearchMcp } from '@/app/o/[organizationId]/settings/components/organization-search-mcp'
 
 const TeamManagement = dynamic(() =>
@@ -58,6 +59,7 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
 
   return (
     <SettingsSectionProvider section={section} meta={meta}>
+      {section === 'integrations' && <OrganizationIntegrationsSetup />}
       {section === 'search-mcp' && <OrganizationSearchMcp />}
       {section === 'members' && (
         <TeamManagement

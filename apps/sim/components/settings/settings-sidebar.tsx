@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { type ComponentType, useRef } from 'react'
 import {
   Chip,
   ChipConfirmModal,
@@ -13,7 +13,7 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { ChevronLeft } from '@sim/emcn/icons'
+import { ArrowUpRight, ChevronLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import {
   SETTINGS_PLANE_CHROME,
@@ -51,12 +51,25 @@ interface SidebarSettingsItem<Section extends SettingsSection>
   locked?: boolean
 }
 
+/**
+ * A row that leads out of these settings rather than to a section of them —
+ * drawn like the workspace sidebar's Organization row, with the up-right arrow.
+ * Rendered after its group's sections.
+ */
+export interface SettingsSidebarOutboundLink {
+  id: string
+  group: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+}
+
 interface SettingsSidebarProps<Section extends SettingsSection> {
   activeSection: string
   plane: StandaloneSettingsPlane
   groups: readonly SettingsNavigationGroup[]
   hrefForSection: (section: Section) => string
   items: readonly SidebarSettingsItem<Section>[]
+  outboundLinks?: readonly SettingsSidebarOutboundLink[]
   isCollapsed?: boolean
   showCollapsedTooltips?: boolean
   backHref?: string
@@ -68,6 +81,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
   groups,
   hrefForSection,
   items,
+  outboundLinks = [],
   isCollapsed = false,
   showCollapsedTooltips = false,
   backHref = APP_ENTRY_PATH,
@@ -138,8 +152,9 @@ export function SettingsSidebar<Section extends SettingsSection>({
             .map((group) => ({
               ...group,
               items: items.filter((item) => item.group === group.key),
+              links: outboundLinks.filter((link) => link.group === group.key),
             }))
-            .filter((group) => group.items.length > 0)
+            .filter((group) => group.items.length > 0 || group.links.length > 0)
             .map((group, index) => (
               <SidebarSection
                 key={group.key}
@@ -193,6 +208,31 @@ export function SettingsSidebar<Section extends SettingsSection>({
                             </ChipTag>
                           )}
                         </SettingsIntentLink>
+                      </SidebarTooltip>
+                    )
+                  })}
+                  {group.links.map((link) => {
+                    const Icon = link.icon
+                    return (
+                      <SidebarTooltip
+                        key={link.id}
+                        label={link.label}
+                        enabled={showCollapsedTooltips}
+                      >
+                        <button
+                          type='button'
+                          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+                        >
+                          <Icon className={chipContentIconClass} />
+                          <OverflowText
+                            label={link.label}
+                            className='sidebar-collapse-hide text-[var(--text-body)]'
+                            tooltipEnabled={!showCollapsedTooltips}
+                          />
+                          <ArrowUpRight
+                            className={cn('sidebar-collapse-hide ml-auto', chipContentIconClass)}
+                          />
+                        </button>
                       </SidebarTooltip>
                     )
                   })}

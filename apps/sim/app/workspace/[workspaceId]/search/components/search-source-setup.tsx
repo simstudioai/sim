@@ -20,7 +20,7 @@ import {
   resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
-import { canConnectPersonally, getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   managedSourceParam,
@@ -56,10 +56,6 @@ const SearchSourceStatus = dynamic(
     ),
   { ssr: false }
 )
-
-const SOURCE_TYPES = Object.entries(CONNECTOR_META_REGISTRY)
-  .filter(([, meta]) => meta.search && (meta.mirrorsSourceAcls || canConnectPersonally(meta)))
-  .sort(([, left], [, right]) => left.name.localeCompare(right.name))
 
 interface SearchSourceSetupProps {
   workspaceId?: string
@@ -179,7 +175,7 @@ export function SearchSourceSetup({
   }
 
   const normalizedSearch = search.trim().toLowerCase()
-  const visibleTypes = SOURCE_TYPES.filter(([type, meta]) =>
+  const visibleTypes = SEARCH_SOURCE_TYPES.filter(([type, meta]) =>
     selectedType
       ? type === selectedType
       : `${meta.name} ${meta.description}`.toLowerCase().includes(normalizedSearch)

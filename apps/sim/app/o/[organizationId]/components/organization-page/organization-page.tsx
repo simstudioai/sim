@@ -12,7 +12,6 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { Search, X } from '@sim/emcn/icons'
-import { noop } from '@sim/utils/helpers'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import {
@@ -21,7 +20,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 
 /** The home surface's reading column, so every organization page shares its width. */
-const COLUMN_CLASS = 'mx-auto w-full max-w-chat px-6'
+export const PAGE_COLUMN_CLASS = 'mx-auto w-full max-w-chat px-6'
 
 export interface OrganizationPageTab {
   id: string
@@ -33,6 +32,7 @@ interface OrganizationPageProps {
   description?: string
   /** Header tabs; the first is the default. Omit for a page with one view. */
   tabs?: readonly OrganizationPageTab[]
+  /** The page's primary action, a chip. Omit for a page without one. */
   action?: ReactNode
   children?: ReactNode
 }
@@ -48,52 +48,20 @@ interface OrganizationPageProps {
  * skeleton standing in for it. Pass `tabs` only once they are known; the row
  * simply gains them.
  */
-export function OrganizationPage(props: OrganizationPageProps) {
-  const filters = useOrganizationPageFilters()
-  return <OrganizationPageView {...props} filters={filters} />
-}
-
-/** Uses the same page chrome during both navigation and a suspended URL read. */
-export function OrganizationPageLoading({
-  title,
-  description,
-}: Pick<OrganizationPageProps, 'title' | 'description'>) {
-  return (
-    <OrganizationPageView
-      title={title}
-      description={description}
-      filters={{ tab: null, search: '', setTab: noop, setSearch: noop }}
-      loading
-    />
-  )
-}
-
-interface OrganizationPageViewProps extends OrganizationPageProps {
-  filters: {
-    tab: string | null
-    search: string
-    setTab: (value: string | null) => void
-    setSearch: (value: string) => void
-  }
-  loading?: boolean
-}
-
-function OrganizationPageView({
+export function OrganizationPage({
   title,
   description,
   tabs,
   action,
   children,
-  filters,
-  loading = false,
-}: OrganizationPageViewProps) {
+}: OrganizationPageProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const scrollEdges = useScrollEdges(scrollContainerRef, { contentRef: scrollContentRef })
   const tabsRef = useRef<HTMLDivElement>(null)
   const tabEdges = useScrollEdges(tabsRef, { axis: 'x' })
 
-  const { tab, search, setTab, setSearch } = filters
+  const { tab, search, setTab, setSearch } = useOrganizationPageFilters()
   const defaultTab = tabs?.[0]?.id
   const activeTab = tab ?? defaultTab
 
@@ -117,7 +85,9 @@ function OrganizationPageView({
         <div className={HEADER_ACTION_CLUSTER} />
       </div>
 
-      <div className={cn(COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'flex shrink-0 flex-col')}>
+      <div
+        className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'flex shrink-0 flex-col')}
+      >
         <div className='flex flex-col gap-1 pt-8'>
           <h1 className='text-[var(--text-primary)] text-lg'>{title}</h1>
           {description && <p className='text-[var(--text-muted)] text-small'>{description}</p>}
@@ -178,12 +148,7 @@ function OrganizationPageView({
                 }
               />
             ) : (
-              <Chip
-                disabled={loading}
-                leftIcon={Search}
-                aria-label='Search'
-                onClick={() => setSearchOpened(true)}
-              />
+              <Chip leftIcon={Search} aria-label='Search' onClick={() => setSearchOpened(true)} />
             )}
             {action}
           </div>
@@ -200,7 +165,7 @@ function OrganizationPageView({
         )}
         {...scrollFadeAttributes(scrollEdges)}
       >
-        <div ref={scrollContentRef} className={COLUMN_CLASS}>
+        <div ref={scrollContentRef} className={PAGE_COLUMN_CLASS}>
           {children}
         </div>
       </div>

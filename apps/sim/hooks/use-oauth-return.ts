@@ -25,8 +25,8 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
-import { organizationRoutes } from '@/lib/navigation/paths'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
+import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import {
   organizationCredentialKeys,
@@ -363,7 +363,7 @@ export function buildKnowledgeBaseOAuthReturnUrl(
     typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
   const kbUrl =
     scope.kind === 'organization'
-      ? organizationRoutes(scope.organizationId).integrations
+      ? organizationSearchSetupPath(scope.organizationId)
       : `/workspace/${scope.workspaceId}/knowledge/${knowledgeBaseId}`
   return connectorType
     ? `${kbUrl}?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(connectorType)}`

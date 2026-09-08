@@ -8,17 +8,10 @@ const mocks = vi.hoisted(() => ({
   chat: vi.fn(),
   composer: vi.fn(),
   renderer: vi.fn(),
-  setParams: vi.fn(),
   markRead: vi.fn(),
   send: vi.fn(),
   consume: vi.fn(),
 }))
-vi.mock('nuqs', () => ({
-  parseAsString: { withDefault: () => ({}) },
-  parseAsStringLiteral: () => ({ withDefault: () => ({}) }),
-  useQueryStates: () => [{ mode: 'assistant', q: '' }, mocks.setParams],
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/search-params', () => ({ searchFilterParsers: {} }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
 }))
@@ -33,11 +26,11 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
+vi.mock('@/app/o/[organizationId]/home/components/get-started', () => ({
+  GetStarted: () => <div>Get started</div>,
+}))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
   MothershipChat: mocks.renderer,
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/knowledge-search-results', () => ({
-  KnowledgeSearchResults: () => null,
 }))
 
 import type { Composer } from '@/app/o/[organizationId]/home/components/composer'
@@ -48,10 +41,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  mocks.context.mockReturnValue({
-    organization: { id: 'organization-a' },
-    viewer: { isAdmin: false },
-  })
+  mocks.context.mockReturnValue({ organization: { id: 'organization-a' } })
   mocks.chat.mockReturnValue({ messages: [], isChatHistoryPending: true, sendMessage: mocks.send })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
   mocks.renderer.mockReturnValue(<div>Chat history</div>)
@@ -69,10 +59,11 @@ function composerProps(): ComponentProps<typeof Composer> {
 }
 
 describe('organization home', () => {
-  it('renders a usable composer when the disabled history query is pending', async () => {
-    await act(async () => root.render(<OrganizationHome />))
+  it('greets the viewer over the composer and steps while the history query is pending', async () => {
+    await act(async () => root.render(<OrganizationHome userName='Ada Lovelace' />))
+    expect(container.textContent).toContain('What should we get done, Ada?')
     expect(container.textContent).toContain('Question composer')
-    expect(container.textContent).toContain('Connect your accounts')
+    expect(container.textContent).toContain('Get started')
     expect(mocks.renderer).not.toHaveBeenCalled()
     expect(mocks.chat).toHaveBeenCalledWith({ organizationId: 'organization-a' }, undefined)
   })
@@ -82,6 +73,7 @@ describe('organization home', () => {
       expect.objectContaining({ isLoading: true }),
       undefined
     )
+    expect(container.textContent).not.toContain('Get started')
     expect(mocks.consume).not.toHaveBeenCalled()
   })
   it('sends the member question as an assistant turn and clears the draft', async () => {
@@ -95,6 +87,12 @@ describe('organization home', () => {
       { requestMode: 'assistant' }
     )
     expect(composerProps().value).toBe('')
+  })
+  it('ignores a blank submission', async () => {
+    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => composerProps().onChange('   '))
+    await act(async () => composerProps().onSubmit())
+    expect(mocks.send).not.toHaveBeenCalled()
   })
   it('resumes a scoped handoff with the original search filters', async () => {
     const assistantSearch = { documentIds: ['document-a'] }

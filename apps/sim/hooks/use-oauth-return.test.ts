@@ -94,7 +94,7 @@ describe('resolveOAuthMessage', () => {
         'kb-1',
         'gmail'
       )
-    ).toBe('/o/org-1/integrations?addConnector=gmail')
+    ).toBe('/o/org-1/settings/integrations?addConnector=gmail')
   })
 
   it('recognizes an idempotent already-connected account from its reconnect timestamp', async () => {

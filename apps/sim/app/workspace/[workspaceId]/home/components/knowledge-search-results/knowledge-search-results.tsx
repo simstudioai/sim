@@ -137,7 +137,13 @@ export function KnowledgeSearchResults({
   onSummarize,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
-  const { data: index, isPending: basesPending, error: basesError } = useSearchIndex(scope)
+  const {
+    data: index,
+    isPending: basesPending,
+    isError: basesFailed,
+    isFetching: basesFetching,
+    refetch: refetchIndex,
+  } = useSearchIndex(scope)
   const knowledgeBaseIds = index?.knowledgeBaseId ? [index.knowledgeBaseId] : []
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const searchFilters = useMemo<WorkspaceSearchFilters>(() => {
@@ -153,7 +159,8 @@ export function KnowledgeSearchResults({
     data: results,
     isPending,
     isFetching,
-    error,
+    isError: searchFailed,
+    refetch: refetchSearch,
   } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
   const { data: sources = [] } = useSearchSources(scope)
   const indexing = [
@@ -175,9 +182,22 @@ export function KnowledgeSearchResults({
   const showFilters =
     filtersActive || (documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1)
 
-  const failure = basesError ?? error
-  if (failure) {
-    return <p className='px-2 py-2 text-[var(--text-error)] text-caption'>{failure.message}</p>
+  /* A failed search says so in one quiet line and offers to run again; the cause is
+     the server's to log, never the reader's to parse. */
+  if (basesFailed || searchFailed) {
+    const retrying = basesFetching || isFetching
+    return (
+      <div className='flex items-center gap-2 px-2 py-2'>
+        <p className='text-[var(--text-muted)] text-caption'>Search couldn’t run.</p>
+        <Chip
+          variant='border'
+          disabled={retrying}
+          onClick={() => void (basesFailed ? refetchIndex() : refetchSearch())}
+        >
+          {retrying ? 'Retrying…' : 'Try again'}
+        </Chip>
+      </div>
+    )
   }
   if (!basesPending && knowledgeBaseIds.length === 0) {
     return (

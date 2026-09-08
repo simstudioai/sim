@@ -3,7 +3,6 @@
 import { usePathname } from 'next/navigation'
 import {
   getOrganizationSettingsFeatures,
-  getOrganizationSettingsHref,
   ORGANIZATION_SETTINGS_GROUPS,
 } from '@/components/settings/navigation'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
@@ -12,8 +11,9 @@ import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
-  organizationSettingsNavigation,
-  resolveOrganizationSettingsSection,
+  ORGANIZATION_SETTINGS_OUTBOUND_LINKS,
+  organizationSurfaceSettingsNavigation,
+  resolveOrganizationSurfaceSection,
 } from '@/app/o/[organizationId]/settings/navigation'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
@@ -34,15 +34,18 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
     deployment
   )
 
+  const routes = organizationRoutes(organization.id)
+
   return (
     <SettingsSidebar
       {...props}
       plane='organization'
-      activeSection={resolveOrganizationSettingsSection(pathname ?? '') ?? 'members'}
+      activeSection={resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general'}
       groups={ORGANIZATION_SETTINGS_GROUPS}
-      items={organizationSettingsNavigation(viewer.isAdmin, features)}
-      hrefForSection={(section) => getOrganizationSettingsHref(organization.id, section)}
-      backHref={organizationRoutes(organization.id).home}
+      items={organizationSurfaceSettingsNavigation(viewer.isAdmin, features)}
+      outboundLinks={ORGANIZATION_SETTINGS_OUTBOUND_LINKS}
+      hrefForSection={(section) => routes.settingsSection(section)}
+      backHref={routes.home}
     />
   )
 }

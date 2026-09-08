@@ -3,13 +3,16 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
   type OrganizationSettingsFeatures,
 } from '@/components/settings/navigation'
 import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import {
   organizationSettingsNavigation,
+  organizationSurfaceSettingsNavigation,
   resolveOrganizationSettingsSection,
+  resolveOrganizationSurfaceSection,
 } from '@/app/o/[organizationId]/settings/navigation'
 
 const enterprise: OrganizationSettingsFeatures = {
@@ -22,8 +25,8 @@ const enterprise: OrganizationSettingsFeatures = {
 describe('organization settings navigation', () => {
   it('exposes MCP setup and the read-only roster to an ordinary organization member', () => {
     expect(organizationSettingsNavigation(false, enterprise).map(({ id }) => id)).toEqual([
-      'search-mcp',
       'members',
+      'search-mcp',
     ])
   })
 
@@ -36,7 +39,7 @@ describe('organization settings navigation', () => {
       organizationSettingsNavigation(true, { ...enterprise, hasEnterprisePlan: false }).map(
         ({ id }) => id
       )
-    ).toEqual(['search-mcp', 'members', 'billing'])
+    ).toEqual(['billing', 'members', 'search-mcp'])
   })
 
   it('honors individual self-hosted feature flags and hides billing when disabled', () => {
@@ -47,7 +50,7 @@ describe('organization settings navigation', () => {
         billingEnabled: false,
         selfHosted: { sso: true },
       }).map(({ id }) => id)
-    ).toEqual(['search-mcp', 'members', 'sso'])
+    ).toEqual(['members', 'sso', 'integrations', 'search-mcp'])
   })
 
   it('normalizes old section names and does not expose unsupported routes', () => {
@@ -59,8 +62,52 @@ describe('organization settings navigation', () => {
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
     expect(buildOrganizationNavItems('org').map(({ id }) => id)).toEqual([
       'home',
+      'search',
       'integrations',
-      'workspaces',
     ])
+  })
+
+  it('groups the sections as account, organization, governance, and Sim Search, in order', () => {
+    expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id, group }) => `${group}:${id}`)).toEqual([
+      'account:billing',
+      'organization:members',
+      'organization:usage',
+      'organization:whitelabeling',
+      'governance:audit-logs',
+      'governance:access-control',
+      'governance:sso',
+      'governance:sessions',
+      'governance:data-retention',
+      'governance:data-drains',
+      'sim-search:integrations',
+      'sim-search:search-mcp',
+    ])
+  })
+
+  it('hosts the account General section ahead of the organization sections', () => {
+    expect(organizationSurfaceSettingsNavigation(false, enterprise).map(({ id }) => id)).toEqual([
+      'general',
+      'members',
+      'search-mcp',
+    ])
+    expect(ORGANIZATION_SETTINGS_GROUPS.map(({ key }) => key)).toEqual([
+      'account',
+      'organization',
+      'governance',
+      'sim-search',
+    ])
+  })
+
+  it('resolves a surface path to the plane that owns it, the organization winning billing', () => {
+    expect(resolveOrganizationSurfaceSection('/o/one/settings/general')).toEqual({
+      plane: 'account',
+      section: 'general',
+    })
+    expect(resolveOrganizationSurfaceSection('api-keys')).toBeNull()
+    expect(resolveOrganizationSurfaceSection('billing')).toEqual({
+      plane: 'organization',
+      section: 'billing',
+    })
+    expect(resolveOrganizationSurfaceSection('skills')).toBeNull()
   })
 })

@@ -34,7 +34,7 @@ vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
   SlackManagedUsersModal: mocks.modal,
 }))
 
-import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/integrations/slack-account-setup'
+import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 
 describe('organization Slack setup continuation', () => {
   let root: Root

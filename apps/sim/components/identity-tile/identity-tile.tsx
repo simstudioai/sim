@@ -10,7 +10,14 @@ interface IdentityTileProps {
   className?: string
   /** `data-slot` hook for tests and styling. */
   slot?: string
+  /** `sm` is the 16px rail mark; `lg` is the 36px tile a row or card leads with. */
+  size?: 'sm' | 'lg'
 }
+
+const SIZE_CLASS = {
+  sm: 'size-[16px] rounded-sm text-micro',
+  lg: 'size-9 rounded-lg text-base',
+} as const
 
 /**
  * The 16px mark for a workspace or organization: its uploaded logo, or its
@@ -29,7 +36,14 @@ interface IdentityTileProps {
  * fade every `span` in the collapsed rail to `opacity: 0`, which would blank the
  * mark exactly where it is the only thing left to see.
  */
-export function IdentityTile({ initial, logoUrl, alt = '', className, slot }: IdentityTileProps) {
+export function IdentityTile({
+  initial,
+  logoUrl,
+  alt = '',
+  className,
+  slot,
+  size = 'sm',
+}: IdentityTileProps) {
   if (logoUrl) {
     return (
       <img
@@ -37,7 +51,7 @@ export function IdentityTile({ initial, logoUrl, alt = '', className, slot }: Id
         src={logoUrl}
         alt={alt}
         referrerPolicy='no-referrer'
-        className={cn('size-[16px] shrink-0 rounded-sm object-cover', className)}
+        className={cn('shrink-0 object-cover', SIZE_CLASS[size], className)}
       />
     )
   }
@@ -46,7 +60,8 @@ export function IdentityTile({ initial, logoUrl, alt = '', className, slot }: Id
       data-slot={slot}
       aria-hidden='true'
       className={cn(
-        'flex size-[16px] shrink-0 items-center justify-center rounded-sm bg-[var(--surface-6)] text-[var(--text-icon)] text-micro leading-none dark:text-[var(--text-secondary)]',
+        'flex shrink-0 items-center justify-center bg-[var(--surface-6)] text-[var(--text-icon)] leading-none dark:text-[var(--text-secondary)]',
+        SIZE_CLASS[size],
         className
       )}
     >

@@ -13,7 +13,7 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { Building, ChevronLeft, SquareArrowUpRight } from '@sim/emcn/icons'
+import { ArrowUpRight, Building, ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
@@ -396,7 +396,9 @@ export function SettingsSidebar({
                             label='Organization'
                             className='sidebar-collapse-hide text-[var(--text-body)]'
                           />
-                          <SquareArrowUpRight className='sidebar-collapse-hide ml-auto size-[14px] text-[var(--text-icon)]' />
+                          <ArrowUpRight
+                            className={cn('sidebar-collapse-hide ml-auto', chipContentIconClass)}
+                          />
                         </SettingsIntentLink>
                       </SidebarTooltip>
                     )}

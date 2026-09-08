@@ -7,9 +7,24 @@ import { authMockFns } from '@sim/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetOrganizationSurfaceContext, mockWorkspaceChrome } = vi.hoisted(() => ({
-  mockGetOrganizationSurfaceContext: vi.fn(),
-  mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
+const { mockGetOrganizationSurfaceContext, mockWorkspaceChrome, mockPrefetchUserProfile } =
+  vi.hoisted(() => ({
+    mockGetOrganizationSurfaceContext: vi.fn(),
+    mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
+    mockPrefetchUserProfile: vi.fn(async () => undefined),
+  }))
+
+vi.mock('@tanstack/react-query', () => ({
+  HydrationBoundary: ({ children }: { children: ReactNode }) => children,
+  dehydrate: () => ({}),
+}))
+
+vi.mock('@/app/_shell/providers/get-query-client', () => ({
+  getQueryClient: () => ({}),
+}))
+
+vi.mock('@/lib/users/prefetch-user-profile', () => ({
+  prefetchUserProfile: mockPrefetchUserProfile,
 }))
 
 vi.mock('next/headers', () => ({
@@ -41,7 +56,7 @@ import OrganizationLayout from '@/app/o/[organizationId]/layout'
 const mockGetSession = authMockFns.mockGetSession
 
 const SURFACE_CONTEXT = {
-  organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null },
+  organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null, memberCount: 1 },
   viewer: { role: 'member', isAdmin: false },
 }
 
@@ -61,6 +76,7 @@ describe('OrganizationLayout', () => {
     const html = renderToStaticMarkup(element)
 
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
+    expect(mockPrefetchUserProfile).toHaveBeenCalledWith({}, 'viewer-1')
     expect(html).toContain('Organization child')
     expect(mockWorkspaceChrome).toHaveBeenCalledWith(
       expect.objectContaining({ initialSidebarCollapsed: true }),

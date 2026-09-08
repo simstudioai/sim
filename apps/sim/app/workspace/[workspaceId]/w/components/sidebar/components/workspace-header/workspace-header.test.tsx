@@ -12,10 +12,6 @@ const { mockNavigateToSettings, mockWorkspacePermissions } = vi.hoisted(() => ({
 
 const onWorkspaceSwitch = vi.fn()
 
-vi.mock('@/components/organization-menu-items/organization-menu-items', () => ({
-  OrganizationMenuItems: () => null,
-}))
-
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
 }))

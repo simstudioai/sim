@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
-import { asc, eq } from 'drizzle-orm'
+import { asc, count, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import {
@@ -17,6 +17,7 @@ export interface OrganizationSurfaceOrganization {
   name: string
   slug: string
   logo: string | null
+  memberCount: number
 }
 
 interface OrganizationSurfaceViewer {
@@ -62,9 +63,21 @@ async function resolveOrganizationSurfaceContext(
     .limit(1)
   if (!row) return null
 
-  const config = await getUserPermissionConfigForOrganization(organizationId)
+  const [config, [{ memberCount }]] = await Promise.all([
+    getUserPermissionConfigForOrganization(organizationId),
+    db
+      .select({ memberCount: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId)),
+  ])
   return {
-    organization: { id: row.id, name: row.name, slug: row.slug, logo: row.logo ?? null },
+    organization: {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      logo: row.logo ?? null,
+      memberCount,
+    },
     viewer: {
       role: access.role,
       isAdmin: access.isAdmin,

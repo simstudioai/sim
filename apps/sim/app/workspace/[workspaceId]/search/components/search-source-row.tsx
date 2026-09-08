@@ -19,7 +19,8 @@ interface SearchSourceRowProps {
   waiting: boolean
   isPending: boolean
   onConnect: () => void
-  onManage: () => void
+  /** Opens management for the source; only a surface that offers management passes it. */
+  onManage?: () => void
 }
 
 /** Source health and the viewer's connection are separate; only the viewer's next action is primary. */
@@ -98,6 +99,7 @@ export function SearchSourceRow({
               </Chip>
             )}
             {canAdmin &&
+              onManage &&
               (connectable ? (
                 <RowActionsMenu
                   label={`${name} source actions`}

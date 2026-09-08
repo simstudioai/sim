@@ -19,9 +19,10 @@ import {
 import { BookOpen, Download, HelpCircle, Settings } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { SlackIcon } from '@/components/icons'
-import { getAccountSettingsHref } from '@/components/settings/navigation'
 import { getDesktopUpdates } from '@/lib/desktop'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import {
   SIDEBAR_ITEM_GAP_CLASS,
@@ -89,6 +90,7 @@ export function OrganizationFooter({
   onOpenDocs,
   onJoinSlack,
 }: OrganizationFooterProps) {
+  const { organization } = useOrganizationContext()
   const { data: profile } = useUserProfile()
   const updateState = useDesktopUpdateState()
 
@@ -164,7 +166,7 @@ export function OrganizationFooter({
       </SidebarTooltip>
       <DropdownMenuContent align='start' side='top' sideOffset={4}>
         <DropdownMenuItem asChild>
-          <Link href={getAccountSettingsHref('general')}>
+          <Link href={organizationRoutes(organization.id).settingsSection('general')}>
             <Settings className='size-[14px]' />
             <DropdownMenuItemLabel label='Settings' />
           </Link>

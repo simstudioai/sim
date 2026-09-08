@@ -58,6 +58,25 @@ describe('organization settings authorization', () => {
     ).toBe(false)
   })
 
+  it('gates Sim Search source setup on the enterprise plan when hosted', async () => {
+    mocks.enterprise.mockResolvedValue(false)
+    expect(
+      await authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'admin',
+        section: 'integrations',
+      })
+    ).toBe(false)
+    mocks.enterprise.mockResolvedValue(true)
+    expect(
+      await authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'admin',
+        section: 'integrations',
+      })
+    ).toBe(true)
+  })
+
   it('does not turn authorization infrastructure failures into empty settings', async () => {
     mocks.canOpen.mockRejectedValue(new Error('Membership database unavailable'))
     await expect(

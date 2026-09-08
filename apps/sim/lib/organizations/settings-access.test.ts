@@ -65,4 +65,21 @@ describe('organization settings access', () => {
       canOpenOrganizationSettingsSection('organization-route', 'viewer', 'sso')
     ).resolves.toBe(false)
   })
+
+  it('reserves Sim Search source setup for admins while every member may reach the MCP setup', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'integrations')
+    ).resolves.toBe(false)
+
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'search-mcp')
+    ).resolves.toBe(true)
+
+    queueTableRows(member, [{ role: 'admin' }])
+    await expect(
+      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'integrations')
+    ).resolves.toBe(true)
+  })
 })

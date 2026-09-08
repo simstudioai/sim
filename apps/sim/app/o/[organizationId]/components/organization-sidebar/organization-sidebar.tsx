@@ -14,23 +14,19 @@ import {
   ChatsSection,
   OrganizationFooter,
   OrganizationHeader,
-  WorkspacesRailFlyout,
+  WorkspacesSection,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components'
 import {
   useCollapsedTooltips,
   useOrganizationChats,
 } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
-import {
-  buildOrganizationNavItems,
-  WORKSPACES_NAV_ID,
-} from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
+import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
-  CollapsedSidebarMenu,
   isNavItemActive,
   NavItemContextMenu,
   SidebarNavChip,
@@ -42,10 +38,7 @@ import {
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import {
-  useHoverMenu,
-  useSidebarResize,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useSidebarResize } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -84,7 +77,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     enabled: !isCollapsed,
   })
   const { chats, isLoading: chatsLoading } = useOrganizationChats(organization.id)
-  const workspacesHover = useHoverMenu()
 
   const isMac = isMacPlatform()
   const navItems = buildOrganizationNavItems(organization.id)
@@ -251,22 +243,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
               >
                 {navItems.map((item) => {
                   const active = isNavItemActive(item, pathname)
-                  /* The Workspaces chip grows a hover flyout of the organization's workspaces
-                 while the rail is collapsed. The flyout replaces the collapsed tooltip
-                 rather than stacking on it: both open on the same hover. Built inline —
-                 Radix mounts menu content on open, so the flyout's query does not run
-                 until the user actually hovers the chip. */
-                  if (isCollapsed && item.id === WORKSPACES_NAV_ID) {
-                    return (
-                      <CollapsedSidebarMenu
-                        key={item.id}
-                        hover={workspacesHover}
-                        navLink={{ item, active, onContextMenu: handleHrefContextMenu }}
-                      >
-                        <WorkspacesRailFlyout organizationId={organization.id} />
-                      </CollapsedSidebarMenu>
-                    )
-                  }
                   return (
                     <SidebarTooltip
                       key={item.id}
@@ -294,6 +270,12 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                 {...scrollFadeAttributes(scrollEdges)}
               >
                 <div ref={scrollContentRef} className='flex flex-col'>
+                  <WorkspacesSection
+                    organizationId={organization.id}
+                    isCollapsed={isCollapsed}
+                    pathname={pathname}
+                    onContextMenu={handleHrefContextMenu}
+                  />
                   <ChatsSection
                     chats={chats}
                     isLoading={chatsLoading}

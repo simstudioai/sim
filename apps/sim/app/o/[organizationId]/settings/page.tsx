@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getOrganizationSettingsHref } from '@/components/settings/navigation'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 interface OrganizationSettingsPageProps {
   params: Promise<{ organizationId: string }>
@@ -7,5 +7,5 @@ interface OrganizationSettingsPageProps {
 
 export default async function OrganizationSettingsPage({ params }: OrganizationSettingsPageProps) {
   const { organizationId } = await params
-  redirect(getOrganizationSettingsHref(organizationId, 'members'))
+  redirect(organizationRoutes(organizationId).settingsSection('general'))
 }

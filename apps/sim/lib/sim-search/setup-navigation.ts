@@ -7,6 +7,11 @@ import {
 } from '@/app/workspace/[workspaceId]/search/search-params'
 import { credentialGroupProviderSearchParam } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 
+/** Where an organization admin sets up Sim Search sources: the Integrations section of its settings. */
+export function organizationSearchSetupPath(organizationId: string): string {
+  return organizationRoutes(organizationId).settingsSection('integrations')
+}
+
 /** Carries Search setup through an existing integration or settings screen. */
 export function searchSetupDestination(path: string, source: SearchSetupReturnSource): string {
   const params = new URLSearchParams({ [searchSetupReturnParam.key]: source })
@@ -21,7 +26,7 @@ export function searchSetupReturnHref(
     typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
   const path =
     scope.kind === 'organization'
-      ? organizationRoutes(scope.organizationId).integrations
+      ? organizationSearchSetupPath(scope.organizationId)
       : `/workspace/${scope.workspaceId}/search`
   return source === 'search'
     ? path
@@ -37,7 +42,7 @@ export function slackSearchSetupHref(
     typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
   const path =
     scope.kind === 'organization'
-      ? organizationRoutes(scope.organizationId).integrations
+      ? organizationSearchSetupPath(scope.organizationId)
       : `/workspace/${scope.workspaceId}/settings/credential-groups`
   const providerKey =
     scope.kind === 'organization' ? 'connectedAccounts' : credentialGroupProviderSearchParam.key

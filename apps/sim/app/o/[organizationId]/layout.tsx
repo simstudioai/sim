@@ -1,8 +1,11 @@
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
@@ -34,9 +37,14 @@ export default async function OrganizationLayout({
     )
   }
 
+  const queryClient = getQueryClient()
   const [context, cookieStore] = await Promise.all([
     getOrganizationSurfaceContext(organizationId, session.user.id),
     cookies(),
+    /* The rail's footer renders the viewer, so the profile is layout data: seeded
+       here it paints hydrated, and a page hydrating the same key beneath finds it
+       populated rather than an empty query it cannot fill during render. */
+    prefetchUserProfile(queryClient, session.user.id),
   ])
   if (!context) {
     return <OrganizationAccessDenied />
@@ -45,17 +53,19 @@ export default async function OrganizationLayout({
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
-    <OrganizationProvider context={context}>
-      <GlobalCommandsProvider>
-        <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
-          <WorkspaceChrome
-            sidebar={<OrganizationSidebar />}
-            initialSidebarCollapsed={initialSidebarCollapsed}
-          >
-            {children}
-          </WorkspaceChrome>
-        </div>
-      </GlobalCommandsProvider>
-    </OrganizationProvider>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <OrganizationProvider context={context}>
+        <GlobalCommandsProvider>
+          <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <WorkspaceChrome
+              sidebar={<OrganizationSidebar />}
+              initialSidebarCollapsed={initialSidebarCollapsed}
+            >
+              {children}
+            </WorkspaceChrome>
+          </div>
+        </GlobalCommandsProvider>
+      </OrganizationProvider>
+    </HydrationBoundary>
   )
 }

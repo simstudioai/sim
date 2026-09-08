@@ -1,21 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
-import { useQueryState } from 'nuqs'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
-import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/integrations/slack-account-setup'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
-import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
-import {
-  managedSourceParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -25,22 +16,24 @@ import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connector
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
-/** One source list combines organization setup, source health, and each member's next action. */
+/** Every source the organization searches, or only the ones the viewer has connected. */
+const TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'mine', label: 'Mine' },
+] as const
+
+/**
+ * The organization's sources as every member sees them — the same list and the
+ * same actions whatever the viewer's role. Setting sources up and managing them
+ * is an organization admin's job, done in the organization's settings.
+ */
 export function OrganizationIntegrations() {
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
-  const { organization, viewer, searchAccess } = useOrganizationContext()
+  const { organization, searchAccess } = useOrganizationContext()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const sources = useSearchSources(scope)
-  const { search, setSearch } = useOrganizationPageFilters()
-  const [, setSelectedType] = useQueryState(
-    searchSetupParam.key,
-    searchSetupParam.parser.withOptions({ history: 'replace' })
-  )
-  const [, setManagedSource] = useQueryState(
-    managedSourceParam.key,
-    managedSourceParam.parser.withOptions({ history: 'replace' })
-  )
+  const { tab, search } = useOrganizationPageFilters()
   const membershipQueryKeys = useMemo(
     () => [searchSourceKeys.list({ kind: 'organization', organizationId: organization.id })],
     [organization.id]
@@ -56,31 +49,21 @@ export function OrganizationIntegrations() {
   )
   const enrollment = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
   const query = search.trim().toLowerCase()
+  const mineOnly = tab === 'mine'
   const visibleSources =
-    sources.data?.filter((source) =>
-      `${connectorDisplayName(source.connectorType)} ${source.sourceDescription}`
-        .toLowerCase()
-        .includes(query)
+    sources.data?.filter(
+      (source) =>
+        (!mineOnly || source.viewerMembership === 'connected') &&
+        `${connectorDisplayName(source.connectorType)} ${source.sourceDescription}`
+          .toLowerCase()
+          .includes(query)
     ) ?? []
 
   return (
     <OrganizationPage
       title='Integrations'
-      description='Connect the sources your organization searches'
-      action={
-        viewer.isAdmin && (searchAccess.memberScoped || searchAccess.sourceMirrored) ? (
-          <Chip
-            variant='primary'
-            leftIcon={Plus}
-            onClick={() => {
-              setSearch('')
-              void setSelectedType('')
-            }}
-          >
-            Add source
-          </Chip>
-        ) : undefined
-      }
+      description='Connect your tools for Sim Search'
+      tabs={TABS}
     >
       <div className={RESOURCE_LIST_STACK}>
         {sources.isError ? (
@@ -91,15 +74,13 @@ export function OrganizationIntegrations() {
             onRetry={() => void sources.refetch()}
             variant='inline'
           />
-        ) : sources.isPending ? (
-          <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visibleSources.length > 0 ? (
           visibleSources.map((source) => (
             <SearchSourceRow
               key={source.connectorId}
               source={source}
               scope={scope}
-              canAdmin={viewer.isAdmin}
+              canAdmin={false}
               available={
                 source.accessMode === 'members'
                   ? searchAccess.memberScoped
@@ -109,17 +90,14 @@ export function OrganizationIntegrations() {
               waiting={enrollment.isAwaiting(source.connectorId)}
               isPending={enrollment.isPending}
               onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-              onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
             />
           ))
-        ) : (
+        ) : sources.isPending ? null : (
           <SettingsEmptyState variant='inline'>
             {query
               ? 'No matching sources.'
-              : viewer.isAdmin
-                ? searchAccess.memberScoped || searchAccess.sourceMirrored
-                  ? 'Add a source to start indexing documents for Search.'
-                  : 'Search sources are not enabled for this organization.'
+              : mineOnly
+                ? 'You haven’t connected any sources yet.'
                 : 'Your organization hasn’t added any sources yet. Ask an organization admin to get started.'}
           </SettingsEmptyState>
         )}
@@ -127,14 +105,6 @@ export function OrganizationIntegrations() {
           <p className='text-[var(--text-error)] text-caption'>{enrollment.error}</p>
         )}
       </div>
-      <SearchSourceSetup
-        key={`sources:${organization.id}`}
-        scope={scope}
-        canAdmin={viewer.isAdmin}
-        memberAccessAvailable={searchAccess.memberScoped}
-        mirroredAccessAvailable={searchAccess.sourceMirrored}
-      />
-      <OrganizationSlackAccountSetup key={`slack:${organization.id}`} />
     </OrganizationPage>
   )
 }

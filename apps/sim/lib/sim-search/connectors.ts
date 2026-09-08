@@ -81,6 +81,16 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
   .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
 
 /**
+ * Every source an admin may set up for Sim Search, alphabetical by name: the
+ * connectors that either mirror their source's permissions or connect per person.
+ */
+export const SEARCH_SOURCE_TYPES: readonly (readonly [string, ConnectorMeta])[] = Object.entries(
+  CONNECTOR_META_REGISTRY
+)
+  .filter(([, meta]) => meta.search && (meta.mirrorsSourceAcls || canConnectPersonally(meta)))
+  .sort(([, left], [, right]) => left.name.localeCompare(right.name))
+
+/**
  * Whether a source connects per person on Sim Search: it authenticates with
  * OAuth and its listing reflects who may read each document, so each member's
  * own crawl is the permission check. A source that fails this is a workspace

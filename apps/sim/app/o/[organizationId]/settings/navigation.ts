@@ -1,11 +1,41 @@
+import { SlackIcon } from '@/components/icons'
 import {
+  ACCOUNT_SETTINGS_ITEMS,
+  type AccountSettingsSection,
   isOrganizationSettingsSectionAvailable,
+  ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
   type OrganizationSettingsFeatures,
   type OrganizationSettingsSection,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
+  type SettingsNavigationItem,
 } from '@/components/settings/navigation'
+import type { SettingsSidebarOutboundLink } from '@/components/settings/settings-sidebar'
+
+/**
+ * A section on the organization surface's settings, tagged with the plane that
+ * renders it: the organization's own sections, or the viewer's account sections
+ * hosted beside them so one settings surface serves the whole organization view.
+ */
+export type OrganizationSurfaceSettingsSection =
+  | { plane: 'organization'; section: OrganizationSettingsSection }
+  | { plane: 'account'; section: AccountSettingsSection }
+
+/**
+ * The account sections the organization surface hosts, rendered by the account
+ * plane's own renderer. General is the one that belongs to the person alone: the
+ * personal Subscription gives way to the organization's, which sits beside
+ * General in the Account group, and the Desktop, Browser, and Terminal sections
+ * are bound to the workspace they are opened from.
+ */
+export const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
+  ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general')
+
+/** Rows under Sim Search that lead out of these settings; where they lead is not wired yet. */
+export const ORGANIZATION_SETTINGS_OUTBOUND_LINKS: readonly SettingsSidebarOutboundLink[] = [
+  { id: 'search-slack', group: 'sim-search', label: 'Sim Search in Slack', icon: SlackIcon },
+]
 
 export function resolveOrganizationSettingsSection(
   path: string
@@ -16,6 +46,23 @@ export function resolveOrganizationSettingsSection(
     defaultSection: null,
     aliases: { organization: 'members', team: 'members', subscription: 'billing', domains: 'sso' },
   })
+}
+
+/**
+ * Resolves a settings path on the organization surface to the plane that owns
+ * it. Organization sections win, so `billing` is the organization's Subscription.
+ */
+export function resolveOrganizationSurfaceSection(
+  path: string
+): OrganizationSurfaceSettingsSection | null {
+  const organization = resolveOrganizationSettingsSection(path)
+  if (organization) return { plane: 'organization', section: organization }
+  const account = parseSettingsPathSection<AccountSettingsSection, null>({
+    path,
+    items: ORGANIZATION_SURFACE_ACCOUNT_ITEMS,
+    defaultSection: null,
+  })
+  return account ? { plane: 'account', section: account } : null
 }
 
 export function organizationSettingsNavigation(
@@ -30,4 +77,20 @@ export function organizationSettingsNavigation(
         isTargetOrganizationAdmin: isAdmin,
       }) !== 'unavailable' && isOrganizationSettingsSectionAvailable(item.id, features)
   )
+}
+
+/**
+ * Every section the organization surface's settings sidebar lists: the viewer's
+ * account sections, then the organization sections the viewer's role and the
+ * deployment allow. The sidebar groups them by {@link ORGANIZATION_SETTINGS_GROUPS},
+ * so General leads the Account group and the organization's Subscription follows it.
+ */
+export function organizationSurfaceSettingsNavigation(
+  isAdmin: boolean,
+  features: OrganizationSettingsFeatures
+): SettingsNavigationItem<AccountSettingsSection | OrganizationSettingsSection>[] {
+  return [
+    ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS,
+    ...organizationSettingsNavigation(isAdmin, features),
+  ]
 }
