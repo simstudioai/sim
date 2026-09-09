@@ -49,11 +49,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Trimmed before matching. Release PR titles are typed by hand and do
+          # pick up a stray leading space (v0.8.24's did); an anchored match on
+          # the raw title would read that as "not a release" and wave the PR
+          # through -- a silent skip is the one failure mode this gate cannot
+          # afford.
+          title="${PR_TITLE#"${PR_TITLE%%[![:space:]]*}"}"
+
           # Same shape detect-version (ci.yml) matches on the merge commit. A PR
           # to main that is not a release -- a hotfix, a revert, a docs fix --
           # cuts no tag, so there is nothing for appVersion to name.
-          if ! [[ "$PR_TITLE" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
-            echo "::notice::\"${PR_TITLE}\" is not a release title (vX.Y.Z: ...); nothing to check."
+          if ! [[ "$title" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            echo "::notice::\"${title}\" is not a release title (vX.Y.Z: ...); nothing to check."
             exit 0
           fi
           release="${BASH_REMATCH[1]}"
@@ -69,22 +76,5 @@ jobs:
           # Equality, not "not behind". An appVersion ahead of the release being
           # cut names an image tag that this merge will not create either, so
           # the chart would install into ImagePullBackOff.
-          echo "::error::helm/sim/Chart.yaml appVersion is ${app_version}, but this PR cuts ${release}. The chart defaults its image tags to appVersion, and published chart versions are immutable, so a stale value freezes an old Sim into the chart for ${release} forever."
-          {
-            echo "### Chart appVersion does not match this release"
-            echo
-            echo "| | |"
-            echo "| --- | --- |"
-            echo "| Release being cut | \`${release}\` |"
-            echo "| \`Chart.yaml\` appVersion | \`${app_version}\` |"
-            echo "| \`Chart.yaml\` version | \`${chart_version}\` |"
-            echo
-            echo "Fix it on this PR's head branch:"
-            echo
-            echo '```bash'
-            echo "# 1. appVersion: \"${release}\" and a SemVer bump to version: in helm/sim/Chart.yaml"
-            echo "# 2. the image inventory embeds appVersion, so regenerate it"
-            echo "bun run images:generate"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::helm/sim/Chart.yaml appVersion is ${app_version}, but this PR cuts ${release}. Set appVersion to ${release}, bump version: (currently ${chart_version}) per SemVer, and run 'bun run images:generate' -- the image inventory embeds appVersion. The chart defaults its image tags to appVersion, and published chart versions are immutable, so a stale value freezes an old Sim into the chart for ${release} forever."
           exit 1
