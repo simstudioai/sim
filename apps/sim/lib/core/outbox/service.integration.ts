@@ -1,9 +1,22 @@
 /** Real PostgreSQL claims verify scheduling fairness and concurrent delivery. */
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
+import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+const database = vi.hoisted(() => ({ current: undefined as PostgresJsDatabase | undefined }))
+
+vi.mock('@sim/db', () => ({
+  get db() {
+    if (!database.current) throw new Error('Outbox PostgreSQL test database is not initialized')
+    return database.current
+  },
+}))
+
 import {
   type OutboxHandler,
   processOutboxEvents,
@@ -22,6 +35,26 @@ function planNodes(plan: QueryPlan): QueryPlan[] {
 
 describe('outbox scheduling in PostgreSQL', () => {
   const eventTypes = new Set<string>()
+  const schemaName = `outbox_test_${generateId().replaceAll('-', '')}`
+  const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
+  if (!databaseUrl) throw new Error('Outbox tests require a disposable local database')
+  const connection = postgres(
+    databaseUrl,
+    withUtcTimestamps({
+      max: 4,
+      prepare: false,
+      fetch_types: false,
+      connection: { search_path: schemaName },
+      onnotice: () => {},
+    })
+  )
+
+  beforeAll(async () => {
+    await connection`CREATE SCHEMA ${connection(schemaName)}`
+    /** Copy the provisioned table and indexes without consuming another suite's pending events. */
+    await connection`CREATE TABLE outbox_event (LIKE public.outbox_event INCLUDING ALL)`
+    database.current = drizzle(connection)
+  })
 
   afterEach(async () => {
     if (eventTypes.size) {
@@ -31,7 +64,12 @@ describe('outbox scheduling in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await db.$client.end()
+    try {
+      await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
+    } finally {
+      await connection.end()
+      database.current = undefined
+    }
   })
 
   async function enqueue(eventType: string, count: number, ageMs = 10_000) {
@@ -162,11 +200,17 @@ describe('outbox scheduling in PostgreSQL', () => {
         AND available_at <= now()
       ORDER BY available_at, created_at, id
       LIMIT 1 FOR UPDATE SKIP LOCKED
-    `)
+      `)
     const nodes = planNodes(plans[0]['QUERY PLAN'][0].Plan)
-    expect(
-      nodes.some((node) => node['Index Name'] === 'outbox_event_pending_type_available_idx')
-    ).toBe(true)
+    const indexScan = nodes.find((node) => node['Node Type'] === 'Index Scan')
+    expect(indexScan).toBeDefined()
+    const [index] = await connection<{ indexdef: string }[]>`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = ${schemaName} AND indexname = ${indexScan?.['Index Name'] ?? ''}
+        LIMIT 1
+      `
+    expect(index.indexdef).toContain('(event_type, available_at, created_at, id)')
+    expect(index.indexdef).toContain("WHERE (status = 'pending'::text)")
     expect(nodes.some((node) => node['Node Type'] === 'Sort')).toBe(false)
 
     const delivered: string[] = []
