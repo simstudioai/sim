@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Your admin adds the integration and can configure shared source filters. You connect your own account so Sim can establish what you are allowed to search. Admins connect their own accounts through the same flow.
+Your admin allows the integration and can configure shared source filters. You connect your own account so Sim can establish what you are allowed to search. Admins connect their own accounts through the same flow.
 
 <Steps>
 <Step>
@@ -21,7 +21,7 @@ Accept your Sim organization invitation or sign in through your organization's S
 
 ## Open Integrations
 
-Open **Integrations** in the main sidebar, find the provider or source, and select **Connect account**. Your first connection may ask for a GitHub repository, Confluence domain and space keys, or Jira domain and project keys. Enter the required fields and select **Connect**. If the provider is missing, ask an organization admin to add it under **Settings → Sources**.
+Open **Integrations** in the main sidebar, find the provider or source, and select **Connect account**. Your first connection may ask for a GitHub repository, Confluence domain and space keys, or Jira domain and project keys. Enter the required fields and select **Connect**. If the provider is missing, ask an organization admin to turn it on under **Settings → Sources → Allowed in Sim Search**.
 
 Use **Add source** beside **Add another [provider] source** when you need another supported repository, site, or project scope. Connecting an existing source does not ask you to configure it again.
 
@@ -72,7 +72,7 @@ An account connection request does not invite you into the Sim organization. You
 
 Select **Your accounts** on the main Integrations page to open your personal **Connected accounts** settings. Use **Reconnect** to renew an organization account connection or **Disconnect** to withdraw it. Disconnecting stops that account from being used for organization indexing and workflows, and removes Search access that depends on it.
 
-Admins can select **Manage sources** to open organization setup, then open an integration's **Sources** and **Accounts** tabs. This does not grant the admin access to every document.
+Admins can select **Manage sources** to open organization setup, then select **Manage** beside an integration to open its **Sources** and **Accounts** tabs. This does not grant the admin access to every document.
 
 ## If you get stuck
 
@@ -85,7 +85,7 @@ Admins can select **Manage sources** to open organization setup, then open an in
 | **Verify email** | Verify your Sim email, then reopen the connection link. |
 | Expired or cancelled authorization | Return to the original connection page and start again. If the invitation itself expired, ask the admin for a new request. |
 | Access revoked | Ask the organization admin to restore your account contribution access before reconnecting. |
-| Needs admin attention | Ask your admin to open **Settings → Sources → [integration] → Sources → [source]** to inspect its error. |
+| Needs admin attention | Ask your admin to open **Settings → Sources**, select **Manage** beside the integration, and open the source to inspect its error. |
 
 <Callout type="info">
   Your Sim role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.

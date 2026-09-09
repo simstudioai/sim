@@ -25,7 +25,7 @@ export function OrganizationIntegrationsSettings() {
 
   return (
     <div className='flex flex-col gap-6'>
-      <div>
+      <div className='flex items-center justify-between gap-4'>
         <ChipSwitch
           aria-label='Source settings'
           value={tab}
@@ -35,6 +35,9 @@ export function OrganizationIntegrationsSettings() {
             { value: 'people', label: 'People' },
           ]}
         />
+        {tab === 'providers' && (
+          <span className='text-[var(--text-muted)] text-caption'>Allowed in Sim Search</span>
+        )}
       </div>
       {tab === 'providers' && <OrganizationIntegrationsSetup />}
       {tab === 'people' && (

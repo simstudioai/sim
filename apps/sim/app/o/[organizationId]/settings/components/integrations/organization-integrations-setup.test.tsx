@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { toast } from '@sim/emcn'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   add: vi.fn(),
   refetch: vi.fn(),
+  availability: vi.fn(),
+  reset: vi.fn(),
+  pending: false,
+  mutationError: null as Error | null,
 }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
@@ -25,17 +30,15 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({ useOrganizationSearchOverview: mocks.overview }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
-  useUpdateSearchIntegration: () => ({ mutate: mocks.add, isPending: false }),
+  useUpdateSearchIntegration: () => ({
+    mutate: mocks.add,
+    isPending: mocks.pending,
+    reset: mocks.reset,
+    error: mocks.mutationError,
+  }),
 }))
 vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({
-    integrationAvailability: new Map(),
-    oauthServiceAvailability: new Map([
-      ['confluence', true],
-      ['google-drive', true],
-    ]),
-    isIntegrationAvailabilityReady: true,
-  }),
+  usePermissionConfig: mocks.availability,
 }))
 vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
   SearchSourceSetup: () => null,
@@ -55,13 +58,33 @@ const providers: OrganizationSearchProviderSummary[] = [
     status: 'waiting_for_connections',
     isSyncing: false,
   },
-  { connectorType: 'google_drive', approved: false, sourceCount: 2, status: 'paused' },
+  {
+    connectorType: 'google_drive',
+    approved: false,
+    sourceCount: 2,
+    status: 'paused',
+    isSyncing: false,
+  },
 ]
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.admin = true
+  mocks.pending = false
+  mocks.mutationError = null
+  mocks.add.mockReset()
+  vi.spyOn(toast, 'error').mockReturnValue('error-toast')
+  mocks.availability.mockReturnValue({
+    integrationAvailability: new Map(),
+    oauthServiceAvailability: new Map([
+      ['confluence', true],
+      ['google-drive', true],
+      ['google-email', true],
+    ]),
+    isIntegrationAvailabilityReady: true,
+    refetchIntegrationAvailability: mocks.refetch,
+  })
   mocks.overview.mockReturnValue({ data: { providers }, isPending: false, refetch: mocks.refetch })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
@@ -80,6 +103,7 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 async function render(searchParams = '') {
   await act(async () =>
@@ -103,9 +127,9 @@ async function click(label: string) {
 }
 
 describe('organization integration management entry', () => {
-  it('lists added integrations with stable detail links including deactivated providers', async () => {
+  it('shows the stable catalog with switches and separate setup and management links', async () => {
     await render()
-    expect(document.querySelector('a[aria-label="Manage Gmail"]')).toHaveAttribute(
+    expect(document.querySelector('a[aria-label="Set up Gmail"]')).toHaveAttribute(
       'href',
       '/o/org-one/settings/integrations/providers/gmail'
     )
@@ -113,58 +137,210 @@ describe('organization integration management entry', () => {
       'href',
       '/o/org-one/settings/integrations/providers/google_drive'
     )
-    expect(container.textContent).toContain('Waiting for account connections')
-    expect(container.textContent).toContain('Deactivated')
-    expect(container.textContent).not.toContain('Confluence')
-    expect(document.querySelector('[role="switch"]')).toBeNull()
+    expect(container.textContent).toContain('Needs setup')
+    expect(container.textContent).toContain('2 sources')
+    expect(container.textContent).toContain('Confluence')
+    expect(container.textContent).not.toContain('Add integration')
+    expect(document.querySelector('[aria-label="Allow Gmail in Sim Search"]')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(
+      document.querySelector('[aria-label="Allow Google Drive in Sim Search"]')
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(document.querySelector('a[aria-label="Set up Confluence"]')).toBeNull()
   })
-  it('shows an intentional empty state and an Add integration header action', async () => {
+
+  it('offers the catalog for a new organization without a modal or writes', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
     await render()
-    expect(container.textContent).toContain('Add an integration to get started.')
-    await click('Add integration')
-    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(container.textContent).toContain('Confluence')
+    expect(container.textContent).toContain('Google Drive')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(mocks.add).not.toHaveBeenCalled()
   })
-  it('adds a provider once and goes to its management page', async () => {
-    mocks.add.mockImplementation((_input, options) => options.onSuccess())
+
+  it('enables in place and shows setup after the server confirms approval', async () => {
     await render()
-    await click('Add integration')
-    expect(document.querySelector('button[aria-label="Add Gmail"]')).toBeNull()
-    await click('Add Confluence')
-    expect(mocks.add).toHaveBeenCalledWith(
+    const row = document.querySelector('[aria-label="Allow Confluence in Sim Search"]')
+    await click('Allow Confluence in Sim Search')
+    expect(mocks.add).toHaveBeenCalledExactlyOnceWith(
       { organizationId: 'org-one', connectorType: 'confluence', approved: true },
       expect.any(Object)
     )
-    expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations/providers/confluence')
+    expect(row).toHaveAttribute('aria-checked', 'false')
+    mocks.overview.mockReturnValue({
+      data: {
+        providers: [
+          ...providers,
+          {
+            connectorType: 'confluence',
+            approved: true,
+            sourceCount: 0,
+            status: 'needs_setup',
+            isSyncing: false,
+          },
+        ],
+      },
+      isPending: false,
+    })
+    await render()
+    expect(document.querySelector('[aria-label="Allow Confluence in Sim Search"]')).toBe(row)
+    expect(row).toHaveAttribute('aria-checked', 'true')
+    expect(document.querySelector('a[aria-label="Set up Confluence"]')).not.toBeNull()
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
-  it('does not turn a failed summary into an empty setup state', async () => {
+
+  it('requires confirmation before disabling existing sources and lets the admin cancel', async () => {
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...providers[1], approved: true }] },
+      isPending: false,
+    })
+    await render()
+    await click('Allow Google Drive in Sim Search')
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent(
+      'Sources and connected accounts are preserved.'
+    )
+    expect(mocks.add).not.toHaveBeenCalled()
+    await click('Cancel')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(mocks.add).not.toHaveBeenCalled()
+    await click('Allow Google Drive in Sim Search')
+    mocks.add.mockImplementation((_input, options) => options.onSuccess())
+    await click('Deactivate')
+    expect(mocks.add).toHaveBeenCalledExactlyOnceWith(
+      { organizationId: 'org-one', connectorType: 'google_drive', approved: false },
+      expect.any(Object)
+    )
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('allows disabling an integration with no sources in place', async () => {
+    await render()
+    await click('Allow Gmail in Sim Search')
+    expect(mocks.add).toHaveBeenCalledExactlyOnceWith(
+      { organizationId: 'org-one', connectorType: 'gmail', approved: false },
+      expect.any(Object)
+    )
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('keeps the confirmed state and reports failed approval changes', async () => {
+    mocks.add.mockImplementation((_input, options) =>
+      options.onError(new Error('Could not update integration'))
+    )
+    await render()
+    await click('Allow Confluence in Sim Search')
+    expect(toast.error).toHaveBeenCalledWith('Could not update integration')
+    expect(document.querySelector('[aria-label="Allow Confluence in Sim Search"]')).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+    expect(document.querySelector('a[aria-label="Set up Confluence"]')).toBeNull()
+  })
+
+  it('keeps a failed deactivation in the confirmation dialog for retry', async () => {
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...providers[1], approved: true }] },
+      isPending: false,
+    })
+    await render()
+    await click('Allow Google Drive in Sim Search')
+    await click('Deactivate')
+    mocks.mutationError = new Error('Could not deactivate integration')
+    await render()
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent(
+      'Could not deactivate integration'
+    )
+    expect(
+      document.querySelector('[aria-label="Allow Google Drive in Sim Search"]')
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('prevents duplicate changes while a mutation is pending', async () => {
+    mocks.pending = true
+    await render()
+    await click('Allow Confluence in Sim Search')
+    expect(mocks.add).not.toHaveBeenCalled()
+    expect(document.querySelector('[aria-label="Allow Confluence in Sim Search"]')).toBeDisabled()
+  })
+
+  it('blocks unavailable setup while keeping existing sources manageable and deactivatable', async () => {
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map(),
+      oauthServiceAvailability: new Map(),
+      isIntegrationAvailabilityReady: true,
+    })
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...providers[1], approved: true }] },
+      isPending: false,
+    })
+    await render()
+    expect(document.querySelector('[aria-label="Allow Confluence in Sim Search"]')).toBeDisabled()
+    expect(
+      document.querySelector('[aria-label="Allow Google Drive in Sim Search"]')
+    ).not.toBeDisabled()
+    expect(document.querySelector('a[aria-label="Manage Google Drive"]')).not.toBeNull()
+    expect(container.textContent).toContain('Unavailable in this deployment')
+    await click('Allow Confluence in Sim Search')
+    expect(mocks.add).not.toHaveBeenCalled()
+  })
+
+  it('fails closed while availability loads and offers retry if it fails', async () => {
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map(),
+      oauthServiceAvailability: new Map(),
+      isIntegrationAvailabilityReady: false,
+      integrationAvailabilityError: new Error('Could not load connection availability'),
+      refetchIntegrationAvailability: mocks.refetch,
+    })
+    await render()
+    expect(document.querySelector('[aria-label="Allow Confluence in Sim Search"]')).toBeDisabled()
+    await click('Try again')
+    expect(mocks.refetch).toHaveBeenCalledOnce()
+  })
+
+  it('does not hide actionable sync failures behind a source count', async () => {
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...providers[1], approved: true, status: 'needs_attention' }] },
+      isPending: false,
+    })
+    await render()
+    expect(container.textContent).toContain('Needs attention')
+    expect(document.querySelector('a[aria-label="Manage Google Drive"]')).not.toBeNull()
+  })
+
+  it('does not turn a failed overview into unapproved switches', async () => {
     mocks.overview.mockReturnValue({
       error: new Error('Could not load sources'),
       isError: true,
       refetch: mocks.refetch,
     })
     await render()
-    expect(container.textContent).not.toContain('Add an integration to get started.')
-    expect(document.querySelector('a[aria-label="Manage Gmail"]')).toBeNull()
+    expect(document.querySelector('[role="switch"]')).toBeNull()
     await click('Try again')
     expect(mocks.refetch).toHaveBeenCalledOnce()
   })
-  it('keeps loading distinct from empty and disables creation', async () => {
+
+  it('keeps loading distinct from unapproved integrations', async () => {
     mocks.overview.mockReturnValue({ isPending: true })
     await render()
     expect(container.textContent).toContain('Loading sources')
-    await click('Add integration')
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.querySelector('[role="switch"]')).toBeNull()
   })
+
   it('does not expose admin controls or load admin data for members', async () => {
     mocks.admin = false
     await render()
     expect(mocks.overview).toHaveBeenLastCalledWith('org-one', { enabled: false })
     expect(container.textContent).toBe('')
   })
-  it('filters added integration names without dropping server summary context', async () => {
-    await render('?search=gmail')
-    expect(document.querySelector('a[aria-label="Manage Gmail"]')).not.toBeNull()
-    expect(document.querySelector('a[aria-label="Manage Google Drive"]')).toBeNull()
+
+  it('filters the whole catalog without changing approvals', async () => {
+    await render('?search=confluence')
+    expect(container.textContent).toContain('Confluence')
+    expect(container.textContent).not.toContain('Google Drive')
+    expect(mocks.add).not.toHaveBeenCalled()
   })
 })
