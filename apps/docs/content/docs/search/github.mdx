@@ -5,7 +5,6 @@ description: Index repository files with a GitHub App while preserving each pers
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
 
 GitHub Search indexes text files from repositories on `github.com`. An organization admin can install the GitHub App once and use it to index selected repositories. Each person connects their own GitHub account once to search the repositories they can access. Installing the App does not connect teammates or give them the installer's permissions.
 
@@ -13,106 +12,11 @@ Admin setup uses your organization's **Settings → Sources** page. Teammates co
 
 ## Before you start
 
-Your Sim deployment needs a GitHub App configured as described below. The repository must contain at least one commit. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
+The repository must contain at least one commit. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
+
+On Sim Cloud, connect through the Sim Search GitHub App in the setup flow below. If you self-host Sim, a deployment administrator must first [configure GitHub Search](/platform/self-hosting/integrations-oauth#github-search).
 
 To connect an installation for central indexing, you must be a Sim organization admin and either own the GitHub personal account or be an owner of the GitHub organization where the App is installed. You must also be able to read the repository you add.
-
-## Configure the GitHub App
-
-This step belongs to the Sim deployment administrator. If the App is already configured, continue to [Add a repository](#add-a-repository).
-
-Create separate GitHub Apps for production and staging. Each deployment uses its own App, credentials, private key, and callback URL. This keeps test installations and authorizations separate from production.
-
-<Steps>
-<Step>
-
-### Register the App
-
-For a team, open **Your organizations → Settings** for the organization that will own the App. For a personal App, open your account's **Settings**. Then choose **Developer settings → GitHub Apps → New GitHub App**.
-
-Give the App a unique, recognizable name, such as **Your Company Sim Search**, and set **Homepage URL** to your Sim URL.
-
-Under **Identifying and authorizing users → Redirect URI (callback URL)**, enter:
-
-```text
-<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/github-repositories
-```
-
-Replace `<NEXT_PUBLIC_APP_URL>` with that deployment's configured public origin, without a trailing slash. For example, `https://sim.example.com` and `https://staging.sim.example.com` need different callbacks on their respective Apps. The scheme, hostname, port, and path must match exactly; `www` and non-`www` hosts are different. See GitHub's [callback matching rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url).
-
-| GitHub setting | Value for Sim Search |
-|---|---|
-| Allow wildcard matching | Disabled |
-| Expire user authorization tokens | Enabled |
-| Request user authorization (OAuth) during installation | Disabled |
-| Enable Device Flow | Disabled |
-| Post installation → Setup URL | Empty |
-| Webhook → Active | Disabled |
-
-Authorization starts from Sim so the callback can finish the pending connection. The connector polls GitHub's API and does not need a webhook.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-callback.jpg" alt="GitHub App registration with the Redirect URI, expiring tokens enabled, and installation authorization, Device Flow, and webhooks disabled" width={768} height={929} />
-
-*Example registration. Replace `sim.example.com` with your Sim domain.*
-
-</Step>
-<Step>
-
-### Set read permissions
-
-Expand **Permissions → Repository permissions**. Set **Contents → Access: Read-only**; leave the mandatory **Metadata** permission at **Read-only**.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-repository-permissions.jpg" alt="GitHub repository permissions with Contents set to Read-only and Metadata shown as mandatory Read-only" width={768} height={929} />
-
-Expand **Account permissions** and set **Email addresses → Access: Read-only**.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-email-permission.jpg" alt="GitHub account permissions with only Email addresses selected for Read-only access" width={768} height={929} />
-
-| Permission area | Permission | Access |
-|---|---|---|
-| Repository | Contents | Read-only |
-| Repository | Metadata | Read-only |
-| Account | Email addresses | Read-only |
-
-Leave every other permission at **No access**. Sim does not need issue, pull-request, administration, or write permissions. GitHub's [registration guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) explains these settings.
-
-GitHub App user tokens use these permissions rather than OAuth scopes. An empty `scope` value in the token response is expected; see GitHub's [user token reference](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app).
-
-For production, set **Where can this GitHub App be installed? → Any account**. This lets any GitHub account install and authorize the App, subject to that account's organization policies. Making the App public does not make repositories public or grant anyone Search access. See GitHub's [App visibility rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/making-a-github-app-public-or-private).
-
-Use **Any account** for staging too if testing with accounts outside the App owner's organization. **Only on this account** restricts installations to the owner and authorization to that organization's members; a private personal App only works for its owner.
-
-Select **Create GitHub App**.
-
-</Step>
-<Step>
-
-### Configure Sim
-
-On the App's **General** settings page, copy its numeric **App ID** and **Client ID**, select **Generate a new client secret**, and generate a **Private key**. The App slug is the final part of its public URL: `https://github.com/apps/<app-slug>`.
-
-Set all five variables for each deployment, using values from that deployment's App, then restart Sim:
-
-```text
-GITHUB_APP_ID=<numeric App ID>
-GITHUB_APP_SLUG=<app-slug>
-GITHUB_APP_CLIENT_ID=<Client ID>
-GITHUB_APP_CLIENT_SECRET=<Client secret>
-GITHUB_APP_PRIVATE_KEY=<complete RSA PEM private key>
-```
-
-The private key must include its PEM header, footer, and contents. Sim accepts actual newlines or escaped `\n` sequences. Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
-
-The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
-
-Keep **Expire user authorization tokens** enabled so Sim receives the refresh token it needs to [renew personal connections](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens).
-
-Complete the installation from the Sim source setup below.
-
-If you replace a deployment's GitHub App, an organization admin must first open **Settings → Connected accounts → Providers → Update configurations**. This applies the deployment's current App configuration to the existing providers while preserving their saved identities. Accounts whose App configuration changed must reconnect. Then reconnect personal GitHub accounts and connect an installation of the new App. Reconnecting alone cannot update the organization's saved App configuration.
-
-</Step>
-</Steps>
 
 ## Add a repository
 
@@ -184,18 +88,15 @@ This is an installation plus personal authorization flow. GitHub Search does not
 
 | Problem | Next step |
 |---|---|
-| GitHub is unavailable in Search | Ask the deployment admin to configure the App client credentials and enable member connections. |
-| GitHub App indexing is unavailable | Configure all five `GITHUB_APP_*` variables above. Confirm the App ID, slug, client credentials, and valid RSA PEM key all belong to the same App. |
-| GitHub rejects `redirect_uri` | Register the exact callback on the GitHub App whose Client ID Sim uses: `http://localhost:3000/api/auth/oauth2/callback/github-repositories` for the default local server, or your production Sim origin followed by `/api/auth/oauth2/callback/github-repositories`. The scheme, host, port, and path must match; keep wildcard matching disabled. See [callback matching](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url). |
-| Wrong app credentials | Copy the Client ID and client secret from **GitHub Apps**, not **OAuth Apps**. Set `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`, then restart Sim. A numeric App ID or private-key file cannot replace them. |
+| GitHub is unavailable in Search | Ask your Sim organization admin to enable GitHub under **Settings → Sources**. For self-hosted Sim, also check the [GitHub App configuration](/platform/self-hosting/integrations-oauth#github-search). |
 | Repository cannot be read | Confirm the App is installed on that repository and your GitHub account has access. For SAML organizations, establish your GitHub SSO session before reconnecting. |
-| A teammate cannot authorize the App | Set the production App to **Any account**. For a restricted staging App, confirm the tester meets its visibility rules. Check the GitHub organization's App policies and required approvals. |
+| A teammate cannot authorize the App | Check the GitHub organization's App policies and required approvals. Self-hosted deployments must allow the teammate's account in their App visibility settings. |
 | No eligible installations found | Finish connecting your own GitHub account, install the configured App on your account or an organization you own, then select **Refresh**. An installation of a different App or one you only have repository access to cannot be selected. |
 | Repository is not accepted for an installation | Check `owner/repo`, the installation's account and repository selection, and your own access. Update the source's Repository field after a rename. After a transfer, add a source using an installation for the new owner. |
 | Identity verification fails | Verify the email used by your Sim account in GitHub's email settings, then reconnect. A public profile email alone is insufficient. |
 | Authorization fails after installation | Return to Sim and start **Connect account** there. Do not enable authorization during installation. |
-| Account authorization did not complete | Start the connection again from Sim. If it repeats, verify the exact callback, matching GitHub App client credentials, **Email addresses: Read-only**, and enabled expiring user tokens. The deployment admin can inspect server logs for the underlying failure. |
-| Update GitHub in Connected accounts before connecting this source | An organization admin must select **Settings → Connected accounts → Providers → Update configurations**, then reconnect GitHub. This is required when the deployment's GitHub App has changed. |
+| Account authorization did not complete | Start the connection again from Sim. If it repeats, contact your organization admin or Sim support. For self-hosted Sim, check the [App callback and credentials](/platform/self-hosting/integrations-oauth#github-search). |
+| Update GitHub in Connected accounts before connecting this source | An organization admin must select **Settings → Connected accounts → Providers → Update configurations**, then reconnect GitHub. |
 | Indexed files no longer appear | Confirm your own repository access, App repository selection, and connection status. Installation-indexed content is also withheld when GitHub cannot verify current access; retry once GitHub is available. |
 | Sync is incomplete | Review the source status. Very large Git trees, file size limits, and unreadable files can limit indexing. |
 | Empty repository returns an error | Add an initial commit, then sync again. GitHub does not return a file tree for an uninitialized repository. |
