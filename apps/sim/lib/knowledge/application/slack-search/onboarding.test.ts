@@ -72,6 +72,7 @@ import {
   slackSearchConversation,
   slackSearchConversationKey,
 } from '@/lib/slack-search/conversation'
+import type { SlackSearchMessage } from '@/lib/slack-search/types'
 
 const principal = { kind: 'session', userId: 'user1', sessionId: 'session1' } as const
 const job = {
@@ -275,14 +276,18 @@ describe('Slack onboarding control delivery', () => {
     eventId: 'Ev1',
     receivedAt: new Date(),
   } as const
-  const send = () =>
+  const send = (
+    reason: 'account' | 'sources' = 'account',
+    message: SlackSearchMessage = job.message,
+    signal = new AbortController().signal
+  ) =>
     sendSlackSearchOnboarding(slackPrincipal, {
-      job,
+      job: { ...job, message },
       turnId: 'turn1',
       leaseId: 'lease1',
       email: state.email,
-      reason: 'account',
-      signal: new AbortController().signal,
+      reason,
+      signal,
     })
   it('posts a thread-scoped signup link without bot secrets or email in its URL', async () => {
     const result = await send()
@@ -301,12 +306,126 @@ describe('Slack onboarding control delivery', () => {
       expect.objectContaining({ turnId: 'turn1', email: state.email })
     )
   })
-  it('rechecks the binding and lease immediately before delivery', async () => {
-    m.authorize.mockResolvedValueOnce(context).mockResolvedValueOnce(null)
-    await expect(send()).rejects.toThrow('disabled')
-    expect(m.post).not.toHaveBeenCalled()
-    expect(m.lease).toHaveBeenCalledWith('turn1', 'lease1')
+  it('sends Connect sources only to the requesting Slack user without requiring an active thread', async () => {
+    await send('sources')
+    expect(m.api).toHaveBeenLastCalledWith({
+      accessToken: 'bot-secret',
+      method: 'chat.postEphemeral',
+      body: {
+        channel: 'D1',
+        user: job.message.userId,
+        text: 'Connect your sources',
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'actions',
+            elements: [
+              expect.objectContaining({
+                text: { type: 'plain_text', text: 'Connect sources' },
+                url: 'https://sim.test/slack-search/connect/opaque-token',
+              }),
+            ],
+          }),
+        ]),
+      },
+      signal: expect.any(AbortSignal),
+    })
+    expect(m.outcome).toHaveBeenCalledWith(context.installation, 'sources_required')
   })
+  it.each([job.message.threadTs, undefined])(
+    'acknowledges missing sources in the question thread after private setup delivery: %s',
+    async (threadTs) => {
+      await send('sources', { ...job.message, threadTs })
+      expect(m.post).toHaveBeenCalledExactlyOnceWith(
+        'bot-secret',
+        {
+          channel: 'D1',
+          thread_ts: threadTs ?? job.message.messageTs,
+          text: 'I don’t have any sources I can search for you yet. Check the “Connect sources” message in our DM to get set up, then retry this question.',
+          unfurl_links: false,
+          unfurl_media: false,
+        },
+        expect.any(AbortSignal)
+      )
+      expect(m.api.mock.invocationCallOrder[1]).toBeLessThan(m.post.mock.invocationCallOrder[0])
+      expect(m.post.mock.invocationCallOrder[0]).toBeLessThan(m.outcome.mock.invocationCallOrder[0])
+    }
+  )
+  it.each(['rejected', 'ambiguous'] as const)(
+    'does not replace a %s ephemeral delivery with a persistent message',
+    async (outcome) => {
+      m.api.mockResolvedValueOnce({
+        status: 200,
+        data: { ok: true, permalink: state.slackUrl },
+      })
+      if (outcome === 'rejected') {
+        m.api.mockResolvedValueOnce({
+          status: 200,
+          data: { ok: false, error: 'user_not_in_channel' },
+        })
+      } else {
+        m.api.mockRejectedValueOnce(new Error('connection lost after send'))
+      }
+      await expect(send('sources')).rejects.toThrow(
+        outcome === 'rejected' ? 'Could not deliver Slack onboarding' : 'connection lost after send'
+      )
+      expect(m.api).toHaveBeenCalledTimes(2)
+      expect(m.post).not.toHaveBeenCalled()
+      expect(m.outcome).not.toHaveBeenCalled()
+    }
+  )
+  it.each(['account', 'sources'] as const)(
+    'rechecks the binding and lease immediately before %s delivery',
+    async (reason) => {
+      m.authorize.mockResolvedValueOnce(context).mockResolvedValueOnce(null)
+      await expect(send(reason)).rejects.toThrow('disabled')
+      expect(m.post).not.toHaveBeenCalled()
+      expect(m.api).toHaveBeenCalledTimes(1)
+      expect(m.lease).toHaveBeenCalledWith('turn1', 'lease1')
+    }
+  )
+  it.each(['binding', 'lease', 'cancellation'] as const)(
+    'stops before the thread notice if %s changes after the ephemeral prompt',
+    async (change) => {
+      const controller = new AbortController()
+      m.api.mockResolvedValueOnce({
+        status: 200,
+        data: { ok: true, permalink: state.slackUrl },
+      })
+      m.api.mockImplementationOnce(async () => {
+        if (change === 'binding') m.authorize.mockResolvedValueOnce(null)
+        if (change === 'lease') m.lease.mockRejectedValueOnce(new Error('lease lost'))
+        if (change === 'cancellation') controller.abort(new Error('cancelled'))
+        return { status: 200, data: { ok: true } }
+      })
+      await expect(send('sources', job.message, controller.signal)).rejects.toThrow(
+        change === 'binding' ? 'disabled' : change === 'lease' ? 'lease lost' : 'cancelled'
+      )
+      expect(m.api).toHaveBeenCalledTimes(2)
+      expect(m.post).not.toHaveBeenCalled()
+      expect(m.outcome).not.toHaveBeenCalled()
+    }
+  )
+  it.each(['rejected', 'ambiguous'] as const)(
+    'fails without replaying either message when the sources notice delivery is %s',
+    async (outcome) => {
+      if (outcome === 'rejected') {
+        m.post.mockResolvedValueOnce({
+          status: 200,
+          data: { ok: false, error: 'channel_not_found' },
+        })
+      } else {
+        m.post.mockRejectedValueOnce(new Error('connection lost after send'))
+      }
+      await expect(send('sources')).rejects.toThrow(
+        outcome === 'rejected'
+          ? 'Could not deliver the Slack sources notice'
+          : 'connection lost after send'
+      )
+      expect(m.api).toHaveBeenCalledTimes(2)
+      expect(m.post).toHaveBeenCalledOnce()
+      expect(m.outcome).not.toHaveBeenCalled()
+    }
+  )
   it('does not retry an ambiguous post or fall back to another transport', async () => {
     m.post.mockRejectedValueOnce(new Error('connection lost after send'))
     await expect(send()).rejects.toThrow('connection lost after send')

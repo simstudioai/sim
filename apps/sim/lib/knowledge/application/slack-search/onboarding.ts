@@ -113,36 +113,67 @@ export async function sendSlackSearchOnboarding(
   await requireSlackSearchTurnLease(turnId, leaseId)
   if (!(await authorizeSlackSearchInstallation(principal, job)))
     throw new OrchestrationError('forbidden', 'Slack Search is disabled')
-  const response = await postSlackMessage(
-    context.secret.botToken,
-    {
-      channel: job.message.channelId,
-      thread_ts: job.message.threadTs ?? job.message.messageTs,
-      text,
-      unfurl_links: false,
-      unfurl_media: false,
-      blocks: [
-        { type: 'section', text: { type: 'plain_text', text } },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: reason === 'account' ? 'Get started with Sim' : 'Connect sources',
-              },
-              url,
-              action_id: 'slack_search_onboarding',
+  const message = {
+    channel: job.message.channelId,
+    text,
+    blocks: [
+      { type: 'section', text: { type: 'plain_text', text } },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: reason === 'account' ? 'Get started with Sim' : 'Connect sources',
             },
-          ],
-        },
-      ],
-    },
-    signal
-  )
+            url,
+            action_id: 'slack_search_onboarding',
+          },
+        ],
+      },
+    ],
+  }
+  /** Channel-level ephemeral prompts also display before the first persistent thread reply exists. */
+  const response =
+    reason === 'sources'
+      ? await requestSlackApi({
+          accessToken: context.secret.botToken,
+          method: 'chat.postEphemeral',
+          body: { ...message, user: job.message.userId },
+          signal,
+        })
+      : await postSlackMessage(
+          context.secret.botToken,
+          {
+            ...message,
+            thread_ts: job.message.threadTs ?? job.message.messageTs,
+            unfurl_links: false,
+            unfurl_media: false,
+          },
+          signal
+        )
   if (response.status !== 200 || response.data.ok !== true)
     throw new Error('Could not deliver Slack onboarding')
+  if (reason === 'sources') {
+    await requireSlackSearchTurnLease(turnId, leaseId)
+    if (!(await authorizeSlackSearchInstallation(principal, job)))
+      throw new OrchestrationError('forbidden', 'Slack Search is disabled')
+    signal.throwIfAborted()
+    const reply = await postSlackMessage(
+      context.secret.botToken,
+      {
+        channel: job.message.channelId,
+        thread_ts: job.message.threadTs ?? job.message.messageTs,
+        text: 'I don’t have any sources I can search for you yet. Check the “Connect sources” message in our DM to get set up, then retry this question.',
+        unfurl_links: false,
+        unfurl_media: false,
+      },
+      signal
+    )
+    if (reply.status !== 200 || reply.data.ok !== true)
+      throw new Error('Could not deliver the Slack sources notice')
+  }
   await recordSlackSearchOutcome(
     context.installation,
     reason === 'account' ? 'account_required' : 'sources_required'

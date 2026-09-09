@@ -10,9 +10,9 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  writeTextToClipboard,
 } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
-import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -43,10 +43,25 @@ export function SlackSearchSetupWizard({
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
-  const error = prepare.error ?? oauth.error
+  const [configurationCopied, setConfigurationCopied] = useState(false)
+  const [copyError, setCopyError] = useState<Error | null>(null)
+  const error = prepare.error ?? oauth.error ?? copyError
   const busy = oauth.isPending
   const stepNumber = step === 'manifest' ? 1 : step === 'credentials' ? 2 : 3
   const configuredAppId = appId ?? prepare.data?.existingApp?.appId
+
+  async function copyConfiguration() {
+    if (!prepare.data) throw new Error('Slack app configuration is not ready')
+    setCopyError(null)
+    try {
+      await writeTextToClipboard(prepare.data.manifest)
+      setConfigurationCopied(true)
+    } catch {
+      setCopyError(
+        new Error('Could not copy the app configuration. Allow clipboard access and try again.')
+      )
+    }
+  }
 
   function advance() {
     if (step === 'manifest') {
@@ -101,11 +116,20 @@ export function SlackSearchSetupWizard({
           </p>
         )}
         {step === 'manifest' && prepare.data && (
-          <>
-            <ChipModalField
-              type='custom'
-              title={installationId ? 'Update your Slack app' : 'Create your Slack app'}
-            >
+          <ChipModalField
+            type='custom'
+            title={configuredAppId ? 'Update your Slack app' : 'Create your Slack app'}
+            hint={
+              configuredAppId
+                ? configurationCopied
+                  ? 'Configuration copied. In Slack, open App Manifest, select JSON, replace the configuration, and save your changes before continuing.'
+                  : 'Copy the updated configuration, then open your app in Slack to apply it.'
+                : undefined
+            }
+          >
+            {configuredAppId && !configurationCopied ? (
+              <Chip onClick={() => void copyConfiguration()}>Copy app configuration</Chip>
+            ) : (
               <ChipLink
                 href={
                   configuredAppId
@@ -117,16 +141,8 @@ export function SlackSearchSetupWizard({
               >
                 {configuredAppId ? 'Open Slack app settings' : 'Create app in Slack'}
               </ChipLink>
-              <p className='text-[var(--text-secondary)] text-caption'>
-                {configuredAppId
-                  ? 'Open App Manifest in your existing app and apply the updated configuration.'
-                  : 'Choose your Slack workspace, review the prepared manifest, then create the app.'}
-              </p>
-            </ChipModalField>
-            <ChipModalField type='custom' title='App manifest'>
-              <SlackAppManifest manifest={prepare.data.manifest} />
-            </ChipModalField>
-          </>
+            )}
+          </ChipModalField>
         )}
         {step === 'credentials' && (
           <>

@@ -108,7 +108,7 @@ export function SlackManagedUsersModal({
   const expectedState = useRef<string | null>(null)
   const expectedCredentialId = useRef<string | null>(null)
   const popup = useRef<Window | null>(null)
-  const popupWatcher = useRef<number | null>(null)
+  const authorizationTimeout = useRef<number | null>(null)
 
   const defaultCredentialId = initialCredentialId
     ? bots.some((bot) => bot.id === initialCredentialId)
@@ -141,8 +141,8 @@ export function SlackManagedUsersModal({
   const reset = () => {
     popup.current?.close()
     popup.current = null
-    if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
-    popupWatcher.current = null
+    if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
+    authorizationTimeout.current = null
     expectedState.current = null
     expectedCredentialId.current = null
     setAppSetupOpen(false)
@@ -160,8 +160,8 @@ export function SlackManagedUsersModal({
     const verifiedCredentialId = expectedCredentialId.current
     expectedState.current = null
     expectedCredentialId.current = null
-    if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
-    popupWatcher.current = null
+    if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
+    authorizationTimeout.current = null
     popup.current?.close()
     popup.current = null
     setPending(false)
@@ -222,14 +222,17 @@ export function SlackManagedUsersModal({
 
   useEffect(
     () => () => {
-      if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
+      if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
       popup.current?.close()
+      popup.current = null
+      authorizationTimeout.current = null
+      expectedState.current = null
+      expectedCredentialId.current = null
     },
     []
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (pending && !nextOpen) return
     onOpenChange(nextOpen)
     if (!nextOpen) reset()
   }
@@ -273,22 +276,23 @@ export function SlackManagedUsersModal({
           requiredScopes,
         },
       })
+      if (popup.current !== opened) return
       expectedState.current = result.state
       expectedCredentialId.current = selectedBot?.id ?? null
       opened.location.href = result.authorizationUrl
-      const startedAt = Date.now()
-      popupWatcher.current = window.setInterval(() => {
-        if (!opened.closed && Date.now() - startedAt < AUTHORIZATION_TIMEOUT_MS) return
-        window.clearInterval(popupWatcher.current ?? undefined)
-        popupWatcher.current = null
+      /** COOP can report a live OAuth popup as closed; only the deadline expires its state. */
+      authorizationTimeout.current = window.setTimeout(() => {
+        if (popup.current !== opened) return
+        authorizationTimeout.current = null
         opened.close()
         popup.current = null
         expectedState.current = null
         expectedCredentialId.current = null
         setPending(false)
         toast.error('Slack authorization expired. Please try again.')
-      }, 500)
+      }, AUTHORIZATION_TIMEOUT_MS)
     } catch (authorizationError) {
+      if (popup.current !== opened) return
       opened.close()
       popup.current = null
       setPending(false)
@@ -318,15 +322,10 @@ export function SlackManagedUsersModal({
       <ChipModal
         open={open && !appSetupOpen}
         onOpenChange={handleOpenChange}
-        dismissDisabled={pending}
         srTitle={title}
         size='md'
       >
-        <ChipModalHeader
-          icon={SlackIcon}
-          onClose={() => handleOpenChange(false)}
-          closeDisabled={pending}
-        >
+        <ChipModalHeader icon={SlackIcon} onClose={() => handleOpenChange(false)}>
           {title}
         </ChipModalHeader>
         <ChipModalBody>
@@ -467,7 +466,6 @@ export function SlackManagedUsersModal({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => handleOpenChange(false)}
-          cancelDisabled={pending}
           {...(needsApp
             ? {
                 primaryAction: {

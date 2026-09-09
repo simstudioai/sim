@@ -29,7 +29,12 @@ describe('Search app manifest', () => {
       ])
     )
     expect(manifest.settings.event_subscriptions.bot_events).toEqual(
-      expect.arrayContaining(['message.im', 'app_mention', 'agent_session_stopped'])
+      expect.arrayContaining([
+        'app_home_opened',
+        'message.im',
+        'app_mention',
+        'agent_session_stopped',
+      ])
     )
     expect(manifest.settings.event_subscriptions.bot_events).not.toContain('message.channels')
     expect(manifest.features.app_home.messages_tab_read_only_enabled).toBe(false)
@@ -63,6 +68,7 @@ describe('Search app manifest', () => {
       'https://search-test.ngrok.app/api/webhooks/slack'
     )
     expect(manifest.settings.event_subscriptions.bot_events).toEqual([
+      'app_home_opened',
       'message.im',
       'app_mention',
       'agent_session_stopped',
