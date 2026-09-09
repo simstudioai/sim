@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   install: vi.fn(),
   refetch: vi.fn(),
+  copy: vi.fn(),
   removeError: null as Error | null,
 }))
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }))
@@ -53,6 +54,8 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('navigator', { clipboard: { writeText: mocks.copy } })
+  mocks.copy.mockReset().mockResolvedValue(undefined)
   mocks.context.mockReturnValue({ organization: { id: 'org-1' }, viewer: { isAdmin: true } })
   mocks.list.mockReturnValue({ data: { installations: [], bots: [] } })
   mocks.manifest.mockReturnValue({
@@ -138,7 +141,11 @@ describe('Slack Search settings and shared wizard', () => {
     expect(container.textContent).toContain('Enabled')
     await action('Reconnect')
     expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Reconnect Slack Search')
+    await click('Copy app configuration')
+    expect(mocks.copy).toHaveBeenCalledExactlyOnceWith('{}')
     expect(document.querySelector('a[href="https://api.slack.com/apps/A1"]')).not.toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Configuration copied')
+    expect(document.querySelector('pre')).toBeNull()
     await click('Continue')
     expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Leave fields blank')
     await click('Continue')
@@ -152,6 +159,40 @@ describe('Slack Search settings and shared wizard', () => {
       expect.any(Object)
     )
     expect(mocks.install.mock.calls[0][0]).not.toHaveProperty('clientSecret')
+  })
+
+  it('keeps the update action available when clipboard access fails', async () => {
+    mocks.copy.mockRejectedValueOnce(new Error('Clipboard access denied'))
+    await render(true)
+    await action('Reconnect')
+    await click('Copy app configuration')
+    expect(document.querySelector('[role="alert"]')).toHaveTextContent('Allow clipboard access')
+    expect(document.querySelector('a[href="https://api.slack.com/apps/A1"]')).toBeNull()
+    expect(button('Copy app configuration')).toBeDefined()
+    await click('Copy app configuration')
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    expect(document.querySelector('a[href="https://api.slack.com/apps/A1"]')).not.toBeNull()
+  })
+
+  it('offers the same configuration update for an app shared with Slack sources', async () => {
+    mocks.manifest.mockReturnValue({
+      data: {
+        manifest: '{"display_information":{"name":"Shared Slack app"}}',
+        existingApp: { appId: 'A2' },
+        createAppUrl: 'https://api.slack.com/apps',
+      },
+      isPending: false,
+      refetch: mocks.refetch,
+    })
+    await render()
+    await click('Set up')
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Update your Slack app')
+    await click('Copy app configuration')
+    expect(mocks.copy).toHaveBeenCalledExactlyOnceWith(
+      '{"display_information":{"name":"Shared Slack app"}}'
+    )
+    expect(document.querySelector('a[href="https://api.slack.com/apps/A2"]')).not.toBeNull()
+    expect(document.querySelector('pre')).toBeNull()
   })
 
   it('disables the selected connection from the actions menu', async () => {

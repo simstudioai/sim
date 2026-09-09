@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  writeTextToClipboard,
 } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
 import {
@@ -42,10 +43,25 @@ export function SlackSearchSetupWizard({
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
-  const error = prepare.error ?? oauth.error
+  const [configurationCopied, setConfigurationCopied] = useState(false)
+  const [copyError, setCopyError] = useState<Error | null>(null)
+  const error = prepare.error ?? oauth.error ?? copyError
   const busy = oauth.isPending
   const stepNumber = step === 'manifest' ? 1 : step === 'credentials' ? 2 : 3
   const configuredAppId = appId ?? prepare.data?.existingApp?.appId
+
+  async function copyConfiguration() {
+    if (!prepare.data) throw new Error('Slack app configuration is not ready')
+    setCopyError(null)
+    try {
+      await writeTextToClipboard(prepare.data.manifest)
+      setConfigurationCopied(true)
+    } catch {
+      setCopyError(
+        new Error('Could not copy the app configuration. Allow clipboard access and try again.')
+      )
+    }
+  }
 
   function advance() {
     if (step === 'manifest') {
@@ -102,19 +118,30 @@ export function SlackSearchSetupWizard({
         {step === 'manifest' && prepare.data && (
           <ChipModalField
             type='custom'
-            title={installationId ? 'Update your Slack app' : 'Create your Slack app'}
+            title={configuredAppId ? 'Update your Slack app' : 'Create your Slack app'}
+            hint={
+              configuredAppId
+                ? configurationCopied
+                  ? 'Configuration copied. In Slack, open App Manifest, select JSON, replace the configuration, and save your changes before continuing.'
+                  : 'Copy the updated configuration, then open your app in Slack to apply it.'
+                : undefined
+            }
           >
-            <ChipLink
-              href={
-                configuredAppId
-                  ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
-                  : prepare.data.createAppUrl
-              }
-              target='_blank'
-              rel='noopener noreferrer'
-            >
-              {configuredAppId ? 'Open Slack app settings' : 'Create app in Slack'}
-            </ChipLink>
+            {configuredAppId && !configurationCopied ? (
+              <Chip onClick={() => void copyConfiguration()}>Copy app configuration</Chip>
+            ) : (
+              <ChipLink
+                href={
+                  configuredAppId
+                    ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
+                    : prepare.data.createAppUrl
+                }
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                {configuredAppId ? 'Open Slack app settings' : 'Create app in Slack'}
+              </ChipLink>
+            )}
           </ChipModalField>
         )}
         {step === 'credentials' && (
