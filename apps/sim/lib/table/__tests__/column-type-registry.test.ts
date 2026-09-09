@@ -122,11 +122,11 @@ describe('conversion write-back', () => {
 })
 
 describe('ttl columns', () => {
-  it('declares UTC editing, string workflow values, timestamp comparisons, and one column per table', () => {
+  it('declares offset-preserving editing, string workflow values, timestamp comparisons, and one column per table', () => {
     expect(COLUMN_TYPE_REGISTRY.ttl).toMatchObject({
       jsonbCast: 'timestamptz',
       workflowInputType: 'string',
-      editor: 'utc-date',
+      editor: 'offset-date',
       maxPerTable: 1,
     })
   })

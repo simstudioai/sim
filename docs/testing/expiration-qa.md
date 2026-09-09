@@ -10,7 +10,7 @@ This is the acceptance matrix for the current Expiration column. Execute against
 - A failed transaction deletes no partial batch. Previously committed batches remain committed.
 - A table-level cleanup error skips that table for the rest of the run, is logged, and leaves other tables eligible for cleanup. Failed attempts count toward the 100-batch limit; later runs rediscover the failed table.
 - A subsequent run starts from the beginning: limits, cancellation, locked rows, connection loss, and process restarts cannot permanently strand an otherwise eligible row.
-- UTC offsets identify instants; equivalent inputs normalize equally, with microseconds preserved.
+- Numeric offsets identify instants and remain stored with their original clock time; Z is stored as -00:00. Equivalent instants compare equally even when their stored strings differ, with microseconds preserved.
 - Cleanup obeys tenant scope, table locks, batch row limits, snapshot byte limits, and the 100-batch run limit.
 - Counts and change signals describe committed deletions. Delete-trigger delivery is evaluated separately from deletion durability.
 
@@ -18,9 +18,9 @@ This is the acceptance matrix for the current Expiration column. Execute against
 
 | ID | Scenario | Required observation |
 |---|---|---|
-| H01 | Create an Expiration column in Chrome | Correct picker, UTC label, one-column limit |
-| H02 | Typed Z, positive/negative/zero offsets, fractional offsets | Same instant stored in normalized UTC |
-| H03 | Calendar date and time selection; day only; clear | Correct UTC instant; day only is midnight; clear disables expiration |
+| H01 | Create an Expiration column in Chrome | Correct picker, stored numeric offset label, one-column limit |
+| H02 | Typed Z, positive/negative/zero offsets, fractional offsets | Supplied clock/offset retained; Z becomes -00:00; equivalent instants compare equally |
+| H03 | Calendar date and time selection; day only; clear | Existing offset retained; day only is midnight in that offset; new values default to -00:00; clear disables expiration |
 | H04 | Inline editing, row modal, paste, refresh | Same value persists and displays |
 | H05 | API insert, batch insert, update, bulk update, upsert | Valid explicit instants accepted consistently |
 | H06 | Omitted field on update versus explicit null | Preserve versus clear |
@@ -37,6 +37,7 @@ This is the acceptance matrix for the current Expiration column. Execute against
 | D06 | Invalid calendar day/leap day/time/offset/precision/type | Refused or blanked according to the documented surface policy; never guessed |
 | D07 | Invalid filter operands | Validation error rather than database cast failure |
 | D08 | Required Expiration and invalid type conversion | Missing values/incompatible existing cells prevent mutation |
+| D09 | Unique insert, batch, replacement, and enabling unique on existing data | Equivalent instants in different offsets are duplicates; one-microsecond differences remain distinct |
 | E01 | No tables; empty table | Successful no-op |
 | E02 | Table without Expiration; ordinary date named expires_at | No deletion |
 | E03 | Missing cell, null, empty string, malformed stored data | Survive without preventing valid rows from cleanup |
@@ -78,7 +79,7 @@ The results below distinguish automated coverage from live browser, HTTP, and Po
 
 ## Results — September 9, 2026
 
-**Current verdict: 2,153 regression tests and 21 non-stress PostgreSQL scenarios pass, including connection-loss recovery after inheriting the shared driver patch from staging.** Earlier findings and the remaining operational limits are recorded below; production-environment verification is still separate.
+**Offset-preservation follow-up: 2,162 regression tests and 23 non-stress PostgreSQL scenarios pass.** The current contract preserves numeric offsets and spells incoming Z as -00:00. Earlier results below were collected before this formatting change; the follow-up section records the new contract checks. Production-environment verification is still separate.
 
 The environment was Chrome plus this worktree's local Next.js application, PostgreSQL 17, and a freshly migrated database named `expiration_qa`. All accounts, keys, tables, and rows were disposable fixtures. Existing application environments were not used. External provider credentials were cleared in the test process. The queue used the real database backend; Trigger.dev and Redis were not configured.
 
@@ -145,6 +146,21 @@ Staging already includes `patches/postgres@3.4.9.patch`, which rejects queries f
 - The companion Copilot Go suites passed in both encrypted-runtime and canonical-prompt modes. Generated catalog changes affect descriptions only; tool parameter structure is unchanged.
 
 The standalone diagnostic no longer produced the deferred null-socket exception. Its first recovery query received a catchable PostgreSQL `57P01` disconnect error, and the next query succeeded; both clients closed cleanly. Callers must still handle ordinary database operation failures. The original script assumed that first recovery query would succeed and therefore still exited nonzero; a diagnostic that recorded the rejected query and attempted the following read completed normally. No blanket retry of application mutations was added.
+
+### Offset-preservation follow-up
+
+Expiration writes retain the supplied clock and numeric offset, including -07:00, -08:00, +05:45, +00:00, and -00:00. Z/z becomes -00:00; seconds and fractional-zero trimming remain canonical, with up to six fractional digits preserved. Existing Z values render/export as -00:00. Previously discarded original offsets cannot be reconstructed from UTC values.
+
+Both editors show and retain the stored offset, independent of profile timezone loading or changes. New picker values use -00:00. The date picker uses midnight and Today in the value's fixed offset. Editing a date does not infer a daylight-saving offset change.
+
+Equality, membership, upsert matching, and uniqueness checks compare instants rather than stored strings. Database equality guards malformed legacy values before casting; null comparison retains its existing behavior. Replacement-batch validation rejects duplicate instants before deleting existing rows, and enabling uniqueness rejects existing equivalent-offset duplicates. Sorting, ranges, and cleanup continue to use timestamp comparisons.
+
+- **2,162 regression tests passed**, with 30 skipped, across the table domain, routes, editors, imports, timezone utilities, and cleanup. Coverage includes picker changes in five offsets, legacy Z editing, strict validation, and microsecond-aware equality.
+- **23 non-stress PostgreSQL scenarios passed**, including equivalent-offset equality/membership, malformed legacy cells, batch and existing-row uniqueness, atomic replacement refusal, unique-toggle refusal, and adjacent microseconds. Existing limit, locking, rollback, failure-isolation, and connection-loss scenarios pass. The million-row measurement above was not repeated for this change.
+- **17 live HTTP checks passed**: stored and returned offsets, zero-offset spellings, equivalent eq/ne/in/nin, chronological range, uniqueness refusal, omitted-expiration preservation, and real cron dispatch. A subsequent read confirmed only the expired fixture was removed; all seven future/null fixtures survived.
+- **CSV export passed:** all seven surviving values retained their numeric offsets and fractional precision.
+- **Chrome visual recheck incomplete:** sign-in succeeded on an isolated loopback origin, but the automation connection repeatedly timed out during table navigation; the native-control fallback also failed. No new visual acceptance is claimed. Inline-picker and row-modal behavior is covered by the automated tests above.
+- Repository lint, type checking, all **46 audits**, generator parity, and companion Go tests in encrypted-runtime and canonical-prompt modes passed. The required eight UI cleanup passes found no issues.
 
 ### Unresolved findings and operational limits
 

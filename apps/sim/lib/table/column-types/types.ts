@@ -49,8 +49,8 @@ export type ColumnCellEditor =
   | 'text'
   /** Calendar + time picker. */
   | 'date'
-  /** Calendar + time picker using literal UTC fields, independent of viewer settings. */
-  | 'utc-date'
+  /** Calendar + time picker retaining the cell's numeric offset, independent of viewer settings. */
+  | 'offset-date'
   /** Option dropdown. */
   | 'select'
   /** Not editable inline — the grid toggles it in place instead. */
@@ -84,6 +84,8 @@ export interface ColumnTypeDefinition {
    * comparison is correct. Single source for both filter ranges and sort order.
    */
   readonly jsonbCast: 'numeric' | 'timestamptz' | null
+  /** Strict ISO shape guard for timestamp comparisons against potentially malformed stored cells. */
+  readonly timestampPattern?: string
 
   /**
    * Wire operators a column of this type accepts, or `null` for "all
@@ -163,6 +165,9 @@ export interface ColumnTypeDefinition {
    * it to fill the optimistic cache, so the two can no longer disagree.
    */
   coerce(value: JsonValue, column: ColumnDefinition): CoerceResult
+
+  /** Equivalent-value projection for in-memory equality; also enables jsonbCast for SQL equality. */
+  valueForEquality?(value: JsonValue): JsonValue
 
   /** Validates a stored cell's shape. Returns an error message, or null when valid. */
   validateCell(value: JsonValue, column: ColumnDefinition): string | null

@@ -1328,7 +1328,7 @@ describe('error messages name the caller-facing column, not the storage id', () 
   })
 })
 
-describe('UTC expiration SQL', () => {
+describe('Expiration instant comparison SQL', () => {
   const column: ColumnDefinition = { name: 'expires_at', type: 'ttl' }
   const instant = '2026-09-07T14:30:00Z'
 
@@ -1345,13 +1345,13 @@ describe('UTC expiration SQL', () => {
     ).toContain('::timestamptz ASC')
   })
 
-  it('preserves exact UTC strings for equality and membership', () => {
+  it('compares equality and membership using timestamp casts', () => {
     expect(
       renderSql(fieldPredicate('user_table_rows', 'expires_at', 'eq', instant, column))
-    ).toContain(instant)
+    ).toContain('::timestamptz')
     expect(
       renderSql(fieldPredicate('user_table_rows', 'expires_at', 'in', [instant], column))
-    ).toContain(instant)
+    ).toContain('::timestamptz')
   })
 
   it.each(['eq', 'ne', 'in', 'nin'] as const)(
@@ -1360,8 +1360,9 @@ describe('UTC expiration SQL', () => {
       const input = '2026-09-07T07:30:00.000-07:00'
       const value = op === 'in' || op === 'nin' ? [input] : input
       const query = renderSql(fieldPredicate('user_table_rows', 'expires_at', op, value, column))
-      expect(query).toContain(instant)
-      expect(query).not.toContain(input)
+      expect(query).toContain('::timestamptz')
+      expect(query).toContain('2026-09-07T07:30:00-07:00')
+      expect(query).not.toContain('@>')
     }
   )
 

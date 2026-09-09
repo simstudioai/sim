@@ -100,7 +100,7 @@ const table: TableInfo = {
 
 const row: TableRow = {
   id: 'row-1',
-  data: { expires_at: '2026-11-01T08:00:00Z' },
+  data: { expires_at: '2026-11-01T01:00:00-07:00' },
   executions: {},
   position: 0,
   createdAt: '2026-01-01T00:00:00Z',
@@ -119,7 +119,7 @@ describe('RowModal expiration editing', () => {
     mockUpdateRow.mockResolvedValue(undefined)
   })
 
-  it('edits UTC fields while timezone settings load or change', async () => {
+  it('preserves expiration offsets while timezone settings load or change', async () => {
     mockUseTimezoneState.mockReturnValue({ timezone: 'Asia/Tokyo', status: 'loading' })
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -136,7 +136,7 @@ describe('RowModal expiration editing', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')?.value).toBe('08:00')
+    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')?.value).toBe('01:00')
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
       false
     )
@@ -154,7 +154,7 @@ describe('RowModal expiration editing', () => {
     act(() => root.render(createElement(RowModal, props)))
 
     const timeInput = container.querySelector<HTMLInputElement>('[data-testid="time"]')
-    expect(timeInput?.value).toBe('08:00')
+    expect(timeInput?.value).toBe('01:00')
     act(() => changeInput(timeInput as HTMLInputElement, '01:30'))
 
     const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
@@ -162,7 +162,7 @@ describe('RowModal expiration editing', () => {
 
     expect(mockUpdateRow).toHaveBeenCalledWith({
       rowId: 'row-1',
-      data: { expires_at: '2026-11-01T01:30:00Z' },
+      data: { expires_at: '2026-11-01T01:30:00-07:00' },
     })
     expect(props.onSuccess).toHaveBeenCalledTimes(1)
 
@@ -206,7 +206,7 @@ describe('RowModal expiration editing', () => {
     container.remove()
   })
 
-  it('allows UTC expiration edits even when the saved timezone is invalid', () => {
+  it('allows expiration edits even when the saved timezone is invalid', () => {
     mockUseTimezoneState.mockReturnValue({
       timezone: 'America/Los_Angeles',
       savedTimezone: 'Mars/Olympus',
@@ -226,7 +226,7 @@ describe('RowModal expiration editing', () => {
 
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')?.value).toBe('08:00')
+    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')?.value).toBe('01:00')
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
       false
     )
