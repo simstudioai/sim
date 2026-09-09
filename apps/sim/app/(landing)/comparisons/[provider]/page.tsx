@@ -183,7 +183,7 @@ export default async function ComparisonProviderPage({
         </StickyComparisonTable>
       </div>
 
-      <div aria-hidden='true' className='-mt-px h-px w-full bg-[var(--border)]' />
+      <div aria-hidden='true' className='-mt-px relative z-10 h-px w-full bg-[var(--border)]' />
 
       <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
         <div className='grid grid-cols-1 border-[var(--border)] border-x border-b lg:grid-cols-2'>
