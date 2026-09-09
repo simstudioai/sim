@@ -4104,6 +4104,7 @@ function extractManualContent(existingContent: string): Record<string, string> {
   return manualSections
 }
 
+/** Re-inserts preserved manual sections at their supported locations in generated block Markdown. */
 export function mergeWithManualContent(
   generatedMarkdown: string,
   existingContent: string | null,
@@ -4224,6 +4225,7 @@ async function generateBlockDoc(blockPath: string) {
   }
 }
 
+/** Renders a block's integration reference, including tool metadata and output schemas. */
 export async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
   displayType?: string
