@@ -160,9 +160,9 @@ function isFullscreenPath(pathname: string | null): boolean {
  * zero width, revealing the route content. Because this component lives in the
  * layout it persists across navigations, so the rail never re-mounts.
  *
- * Nothing here animates: collapse, expand, and the fullscreen swap all apply in
- * one frame. The rail and the pane meet on a single hairline divider with no
- * gutter, radius, or shift between states.
+ * The docked rail and content pane share one width transition. Drag-resizing,
+ * hydration, and reduced motion bypass it; the floating peek retains its own
+ * enter/exit animation.
  *
  * Because the chrome observes every pathname transition, it records the page a
  * fullscreen route was launched from into {@link useFullscreenOriginStore}. The
@@ -331,6 +331,9 @@ export function WorkspaceChrome({
         ref={cardRef}
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden',
+          hasHydrated &&
+            !isPeekActive &&
+            'transition-[width] duration-175 ease-[cubic-bezier(0.25,0.1,0.25,1)] data-[resizing]:transition-none motion-reduce:transition-none',
           isPeekActive
             ? isPeekOpen
               ? PEEK_CARD_ENTER
@@ -345,7 +348,12 @@ export function WorkspaceChrome({
         aria-hidden={isFullscreen || (isPeekActive && !isPeekOpen) || undefined}
         suppressHydrationWarning
       >
-        <div className='sidebar-shell-inner h-full w-[var(--sidebar-width)] shrink-0'>
+        <div
+          className={cn(
+            'sidebar-shell-inner h-full shrink-0 [&_.sidebar-container]:w-full!',
+            isPeekActive ? 'w-[var(--sidebar-width)]' : 'w-full'
+          )}
+        >
           <SidebarChromeProvider isCollapsed={isCollapsed} isPeeking={isPeekActive}>
             {sidebar}
           </SidebarChromeProvider>

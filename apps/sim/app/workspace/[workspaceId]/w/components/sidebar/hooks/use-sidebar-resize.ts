@@ -40,6 +40,7 @@ export function useSidebarResize() {
       const pointerId = e.pointerId
       const shell = document.querySelector<HTMLElement>('.sidebar-shell-outer')
       const target = shell ?? document.documentElement
+      target.setAttribute('data-resizing', '')
       document.body.style.cursor = 'ew-resize'
       document.body.style.userSelect = 'none'
       handle.setPointerCapture?.(pointerId)
@@ -79,6 +80,7 @@ export function useSidebarResize() {
           setSidebarWidth(lastWidth)
           if (target !== document.documentElement) target.style.removeProperty('--sidebar-width')
         }
+        target.removeAttribute('data-resizing')
       }
 
       teardownRef.current = endDrag
