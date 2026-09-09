@@ -13,12 +13,19 @@ import { MEMBER_SYNC_MAX_DURATION_SECONDS } from '@/lib/knowledge/connectors/syn
 
 const logger = createLogger('TriggerKnowledgeConnectorMemberSync')
 
-export type MemberSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed'
+export type MemberSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed' | 'deferred'
 
 /** A run is partial when any member or document failed; skipped and failed mirror the content task. */
 export function classifyMemberSyncResult(result: MemberSyncResult): MemberSyncTaskOutcome {
   if (result.skipReason) return 'skipped'
   if (result.error) return 'failed'
+  if (
+    result.deferred &&
+    result.docsFailed === 0 &&
+    result.processingDispatch.failed === 0 &&
+    result.membersFailed === 0
+  )
+    return 'deferred'
   if (
     result.listingIncomplete ||
     result.membersIncomplete > 0 ||
@@ -49,6 +56,7 @@ export async function executeMemberSyncJob(payload: unknown) {
     logger.info(`[${requestId}] Member sync completed`, {
       connectorId,
       outcome,
+      deferred: result.deferred,
       membersClaimed: result.membersClaimed,
       membersCompleted: result.membersCompleted,
       membersIncomplete: result.membersIncomplete,

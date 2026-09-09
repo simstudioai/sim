@@ -22,8 +22,10 @@ export const slackSearchKeys = {
   lists: () => [...slackSearchKeys.all, 'list'] as const,
   list: (organizationId?: string) => [...slackSearchKeys.lists(), organizationId ?? ''] as const,
   manifests: () => [...slackSearchKeys.all, 'manifest'] as const,
+  organizationManifests: (organizationId: string) =>
+    [...slackSearchKeys.manifests(), organizationId] as const,
   manifest: (organizationId: string, name: string) =>
-    [...slackSearchKeys.manifests(), organizationId, name] as const,
+    [...slackSearchKeys.organizationManifests(organizationId), name] as const,
 }
 
 export function useSlackSearchManifest(organizationId: string, name = SLACK_SEARCH_DEFAULT_NAME) {

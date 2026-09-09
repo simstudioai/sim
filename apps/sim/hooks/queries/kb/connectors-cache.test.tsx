@@ -6,13 +6,13 @@ import { act } from 'react'
 import { QueryClient, QueryClientProvider, type QueryKey } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const mocks = vi.hoisted(() => ({ requestJson: vi.fn() }))
 
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
 
 import {
-  searchSourceKeys,
   useConnectSimSearchConnector,
   useCreateConnector,
   useDeleteConnector,

@@ -140,6 +140,34 @@ describe('knowledge connector sync worker', () => {
     await expect(run).rejects.toThrow('Connector sync partially failed')
   })
 
+  it('completes a durably scheduled capacity wait while preserving existing source failures', async () => {
+    mockAssertConnectorSyncPayload.mockReturnValue({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+    const base = await mockExecuteSync()
+    const waiting = {
+      ...base,
+      listingIncomplete: true,
+      deferred: {
+        reason: 'admission_timeout',
+        providerId: 'github-rest',
+        nextSyncAt: '2026-09-01T00:00:00Z',
+      },
+    }
+    mockExecuteSync.mockResolvedValue(waiting)
+    expect(await executeConnectorSyncJob({})).toMatchObject({
+      outcome: 'deferred',
+      success: false,
+      deferred: waiting.deferred,
+    })
+    mockExecuteSync.mockResolvedValue({ ...waiting, docsFailed: 1 })
+    await expect(executeConnectorSyncJob({})).rejects.toThrow('partially failed')
+    mockExecuteSync.mockResolvedValue({ ...waiting, error: 'Retry persistence failed' })
+    await expect(executeConnectorSyncJob({})).rejects.toThrow('Retry persistence failed')
+  })
+
   it('does not turn intentionally skipped source files into a task failure', () => {
     expect(
       classifyConnectorSyncResult({

@@ -20,7 +20,7 @@ Admin setup uses your organization's **Settings → Sources** page. Teammates co
 | **Central account** | One account syncs content, space permissions, page restrictions, and group membership. | Connect their own Confluence account so Sim can match their Atlassian identity to those permissions. |
 | **Member accounts** | Sim syncs content separately through connected members' accounts. | Connect their own Confluence account to establish which pages they can access. |
 
-Adding a source from **Settings → Sources → Confluence → Sources** opens central account setup. Use this when one account can read the intended spaces and their permissions. For a member source, start **Connect account** from **Integrations** in the main sidebar after an admin adds Confluence. Available methods depend on your organization's enabled features.
+Selecting **Add source** on Confluence's integration page opens central account setup. Use this when one account can read the intended spaces and their permissions. For a member source, start **Connect account** from **Integrations** in the main sidebar after an admin allows Confluence. Available methods depend on your organization's enabled features.
 
 **Everyone still connects in both methods.** With a central account, teammates supply their identity; they do not configure another central crawl or choose spaces again.
 
@@ -40,7 +40,7 @@ On hosted Sim, personal connections authorize the existing Sim app. Teammates do
 
 ### Choose Confluence
 
-Open **Settings → Sources → Add integration** and choose **Confluence**. On its **Sources** tab, select **Add source**. If Confluence is already listed, open it directly. **Setup guide** opens this guide from the source form.
+Open **Settings → Sources** and turn on **Confluence** under **Allowed in Sim Search**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. **Setup guide** opens this guide from the source form.
 
 </Step>
 <Step>
@@ -79,9 +79,9 @@ Each teammate completes this last step. A previously authorized account may alre
 
 ## Connect member accounts
 
-After an admin adds Confluence, open **Integrations** in the main sidebar and select **Connect account**. If there is no source yet, enter **Confluence Domain** and **Space Keys**, then select **Connect** and authorize your account. For another site or space scope, use **Add source** beside **Add another Confluence source**.
+After an admin allows Confluence, open **Integrations** in the main sidebar and select **Connect account**. If there is no source yet, enter **Confluence Domain** and **Space Keys**, then select **Connect** and authorize your account. For another site or space scope, use **Add source** beside **Add another Confluence source**.
 
-An admin can open the resulting source under **Settings → Sources → Confluence → Sources** and use **Settings** to adjust its filters. **Account for browsing** helps populate the space picker; it does not connect that account for Search. Manual space keys work without a browsing account.
+An admin can open **Settings → Sources**, select **Manage** beside **Confluence**, and open the source's **Settings** tab to adjust its filters. **Account for browsing** helps populate the space picker; it does not connect that account for Search. Manual space keys work without a browsing account.
 
 ## Using a service account
 
@@ -168,7 +168,7 @@ Existing organization members see the configured Confluence source and their own
 
 With a central account, Sim applies space access together with the page's restrictions and inherited ancestor restrictions. Group membership is refreshed in the background. With member accounts, each person's provider listing determines the pages available to them. A Sim organization admin does not automatically receive access to every Confluence document.
 
-New content and permission changes require a sync and processing before Search reflects them. Open **Settings → Sources → Confluence → Sources → [source]** to inspect **Documents**, edit **Settings**, or review **Sync history**. If your own account needs authorization again, use **Reconnect** in the main Integrations page. Where available, the provider's **Accounts → Request connections** sends account connection requests; these do not invite people to the Sim organization.
+New content and permission changes require a sync and processing before Search reflects them. Open **Settings → Sources**, select **Manage** beside **Confluence**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. If your own account needs authorization again, use **Reconnect** in the main Integrations page. Where available, the provider's **Accounts → Request connections** sends account connection requests; these do not invite people to the Sim organization.
 
 ## Troubleshooting
 

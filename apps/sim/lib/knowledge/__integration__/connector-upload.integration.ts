@@ -29,13 +29,13 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import {
-  claimConnectorUploadForAttachment,
-  uploadConnectorArtifact,
-} from '@/lib/knowledge/connectors/connector-upload'
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, updateDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import * as cleanup from '@/lib/knowledge/documents/storage-cleanup'
+import {
+  claimKnowledgeUploadForAttachment,
+  uploadKnowledgeArtifact,
+} from '@/lib/knowledge/documents/storage-upload'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import type { ExternalDocument } from '@/connectors/types'
@@ -99,7 +99,7 @@ describe('connector upload crash recovery', () => {
       .mockRejectedValueOnce(new Error('Synthetic outbox failure'))
     const upload = vi.spyOn(storage, 'uploadFile')
     try {
-      await expect(uploadConnectorArtifact(fixture)).rejects.toThrow('Synthetic outbox failure')
+      await expect(uploadKnowledgeArtifact(fixture)).rejects.toThrow('Synthetic outbox failure')
       expect(upload).not.toHaveBeenCalled()
       expect(
         await db
@@ -118,7 +118,7 @@ describe('connector upload crash recovery', () => {
 
   it('cleans an upload whose worker dies before the document attachment', async () => {
     const fixture = input()
-    const uploaded = await uploadConnectorArtifact(fixture)
+    const uploaded = await uploadKnowledgeArtifact(fixture)
     expect((await getFileMetadataByKeys([fixture.key], 'knowledge-base'))[0].id).toBe(
       uploaded.metadataId
     )
@@ -138,7 +138,7 @@ describe('connector upload crash recovery', () => {
       .spyOn(storage, 'uploadFile')
       .mockRejectedValueOnce(new Error('Synthetic worker stop'))
     try {
-      await expect(uploadConnectorArtifact(fixture)).rejects.toThrow('Synthetic worker stop')
+      await expect(uploadKnowledgeArtifact(fixture)).rejects.toThrow('Synthetic worker stop')
     } finally {
       upload.mockRestore()
     }
@@ -149,12 +149,12 @@ describe('connector upload crash recovery', () => {
 
   it('restores orphan cleanup when the attachment transaction rolls back', async () => {
     const fixture = input()
-    const uploaded = await uploadConnectorArtifact(fixture)
+    const uploaded = await uploadKnowledgeArtifact(fixture)
     events.push(uploaded.cleanupEventId)
 
     await expect(
       db.transaction(async (tx) => {
-        await claimConnectorUploadForAttachment(tx, uploaded.cleanupEventId)
+        await claimKnowledgeUploadForAttachment(tx, uploaded.cleanupEventId)
         throw new Error('Synthetic attachment failure')
       })
     ).rejects.toThrow('Synthetic attachment failure')
@@ -373,7 +373,7 @@ describe('connector upload crash recovery', () => {
       persistMetadata: false,
       createOnlyUploadId: generateId(),
     })
-    await expect(uploadConnectorArtifact(fixture)).rejects.toThrow()
+    await expect(uploadKnowledgeArtifact(fixture)).rejects.toThrow()
     await runCleanup(fixture.documentId)
     expect(await readFile(path.join(fixtureStorage.root, fixture.key), 'utf8')).toBe(
       'Earlier upload content'

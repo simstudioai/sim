@@ -14,15 +14,16 @@ import {
 } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import {
-  claimConnectorUploadForAttachment,
-  uploadConnectorArtifact,
-} from '@/lib/knowledge/connectors/connector-upload'
+import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
+import {
+  claimKnowledgeUploadForAttachment,
+  uploadKnowledgeArtifact,
+} from '@/lib/knowledge/documents/storage-upload'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -455,6 +456,7 @@ export async function persistSourceDocumentFailures(input: {
   connectorType: string
   documents: readonly ExternalDocument[]
   failedExternalIds: ReadonlySet<string>
+  sourceFailures?: ReadonlyMap<string, ConnectorFailureDiagnostic>
   priorByExternalId: ReadonlyMap<string, { id: string }>
   sourceConfig: Record<string, unknown>
   access: ConnectorAccessMode
@@ -472,31 +474,38 @@ export async function persistSourceDocumentFailures(input: {
     if (!(await isKnowledgeBaseActiveInTx(tx, input.knowledgeBaseId)))
       throw new Error('Knowledge base was deleted')
     await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
-    const existingIds = failed.flatMap((item) => {
+    const existingIdsByError = new Map<string, string[]>()
+    for (const item of failed) {
       const existing = input.priorByExternalId.get(item.externalId)
-      return existing ? [existing.id] : []
-    })
-    for (let offset = 0; offset < existingIds.length; offset += 500) {
-      await tx
-        .update(document)
-        .set({
-          contentHash: null,
-          processingStatus: 'failed',
-          processingError: SOURCE_CONTENT_ERROR,
-          processingQueuedAt: null,
-          processingQueueToken: null,
-          processingDeferredUntil: null,
-          processingCompletedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(document.connectorId, input.connectorId),
-            eq(document.knowledgeBaseId, input.knowledgeBaseId),
-            inArray(document.id, existingIds.slice(offset, offset + 500)),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt)
+      if (!existing) continue
+      const message = input.sourceFailures?.get(item.externalId)?.message ?? SOURCE_CONTENT_ERROR
+      const ids = existingIdsByError.get(message) ?? []
+      ids.push(existing.id)
+      existingIdsByError.set(message, ids)
+    }
+    for (const [message, existingIds] of existingIdsByError) {
+      for (let offset = 0; offset < existingIds.length; offset += 500) {
+        await tx
+          .update(document)
+          .set({
+            contentHash: null,
+            processingStatus: 'failed',
+            processingError: message,
+            processingQueuedAt: null,
+            processingQueueToken: null,
+            processingDeferredUntil: null,
+            processingCompletedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(document.connectorId, input.connectorId),
+              eq(document.knowledgeBaseId, input.knowledgeBaseId),
+              inArray(document.id, existingIds.slice(offset, offset + 500)),
+              eq(document.userExcluded, false),
+              isNull(document.archivedAt)
+            )
           )
-        )
+      }
     }
     const newItems = failed.filter((item) => !input.priorByExternalId.has(item.externalId))
     for (let offset = 0; offset < newItems.length; offset += 500) {
@@ -506,7 +515,11 @@ export async function persistSourceDocumentFailures(input: {
             input.knowledgeBaseId,
             input.connectorId,
             input.connectorType,
-            { ...item, skippedReason: SOURCE_CONTENT_ERROR },
+            {
+              ...item,
+              skippedReason:
+                input.sourceFailures?.get(item.externalId)?.message ?? SOURCE_CONTENT_ERROR,
+            },
             input.sourceConfig,
             input.access
           ),
@@ -536,7 +549,7 @@ export async function addDocument(
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, artifact.fileName)}`
 
-  const fileInfo = await uploadConnectorArtifact({
+  const fileInfo = await uploadKnowledgeArtifact({
     documentId,
     key: customKey,
     owner: kbOwner,
@@ -549,7 +562,7 @@ export async function addDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
   await db.transaction(async (tx) => {
-    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
+    await claimKnowledgeUploadForAttachment(tx, fileInfo.cleanupEventId)
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
@@ -639,7 +652,7 @@ export async function updateDocument(
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${generateId()}-`, artifact.fileName)}`
 
-  const fileInfo = await uploadConnectorArtifact({
+  const fileInfo = await uploadKnowledgeArtifact({
     documentId: existingDocId,
     key: customKey,
     owner: kbOwner,
@@ -652,7 +665,7 @@ export async function updateDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
   await db.transaction(async (tx) => {
-    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
+    await claimKnowledgeUploadForAttachment(tx, fileInfo.cleanupEventId)
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)

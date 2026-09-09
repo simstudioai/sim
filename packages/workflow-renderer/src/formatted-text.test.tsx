@@ -104,3 +104,21 @@ describe('shared reference formatting', () => {
     expect((html.match(/class=/g) ?? []).length).toBe(2)
   })
 })
+
+describe('brace scanning', () => {
+  it('highlights the innermost environment reference inside repeated braces', () => {
+    const html = renderToStaticMarkup(
+      <>{formatDisplayText('{{{{KEY}}', { availableEnvVars: new Set(['KEY']) })}</>
+    )
+
+    expect(html).toContain('<span>{{</span>')
+    expect(html).toContain('text-[var(--brand-secondary)]')
+    expect(html).toContain('{{KEY}}')
+  })
+
+  it('scans unterminated brace runs in linear time', () => {
+    const started = performance.now()
+    formatDisplayText('{'.repeat(100_000))
+    expect(performance.now() - started).toBeLessThan(1_000)
+  })
+})

@@ -10,6 +10,8 @@ import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
+import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
+import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
@@ -58,6 +60,8 @@ export default async function OrganizationLayout({
       <OrganizationProvider context={context}>
         <GlobalCommandsProvider>
           <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <ImpersonationBanner />
+            <SessionExpired />
             <WorkspaceChrome
               sidebar={<OrganizationSidebar />}
               initialSidebarCollapsed={initialSidebarCollapsed}

@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { toast } from '@sim/emcn'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +45,8 @@ describe('Slack member access selection', () => {
   let root: Root
   let container: HTMLDivElement
   let client: QueryClient
+  let channels: Array<{ onmessage: ((event: MessageEvent<unknown>) => void) | null }>
+  let popup: { location: { href: string }; closed: boolean; close: ReturnType<typeof vi.fn> }
   const bot: WorkspaceCredential = {
     id: '11111111-1111-4111-8111-111111111111',
     workspaceId: 'workspace-1',
@@ -62,6 +65,8 @@ describe('Slack member access selection', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(toast, 'error').mockReturnValue('toast')
+    vi.spyOn(toast, 'success').mockReturnValue('toast')
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.create.mockResolvedValue(undefined)
     mocks.apps.mockReturnValue({
@@ -81,17 +86,23 @@ describe('Slack member access selection', () => {
       state: 'state',
       authorizationUrl: 'https://slack.com/oauth/v2/authorize',
     })
+    channels = []
     vi.stubGlobal(
       'BroadcastChannel',
       class {
+        onmessage: ((event: MessageEvent<unknown>) => void) | null = null
+        constructor() {
+          channels.push(this)
+        }
         close() {}
       }
     )
-    vi.spyOn(window, 'open').mockReturnValue({
+    popup = {
       location: { href: '' },
       closed: false,
       close: vi.fn(),
-    } as unknown as Window)
+    }
+    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window)
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -103,6 +114,7 @@ describe('Slack member access selection', () => {
     client.clear()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   async function render(
@@ -166,6 +178,145 @@ describe('Slack member access selection', () => {
     )
   }
 
+  async function completeAuthorization(state = 'state') {
+    await act(async () => {
+      for (const channel of channels) {
+        channel.onmessage?.(
+          new MessageEvent('message', {
+            data: {
+              type: 'slack-managed-users',
+              ok: true,
+              state,
+              credentialGroupId: 'group-1',
+              slackBotCredentialId: bot.id,
+            },
+          })
+        )
+      }
+    })
+  }
+
+  it('accepts authorization after browser isolation reports a live popup as closed', async () => {
+    vi.useFakeTimers()
+    await render()
+    await submit()
+    popup.closed = true
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Waiting for Slack...')
+    await completeAuthorization('unrelated-state')
+    expect(toast.success).not.toHaveBeenCalled()
+    await completeAuthorization()
+    expect(toast.success).toHaveBeenCalledWith('Slack configured')
+    expect(mocks.onOpenChange).toHaveBeenCalledWith(false)
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('expires only after the authorization deadline and ignores a late callback', async () => {
+    vi.useFakeTimers()
+    await render()
+    await submit()
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000 - 1))
+    expect(toast.error).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+      'Slack authorization expired. Please try again.'
+    )
+    expect(popup.close).toHaveBeenCalledOnce()
+    await completeAuthorization()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('lets the user cancel an abandoned popup without reporting expiry', async () => {
+    vi.useFakeTimers()
+    await render()
+    await submit()
+    await clickButton('Cancel')
+    expect(popup.close).toHaveBeenCalledOnce()
+    expect(mocks.onOpenChange).toHaveBeenCalledWith(false)
+    await completeAuthorization()
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000))
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps a new authorization intact if an old deadline callback runs', async () => {
+    vi.useFakeTimers()
+    const timeouts = vi.spyOn(window, 'setTimeout')
+    await render()
+    await submit()
+    const oldDeadline = timeouts.mock.calls.find(([, delay]) => delay === 10 * 60 * 1_000)?.[0]
+    if (typeof oldDeadline !== 'function') throw new Error('Authorization deadline was not set')
+    await clickButton('Cancel')
+
+    const nextPopup = { location: { href: '' }, closed: false, close: vi.fn() }
+    vi.mocked(window.open).mockReturnValueOnce(nextPopup as unknown as Window)
+    mocks.start.mockResolvedValueOnce({
+      state: 'new-state',
+      authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+    })
+    await submit()
+    await act(async () => oldDeadline())
+
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(nextPopup.close).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Waiting for Slack...')
+    await completeAuthorization('new-state')
+    expect(toast.success).toHaveBeenCalledExactlyOnceWith('Slack configured')
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('does not navigate or start a timeout when authorization startup finishes after cancel', async () => {
+    vi.useFakeTimers()
+    let finishStartup!: (value: { state: string; authorizationUrl: string }) => void
+    mocks.start.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishStartup = resolve
+      })
+    )
+    await render()
+    await submit()
+    await clickButton('Cancel')
+    await act(async () => {
+      finishStartup({ state: 'state', authorizationUrl: 'https://slack.com/oauth/v2/authorize' })
+    })
+    expect(popup.location.href).toBe('')
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it.each(['resolve', 'reject'] as const)(
+    'ignores authorization startup that completes with %s after unmount',
+    async (outcome) => {
+      vi.useFakeTimers()
+      let finishStartup!: () => void
+      mocks.start.mockReturnValueOnce(
+        new Promise((resolve, reject) => {
+          finishStartup = () =>
+            outcome === 'resolve'
+              ? resolve({
+                  state: 'state',
+                  authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+                })
+              : reject(new Error('Authorization startup failed'))
+        })
+      )
+      await render()
+      await submit()
+      await act(async () => root.render(null))
+      await act(async () => finishStartup())
+
+      expect(popup.close).toHaveBeenCalledOnce()
+      expect(popup.location.href).toBe('')
+      await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000))
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
+    }
+  )
+
   it('opens Slack app setup inline and returns to member setup when canceled', async () => {
     await render(undefined, [])
     expect(document.querySelector('a')).toBeNull()
@@ -199,7 +350,8 @@ describe('Slack member access selection', () => {
     const dialog = appSetupDialog(true)
     expect(dialog).toBeDefined()
     expect(dialog?.textContent).toContain('Step 1 of 3')
-    expect(dialog?.textContent).toContain('App manifest')
+    expect(dialog?.textContent).not.toContain('App manifest')
+    expect(dialog?.textContent).toContain('Create app in Slack')
     expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Sim Search')
     expect(mocks.start).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()

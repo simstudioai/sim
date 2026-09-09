@@ -120,6 +120,7 @@ import {
   isKnowledgeBaseOwnedStorageKey,
   type KnowledgeStorageCleanupDocument,
 } from '@/lib/knowledge/documents/storage-cleanup'
+import { claimKnowledgeUploadForAttachment } from '@/lib/knowledge/documents/storage-upload'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
@@ -2750,6 +2751,7 @@ export async function createSingleDocument(
   secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
   options?: {
     expectedWorkspaceId?: string
+    uploadedArtifact?: { cleanupEventId: string; metadataId: string; contentUpdatedAt: Date }
     processing?: {
       processingOptions: ProcessingOptions
       billingAttribution: BillingAttributionSnapshot
@@ -2839,6 +2841,9 @@ export async function createSingleDocument(
 
   const storageNotification = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
+    if (options?.uploadedArtifact) {
+      await claimKnowledgeUploadForAttachment(tx, options.uploadedArtifact.cleanupEventId)
+    }
 
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
@@ -2884,6 +2889,14 @@ export async function createSingleDocument(
     const binding = storageKey
       ? (bindingByKey.get(storageKey) ?? sourceBindingByKey.get(storageKey))
       : undefined
+    if (
+      options?.uploadedArtifact &&
+      (!binding ||
+        binding.id !== options.uploadedArtifact.metadataId ||
+        binding.contentUpdatedAt.getTime() !== options.uploadedArtifact.contentUpdatedAt.getTime())
+    ) {
+      throw new Error('Knowledge upload expired before it could be attached')
+    }
     const provenanceBinding =
       binding && (binding.secretProvenanceVersion !== null || sourceBindingByKey.has(binding.key))
         ? binding

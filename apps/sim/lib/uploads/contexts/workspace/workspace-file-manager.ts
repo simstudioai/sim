@@ -89,6 +89,7 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
@@ -1688,7 +1689,7 @@ export async function getWorkspaceFile(
 export async function fetchServableWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
   options: { maxBytes: number; signal?: AbortSignal; requestId?: string }
-): Promise<{ buffer: Buffer; contentType: string }> {
+): Promise<ServableFile> {
   const { downloadServableFileFromStorage } = await import('@/lib/uploads/utils/file-utils.server')
 
   return downloadServableFileFromStorage(

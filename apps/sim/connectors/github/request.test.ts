@@ -140,10 +140,25 @@ describe('GitHub coordinated requests', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     await expect(fetchGitHubWithRetry(URL, OPTIONS)).rejects.toMatchObject({
-      rateLimited: true,
+      rateLimited: false,
+      reason: 'admission_timeout',
+      providerId: 'github-rest',
       retryAfterMs: 30_000,
     })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves unavailable admission storage as infrastructure pressure rather than an upstream rate limit', async () => {
+    acquire.mockRejectedValue(
+      new ProviderCapacityDeferredError('admission_unavailable', { retryAfterMs: 5000 })
+    )
+    const error = await fetchGitHubWithRetry(URL, OPTIONS).catch((error: unknown) => error)
+    expect(error).toMatchObject({
+      reason: 'admission_unavailable',
+      providerId: 'github-rest',
+      retryAfterMs: 5000,
+    })
+    expect(isRateLimitError(error)).toBe(false)
   })
 
   it('acquires a fresh lease for each retry after a transient provider failure', async () => {

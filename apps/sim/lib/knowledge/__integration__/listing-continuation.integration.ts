@@ -54,6 +54,7 @@ vi.mock('@/connectors/registry.server', () => ({
 }))
 
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
   createKnowledgeAclFixtureIds,
@@ -67,6 +68,7 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
 import * as memberAccess from '@/lib/knowledge/connectors/member-access'
 import {
@@ -936,7 +938,7 @@ describe('durable source and member cycles in PostgreSQL', () => {
     expect(rewritten.every((row) => row.acl.length === 0)).toBe(true)
   })
 
-  it('continues past a failed per-user download and retries content without discarding confirmed permissions', async () => {
+  it('preserves per-user failures and observations through a later capacity deferral and recovers after access is restored', async () => {
     const memberFixture = await seedKnowledgeMemberFixture(ids)
     const [alice, bob] = memberFixture.members
     await db
@@ -973,34 +975,89 @@ describe('durable source and member cycles in PostgreSQL', () => {
       .where(eq(knowledgeConnector.id, memberFixture.connectorId))
     fixture.list.mockImplementation(async (_token, _source, cursor) => ({
       documents: cursor
-        ? [sourceDoc('member-healthy')]
-        : [
-            {
-              ...sourceDoc('member-failed'),
-              content: '',
-              contentDeferred: true,
-            },
-          ],
+        ? [sourceDoc('member-next-page')]
+        : ['member-healthy', 'member-failed', 'member-paced'].map((externalId) => ({
+            ...sourceDoc(externalId),
+            content: '',
+            contentDeferred: true,
+          })),
       hasMore: !cursor,
       nextCursor: cursor ? undefined : 'healthy-page',
     }))
-    fixture.get.mockRejectedValueOnce(new Error('Temporary provider download failure'))
-    const failed = await executeMemberSync(memberFixture.connectorId, {
+    const denial = Object.assign(new Error('private provider response fixture'), { status: 403 })
+    let capacityAvailable = false
+    let contentAccessible = false
+    fixture.get.mockImplementation(async (_token, _source, externalId: string) => {
+      if (externalId === 'member-failed' && !contentAccessible) throw denial
+      if (externalId === 'member-paced' && !capacityAvailable) {
+        throw new ProviderCapacityDeferredError('admission_timeout', { retryAfterMs: 60_000 })
+      }
+      return sourceDoc(externalId)
+    })
+    const deferred = await executeMemberSync(memberFixture.connectorId, {
       billingAttribution: billing,
     })
-    expect(failed.error).toBeUndefined()
-    expect(failed.docsFailed).toBe(1)
-    expect(failed.membersCompleted).toBe(1)
-    expect(failed.listingIncomplete).toBe(true)
+    expect(deferred.error).toBeUndefined()
+    expect(deferred.deferred).toMatchObject({ reason: 'admission_timeout' })
+    expect(deferred.docsFailed).toBe(1)
+    expect(deferred.membersCompleted).toBe(0)
+    expect(deferred.listingIncomplete).toBe(true)
     const rows = await db
       .select()
       .from(document)
       .where(eq(document.connectorId, memberFixture.connectorId))
     const placeholder = rows.find((row) => row.externalId === 'member-failed')!
-    expect(placeholder).toMatchObject({ processingStatus: 'failed', fileUrl: '', storageKey: null })
+    expect(placeholder).toMatchObject({
+      processingStatus: 'failed',
+      fileUrl: '',
+      storageKey: null,
+      contentHash: null,
+      processingError: getConnectorFailureDiagnostic(denial)?.message,
+    })
+    expect(placeholder.processingError).not.toContain('private provider response fixture')
     expect(rows.find((row) => row.externalId === 'member-healthy')?.processingStatus).toBe(
       'completed'
     )
+    expect(rows).toHaveLength(2)
+    const [pausedMember] = await db
+      .select()
+      .from(knowledgeConnectorMember)
+      .where(eq(knowledgeConnectorMember.id, alice.id))
+    expect(pausedMember.listingCheckpoint).toMatchObject({
+      cursor: null,
+      complete: false,
+      listedCount: 0,
+      contentFailures: true,
+    })
+    expect(pausedMember.memberSyncedThrough).toBeNull()
+    const partialObservations = await db
+      .select()
+      .from(knowledgeDocumentObservation)
+      .where(eq(knowledgeDocumentObservation.memberId, alice.id))
+    expect(partialObservations.map((observation) => observation.documentId).sort()).toEqual(
+      rows.map((row) => row.id).sort()
+    )
+    expect(new Set(partialObservations.map((observation) => observation.runId))).toEqual(
+      new Set([pausedMember.listingCheckpoint!.generationId])
+    )
+
+    capacityAvailable = true
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ nextAttemptAt: new Date(0) })
+      .where(eq(knowledgeConnectorMember.id, alice.id))
+    fixture.get.mockClear()
+    fixture.list.mockClear()
+    const failed = await executeMemberSync(memberFixture.connectorId, {
+      billingAttribution: billing,
+    })
+    expect(failed.error).toBeUndefined()
+    expect(failed.deferred).toBeUndefined()
+    expect(failed.docsFailed).toBe(1)
+    expect(failed.membersCompleted).toBe(1)
+    expect(failed.listingIncomplete).toBe(true)
+    expect(fixture.list.mock.calls[0]?.[2]).toBeUndefined()
+    expect(fixture.get.mock.calls.map((call) => call[2])).toEqual(['member-failed', 'member-paced'])
     const [memberAfterFailure] = await db
       .select()
       .from(knowledgeConnectorMember)
@@ -1013,13 +1070,13 @@ describe('durable source and member cycles in PostgreSQL', () => {
         .select()
         .from(knowledgeDocumentObservation)
         .where(eq(knowledgeDocumentObservation.memberId, alice.id))
-    ).toHaveLength(2)
+    ).toHaveLength(4)
 
     await db
       .update(knowledgeConnectorMember)
       .set({ nextAttemptAt: new Date(0) })
       .where(eq(knowledgeConnectorMember.id, alice.id))
-    fixture.get.mockResolvedValueOnce(sourceDoc('member-failed'))
+    contentAccessible = true
     fixture.list.mockClear()
     const recovered = await executeMemberSync(memberFixture.connectorId, {
       billingAttribution: billing,

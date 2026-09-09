@@ -128,7 +128,7 @@ function extractAllReferencesFromSubBlocks(
         }
       }
 
-      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+      const envMatches = value.match(/\{\{([^{}]+)\}\}/g)
       if (envMatches) {
         envMatches.forEach((match) => envVars.add(match))
       }

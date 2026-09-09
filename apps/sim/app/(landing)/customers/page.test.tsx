@@ -28,8 +28,10 @@ vi.mock('@/lib/content/seo', () => ({
 }))
 vi.mock('@/app/(landing)/components/json-ld/json-ld', () => ({ JsonLd: () => null }))
 vi.mock('@/app/(landing)/customers/components/customer-story-card/customer-story-card', () => ({
-  CustomerStoryCard: ({ story }: { story: CustomerStory }) => (
-    <a href={`/customers/${story.slug}`}>{story.company}</a>
+  CustomerStoryCard: ({ story, priority }: { story: CustomerStory; priority?: boolean }) => (
+    <a href={`/customers/${story.slug}`} data-priority={priority}>
+      {story.company}
+    </a>
   ),
 }))
 vi.mock('@/app/(landing)/customers/components/customer-story-page/customer-story-page', () => ({
@@ -78,11 +80,21 @@ function setStories(rivianDraft: boolean, expDraft: boolean) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('customer publication boundaries', () => {
+  it('prioritizes only the first rendered card when an earlier story has no content', async () => {
+    setStories(false, false)
+    const exp = post('exp-realty', false)
+    getBySlug.mockImplementation(async (slug: string) => (slug === exp.slug ? exp : null))
+    const html = renderToStaticMarkup(await CustomersPage())
+    expect(html).not.toContain('href="/customers/rivian"')
+    expect(html).toContain('href="/customers/exp-realty" data-priority="true"')
+  })
+
   it('preserves the complete noindex design preview when every story is a draft', async () => {
     setStories(true, true)
     const html = renderToStaticMarkup(await CustomersPage())
     expect(html).toContain('href="/customers/rivian"')
     expect(html).toContain('href="/customers/exp-realty"')
+    expect(html.match(/data-priority="true"/g)).toHaveLength(1)
     expect((await generateMetadata()).robots).toEqual({ index: false, follow: false })
   })
 

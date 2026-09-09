@@ -1,13 +1,13 @@
 import { generateId } from '@sim/utils/id'
-import { getJobQueue } from '@/lib/core/async-jobs'
+import { getInlineJobQueue } from '@/lib/core/async-jobs'
 import {
   SLACK_SEARCH_CONCURRENCY,
   SLACK_SEARCH_MAX_DURATION_SECONDS,
 } from '@/lib/slack-search/constants'
 
-/** Wakes a durable turn; a repeated wake cannot repeat a claimed execution. */
+/** Runs durable turns in the app process; repeated wakes cannot repeat a claimed execution. */
 export async function enqueueSlackSearch(input: { turnId: string; installationId: string }) {
-  return (await getJobQueue()).enqueue(
+  return (await getInlineJobQueue()).enqueue(
     'slack-search',
     { turnId: input.turnId },
     {

@@ -67,6 +67,7 @@ describe('Slack Search message dispatch', () => {
     })
   })
   it.each([
+    { type: 'app_home_opened', tab: 'messages' },
     { channel_type: 'channel' },
     { channel_type: 'mpim' },
     { bot_id: 'B1' },

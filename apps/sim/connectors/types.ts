@@ -182,6 +182,8 @@ export interface ExternalDocument {
 export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
+  /** Stable replay position for this page, persisted before its content is hydrated. */
+  currentCursor?: string
   hasMore: boolean
   /**
    * Whether absence from this listing is authoritative enough for deletion
@@ -243,6 +245,17 @@ export interface SyncResult {
   skipReason?: SyncSkipReason
   /** The listing or reconciliation has more durable work, or the source was non-authoritative. */
   listingIncomplete?: boolean
+  /** Returned only after the scheduler's retry and this run's log commit atomically. */
+  deferred?: {
+    reason:
+      | 'rate_limit'
+      | 'admission_timeout'
+      | 'admission_unavailable'
+      | 'provider_timeout'
+      | 'processing_budget'
+    providerId?: string
+    nextSyncAt: string
+  }
   /** Diagnostic for an actual failed sync. */
   error?: string
 }
@@ -394,6 +407,8 @@ export interface ConnectorMeta {
  * Adding a new connector = creating one of these + registering it.
  */
 export interface ConnectorConfig extends ConnectorMeta {
+  /** Bounds local hydration fan-out to avoid queueing siblings behind a serial provider gate. */
+  contentConcurrency?: 1 | 2 | 3 | 4 | 5
   /**
    * List all documents from the configured source (handles pagination via cursor).
    * syncContext is a mutable object shared across all pages of a single sync run —

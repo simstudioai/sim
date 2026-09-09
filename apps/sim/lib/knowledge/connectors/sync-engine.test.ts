@@ -14,7 +14,7 @@ import {
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
+import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import {
   classifySuspectListing,
   evaluateListingSafety,
@@ -958,7 +958,7 @@ describe('executeSync deferred hydration rate limits', () => {
         { id: 'c-1', connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
       ])
     queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
-    for (let i = 0; i < 4; i++) queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    for (let i = 0; i < 5; i++) queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])
@@ -979,6 +979,23 @@ describe('executeSync deferred hydration rate limits', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('keeps a provider cooldown longer than the normal scheduler backoff cap', async () => {
+    const retryAfterMs = 48 * 60 * 60 * 1000
+    mockListDocuments.mockRejectedValueOnce(
+      Object.assign(new Error('Provider cooldown'), { status: 429, retryAfterMs })
+    )
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+    expect(result.error).toBeUndefined()
+    expect(result.deferred?.reason).toBe('rate_limit')
+    expect(new Date(result.deferred!.nextSyncAt).getTime()).toBeGreaterThanOrEqual(
+      NOW.getTime() + retryAfterMs
+    )
+    const update = dbChainMockFns.set.mock.calls.find(([value]) => value.status === 'active')?.[0]
+    expect(update.nextSyncAt.getTime()).toBeGreaterThanOrEqual(NOW.getTime() + retryAfterMs)
   })
 
   it('stops after the active batch and preserves the provider retry delay', async () => {
@@ -1014,18 +1031,17 @@ describe('executeSync deferred hydration rate limits', () => {
     expect(result).toMatchObject({
       docsAdded: 4,
       docsFailed: 0,
-      error: rateLimitError.message,
+      deferred: { reason: 'rate_limit', nextSyncAt: expect.any(String) },
     })
     expect(mockUploadFile).toHaveBeenCalledTimes(4)
     expect(mockProcessDocumentsWithQueue).toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: 'error',
-        consecutiveFailures: 0,
+        status: 'active',
       })
     )
     const failureUpdate = dbChainMockFns.set.mock.calls.find(
-      ([update]) => update.status === 'error'
+      ([update]) => update.status === 'active'
     )?.[0]
     expect(failureUpdate?.nextSyncAt.getTime()).toBeGreaterThanOrEqual(
       NOW.getTime() + 45 * 60 * 1000

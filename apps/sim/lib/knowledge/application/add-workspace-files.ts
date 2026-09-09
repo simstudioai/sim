@@ -1,11 +1,12 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -24,22 +25,27 @@ import {
   resolveActiveKnowledgeBaseContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
-import { createSingleDocument, type DocumentData } from '@/lib/knowledge/documents/service'
-import { StorageService } from '@/lib/uploads'
+import { createSingleDocument } from '@/lib/knowledge/documents/service'
+import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import {
+  fetchServableWorkspaceFileBuffer,
+  getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   resolveWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
 } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
-const logger = createLogger('AddWorkspaceFilesToKnowledgeBase')
+const SOURCE_READ_TIMEOUT_MS = 120_000
 
 export interface AddWorkspaceFilesToKnowledgeBaseInput {
   knowledgeBaseId: string
@@ -75,15 +81,18 @@ interface AddWorkspaceFilesContext extends ActiveKnowledgeBaseContext {
 interface PreparedWorkspaceFile {
   reference: string
   file: WorkspaceFileRecord
-  fileUrl: string
 }
 
 async function prepareWorkspaceFile(
   principal: Principal,
   context: AddWorkspaceFilesContext,
-  reference: string
+  reference: string,
+  lookup: 'reference' | 'id' = 'reference'
 ): Promise<PreparedWorkspaceFile> {
-  const file = await resolveWorkspaceFileReference(context.workspaceId, reference)
+  const file =
+    lookup === 'id'
+      ? await getWorkspaceFile(context.workspaceId, reference, { throwOnError: true })
+      : await resolveWorkspaceFileReference(context.workspaceId, reference)
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const canonical = await loadActiveWorkspaceFileContext(file.id)
   if (!canonical || canonical.workspaceId !== context.workspaceId) {
@@ -101,28 +110,35 @@ async function prepareWorkspaceFile(
   const fileTypeError = validateFileType(file.name, file.type)
   if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)
 
-  const provenance = await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+  await assertImportProvenance(context.workspaceId, {
     fileId: file.id,
     key: file.key,
-    context: 'workspace',
+    context: file.storageContext ?? 'workspace',
+    ...(file.contentUpdatedAt ? { contentUpdatedAt: file.contentUpdatedAt } : {}),
   })
+
+  return {
+    reference,
+    file,
+  }
+}
+
+async function assertImportProvenance(
+  workspaceId: string,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): Promise<void> {
+  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, identity)
   if (provenance.status !== 'exact' || provenance.entries.length > 0) {
     reportDurableSecretProvenanceRefusal({
       surface: 'knowledge',
       cause: 'knowledge-workspace-file-source-unavailable',
-      workspaceId: context.workspaceId,
-      resourceId: file.id,
+      workspaceId,
+      resourceId: identity.fileId,
     })
     throw new OrchestrationError(
       'validation',
       'Workspace file secret provenance prevents knowledge ingestion'
     )
-  }
-
-  return {
-    reference,
-    file,
-    fileUrl: await StorageService.generatePresignedDownloadUrl(file.key, 'workspace', 5 * 60),
   }
 }
 
@@ -158,6 +174,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
         canonicalFileIds.add(candidate.file.id)
         prepared.push(candidate)
       } catch (error) {
+        if (input.cancellationSignal?.aborted) break
         const classified = asOrchestrationError(error)
         if (classified && classified.code !== 'internal') {
           failed.push(reference)
@@ -202,34 +219,80 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
       if (input.cancellationSignal?.aborted) break
       try {
         const requestId = generateRequestId()
+        const current = await prepareWorkspaceFile(principal, context, candidate.file.id, 'id')
+        const readSignal = AbortSignal.timeout(SOURCE_READ_TIMEOUT_MS)
+        const signal = input.cancellationSignal
+          ? AbortSignal.any([readSignal, input.cancellationSignal])
+          : readSignal
+        const artifact = await fetchServableWorkspaceFileBuffer(current.file, {
+          maxBytes: MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+          signal,
+          requestId,
+        })
+        signal.throwIfAborted()
+        if (artifact.buffer.byteLength === 0) {
+          throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
+        }
+        const contributors = artifact.contributingFiles ?? []
+        if (contributors.length > PROVENANCE_MAX_ENTRIES) {
+          throw new OrchestrationError(
+            'validation',
+            'Too many source files in the rendered document'
+          )
+        }
+        for (const identity of contributors) {
+          signal.throwIfAborted()
+          await assertImportProvenance(context.workspaceId, identity)
+        }
+        const documentId = generateId()
+        const storedFile = await uploadKnowledgeArtifact({
+          documentId,
+          key: generateKnowledgeBaseFileKey(current.file.name),
+          owner: { workspaceId: context.workspaceId, userId: uploadedBy },
+          artifact: {
+            bytes: artifact.buffer,
+            fileName: current.file.name,
+            mimeType: artifact.contentType,
+          },
+          signal: input.cancellationSignal,
+        })
+        const registrationContext = await resolveActiveKnowledgeBaseContext(input, principal)
+        await authorizeWorkspaceOperation(
+          principal,
+          knowledgeOperations.addWorkspaceFiles,
+          registrationContext,
+          { delegation: knowledgeDelegationPolicy }
+        )
+        const finalized = await prepareWorkspaceFile(principal, context, current.file.id, 'id')
+        if (
+          finalized.file.key !== current.file.key ||
+          finalized.file.contentUpdatedAt?.getTime() !== current.file.contentUpdatedAt?.getTime()
+        ) {
+          throw new OrchestrationError('conflict', 'Workspace file changed during knowledge import')
+        }
+        input.cancellationSignal?.throwIfAborted()
         const document = await createSingleDocument(
           {
-            filename: candidate.file.name,
-            fileUrl: candidate.fileUrl,
-            fileSize: candidate.file.size,
-            mimeType: candidate.file.type,
+            filename: current.file.name,
+            fileUrl: `${storedFile.path}?context=knowledge-base`,
+            fileSize: artifact.buffer.byteLength,
+            mimeType: artifact.contentType,
           },
-          context.knowledgeBaseId,
+          registrationContext.knowledgeBaseId,
           requestId,
           uploadedBy,
-          undefined,
-          undefined,
-          { expectedWorkspaceId: context.workspaceId }
+          documentId,
+          {
+            filename: { status: 'exact', entries: [] },
+            content: { status: 'exact', entries: [] },
+            tags: [],
+          },
+          {
+            expectedWorkspaceId: registrationContext.workspaceId,
+            uploadedArtifact: storedFile,
+            processing: { processingOptions: {}, billingAttribution },
+          }
         )
-        const processingDocument: DocumentData = {
-          documentId: document.id,
-          filename: document.filename,
-          fileUrl: document.fileUrl,
-          fileSize: document.fileSize,
-          mimeType: document.mimeType,
-        }
-        void dispatchDocumentProcessing({
-          documents: [processingDocument],
-          knowledgeBaseId: context.knowledgeBaseId,
-          processingOptions: {},
-          requestId,
-          billingAttribution,
-        })
         added.push({
           documentId: document.id,
           filename: document.filename,
@@ -237,6 +300,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
           fileSize: document.fileSize,
         })
       } catch (error) {
+        if (input.cancellationSignal?.aborted) break
         const classified = asOrchestrationError(error)
         if (classified && classified.code !== 'internal') {
           failed.push(candidate.reference)

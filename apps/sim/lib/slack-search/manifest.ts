@@ -32,7 +32,7 @@ export function createSlackSearchManifest(
     features: {
       bot_user: { display_name: name, always_online: false },
       app_home: {
-        home_tab_enabled: false,
+        home_tab_enabled: true,
         messages_tab_enabled: true,
         messages_tab_read_only_enabled: false,
       },
@@ -52,7 +52,7 @@ export function createSlackSearchManifest(
     settings: {
       event_subscriptions: {
         request_url: webhookUrl,
-        bot_events: ['message.im', 'app_mention', 'agent_session_stopped'],
+        bot_events: ['app_home_opened', 'message.im', 'app_mention', 'agent_session_stopped'],
       },
       interactivity: { is_enabled: true, request_url: webhookUrl },
       org_deploy_enabled: false,

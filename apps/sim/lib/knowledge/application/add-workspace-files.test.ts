@@ -2,16 +2,17 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
   resolvePermission: vi.fn(),
   resolveFile: vi.fn(),
+  getFile: vi.fn(),
   loadFileContext: vi.fn(),
   getProvenance: vi.fn(),
-  presign: vi.fn(),
+  readFile: vi.fn(),
+  upload: vi.fn(),
   resolveBilling: vi.fn(),
   checkUsage: vi.fn(),
   createDocument: vi.fn(),
@@ -58,8 +59,8 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { generatePresignedDownloadUrl: mocks.presign },
+vi.mock('@/lib/knowledge/documents/storage-upload', () => ({
+  uploadKnowledgeArtifact: mocks.upload,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -67,6 +68,8 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchServableWorkspaceFileBuffer: mocks.readFile,
+  getWorkspaceFile: mocks.getFile,
   loadActiveWorkspaceFileContext: mocks.loadFileContext,
   resolveWorkspaceFileReference: mocks.resolveFile,
 }))
@@ -114,7 +117,14 @@ describe('add workspace files to knowledge base application command', () => {
     vi.clearAllMocks()
     mocks.resolveKnowledgeBase.mockResolvedValue(knowledgeContext)
     mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveFile.mockResolvedValue(workspaceFile)
+    mocks.resolveFile.mockImplementation(async (_workspaceId: string, reference: string) =>
+      reference === 'file-2'
+        ? { ...workspaceFile, id: 'file-2', name: 'second.pdf' }
+        : workspaceFile
+    )
+    mocks.getFile.mockImplementation(async (_workspaceId: string, id: string) =>
+      id === 'file-2' ? { ...workspaceFile, id: 'file-2', name: 'second.pdf' } : workspaceFile
+    )
     mocks.loadFileContext.mockResolvedValue({
       fileId: workspaceFile.id,
       workspaceId: 'workspace-1',
@@ -123,7 +133,14 @@ describe('add workspace files to knowledge base application command', () => {
       billedAccountUserId: 'billing-owner-1',
     })
     mocks.getProvenance.mockResolvedValue({ status: 'exact', entries: [] })
-    mocks.presign.mockResolvedValue('https://storage.test/report.pdf')
+    mocks.readFile.mockResolvedValue({ buffer: Buffer.alloc(100), contentType: 'application/pdf' })
+    mocks.upload.mockResolvedValue({
+      key: 'kb/copied.pdf',
+      path: '/api/files/serve/kb%2Fcopied.pdf',
+      metadataId: 'binding-1',
+      contentUpdatedAt: new Date(0),
+      cleanupEventId: 'guard-1',
+    })
     mocks.resolveBilling.mockResolvedValue({
       actorUserId: 'dual-workspace-user',
       workspaceId: 'workspace-1',
@@ -137,17 +154,9 @@ describe('add workspace files to knowledge base application command', () => {
       mimeType: workspaceFile.type,
     })
     mocks.processQueue.mockResolvedValue(undefined)
-    resetDbChainMock()
   })
 
-  /**
-   * A document added from a workspace file has no `connector_id`, so the
-   * connector-scoped stuck-document sweep never sees it. Logging the dispatch
-   * failure and walking away leaves it `pending`, where nothing finds it again.
-   */
-  it('marks the document failed when its processing dispatch never got off the ground', async () => {
-    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
-
+  it('copies authorized bytes and admits processing in the document transaction', async () => {
     await addWorkspaceFilesToKnowledgeBase.execute({
       principal: delegatedPrincipal,
       input: {
@@ -156,18 +165,37 @@ describe('add workspace files to knowledge base application command', () => {
         fileReferences: ['files/report.pdf'],
       },
     })
-    // The dispatch is fire-and-forget, so the unwind runs on a later microtask.
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-
-    const failureWrite = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    expect(mocks.readFile).toHaveBeenCalledWith(
+      workspaceFile,
+      expect.objectContaining({ maxBytes: 100 * 1024 * 1024, signal: expect.any(AbortSignal) })
     )
-    expect(failureWrite?.[0]).toMatchObject({
-      processingStatus: 'failed',
-      processingError: 'queue unavailable',
-    })
+    expect(mocks.upload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: { workspaceId: 'workspace-1', userId: 'dual-workspace-user' },
+        artifact: { bytes: Buffer.alloc(100), fileName: 'report.pdf', mimeType: 'application/pdf' },
+      })
+    )
+    expect(mocks.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileUrl: '/api/files/serve/kb%2Fcopied.pdf?context=knowledge-base',
+      }),
+      'knowledge-1',
+      expect.any(String),
+      'dual-workspace-user',
+      expect.any(String),
+      expect.objectContaining({ content: { status: 'exact', entries: [] } }),
+      expect.objectContaining({
+        uploadedArtifact: expect.objectContaining({ cleanupEventId: 'guard-1' }),
+        processing: {
+          processingOptions: {},
+          billingAttribution: {
+            actorUserId: 'dual-workspace-user',
+            workspaceId: 'workspace-1',
+          },
+        },
+      })
+    )
+    expect(mocks.processQueue).not.toHaveBeenCalled()
   })
 
   it('bounds file references before canonical knowledge loading', async () => {
@@ -206,15 +234,15 @@ describe('add workspace files to knowledge base application command', () => {
     expect(mocks.checkUsage.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.createDocument.mock.invocationCallOrder[0]
     )
-    expect(mocks.resolvePermission).toHaveBeenCalledTimes(2)
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(5)
     expect(mocks.createDocument).toHaveBeenCalledWith(
       expect.objectContaining({ filename: 'report.pdf' }),
       'knowledge-1',
       expect.any(String),
       'dual-workspace-user',
-      undefined,
-      undefined,
-      { expectedWorkspaceId: 'workspace-1' }
+      expect.any(String),
+      expect.objectContaining({ content: { status: 'exact', entries: [] } }),
+      expect.objectContaining({ expectedWorkspaceId: 'workspace-1' })
     )
   })
 
@@ -238,7 +266,7 @@ describe('add workspace files to knowledge base application command', () => {
 
     expect(result).toMatchObject({ added: [], failed: ['workspace-2-file'] })
     expect(mocks.getProvenance).not.toHaveBeenCalled()
-    expect(mocks.presign).not.toHaveBeenCalled()
+    expect(mocks.readFile).not.toHaveBeenCalled()
     expect(mocks.checkUsage).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
@@ -370,5 +398,98 @@ describe('add workspace files to knowledge base application command', () => {
     )
     expect(mocks.platformUploaded).not.toHaveBeenCalled()
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
+  })
+  it('records the rendered document size rather than its generation source size', async () => {
+    mocks.readFile.mockResolvedValueOnce({
+      buffer: Buffer.alloc(247),
+      contentType: 'application/pdf',
+    })
+    await addWorkspaceFilesToKnowledgeBase.execute({
+      principal: delegatedPrincipal,
+      input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
+    })
+    expect(mocks.createDocument.mock.calls[0][0]).toMatchObject({ fileSize: 247 })
+  })
+
+  it('refuses an updated source instead of attaching bytes with stale provenance', async () => {
+    mocks.getFile
+      .mockResolvedValueOnce(workspaceFile)
+      .mockResolvedValueOnce({ ...workspaceFile, key: 'workspace/workspace-1/replacement.pdf' })
+    const result = await addWorkspaceFilesToKnowledgeBase.execute({
+      principal: delegatedPrincipal,
+      input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
+    })
+    expect(result).toMatchObject({ added: [], failed: ['file-1'] })
+    expect(mocks.upload).toHaveBeenCalledOnce()
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+  })
+
+  it('leaves the reserved upload unbound if authorization was revoked while reading', async () => {
+    mocks.resolvePermission
+      .mockResolvedValueOnce('write')
+      .mockResolvedValueOnce('write')
+      .mockResolvedValueOnce('write')
+      .mockResolvedValueOnce(null)
+    const result = await addWorkspaceFilesToKnowledgeBase.execute({
+      principal: delegatedPrincipal,
+      input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
+    })
+    expect(result).toMatchObject({ added: [], failed: ['file-1'] })
+    expect(mocks.upload).toHaveBeenCalledOnce()
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+  })
+
+  it('cancels a bounded copy without dispatching a partial document', async () => {
+    const controller = new AbortController()
+    mocks.readFile.mockImplementationOnce(async () => {
+      controller.abort()
+      throw controller.signal.reason
+    })
+    const result = await addWorkspaceFilesToKnowledgeBase.execute({
+      principal: delegatedPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        fileReferences: ['file-1'],
+        cancellationSignal: controller.signal,
+      },
+    })
+    expect(result).toMatchObject({ added: [], failed: [], cancelled: true })
+    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+  })
+  it('refuses a rendered artifact whose contributing file provenance is unavailable', async () => {
+    const contributor = {
+      fileId: 'asset-1',
+      key: 'workspace/workspace-1/asset.png',
+      context: 'workspace',
+    }
+    mocks.readFile.mockResolvedValueOnce({
+      buffer: Buffer.alloc(247),
+      contentType: 'application/pdf',
+      contributingFiles: [contributor],
+    })
+    mocks.getProvenance
+      .mockResolvedValueOnce({ status: 'exact', entries: [] })
+      .mockResolvedValueOnce({ status: 'exact', entries: [] })
+      .mockResolvedValueOnce({ status: 'unknown' })
+    const result = await addWorkspaceFilesToKnowledgeBase.execute({
+      principal: delegatedPrincipal,
+      input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
+    })
+    expect(result).toMatchObject({ added: [], failed: ['file-1'] })
+    expect(mocks.getProvenance).toHaveBeenLastCalledWith('workspace-1', contributor)
+    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+  })
+
+  it('rejects workspace keys before canonical resource resolution', async () => {
+    await expect(
+      addWorkspaceFilesToKnowledgeBase.execute({
+        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+        input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.resolveKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.readFile).not.toHaveBeenCalled()
   })
 })

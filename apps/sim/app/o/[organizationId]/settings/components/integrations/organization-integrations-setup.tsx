@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
+import { ChipConfirmModal, ChipLink, ChipModalError, Switch, toast } from '@sim/emcn'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { OrganizationIntegrationCatalog } from '@/app/o/[organizationId]/settings/components/integrations/organization-integration-catalog'
-import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
@@ -20,20 +18,34 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useOrganizationSearchOverview } from '@/hooks/queries/kb/connectors'
+import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 export function OrganizationIntegrationsSetup() {
   const { organization, viewer, searchAccess } = useOrganizationContext()
-  const router = useRouter()
   const [search, setSearch] = useSettingsSearch()
-  const [catalogOpen, setCatalogOpen] = useState(false)
   const overview = useOrganizationSearchOverview(organization.id, { enabled: viewer.isAdmin })
-  const providers = overview.data?.providers ?? []
-  const query = search.trim().toLowerCase()
-  const visible = providers.filter((provider) =>
-    CONNECTOR_META_REGISTRY[provider.connectorType]?.name.toLowerCase().includes(query)
+  const availability = usePermissionConfig()
+  const approval = useUpdateSearchIntegration()
+  const [deactivating, setDeactivating] = useState<string | null>(null)
+  const providers = new Map(
+    overview.data?.providers.map((provider) => [provider.connectorType, provider])
   )
+  const query = search.trim().toLowerCase()
+  const visible = SEARCH_SOURCE_TYPES.filter(([, meta]) => meta.name.toLowerCase().includes(query))
+  const deactivatingName = SEARCH_SOURCE_TYPES.find(([type]) => type === deactivating)?.[1].name
+  const changeApproval = (connectorType: string, approved: boolean) => {
+    approval.reset()
+    if (!approved && (providers.get(connectorType)?.sourceCount ?? 0) > 0) {
+      setDeactivating(connectorType)
+      return
+    }
+    approval.mutate(
+      { organizationId: organization.id, connectorType, approved },
+      { onError: (error) => toast.error(error.message) }
+    )
+  }
   if (!viewer.isAdmin) return null
   if (!searchAccess.memberScoped && !searchAccess.sourceMirrored)
     return (
@@ -44,17 +56,17 @@ export function OrganizationIntegrationsSetup() {
 
   return (
     <SettingsPanel
-      search={{ value: search, onChange: setSearch, placeholder: 'Search sources...' }}
-      actions={[
-        {
-          text: 'Add integration',
-          icon: Plus,
-          variant: 'primary',
-          disabled: overview.isPending || overview.isError,
-          onSelect: () => setCatalogOpen(true),
-        },
-      ]}
+      search={{ value: search, onChange: setSearch, placeholder: 'Search integrations...' }}
     >
+      {availability.integrationAvailabilityError && (
+        <SettingsQueryErrorState
+          error={availability.integrationAvailabilityError}
+          fallback='Could not load connection availability'
+          isRetrying={availability.isIntegrationAvailabilityFetching}
+          onRetry={() => void availability.refetchIntegrationAvailability()}
+          variant='inline'
+        />
+      )}
       <div className={RESOURCE_LIST_STACK}>
         {overview.isError ? (
           <SettingsQueryErrorState
@@ -67,37 +79,85 @@ export function OrganizationIntegrationsSetup() {
         ) : overview.isPending ? (
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visible.length === 0 ? (
-          <SettingsEmptyState variant='inline'>
-            {query ? 'No matching sources' : 'Add an integration to get started.'}
-          </SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>No matching integrations</SettingsEmptyState>
         ) : (
-          visible.map((provider) => {
-            const meta = CONNECTOR_META_REGISTRY[provider.connectorType]
+          visible.map(([type, meta]) => {
+            const provider = providers.get(type)
+            const approved = provider?.approved === true
+            const sourceCount = provider?.sourceCount ?? 0
+            const access = getConnectorAccessAvailability(
+              meta,
+              availability.integrationAvailability,
+              {
+                memberAccessAvailable: searchAccess.memberScoped,
+                mirroredAccessAvailable: searchAccess.sourceMirrored,
+                oauthServiceAvailability: availability.oauthServiceAvailability,
+                isIntegrationAvailabilityReady: availability.isIntegrationAvailabilityReady,
+              }
+            )
+            const available = access.admin || access.members
+            const hasSources = sourceCount > 0
+            let description = hasSources
+              ? `${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'}`
+              : approved
+                ? 'Needs setup'
+                : undefined
+            if (approved && provider?.status === 'needs_attention') description = 'Needs attention'
+            if (!hasSources && availability.isIntegrationAvailabilityReady && !available)
+              description = 'Unavailable in this deployment'
             return (
               <SettingsResourceRow
-                key={provider.connectorType}
+                key={type}
                 iconVariant='custom'
-                icon={<IntegrationTile blockType={provider.connectorType} icon={meta.icon} />}
+                icon={<IntegrationTile blockType={type} icon={meta.icon} />}
                 title={meta.name}
-                description={organizationSearchStatusLabel(provider)}
-                href={organizationRoutes(organization.id).searchProvider(provider.connectorType)}
-                clickLabel={`Manage ${meta.name}`}
-                navigable
+                description={description}
+                trailing={
+                  <div className='flex items-center gap-5'>
+                    {(hasSources || (approved && available)) && (
+                      <ChipLink
+                        href={organizationRoutes(organization.id).searchProvider(type)}
+                        variant={hasSources ? undefined : 'primary'}
+                        aria-label={`${hasSources ? 'Manage' : 'Set up'} ${meta.name}`}
+                      >
+                        {hasSources ? 'Manage' : 'Set up'}
+                      </ChipLink>
+                    )}
+                    <Switch
+                      aria-label={`Allow ${meta.name} in Sim Search`}
+                      checked={approved}
+                      disabled={approval.isPending || (!approved && !available)}
+                      onCheckedChange={(checked) => changeApproval(type, checked)}
+                    />
+                  </div>
+                }
               />
             )
           })
         )}
       </div>
-      {catalogOpen && (
-        <OrganizationIntegrationCatalog
-          organizationId={organization.id}
-          providers={providers}
-          memberAccessAvailable={searchAccess.memberScoped}
-          mirroredAccessAvailable={searchAccess.sourceMirrored}
-          onClose={() => setCatalogOpen(false)}
-          onAdded={(type) => router.push(organizationRoutes(organization.id).searchProvider(type))}
-        />
-      )}
+      <ChipConfirmModal
+        open={deactivating !== null}
+        onOpenChange={(open) => {
+          if (!open && !approval.isPending) setDeactivating(null)
+        }}
+        title={`Deactivate ${deactivatingName ?? 'integration'}?`}
+        text='Its content will be unavailable in Search, Assistant, and MCP. Sources and connected accounts are preserved.'
+        confirm={{
+          label: 'Deactivate',
+          variant: 'destructive',
+          pending: approval.isPending,
+          onClick: () => {
+            if (!deactivating) return
+            approval.mutate(
+              { organizationId: organization.id, connectorType: deactivating, approved: false },
+              { onSuccess: () => setDeactivating(null) }
+            )
+          },
+        }}
+      >
+        <ChipModalError>{approval.error?.message}</ChipModalError>
+      </ChipConfirmModal>
       <SearchSourceSetup
         scope={{ kind: 'organization', organizationId: organization.id }}
         canAdmin={viewer.isAdmin}

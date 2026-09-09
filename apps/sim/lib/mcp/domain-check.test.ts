@@ -13,7 +13,7 @@ vi.mock('dns/promises', () => ({
 }))
 
 vi.mock('@/executor/utils/reference-validation', () => ({
-  createEnvVarPattern: () => /\{\{([^}]+)\}\}/g,
+  createEnvVarPattern: () => /\{\{([^{}]+)\}\}/g,
 }))
 
 import {
