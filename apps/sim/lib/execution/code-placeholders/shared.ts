@@ -11,7 +11,6 @@ import type {
 } from '@/lib/execution/code-placeholders/types'
 
 const MAX_PLACEHOLDERS = 10_000
-const PLACEHOLDER_PATTERN = /\{\{([^{}]+)\}\}/g
 
 export class CodePlaceholderCompileError extends Error {
   readonly line?: number
@@ -28,17 +27,43 @@ export class CodePlaceholderCompileError extends Error {
   }
 }
 
+/**
+ * Scans `{{name}}` placeholders, accepting exactly what `/\{\{([^}]+)\}\}/g` accepts —
+ * a name may contain `{`, because parameter keys are arbitrary strings rather than
+ * identifiers.
+ *
+ * Written as a scan rather than that regex because the regex is quadratic: `[^}]`
+ * admits `{`, so every offset in a run of `{` restarts a full backtracking scan, and
+ * this runs on user-authored code during execution. No regex is both linear and this
+ * permissive. The scan is linear because a failure at one `{{` predicts failure for
+ * every `{{` before the same closing brace: they share a body run and therefore the
+ * same terminator check, so the cursor jumps past them instead of retrying each.
+ */
 export function collectCodePlaceholderOccurrences(code: string): CodePlaceholderOccurrence[] {
   const occurrences: CodePlaceholderOccurrence[] = []
-  let match: RegExpExecArray | null
-  PLACEHOLDER_PATTERN.lastIndex = 0
-  while ((match = PLACEHOLDER_PATTERN.exec(code)) !== null) {
-    const name = match[1].trim()
+  let cursor = 0
+  while (cursor < code.length) {
+    const start = code.indexOf('{{', cursor)
+    if (start === -1) break
+
+    const bodyStart = start + 2
+    const bodyEnd = code.indexOf('}', bodyStart)
+    if (bodyEnd === -1) break
+
+    if (bodyEnd === bodyStart || code[bodyEnd + 1] !== '}') {
+      cursor = bodyEnd - 1
+      continue
+    }
+
+    const raw = code.slice(start, bodyEnd + 2)
+    cursor = bodyEnd + 2
+
+    const name = code.slice(bodyStart, bodyEnd).trim()
     if (!name) continue
     occurrences.push({
-      start: match.index,
-      end: match.index + match[0].length,
-      raw: match[0],
+      start,
+      end: start + raw.length,
+      raw,
       name,
     })
     if (occurrences.length > MAX_PLACEHOLDERS) {
