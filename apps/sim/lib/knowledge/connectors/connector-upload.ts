@@ -97,14 +97,18 @@ export async function uploadConnectorArtifact(input: {
   }
 }
 
-/** Holds the upload's pending cleanup guard before taking KB/connector locks, until attachment commits or rolls back. */
+/**
+ * Retires the upload guard in its attachment transaction, taking its row lock
+ * before KB/connector locks. A failed attachment rolls this change back so
+ * orphan cleanup remains available; a successful one needs no cleanup job.
+ */
 export async function claimConnectorUploadForAttachment(
   tx: DbTransaction,
   cleanupEventId: string
 ): Promise<void> {
   const [guard] = await tx
-    .select({ id: outboxEvent.id })
-    .from(outboxEvent)
+    .update(outboxEvent)
+    .set({ status: 'completed', processedAt: new Date(), lockedAt: null, lastError: null })
     .where(
       and(
         eq(outboxEvent.id, cleanupEventId),
@@ -112,7 +116,6 @@ export async function claimConnectorUploadForAttachment(
         eq(outboxEvent.status, 'pending')
       )
     )
-    .for('update')
-    .limit(1)
+    .returning({ id: outboxEvent.id })
   if (!guard) throw new Error('Connector upload expired before it could be attached')
 }

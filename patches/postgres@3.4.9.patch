@@ -1,0 +1,81 @@
+diff --git a/src/index.js b/src/index.js
+--- a/src/index.js
++++ b/src/index.js
+@@ -237,12 +237,13 @@
+     let savepoints = 0
+       , connection
+       , prepare = null
++      , closed = false
+ 
+     try {
+       await sql.unsafe('begin ' + options.replace(/[^a-z ]/ig, ''), [], { onexecute }).execute()
+       return await Promise.race([
+         scope(connection, fn),
+-        new Promise((_, reject) => connection.onclose = reject)
++        new Promise((_, reject) => connection.onclose = e => (closed = true, reject(e)))
+       ])
+     } catch (error) {
+       throw error
+@@ -289,6 +290,8 @@
+       }
+ 
+       function handler(q) {
++        if (closed)
++          return q.reject(Errors.connection('CONNECTION_CLOSED', options))
+         q.catch(e => uncaughtError || (uncaughtError = e))
+         c.queue === full
+           ? queries.push(q)
+diff --git a/cjs/src/index.js b/cjs/src/index.js
+--- a/cjs/src/index.js
++++ b/cjs/src/index.js
+@@ -237,12 +237,13 @@
+     let savepoints = 0
+       , connection
+       , prepare = null
++      , closed = false
+ 
+     try {
+       await sql.unsafe('begin ' + options.replace(/[^a-z ]/ig, ''), [], { onexecute }).execute()
+       return await Promise.race([
+         scope(connection, fn),
+-        new Promise((_, reject) => connection.onclose = reject)
++        new Promise((_, reject) => connection.onclose = e => (closed = true, reject(e)))
+       ])
+     } catch (error) {
+       throw error
+@@ -289,6 +290,8 @@
+       }
+ 
+       function handler(q) {
++        if (closed)
++          return q.reject(Errors.connection('CONNECTION_CLOSED', options))
+         q.catch(e => uncaughtError || (uncaughtError = e))
+         c.queue === full
+           ? queries.push(q)
+diff --git a/cf/src/index.js b/cf/src/index.js
+--- a/cf/src/index.js
++++ b/cf/src/index.js
+@@ -238,12 +238,13 @@
+     let savepoints = 0
+       , connection
+       , prepare = null
++      , closed = false
+ 
+     try {
+       await sql.unsafe('begin ' + options.replace(/[^a-z ]/ig, ''), [], { onexecute }).execute()
+       return await Promise.race([
+         scope(connection, fn),
+-        new Promise((_, reject) => connection.onclose = reject)
++        new Promise((_, reject) => connection.onclose = e => (closed = true, reject(e)))
+       ])
+     } catch (error) {
+       throw error
+@@ -290,6 +291,8 @@
+       }
+ 
+       function handler(q) {
++        if (closed)
++          return q.reject(Errors.connection('CONNECTION_CLOSED', options))
+         q.catch(e => uncaughtError || (uncaughtError = e))
+         c.queue === full
+           ? queries.push(q)

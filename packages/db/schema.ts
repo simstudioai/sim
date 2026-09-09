@@ -3861,6 +3861,9 @@ export const outboxEvent = pgTable(
       table.status,
       table.availableAt
     ),
+    pendingTypeAvailableIdx: index('outbox_event_pending_type_available_idx')
+      .on(table.eventType, table.availableAt, table.createdAt, table.id)
+      .where(sql`${table.status} = 'pending'`),
     lockedAtIdx: index('outbox_event_locked_at_idx').on(table.lockedAt),
     eventTypeCreatedIdx: index('outbox_event_type_created_idx').on(
       table.eventType,

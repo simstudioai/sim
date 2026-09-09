@@ -44,7 +44,7 @@ const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi
   mockDeleteFile: vi.fn(),
   mockDeleteFileMetadata: vi.fn(),
   mockEnqueueStorageCleanup: vi.fn(async () => {
-    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
 }))

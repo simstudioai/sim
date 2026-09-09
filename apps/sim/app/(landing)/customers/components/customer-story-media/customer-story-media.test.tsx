@@ -27,7 +27,8 @@ describe('CustomerStoryMedia', () => {
     const html = renderToStaticMarkup(<CustomerStoryMedia story={exp} />)
 
     expect(html).not.toContain('<video')
-    expect(html).toContain(exp.logo.src)
+    expect(html).toContain(encodeURIComponent(exp.heroImage!))
+    expect(html).toContain(exp.heroAlt)
   })
 
   it('keeps the artwork fallback for stories without video', () => {
