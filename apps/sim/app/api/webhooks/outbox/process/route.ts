@@ -54,7 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const result = await processOutboxEvents(handlers, {
-      batchSize: 20,
+      batchSize: 500,
       maxRuntimeMs: 790_000,
       minRemainingMs: 95_000,
     })
