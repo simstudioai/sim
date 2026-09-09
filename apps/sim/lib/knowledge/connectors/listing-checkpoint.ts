@@ -150,6 +150,13 @@ export async function runResumableListing(input: {
           input.syncContext.listingTruncated ||
           input.syncContext.reconciliationUnsafe
       )
+    if (response.currentCursor !== undefined && response.currentCursor !== checkpoint.cursor) {
+      if (response.currentCursor.length > 512 * 1024)
+        throw new ConnectorSyncCapacityError('Connector returned an oversized listing cursor')
+      checkpoint = { ...checkpoint, cursor: response.currentCursor }
+      await input.saveCheckpoint(checkpoint)
+      cursors.add(response.currentCursor)
+    }
     if ((await input.processPage(response.documents, checkpoint)) === false) {
       await input.saveCheckpoint(checkpoint)
       break

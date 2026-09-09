@@ -11,7 +11,7 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   enqueueKnowledgeStorageCleanup: mocks.enqueue,
 }))
 
-import { uploadConnectorArtifact } from '@/lib/knowledge/connectors/connector-upload'
+import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
 
 const input = {
   documentId: 'document-1',
@@ -24,7 +24,7 @@ const input = {
   },
 }
 
-describe('connector upload reservation', () => {
+describe('knowledge upload reservation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -38,7 +38,7 @@ describe('connector upload reservation', () => {
   afterEach(() => vi.useRealTimers())
 
   it('commits the ownership binding and cleanup before writing create-only bytes', async () => {
-    const uploaded = await uploadConnectorArtifact(input)
+    const uploaded = await uploadKnowledgeArtifact(input)
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     expect(mocks.insert.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.enqueue.mock.invocationCallOrder[0]
@@ -58,13 +58,13 @@ describe('connector upload reservation', () => {
 
   it('does not write bytes if durable cleanup cannot be enqueued', async () => {
     mocks.enqueue.mockRejectedValueOnce(new Error('Synthetic queue persistence failure'))
-    await expect(uploadConnectorArtifact(input)).rejects.toThrow('queue persistence failure')
+    await expect(uploadKnowledgeArtifact(input)).rejects.toThrow('queue persistence failure')
     expect(mocks.upload).not.toHaveBeenCalled()
   })
 
   it('does not reuse an existing metadata identity', async () => {
     mocks.insert.mockResolvedValueOnce({ id: 'previous-file', contentUpdatedAt: new Date(0) })
-    await expect(uploadConnectorArtifact(input)).rejects.toThrow('already bound')
+    await expect(uploadKnowledgeArtifact(input)).rejects.toThrow('already bound')
     expect(mocks.enqueue).not.toHaveBeenCalled()
     expect(mocks.upload).not.toHaveBeenCalled()
   })
@@ -77,11 +77,32 @@ describe('connector upload reservation', () => {
           signal.addEventListener('abort', () => reject(signal.reason), { once: true })
         )
     )
-    const pending = uploadConnectorArtifact(input)
+    const pending = uploadKnowledgeArtifact(input)
     const rejection = expect(pending).rejects.toThrow('storage upload timed out')
     await vi.advanceTimersByTimeAsync(120_000)
     await rejection
     expect(mocks.enqueue.mock.calls[0][3].availableAt.getTime()).toBeGreaterThan(Date.now())
     expect(vi.getTimerCount()).toBe(0)
+  })
+  it('does not reserve storage after parent cancellation', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('Synthetic cancellation'))
+    await expect(uploadKnowledgeArtifact({ ...input, signal: controller.signal })).rejects.toThrow(
+      'Synthetic cancellation'
+    )
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
+
+  it('propagates parent cancellation to the reserved object write', async () => {
+    const controller = new AbortController()
+    mocks.upload.mockImplementationOnce(async ({ signal }: { signal: AbortSignal }) => {
+      controller.abort(new Error('Synthetic cancellation'))
+      signal.throwIfAborted()
+    })
+    await expect(uploadKnowledgeArtifact({ ...input, signal: controller.signal })).rejects.toThrow(
+      'Synthetic cancellation'
+    )
+    expect(mocks.enqueue).toHaveBeenCalledOnce()
   })
 })

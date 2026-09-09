@@ -2,9 +2,8 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { DbTransaction } from '@/lib/db/types'
-import type { KnowledgeBaseOwner } from '@/lib/knowledge/connectors/sync-persistence'
 import {
   enqueueKnowledgeStorageCleanup,
   isKnowledgeBaseOwnedStorageKey,
@@ -20,17 +19,19 @@ const ORPHAN_GRACE_MS = 5 * 60_000
  * Reserves an immutable binding and its cleanup intent before any object write.
  * The guard survives crashes before upload, after upload, and before document attachment.
  */
-export async function uploadConnectorArtifact(input: {
+export async function uploadKnowledgeArtifact(input: {
   documentId: string
   key: string
-  owner: KnowledgeBaseOwner
+  owner: ResourceOwner & { userId: string }
   artifact: { bytes: Buffer; fileName: string; mimeType: string }
+  signal?: AbortSignal
 }) {
   const { documentId, key, owner, artifact } = input
+  input.signal?.throwIfAborted()
   if (owner.workspaceId || owner.organizationId) resourceScopeFromOwner(owner)
-  if (!owner.userId) throw new Error('Connector upload requires its canonical user owner')
+  if (!owner.userId) throw new Error('Knowledge upload requires its canonical user owner')
   if (!isKnowledgeBaseOwnedStorageKey(key)) {
-    throw new Error('Connector upload requires a canonical knowledge-base storage key')
+    throw new Error('Knowledge upload requires a canonical knowledge-base storage key')
   }
   const metadataId = generateId()
   const uploadId = generateId()
@@ -51,7 +52,7 @@ export async function uploadConnectorArtifact(input: {
       },
       tx
     )
-    if (reserved.id !== metadataId) throw new Error('Connector upload storage key is already bound')
+    if (reserved.id !== metadataId) throw new Error('Knowledge upload storage key is already bound')
     const [cleanupEventId] = await enqueueKnowledgeStorageCleanup(
       tx,
       [{ id: documentId, fileUrl: `/api/files/serve/${encodeURIComponent(key)}`, ...owner }],
@@ -62,16 +63,20 @@ export async function uploadConnectorArtifact(input: {
         uploadId,
       }
     )
-    if (!cleanupEventId) throw new Error('Connector upload cleanup guard was not created')
+    if (!cleanupEventId) throw new Error('Knowledge upload cleanup guard was not created')
     return { binding: reserved, cleanupEventId }
   })
 
   const controller = new AbortController()
   const timer = setTimeout(
-    () => controller.abort(new Error('Connector storage upload timed out')),
+    () => controller.abort(new Error('Knowledge storage upload timed out')),
     UPLOAD_TIMEOUT_MS
   )
+  const signal = input.signal
+    ? AbortSignal.any([controller.signal, input.signal])
+    : controller.signal
   try {
+    signal.throwIfAborted()
     const file = await StorageService.uploadFile({
       file: artifact.bytes,
       fileName: artifact.fileName,
@@ -87,10 +92,10 @@ export async function uploadConnectorArtifact(input: {
       },
       persistMetadata: false,
       createOnlyUploadId: uploadId,
-      signal: controller.signal,
+      signal,
     })
-    controller.signal.throwIfAborted()
-    if (file.key !== key) throw new Error('Connector upload changed its reserved storage key')
+    signal.throwIfAborted()
+    if (file.key !== key) throw new Error('Knowledge upload changed its reserved storage key')
     return { ...file, metadataId, contentUpdatedAt: binding.contentUpdatedAt, cleanupEventId }
   } finally {
     clearTimeout(timer)
@@ -102,7 +107,7 @@ export async function uploadConnectorArtifact(input: {
  * before KB/connector locks. A failed attachment rolls this change back so
  * orphan cleanup remains available; a successful one needs no cleanup job.
  */
-export async function claimConnectorUploadForAttachment(
+export async function claimKnowledgeUploadForAttachment(
   tx: DbTransaction,
   cleanupEventId: string
 ): Promise<void> {
@@ -117,5 +122,5 @@ export async function claimConnectorUploadForAttachment(
       )
     )
     .returning({ id: outboxEvent.id })
-  if (!guard) throw new Error('Connector upload expired before it could be attached')
+  if (!guard) throw new Error('Knowledge upload expired before it could be attached')
 }

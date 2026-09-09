@@ -21,7 +21,10 @@ import {
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
-import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import {
+  dispatchDocumentProcessingContinuation,
+  KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import {
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
   type KnowledgeDocumentProcessingOutboxPayload,
@@ -39,8 +42,10 @@ import {
   canScheduleDocumentProcessingQuotaContinuation,
   scheduleDocumentProcessingQuotaContinuation,
 } from '@/lib/knowledge/documents/processing-quota-continuation'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
 import {
   getKnowledgeDocument,
+  isTriggerAvailable,
   type ProcessingOptions,
   processDocumentAsync,
   processDocumentsWithQueue,
@@ -140,7 +145,32 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
 }
 
 /** Resumes the saved indexing generation without admitting or billing a new pass. */
-const resumeKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, context) => {
+const resumeKnowledgeDocument: OutboxHandler<unknown> = (rawPayload, context) =>
+  runAdmittedDocument(rawPayload, context, false)
+
+/** Recovery already installed and charged this generation in its admission transaction. */
+const recoverKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, context) => {
+  const payload = assertDocumentProcessingPayload(rawPayload)
+  if (!payload.processingQueueToken || !payload.processingQueuedAt || !payload.chargedAtDispatch)
+    throw new Error('Document recovery requires an admitted generation')
+  context.signal.throwIfAborted()
+  if (isTriggerAvailable()) {
+    await dispatchDocumentProcessingContinuation(
+      payload,
+      new Date(),
+      `${context.eventId}-worker`,
+      true
+    )
+    return
+  }
+  await runAdmittedDocument(payload, context, context.attempts === 0)
+}
+
+async function runAdmittedDocument(
+  rawPayload: unknown,
+  context: Parameters<OutboxHandler>[1],
+  chargedAtDispatch: boolean
+): Promise<void> {
   const payload = assertDocumentProcessingPayload(rawPayload)
   context.signal.throwIfAborted()
   try {
@@ -152,7 +182,7 @@ const resumeKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, conte
       payload,
       payload.requestId,
       {
-        chargedAtDispatch: false,
+        chargedAtDispatch,
         processingQueueToken: payload.processingQueueToken,
         processingPredecessorToken: payload.processingPredecessorToken,
         refundPredecessorAdmission: shouldRefundDocumentProcessingPredecessor(payload),
@@ -162,11 +192,11 @@ const resumeKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, conte
         ...(canScheduleDocumentProcessingQuotaContinuation(payload)
           ? {
               scheduleQuotaContinuation: () =>
-                scheduleDocumentProcessingQuotaContinuation(payload, false),
+                scheduleDocumentProcessingQuotaContinuation(payload, false, chargedAtDispatch),
             }
           : { quotaContinuationExhausted: true }),
         scheduleProviderContinuation: (error) =>
-          scheduleDocumentProcessingProviderContinuation(payload, error, false),
+          scheduleDocumentProcessingProviderContinuation(payload, error, false, chargedAtDispatch),
         signal: context.signal,
         deadlineAt: context.deadlineAt,
       }
@@ -202,6 +232,10 @@ export const knowledgeDocumentProcessingOutboxHandlers = {
   ),
   [KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT]: withOutboxHandlerTimeout(
     resumeKnowledgeDocument,
+    KNOWLEDGE_HANDLER_TIMEOUT_MS
+  ),
+  [KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT]: withOutboxHandlerTimeout(
+    recoverKnowledgeDocument,
     KNOWLEDGE_HANDLER_TIMEOUT_MS
   ),
 } satisfies OutboxHandlerRegistry

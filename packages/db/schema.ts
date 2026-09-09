@@ -2886,6 +2886,8 @@ export const document = pgTable(
     processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
+    /** Retry admission backoff, separate from an accepted worker continuation. */
+    processingRecoveryAfter: timestamp('processing_recovery_after'),
 
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
@@ -2980,6 +2982,12 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
+    /** Bounded oldest-first recovery scans only retained, live connector processing inputs. */
+    processingRecoveryIdx: index('doc_processing_recovery_idx')
+      .on(table.uploadedAt, table.id)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Connector document uniqueness (partial — only non-deleted rows)
     connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
       .on(table.connectorId, table.externalId)

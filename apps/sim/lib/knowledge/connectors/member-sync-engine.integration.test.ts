@@ -706,6 +706,40 @@ describe('member engine with a dedicated content credential', () => {
     }
   )
 
+  it('yields a member content page between hydration batches before its worker deadline', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    mocks.list.mockResolvedValue({
+      documents: Array.from({ length: 6 }, (_, index) => ({
+        ...serviceDocument,
+        externalId: `paced-${index}`,
+        estimatedBytes: 1024,
+      })),
+      hasMore: false,
+    })
+    mocks.get.mockImplementation(async (_token, _source, externalId: string) => {
+      clock.mockReturnValue(now + 46 * 60_000)
+      return { ...serviceDocument, externalId, content: 'Complete bytes', contentDeferred: false }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.membersIncomplete).toBe(1)
+      expect(result.membersCompleted).toBe(0)
+      expect(mocks.get).toHaveBeenCalledTimes(5)
+      expect(mocks.get.mock.calls.some((call) => call[2] === 'paced-5')).toBe(false)
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          listingCheckpoint: expect.objectContaining({ complete: false, listedCount: 0 }),
+        })
+      )
+      expect(mocks.observe).toHaveBeenCalled()
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('retains the EOF checkpoint and old permission watermark when revocation exhausts its budget', async () => {
     const run = arrange({ members: true, contentFresh: true })
     const clock = vi.spyOn(Date, 'now')

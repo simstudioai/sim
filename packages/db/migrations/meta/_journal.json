@@ -2346,6 +2346,13 @@
       "when": 1788978439734,
       "tag": "0335_embedding_width_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 336,
+      "version": "7",
+      "when": 1788980365048,
+      "tag": "0336_knowledge_processing_recovery",
+      "breakpoints": true
     }
   ]
 }

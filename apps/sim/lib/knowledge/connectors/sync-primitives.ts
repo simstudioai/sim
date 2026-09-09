@@ -7,12 +7,19 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  type ConnectorFailureDiagnostic,
+  getConnectorFailureDiagnostic,
+} from '@/lib/knowledge/connectors/connector-error'
+import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
@@ -21,6 +28,7 @@ import {
   persistSkippedRetryHashes,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
+import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { isTriggerAvailable, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
@@ -820,24 +828,26 @@ export async function loadPageCorpus(
   }
   const ids = [...new Set(externalIds)]
   for (let offset = 0; offset < ids.length; offset += 500) {
-    const rows = await db
-      .select({
-        id: document.id,
-        externalId: document.externalId,
-        contentHash: document.contentHash,
-        storageKey: document.storageKey,
-        userExcluded: document.userExcluded,
-        sourceSeenAt: document.sourceSeenAt,
-      })
-      .from(document)
-      .where(
-        and(
-          eq(document.connectorId, connectorId),
-          inArray(document.externalId, ids.slice(offset, offset + 500)),
-          isNull(document.archivedAt)
+    const rows = await withDatabaseReadRetry(async () =>
+      db
+        .select({
+          id: document.id,
+          externalId: document.externalId,
+          contentHash: document.contentHash,
+          storageKey: document.storageKey,
+          userExcluded: document.userExcluded,
+          sourceSeenAt: document.sourceSeenAt,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            inArray(document.externalId, ids.slice(offset, offset + 500)),
+            isNull(document.archivedAt)
+          )
         )
-      )
-      .limit(501)
+        .limit(501)
+    )
     if (rows.length > 500)
       throw new ConnectorSyncCapacityError('Connector has duplicate source identities')
     for (const row of rows) {
@@ -856,11 +866,18 @@ export interface SyncRunState {
   seenExternalIds: Set<string>
   /** Failed source refreshes cannot resurrect tombstones or authorize retained bytes. */
   failedExternalIds: Set<string>
+  /** Fixed diagnostics for one bounded provider page, never provider bodies or document content. */
+  sourceFailures: Map<string, ConnectorFailureDiagnostic>
 }
 
 /** Fresh bookkeeping for one provider page. */
 export function createSyncRunState(result: SyncResult): SyncRunState {
-  return { result, seenExternalIds: new Set<string>(), failedExternalIds: new Set<string>() }
+  return {
+    result,
+    seenExternalIds: new Set<string>(),
+    failedExternalIds: new Set<string>(),
+    sourceFailures: new Map(),
+  }
 }
 
 /**
@@ -925,6 +942,8 @@ export function classifyListing(input: {
 
 /** How deferred content is fetched; each engine supplies the identity it fetches with. */
 export interface DocOpHydration {
+  /** Provider-specific bound within the shared memory and concurrency ceiling. */
+  concurrency?: number
   /** Runs once per batch that has deferred documents, before any of them is fetched. */
   beforeHydration?: () => Promise<void>
   getDocument: (externalId: string) => Promise<ExternalDocument | null>
@@ -968,7 +987,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
     documentAccess,
   } = input
   const { priorByExternalId } = input.corpus
-  const { result, failedExternalIds } = input.state
+  const { result, failedExternalIds, sourceFailures } = input.state
 
   const pendingDispatch: DocumentData[] = []
   const bufferDispatch = isTriggerAvailable()
@@ -1001,7 +1020,9 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
   const batches = chunkOpsByByteBudget(
     input.pendingOps,
     CONTENT_INFLIGHT_BUDGET_BYTES,
-    SYNC_BATCH_SIZE
+    Number.isInteger(input.hydration.concurrency)
+      ? Math.max(1, Math.min(SYNC_BATCH_SIZE, input.hydration.concurrency!))
+      : SYNC_BATCH_SIZE
   )
   try {
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -1110,7 +1131,10 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
           if (outcome.status === 'fulfilled' && outcome.value) {
             readyOps.push(outcome.value)
           } else if (outcome.status === 'rejected') {
-            if (isRateLimitError(outcome.reason)) {
+            if (
+              outcome.reason instanceof ProviderCapacityDeferredError ||
+              isRateLimitError(outcome.reason)
+            ) {
               deferredExternalIds.add(deferredOps[i].extDoc.externalId)
               if (
                 hydrationDeferral === undefined ||
@@ -1122,10 +1146,13 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
             }
             result.docsFailed++
             failedExternalIds.add(deferredOps[i].extDoc.externalId)
+            const diagnostic = getConnectorFailureDiagnostic(outcome.reason)
+            if (diagnostic) sourceFailures.set(deferredOps[i].extDoc.externalId, diagnostic)
             logger.error('Failed to hydrate deferred document', {
               connectorId,
               externalId: deferredOps[i].extDoc.externalId,
-              error: getErrorMessage(outcome.reason),
+              error: diagnostic?.message ?? SOURCE_CONTENT_ERROR,
+              diagnostic,
             })
           }
         }
@@ -1185,6 +1212,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
           result.docsFailed += skipOps.length
           for (const op of skipOps) {
             failedExternalIds.add(op.extDoc.externalId)
+            const diagnostic = getConnectorFailureDiagnostic(error)
+            if (diagnostic) sourceFailures.set(op.extDoc.externalId, diagnostic)
           }
           logger.error('Failed to record skipped documents', {
             connectorId,
@@ -1240,10 +1269,13 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         } else {
           result.docsFailed++
           failedExternalIds.add(batch[j].extDoc.externalId)
+          const diagnostic = getConnectorFailureDiagnostic(outcome.reason)
+          if (diagnostic) sourceFailures.set(batch[j].extDoc.externalId, diagnostic)
           logger.error('Failed to process document', {
             connectorId,
             externalId: batch[j].extDoc.externalId,
-            error: getErrorMessage(outcome.reason),
+            error: diagnostic?.message ?? SOURCE_CONTENT_ERROR,
+            diagnostic,
           })
         }
       }
@@ -1294,10 +1326,6 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
     input
 
   const sweepEvaluatedAt = new Date()
-  const queuedGraceCutoff = new Date(sweepEvaluatedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
-  const processingStaleCutoff = new Date(
-    sweepEvaluatedAt.getTime() - STALE_PROCESSING_MINUTES * 60 * 1000
-  )
   const sweepCandidates = await db
     .select({
       id: document.id,
@@ -1316,45 +1344,8 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
     .where(
       and(
         eq(document.connectorId, connectorId),
-        inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
-        isNotNull(document.contentHash),
-        or(
-          and(
-            eq(document.processingStatus, 'failed'),
-            sql`COALESCE(${document.processingCompletedAt}, ${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingCompletedAt)}`
-          ),
-          and(
-            eq(document.processingStatus, 'pending'),
-            or(
-              and(
-                isNotNull(document.processingDeferredUntil),
-                lt(document.processingDeferredUntil, queuedGraceCutoff)
-              ),
-              and(
-                isNull(document.processingDeferredUntil),
-                sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
-              )
-            )
-          ),
-          and(
-            eq(document.processingStatus, 'processing'),
-            or(
-              isNull(document.processingStartedAt),
-              lt(document.processingStartedAt, processingStaleCutoff)
-            )
-          )
-        ),
-        /**
-         * Dead letters are left alone: past the budget, re-dispatching only
-         * re-bills a document that has failed the same way every time.
-         */
-        lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
-        lt(document.uploadedAt, syncStartedAt),
-        gt(document.uploadedAt, retryCutoff),
-        eq(document.userExcluded, false),
-        isNotNull(document.storageKey),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        documentProcessingRecoveryCondition(sweepEvaluatedAt, retryCutoff),
+        lt(document.uploadedAt, syncStartedAt)
       )
     )
     .orderBy(
@@ -1420,13 +1411,8 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
           and(
             inArray(document.id, stuckDocIds),
             eq(document.connectorId, connectorId),
-            inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
-            isNotNull(document.contentHash),
-            lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
-            eq(document.userExcluded, false),
-            isNotNull(document.storageKey),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            documentProcessingRecoveryCondition(sweepEvaluatedAt, retryCutoff),
+            lt(document.uploadedAt, syncStartedAt)
           )
         )
         .orderBy(asc(document.id))

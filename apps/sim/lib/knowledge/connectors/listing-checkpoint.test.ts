@@ -86,6 +86,33 @@ describe('durable connector listing checkpoints', () => {
     expect(f.saved().cursor).toBe('page-2')
   })
 
+  it('durably pins the current page before hydration fails and replays its snapshot', async () => {
+    const f = fixture()
+    f.listDocuments.mockResolvedValue({
+      documents: [doc],
+      currentCursor: 'tree-original:0',
+      nextCursor: 'tree-original:200',
+      hasMore: true,
+    })
+    f.processPage.mockImplementationOnce(async () => {
+      expect(f.saved().cursor).toBe('tree-original:0')
+      throw new Error('capacity deferred')
+    })
+    await expect(runResumableListing(f.input)).rejects.toThrow('capacity deferred')
+    expect(f.saved()).toMatchObject({ cursor: 'tree-original:0', listedCount: 0, complete: false })
+    const second = fixture(f.saved())
+    second.listDocuments.mockResolvedValue({
+      documents: [doc],
+      currentCursor: 'tree-original:0',
+      hasMore: false,
+    })
+    expect(await runResumableListing(second.input)).toMatchObject({
+      complete: true,
+      listedCount: 1,
+    })
+    expect(second.listDocuments.mock.calls[0]?.[2]).toBe('tree-original:0')
+  })
+
   it('does not save a cursor after its write lease is lost', async () => {
     const f = fixture()
     f.listDocuments.mockResolvedValue({ documents: [doc], hasMore: true, nextCursor: 'page-2' })

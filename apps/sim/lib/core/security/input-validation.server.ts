@@ -1060,6 +1060,16 @@ export async function secureFetchWithPinnedIP(
     }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
+    const hasExplicitFraming = Object.keys(sanitizedHeaders).some((name) => {
+      const header = name.toLowerCase()
+      return header === 'content-length' || header === 'transfer-encoding'
+    })
+    if (options.body !== undefined && !hasExplicitFraming) {
+      /** Node does not infer a body length for every method, including DELETE. */
+      sanitizedHeaders['Content-Length'] = String(
+        typeof options.body === 'string' ? Buffer.byteLength(options.body) : options.body.byteLength
+      )
+    }
 
     const requestOptions: http.RequestOptions = {
       hostname: parsed.hostname,
@@ -1338,11 +1348,7 @@ export async function secureFetchWithPinnedIP(
       options.signal.addEventListener('abort', onAbort, { once: true })
     }
 
-    if (options.body) {
-      req.write(options.body)
-    }
-
-    req.end()
+    req.end(options.body)
   })
 }
 

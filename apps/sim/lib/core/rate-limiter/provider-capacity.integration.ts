@@ -427,7 +427,10 @@ describe.each(['database', 'redis'] as const)('%s weighted provider capacity', (
           } else {
             expect(await (await request()).text()).toBe('complete source content')
           }
-          await expect(request()).rejects.toMatchObject({ rateLimited: true })
+          await expect(request()).rejects.toMatchObject({
+            rateLimited: scenario === 'secondary-throttle',
+            reason: scenario === 'secondary-throttle' ? 'rate_limit' : 'admission_timeout',
+          })
           expect(requests).toBe(1)
           const saved = await read()
           expect(saved.leases).toHaveLength(0)

@@ -102,6 +102,7 @@ interface RepositoryFixture {
   symlinks: Map<string, string>
   deniedStatus: 403 | 404
   throttledReaders: Set<string>
+  throttledBlobReaders: Set<string>
   truncated: boolean
 }
 
@@ -148,6 +149,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       symlinks: new Map(),
       deniedStatus: 404,
       throttledReaders: new Set(),
+      throttledBlobReaders: new Set(),
       truncated: false,
     }
     repositories.set(name, value)
@@ -235,10 +237,13 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       )
     if (!match[2]) return Response.json({ private: true, default_branch: source.defaultBranch })
     if (match[2].startsWith('/git/trees/')) {
-      expect(decodeURIComponent(match[2].slice('/git/trees/'.length))).toBe(source.defaultBranch)
+      const ref = decodeURIComponent(match[2].slice('/git/trees/'.length))
+      const treeSha = shaFor(JSON.stringify([[...source.files], [...source.symlinks]]))
+      if (ref !== source.defaultBranch && ref !== treeSha)
+        return Response.json({ message: 'Not Found' }, { status: 404 })
       expect(url.searchParams.get('recursive')).toBe('1')
       return Response.json({
-        sha: shaFor(JSON.stringify([[...source.files], [...source.symlinks]])),
+        sha: treeSha,
         tree: [
           ...[...source.files].map(([filePath, content]) => ({
             path: filePath,
@@ -259,6 +264,11 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       })
     }
     if (match[2].startsWith('/git/blobs/')) {
+      if (source.throttledBlobReaders.has(member.userId))
+        return Response.json(
+          { message: 'You have exceeded a secondary rate limit.' },
+          { status: 403 }
+        )
       const sha = decodeURIComponent(match[2].slice('/git/blobs/'.length))
       const content = [...source.files.values(), ...source.symlinks.values()].find(
         (value) => shaFor(value) === sha
@@ -665,7 +675,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     const [privateFile] = await rows(privateId)
     expect(await rows(blockedId)).toEqual([])
     expect(
-      requests.filter((request) => request.path.startsWith('/repos/fixture/shared/contents/'))
+      requests.filter((request) => request.path.startsWith('/repos/fixture/shared/git/blobs/'))
     ).toHaveLength(1)
     expect(shared.acl).toEqual(
       expect.arrayContaining(enrolled.members.map((member) => member.subjectToken))
@@ -727,7 +737,9 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     const [shared] = await rows()
     const source = repositories.get('shared')!
     source.throttledReaders.add(ids.bobId)
-    expect((await sync()).error).toMatch(/403|rate limit|provider capacity/i)
+    const throttled = await sync()
+    expect(throttled.error).toBeUndefined()
+    expect(throttled.deferred).toMatchObject({ reason: 'rate_limit', providerId: 'github-rest' })
     expect(await search(actor(ids.bobId))).toEqual([shared.id])
     const [bob] = await db
       .select()
@@ -835,8 +847,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       true
     )
     expect(
-      requests.some((request) =>
-        request.path.includes('/contents/docs/readme.md?ref=release%2Fcurrent')
+      requests.some(
+        (request) => request.path === `/repos/fixture/shared/git/blobs/${shaFor(content)}`
       )
     ).toBe(true)
     const [tombstone] = await db.select().from(document).where(eq(document.id, removed.id))
@@ -852,6 +864,68 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     expect(await db.select().from(embedding).where(eq(embedding.documentId, removed.id))).toEqual(
       []
     )
+  })
+
+  it('restarts an expired pinned tree on the current default branch and rechecks member repository access', async () => {
+    const source = repositories.get('shared')!
+    source.files.set('docs/deleted.md', 'Orion obsolete documentation.')
+    await sync()
+    const before = await rows()
+    const updated = before.find((row) => row.externalId === 'docs/readme.md')!
+    const removed = before.find((row) => row.externalId === 'docs/deleted.md')!
+    source.files.set('docs/readme.md', 'Orion intermediate revision awaiting provider capacity.')
+    const expiredTreeSha = shaFor(JSON.stringify([[...source.files], [...source.symlinks]]))
+    source.throttledBlobReaders.add(ids.aliceId)
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ lastStartedAt: new Date(0) })
+      .where(eq(knowledgeConnectorMember.id, enrolled.members[0].id))
+    expect((await sync()).deferred).toMatchObject({ reason: 'rate_limit' })
+    const [paused] = await db
+      .select({ checkpoint: knowledgeConnectorMember.listingCheckpoint })
+      .from(knowledgeConnectorMember)
+      .where(eq(knowledgeConnectorMember.id, enrolled.members[0].id))
+    expect(paused.checkpoint).toMatchObject({
+      complete: false,
+      listedCount: 0,
+      cursor: JSON.stringify({ version: 1, treeSha: expiredTreeSha, branch: 'trunk', offset: 0 }),
+    })
+    expect(await search(actor(ids.aliceId))).toEqual(before.map((row) => row.id).sort())
+    expect(await search(actor(ids.bobId))).toEqual(before.map((row) => row.id).sort())
+    source.throttledBlobReaders.clear()
+    source.defaultBranch = 'release/current'
+    const content = 'Orion current release documentation remains accessible to Alice.'
+    source.files.set('docs/readme.md', content)
+    source.files.delete('docs/deleted.md')
+    source.readers.delete(ids.bobId)
+    await db
+      .update(rateLimitBucket)
+      .set({
+        capacityState: sql`${rateLimitBucket.capacityState} || ${JSON.stringify({ cooldownUntil: 0, nextRequestAt: 0 })}::jsonb`,
+      })
+      .where(eq(rateLimitBucket.key, capacityKeyFor(tokenFor(ids.aliceId))))
+    const requestOffset = requests.length
+    const resumed = await sync()
+    expect(resumed.error).toBeUndefined()
+    expect(resumed.deferred).toBeUndefined()
+    expect(resumed.membersFailed).toBe(0)
+    const [current] = await rows()
+    expect(current).toMatchObject({
+      id: updated.id,
+      contentHash: `git-sha:${shaFor(content)}`,
+      acl: [enrolled.members[0].subjectToken],
+    })
+    expect(await search(actor(ids.aliceId))).toEqual([updated.id])
+    expect(await search(actor(ids.bobId))).toEqual([])
+    await assertAccess(actor(ids.aliceId), current, true)
+    await assertAccess(actor(ids.bobId), current, false)
+    const [tombstone] = await db.select().from(document).where(eq(document.id, removed.id))
+    expect(tombstone.deletedAt).toBeInstanceOf(Date)
+    const resumedPaths = requests.slice(requestOffset).map((request) => request.path)
+    expect(resumedPaths).toContain(`/repos/fixture/shared/git/trees/${expiredTreeSha}?recursive=1`)
+    expect(resumedPaths).toContain('/repos/fixture/shared/git/trees/release%2Fcurrent?recursive=1')
+    expect(resumedPaths).not.toContain('/repos/fixture/shared/git/trees/trunk?recursive=1')
+    expect(resumedPaths).toContain(`/repos/fixture/shared/git/blobs/${shaFor(content)}`)
   })
 
   it('updates linked target content, skips unchanged hydration, and removes old chunks after target deletion', async () => {

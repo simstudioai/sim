@@ -22,11 +22,13 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentsWithQueue: mocks.dispatch,
 }))
 
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
   classifyExternalDoc,
   createSyncRunState,
   type DocOp,
+  loadPageCorpus,
   type ProcessDocOpsInput,
   processDocOps,
 } from '@/lib/knowledge/connectors/sync-primitives'
@@ -184,6 +186,49 @@ afterEach(() => {
 })
 
 describe('processDocOps dispatch buffering', () => {
+  it('honors a provider serial hydration bound even for small sources and stops on capacity deferral', async () => {
+    const input = inputFor(10, 100)
+    input.hydration.concurrency = 1
+    let active = 0
+    let peak = 0
+    const deferred = new ProviderCapacityDeferredError('admission_unavailable')
+    input.hydration.getDocument = vi.fn(async (externalId) => {
+      active++
+      peak = Math.max(peak, active)
+      await Promise.resolve()
+      active--
+      if (externalId === 'source-4') throw deferred
+      return sourceDocument(externalId)
+    })
+    await expect(processDocOps(input)).rejects.toBe(deferred)
+    expect(peak).toBe(1)
+    expect(input.hydration.getDocument).toHaveBeenCalledTimes(4)
+    expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
+    expect(input.state.result.docsFailed).toBe(0)
+    expect(input.state.sourceFailures.size).toBe(0)
+    expect(input.onBatchComplete).toHaveBeenCalledTimes(3)
+  })
+
+  it('retains a safe per-source cause while successful siblings continue', async () => {
+    const input = inputFor(2, 100)
+    input.hydration.getDocument = vi.fn(async (externalId) => {
+      if (externalId === 'source-1') {
+        throw new Error('private wrapper', {
+          cause: Object.assign(new Error('private response body'), { status: 403 }),
+        })
+      }
+      return sourceDocument(externalId)
+    })
+    await expect(processDocOps(input)).resolves.toBe(true)
+    expect(input.state.sourceFailures.get('source-1')).toMatchObject({
+      category: 'authorization',
+      status: 403,
+    })
+    expect(JSON.stringify([...input.state.sourceFailures.values()])).not.toContain('private')
+    expect([...input.state.failedExternalIds]).toEqual(['source-1'])
+    expect(input.state.result).toMatchObject({ docsAdded: 1, docsFailed: 1 })
+    expect(dispatchedIds()).toEqual([['source-2']])
+  })
   it('hydrates 61 unknown-size documents serially and dispatches only metadata in batches of 25, 25, and 11', async () => {
     const input = inputFor(61)
     let active = 0
@@ -381,4 +426,35 @@ describe('processDocOps dispatch buffering', () => {
       expect(mocks.dispatch).toHaveBeenCalledTimes(failure === 'dispatch' ? 1 : 0)
     }
   )
+})
+
+describe('loadPageCorpus read recovery', () => {
+  it('retries only the failed bounded page and keeps earlier rows', async () => {
+    vi.useFakeTimers()
+    const row = (externalId: string) => ({
+      id: externalId,
+      externalId,
+      contentHash: 'hash',
+      storageKey: 'stored',
+      userExcluded: false,
+      sourceSeenAt: null,
+    })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([row('source-1')])
+      .mockRejectedValueOnce(
+        new Error('query', {
+          cause: Object.assign(new Error('connection'), { code: '08006' }),
+        })
+      )
+      .mockResolvedValueOnce([row('source-501')])
+    const result = loadPageCorpus(
+      'connector',
+      Array.from({ length: 501 }, (_, i) => `source-${i + 1}`)
+    )
+    await vi.runAllTimersAsync()
+    const corpus = await result
+    expect([...corpus.priorByExternalId.keys()]).toEqual(['source-1', 'source-501'])
+    expect(dbChainMockFns.limit.mock.calls).toEqual([[501], [501], [501]])
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
 })
