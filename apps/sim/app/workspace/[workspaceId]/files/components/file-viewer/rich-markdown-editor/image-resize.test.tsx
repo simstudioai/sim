@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { Editor } from '@tiptap/core'
 import type { ReactNodeViewProps } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,16 +28,16 @@ vi.mock(
 )
 
 import { ResizableImageView } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
 
 let host: HTMLDivElement
 let root: Root
-const editor = { isEditable: true, isDestroyed: false, commands: { focus: vi.fn() } }
+let editor: Editor
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.clearAllMocks()
-  editor.isEditable = true
-  editor.isDestroyed = false
+  editor = new Editor({ extensions: [StarterKit, MarkdownImage] })
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -43,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount())
+  editor.destroy()
   host.remove()
 })
 
@@ -61,22 +64,31 @@ function pointerEvent(
 }
 
 function renderImage(
-  updateAttributes: ReturnType<typeof vi.fn>,
-  dimensions: { width?: string | null; height?: string | null } = {}
+  onUpdate: ReturnType<typeof vi.fn>,
+  dimensions: { width?: string | null; height?: string | null } = {},
+  getPos: ReactNodeViewProps['getPos'] = () => 0
 ): HTMLButtonElement {
-  const props = {
-    node: {
-      attrs: {
-        src: '/image.png',
-        alt: '',
-        title: null,
-        width: null,
-        height: '100',
-        ...dimensions,
-        href: null,
+  editor.commands.setContent({
+    type: 'doc',
+    content: [
+      {
+        type: 'image',
+        attrs: {
+          src: '/image.png',
+          alt: '',
+          title: null,
+          width: null,
+          height: '100',
+          ...dimensions,
+          href: null,
+        },
       },
-    },
-    updateAttributes,
+    ],
+  })
+  editor.on('update', onUpdate)
+  const props = {
+    node: editor.state.doc.firstChild,
+    getPos,
     selected: true,
     editor,
   } as unknown as ReactNodeViewProps
@@ -150,42 +162,56 @@ describe('ResizableImageView', () => {
   )
 
   it('commits one proportional width change and clears a stale explicit height', () => {
-    const updateAttributes = vi.fn()
-    const handle = renderImage(updateAttributes)
+    const onUpdate = vi.fn()
+    const handle = renderImage(onUpdate)
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 7, clientX: 160 })))
     act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 7, clientX: 160 })))
 
-    expect(updateAttributes).toHaveBeenCalledOnce()
-    expect(updateAttributes).toHaveBeenCalledWith({ width: '260', height: null })
+    expect(onUpdate).toHaveBeenCalledOnce()
+    expect(editor.state.doc.firstChild?.attrs).toMatchObject({ width: '260', height: null })
   })
 
   it('ignores unrelated pointers and cancels without mutating document attributes', () => {
-    const updateAttributes = vi.fn()
-    const handle = renderImage(updateAttributes)
+    const onUpdate = vi.fn()
+    const handle = renderImage(onUpdate)
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 8, clientX: 180 })))
     act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 8, clientX: 180 })))
     act(() => window.dispatchEvent(pointerEvent('pointercancel', { pointerId: 7 })))
-    expect(updateAttributes).not.toHaveBeenCalled()
+    expect(onUpdate).not.toHaveBeenCalled()
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 9, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 9, clientX: 140 })))
     act(() => window.dispatchEvent(new Event('blur')))
-    expect(updateAttributes).not.toHaveBeenCalled()
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
   it('does not commit a resize after live editing becomes unavailable', () => {
-    const updateAttributes = vi.fn()
-    const handle = renderImage(updateAttributes)
+    const onUpdate = vi.fn()
+    const handle = renderImage(onUpdate)
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 7, clientX: 160 })))
-    editor.isEditable = false
+    editor.setEditable(false, false)
     act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 7, clientX: 160 })))
 
-    expect(updateAttributes).not.toHaveBeenCalled()
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does not commit a resize when the node view no longer has a position', () => {
+    const onUpdate = vi.fn()
+    const getPos = vi.fn<ReactNodeViewProps['getPos']>(() => 0)
+    const handle = renderImage(onUpdate, {}, getPos)
+
+    act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
+    act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 7, clientX: 160 })))
+    getPos.mockReturnValue(undefined)
+    act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 7, clientX: 160 })))
+
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(editor.state.doc.firstChild?.attrs).toMatchObject({ width: null, height: '100' })
   })
 })

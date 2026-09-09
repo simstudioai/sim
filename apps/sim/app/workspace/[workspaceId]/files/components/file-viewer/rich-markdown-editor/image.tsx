@@ -24,13 +24,7 @@ const PIXEL_SIZE = /^\d+(?:\.\d+)?px$/
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
-export function ResizableImageView({
-  node,
-  updateAttributes,
-  selected,
-  editor,
-  getPos,
-}: ReactNodeViewProps) {
+export function ResizableImageView({ node, selected, editor, getPos }: ReactNodeViewProps) {
   const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
@@ -122,7 +116,12 @@ export function ResizableImageView({
         !editor.isDestroyed &&
         isCurrentTarget()
       ) {
-        updateAttributes({ width: String(finalWidth), height: null })
+        const position = getPos()
+        if (typeof position !== 'number') return
+        const tr = editor.state.tr
+          .setNodeAttribute(position, 'width', String(finalWidth))
+          .setNodeAttribute(position, 'height', null)
+        editor.view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, position)))
       }
     }
     if (binding) {

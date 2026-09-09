@@ -156,6 +156,64 @@ async function setNestedImages(depth: number): Promise<void> {
 }
 
 describe('image resizing during real peer Yjs updates', () => {
+  it.each(['block', 'heading', 'paragraph'])(
+    'keeps the resized %s image selected for deletion and undo without changing peer text',
+    async (placement) => {
+      const image = '<img src="/logo.png" alt="Original" width="200" height="100">'
+      await act(async () => {
+        local.commands.setContent(
+          placement === 'block'
+            ? `<h2>Before</h2>${image}<p>After</p>`
+            : `<${placement === 'heading' ? 'h2' : 'p'}>Before ${image} after</${placement === 'heading' ? 'h2' : 'p'}>`
+        )
+        Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
+        local.commands.setNodeSelection(imagePosition(local))
+      })
+      const undoManager = yUndoPluginKey.getState(local.state).undoManager
+      undoManager.clear()
+      beginResize()
+      peer.commands.insertContentAt(1, 'Peer ')
+      await receivePeerUpdate()
+      const text = local.state.doc.textContent
+      const onUpdate = vi.fn()
+      local.on('update', onUpdate)
+
+      pointer(window, 'pointerup', 160)
+
+      expect(onUpdate).toHaveBeenCalledOnce()
+      expect(local.state.selection).toBeInstanceOf(NodeSelection)
+      expect(local.state.selection.from).toBe(imagePosition(local))
+      expect(host.querySelector('.ProseMirror-selectednode img')).not.toBeNull()
+      expect(imageAttributes(local)).toMatchObject({ width: '260', height: null })
+      expect(local.state.doc.textContent).toBe(text)
+      await act(async () => {
+        Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
+        expect(local.commands.undo()).toBe(true)
+      })
+      expect(imageAttributes(local)).toMatchObject({ width: '200', height: '100' })
+      expect(local.state.doc.textContent).toBe(text)
+      expect(local.can().undo()).toBe(false)
+      await act(async () => {
+        expect(local.commands.redo()).toBe(true)
+      })
+      expect(imageAttributes(local)).toMatchObject({ width: '260', height: null })
+
+      undoManager.stopCapturing()
+      await act(async () => {
+        expect(local.commands.keyboardShortcut('Backspace')).toBe(true)
+      })
+      expect(imageAttributes(local)).toBeNull()
+      expect(local.state.doc.textContent).toBe(text)
+      await act(async () => {
+        expect(local.commands.undo()).toBe(true)
+        Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
+      })
+      expect(imageAttributes(local)).toMatchObject({ width: '260', height: null })
+      expect(local.getJSON()).toEqual(peer.getJSON())
+      expect(local.state.doc.textContent).toBe(text)
+    }
+  )
+
   it.each(['heading', 'paragraph'])(
     'renders and scrolls a valid selection when undoing a move into a %s',
     async (target) => {
