@@ -98,58 +98,20 @@ async function render(props: Partial<Parameters<typeof ChatsSection>[0]> = {}) {
 }
 
 describe('ChatsSection', () => {
-  it('shows five chats with the workspace-style See more and See less controls', async () => {
+  it('shows all chats without pagination controls', async () => {
     await render()
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(5)
-    const more = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'See more'
-    )!
-    await act(async () => more.click())
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(8)
-    const less = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'See less'
-    )!
-    await act(async () => less.click())
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(5)
-  })
-
-  it('marks the chat on the current route active', async () => {
-    await render({ pathname: '/o/org-1/chat/chat-3' })
-
-    const current = container.querySelector('a[href="/o/org-1/chat/chat-3"]')
-    const other = container.querySelector('a[href="/o/org-1/chat/chat-4"]')
-    expect(current?.className).toContain('surface-active')
-    expect(other?.className).not.toContain('surface-active')
-  })
-
-  it('keeps a bookmarked chat visible when collapsing expanded history', async () => {
-    await render({ pathname: CHATS[5].href })
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(6)
-    expect(container.querySelector(`a[href="${CHATS[5].href}"]`)?.className).toContain(
-      'surface-active'
-    )
-    const more = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'See more'
-    )!
-    await act(async () => more.click())
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(8)
-    const less = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'See less'
-    )!
-    await act(async () => less.click())
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(6)
-    expect(container.querySelector(`a[href="${CHATS[5].href}"]`)).not.toBeNull()
-  })
-
-  it('derives the visible range from the route without retaining automatic expansion', async () => {
-    await render({ pathname: CHATS[7].href })
     expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(8)
     expect(container.textContent).not.toContain('See more')
     expect(container.textContent).not.toContain('See less')
+  })
 
-    await render({ pathname: null })
-    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(5)
-    expect(container.textContent).toContain('See more')
+  it('marks the chat on the current route active', async () => {
+    await render({ pathname: '/o/org-1/chat/chat-8' })
+
+    const current = container.querySelector('a[href="/o/org-1/chat/chat-8"]')
+    const other = container.querySelector('a[href="/o/org-1/chat/chat-4"]')
+    expect(current?.className).toContain('surface-active')
+    expect(other?.className).not.toContain('surface-active')
   })
 
   it.each([false, true])('renames via the options menu with collapsed=%s', async (isCollapsed) => {

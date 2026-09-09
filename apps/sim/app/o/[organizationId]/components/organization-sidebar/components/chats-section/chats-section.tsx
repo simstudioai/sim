@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
 import {
-  Chip,
   ChipInput,
   chipVariants,
   cn,
@@ -117,8 +115,6 @@ interface ChatsSectionProps {
   pathname: string | null
 }
 
-const PAGE_SIZE = 5
-
 export function ChatsSection({
   organizationId,
   chats,
@@ -128,10 +124,6 @@ export function ChatsSection({
 }: ChatsSectionProps) {
   const actions = useOrganizationChatActions({ organizationId, chats })
   const { menu, hover, rename, selectedChat } = actions
-  const [requestedCount, setRequestedCount] = useState(PAGE_SIZE)
-  const minimumCount = Math.max(PAGE_SIZE, chats.findIndex((chat) => chat.href === pathname) + 1)
-  const visibleCount = Math.min(chats.length, Math.max(requestedCount, minimumCount))
-  const hasMore = chats.length > visibleCount
   const menuOpenChatId = menu.isOpen ? selectedChat?.id : null
   const saveRename = () => {
     void rename.saveRename()
@@ -192,43 +184,31 @@ export function ChatsSection({
                     No chats yet
                   </div>
                 )}
-                {chats
-                  .slice(0, visibleCount)
-                  .map((chat) =>
-                    rename.editingId === chat.id ? (
-                      <ChipInput
-                        key={chat.id}
-                        ref={rename.inputRef}
-                        aria-label={`Rename chat ${chat.name}`}
-                        value={rename.value}
-                        onChange={(event) => rename.setValue(event.target.value)}
-                        onKeyDown={rename.handleKeyDown}
-                        onBlur={saveRename}
-                        disabled={rename.isSaving}
-                        maxLength={100}
-                        autoComplete='off'
-                      />
-                    ) : (
-                      <ChatRow
-                        key={chat.id}
-                        chat={chat}
-                        isCurrentRoute={pathname === chat.href}
-                        isMenuOpen={menuOpenChatId === chat.id}
-                        onContextMenu={actions.onContextMenu}
-                        onMorePointerDown={actions.onMorePointerDown}
-                        onMoreClick={actions.onMoreClick}
-                      />
-                    )
-                  )}
-                {(hasMore || visibleCount > minimumCount) && (
-                  <Chip
-                    fullWidth
-                    onClick={() =>
-                      setRequestedCount(hasMore ? visibleCount + PAGE_SIZE : PAGE_SIZE)
-                    }
-                  >
-                    {hasMore ? 'See more' : 'See less'}
-                  </Chip>
+                {chats.map((chat) =>
+                  rename.editingId === chat.id ? (
+                    <ChipInput
+                      key={chat.id}
+                      ref={rename.inputRef}
+                      aria-label={`Rename chat ${chat.name}`}
+                      value={rename.value}
+                      onChange={(event) => rename.setValue(event.target.value)}
+                      onKeyDown={rename.handleKeyDown}
+                      onBlur={saveRename}
+                      disabled={rename.isSaving}
+                      maxLength={100}
+                      autoComplete='off'
+                    />
+                  ) : (
+                    <ChatRow
+                      key={chat.id}
+                      chat={chat}
+                      isCurrentRoute={pathname === chat.href}
+                      isMenuOpen={menuOpenChatId === chat.id}
+                      onContextMenu={actions.onContextMenu}
+                      onMorePointerDown={actions.onMorePointerDown}
+                      onMoreClick={actions.onMoreClick}
+                    />
+                  )
                 )}
               </>
             )}
