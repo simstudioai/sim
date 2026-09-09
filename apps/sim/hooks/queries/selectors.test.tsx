@@ -235,6 +235,70 @@ describe('generic selector queries', () => {
     }
   )
 
+  it.each([true, false, undefined])(
+    'preserves flat selector truncation %s and clears it after a complete refetch',
+    async (truncated) => {
+      const items = [{ id: 'label-1', label: 'First label' }]
+      mockExecuteSelectorRequest.mockResolvedValue({
+        kind: 'list',
+        items,
+        ...(truncated !== undefined ? { truncated } : {}),
+      })
+      const hook = renderHookWithClient(() =>
+        useSelectorOptions('gmail.labels', {
+          context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1' },
+          surfaceId: 'connector:gmail:label',
+        })
+      )
+
+      await waitFor(() => expect(hook.getResult().isSuccess).toBe(true))
+      expect(hook.getResult()).toMatchObject({
+        data: items,
+        hasMore: false,
+        truncated: truncated === true,
+      })
+
+      const refreshedItems = [{ id: 'label-2', label: 'Complete results' }]
+      mockExecuteSelectorRequest.mockResolvedValue({ kind: 'list', items: refreshedItems })
+      act(() => hook.getResult().refetch())
+
+      await waitFor(() => expect(hook.getResult().data).toEqual(refreshedItems))
+      expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: false })
+    }
+  )
+
+  it('retains server truncation from earlier pages after loading the final page', async () => {
+    mockExecuteSelectorRequest.mockImplementation(
+      async ({ request }: { request: { cursor?: string } }) =>
+        request.cursor
+          ? { kind: 'list', items: [{ id: 'workspace-2', label: 'Second' }], truncated: false }
+          : {
+              kind: 'list',
+              items: [{ id: 'workspace-1', label: 'First' }],
+              nextCursor: 'next-page',
+              truncated: true,
+            }
+    )
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('bitbucket.workspaces', {
+        context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1' },
+        surfaceId: 'canvas:block-1:workspace',
+      })
+    )
+
+    await waitFor(() => expect(hook.getResult().hasMore).toBe(true))
+    expect(hook.getResult().truncated).toBe(true)
+
+    act(() => hook.getResult().loadMore())
+    await waitFor(() =>
+      expect(hook.getResult().data).toEqual([
+        { id: 'workspace-1', label: 'First' },
+        { id: 'workspace-2', label: 'Second' },
+      ])
+    )
+    expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: true })
+  })
+
   it('loads paginated selectors on demand without putting cursors in the base key', async () => {
     mockExecuteSelectorRequest.mockImplementation(
       async ({ request }: { request: { cursor?: string } }) =>

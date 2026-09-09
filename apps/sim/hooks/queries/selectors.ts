@@ -12,13 +12,16 @@ import {
 } from '@/lib/selectors/manifest'
 import type {
   SelectorContext,
+  SelectorExecutionResult,
   SelectorOption,
   SelectorPage,
   SelectorScope,
 } from '@/lib/selectors/types'
 import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
-const EMPTY_PAGE: SelectorPage = { items: [] }
+type SelectorListResult = Extract<SelectorExecutionResult, { kind: 'list' }>
+
+const EMPTY_PAGE: SelectorListResult = { kind: 'list', items: [] }
 let nextOpaqueRevision = 1
 
 export type SelectorClientContext = SelectorContext & {
@@ -167,7 +170,7 @@ export function useSelectorOptions(
     prepared.revision
   )
 
-  const flatQuery = useQuery<SelectorOption[]>({
+  const flatQuery = useQuery<SelectorListResult>({
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: baseKey,
     queryFn: async ({ signal }) => {
@@ -182,14 +185,14 @@ export function useSelectorOptions(
         signal,
       })
       if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
-      return result.items
+      return result
     },
     enabled: !supportsPagination && prepared.ready,
     staleTime: prepared.manifest.staleTime,
     gcTime: 0,
   })
 
-  const pagedQuery = useInfiniteQuery<SelectorPage>({
+  const pagedQuery = useInfiniteQuery<SelectorListResult>({
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: [...baseKey, 'paged'],
     queryFn: async ({ pageParam, signal }) => {
@@ -306,7 +309,10 @@ export function useSelectorOptions(
       isFetchingMore: pagedQuery.isFetchingNextPage || isLoadingAll,
       isLoadingAll,
       hasMore: canLoadMore,
-      truncated: collectedOptions.overflowed || (Boolean(pagedQuery.hasNextPage) && reachedLoadCap),
+      truncated:
+        pagedQuery.data?.pages.some((page) => page.truncated === true) === true ||
+        collectedOptions.overflowed ||
+        (Boolean(pagedQuery.hasNextPage) && reachedLoadCap),
       error: (pagedQuery.error as Error | null) ?? null,
       isSuccess: pagedQuery.isSuccess,
       loadMore,
@@ -321,13 +327,13 @@ export function useSelectorOptions(
     }
   }
   return {
-    data: flatQuery.data,
+    data: flatQuery.data?.items,
     isLoading: flatQuery.isLoading,
     isFetching: flatQuery.isFetching,
     isFetchingMore: false,
     isLoadingAll: false,
     hasMore: false,
-    truncated: false,
+    truncated: flatQuery.data?.truncated === true,
     error: (flatQuery.error as Error | null) ?? null,
     isSuccess: flatQuery.isSuccess,
     loadMore: () => undefined,
