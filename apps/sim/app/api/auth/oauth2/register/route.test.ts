@@ -33,6 +33,7 @@ beforeEach(() => {
         ...(await req.clone().json()),
         client_id: 'client-1',
         client_id_issued_at: 1788000000,
+        token_endpoint_auth_method: 'none',
       },
       { status: 201 }
     )
@@ -97,9 +98,42 @@ describe('MCP public client registration', () => {
     })
   })
 
+  it.each(['client_secret_post', 'client_secret_basic'])(
+    'lets the provider negotiate Claude-style %s registration to a public client',
+    async (authMethod) => {
+      const response = await POST(
+        request({
+          client_name: 'Claude',
+          redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+          token_endpoint_auth_method: authMethod,
+          scope: 'search:read offline_access',
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+          application_type: 'web',
+          client_secret: 'must-not-be-forwarded',
+        })
+      )
+      expect(response.status).toBe(201)
+      const body = await response.json()
+      expect(body.token_endpoint_auth_method).toBe('none')
+      expect(body).not.toHaveProperty('client_secret')
+      const forwarded: Request = mocks.register.mock.calls[0][0]
+      expect(await forwarded.json()).toEqual({
+        client_name: 'Claude',
+        redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+        token_endpoint_auth_method: authMethod,
+        scope: 'search:read offline_access',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        require_pkce: true,
+      })
+    }
+  )
+
   it.each([
     { ...client, scope: 'api:write' },
-    { ...client, token_endpoint_auth_method: 'client_secret_post' },
+    { ...client, token_endpoint_auth_method: 'private_key_jwt' },
+    { ...client, token_endpoint_auth_method: 'unsupported' },
     { ...client, grant_types: ['client_credentials'] },
     { ...client, redirect_uris: ['http://evil.example/callback'] },
     { ...client, redirect_uris: ['https://*.example/callback'] },

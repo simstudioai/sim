@@ -89,6 +89,41 @@ describe('matchSnippet', () => {
     expect(matchSnippet(german, 'Zürich')).toContain('nach Zürich')
   })
 
+  it.each([
+    {
+      query: 'Where is the updated backup meeting location for Birch?',
+      title: 'Project Birch field kit',
+      answer: 'The backup meeting location has changed to the Juniper room.',
+      expected: 'Juniper room',
+    },
+    {
+      query: 'Where are the Cedar pilot kits stored?',
+      title: 'Project Cedar — Demo handbook',
+      answer: 'Equipment pickup: Pilot kits are stored in Room 2B.',
+      expected: 'Room 2B',
+    },
+    {
+      query: 'Who owns the Cedar demo checklist?',
+      title: 'Project Cedar — Demo decisions',
+      answer: 'The owner of the demo checklist is Riley Chen.',
+      expected: 'Riley Chen',
+    },
+  ])(
+    'shows the relevant passage past an early title match: $query',
+    ({ query, title, answer, expected }) => {
+      const content = `${title}\n\n${'Background information. '.repeat(20)}${answer} ${'Further context. '.repeat(20)}`
+      const snippet = matchSnippet(content, query)
+      expect(snippet).toContain(expected)
+      expect(snippet.length).toBeLessThanOrEqual(SNIPPET_LENGTH + 2)
+    }
+  )
+
+  it('keeps the earliest passage when matching terms are equally specific', () => {
+    const content = `Cedar information. ${'Background. '.repeat(40)}Birch information.`
+    expect(matchSnippet(content, 'Birch Cedar')).toContain('Cedar information')
+    expect(matchSnippet(content, 'Birch Cedar')).not.toContain('Birch information')
+  })
+
   it('never splits a surrogate pair at a window edge', () => {
     const emoji = `${'🙂'.repeat(200)} volvo ${'🙂'.repeat(200)}`
     const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/

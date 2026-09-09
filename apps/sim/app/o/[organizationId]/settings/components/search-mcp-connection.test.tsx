@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SearchMcpConnection } from '@/components/search-mcp-connection'
+import { SearchMcpConnection } from '@/app/o/[organizationId]/settings/components/search-mcp-connection'
 
 const ENDPOINT = 'https://sim.fixture.test/api/mcp/search/organizations/org-1'
 
@@ -30,7 +30,7 @@ describe('Search MCP client connection', () => {
   })
 
   async function render(endpoint = ENDPOINT) {
-    await act(async () => root.render(<SearchMcpConnection endpoint={endpoint} flush />))
+    await act(async () => root.render(<SearchMcpConnection endpoint={endpoint} />))
   }
 
   async function selectClient(label: string) {
@@ -105,10 +105,10 @@ describe('Search MCP client connection', () => {
   })
 
   it('quotes a shell metacharacter in the copied endpoint as a literal', async () => {
-    await render("https://sim.fixture.test/api/mcp/search/workspace'$(example)")
+    await render("https://sim.fixture.test/api/mcp/search/organizations/org'$(example)")
     await selectClient('Claude Code')
     expect(await copyConfiguration()).toBe(
-      "claude mcp add --transport http sim-search 'https://sim.fixture.test/api/mcp/search/workspace'\\''$(example)'"
+      "claude mcp add --transport http sim-search 'https://sim.fixture.test/api/mcp/search/organizations/org'\\''$(example)'"
     )
   })
 
@@ -127,7 +127,7 @@ describe('Search MCP client connection', () => {
       await render()
       await selectClient(client)
       await copyConfiguration()
-      const nextEndpoint = 'https://sim.fixture.test/api/mcp/search/workspace-2'
+      const nextEndpoint = 'https://sim.fixture.test/api/mcp/search/organizations/org-2'
       await render(nextEndpoint)
       const value = await copyConfiguration()
       expect(value).toContain(nextEndpoint)

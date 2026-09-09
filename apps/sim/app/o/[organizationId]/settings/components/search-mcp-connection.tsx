@@ -23,11 +23,9 @@ type SearchMcpClient = (typeof CLIENTS)[number]['value']
 
 interface SearchMcpConnectionProps {
   endpoint: string
-  flush?: boolean
 }
 
-/** Shared client setup for organization settings and the workspace Search modal. */
-export function SearchMcpConnection({ endpoint, flush = false }: SearchMcpConnectionProps) {
+export function SearchMcpConnection({ endpoint }: SearchMcpConnectionProps) {
   const [client, setClient] = useState<SearchMcpClient>('claude')
   const quotedEndpoint = `'${endpoint.replace(/'/g, "'\\''")}'`
   const configuration =
@@ -39,7 +37,7 @@ export function SearchMcpConnection({ endpoint, flush = false }: SearchMcpConnec
 
   return (
     <>
-      <ChipModalField type='custom' title='App' flush={flush}>
+      <ChipModalField type='custom' title='App' flush>
         <ChipDropdown
           value={client}
           onChange={(value) => {
@@ -62,7 +60,7 @@ export function SearchMcpConnection({ endpoint, flush = false }: SearchMcpConnec
           copyLabel={
             client === 'codex' || client === 'claude-code' ? 'Copy command' : 'Copy MCP server URL'
           }
-          flush={flush}
+          flush
           hint={
             client === 'claude'
               ? 'In Claude web or Desktop, add a custom connector with this URL, then sign in to Sim. On Team or Enterprise, an owner adds the connector first.'
@@ -77,7 +75,7 @@ export function SearchMcpConnection({ endpoint, flush = false }: SearchMcpConnec
         <ChipModalField
           type='custom'
           title='Configuration'
-          flush={flush}
+          flush
           hint='Add sim-search to mcpServers in ~/.cursor/mcp.json, then connect Sim Search in Cursor and sign in to Sim.'
         >
           {(aria) => (

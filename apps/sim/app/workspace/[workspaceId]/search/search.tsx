@@ -11,7 +11,6 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
-import { SearchMcpSetup } from '@/app/workspace/[workspaceId]/search/components/search-mcp-setup'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
 import {
@@ -120,7 +119,6 @@ export function Search() {
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />
-          {!normalizedSearch && <SearchMcpSetup workspaceId={workspaceId} />}
           <IntegrationSection label='Sources' layout='list'>
             {sources.isError ? (
               <SettingsQueryErrorState

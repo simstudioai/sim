@@ -31,7 +31,10 @@ const redirectUriSchema = z
 export const registerSearchOAuthClientBodySchema = z.object({
   client_name: z.string().trim().min(1).max(128).default('MCP client'),
   redirect_uris: z.array(redirectUriSchema).min(1).max(10),
-  token_endpoint_auth_method: z.literal('none').default('none'),
+  /** Better Auth negotiates unauthenticated registration to public clients without secrets. */
+  token_endpoint_auth_method: z
+    .enum(['none', 'client_secret_basic', 'client_secret_post'])
+    .default('none'),
   grant_types: z
     .array(z.enum(['authorization_code', 'refresh_token']))
     .min(1)

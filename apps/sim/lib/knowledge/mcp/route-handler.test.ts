@@ -80,7 +80,7 @@ import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const resource = 'http://localhost/api/mcp/search/organizations/org-1'
-const handlers = createKnowledgeMcpHandlers('organization')
+const handlers = createKnowledgeMcpHandlers()
 const principal = { kind: 'personal_api_key' as const, userId: 'person-1', keyId: 'key-1' }
 const auth = {
   principal,

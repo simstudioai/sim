@@ -10,6 +10,6 @@ export const GET = withRouteHandler(
     if (isAuthDisabled) return new NextResponse(null, { status: 404 })
     const parsed = organizationKnowledgeMcpContract.params.safeParse(await context.params)
     if (!parsed.success) return new NextResponse(null, { status: 404 })
-    return searchMcpResourceMetadata(getSearchMcpUrl('organization', parsed.data.organizationId))
+    return searchMcpResourceMetadata(getSearchMcpUrl(parsed.data.organizationId))
   }
 )

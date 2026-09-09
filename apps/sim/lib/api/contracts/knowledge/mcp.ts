@@ -1,17 +1,8 @@
 import { z } from 'zod'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { mcpJsonRpcMessageSchema } from '@/lib/api/contracts/mcp'
-import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-
-export const knowledgeMcpParamsSchema = z.object({ workspaceId: workspaceIdSchema })
-
-export const knowledgeMcpContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/mcp/search/[workspaceId]',
-  params: knowledgeMcpParamsSchema,
-  body: mcpJsonRpcMessageSchema,
-  response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
-})
 
 export const organizationKnowledgeMcpContract = defineRouteContract({
   method: 'POST',
@@ -21,30 +12,56 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
   response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
 })
 
-const knowledgeIdSchema = z.string().min(1, 'Knowledge base ID is required').max(255)
 const documentIdSchema = z.string().min(1, 'Document ID is required').max(255)
 
-export const searchDocumentsMcpSchema = z.object({
-  query: z.string().trim().min(1, 'Search query is required').max(8192),
-  knowledgeBaseIds: z
-    .array(knowledgeIdSchema)
-    .min(1)
-    .max(20)
-    .optional()
-    .describe('Optional knowledge bases in this workspace. Defaults to its Search index.'),
-  topK: z.number().int().min(1).max(50).default(10),
-})
+export const searchMcpSchema = workspaceSearchFiltersSchema
+  .extend({
+    query: z.string().trim().min(1, 'Search query is required').max(8192),
+    topK: z.number().int().min(1).max(50).default(10),
+  })
+  .strict()
 
-export const readDocumentMcpSchema = z.object({
-  knowledgeBaseId: knowledgeIdSchema,
-  documentId: documentIdSchema,
-})
+export const readDocumentMcpSchema = z
+  .object({
+    documentId: documentIdSchema.optional(),
+    url: z
+      .string()
+      .trim()
+      .url('Provide the original document URL')
+      .max(8192)
+      .refine((value) => {
+        if (!URL.canParse(value)) return false
+        const url = new URL(value)
+        return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+      }, 'Document URL must use HTTP or HTTPS without credentials')
+      .optional(),
+    limit: z.number().int().min(1).max(50).default(20),
+    offset: z.number().int().min(0).max(1_000_000).optional(),
+    aroundChunkIndex: z.number().int().min(0).max(1_000_000).optional(),
+  })
+  .strict()
+  .superRefine((input, ctx) => {
+    if (Boolean(input.documentId) === Boolean(input.url)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['documentId'],
+        message: 'Provide either a document ID or its original URL',
+      })
+    }
+    if (input.offset !== undefined && input.aroundChunkIndex !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['aroundChunkIndex'],
+        message: 'Use either an offset or a matching chunk index',
+      })
+    }
+  })
 
-export const listDocumentChunksMcpSchema = readDocumentMcpSchema.extend({
-  limit: z.number().int().min(1).max(50).default(20),
-  offset: z.number().int().min(0).max(1_000_000).default(0),
-})
+export const chatSearchMcpSchema = workspaceSearchFiltersSchema
+  .extend({
+    query: z.string().trim().min(1, 'A question is required').max(8192),
+  })
+  .strict()
 
-export type SearchDocumentsMcpInput = z.input<typeof searchDocumentsMcpSchema>
+export type SearchMcpInput = z.input<typeof searchMcpSchema>
 export type ReadDocumentMcpInput = z.input<typeof readDocumentMcpSchema>
-export type ListDocumentChunksMcpInput = z.input<typeof listDocumentChunksMcpSchema>

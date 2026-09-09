@@ -157,6 +157,19 @@ describe('verifyOAuthAccessToken', () => {
     }
   )
 
+  it('does not accept old workspace Search tokens at organization Search or the general API', async () => {
+    const resource = 'https://sim.example/api/mcp/search/workspace-one'
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    await expect(
+      verifyOAuthAccessToken('sim_oat_old_workspace', {
+        resource: 'https://sim.example/api/mcp/search/organizations/one',
+        allowUnboundApiTokens: true,
+      })
+    ).rejects.toMatchObject({ reason: 'wrong_resource' })
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    expect(await reason('sim_oat_old_workspace')).toBe('wrong_resource')
+  })
+
   it('never relaxes audience checks for Search-only or differently bound grants', async () => {
     const resource = 'https://sim.example/api/mcp/search/organizations/one'
     for (const token of [

@@ -150,7 +150,8 @@ describe('OAuth2 authorize route', () => {
     { scope: 'search:read' },
     { scope: 'api:read', resource: `${BASE_URL}/api/mcp/search/organizations/org-1` },
     { scope: 'search:read unknown', resource: `${BASE_URL}/api/mcp/search/organizations/org-1` },
-    { scope: 'search:read', resource: 'https://evil.example/api/mcp/search/org-1' },
+    { scope: 'search:read', resource: 'https://evil.example/api/mcp/search/organizations/org-1' },
+    { scope: 'search:read', resource: `${BASE_URL}/api/mcp/search/workspace-1` },
   ])('refuses ambiguous or overly broad Search grants: %o', async (params) => {
     const response = await GET(
       request({

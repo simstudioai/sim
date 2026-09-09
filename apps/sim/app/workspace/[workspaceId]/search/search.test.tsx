@@ -81,9 +81,6 @@ vi.mock('@/app/workspace/[workspaceId]/components', () => ({ IntegrationTabsHead
 vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-showcase', () => ({
   IntegrationTile: () => null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/search-mcp-setup', () => ({
-  SearchMcpSetup: () => <div data-testid='mcp-setup'>MCP setup</div>,
-}))
 vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
   SearchSourceSetup: (props: { canAdmin: boolean }) => {
     mocks.setup(props)
@@ -351,7 +348,6 @@ describe('unified Search sources', () => {
     expect(document.body.textContent).toContain('No matching sources.')
     expect(document.body.textContent).not.toContain('Google Drive')
     expect(document.querySelector('[data-testid="source-setup"]')).not.toBeNull()
-    expect(document.querySelector('[data-testid="mcp-setup"]')).toBeNull()
     expect(mocks.urlUpdate).not.toHaveBeenCalled()
   })
 
@@ -376,12 +372,9 @@ describe('unified Search sources', () => {
     expect(document.body.textContent).not.toContain('Google Drive')
   })
 
-  it('keeps search above MCP setup and opens admin management by connector ID', async () => {
+  it('opens admin source management by connector ID', async () => {
     mocks.canAdmin = true
     await render()
-    const input = document.querySelector('input')!
-    const mcp = document.querySelector('[data-testid="mcp-setup"]')!
-    expect(input.compareDocumentPosition(mcp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await act(async () => button('Manage')!.click())
     await vi.waitFor(() =>
       expect(mocks.urlUpdate).toHaveBeenCalledWith(

@@ -19,16 +19,15 @@ const otherResource = 'https://sim.example/api/mcp/search/organizations/org-two'
 const scopes = ['search:read', 'offline_access']
 
 describe('OAuth resource binding', () => {
-  it('accepts exact organization and workspace Search endpoints and an absent API audience', () => {
+  it('accepts exact organization Search endpoints and an absent API audience', () => {
     expect(parseOAuthSearchResource(resource)).toBe(resource)
-    expect(parseOAuthSearchResource('https://sim.example/api/mcp/search/workspace-one')).toBe(
-      'https://sim.example/api/mcp/search/workspace-one'
-    )
     expect(parseOAuthSearchResource(null)).toBeNull()
   })
 
   it.each([
     '',
+    'https://sim.example/api/mcp/search/workspace-one',
+    'https://sim.example/api/mcp/search/workspace-one?organizationId=org-one',
     'https://attacker.example/api/mcp/search/organizations/org-one',
     'http://sim.example/api/mcp/search/organizations/org-one',
     'https://user@sim.example/api/mcp/search/organizations/org-one',
@@ -53,6 +52,18 @@ describe('OAuth resource binding', () => {
       expect(getOAuthIssuedResource(scopes)).toBe(resource)
     })
     expect(() => getOAuthIssuedResource(scopes)).toThrow()
+  })
+
+  it('refuses a previously issued code for a removed workspace Search resource', async () => {
+    const removedResource = 'https://sim.example/api/mcp/search/workspace-one'
+    await expect(
+      withOAuthResourceIssuance(removedResource, async () =>
+        bindOAuthIssuedResource({
+          verificationValue: { query: { resource: removedResource } },
+          scopes,
+        })
+      )
+    ).rejects.toMatchObject({ body: { error: 'invalid_target' } })
   })
 
   it.each([
