@@ -560,7 +560,53 @@ export async function preprocessExecution(
     }
   })()
 
-  const subscriptionFetch = getHighestPrioritySubscription(actorUserId)
+  /**
+   * `onError: 'throw'` rather than the default `'return-null'`: this value only
+   * ever feeds the rate limiter, and a swallowed read is indistinguishable from
+   * a genuine absence of plan, so a dropped connection would quietly apply
+   * free-tier limits to a paying actor. Matches the v2 API key auth path, which
+   * resolves the same rate-limit subscription the same way.
+   */
+  const subscriptionFetch = (async (): Promise<{
+    failure: GateFailure | null
+    subscription: SubscriptionInfo | null
+  }> => {
+    try {
+      const subscription = await withDatabaseReadRetry(
+        () => getHighestPrioritySubscription(actorUserId, { onError: 'throw' }),
+        { label: 'getHighestPrioritySubscription' }
+      )
+      return { failure: null, subscription }
+    } catch (error) {
+      logger.error(`[${requestId}] Error resolving actor subscription`, { error, actorUserId })
+
+      return {
+        failure: {
+          response: {
+            success: false,
+            error: {
+              message: 'Unable to determine plan entitlements. Execution blocked.',
+              statusCode: 500,
+              retryable: isRetryableInfrastructureError(error),
+              cause: describeRetryableInfrastructureError(error),
+            },
+          },
+          recordError: {
+            workflowId,
+            executionId,
+            triggerType,
+            requestId,
+            userId: actorUserId,
+            workspaceId,
+            errorMessage: 'Unable to determine plan entitlements. Execution blocked.',
+            loggingSession: providedLoggingSession,
+            triggerData,
+          },
+        },
+        subscription: null,
+      }
+    }
+  })()
 
   /**
    * Returns the usage failure and reservation snapshot together so concurrent
@@ -591,6 +637,46 @@ export async function preprocessExecution(
               : {}),
           }
         : null
+      /**
+       * The usage gate fails closed on an unreadable figure, which is correct —
+       * failing open would admit unmetered work. But that block is an
+       * infrastructure outcome, not a billing one: reporting it as a 402 tells
+       * a customer who is under their limit to upgrade, and marks a retryable
+       * condition permanent.
+       */
+      if (usageCheck.indeterminate) {
+        logger.error(`[${requestId}] Usage gate blocked on an unreadable usage figure.`, {
+          actorUserId,
+          workflowId,
+          triggerType,
+        })
+
+        return {
+          failure: {
+            response: {
+              success: false,
+              error: {
+                message: usageCheck.message || 'Unable to determine current usage. Please retry.',
+                statusCode: 503,
+                retryable: true,
+              },
+            },
+            recordError: {
+              workflowId,
+              executionId,
+              triggerType,
+              requestId,
+              userId: actorUserId,
+              workspaceId,
+              errorMessage: 'Unable to determine current usage. Execution blocked.',
+              loggingSession: providedLoggingSession,
+              triggerData,
+            },
+          },
+          snapshot,
+        }
+      }
+
       if (usageCheck.isExceeded) {
         logger.warn(`[${requestId}] Attributed usage gate blocked actor ${actorUserId}.`, {
           currentUsage: snapshot?.currentUsage,
@@ -668,11 +754,12 @@ export async function preprocessExecution(
    * Ban, subscription, and usage checks are read-only and start together. Their
    * completion order must not affect the fixed ban → usage rejection precedence.
    */
-  const [banFailure, actorSubscription, usageResult] = await Promise.all([
+  const [banFailure, subscriptionResult, usageResult] = await Promise.all([
     banCheck,
     subscriptionFetch,
     usageCheckTask,
   ])
+  const actorSubscription = subscriptionResult.subscription
 
   /**
    * Rate limiting consumes a token, so it remains sequential and runs only after
@@ -755,7 +842,7 @@ export async function preprocessExecution(
 
   const usageSnapshot = usageResult.snapshot
 
-  const readGateFailure = banFailure ?? usageResult.failure
+  const readGateFailure = banFailure ?? subscriptionResult.failure ?? usageResult.failure
   if (readGateFailure) {
     if (readGateFailure.recordError && !isFailureLogSuppressed(readGateFailure.response.error)) {
       await recordPreprocessingError(readGateFailure.recordError)

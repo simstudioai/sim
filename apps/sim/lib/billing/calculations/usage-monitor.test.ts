@@ -131,6 +131,26 @@ describe('checkUsageStatus', () => {
     expect(mockGetBillingPeriodUsageCost).not.toHaveBeenCalled()
   })
 
+  it('marks the fail-closed block as indeterminate when usage cannot be read', async () => {
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'pro',
+      status: 'active',
+      seats: 1,
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+    }
+    mockComputeBillingPeriodUsageWithWeeklyRefresh.mockRejectedValueOnce(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+
+    /** Still blocks — failing open would admit unmetered work — but says why. */
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      isExceeded: true,
+      indeterminate: true,
+    })
+  })
+
   it('preserves the paid weekly-refresh clamp for negative effective usage', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')

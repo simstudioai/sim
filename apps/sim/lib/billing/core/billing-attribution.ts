@@ -109,6 +109,8 @@ export interface ResolveWorkspaceBillingPayerOptions {
 
 export interface AttributedUsageLimitsResult {
   isExceeded: boolean
+  /** The block came from an unreadable usage figure, not a real limit. */
+  indeterminate?: boolean
   message?: string
   scope?: 'actor' | 'payer' | 'member'
   payerUsage?: {
@@ -926,6 +928,16 @@ export async function checkAttributedUsageLimits(
   const payerSnapshot = {
     currentUsage: payerUsage.currentUsage,
     limit: payerUsage.limit,
+  }
+
+  if (payerUsage.indeterminate) {
+    return {
+      isExceeded: true,
+      indeterminate: true,
+      message: 'Unable to determine current usage. Please retry.',
+      scope: 'payer',
+      payerUsage: payerSnapshot,
+    }
   }
 
   if (payerUsage.isExceeded) {

@@ -42,6 +42,13 @@ interface UsageData {
   scope: 'user' | 'organization'
   /** Present only when `scope === 'organization'`. */
   organizationId: string | null
+  /**
+   * Set when the gate blocked because usage could not be read at all, rather
+   * than because a real limit was reached. Blocking is deliberate — failing
+   * open would admit unmetered work — but the two are not the same failure and
+   * must not be reported to the caller identically.
+   */
+  indeterminate?: boolean
 }
 
 async function computePooledOrgUsage(
@@ -177,6 +184,7 @@ export async function checkUsageStatus(
       limit: 0,
       scope: 'user',
       organizationId: null,
+      indeterminate: true,
     }
   }
 }

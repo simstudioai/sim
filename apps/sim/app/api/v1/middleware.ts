@@ -11,6 +11,7 @@ import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import {
   CAPABILITY_RULES,
   type StaticPermissionGroupCapability,
@@ -163,7 +164,17 @@ export async function checkRateLimit(
     }
 
     const userId = auth.userId!
-    const subscription = await getHighestPrioritySubscription(userId)
+    /**
+     * `onError: 'throw'` rather than the default `'return-null'`: the plan here
+     * selects the rate-limit tier, and a swallowed read is indistinguishable
+     * from a genuine absence of plan, so a dropped connection would quietly
+     * apply free-tier limits to a paying user. The catch below already fails
+     * closed, which is where the thrown read lands.
+     */
+    const subscription = await withDatabaseReadRetry(
+      () => getHighestPrioritySubscription(userId, { onError: 'throw' }),
+      { label: 'getHighestPrioritySubscription' }
+    )
 
     const result = await rateLimiter.checkRateLimitWithSubscription(
       userId,

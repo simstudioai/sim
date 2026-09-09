@@ -96,6 +96,18 @@ afterAll(() => {
   workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockReset()
 })
 
+function makeLoggingSession() {
+  return {
+    safeStart: vi.fn().mockResolvedValue(true),
+    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+/** Preprocessing only reaches `safeStart`/`safeCompleteWithError`, so the mock stands in for the full session. */
+function asLoggingSession(session: ReturnType<typeof makeLoggingSession>): LoggingSession {
+  return session as unknown as LoggingSession
+}
+
 beforeEach(() => {
   workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue({
     id: 'workflow-1',
@@ -267,18 +279,6 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     checkDeployment: false,
     checkRateLimit: false,
     workspaceId: 'workspace-1',
-  }
-
-  function makeLoggingSession() {
-    return {
-      safeStart: vi.fn().mockResolvedValue(true),
-      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-    }
-  }
-
-  /** Preprocessing only reaches `safeStart`/`safeCompleteWithError`, so the mock stands in for the full session. */
-  function asLoggingSession(session: ReturnType<typeof makeLoggingSession>): LoggingSession {
-    return session as unknown as LoggingSession
   }
 
   it('skips the failure row for a retryable infrastructure failure', async () => {
@@ -596,6 +596,56 @@ describe('preprocessExecution ban gate', () => {
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
     expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('creator-1')
+  })
+
+  it('fails closed when the actor subscription cannot be read', async () => {
+    vi.mocked(getHighestPrioritySubscription).mockRejectedValue(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      loggingSession: asLoggingSession(makeLoggingSession()),
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 500, retryable: true },
+    })
+  })
+
+  it('asks for the subscription in a form that surfaces read failures', async () => {
+    vi.mocked(getHighestPrioritySubscription).mockResolvedValue({ plan: 'team' } as any)
+
+    await preprocessExecution({
+      ...baseOptions,
+      loggingSession: asLoggingSession(makeLoggingSession()),
+    })
+
+    expect(getHighestPrioritySubscription).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ onError: 'throw' })
+    )
+  })
+
+  it('reports an unreadable usage figure as retryable rather than a billing failure', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      indeterminate: true,
+      message: 'Unable to determine current usage. Please retry.',
+      scope: 'payer',
+      payerUsage: { currentUsage: 0, limit: 0 },
+    })
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      loggingSession: asLoggingSession(makeLoggingSession()),
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 503, retryable: true },
+    })
   })
 
   it('fails closed with 500 when the ban check errors', async () => {
