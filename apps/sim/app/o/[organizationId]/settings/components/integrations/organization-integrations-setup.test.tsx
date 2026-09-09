@@ -48,7 +48,13 @@ import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settin
 import { OrganizationIntegrationsSetup } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup'
 
 const providers: OrganizationSearchProviderSummary[] = [
-  { connectorType: 'gmail', approved: true, sourceCount: 0, status: 'waiting_for_connections' },
+  {
+    connectorType: 'gmail',
+    approved: true,
+    sourceCount: 0,
+    status: 'waiting_for_connections',
+    isSyncing: false,
+  },
   { connectorType: 'google_drive', approved: false, sourceCount: 2, status: 'paused' },
 ]
 let root: Root

@@ -7,9 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ requestJson: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
 
-import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connectors'
+import {
+  connectorKeys,
+  searchSourceKeys,
+  useSearchSources,
+  useTriggerSync,
+} from '@/hooks/queries/kb/connectors'
 
 let root: Root
+let container: HTMLDivElement
 let client: QueryClient
 let syncing: boolean
 let progressFails: boolean
@@ -17,7 +23,18 @@ let enabled: boolean
 
 function Probe() {
   const result = useSearchSources('workspace', { enabled })
-  return <div>{result.data?.[0]?.viewerDocumentCount ?? 0}</div>
+  const sync = useTriggerSync()
+  return (
+    <div>
+      <span>{result.data?.[0]?.viewerDocumentCount ?? 0}</span>
+      <button
+        disabled={sync.isPending}
+        onClick={() => sync.mutate({ knowledgeBaseId: 'kb', connectorId: 'source' })}
+      >
+        Sync
+      </button>
+    </div>
+  )
 }
 async function advance(ms: number) {
   await act(async () => {
@@ -25,7 +42,8 @@ async function advance(ms: number) {
   })
 }
 async function mount() {
-  root = createRoot(document.createElement('div'))
+  container = document.createElement('div')
+  root = createRoot(container)
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
@@ -83,6 +101,41 @@ afterEach(() => {
 })
 
 describe('source progress polling', () => {
+  it('starts source progress only after the sync is queued and stops when it completes', async () => {
+    syncing = false
+    const queued = Promise.withResolvers<void>()
+    const original = mocks.requestJson.getMockImplementation()!
+    mocks.requestJson.mockImplementation((contract, input) =>
+      contract.path.endsWith('/sync') ? queued.promise : original(contract, input)
+    )
+    client.setQueryData(connectorKeys.lists('kb'), [
+      { id: 'source', knowledgeBaseId: 'kb', status: 'active' },
+    ])
+    await mount()
+    await act(async () => container.querySelector('button')!.click())
+    await advance(1)
+    expect(container.querySelector('button')?.disabled).toBe(true)
+    expect(client.getQueryData(connectorKeys.lists('kb'))).toMatchObject([{ status: 'pending' }])
+    await advance(3000)
+    expect(calls('/progress')).toHaveLength(0)
+    expect(calls('/sources')).toHaveLength(1)
+    syncing = true
+    await act(async () => queued.resolve())
+    await advance(1)
+    expect(calls('/sources')).toHaveLength(2)
+    expect(calls('/progress').length).toBeGreaterThan(0)
+    expect(container.querySelector('button')?.disabled).toBe(false)
+    syncing = false
+    await advance(3000)
+    await advance(1)
+    expect(
+      client.getQueryData(searchSourceKeys.pages('workspace', { search: '', mine: false }))
+    ).toMatchObject({ pages: [{ sources: [{ isSyncing: false, viewerDocumentCount: 1 }] }] })
+    const total = mocks.requestJson.mock.calls.length
+    await advance(60_000)
+    expect(mocks.requestJson).toHaveBeenCalledTimes(total)
+  })
+
   it('checks progress without recounting every three seconds and slows long waits', async () => {
     await mount()
     for (let i = 0; i < 20; i++) await advance(3000)

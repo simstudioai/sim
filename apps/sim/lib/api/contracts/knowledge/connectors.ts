@@ -422,6 +422,7 @@ export const organizationSearchProviderSummarySchema = z.object({
   approved: z.boolean(),
   sourceCount: z.number().int().nonnegative(),
   status: organizationSearchProviderStatusSchema,
+  isSyncing: z.boolean(),
 })
 export type OrganizationSearchProviderSummary = z.output<
   typeof organizationSearchProviderSummarySchema

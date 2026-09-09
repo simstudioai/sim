@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import {
-  type InfiniteData,
   keepPreviousData,
   type QueryClient,
   useInfiniteQuery,
@@ -521,7 +520,7 @@ export function useOrganizationSearchOverview(
     enabled: Boolean(organizationId) && (options?.enabled ?? true),
     staleTime: CONNECTOR_LIST_STALE_TIME,
     refetchInterval: (query) =>
-      query.state.data?.providers.some((provider) => provider.status === 'indexing')
+      query.state.data?.providers.some((provider) => provider.isSyncing)
         ? SEARCH_SOURCE_SUMMARY_POLL_MS
         : false,
   })
@@ -807,23 +806,7 @@ export function useTriggerSync() {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) }),
         queryClient.cancelQueries({ queryKey: memberConnectorKeys.lists() }),
-        queryClient.cancelQueries({ queryKey: searchSourceKeys.lists() }),
       ])
-      queryClient.setQueriesData<InfiniteData<SearchSourcePage>>(
-        { queryKey: searchSourceKeys.lists(), predicate: (query) => query.queryKey[3] === 'pages' },
-        (data) =>
-          data
-            ? {
-                ...data,
-                pages: data.pages.map((page) => ({
-                  ...page,
-                  sources: page.sources.map((source) =>
-                    source.connectorId === connectorId ? { ...source, isSyncing: true } : source
-                  ),
-                })),
-              }
-            : data
-      )
       return optimisticallyQueueSync(queryClient, knowledgeBaseId, connectorId)
     },
     /**
@@ -831,7 +814,6 @@ export function useTriggerSync() {
      * refused sync does not leave the row spinning.
      */
     onError: (_error, { knowledgeBaseId, connectorId }, previous) => {
-      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       if (previous) {
         setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
@@ -852,6 +834,7 @@ export function useTriggerSync() {
         queryKey: connectorKeys.progresses(knowledgeBaseId, connectorId),
       })
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
   })
 }
 

@@ -196,6 +196,6 @@ Configure one shared Confluence OAuth integration for your deployment. This powe
 2. Under **Authorization → OAuth 2.0 (3LO)**, add `https://<your-sim-domain>/api/auth/oauth2/callback/confluence` to **Callback URLs**, keep existing callbacks used by the deployment, and save.
 3. Under **Permissions**, add the Confluence API and configure the full `confluence` scope list for your release in [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts), including `read:group:confluence`. Also add **User Identity API** with `read:me`. Sim requests `offline_access` for refresh tokens. The service-account read scopes above do not replace the broader shared OAuth scope set.
 4. Enable sharing under **Distribution**. Set `CONFLUENCE_CLIENT_ID` and `CONFLUENCE_CLIENT_SECRET` from the app's **Settings**, verify `NEXT_PUBLIC_APP_URL`, and restart Sim.
-5. Start authorization from Search and select the configured site. Reconnect old accounts after adding scopes so the new permission grant takes effect.
+5. Start authorization from **Integrations** and select the configured site. Reconnect old accounts after adding scopes so the new permission grant takes effect.
 
 A callback mismatch needs a corrected callback URL; a connection that works only for the app owner needs sharing enabled. See Atlassian's [OAuth configuration guide](https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/) and Sim's [deployment reference](/platform/self-hosting/integrations-oauth).

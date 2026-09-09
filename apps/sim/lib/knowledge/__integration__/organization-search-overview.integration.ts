@@ -174,8 +174,20 @@ describe('organization operational overview with real SQL', () => {
     const result = await readOrganizationSearchOverview.execute({ principal, input })
     expect(result.providers).toEqual(
       expect.arrayContaining([
-        { connectorType: 'google_drive', sourceCount: 2, approved: true, status: 'active' },
-        { connectorType: 'gmail', sourceCount: 1, approved: true, status: 'active' },
+        {
+          connectorType: 'google_drive',
+          sourceCount: 2,
+          approved: true,
+          status: 'active',
+          isSyncing: false,
+        },
+        {
+          connectorType: 'gmail',
+          sourceCount: 1,
+          approved: true,
+          status: 'active',
+          isSyncing: false,
+        },
       ])
     )
     expect(result.providers).toHaveLength(2)
@@ -272,6 +284,14 @@ describe('organization operational overview with real SQL', () => {
       .set({ userExcluded: false, processingStatus: 'processing' })
       .where(eq(document.id, documentId))
     expect(await provider('google_drive')).toMatchObject({ status: 'indexing' })
+    await db
+      .update(knowledgeConnector)
+      .set({ lastSyncError: 'previous sync failed' })
+      .where(eq(knowledgeConnector.id, driveId))
+    expect(await provider('google_drive')).toMatchObject({
+      status: 'needs_attention',
+      isSyncing: true,
+    })
   })
   it('surfaces retained source errors and stale member permissions, while pause and deactivation take precedence', async () => {
     await db
@@ -295,7 +315,11 @@ describe('organization operational overview with real SQL', () => {
     await db
       .insert(organizationSearchIntegration)
       .values({ organizationId: ids.organizationId, connectorType: 'gmail', approved: false })
-    expect(await provider('gmail')).toMatchObject({ approved: false, status: 'paused' })
+    expect(await provider('gmail')).toMatchObject({
+      approved: false,
+      status: 'paused',
+      isSyncing: false,
+    })
   })
   it('requires a current organization admin even for a workspace administrator', async () => {
     await expect(

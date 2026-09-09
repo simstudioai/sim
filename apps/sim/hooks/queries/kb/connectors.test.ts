@@ -211,6 +211,7 @@ describe('useTriggerSync optimistic state', () => {
   function capturedMutationOptions() {
     return mocks.useMutation.mock.calls.at(-1)?.[0] as {
       onMutate: (vars: { knowledgeBaseId: string; connectorId: string }) => Promise<unknown>
+      onSettled: () => Promise<unknown>
       onSuccess: (data: undefined, vars: { knowledgeBaseId: string; connectorId: string }) => void
       onError: (
         error: unknown,
@@ -294,37 +295,10 @@ describe('useTriggerSync optimistic state', () => {
     expect(rolledBack?.find((c) => c.id === 'connector-2')?.status).toBe('pending')
   })
 
-  /**
-   * The Search surface reads the member sync status from the workspace
-   * member-connector list, which has no poll of its own, so a members-mode
-   * trigger patches that cache too and a refused trigger refetches it.
-   */
-  it('patches all loaded source pages without changing cursors or overview cache data', async () => {
-    mocks.getQueryData.mockReturnValue([makeConnector({ status: 'active' })])
+  it('reconciles server source summaries after either sync outcome', async () => {
     useTriggerSync()
-    await capturedMutationOptions().onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
-    const [filter, patch] = mocks.setQueriesData.mock.calls.find(
-      ([filter]) => filter.queryKey[0] === 'search-sources'
-    )!
-    const overviewKey = searchSourceKeys.overview('workspace-a')
-    const pagesKey = searchSourceKeys.pages('workspace-a', { search: '', mine: false })
-    expect(filter.predicate({ queryKey: overviewKey })).toBe(false)
-    expect(filter.predicate({ queryKey: pagesKey })).toBe(true)
-    const cached = {
-      pageParams: [null, 'cursor'],
-      pages: [
-        { sources: [{ connectorId: 'other', isSyncing: false }], nextCursor: 'cursor' },
-        { sources: [{ connectorId: 'connector-1', isSyncing: false }], nextCursor: null },
-      ],
-    }
-    expect(patch(cached)).toEqual({
-      ...cached,
-      pages: [
-        cached.pages[0],
-        { ...cached.pages[1], sources: [{ connectorId: 'connector-1', isSyncing: true }] },
-      ],
-    })
-    expect(patch(undefined)).toBeUndefined()
+    await capturedMutationOptions().onSettled()
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: searchSourceKeys.lists() })
   })
 
   it('queues a members connector in the workspace member-connector list as well', async () => {

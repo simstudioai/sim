@@ -244,22 +244,24 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
         const state = healthByType.get(connectorType)
         if (!state && !approvals.has(connectorType)) return []
         const approved = approvals.get(connectorType) ?? Boolean(state?.sourceCount)
+        const status = organizationSearchProviderStatus(
+          state,
+          approved,
+          meta.mirrorsSourceAcls === true,
+          Boolean(
+            (meta.permissionScopedListing && availability.memberScoped) ||
+              (meta.mirrorsSourceAcls &&
+                availability.sourceMirrored &&
+                (!meta.requiresMemberIdentity || availability.memberScoped))
+          )
+        )
         return [
           {
             connectorType,
             approved,
             sourceCount: state?.sourceCount ?? 0,
-            status: organizationSearchProviderStatus(
-              state,
-              approved,
-              meta.mirrorsSourceAcls === true,
-              Boolean(
-                (meta.permissionScopedListing && availability.memberScoped) ||
-                  (meta.mirrorsSourceAcls &&
-                    availability.sourceMirrored &&
-                    (!meta.requiresMemberIdentity || availability.memberScoped))
-              )
-            ),
+            status,
+            isSyncing: status !== 'paused' && Boolean(state?.hasIndexing),
           },
         ]
       }),

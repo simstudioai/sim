@@ -266,6 +266,7 @@ describe('organization administration overview boundary', () => {
       sourceCount: 1,
       approved: true,
       status: 'waiting_for_connections',
+      isSyncing: false,
     }
     mocks.adminOverview.mockResolvedValue({
       providers: [{ ...provider, privateAccount: 'private' }],

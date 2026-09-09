@@ -294,24 +294,13 @@ export function useConnectorSettingsForm({
     [connector.sourceConfig]
   )
 
-  const hasChanges = useMemo(() => {
-    if (syncInterval !== connector.syncIntervalMinutes) return true
-    if (didCanonicalModesChange(canonicalModes, persistedCanonicalModes)) return true
-    const resolved = resolveSourceConfig()
-    for (const [key, value] of Object.entries(resolved)) {
-      if (hiddenCapFieldIds.has(key)) continue
-      if (!valuesEqual(connector.sourceConfig[key], value)) return true
-    }
-    return false
-  }, [
-    resolveSourceConfig,
-    syncInterval,
-    connector.syncIntervalMinutes,
-    connector.sourceConfig,
-    canonicalModes,
-    persistedCanonicalModes,
-    hiddenCapFieldIds,
-  ])
+  const hasChanges =
+    syncInterval !== connector.syncIntervalMinutes ||
+    didCanonicalModesChange(canonicalModes, persistedCanonicalModes) ||
+    Object.entries(resolveSourceConfig()).some(
+      ([key, value]) =>
+        !hiddenCapFieldIds.has(key) && !valuesEqual(connector.sourceConfig[key], value)
+    )
 
   const handleSave = useCallback(() => {
     if (!searchSettingsAllowed || !settingsComplete || accessDirty) return

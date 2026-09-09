@@ -54,7 +54,13 @@ beforeEach(() => {
       ? {
           data: {
             providers: [
-              { connectorType: 'gmail', sourceCount: 3, approved: true, status: 'active' },
+              {
+                connectorType: 'gmail',
+                sourceCount: 3,
+                approved: true,
+                status: 'active',
+                isSyncing: false,
+              },
             ],
           },
         }
@@ -109,13 +115,15 @@ describe('organization Search queries', () => {
   })
 
   it.each([
-    { status: 'waiting_for_connections', requests: 1 },
-    { status: 'indexing', requests: 2 },
-  ])('polls only pending work when status is $status', async ({ status, requests }) => {
+    { status: 'waiting_for_connections', isSyncing: false, requests: 1 },
+    { status: 'indexing', isSyncing: true, requests: 2 },
+    { status: 'needs_attention', isSyncing: true, requests: 2 },
+    { status: 'needs_attention', isSyncing: false, requests: 1 },
+  ])('polls only pending work when status is $status', async ({ status, isSyncing, requests }) => {
     enabled = true
     mocks.requestJson.mockResolvedValue({
       data: {
-        providers: [{ connectorType: 'gmail', sourceCount: 1, approved: true, status }],
+        providers: [{ connectorType: 'gmail', sourceCount: 1, approved: true, status, isSyncing }],
       },
     })
     await render('overview')

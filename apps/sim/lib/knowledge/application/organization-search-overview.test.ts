@@ -49,6 +49,22 @@ beforeEach(() => {
 })
 
 describe('organization Search administration overview', () => {
+  it('keeps recovery observable while a previous error remains visible', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(knowledgeConnector, [{ ...health, hasError: true, hasIndexing: true }])
+    const result = await readOrganizationSearchOverview.execute({ principal, input })
+    expect(result.providers).toEqual([
+      {
+        connectorType: 'google_drive',
+        sourceCount: 4,
+        approved: true,
+        status: 'needs_attention',
+        isSyncing: true,
+      },
+    ])
+    expect(organizationSearchOverviewSchema.parse(result)).toEqual(result)
+  })
+
   it.each(['admin', 'owner'])(
     'allows a current %s and returns only operational facts',
     async (role) => {
@@ -63,14 +79,27 @@ describe('organization Search administration overview', () => {
       const result = await readOrganizationSearchOverview.execute({ principal, input })
       expect(result).toEqual({
         providers: [
-          { connectorType: 'google_drive', sourceCount: 4, approved: true, status: 'active' },
+          {
+            connectorType: 'google_drive',
+            sourceCount: 4,
+            approved: true,
+            status: 'active',
+            isSyncing: false,
+          },
           {
             connectorType: 'gmail',
             sourceCount: 0,
             approved: true,
             status: 'waiting_for_connections',
+            isSyncing: false,
           },
-          { connectorType: 'github', sourceCount: 0, approved: false, status: 'paused' },
+          {
+            connectorType: 'github',
+            sourceCount: 0,
+            approved: false,
+            status: 'paused',
+            isSyncing: false,
+          },
         ],
       })
       expect(organizationSearchOverviewSchema.parse(result)).toEqual(result)
@@ -115,7 +144,13 @@ describe('organization Search administration overview', () => {
     ])
     const result = await readOrganizationSearchOverview.execute({ principal, input })
     expect(result.providers).toEqual([
-      { connectorType: 'google_drive', sourceCount: 4, approved: false, status: 'paused' },
+      {
+        connectorType: 'google_drive',
+        sourceCount: 4,
+        approved: false,
+        status: 'paused',
+        isSyncing: false,
+      },
     ])
   })
   it('does not mistake infrastructure failure for an empty integration list', async () => {
@@ -141,8 +176,20 @@ describe('organization Search administration overview', () => {
     const result = await readOrganizationSearchOverview.execute({ principal, input })
     expect(mocks.availability).toHaveBeenCalledWith(input)
     expect(result.providers).toEqual([
-      { connectorType: 'google_drive', sourceCount: 4, approved: true, status: 'paused' },
-      { connectorType: 'gmail', sourceCount: 0, approved: true, status: 'paused' },
+      {
+        connectorType: 'google_drive',
+        sourceCount: 4,
+        approved: true,
+        status: 'paused',
+        isSyncing: false,
+      },
+      {
+        connectorType: 'gmail',
+        sourceCount: 0,
+        approved: true,
+        status: 'paused',
+        isSyncing: false,
+      },
     ])
   })
 })
