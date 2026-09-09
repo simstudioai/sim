@@ -302,9 +302,7 @@ export function buildAuthorMetadata(
       url: canonical,
       siteName: 'Sim',
       type: 'profile',
-      ...(author?.avatarUrl
-        ? { images: [{ url: author.avatarUrl, width: 400, height: 400, alt: name }] }
-        : {}),
+      ...(author?.avatarUrl ? { images: [{ url: author.avatarUrl, alt: name }] } : {}),
     },
     twitter: {
       card: 'summary',

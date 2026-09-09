@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ContentMeta } from '@/lib/content/schema'
 import {
   buildArticleJsonLd,
+  buildAuthorMetadata,
   buildCollectionPageJsonLd,
   buildIndexMetadata,
   buildPostMetadata,
@@ -113,4 +114,16 @@ describe('content social images', () => {
       format: 'png',
     })
   })
+
+  it.each([teamAuthor.avatarUrl, 'https://example.com/avatar.jpg'])(
+    'keeps the author avatar without inventing dimensions for %s',
+    (avatarUrl) => {
+      const metadata = buildAuthorMetadata(SECTIONS[0], teamAuthor.id, {
+        ...teamAuthor,
+        avatarUrl,
+      })
+
+      expect(metadata.openGraph?.images).toEqual([{ url: avatarUrl, alt: teamAuthor.name }])
+    }
+  )
 })
