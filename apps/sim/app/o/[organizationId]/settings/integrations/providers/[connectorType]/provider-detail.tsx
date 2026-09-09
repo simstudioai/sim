@@ -125,9 +125,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   )
   const needsSlackSetup =
     connectorType === 'slack' &&
-    (option?.provider !== 'slack' ||
-      !option.slackBotCredentialId ||
-      option.configurationStatus !== 'ready')
+    (option?.provider !== 'slack' || option.configurationStatus !== 'ready')
   const pending =
     overview.isPending ||
     overview.isError ||

@@ -36,7 +36,7 @@ describe('organization settings authorization', () => {
   })
   afterEach(resetEnvFlagsMock)
 
-  it.each(['connected-accounts', 'search-mcp', 'integrations'] as const)(
+  it.each(['connected-accounts', 'search-mcp', 'search-slack', 'integrations'] as const)(
     'gates direct %s settings links using the target org',
     async (section) => {
       const gate = section === 'connected-accounts' ? mocks.groups : mocks.search

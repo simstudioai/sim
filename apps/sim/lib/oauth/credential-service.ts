@@ -48,6 +48,10 @@ import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
+import {
+  loadSlackAppConfiguration,
+  slackBotCredentialVersion,
+} from '@/lib/slack-search/app-configuration'
 
 const logger = createLogger('OAuthCredentialService')
 
@@ -297,6 +301,7 @@ export async function getServiceAccountToken(
 }
 
 export interface SlackBotCredentialSecrets {
+  credentialVersion: string
   /** Required only when the bot receives Slack events; action-only bots may omit it. */
   signingSecret?: string
   botToken: string
@@ -329,6 +334,7 @@ export async function getSlackBotCredential(
       providerId: credential.providerId,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
       workspaceId: credential.workspaceId,
+      slackAppId: credential.slackAppId,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
@@ -348,10 +354,16 @@ export async function getSlackBotCredential(
   if (!blob.botToken) {
     return null
   }
+  const appConfiguration = row.slackAppId ? await loadSlackAppConfiguration(row.slackAppId) : null
+  if (row.slackAppId && !appConfiguration)
+    throw new Error('Slack credential references a missing app configuration')
+  const signingSecret = appConfiguration ? appConfiguration.signingSecret : blob.signingSecret
   return {
-    ...(typeof blob.signingSecret === 'string' && blob.signingSecret
-      ? { signingSecret: blob.signingSecret }
-      : {}),
+    credentialVersion: slackBotCredentialVersion(
+      row.encryptedServiceAccountKey,
+      appConfiguration?.app.revision
+    ),
+    ...(typeof signingSecret === 'string' && signingSecret ? { signingSecret } : {}),
     botToken: blob.botToken,
     ...(typeof blob.teamId === 'string' && blob.teamId ? { teamId: blob.teamId } : {}),
     ...(typeof blob.botUserId === 'string' && blob.botUserId ? { botUserId: blob.botUserId } : {}),

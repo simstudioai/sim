@@ -80,7 +80,15 @@ describe('Slack managed-user authorization', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
       .mockResolvedValueOnce([
-        { id: 'bot-1', updatedAt: new Date(2), encryptedServiceAccountKey: 'encrypted-bot' },
+        {
+          app: {
+            id: 'A123',
+            clientId: 'client-1',
+            encryptedClientSecret: `encrypted:${Buffer.from('private-client-secret').toString('base64')}`,
+            revision: 'app-revision',
+          },
+          teamId: 'T123',
+        },
       ])
     vi.stubGlobal(
       'fetch',
@@ -97,11 +105,17 @@ describe('Slack managed-user authorization', () => {
       credentialGroupId: 'group-1',
       appId: 'A123',
       teamId: 'T123',
-      clientId: 'client-1',
-      clientSecret: 'private-client-secret',
     })
     const loaded = await loadSlackManagedUsersAttempt(created.state)
-    expect(loaded).toMatchObject({ organizationId: 'org-1', userId: 'user-1' })
+    expect(loaded).toMatchObject({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      clientId: 'client-1',
+      appRevision: 'app-revision',
+    })
+    expect(loaded?.requiredScopes).toEqual(
+      expect.arrayContaining(['users:read.email', 'im:history', 'mpim:history'])
+    )
     expect(loaded).not.toHaveProperty('workspaceId')
     expect(loaded).not.toHaveProperty('slackBotCredentialId')
     expect(fetch).not.toHaveBeenCalled()

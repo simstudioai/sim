@@ -92,11 +92,16 @@ export async function authorizeOrganizationOperation(
     if (
       principal.organizationId !== context.organizationId ||
       principal.audience !== operation.delegationAudience ||
+      !operation.delegatedServices?.includes(principal.serviceId) ||
       !Number.isFinite(principal.issuedAt.getTime()) ||
       !Number.isFinite(principal.expiresAt.getTime()) ||
       principal.issuedAt.getTime() > now ||
       principal.expiresAt.getTime() <= now ||
-      !principal.resourceScope.chatId
+      (principal.serviceId === 'slack-search' &&
+        principal.expiresAt.getTime() - principal.issuedAt.getTime() > 60_000) ||
+      (principal.serviceId === 'copilot'
+        ? !principal.resourceScope.chatId
+        : !principal.resourceScope.installationId || !principal.resourceScope.eventId)
     ) {
       throw new OrchestrationError('forbidden', 'Organization delegation is no longer valid')
     }

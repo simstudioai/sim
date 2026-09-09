@@ -64,7 +64,7 @@ describe('organization settings navigation', () => {
         },
         available
       ).map(({ id }) => id)
-    ).toEqual(['members', 'sso', 'integrations', 'search-mcp'])
+    ).toEqual(['members', 'sso', 'integrations', 'search-mcp', 'search-slack'])
   })
 
   it('normalizes old section names and does not expose unsupported routes', () => {
@@ -96,6 +96,7 @@ describe('organization settings navigation', () => {
       'governance:data-drains',
       'sim-search:integrations',
       'sim-search:search-mcp',
+      'sim-search:search-slack',
     ])
   })
 

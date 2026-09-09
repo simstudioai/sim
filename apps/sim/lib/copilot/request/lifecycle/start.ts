@@ -525,8 +525,7 @@ function fireTitleGeneration(params: {
     })
 }
 
-// Chat title helper
-
+/** Requests a title through the shared Assistant backend and its attributed billing protocol. */
 export async function requestChatTitle(params: {
   chatId?: string
   message: string
@@ -537,6 +536,7 @@ export async function requestChatTitle(params: {
   organizationId?: string
   billingAttribution?: BillingAttributionSnapshot
   otelContext?: Context
+  signal?: AbortSignal
 }): Promise<string | null> {
   const {
     chatId,
@@ -548,6 +548,7 @@ export async function requestChatTitle(params: {
     organizationId,
     billingAttribution,
     otelContext,
+    signal,
   } = params
   if (!message || !model) return null
 
@@ -588,6 +589,7 @@ export async function requestChatTitle(params: {
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
     const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',
+      signal,
       headers,
       body: JSON.stringify({
         message,

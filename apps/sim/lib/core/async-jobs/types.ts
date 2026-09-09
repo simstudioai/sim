@@ -37,6 +37,7 @@ export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = [
 ]
 
 export type JobType =
+  | 'slack-search'
   | 'workflow-execution'
   | 'schedule-execution'
   | 'webhook-execution'

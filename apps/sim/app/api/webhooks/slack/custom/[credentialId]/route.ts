@@ -2,12 +2,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { dispatchSlackSearch } from '@/lib/slack-search/dispatcher'
 import { parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge } from '@/lib/webhooks/providers/slack'
 import {
+  authenticateSlackCustomBotRequest,
   dispatchSlackCustomBotCredential,
   handleSlackAgentSessionStopped,
-  verifySlackCustomBotCredentialRequest,
 } from '@/lib/webhooks/slack-custom-ingress'
 import { getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
 
@@ -59,14 +60,14 @@ async function handleSlackCustomBotWebhook(
     return challenge
   }
 
-  const authError = await verifySlackCustomBotCredentialRequest({
+  const authentication = await authenticateSlackCustomBotRequest({
     credentialId,
     request,
     rawBody,
     requestId,
   })
-  if (authError) {
-    return authError
+  if (authentication instanceof Response) {
+    return authentication
   }
 
   const [, dispatchResults] = await Promise.all([
@@ -76,6 +77,12 @@ async function handleSlackCustomBotWebhook(
       body,
       request,
       requestId,
+      receivedAt,
+    }),
+    dispatchSlackSearch({
+      credentialId,
+      credentialVersion: authentication.credentialVersion,
+      body,
       receivedAt,
     }),
   ])

@@ -46,6 +46,16 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
 }))
+vi.mock('@/lib/credential-groups/provider-configuration', () => ({
+  listSlackCredentialGroupConfigurationsForBot: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
+  verifySlackCustomBotAppIdentity: vi.fn(),
+  SlackManagedUsersError: class extends Error {},
+}))
+vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
+  findSlackSearchInstallation: vi.fn().mockResolvedValue(null),
+}))
 vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mockDecryptSecret }))
 vi.mock('@/lib/credentials/service-account-secret', () => ({
   verifyAndBuildServiceAccountSecret: mockVerifyAndBuildServiceAccountSecret,

@@ -1,16 +1,8 @@
-import { isRecordLike } from '@sim/utils/object'
+import {
+  collectRetrievalCitationEvidence,
+  parseCitationRecord as parseRecord,
+} from '@/lib/copilot/chat/citation-evidence'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
-
-function parseRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value === 'string') {
-    try {
-      return parseRecord(JSON.parse(value))
-    } catch {
-      return null
-    }
-  }
-  return isRecordLike(value) ? value : null
-}
 
 /** Source cards use metadata from successful retrieval, never model-authored IDs or URLs. */
 export function resolveMessageCitations(
@@ -18,52 +10,7 @@ export function resolveMessageCitations(
   fallbackContent: string,
   requireEvidence = false
 ) {
-  const evidence = new Map<string, Record<string, unknown>>()
-  for (const block of blocks) {
-    const call = block.toolCall
-    if (
-      !call ||
-      !['search_workspace', 'read_document'].includes(call.name) ||
-      call.status !== 'success' ||
-      !call.result?.success
-    )
-      continue
-    const output = parseRecord(call.result.output)
-    if (!output || output.success === false) continue
-    const data = parseRecord(output.data) ?? output
-    const results = Array.isArray(data.results) ? data.results : [data]
-    for (const raw of results) {
-      const result = parseRecord(raw)
-      if (
-        !result ||
-        typeof result.citationId !== 'string' ||
-        typeof result.citationUrl !== 'string'
-      )
-        continue
-      try {
-        const url = new URL(result.citationUrl)
-        if (url.protocol !== 'https:' && url.protocol !== 'http:') continue
-      } catch {
-        continue
-      }
-      if (evidence.has(result.citationId)) continue
-      evidence.set(result.citationId, {
-        url: result.citationUrl,
-        ...(typeof result.documentName === 'string' ? { title: result.documentName } : {}),
-        ...(typeof result.knowledgeBaseName === 'string'
-          ? { siteName: result.knowledgeBaseName }
-          : {}),
-        ...(typeof result.connectorType === 'string'
-          ? { connectorType: result.connectorType }
-          : {}),
-        ...(typeof result.author === 'string' ? { author: result.author } : {}),
-        ...(typeof result.sourceModifiedAt === 'string'
-          ? { updatedAt: result.sourceModifiedAt }
-          : {}),
-        ...(typeof result.content === 'string' ? { snippet: result.content.slice(0, 500) } : {}),
-      })
-    }
-  }
+  const evidence = collectRetrievalCitationEvidence(blocks)
   function resolve(text: string) {
     return text.replace(/<source>\s*([\s\S]*?)\s*<\/source>/g, (tag, json: string) => {
       const source = parseRecord(json)

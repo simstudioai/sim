@@ -105,7 +105,7 @@ export interface SearchKnowledgeInput {
   /** Trusted execution provenance sink; never sourced from an HTTP or model payload. */
   resultSecretRegistry?: ResolvedSecretTraceRegistry
   /** Trusted adapter identity for telemetry; never accepted from a model or HTTP body. */
-  surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api'
+  surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api' | 'slack'
   /** Cancellation from the trusted transport or executor, never a serialized request field. */
   signal?: AbortSignal
 }
@@ -688,7 +688,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       workspaceId: context.workspaceId,
       actorUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
       principalKind: principal.kind,
-      delegatedServiceId: principal.kind === 'delegated' ? principal.serviceId : undefined,
+      delegatedServiceId:
+        principal.kind === 'delegated' || principal.kind === 'organization_delegated'
+          ? principal.serviceId
+          : undefined,
       accessScopeKind: result.accessScopeKind,
       surface: input.surface,
     })

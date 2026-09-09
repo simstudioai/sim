@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
   refetchAvailability: vi.fn(),
 }))
 
+vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
+  SlackSearchActions: ({ token }: { token: string }) => <button type='button'>{token}</button>,
+}))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
 }))
@@ -164,6 +167,22 @@ describe('organization integrations role and source paths', () => {
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
   })
 
+  it('keeps Slack return actions alongside the standard account and source actions', async () => {
+    mocks.context.mockReturnValue({
+      organization: { id: scope.organizationId },
+      viewer: { isAdmin: true },
+      searchAccess: { memberScoped: true, sourceMirrored: true },
+    })
+    await act(async () =>
+      root.render(
+        <OrganizationIntegrations slackOnboarding={{ token: 'slack-return', userId: 'member' }} />
+      )
+    )
+    expect(document.body.textContent).toContain('Your accounts')
+    expect(document.body.textContent).toContain('Manage sources')
+    expect(buttons('slack-return')).toHaveLength(1)
+  })
+
   it('debounces server search while applying the selected tab immediately', async () => {
     vi.useFakeTimers()
     await render()
@@ -300,6 +319,26 @@ describe('organization integrations role and source paths', () => {
     expect(buttons('Connect account')).toHaveLength(0)
     expect(document.body.textContent).toContain('An admin needs to finish source setup')
   })
+  it('takes admins directly to unfinished Slack indexing setup', async () => {
+    mocks.context.mockReturnValue({
+      organization: { id: scope.organizationId },
+      viewer: { isAdmin: true },
+      searchAccess: { memberScoped: true, sourceMirrored: true },
+    })
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'slack', approved: true }],
+      isPending: false,
+    })
+    await render()
+    expect(
+      document.querySelector('a[href="/o/organization-a/settings/integrations/providers/slack"]')
+    ).toHaveTextContent('Finish Slack setup')
+    expect(document.body.textContent).not.toContain('An admin needs to finish source setup')
+    expect(buttons('Connect account')).toHaveLength(0)
+  })
+
   it('keeps personal rows consistent for admins and directs management through Sources', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },

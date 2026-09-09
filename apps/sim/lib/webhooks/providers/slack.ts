@@ -531,7 +531,14 @@ export function handleSlackChallenge(body: unknown): NextResponse | null {
     return null
   }
 
-  if (body.type === 'url_verification' && body.challenge) {
+  if (body.type === 'url_verification') {
+    if (
+      typeof body.challenge !== 'string' ||
+      !body.challenge.length ||
+      body.challenge.length > 4096 ||
+      Object.keys(body).some((key) => !['type', 'challenge', 'token'].includes(key))
+    )
+      return new NextResponse('Invalid Slack URL verification', { status: 400 })
     return NextResponse.json({ challenge: body.challenge })
   }
 
