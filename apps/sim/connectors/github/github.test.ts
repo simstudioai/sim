@@ -49,6 +49,40 @@ describe('githubConnector member listing', () => {
     expect(hydrated?.contentHash).toBe(listing.documents[0]?.contentHash)
   })
 
+  it.each(['master', 'develop'])(
+    'uses the actual %s default for an installation content pass with a blank branch',
+    async (defaultBranch) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify({ default_branch: defaultBranch })))
+        .mockResolvedValueOnce(treeResponse([treeFile('readme.md', 'sha')]))
+        .mockResolvedValueOnce(new Response('text'))
+      vi.stubGlobal('fetch', fetchMock)
+      const context = {}
+      const config = { repository: 'owner/repo', githubRepositoryId: '101', branch: '  ' }
+      const listing = await githubConnector.listDocuments(
+        'installation-token',
+        config,
+        undefined,
+        context
+      )
+      const hydrated = await githubConnector.getDocument(
+        'installation-token',
+        config,
+        'readme.md',
+        context
+      )
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://api.github.com/repos/owner/repo',
+        `https://api.github.com/repos/owner/repo/git/trees/${defaultBranch}?recursive=1`,
+        'https://api.github.com/repos/owner/repo/git/blobs/sha',
+      ])
+      expect(listing.documents[0]?.metadata?.branch).toBe(defaultBranch)
+      expect(hydrated?.metadata?.branch).toBe(defaultBranch)
+      expect(hydrated?.contentHash).toBe(listing.documents[0]?.contentHash)
+    }
+  )
+
   it('preserves the default main branch for existing general KB sources', async () => {
     const fetchMock = vi.fn().mockResolvedValue(treeResponse([]))
     vi.stubGlobal('fetch', fetchMock)
@@ -66,6 +100,20 @@ describe('githubConnector member listing', () => {
       { repository: 'owner/repo', branch: 'release/docs' },
       undefined,
       { ...PER_MEMBER_LISTING_CONTEXT }
+    )
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://api.github.com/repos/owner/repo/git/trees/release%2Fdocs?recursive=1'
+    )
+  })
+
+  it('uses an explicitly configured installation branch without a repository metadata lookup', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(treeResponse([]))
+    vi.stubGlobal('fetch', fetchMock)
+    await githubConnector.listDocuments(
+      'installation-token',
+      { repository: 'owner/repo', githubRepositoryId: '101', branch: 'release/docs' },
+      undefined,
+      {}
     )
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       'https://api.github.com/repos/owner/repo/git/trees/release%2Fdocs?recursive=1'

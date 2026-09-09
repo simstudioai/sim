@@ -430,7 +430,7 @@ describe('organization setup entry points', () => {
     expect(mocks.replace).not.toHaveBeenCalled()
     expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
     expect(document.body.textContent).not.toContain('Sync using')
-    expect(document.body.textContent).not.toContain('Sync documents with')
+    expect(document.body.textContent).toContain('Sync documents with')
     expect(button('Add source')).toBeEnabled()
     await click(button('Add source'))
     expect(mocks.create).toHaveBeenCalledWith(

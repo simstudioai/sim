@@ -9,6 +9,8 @@ import {
   getIntegrationAvailability,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
+import { getGitHubInstallationConfiguration } from '@/lib/oauth/github-installation'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 import { getBlock } from '@/blocks/registry'
@@ -115,6 +117,14 @@ export function createIntegrationCredentialVisibility({
     providerId: string,
     owners: readonly OAuthServiceMetadata[]
   ): boolean => {
+    if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+      return (
+        getGitHubInstallationConfiguration().configured &&
+        owners.some(
+          (service) => isServiceAllowed(service) && visibleAvailability(service).length > 0
+        )
+      )
+    }
     const gatingBlockType = getServiceAccountGatingBlockType(providerId)
     if (gatingBlockType) {
       const gatingBlock = getBlock(gatingBlockType)

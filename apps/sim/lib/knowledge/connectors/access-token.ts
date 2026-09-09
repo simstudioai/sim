@@ -101,12 +101,26 @@ export async function resolveConnectorAccessToken(params: {
   }
 
   const subject = connectorServiceAccountSubject(auth, params.sourceConfig)
+  const githubRepositoryScope =
+    auth.mode === 'oauth' && auth.provider === 'github-repositories'
+      ? {
+          repositoryId:
+            typeof params.sourceConfig.githubRepositoryId === 'string'
+              ? params.sourceConfig.githubRepositoryId
+              : undefined,
+          repository:
+            typeof params.sourceConfig.repository === 'string'
+              ? params.sourceConfig.repository
+              : undefined,
+        }
+      : undefined
   const bundle = await resolveCredentialTokenBundle(
     connector.credentialId,
     userId,
     requestId,
     connectorServiceAccountScopes(auth),
-    subject
+    subject,
+    ...(githubRepositoryScope ? [{ githubRepositoryScope }] : [])
   )
   if (!bundle?.accessToken) return null
 
