@@ -7,12 +7,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getKnowledgeDocument: vi.fn(),
   processDocumentsWithQueue: vi.fn(),
+  processDocumentAsync: vi.fn(),
   reclaimStaleDocumentProcessingClaim: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   getKnowledgeDocument: mocks.getKnowledgeDocument,
   processDocumentsWithQueue: mocks.processDocumentsWithQueue,
+  processDocumentAsync: mocks.processDocumentAsync,
+  isTriggerAvailable: () => false,
 }))
 
 vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
@@ -24,6 +27,7 @@ import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -83,6 +87,33 @@ describe('knowledge document processing outbox handler', () => {
       failedDocumentIds: [],
     })
     mocks.reclaimStaleDocumentProcessingClaim.mockResolvedValue(false)
+  })
+
+  it('transfers a recovery admission only on its first delivery', async () => {
+    const recover =
+      knowledgeDocumentProcessingOutboxHandlers[KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT]
+    const payload = {
+      ...PAYLOAD,
+      billingScope: 'workspace',
+      actorUserId: BILLING_ATTRIBUTION.actorUserId,
+      workspaceId: BILLING_ATTRIBUTION.workspaceId,
+      requestId: 'recovery-generation',
+      processingQueueToken: 'recovery-generation',
+      processingQueuedAt: new Date().toISOString(),
+      chargedAtDispatch: true,
+      docData: {
+        filename: DOCUMENT.filename,
+        fileUrl: DOCUMENT.fileUrl,
+        fileSize: DOCUMENT.fileSize,
+        mimeType: DOCUMENT.mimeType,
+      },
+    }
+    mocks.processDocumentAsync.mockRejectedValueOnce(new Error('Synthetic connection loss'))
+    await expect(recover(payload, createContext())).rejects.toThrow('Synthetic connection loss')
+    expect(mocks.processDocumentAsync.mock.calls[0][6].chargedAtDispatch).toBe(true)
+    mocks.processDocumentAsync.mockResolvedValueOnce(undefined)
+    await recover(payload, { ...createContext(), attempts: 1 })
+    expect(mocks.processDocumentAsync.mock.calls[1][6].chargedAtDispatch).toBe(false)
   })
 
   it('gives initial in-process indexing the same lease-bound window as a continuation', async () => {

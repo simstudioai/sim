@@ -29,6 +29,7 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   DIRECTORY_ERROR_PREFIX,
   refreshMirroredDirectory,
@@ -41,6 +42,10 @@ import {
   unansweredByListing,
 } from '@/lib/knowledge/connectors/mirrored-acls'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  deferConnectorSync,
+  getConnectorSyncDeferral,
+} from '@/lib/knowledge/connectors/sync-deferral'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -1062,6 +1067,7 @@ export async function executeSync(
         return credentialToken.accessToken
       },
       hydration: {
+        concurrency: connectorConfig.contentConcurrency,
         beforeHydration: refreshOAuthToken,
         getDocument: (externalId) =>
           connectorConfig.getDocument(
@@ -1227,11 +1233,44 @@ export async function executeSync(
       return result
     }
 
-    const errorMessage = toError(error).message
+    if (getConnectorSyncDeferral(error)) {
+      try {
+        result.deferred = await deferConnectorSync({
+          connectorId,
+          knowledgeBaseId: connector.knowledgeBaseId,
+          runId: syncLogId,
+          lease,
+          kind: 'content',
+          result,
+          error,
+        })
+        result.listingIncomplete = true
+        logger.info('Connector source sync deferred', {
+          connectorId,
+          ...result.deferred,
+          docsAdvanced:
+            result.docsAdded + result.docsUpdated + result.docsUnchanged + result.docsSkipped,
+        })
+        return result
+      } catch (persistenceError) {
+        logger.error('Failed to persist connector source deferral', {
+          connectorId,
+          error:
+            getConnectorFailureDiagnostic(persistenceError)?.message ??
+            toError(persistenceError).message,
+        })
+        result.error = 'Could not persist the connector retry after provider deferral'
+        return result
+      }
+    }
+
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    const errorMessage = diagnostic?.message ?? toError(error).message
     const retryAfterMs = getRetryAfterMs(error)
     const rateLimited = isRateLimitError(error)
     logger.error('Sync failed', {
       connectorId,
+      diagnostic,
       error: errorMessage,
       ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     })
@@ -1284,7 +1323,8 @@ export async function executeSync(
     } catch (recoveryError) {
       logger.error('Failed to record sync failure', {
         connectorId,
-        error: toError(recoveryError).message,
+        error:
+          getConnectorFailureDiagnostic(recoveryError)?.message ?? toError(recoveryError).message,
       })
     }
 

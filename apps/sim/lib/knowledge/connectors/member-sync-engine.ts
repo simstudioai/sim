@@ -38,6 +38,7 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
@@ -60,6 +61,10 @@ import {
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  deferConnectorSync,
+  getConnectorSyncDeferral,
+} from '@/lib/knowledge/connectors/sync-deferral'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -96,7 +101,7 @@ import {
   runChangeFeedPass,
   sweepStuckDocuments,
 } from '@/lib/knowledge/connectors/sync-primitives'
-import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
 import { getConnectorRequiredScopes } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
@@ -1020,7 +1025,10 @@ async function listForMember(input: {
   syncIntervalMinutes: number
   /** Relist fully even inside the recrawl window: the member's change feed could not be read. */
   forceFull?: boolean
-  processPage: (documents: ExternalDocument[], checkpoint: ListingCheckpoint) => Promise<void>
+  processPage: (
+    documents: ExternalDocument[],
+    checkpoint: ListingCheckpoint
+  ) => Promise<undefined | boolean>
 }): Promise<MemberListing | { kind: 'failed' }> {
   const { run, member, connectorConfig, sourceConfig, syncContext } = input
   const startedAt = new Date()
@@ -1122,9 +1130,7 @@ async function listForMember(input: {
       deadlineAt: run.deadlineAt,
       beforePage: run.lease.beatIfDue,
       getAccessToken: () => input.tokens.get(member.id),
-      processPage: async (documents, checkpoint) => {
-        await input.processPage(documents, checkpoint)
-      },
+      processPage: input.processPage,
       saveCheckpoint: (next) =>
         withMemberLease(run, (tx) =>
           tx
@@ -1150,7 +1156,7 @@ async function listForMember(input: {
     if (error instanceof SyncLockLostException || error instanceof ConnectorSyncCapacityError) {
       throw error
     }
-    if (isRateLimitError(error)) throw error
+    if (getConnectorSyncDeferral(error)) throw error
     if (isScopeUnavailableError(connectorConfig, error)) {
       logger.info('Member cannot reach the configured source scope; treating as an empty listing', {
         connectorId: run.connectorId,
@@ -1374,6 +1380,7 @@ async function syncDedicatedMemberContent(input: {
       return token.accessToken
     },
     hydration: {
+      concurrency: connectorConfig.contentConcurrency,
       beforeHydration: refresh,
       getDocument: (externalId) =>
         connectorConfig.getDocument(token.accessToken, sourceConfig, externalId, syncContext),
@@ -1884,13 +1891,78 @@ export async function executeMemberSync(
         ...PER_MEMBER_LISTING_CONTEXT,
       }
       let contentFailures = false
-      const processPage = async (documents: ExternalDocument[], checkpoint: ListingCheckpoint) => {
+      const processPage = async (
+        documents: ExternalDocument[],
+        checkpoint: ListingCheckpoint,
+        durableCheckpoint = true
+      ) => {
         const externalIds = documents.map((item) => item.externalId)
+        const observeAttempted = async (attempted: ExternalDocument[]) => {
+          if (attempted.length === 0) return
+          const documentIds = [
+            ...(
+              await loadDocumentIdsByExternalId(
+                connectorId,
+                attempted.map((item) => item.externalId)
+              )
+            ).values(),
+          ]
+          await withMemberLease(run, async (tx) => {
+            result.observationsAdded += await recordMemberObservations(
+              tx,
+              member.id,
+              documentIds,
+              checkpoint.generationId
+            )
+            await materializeDocumentAcls(connectorId, documentIds, tx)
+            if (durableCheckpoint && checkpoint.contentFailures) {
+              await tx
+                .update(knowledgeConnectorMember)
+                .set({ listingCheckpoint: checkpoint })
+                .where(eq(knowledgeConnectorMember.id, member.id))
+            }
+            if (!serviceContent) {
+              for (let offset = 0; offset < documentIds.length; offset += 500) {
+                await tx
+                  .update(document)
+                  .set({ sourceSeenAt: run.runStartedAt })
+                  .where(
+                    and(
+                      eq(document.connectorId, connectorId),
+                      inArray(document.id, documentIds.slice(offset, offset + 500))
+                    )
+                  )
+              }
+            }
+          })
+          result.docsListed += attempted.length
+        }
         if (!serviceContent) {
           const corpus = await loadPageCorpus(connectorId, externalIds)
           const pageState = createSyncRunState(result)
-          const failuresBefore = result.docsFailed
           let rejectedCredentialError: Error | undefined
+          /** Commit sibling observations and failures before capacity pressure can end this page. */
+          const persistAttempted = async (attempted: ExternalDocument[]) => {
+            if (rejectedCredentialError) throw rejectedCredentialError
+            if (attempted.some((item) => pageState.failedExternalIds.has(item.externalId))) {
+              await persistSourceDocumentFailures({
+                knowledgeBaseId: connector.knowledgeBaseId,
+                connectorId,
+                connectorType: connector.connectorType,
+                documents: attempted,
+                failedExternalIds: pageState.failedExternalIds,
+                sourceFailures: pageState.sourceFailures,
+                priorByExternalId: corpus.priorByExternalId,
+                sourceConfig,
+                access: 'members',
+                lease: run.lease,
+              })
+              checkpoint.contentFailures = true
+              contentFailures = true
+              result.listingIncomplete = true
+            }
+            await observeAttempted(attempted)
+          }
           const pendingOps = classifyListing({
             externalDocs: documents.filter((item) => {
               const alreadyRead = corpus.priorByExternalId.get(item.externalId)?.sourceSeenAt
@@ -1908,10 +1980,9 @@ export async function executeMemberSync(
             forceRehydrate: false,
             state: pageState,
           })
-          result.docsHydratedOnce += pendingOps.filter(
-            (op) => op.type !== 'skip' && op.extDoc.contentDeferred
-          ).length
-          await processDocOps({
+          const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
+          await persistAttempted(documents.filter((item) => !pendingIds.has(item.externalId)))
+          const finished = await processDocOps({
             connectorId,
             connector,
             sourceConfig,
@@ -1922,6 +1993,7 @@ export async function executeMemberSync(
             forceRehydrate: false,
             state: pageState,
             hydration: {
+              concurrency: connectorConfig.contentConcurrency,
               getDocument: async (externalId) => {
                 if (rejectedCredentialError) throw rejectedCredentialError
                 try {
@@ -1949,51 +2021,17 @@ export async function executeMemberSync(
             },
             lease: run.lease,
             documentAccess: 'members',
+            deadlineAt: durableCheckpoint ? run.deadlineAt : undefined,
+            onBatchComplete: async (attempted) => {
+              result.docsHydratedOnce += attempted.filter((item) => item.contentDeferred).length
+              await persistAttempted(attempted)
+            },
           })
           if (rejectedCredentialError) throw rejectedCredentialError
-          if (result.docsFailed > failuresBefore) {
-            await persistSourceDocumentFailures({
-              knowledgeBaseId: connector.knowledgeBaseId,
-              connectorId,
-              connectorType: connector.connectorType,
-              documents,
-              failedExternalIds: pageState.failedExternalIds,
-              priorByExternalId: corpus.priorByExternalId,
-              sourceConfig,
-              access: 'members',
-              lease: run.lease,
-            })
-            checkpoint.contentFailures = true
-            contentFailures = true
-            result.listingIncomplete = true
-          }
+          if (!finished) return false
+        } else {
+          await observeAttempted(documents)
         }
-        const documentIds = [
-          ...(await loadDocumentIdsByExternalId(connectorId, externalIds)).values(),
-        ]
-        await withMemberLease(run, async (tx) => {
-          result.observationsAdded += await recordMemberObservations(
-            tx,
-            member.id,
-            documentIds,
-            checkpoint.generationId
-          )
-          await materializeDocumentAcls(connectorId, documentIds, tx)
-          if (!serviceContent) {
-            for (let offset = 0; offset < documentIds.length; offset += 500) {
-              await tx
-                .update(document)
-                .set({ sourceSeenAt: run.runStartedAt })
-                .where(
-                  and(
-                    eq(document.connectorId, connectorId),
-                    inArray(document.id, documentIds.slice(offset, offset + 500))
-                  )
-                )
-            }
-          }
-        })
-        result.docsListed += externalIds.length
       }
       const listed = await listForMember({
         run,
@@ -2020,7 +2058,8 @@ export async function executeMemberSync(
             fingerprint: listingFingerprint({ connectorId, memberId: member.id }),
             generationId: runId,
             startedAt: listed.startedAt,
-          })
+          }),
+          false
         )
       }
       const listedCount = listed.checkpoint?.listedCount ?? listed.documents.length
@@ -2146,9 +2185,36 @@ export async function executeMemberSync(
       return { ...skipped(result, 'connector_not_syncable'), error: error.message }
     }
 
-    const errorMessage = toError(error).message
+    if (getConnectorSyncDeferral(error)) {
+      try {
+        result.deferred = await deferConnectorSync({
+          connectorId,
+          knowledgeBaseId: connector.knowledgeBaseId,
+          runId,
+          lease: run.lease,
+          kind: 'member',
+          result,
+          error,
+        })
+        result.listingIncomplete = true
+        logger.info('Member source sync deferred', { connectorId, ...result.deferred })
+        return result
+      } catch (persistenceError) {
+        logger.error('Failed to persist member source deferral', {
+          connectorId,
+          error:
+            getConnectorFailureDiagnostic(persistenceError)?.message ??
+            toError(persistenceError).message,
+        })
+        result.error = 'Could not persist the member sync retry after provider deferral'
+        return result
+      }
+    }
+
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    const errorMessage = diagnostic?.message ?? toError(error).message
     const retryAfterMs = getRetryAfterMs(error)
-    logger.error('Member sync failed', { connectorId, runId, error: errorMessage })
+    logger.error('Member sync failed', { connectorId, runId, error: errorMessage, diagnostic })
     try {
       await failMemberSyncLog(runId, result, errorMessage)
       const failureUpdate =
@@ -2182,7 +2248,8 @@ export async function executeMemberSync(
     } catch (recoveryError) {
       logger.error('Failed to record member sync failure', {
         connectorId,
-        error: toError(recoveryError).message,
+        error:
+          getConnectorFailureDiagnostic(recoveryError)?.message ?? toError(recoveryError).message,
       })
     }
     result.error = errorMessage

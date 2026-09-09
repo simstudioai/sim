@@ -10,7 +10,7 @@ import type { SyncResult } from '@/connectors/types'
 
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
-export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed'
+export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed' | 'deferred'
 
 /**
  * Separates source-sync failures from expected queue/lock no-ops. Intentional
@@ -20,6 +20,8 @@ export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'fa
 export function classifyConnectorSyncResult(result: SyncResult): ConnectorSyncTaskOutcome {
   if (result.skipReason) return 'skipped'
   if (result.error) return 'failed'
+  if (result.deferred && result.docsFailed === 0 && result.processingDispatch.failed === 0)
+    return 'deferred'
   if (result.listingIncomplete || result.docsFailed > 0 || result.processingDispatch.failed > 0)
     return 'partial'
   return 'completed'
@@ -61,6 +63,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
     logger.info(`[${requestId}] Connector sync completed`, {
       connectorId,
       outcome: classifyConnectorSyncResult(result),
+      deferred: result.deferred,
       added: result.docsAdded,
       updated: result.docsUpdated,
       deleted: result.docsDeleted,

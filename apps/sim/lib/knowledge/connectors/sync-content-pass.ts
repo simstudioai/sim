@@ -116,6 +116,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
             connectorType: input.connector.connectorType,
             documents: attempted,
             failedExternalIds: state.failedExternalIds,
+            sourceFailures: state.sourceFailures,
             priorByExternalId: corpus.priorByExternalId,
             sourceConfig: input.sourceConfig,
             access: input.documentAccess,

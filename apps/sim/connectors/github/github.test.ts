@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  beginListingCheckpoint,
+  listingFingerprint,
+  runResumableListing,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import { githubConnector } from '@/connectors/github/github'
+import type { ExternalDocument } from '@/connectors/types'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 vi.mock('@/lib/core/rate-limiter/provider-capacity', () => ({
@@ -27,11 +33,7 @@ describe('githubConnector member listing', () => {
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ default_branch: 'master' })))
       .mockResolvedValueOnce(treeResponse([treeFile('readme.md', 'sha')]))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ sha: 'sha', size: 4, content: 'dGV4dA==', encoding: 'base64' })
-        )
-      )
+      .mockResolvedValueOnce(new Response('text'))
     vi.stubGlobal('fetch', fetchMock)
     const context: Record<string, unknown> = { ...PER_MEMBER_LISTING_CONTEXT }
     const config = { repository: 'owner/repo' }
@@ -40,7 +42,7 @@ describe('githubConnector member listing', () => {
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       'https://api.github.com/repos/owner/repo',
       'https://api.github.com/repos/owner/repo/git/trees/master?recursive=1',
-      'https://api.github.com/repos/owner/repo/contents/readme.md?ref=master',
+      'https://api.github.com/repos/owner/repo/git/blobs/sha',
     ])
     expect(listing.documents[0]?.metadata?.branch).toBe('master')
     expect(hydrated?.metadata?.branch).toBe('master')
@@ -94,11 +96,7 @@ describe('githubConnector member listing', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(treeResponse([treeFile('docs/readme.md', 'blob-sha')]))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ sha: 'blob-sha', size: 20, content: 'dGV4dA==', encoding: 'base64' })
-        )
-      )
+      .mockResolvedValueOnce(new Response('text'))
     vi.stubGlobal('fetch', fetchMock)
     const context = {}
     const result = await githubConnector.listDocuments('member-token', source, undefined, context)
@@ -132,6 +130,100 @@ describe('githubConnector member listing', () => {
     expect(second.documents.map((document) => document.externalId)).toEqual(['file-200.md'])
     expect(second.hasMore).toBe(false)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('replays a pinned tree in a fresh worker even when the branch has moved', async () => {
+    const original = Array.from({ length: 201 }, (_, index) =>
+      treeFile(`file-${index}.md`, `blob-${index}`)
+    )
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/git/trees/main')) return treeResponse(original)
+      if (url.includes('/git/trees/tree-sha')) return treeResponse(original)
+      if (url.includes('/git/blobs/blob-200')) return new Response('original bytes')
+      throw new Error('Unpinned request escaped the original snapshot')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const first = await githubConnector.listDocuments('token', source, undefined, {})
+    const context = {}
+    const resumed = await githubConnector.listDocuments('token', source, first.nextCursor, context)
+    expect(resumed.documents.map((doc) => doc.externalId)).toEqual(['file-200.md'])
+    expect(
+      await githubConnector.getDocument('token', source, 'file-200.md', context)
+    ).toMatchObject({
+      content: 'original bytes',
+      contentHash: 'git-sha:blob-200',
+    })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.github.com/repos/owner/repo/git/trees/main?recursive=1',
+      'https://api.github.com/repos/owner/repo/git/trees/tree-sha?recursive=1',
+      'https://api.github.com/repos/owner/repo/git/blobs/blob-200',
+    ])
+  })
+
+  it('reopens an expired snapshot against the current member default branch without declaring false absence', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/git/trees/expired-tree?recursive=1'))
+        return new Response(null, { status: 404 })
+      if (url.endsWith('/repos/owner/repo'))
+        return Response.json({ default_branch: 'current-default' })
+      if (url.endsWith('/git/trees/current-default?recursive=1'))
+        return treeResponse([treeFile('still-readable.md')], false, 'current-tree')
+      if (url.endsWith('/git/trees/deleted-default?recursive=1'))
+        return new Response(null, { status: 404 })
+      throw new Error('Unexpected provider request')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const context = {
+      ...PER_MEMBER_LISTING_CONTEXT,
+      githubBranch: 'deleted-default',
+      filteredTree: [treeFile('stale.md')],
+      listingCapped: true,
+    }
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: listingFingerprint({ source: 'github' }),
+        generationId: 'prior-generation',
+        startedAt: new Date(),
+      }),
+      cursor: JSON.stringify({
+        version: 1,
+        treeSha: 'expired-tree',
+        branch: 'deleted-default',
+        offset: 200,
+      }),
+    }
+    const processPage = vi.fn(async (_documents: ExternalDocument[]) => undefined)
+    const result = await runResumableListing({
+      connectorConfig: githubConnector,
+      sourceConfig: { repository: 'owner/repo' },
+      syncContext: context,
+      checkpoint,
+      deadlineAt: Date.now() + 60_000,
+      beforePage: async () => {},
+      getAccessToken: async () => 'fixture-token',
+      processPage,
+      saveCheckpoint: async () => {},
+    })
+    expect(result).toMatchObject({ complete: true, unsafe: false, listedCount: 1 })
+    expect(result.generationId).not.toBe('prior-generation')
+    expect(processPage.mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({ externalId: 'still-readable.md' }),
+    ])
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.github.com/repos/owner/repo/git/trees/expired-tree?recursive=1',
+      'https://api.github.com/repos/owner/repo',
+      'https://api.github.com/repos/owner/repo/git/trees/current-default?recursive=1',
+    ])
+  })
+
+  it('restarts legacy offsets rather than skipping entries in a different tree', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const error = await githubConnector
+      .listDocuments('token', source, '200', {})
+      .catch((error: unknown) => error)
+    expect(githubConnector.isListingCursorInvalidError?.(error)).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it.each([401, 403, 404])(
@@ -250,21 +342,10 @@ describe('githubConnector.getDocument', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses the object media type and hydrates large file content through the blob API', async () => {
+  it('hydrates the immutable large file directly through the blob API', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(treeResponse([treeFile('docs/large.md', 'blob-sha')]))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            sha: 'blob-sha',
-            size: 2 * 1024 * 1024,
-            content: '',
-            encoding: 'none',
-          }),
-          { status: 200, headers: { 'last-modified': 'Fri, 28 Aug 2026 12:00:00 GMT' } }
-        )
-      )
       .mockResolvedValueOnce(
         new Response('large text file', { status: 200, headers: { 'content-length': '15' } })
       )
@@ -276,11 +357,8 @@ describe('githubConnector.getDocument', () => {
       'docs/large.md'
     )
 
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[1][1]).toMatchObject({
-      headers: expect.objectContaining({ Accept: 'application/vnd.github.object+json' }),
-    })
-    expect(fetchMock.mock.calls[2][1]).toMatchObject({
       headers: expect.objectContaining({ Accept: 'application/vnd.github.raw+json' }),
     })
     expect(document).toMatchObject({
@@ -310,17 +388,6 @@ describe('githubConnector.getDocument', () => {
       .fn()
       .mockResolvedValueOnce(treeResponse([treeFile('oversized.md', 'blob-sha')]))
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            sha: 'blob-sha',
-            size: 2 * 1024 * 1024,
-            content: '',
-            encoding: 'none',
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(
         new Response('oversized', {
           status: 200,
           headers: { 'content-length': String(100 * 1024 * 1024 + 1) },
@@ -341,17 +408,6 @@ describe('githubConnector.getDocument', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(treeResponse([treeFile('missing-body.md', 'blob-sha')]))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            sha: 'blob-sha',
-            size: 2 * 1024 * 1024,
-            content: '',
-            encoding: 'none',
-          }),
-          { status: 200 }
-        )
-      )
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -378,7 +434,7 @@ describe('githubConnector.getDocument', () => {
 
     await expect(
       githubConnector.getDocument('token', { repository: 'owner/repo' }, 'private.md')
-    ).rejects.toThrow('Failed to fetch file private.md: 403')
+    ).rejects.toThrow('Failed to fetch git blob private.md: 403')
   })
 })
 
@@ -387,16 +443,6 @@ describe('githubConnector symlinks', () => {
 
   const link = { ...treeFile('docs/link.md', 'link-sha'), mode: '120000' }
   const target = treeFile('docs/target.md', 'target-sha')
-
-  function contents(content: string) {
-    return Response.json({
-      type: 'file',
-      sha: link.sha,
-      size: Buffer.byteLength(content),
-      encoding: 'base64',
-      content: Buffer.from(content).toString('base64'),
-    })
-  }
 
   it('versions symlink targets while keeping unchanged trees and regular files stable', async () => {
     const stable = treeFile('docs/stable.md', 'stable-sha')
@@ -407,7 +453,6 @@ describe('githubConnector symlinks', () => {
     ] as const) {
       fetchMock
         .mockResolvedValueOnce(treeResponse([link, stable, target], false, `tree-${revision}`))
-        .mockResolvedValueOnce(contents(text))
         .mockResolvedValueOnce(new Response('target.md'))
         .mockResolvedValueOnce(new Response(text))
     }
@@ -435,7 +480,7 @@ describe('githubConnector symlinks', () => {
       second.documents.map((doc) => doc.contentHash)
     )
     expect(first.documents[1].contentHash).toBe(second.documents[1].contentHash)
-    expect(fetchMock).toHaveBeenCalledTimes(9)
+    expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 
   it.each(['target.md', '../../outside.md', '/etc/passwd', 'https://example.com/file.md'])(
@@ -444,7 +489,6 @@ describe('githubConnector symlinks', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(treeResponse([link], false, 'target-deleted-tree'))
-        .mockResolvedValueOnce(Response.json({ type: 'symlink', sha: link.sha, size: 9 }))
         .mockResolvedValueOnce(new Response(targetPath))
       vi.stubGlobal('fetch', fetchMock)
       const context = {}
@@ -457,7 +501,7 @@ describe('githubConnector symlinks', () => {
         skippedReason: 'Symbolic link target is not a repository file',
         skippedExistingDisposition: 'replace',
       })
-      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
     }
   )
 
@@ -466,7 +510,6 @@ describe('githubConnector symlinks', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(treeResponse([link, { ...target, size: fullContent.length }]))
-      .mockResolvedValueOnce(contents(fullContent.slice(0, 1024 * 1024)))
       .mockResolvedValueOnce(new Response('target.md'))
       .mockResolvedValueOnce(new Response(fullContent))
     vi.stubGlobal('fetch', fetchMock)
@@ -477,7 +520,7 @@ describe('githubConnector symlinks', () => {
     expect(hydrated?.content.endsWith(fullContent.slice(-8192))).toBe(true)
     expect(hydrated?.contentHash).toBe(listing.documents[0].contentHash)
     expect(hydrated?.metadata?.size).toBe(fullContent.length)
-    expect(fetchMock.mock.calls.slice(2).map(([url]) => url)).toEqual([
+    expect(fetchMock.mock.calls.slice(1).map(([url]) => url)).toEqual([
       'https://api.github.com/repos/owner/repo/git/blobs/link-sha',
       'https://api.github.com/repos/owner/repo/git/blobs/target-sha',
     ])
@@ -490,7 +533,6 @@ describe('githubConnector symlinks', () => {
       vi
         .fn()
         .mockResolvedValueOnce(treeResponse([link, nextLink, target]))
-        .mockResolvedValueOnce(contents('complete target'))
         .mockResolvedValueOnce(new Response('../intermediate.md'))
         .mockResolvedValueOnce(new Response('docs/target.md'))
         .mockResolvedValueOnce(new Response('complete target'))
@@ -505,7 +547,6 @@ describe('githubConnector symlinks', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(treeResponse([link, nextLink]))
-      .mockResolvedValueOnce(Response.json({ type: 'symlink', sha: link.sha, size: 7 }))
       .mockResolvedValueOnce(new Response('next.md'))
       .mockResolvedValueOnce(new Response('link.md'))
     vi.stubGlobal('fetch', fetchMock)
@@ -514,7 +555,7 @@ describe('githubConnector symlinks', () => {
       skippedReason: 'Symbolic link target is not a repository file',
       skippedExistingDisposition: 'replace',
     })
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('caps a long acyclic link chain at forty target reads', async () => {
@@ -522,10 +563,7 @@ describe('githubConnector symlinks', () => {
       ...treeFile(`link-${index}.md`, `link-sha-${index}`),
       mode: '120000',
     }))
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(treeResponse(links))
-      .mockResolvedValueOnce(Response.json({ type: 'symlink', sha: links[0].sha, size: 9 }))
+    const fetchMock = vi.fn().mockResolvedValueOnce(treeResponse(links))
     for (let index = 1; index <= 40; index++)
       fetchMock.mockResolvedValueOnce(new Response(`link-${index}.md`))
     vi.stubGlobal('fetch', fetchMock)
@@ -535,7 +573,7 @@ describe('githubConnector symlinks', () => {
       skippedReason: 'Symbolic link target is not a repository file',
       skippedExistingDisposition: 'replace',
     })
-    expect(fetchMock).toHaveBeenCalledTimes(42)
+    expect(fetchMock).toHaveBeenCalledTimes(41)
   })
 
   it('fails hydration when a truncated snapshot may have omitted the target', async () => {
@@ -544,7 +582,6 @@ describe('githubConnector symlinks', () => {
       vi
         .fn()
         .mockResolvedValueOnce(treeResponse([link], true))
-        .mockResolvedValueOnce(contents('possibly valid target'))
         .mockResolvedValueOnce(new Response('target.md'))
     )
     await expect(githubConnector.getDocument('token', source, link.path)).rejects.toThrow(
@@ -566,7 +603,6 @@ describe('githubConnector symlinks', () => {
         vi
           .fn()
           .mockResolvedValueOnce(treeResponse([link, target]))
-          .mockResolvedValueOnce(contents('incomplete contents'))
           .mockResolvedValueOnce(new Response('target.md'))
           .mockResolvedValueOnce(new Response(body, { headers: { 'content-length': length } }))
       )

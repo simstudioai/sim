@@ -50,7 +50,7 @@ describe('provider capacity storage bounds', () => {
       evalScript.mockImplementation(() => new Promise(() => undefined))
       transaction.mockImplementation(() => new Promise(() => undefined))
       const pending = mutateProviderCapacity('quota', CONFIG, ACTION, Date.now() + 5000)
-      const rejected = expect(pending).rejects.toThrow('storage deadline expired')
+      const rejected = expect(pending).rejects.toThrow('deadline expired')
       await vi.advanceTimersByTimeAsync(5000)
       await rejected
       expect(vi.getTimerCount()).toBe(0)

@@ -39,7 +39,10 @@ import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as egress from '@/lib/core/security/input-validation.server'
 import { getMistralCapacityScope } from '@/lib/internal/mistral/capacity'
-import { resetHostedEmbeddingFixtureAdmission } from '@/lib/knowledge/__integration__/provider-fixture-state'
+import {
+  createFixtureOpenAIEmbedding,
+  resetHostedEmbeddingFixtureAdmission,
+} from '@/lib/knowledge/__integration__/provider-fixture-state'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -214,13 +217,17 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
         }
         if (url.origin === 'https://api.openai.com' && url.pathname === '/v1/embeddings') {
           embeddingRequests++
-          const body = JSON.parse(String(init?.body)) as { input: string | string[] }
+          const body = JSON.parse(String(init?.body)) as {
+            input: string | string[]
+            encoding_format: string
+          }
+          expect(body.encoding_format).toBe('base64')
           const inputs = Array.isArray(body.input) ? body.input : [body.input]
           return Response.json({
             model: 'text-embedding-3-small',
             data: inputs.map((_, index) => ({
               index,
-              embedding: [1, ...Array<number>(1535).fill(0)],
+              embedding: createFixtureOpenAIEmbedding(),
             })),
             usage: { prompt_tokens: inputs.length * 25, total_tokens: inputs.length * 25 },
           })

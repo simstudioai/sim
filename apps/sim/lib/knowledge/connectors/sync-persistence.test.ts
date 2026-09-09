@@ -30,6 +30,7 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   addDocument,
   persistDocumentAcls,
@@ -293,6 +294,43 @@ describe('persistSourceDocumentFailures', () => {
     expect(update).not.toHaveProperty('deletedAt')
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+  it('keeps each failed source reason distinct and keeps permission failures eligible for hydration', async () => {
+    leaseHeld()
+    const permission = getConnectorFailureDiagnostic(
+      Object.assign(new Error('private body'), { status: 403 })
+    )!
+    const unavailable = getConnectorFailureDiagnostic(
+      Object.assign(new Error('private body'), { status: 503 })
+    )!
+    await persistSourceDocumentFailures({
+      ...input,
+      documents: [input.documents[0], { ...input.documents[0], externalId: 'temporary' }],
+      failedExternalIds: new Set(['broken', 'temporary']),
+      sourceFailures: new Map([
+        ['broken', permission],
+        ['temporary', unavailable],
+      ]),
+      priorByExternalId: new Map([['broken', { id: 'old' }]]),
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingError: permission.message,
+        contentHash: null,
+        processingStatus: 'failed',
+      })
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        externalId: 'temporary',
+        processingError: unavailable.message,
+        contentHash: null,
+      }),
+    ])
+    expect(dbChainMockFns.set.mock.calls[0][0]).not.toHaveProperty('acl')
+    expect(dbChainMockFns.set.mock.calls[0][0]).not.toHaveProperty('storageKey')
+    expect(JSON.stringify(dbChainMockFns.set.mock.calls)).not.toContain('private body')
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
   it('refuses to commit a failure under a reclaimed lease', async () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
