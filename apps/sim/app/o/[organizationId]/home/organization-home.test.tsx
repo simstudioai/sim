@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps } from 'react'
+import { act, type ComponentProps, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -95,6 +95,52 @@ describe('organization home', () => {
     )
     expect(container.textContent).not.toContain('Get started')
     expect(mocks.consume).not.toHaveBeenCalled()
+  })
+  it('keeps the composer available when messages exist while history is pending', async () => {
+    mocks.chat.mockReturnValue({
+      messages: [{ id: 'message-a', role: 'user', content: 'A question' }],
+      isChatHistoryPending: true,
+      sendMessage: mocks.send,
+    })
+    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    expect(mocks.renderer).toHaveBeenCalledWith(
+      expect.objectContaining({ isLoading: false }),
+      undefined
+    )
+  })
+  it('isolates conversation state when switching cached chats', async () => {
+    mocks.chat.mockReturnValue({
+      messages: [],
+      isChatHistoryPending: false,
+      sendMessage: mocks.send,
+    })
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    await act(async () => composerProps().onChange('A draft for chat A'))
+    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    expect(composerProps().value).toBe('A draft for chat A')
+    await act(async () => root.render(<OrganizationHome chatId='chat-b' />))
+    expect(composerProps().value).toBe('')
+    expect(mocks.chat).toHaveBeenLastCalledWith({ organizationId: 'organization-a' }, 'chat-b')
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('preserves the conversation when the first send adopts a chat ID', async () => {
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => composerProps().onChange('A follow-up draft'))
+    mocks.chat.mockReturnValue({
+      messages: [{ id: 'message-a', role: 'user', content: 'First question' }],
+      resolvedChatId: 'chat-a',
+      isChatHistoryPending: true,
+      isSending: true,
+      sendMessage: mocks.send,
+    })
+    await act(async () => root.render(<OrganizationHome />))
+    expect(composerProps().value).toBe('A follow-up draft')
+    expect(mocks.renderer).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: 'chat-a', isLoading: false, isSending: true }),
+      undefined
+    )
   })
   it.each([
     { isAdmin: true, integrationHref: '/o/organization-a/settings/integrations' },

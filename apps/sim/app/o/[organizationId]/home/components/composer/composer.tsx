@@ -1,8 +1,10 @@
 'use client'
 
+import { useRef } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { ArrowUp } from '@sim/emcn/icons'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
+import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 
 const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0 transition-colors'
 const SEND_BUTTON_ACTIVE =
@@ -32,6 +34,8 @@ export function Composer({
   onSubmit,
   onStop,
 }: ComposerProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useChatInputFocus({ textareaRef })
   const canSubmit = value.trim().length > 0
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
@@ -50,6 +54,7 @@ export function Composer({
         )}
       >
         <textarea
+          ref={textareaRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {

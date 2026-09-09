@@ -2,10 +2,10 @@
 
 import { chipVariants, cn, DropdownMenuItem, Loader, OverflowText, Skeleton } from '@sim/emcn'
 import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
-import Link from 'next/link'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import {
+  ChatNavigationLink,
   CollapsedSidebarMenu,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
@@ -41,8 +41,10 @@ function ChatRow({ chat, isCurrentRoute, isMenuOpen, onContextMenu, onMoreClick 
   const showStatusDot = Boolean(chat.isActive) || (!isCurrentRoute && Boolean(chat.isUnread))
 
   return (
-    <Link
+    <ChatNavigationLink
       href={chat.href}
+      chatId={chat.id}
+      isCurrentRoute={isCurrentRoute}
       className={chipVariants({ active: isCurrentRoute || isMenuOpen, fullWidth: true })}
       onContextMenu={(e) => onContextMenu(e, chat.href)}
     >
@@ -83,7 +85,7 @@ function ChatRow({ chat, isCurrentRoute, isMenuOpen, onContextMenu, onMoreClick 
           <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
         </button>
       </div>
-    </Link>
+    </ChatNavigationLink>
   )
 }
 
@@ -140,13 +142,18 @@ export function ChatsSection({
                 const isCurrentRoute = pathname === chat.href
                 return (
                   <DropdownMenuItem key={chat.id} asChild active={isCurrentRoute}>
-                    <Link href={chat.href} onContextMenu={(e) => onContextMenu(e, chat.href)}>
+                    <ChatNavigationLink
+                      href={chat.href}
+                      chatId={chat.id}
+                      isCurrentRoute={isCurrentRoute}
+                      onContextMenu={(e) => onContextMenu(e, chat.href)}
+                    >
                       <ConversationListItem
                         title={chat.name}
                         isActive={Boolean(chat.isActive)}
                         isUnread={Boolean(chat.isUnread) && !isCurrentRoute}
                       />
-                    </Link>
+                    </ChatNavigationLink>
                   </DropdownMenuItem>
                 )
               })

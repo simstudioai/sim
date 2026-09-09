@@ -17,9 +17,9 @@ interface OrganizationHomeProps {
 
 /** Search and private Assistant chats for the routed organization. */
 export function OrganizationHome(props: OrganizationHomeProps) {
-  const { searchAccess } = useOrganizationContext()
+  const { organization, searchAccess } = useOrganizationContext()
   if (!searchAccess.memberScoped) return null
-  return <OrganizationHomeContent {...props} />
+  return <OrganizationHomeContent key={`${organization.id}:${props.chatId ?? 'new'}`} {...props} />
 }
 
 function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
@@ -82,7 +82,7 @@ function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
           messages={chat.messages}
           isSending={chat.isSending}
           isReconnecting={chat.isReconnecting}
-          isLoading={Boolean(chatId) && chat.isChatHistoryPending}
+          isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
           onSubmit={send}
           onStopGeneration={() => {
             void chat.stopGeneration()
