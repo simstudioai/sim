@@ -8,13 +8,19 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUseConfigureSSO, mockUseOrganizationBilling, mockUseSession, mockUseSSOProviders } =
-  vi.hoisted(() => ({
-    mockUseConfigureSSO: vi.fn(),
-    mockUseOrganizationBilling: vi.fn(),
-    mockUseSession: vi.fn(),
-    mockUseSSOProviders: vi.fn(),
-  }))
+const {
+  mockUseConfigureSSO,
+  mockUseDeleteSSOProvider,
+  mockUseOrganizationBilling,
+  mockUseSession,
+  mockUseSSOProviders,
+} = vi.hoisted(() => ({
+  mockUseConfigureSSO: vi.fn(),
+  mockUseDeleteSSOProvider: vi.fn(),
+  mockUseOrganizationBilling: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockUseSSOProviders: vi.fn(),
+}))
 
 vi.mock('@sim/emcn', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (
@@ -28,6 +34,23 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipCombobox: () => <div />,
+  ChipConfirmModal: ({
+    open,
+    title,
+    confirm,
+  }: {
+    open: boolean
+    title: string
+    confirm: { label: string; onClick: () => void }
+  }) =>
+    open ? (
+      <div role='dialog'>
+        <span>{title}</span>
+        <button type='button' onClick={confirm.onClick}>
+          {confirm.label}
+        </button>
+      </div>
+    ) : null,
   ChipCopyInput: ({ value, id }: { value?: string; id?: string }) => (
     <input id={id} readOnly value={value ?? ''} />
   ),
@@ -180,7 +203,47 @@ vi.mock('@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard
 
 vi.mock('@/ee/sso/hooks/sso', () => ({
   useConfigureSSO: mockUseConfigureSSO,
+  useDeleteSSOProvider: mockUseDeleteSSOProvider,
   useSSOProviders: mockUseSSOProviders,
+}))
+
+/** The resource row is design-system chrome; here it is a labelled button carrying its text and trailing menu. */
+vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row', () => ({
+  RESOURCE_LIST_STACK: '',
+  SettingsResourceRow: ({
+    title,
+    description,
+    trailing,
+    clickLabel,
+    onClick,
+  }: {
+    title: ReactNode
+    description?: ReactNode
+    trailing?: ReactNode
+    clickLabel?: string
+    onClick?: () => void
+  }) => (
+    <div>
+      <button type='button' aria-label={clickLabel} onClick={onClick}>
+        {title}
+        {description}
+      </button>
+      {trailing}
+    </div>
+  ),
+}))
+
+/** The row menu is a dropdown; here each action is a plain button so the delete path is reachable. */
+vi.mock('@/app/workspace/[workspaceId]/settings/components/row-actions-menu', () => ({
+  RowActionsMenu: ({ actions }: { actions: Array<{ label: string; onSelect: () => void }> }) => (
+    <span>
+      {actions.map((action) => (
+        <button key={action.label} type='button' onClick={action.onSelect}>
+          {action.label}
+        </button>
+      ))}
+    </span>
+  ),
 }))
 
 vi.mock('@/hooks/queries/organization', () => ({
@@ -215,7 +278,15 @@ function findButton(text: string) {
   )
 }
 
-function startEditing() {
+/** Opens a provider from the list; the sign-in tab lists providers before showing one. */
+function openProvider(providerId: string) {
+  act(() =>
+    container.querySelector<HTMLButtonElement>(`[aria-label="Open ${providerId}"]`)?.click()
+  )
+}
+
+function startEditing(providerId = 'provider-a') {
+  openProvider(providerId)
   act(() => findButton('Edit')?.click())
 }
 
@@ -257,6 +328,10 @@ beforeEach(() => {
     isPending: false,
     mutateAsync: vi.fn(),
   })
+  mockUseDeleteSSOProvider.mockReturnValue({
+    isPending: false,
+    mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+  })
   mockUseSSOProviders.mockImplementation(({ organizationId }: { organizationId: string }) => ({
     data: { providers: [provider(organizationId)] },
     error: null,
@@ -277,8 +352,8 @@ describe('SSO organization transitions', () => {
     renderSso('org-a')
     expect(container).toHaveTextContent('org-a.example.com')
 
-    expect(findButton('Edit')).toBeDefined()
     startEditing()
+    expect(findButton('Edit')).toBeUndefined()
     expect(container.querySelector('input[value="client-a"]')).not.toBeNull()
 
     renderSso('org-b')
@@ -347,6 +422,7 @@ describe('SSO organization transitions', () => {
 describe('SSO member provisioning', () => {
   it('shows the saved automatic provisioning mode', () => {
     renderSso('org-a')
+    openProvider('provider-a')
 
     expect(container).toHaveTextContent('Automatic')
     expect(container).toHaveTextContent('Grant workspace access separately.')
@@ -544,6 +620,7 @@ describe('SAML callback URLs', () => {
       isLoading: false,
     })
     renderSso('org-a')
+    openProvider('provider-a')
   }
 
   function callbackValue() {
@@ -581,4 +658,84 @@ describe('SAML callback URLs', () => {
       expect(callbackValue()).toMatch(/\/api\/auth\/sso\/saml2\/callback\/provider-a$/)
     }
   )
+})
+
+describe('SSO provider list', () => {
+  it('lists every provider with its protocol and domain, one row each', () => {
+    mockUseSSOProviders.mockReturnValue({
+      data: {
+        providers: [
+          provider('org-a'),
+          {
+            ...provider('org-a'),
+            id: 'sso-eng',
+            providerId: 'eng-okta',
+            domain: 'eng.org-a.example.com',
+          },
+        ],
+      },
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+    renderSso('org-a')
+
+    expect(container.querySelector('[aria-label="Open provider-a"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Open eng-okta"]')).not.toBeNull()
+    expect(container).toHaveTextContent('OIDC · eng.org-a.example.com')
+    expect(findButton('Add identity provider')).toBeDefined()
+    expect(findButton('Edit')).toBeUndefined()
+  })
+
+  it('opens the create form from the list and returns to it on cancel', () => {
+    renderSso('org-a')
+    act(() => findButton('Add identity provider')?.click())
+
+    expect(container).toHaveTextContent('Use a verified email domain for this connection.')
+    expect(findButton('Save')).toBeDefined()
+
+    act(() => findButton('Cancel')?.click())
+    expect(container.querySelector('[aria-label="Open provider-a"]')).not.toBeNull()
+  })
+
+  it('goes straight to the form when the organization has no provider yet', () => {
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [] },
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+    renderSso('org-a')
+
+    expect(findButton('Save')).toBeDefined()
+    expect(findButton('Add identity provider')).toBeUndefined()
+    expect(findButton('Cancel')).toBeUndefined()
+  })
+
+  it('deletes a provider after confirmation', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({ success: true })
+    mockUseDeleteSSOProvider.mockReturnValue({ isPending: false, mutateAsync })
+    renderSso('org-a')
+
+    act(() => findButton('Delete')?.click())
+    expect(container.querySelector('[role="dialog"]')).toHaveTextContent('Delete identity provider')
+
+    await act(async () => {
+      Array.from(container.querySelectorAll('[role="dialog"] button'))
+        .find((button) => button.textContent === 'Delete')
+        ?.click()
+    })
+    expect(mutateAsync).toHaveBeenCalledWith('provider-a')
+  })
+
+  it('offers delete on the provider detail as well', () => {
+    renderSso('org-a')
+    openProvider('provider-a')
+
+    expect(findButton('Edit')).toBeDefined()
+    expect(findButton('Delete')).toBeDefined()
+    expect(findButton('All providers')).toBeDefined()
+  })
 })

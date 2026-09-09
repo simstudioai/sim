@@ -195,6 +195,12 @@ interface SsoProviderSettingsProps {
   existingProvider?: SsoProviderView
   active: boolean
   onOpenDomains: () => void
+  /** Called with the provider id once a create or update is saved. */
+  onSaved?: (providerId: string) => void
+  /** Returns to the provider list; offered on the detail view and on a fresh create form. */
+  onBack?: () => void
+  /** Offered on the detail view; the caller owns the confirmation. */
+  onDelete?: () => void
 }
 
 export function SsoProviderSettings({
@@ -202,6 +208,9 @@ export function SsoProviderSettings({
   existingProvider,
   active,
   onOpenDomains,
+  onSaved,
+  onBack,
+  onDelete,
 }: SsoProviderSettingsProps) {
   const existingJitProvisioningEnabled = existingProvider?.jitProvisioningEnabled ?? true
   const configureSSOMutation = useConfigureSSO()
@@ -392,6 +401,7 @@ export function SsoProviderSettings({
 
       logger.info('SSO provider configured', { providerId: formData.providerId })
       toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
+      onSaved?.(formData.providerId)
       setFormData(DEFAULT_FORM_DATA)
       setOriginalFormData(DEFAULT_FORM_DATA)
       setShowErrors(false)
@@ -524,7 +534,23 @@ export function SsoProviderSettings({
     return (
       <div className='flex flex-col gap-7'>
         {active && (
-          <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]} />
+          <SettingsPanel
+            actions={[
+              ...(onBack
+                ? [{ text: 'All providers', onSelect: onBack } satisfies SettingsAction]
+                : []),
+              ...(onDelete
+                ? [
+                    {
+                      text: 'Delete',
+                      variant: 'destructive',
+                      onSelect: onDelete,
+                    } satisfies SettingsAction,
+                  ]
+                : []),
+              { text: 'Edit', variant: 'primary', onSelect: handleEdit },
+            ]}
+          />
         )}
 
         <SettingsSection label='Identity provider'>
@@ -617,6 +643,15 @@ export function SsoProviderSettings({
                   {
                     text: 'Cancel',
                     onSelect: handleDiscard,
+                    disabled: configureSSOMutation.isPending,
+                  } satisfies SettingsAction,
+                ]
+              : []),
+            ...(!existingProvider && onBack && !hasChanges
+              ? [
+                  {
+                    text: 'Cancel',
+                    onSelect: onBack,
                     disabled: configureSSOMutation.isPending,
                   } satisfies SettingsAction,
                 ]

@@ -179,25 +179,52 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return orgId ? provider.organizationId === orgId : false
     }
 
-    const findDomainConflict = async () =>
-      (
-        await db
-          .select({
-            userId: ssoProvider.userId,
-            organizationId: ssoProvider.organizationId,
-          })
-          .from(ssoProvider)
-          .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
-      ).find((provider) => !isOwnedByCaller(provider))
-
-    const domainConflictResponse = () =>
-      NextResponse.json(
-        {
-          error: 'This domain is already registered for SSO by another organization.',
-          code: 'SSO_DOMAIN_ALREADY_REGISTERED',
-        },
-        { status: 409 }
+    /**
+     * Refuses the domain when another tenant has claimed it, or when the caller
+     * already routes it through a different provider. An organization may run
+     * several identity providers, but sign-in routes by email domain, so each
+     * domain must name exactly one of them.
+     */
+    const findDomainRefusal = async (): Promise<NextResponse | null> => {
+      const claims = await db
+        .select({
+          userId: ssoProvider.userId,
+          organizationId: ssoProvider.organizationId,
+          providerId: ssoProvider.providerId,
+        })
+        .from(ssoProvider)
+        .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
+      if (claims.some((provider) => !isOwnedByCaller(provider))) {
+        logger.warn('Rejected SSO registration for domain owned by another tenant', {
+          domain,
+          orgId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          {
+            error: 'This domain is already registered for SSO by another organization.',
+            code: 'SSO_DOMAIN_ALREADY_REGISTERED',
+          },
+          { status: 409 }
+        )
+      }
+      const sibling = claims.find(
+        (provider) =>
+          isOwnedByCaller(provider) &&
+          typeof provider.providerId === 'string' &&
+          provider.providerId !== providerId
       )
+      if (sibling) {
+        return NextResponse.json(
+          {
+            error: `${domain} already signs in through the provider "${sibling.providerId}". Edit that provider, or give this one a different verified domain.`,
+            code: 'SSO_DOMAIN_ALREADY_ROUTED',
+          },
+          { status: 409 }
+        )
+      }
+      return null
+    }
 
     /**
      * Better Auth treats `providerId` as globally unique, not per-tenant, and
@@ -233,14 +260,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return providerIdConflictResponse()
     }
 
-    if (await findDomainConflict()) {
-      logger.warn('Rejected SSO registration for domain owned by another tenant', {
-        domain,
-        orgId,
-        userId: session.user.id,
-      })
-      return domainConflictResponse()
-    }
+    const domainRefusal = await findDomainRefusal()
+    if (domainRefusal) return domainRefusal
 
     const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
@@ -586,14 +607,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return providerIdConflictResponse()
     }
 
-    if (await findDomainConflict()) {
-      logger.warn('Rejected SSO registration: domain was claimed during registration', {
-        domain,
-        orgId,
-        userId: session.user.id,
-      })
-      return domainConflictResponse()
-    }
+    const domainRefusalBeforeWrite = await findDomainRefusal()
+    if (domainRefusalBeforeWrite) return domainRefusalBeforeWrite
 
     // Authoritative verification re-check: the verified row could have been
     // removed during OIDC discovery. Re-checking here (not just at handler

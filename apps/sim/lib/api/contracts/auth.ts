@@ -120,6 +120,37 @@ export const listSsoProvidersContract = defineRouteContract({
 
 export type SsoProviderView = z.output<typeof ssoProviderListEntrySchema>
 
+export const deleteSsoProviderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/auth/sso/providers/[providerId]',
+  params: z.object({ providerId: z.string().min(1).max(128) }),
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true), providerId: z.string() }),
+  },
+})
+
+/**
+ * Which identity provider signs in an email address.
+ *
+ * Sign-in names the provider explicitly rather than letting the SSO plugin pick
+ * one by domain: its lookup is unordered and does not prefer a verified domain,
+ * so an organization with several providers, or a stale unverified claim on the
+ * same domain elsewhere, would route people nondeterministically.
+ */
+export const resolveSsoProviderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/auth/sso/resolve',
+  body: z.object({ email: z.string().trim().toLowerCase().email().max(320) }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      providerId: z.string(),
+      providerType: z.enum(['oidc', 'saml']),
+    }),
+  },
+})
+
 export const getAuthProvidersContract = defineRouteContract({
   method: 'GET',
   path: '/api/auth/providers',
