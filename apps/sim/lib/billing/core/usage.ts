@@ -7,6 +7,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
+  getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
@@ -449,13 +450,11 @@ export async function updateUserUsageLimit(
  * checks). Org-scoped subs return the organization limit;
  * personally-scoped subs return the individual user limit from userStats.
  *
- * Org-scoped members carry a null `currentUsageLimit` by design (see
- * `syncUsageLimitsFromSubscription`). A user whose subscription stops being
- * org-scoped without a resync would otherwise stay null and fail closed on
- * every execution, so a null limit self-heals to the plan/free base plus the
- * exact prepaid balance here. The write-back is best-effort: a limit written
- * concurrently wins, and a failed write still resolves to the fallback
- * instead of blocking execution.
+ * Legacy organization membership syncs may have cleared the personal limit.
+ * A null limit self-heals to the personal plan/free base plus the exact prepaid
+ * balance here. The write-back is best-effort: a limit written concurrently
+ * wins, and a failed write still resolves to the fallback instead of blocking
+ * execution.
  */
 export async function getUserUsageLimit(
   userId: string,
@@ -576,11 +575,12 @@ export async function checkUsageStatus(userId: string): Promise<{
 }
 
 /**
- * Sync usage limits based on subscription changes
+ * Syncs the user's personal billing pool from their exact personal subscription.
+ * Organization subscriptions have a separate pool and never clear personal limits.
  */
 export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
   const [subscription, currentUserStats] = await Promise.all([
-    getHighestPrioritySubscription(userId),
+    getHighestPriorityPersonalSubscription(userId, { onError: 'throw' }),
     db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
   ])
 
@@ -588,25 +588,6 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
     throw new Error(`User stats not found for userId: ${userId}`)
   }
 
-  const currentStats = currentUserStats[0]
-
-  if (isOrgScopedSubscription(subscription, userId)) {
-    if (currentStats.currentUsageLimit !== null) {
-      await db
-        .update(userStats)
-        .set({
-          currentUsageLimit: null,
-          usageLimitUpdatedAt: new Date(),
-        })
-        .where(eq(userStats.userId, userId))
-
-      logger.info('Cleared individual limit for org-scoped member', {
-        userId,
-        plan: subscription?.plan,
-      })
-    }
-    return
-  }
   const baseLimit = toDecimal(getPerUserMinimumLimit(subscription)).toString()
   const hasEntitledPersonalSubscription =
     subscription !== null && hasPaidSubscriptionStatus(subscription.status)
@@ -634,7 +615,6 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
       : 'Reset limit to free-plus-prepaid minimum',
     { userId, baseLimit: Number(baseLimit) }
   )
-  // Keep higher custom limits unchanged only while personal billing is entitled.
 }
 
 /**

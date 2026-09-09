@@ -2,7 +2,6 @@ import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import {
@@ -275,6 +274,7 @@ export async function getOrganizationCoverageForMember(
   }
 }
 
+/** Resolves the subscription's exact organization reference without inferring ownership from membership. */
 export async function getOrganizationIdForSubscriptionReference(
   referenceId: string
 ): Promise<string | null> {
@@ -284,24 +284,7 @@ export async function getOrganizationIdForSubscriptionReference(
     .where(eq(organization.id, referenceId))
     .limit(1)
 
-  if (referencedOrganization) {
-    return referencedOrganization.id
-  }
-
-  const [memberRecord] = await db
-    .select({
-      organizationId: member.organizationId,
-      role: member.role,
-    })
-    .from(member)
-    .where(eq(member.userId, referenceId))
-    .limit(1)
-
-  if (memberRecord && isOrgAdminRole(memberRecord.role)) {
-    return memberRecord.organizationId
-  }
-
-  return null
+  return referencedOrganization?.id ?? null
 }
 
 /**
