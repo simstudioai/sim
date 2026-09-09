@@ -47,20 +47,29 @@ import {
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import {
+  type ActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReference,
+} from '@/lib/knowledge/service'
 import {
   type KnowledgeTagNameFilter,
   resolveKnowledgeTagFilters,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
-import type { KnowledgeBaseWithCounts, StructuredFilter } from '@/lib/knowledge/types'
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('KnowledgeSearchApplication')
+
+const ORGANIZATION_SEARCH_RERANKER = {
+  model: 'rerank-v4.0-fast',
+  inputCount: 50,
+  timeoutMs: 3_000,
+} as const
 
 export const KNOWLEDGE_SEARCH_COST_POLICY = {
   maxKnowledgeBases: 20,
@@ -111,7 +120,7 @@ export interface SearchKnowledgeInput {
 }
 
 type KnowledgeSearchContext = KnowledgeResourceContext & {
-  knowledgeBases: KnowledgeBaseWithCounts[]
+  knowledgeBases: ActiveKnowledgeBaseReference[]
   /** What the caller may read across the searched bases; resolved from the principal, never from input. */
   access: KnowledgeAccessProvider
 }
@@ -186,7 +195,9 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
-  const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
+  const knowledgeBases = await Promise.all(
+    input.knowledgeBaseIds.map(getActiveKnowledgeBaseReference)
+  )
   const missingIds = input.knowledgeBaseIds.filter((_, index) => {
     const knowledgeBase = knowledgeBases[index]
     return !knowledgeBase || (!knowledgeBase.workspaceId && !knowledgeBase.organizationId)
@@ -223,7 +234,7 @@ async function resolveKnowledgeSearchContext(
     })
     return {
       ...context,
-      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+      knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
       access: createKnowledgeAccessProvider(principal, context),
     }
   }
@@ -235,7 +246,7 @@ async function resolveKnowledgeSearchContext(
   })
   return {
     ...workspaceContext,
-    knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+    knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
     access: createKnowledgeAccessProvider(principal, { workspaceId: canonicalWorkspaceId }),
   }
 }
@@ -347,13 +358,15 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       }),
     ])
     input.signal?.throwIfAborted()
-    const useReranker = Boolean(input.rerankerEnabled && hasQuery)
+    const organizationReranker = context.organizationId ? ORGANIZATION_SEARCH_RERANKER : undefined
+    const rerankerEnabled = input.rerankerEnabled ?? Boolean(organizationReranker)
+    const rerankerModel = input.rerankerModel ?? organizationReranker?.model
+    const rerankerInputCount = input.rerankerInputCount ?? organizationReranker?.inputCount
+    const useReranker = rerankerEnabled && hasQuery
+    const includeDocumentNames = useReranker && Boolean(context.organizationId)
     const candidateTopK = useReranker
-      ? input.rerankerInputCount !== undefined
-        ? Math.min(
-            KNOWLEDGE_SEARCH_COST_POLICY.maxTopK,
-            Math.max(input.topK, input.rerankerInputCount)
-          )
+      ? rerankerInputCount !== undefined
+        ? Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, Math.max(input.topK, rerankerInputCount))
         : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
     let rows = await executeKnowledgeSearch({
@@ -393,6 +406,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       provenanceSnapshot = await importKnowledgeSearchResultSecretProvenance({
         registry,
         results: rows,
+        includeDocumentNames,
       })
       if (!provenanceSnapshot.imported) {
         registry.markIncomplete('knowledge-result-provenance-unavailable')
@@ -410,72 +424,57 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const rerankerScores = new Map<string, number>()
     let rerankerBilled = false
     let rerankerIsBYOK = false
-    /**
-     * Returned on every search. The fallback to vector ordering is deliberate — a
-     * Cohere outage should not take knowledge search down with it — but until this
-     * was reported the fallback was also invisible: a 200 whose results were
-     * byte-identical to an unreranked search, with no `rerankerScore` anywhere and
-     * nothing to say why.
-     *
-     * It starts at the outcome that holds if the rerank call below never happens or
-     * never completes, so only the success path has to move it. A request with
-     * nothing to rank — no query text, or no candidate rows — is `skipped` rather
-     * than `unavailable`: the reranker was never the obstacle. Anything else that
-     * was asked for and did not produce a usable ordering is `unavailable`,
-     * including a request that reaches here with no model, which no HTTP contract
-     * can now produce.
-     *
-     * A call that returns without raising but hands back an empty ordering counts
-     * as `unavailable` too, and it is not the reranker "matching nothing":
-     * `rerank` asks for `top_n` over a non-empty document list, so a provider that
-     * ranked them returns one entry per document. Empty means the response carried
-     * nothing usable — no results, or only indices outside the batch, which
-     * `rerank` drops. The caller is left in vector order with no `rerankerScore`,
-     * which is exactly what `unavailable` promises, and retrying is exactly the
-     * right advice.
-     */
-    let rerankerStatus: RerankerStatus = !input.rerankerEnabled
+    let rerankerSearchUnits = 0
+    /** Provider failures preserve the authorized retrieval order and remain visible to callers. */
+    let rerankerStatus: RerankerStatus = !rerankerEnabled
       ? 'not_requested'
       : !hasQuery || rows.length === 0
         ? 'skipped'
         : 'unavailable'
-    if (useReranker && input.rerankerModel && rows.length > 0) {
+    if (useReranker && rerankerModel && rows.length > 0) {
       const candidateCount = rows.length
       try {
         const reranked = await runWithKnowledgeModelInputProvenance(registry, () =>
           rerank(
             input.query!,
-            rows.map((row) => ({ id: row.id, text: row.content })),
+            rows.map((row) => {
+              if (!includeDocumentNames) return { id: row.id, text: row.content }
+              const name = provenanceSnapshot?.documentMetadata[row.documentId]?.filename
+              if (name === undefined) {
+                registry?.markIncomplete('knowledge-result-provenance-unavailable')
+                throw new KnowledgeSearchProvenanceUnavailableError()
+              }
+              return { id: row.id, text: `Title: ${name}\n\n${row.content}` }
+            }),
             {
-              model: input.rerankerModel!,
+              model: rerankerModel,
               topN: input.topK,
               workspaceId: context.workspaceId,
 
               apiKey: input.rerankerApiKey,
+              timeoutMs: organizationReranker?.timeoutMs,
               signal: input.signal,
             }
           )
         )
         rerankerBilled = true
         rerankerIsBYOK = reranked.isBYOK
-        if (reranked.results.length === 0) {
-          rows = rows.slice(0, input.topK)
-        } else {
-          const byId = new Map(rows.map((row) => [row.id, row]))
-          rows = reranked.results
-            .map((ranked) => byId.get(ranked.item.id))
-            .filter((row): row is SearchResult => Boolean(row))
-          for (const ranked of reranked.results) {
-            rerankerScores.set(ranked.item.id, ranked.relevanceScore)
-          }
-          rerankerStatus = 'applied'
+        /** Preserve the existing estimate only when the provider omits its billing metadata. */
+        rerankerSearchUnits = reranked.billedSearchUnits ?? 1
+        const byId = new Map(rows.map((row) => [row.id, row]))
+        rows = reranked.results
+          .map((ranked) => byId.get(ranked.item.id))
+          .filter((row): row is SearchResult => Boolean(row))
+        for (const ranked of reranked.results) {
+          rerankerScores.set(ranked.item.id, ranked.relevanceScore)
         }
+        rerankerStatus = 'applied'
       } catch (error) {
         input.signal?.throwIfAborted()
         if (registry?.isPermanentlyIncomplete()) throw error
-        logger.warn('Knowledge reranker failed; using vector ordering', {
+        logger.warn('Knowledge reranker failed; using retrieval ordering', {
           error: getErrorMessage(error),
-          model: input.rerankerModel,
+          model: rerankerModel,
           candidateCount,
         })
         rows = rows.slice(0, input.topK)
@@ -485,7 +484,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         status: rerankerStatus,
         candidateCount,
         resultCount: rows.length,
-        unrecordedChunkCount: provenanceSnapshot?.unrecordedCount ?? 0,
+        unrecordedRecordCount: provenanceSnapshot?.unrecordedCount ?? 0,
         enforced: isDurableSecretProvenanceEnforced('knowledge'),
         workspaceId: context.workspaceId,
       })
@@ -503,10 +502,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       if (!queryEmbedding?.isBYOK) baseCost = calculateCost(embeddingModel, tokenCount, 0, false)
     }
     let rerankerCost = 0
-    if (rerankerBilled && input.rerankerModel && !rerankerIsBYOK) {
-      const pricing = getRerankModelPricing(input.rerankerModel)
+    if (rerankerBilled && rerankerModel && !rerankerIsBYOK) {
+      const pricing = getRerankModelPricing(rerankerModel)
       if (pricing) {
-        rerankerCost = pricing.perSearchUnit
+        rerankerCost = pricing.perSearchUnit * rerankerSearchUnits
         baseCost = baseCost
           ? {
               ...baseCost,
@@ -609,7 +608,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             metadata: result.metadata,
           }))
         if (renderedMetadata.length === 0) continue
-        if (document.provenance.status === 'unknown' && !knowledgeEnforced) unrecordedCount += 1
+        if (document.provenance.status === 'unknown' && !knowledgeEnforced && !includeDocumentNames)
+          unrecordedCount += 1
         if (
           !(await importDurableSecretProvenance(
             registry,
@@ -649,8 +649,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           ...(rerankerBilled && !rerankerIsBYOK
             ? {
                 rerankerCost,
-                rerankerModel: input.rerankerModel,
-                rerankerSearchUnits: 1,
+                rerankerModel,
+                rerankerSearchUnits,
               }
             : {}),
         }

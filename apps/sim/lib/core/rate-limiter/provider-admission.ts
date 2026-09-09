@@ -46,6 +46,13 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       : input.operation === 'ocr'
         ? envNumber(env.KB_CONFIG_OCR_REQUESTS_PER_MINUTE, 60, { min: 1 })
         : envNumber(env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE, 60, { min: 1 })
+  /** Rerank capacity must retain a complete refill from the backends' whole-second ticks. */
+  const requestBurst =
+    input.operation === 'embedding'
+      ? 8
+      : input.operation === 'rerank'
+        ? Math.max(2, Math.ceil(requestsPerMinute / 60))
+        : 2
   const reservations: TokenBucketReservation[] = []
   if (input.operation === 'embedding' && input.inputTokens) {
     const tokensPerMinute = envNumber(env.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE, 600_000, {
@@ -68,7 +75,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     key: `${key}:requests`,
     cost: 1,
     config: {
-      maxTokens: Math.min(input.operation === 'embedding' ? 8 : 2, requestsPerMinute),
+      maxTokens: Math.min(requestBurst, requestsPerMinute),
       refillRate: requestsPerMinute / 60,
       refillIntervalMs: 1000,
     },

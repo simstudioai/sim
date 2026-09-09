@@ -870,6 +870,42 @@ export async function getKnowledgeBaseNames(
   return new Map(rows.map((row) => [row.id, row.name]))
 }
 
+export type ActiveKnowledgeBaseReference = Omit<
+  KnowledgeBaseWithCounts,
+  'tokenCount' | 'docCount' | 'connectorTypes' | 'hasPermissionScopedConnector'
+>
+
+/**
+ * Canonical identity and configuration for application authorization and retrieval.
+ * Reading a reference never scans the base's documents to compute display counts.
+ */
+export async function getActiveKnowledgeBaseReference(
+  knowledgeBaseId: string
+): Promise<ActiveKnowledgeBaseReference | null> {
+  const [row] = await db
+    .select({
+      id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
+      name: knowledgeBase.name,
+      isSearchIndex: knowledgeBase.isSearchIndex,
+      description: knowledgeBase.description,
+      embeddingModel: knowledgeBase.embeddingModel,
+      embeddingDimension: knowledgeBase.embeddingDimension,
+      chunkingConfig: knowledgeBase.chunkingConfig,
+      createdAt: knowledgeBase.createdAt,
+      updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
+      folderId: knowledgeBase.folderId,
+    })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  return row ? { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig } : null
+}
+
 /**
  * Get a single knowledge base by ID
  */

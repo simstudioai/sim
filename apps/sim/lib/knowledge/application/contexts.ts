@@ -21,7 +21,11 @@ import {
   getRestorableKnowledgeBase,
   type RestorableKnowledgeBase,
 } from '@/lib/knowledge/orchestration/restore'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import {
+  type ActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReference,
+  getKnowledgeBaseById,
+} from '@/lib/knowledge/service'
 import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -71,7 +75,7 @@ export interface ActiveKnowledgeBaseContext
 export type ActiveKnowledgeResourceBaseContext = KnowledgeResourceContext &
   KnowledgeAccessBearingContext & {
     knowledgeBaseId: string
-    knowledgeBase: KnowledgeBaseWithCounts
+    knowledgeBase: ActiveKnowledgeBaseReference
   }
 
 export type ActiveKnowledgeDocumentContext = ActiveKnowledgeResourceBaseContext & {
@@ -227,7 +231,7 @@ export async function resolveActiveKnowledgeResourceContext(
   },
   principal: Principal
 ): Promise<ActiveKnowledgeResourceBaseContext> {
-  const knowledgeBase = await getKnowledgeBaseById(input.knowledgeBaseId)
+  const knowledgeBase = await getActiveKnowledgeBaseReference(input.knowledgeBaseId)
   if (
     !knowledgeBase ||
     (input.assertedOrganizationId !== undefined &&

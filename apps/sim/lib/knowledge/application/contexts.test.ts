@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getKnowledgeBase: vi.fn(),
+  getKnowledgeBaseWithCounts: vi.fn(),
   getDocument: vi.fn(),
   getDocumentById: vi.fn(),
   getTag: vi.fn(),
@@ -22,7 +23,8 @@ vi.mock('@/lib/knowledge/access/scope', () => ({
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: mocks.getKnowledgeBase,
+  getActiveKnowledgeBaseReference: mocks.getKnowledgeBase,
+  getKnowledgeBaseById: mocks.getKnowledgeBaseWithCounts,
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -66,8 +68,74 @@ describe('knowledge application contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
+    mocks.getKnowledgeBaseWithCounts.mockResolvedValue({
+      ...knowledgeBase,
+      docCount: 3,
+      tokenCount: 1536,
+    })
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.loadWorkspaceIncludingArchived.mockResolvedValue(workspace)
+  })
+
+  it('resolves child-resource context without loading display counts', async () => {
+    const context = await resolveActiveKnowledgeResourceContext(
+      { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1' },
+      principal
+    )
+
+    expect(context.knowledgeBase).toEqual(knowledgeBase)
+    expect(mocks.getKnowledgeBaseWithCounts).not.toHaveBeenCalled()
+    expect(mocks.createAccessProvider).toHaveBeenCalledWith(principal, {
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('retains display counts in workspace knowledge-base detail context', async () => {
+    const context = await resolveActiveKnowledgeBaseContext(
+      { knowledgeBaseId: 'knowledge-1' },
+      principal
+    )
+
+    expect(context.knowledgeBase).toMatchObject({ docCount: 3, tokenCount: 1536 })
+    expect(mocks.getKnowledgeBase).not.toHaveBeenCalled()
+  })
+
+  it('conceals a missing or archived knowledge-base reference before loading its owner', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce(null)
+
+    await expect(
+      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'archived' }, principal)
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.createAccessProvider).not.toHaveBeenCalled()
+  })
+
+  it('conceals an organization reference outside the asserted organization', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      id: 'org-index',
+      workspaceId: null,
+      organizationId: 'org-canonical',
+    })
+
+    await expect(
+      resolveActiveKnowledgeResourceContext(
+        { knowledgeBaseId: 'org-index', assertedOrganizationId: 'org-other' },
+        principal
+      )
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.createAccessProvider).not.toHaveBeenCalled()
+  })
+
+  it('conceals a reference with conflicting owners', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      ...knowledgeBase,
+      organizationId: 'org-canonical',
+    })
+
+    await expect(
+      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'knowledge-1' }, principal)
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.createAccessProvider).not.toHaveBeenCalled()
   })
 
   it('uses the canonical active-workspace loader', async () => {

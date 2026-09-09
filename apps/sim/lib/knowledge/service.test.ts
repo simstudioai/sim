@@ -30,10 +30,77 @@ vi.mock('@/lib/billing/storage', () => ({
 
 import {
   findActiveKnowledgeBasesByExactName,
+  getActiveKnowledgeBaseReference,
+  getKnowledgeBaseById,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+
+describe('knowledge base references', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('loads active identity and embedding configuration without aggregating documents', async () => {
+    const reference = {
+      id: 'kb-1',
+      name: 'Organization search',
+      workspaceId: null,
+      organizationId: 'org-1',
+      isSearchIndex: true,
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimension: 1536,
+      chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 },
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([reference])
+
+    await expect(getActiveKnowledgeBaseReference('kb-1')).resolves.toEqual(reference)
+
+    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'eq' && node.left === schemaMock.knowledgeBase.id && node.right === 'kb-1'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.deletedAt
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
+  })
+
+  it('reports a missing or archived reference as absent', async () => {
+    await expect(getActiveKnowledgeBaseReference('missing')).resolves.toBeNull()
+  })
+
+  it('preserves aggregate counts for knowledge-base detail consumers', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'kb-1',
+        chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 },
+        docCount: 3,
+        tokenCount: 1536,
+      },
+    ])
+
+    await expect(getKnowledgeBaseById('kb-1')).resolves.toMatchObject({
+      docCount: 3,
+      tokenCount: 1536,
+      connectorTypes: [],
+      hasPermissionScopedConnector: false,
+    })
+    expect(dbChainMockFns.leftJoin).toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).toHaveBeenCalled()
+  })
+})
 
 /**
  * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the
