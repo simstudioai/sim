@@ -5,9 +5,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, modeState } = vi.hoisted(() => ({
+const { mockCaptureEvent, mockRouterPush, modeState, connectionState } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
+  mockRouterPush: vi.fn(),
   modeState: { initial: 'build', set: (_next: string) => {} },
+  /** Drives the personalized Build list; empty keeps the component on INITIAL_ACTIONS. */
+  connectionState: {
+    credentials: [] as { type: string; providerId: string }[],
+    services: [] as { providerId: string; name: string; icon: () => null }[],
+  },
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode', async () => {
@@ -23,16 +29,17 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode', async ()
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
+  useRouter: () => ({ push: mockRouterPush }),
 }))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 vi.mock('@sim/utils/random', () => ({ randomFloat: () => 0 }))
 
 vi.mock('@/hooks/queries/credentials', () => ({
-  useWorkspaceCredentials: () => ({ data: [] }),
+  useWorkspaceCredentials: () => ({ data: connectionState.credentials }),
 }))
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
-  useOAuthConnections: () => ({ data: [] }),
+  useOAuthConnections: () => ({ data: connectionState.services }),
 }))
 vi.mock('@/hooks/queries/tables', () => ({
   useTablesList: () => ({ data: [] }),
@@ -112,7 +119,10 @@ function rows(): HTMLButtonElement[] {
 beforeEach(() => {
   onSelectPrompt.mockClear()
   mockCaptureEvent.mockClear()
+  mockRouterPush.mockClear()
   modeState.initial = 'build'
+  connectionState.credentials = []
+  connectionState.services = []
 })
 
 afterEach(() => {
@@ -123,6 +133,28 @@ afterEach(() => {
 })
 
 describe('SuggestedActions', () => {
+  /**
+   * Snowflake authenticates with a stored service account, so the catalog holds
+   * no OAuth service for its slug and the inline modal cannot open. The row is
+   * still offered — `defineServices` enumerates every OAuth provider, including
+   * the service-account ones — so before this handoff the click resolved no
+   * target and was silently dropped.
+   */
+  it('hands a stored-service-account row to its detail page instead of dropping the click', () => {
+    connectionState.credentials = [{ type: 'oauth', providerId: 'gmail' }]
+    connectionState.services = [{ providerId: 'snowflake', name: 'Snowflake', icon: () => null }]
+    mount()
+
+    const row = rows().find((candidate) => candidate.textContent === 'Integrate with Snowflake')
+    expect(row).toBeDefined()
+    act(() => row?.click())
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      '/workspace/workspace-1/integrations/snowflake?connect=service-account'
+    )
+    expect(container?.querySelector('[data-testid="connect-modal"]')).toBeNull()
+  })
+
   it('shows the Build starters by default', () => {
     mount()
 

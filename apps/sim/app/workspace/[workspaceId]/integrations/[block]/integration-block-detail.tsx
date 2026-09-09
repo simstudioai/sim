@@ -112,17 +112,23 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     serviceIcon: serviceAccountService?.serviceIcon,
   })
   /**
-   * Unknown availability offers the connect control only when the stored
-   * service account is the integration's *only* path, mirroring the optimistic
-   * default `oauthAvailable` already applies to the OAuth one. There, a
-   * pessimistic default renders a disabled "Unavailable" verdict for the whole
-   * permission-config load; here it would instead widen the header control from
-   * a chip to a dropdown and back as the config lands, so an integration that
-   * also offers OAuth keeps waiting for the real answer.
+   * Unknown availability means two different things, and they want opposite
+   * defaults.
+   *
+   * While the permission config is still in flight the answer is imminent, so
+   * only an integration whose *sole* path is a stored service account offers the
+   * control — for one that also has OAuth, a `true` here would widen the header
+   * from a chip to a dropdown and then collapse it again as the config lands.
+   *
+   * Once both queries have settled and still produced nothing, the request
+   * failed, and withholding the control strands a user who has a perfectly good
+   * stored account behind a fetch they cannot retry. Fail open there, matching
+   * the `?? true` that `oauthAvailable` above already applies to the OAuth path;
+   * the server still refuses a provider the deployment does not offer.
    */
   const serviceAccountDeploymentAvailable = availability
     ? availability.state === 'ready' || availability.state === 'limited'
-    : !oauthService
+    : !oauthService || !permissionConfigLoading
   const hasServiceAccount =
     serviceAccountDeploymentAvailable &&
     Boolean(serviceAccountTarget) &&
@@ -194,6 +200,21 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     router.push(`/workspace/${workspaceId}/home`)
   }
 
+  /**
+   * Shown when no connect flow is on offer. "Unavailable" is a verdict about a
+   * connection the deployment grants, so it belongs only to an integration with
+   * an OAuth path. One authenticated by a stored service account still runs on
+   * the user's own API key, and so keeps the catalog's ordinary call to action —
+   * the same fallback an integration with no credential service at all gets.
+   */
+  const connectFallback = oauthService ? (
+    <Chip disabled>Unavailable</Chip>
+  ) : chatEnabled ? (
+    <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
+      Add to Sim
+    </Chip>
+  ) : null
+
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className={PAGE_HEADER_BAR}>
@@ -225,13 +246,11 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 {serviceAccountConnectLabel}
               </Chip>
             ) : (
-              <Chip disabled>Unavailable</Chip>
+              connectFallback
             )
-          ) : chatEnabled ? (
-            <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
-              Add to Sim
-            </Chip>
-          ) : null}
+          ) : (
+            connectFallback
+          )}
         </div>
       </div>
       {personalTokenAvailable && (

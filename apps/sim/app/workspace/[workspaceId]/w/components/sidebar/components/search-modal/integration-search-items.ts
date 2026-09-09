@@ -21,7 +21,13 @@ const INTEGRATION_BASES: readonly {
   icon: ComponentType<{ className?: string }>
   bgColor: string
   slug: string
-  authType: string
+  /**
+   * Whether the detail page has a credential the deep link can pre-open a modal
+   * for. Read from the catalog's credential services rather than `authType`,
+   * because an integration can be `api-key` there and still authenticate with a
+   * stored service account (NetSuite, Snowflake, Harmonic, Claude Platform).
+   */
+  hasCredentialService: boolean
   blockType: string
 }[] = INTEGRATIONS.flatMap((integration) => {
   const icon = blockTypeToIconMap[integration.type]
@@ -33,7 +39,9 @@ const INTEGRATION_BASES: readonly {
       icon,
       bgColor: integration.bgColor,
       slug: integration.slug,
-      authType: integration.authType,
+      hasCredentialService: Boolean(
+        integration.oauthServiceId ?? integration.serviceAccountServiceId
+      ),
       blockType: integration.type,
     },
   ]
@@ -41,9 +49,10 @@ const INTEGRATION_BASES: readonly {
 
 /**
  * Builds the full integration catalog as search items for a given workspace.
- * OAuth integrations link directly to the detail page with `?connect=oauth` so
- * the connect modal auto-opens (via the detail page's `useEffect` on
- * `CONNECT_QUERY_PARAM`). Non-OAuth integrations link to the plain detail page.
+ * An integration with a credential links to the detail page carrying the connect
+ * mode `getConnectMode` picks for it, so that modal auto-opens (via the detail
+ * page's `useEffect` on `CONNECT_QUERY_PARAM`). Everything else — and anything
+ * with no connect flow currently on offer — links to the plain detail page.
  */
 export function buildIntegrationSearchItems(
   workspaceId: string,
@@ -53,7 +62,7 @@ export function buildIntegrationSearchItems(
   ) => (typeof CONNECT_MODE)[keyof typeof CONNECT_MODE] | null = () => CONNECT_MODE.oauth
 ): IntegrationSearchItem[] {
   return INTEGRATION_BASES.filter((base) => isBlockAllowed(base.blockType)).map((base) => {
-    const connectMode = base.authType === 'oauth' ? getConnectMode(base.blockType) : null
+    const connectMode = base.hasCredentialService ? getConnectMode(base.blockType) : null
     const connectSuffix = connectMode ? `?${CONNECT_QUERY_PARAM}=${connectMode}` : ''
     return {
       id: base.id,

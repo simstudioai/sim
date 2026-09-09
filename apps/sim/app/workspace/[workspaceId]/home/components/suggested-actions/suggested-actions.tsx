@@ -4,13 +4,14 @@ import { useMemo, useState } from 'react'
 import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { Table } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
   INTEGRATIONS,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
+  resolveServiceAccountServiceForIntegration,
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -23,6 +24,10 @@ import type {
 import { weightedSample } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/weighted-sample'
 import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import type { MothershipMode } from '@/app/workspace/[workspaceId]/home/search-params'
+import {
+  CONNECT_MODE,
+  CONNECT_QUERY_PARAM,
+} from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
@@ -245,6 +250,7 @@ interface SuggestedActionsProps {
 
 export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const router = useRouter()
   const posthog = usePostHog()
   const [mode] = useMothershipMode()
   const { integrationAvailability } = usePermissionConfig()
@@ -328,7 +334,23 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       return
     }
     const target = resolveOAuthServiceForSlug(action.slug)
-    if (target) setOAuthTarget(target)
+    if (target) {
+      setOAuthTarget(target)
+      return
+    }
+    /**
+     * The row names an integration this surface cannot connect inline: one
+     * authenticated by a stored service account, or one whose OAuth service the
+     * catalog does not carry. Both used to drop the click silently. Hand off to
+     * the detail page instead — with the service-account deep link when that is
+     * the flow it offers, so the modal still opens in one click.
+     */
+    const integration = INTEGRATIONS.find((entry) => entry.slug === action.slug)
+    const connectSuffix =
+      integration && resolveServiceAccountServiceForIntegration(integration)
+        ? `?${CONNECT_QUERY_PARAM}=${CONNECT_MODE.serviceAccount}`
+        : ''
+    router.push(`/workspace/${workspaceId}/integrations/${action.slug}${connectSuffix}`)
   }
 
   const handleToggleExpanded = () => {
