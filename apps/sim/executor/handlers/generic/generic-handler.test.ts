@@ -1,6 +1,7 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { getBlock } from '@/blocks/index'
@@ -593,30 +594,42 @@ describe('GenericBlockHandler', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
-  it('should handle tool execution errors correctly', async () => {
-    const inputs = { param1: 'value' }
-    const errorResult = {
-      success: false,
-      error: 'Custom tool failed',
-      output: { detail: 'error detail' },
+  it.each([undefined, true, false])(
+    'preserves failure details when retryable is %s',
+    async (retryable) => {
+      const inputs = { param1: 'value' }
+      const errorResult = {
+        success: false,
+        error: 'Custom tool failed',
+        output: { detail: 'error detail' },
+        statusCode: 503,
+        ...(retryable !== undefined ? { retryable } : {}),
+      }
+      mockExecuteTool.mockResolvedValue(errorResult)
+
+      let thrown: unknown
+      try {
+        await handler.execute(mockContext, mockBlock, inputs)
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(thrown instanceof NonRetryableExecutionError).toBe(retryable === false)
+      expect(thrown).toMatchObject({
+        message: 'Custom tool failed',
+        toolId: 'some_custom_tool',
+        toolName: 'Some Custom Tool',
+        blockId: 'generic-block-1',
+        blockName: 'Test Generic Block',
+        output: { detail: 'error detail' },
+        statusCode: 503,
+        timestamp: expect.any(String),
+        ...(retryable === false ? { retryable: false } : {}),
+      })
+      expect(mockExecuteTool).toHaveBeenCalledTimes(1)
     }
-    mockExecuteTool.mockResolvedValue(errorResult)
-
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'Custom tool failed'
-    )
-
-    // Re-execute to check error properties after catching
-    try {
-      await handler.execute(mockContext, mockBlock, inputs)
-    } catch (e: any) {
-      expect(e.toolId).toBe('some_custom_tool')
-      expect(e.blockName).toBe('Test Generic Block')
-      expect(e.output).toEqual({ detail: 'error detail' })
-    }
-
-    expect(mockExecuteTool).toHaveBeenCalledTimes(2) // Called twice now
-  })
+  )
 
   it.concurrent('should handle tool execution errors with no specific message', async () => {
     const inputs = { param1: 'value' }

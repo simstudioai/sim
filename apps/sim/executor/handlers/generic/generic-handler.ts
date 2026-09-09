@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
@@ -344,7 +345,10 @@ export class GenericBlockHandler implements BlockHandler {
             ? errorDetails.join(' - ')
             : `Block execution of ${tool?.name || block.config.tool} failed with no error message`
 
-        const error = new Error(errorMessage)
+        const error =
+          result.retryable === false
+            ? new NonRetryableExecutionError(errorMessage)
+            : new Error(errorMessage)
 
         Object.assign(error, {
           toolId: block.config.tool,
