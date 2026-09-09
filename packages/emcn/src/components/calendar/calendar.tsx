@@ -131,8 +131,9 @@ function timeOfDayFrom(date: Date): string {
 
 /**
  * Parses a date value into its local day plus an optional time-of-day. Bare
- * `YYYY-MM-DD` strings are pure days (no time). Datetime strings parse through
- * `Date` so an explicit offset (`Z`, `-07:00`) resolves to the **local** day —
+ * `YYYY-MM-DD` strings are pure days (no time). Offset-free ISO datetimes keep
+ * their literal clock and fractional precision. Explicit offsets (`Z`, `-07:00`)
+ * parse through `Date` and resolve to the **local** day —
  * unlike {@link parseDateValue}'s date-slice fast path, which would read the
  * UTC day.
  *
@@ -153,6 +154,17 @@ export function parseDateTimeValue(value: string | Date | undefined): {
   }
   const parsed = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(parsed.getTime())) return { date: null, time: null }
+  if (typeof value === 'string') {
+    const wallTime =
+      /^\d{4}-\d{2}-\d{2}T((?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?)$/.exec(value)
+    if (wallTime) {
+      const time = wallTime[1]
+      return {
+        date: parsed,
+        time: time.length === 8 && time.endsWith(':00') ? time.slice(0, 5) : time,
+      }
+    }
+  }
   if (typeof value === 'string' && value.includes('T')) {
     return { date: parsed, time: timeOfDayFrom(parsed) }
   }
@@ -206,12 +218,12 @@ interface CalendarSingleProps extends CalendarBaseProps {
   value?: string | Date
   /**
    * Called with the picked date in `YYYY-MM-DD` format — or, with `showTime`
-   * and a set time, the local wall time `YYYY-MM-DDTHH:mm[:ss]`.
+   * and a set time, the local wall time `YYYY-MM-DDTHH:mm[:ss[.fraction]]`.
    */
   onChange?: (value: string) => void
   /**
    * Adds a time-of-day input under the grid. Day picks keep the current time
-   * (seconds included when the seeded value had them); time edits re-emit on
+   * (seconds and fractional seconds included when supplied); time edits re-emit on
    * the selected (or today's) day. Without a time set, day picks emit bare
    * `YYYY-MM-DD` days.
    */

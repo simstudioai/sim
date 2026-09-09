@@ -20,13 +20,29 @@ describe('parseDateTimeValue', () => {
     expect(parseDateTimeValue('2026-07-06T16:04').time).toBe('16:04')
   })
 
+  it.each(['14:30:00.000001', '14:30:45.123456', '00:00:00.999999'])(
+    'retains the full wall time %s for subsequent date selections',
+    (time) => {
+      expect(parseDateTimeValue(`2026-09-07T${time}`).time).toBe(time)
+    }
+  )
+
+  it('does not reinterpret a literal wall time through a daylight-saving gap', () => {
+    expect(parseDateTimeValue('2026-03-08T02:30:45.123456').time).toBe('02:30:45.123456')
+  })
+
   it('treats a coincidental local midnight as no time for Date instances', () => {
     expect(parseDateTimeValue(new Date(2026, 6, 6)).time).toBeNull()
     expect(parseDateTimeValue(new Date(2026, 6, 6, 16, 4, 55)).time).toBe('16:04:55')
   })
 
+  it('retains early years when reading a literal wall time', () => {
+    expect(parseDateTimeValue('0001-01-01T12:30:00.123456').date?.getFullYear()).toBe(1)
+  })
+
   it('returns nulls for unparseable input', () => {
     expect(parseDateTimeValue('garbage')).toEqual({ date: null, time: null })
+    expect(parseDateTimeValue('2026-99-99T12:30:00.123456')).toEqual({ date: null, time: null })
   })
 })
 

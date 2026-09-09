@@ -2,6 +2,8 @@
 
 This is the acceptance matrix for the current Expiration column. Execute against a disposable local database with this branch's migrations. Never run the destructive fixtures or injected failures against an existing development, staging, or production database.
 
+Expiration has not been released, and there are no production tables with Expiration columns. These changes define the initial timestamp contract; numeric-value migration is not a rollout requirement. Malformed stored values in this matrix are deliberately injected fixtures.
+
 ## Invariants
 
 - Only rows with a valid explicit expiration at or before the cleanup run's cutoff can be deleted.
@@ -78,6 +80,8 @@ This is the acceptance matrix for the current Expiration column. Execute against
 The results below distinguish automated coverage from live browser, HTTP, and PostgreSQL evidence. Unit tests alone do not establish network recovery or database locking.
 
 ## Results — September 9, 2026
+
+**Review follow-up: 22 calendar tests and 108 table/search UI tests pass.** Calendar day selection and Today preserve the existing clock time, seconds, and microseconds, including across the Los Angeles daylight-saving gap. The Expiration editor reattaches the stored numeric offset. The failing search setup test now waits for the queued URL update after Cancel before asserting it; production search behavior is unchanged.
 
 **Offset-preservation follow-up: 2,162 regression tests and 23 non-stress PostgreSQL scenarios pass.** The current contract preserves numeric offsets and spells incoming Z as -00:00. Earlier results below were collected before this formatting change; the follow-up section records the new contract checks. Production-environment verification is still separate.
 
