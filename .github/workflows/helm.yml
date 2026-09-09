@@ -183,7 +183,7 @@ jobs:
           helm install sim helm/sim \
             --namespace sim --create-namespace \
             --values helm/sim/ci/default-values.yaml \
-            --values helm/sim/ci/kind-values.yaml \
+            --values helm/sim/ci/kind-overlay.yaml \
             --wait --timeout 15m
 
       - name: Diagnostics on failure
@@ -262,7 +262,7 @@ jobs:
       # (detect-version in ci.yml), so appVersion legitimately names a release
       # that does not exist yet while that release is still being built. Failing
       # on any mismatch would race that workflow and block the very publish the
-      # bump was for. `helm/sim/ci/kind-values.yaml` documents the same
+      # bump was for. `helm/sim/ci/kind-overlay.yaml` documents the same
       # circularity, and it is why appVersion went unbumped for so long.
       #
       # Compares against the latest GitHub release rather than a hardcoded value
