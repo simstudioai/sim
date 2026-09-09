@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { compactAsyncAgentLaunch } from '@/lib/copilot/chat/async-agent-display'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -181,7 +182,19 @@ function mapToolStatusToClientState(
   }
 }
 
-function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
+function getOverrideDisplayTitle(
+  tc: NonNullable<ContentBlock['toolCall']>,
+  agentNames: ReadonlyMap<string, string>
+): string | undefined {
+  if (
+    agentNames.size > 0 &&
+    ['wait_agents', 'tail_agent', 'steer_agent', 'interrupt_agent'].includes(tc.name)
+  ) {
+    const ids = tc.name === 'wait_agents' ? tc.params?.agent_ids : [tc.params?.agent_id]
+    if (Array.isArray(ids) && ids.some((id) => typeof id === 'string' && agentNames.has(id))) {
+      return getToolDisplayTitle(tc.name, tc.params, agentNames)
+    }
+  }
   if (tc.name === ReadTool.id || tc.name === 'respond' || tc.name.endsWith('_respond')) {
     return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.params)?.text
   }
@@ -199,8 +212,11 @@ function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): str
   return undefined
 }
 
-function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
-  const overrideDisplayTitle = getOverrideDisplayTitle(tc)
+function toToolData(
+  tc: NonNullable<ContentBlock['toolCall']>,
+  agentNames: ReadonlyMap<string, string>
+): ToolCallData {
+  const overrideDisplayTitle = getOverrideDisplayTitle(tc, agentNames)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
   const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status, tc.name)
@@ -253,7 +269,10 @@ function appendTextItem(group: AgentGroupSegment, content: string): void {
  * no name/tool-call reverse lookups. Delegation tool_calls are absorbed — the
  * subagent span is the canonical representation of the nested agent.
  */
-function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
+function parseBlocksWithSpanTree(
+  blocks: ContentBlock[],
+  agentNames: ReadonlyMap<string, string>
+): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsBySpanId = new Map<string, AgentGroupSegment>()
   // Stable per-run counters for React keys. The Nth top-level text run / Nth
@@ -422,7 +441,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
       // Delegation tools are represented by their subagent span group; absorb.
       if (SUBAGENT_KEYS.has(tc.name)) continue
-      const tool = toToolData(tc)
+      const tool = toToolData(tc, agentNames)
       if (block.spanId) {
         let g = groupsBySpanId.get(block.spanId)
         // Out-of-order safety: a subagent's tool can stream before its
@@ -500,10 +519,19 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * span identity existed.
  */
 export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
-  if (blocks.some((block) => Boolean(block.spanId))) {
-    return parseBlocksWithSpanTree(blocks)
+  /** Launch results retain display names; their slugified IDs can cut words short. */
+  const agentNames = new Map<string, string>()
+  for (const block of blocks) {
+    if (block.type !== 'tool_call') continue
+    const tc = block.toolCall
+    if (!tc?.result?.success) continue
+    const launch = compactAsyncAgentLaunch(tc.name, tc.result.output)
+    if (launch) agentNames.set(launch.agentId, launch.name)
   }
-  return parseBlocksLegacy(blocks)
+  if (blocks.some((block) => Boolean(block.spanId))) {
+    return parseBlocksWithSpanTree(blocks, agentNames)
+  }
+  return parseBlocksLegacy(blocks, agentNames)
 }
 
 function joinRenderableText(parts: string[]): string {
@@ -523,7 +551,10 @@ export function getOrchestratorMessageText(
   )
 }
 
-function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
+function parseBlocksLegacy(
+  blocks: ContentBlock[],
+  agentNames: ReadonlyMap<string, string>
+): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsByKey = new Map<string, AgentGroupSegment>()
   let activeGroupKey: string | null = null
@@ -677,7 +708,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
         continue
       }
 
-      const tool = toToolData(tc)
+      const tool = toToolData(tc, agentNames)
 
       if (tc.calledBy) {
         const { group: g, created } = ensureGroup(tc.calledBy, block.parentToolCallId)

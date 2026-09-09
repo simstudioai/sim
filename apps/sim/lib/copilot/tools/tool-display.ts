@@ -722,19 +722,21 @@ function waitTitle(args: ToolArgs): string {
 
 /**
  * An async agent id is its slugified display name plus a sequence suffix
- * ("digest-workflow-build-4"); recover the human name for titles.
+ * ("digest-workflow-build-4"). Prefer its display name: the slug may be truncated.
  */
-function humanizeAgentId(id: string): string {
+function humanizeAgentId(id: string, agentNames?: ReadonlyMap<string, string>): string {
+  const displayName = agentNames?.get(id)
+  if (displayName) return displayName
   const words = id.replace(/-\d+$/, '').split('-').filter(Boolean)
   if (words.length === 0) return id
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
 /** Title for a wait_agents sleep, naming the agents and honoring mode "any". */
-function waitAgentsTitle(args: ToolArgs): string {
+function waitAgentsTitle(args: ToolArgs, agentNames?: ReadonlyMap<string, string>): string {
   const raw = args?.agent_ids
   const ids = Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
-  const names = ids.map(humanizeAgentId)
+  const names = ids.map((id) => humanizeAgentId(id, agentNames))
   const anyMode = stringArg(args, 'mode') === 'any'
   if (names.length === 1) return `Waiting for ${names[0]}`
   if (names.length > 1) {
@@ -820,7 +822,11 @@ function terminalTitle(args: ToolArgs): string {
  * cases come first, then the static map, then a humanized fallback. This never
  * returns an empty string.
  */
-export function getToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+export function getToolDisplayTitle(
+  name: string,
+  args?: Record<string, unknown>,
+  agentNames?: ReadonlyMap<string, string>
+): string {
   const mcpToolMatch = name.match(/^mcp-[^-]+-(.+)$/)
   if (mcpToolMatch?.[1]) {
     return humanizeToolName(mcpToolMatch[1])
@@ -859,13 +865,13 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'wait':
       return waitTitle(args)
     case 'wait_agents':
-      return waitAgentsTitle(args)
+      return waitAgentsTitle(args, agentNames)
     case 'tail_agent':
-      return `Checking on ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
+      return `Checking on ${humanizeAgentId(stringArg(args, 'agent_id'), agentNames) || 'agent'}`
     case 'steer_agent':
-      return `Steering ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
+      return `Steering ${humanizeAgentId(stringArg(args, 'agent_id'), agentNames) || 'agent'}`
     case 'interrupt_agent':
-      return `Stopping ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
+      return `Stopping ${humanizeAgentId(stringArg(args, 'agent_id'), agentNames) || 'agent'}`
     case 'terminal':
       return terminalTitle(args)
     // The surface used to be one tool per operation. Conversations recorded
