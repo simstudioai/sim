@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   isForkingAvailableForWorkspace: vi.fn(),
   isOrganizationOnEnterprisePlan: vi.fn(),
   isOrganizationSettingsSectionAvailable: vi.fn(),
+  isScopedCredentialGroupsAvailable: vi.fn(),
+  isKnowledgeMemberAccessAvailable: vi.fn(),
   isPlatformAdmin: vi.fn(),
   resolveVerifiedUserAccessControlContext: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
@@ -43,6 +45,7 @@ vi.mock('@/components/settings/navigation', () => ({
   UNIFIED_TO_ORGANIZATION_SECTION: {
     organization: 'members',
     billing: 'billing',
+    'connected-accounts': 'connected-accounts',
     'access-control': 'access-control',
   },
   UNIFIED_TO_WORKSPACE_SECTION: {
@@ -59,6 +62,12 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => ({
   getDeploymentShape: () => mocks.deploymentShape,
+}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: mocks.isScopedCredentialGroupsAvailable,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mocks.isKnowledgeMemberAccessAvailable,
 }))
 vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
@@ -114,6 +123,8 @@ describe('authorizeWorkspaceSettingsSection', () => {
     mocks.isForkingAvailableForWorkspace.mockResolvedValue(true)
     mocks.isOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mocks.isOrganizationSettingsSectionAvailable.mockReturnValue(true)
+    mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(true)
+    mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(false)
     mocks.isPlatformAdmin.mockResolvedValue(true)
     mocks.canOpenOrganizationSettingsSection.mockResolvedValue(true)
     mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({ config: {} })
@@ -236,6 +247,65 @@ describe('authorizeWorkspaceSettingsSection', () => {
     })
     await expect(authorize('billing')).resolves.toEqual({ allowed: true })
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { groups: true, search: false, allowed: true },
+    { groups: false, search: false, allowed: false },
+    { groups: true, search: true, allowed: false },
+    { groups: false, search: true, allowed: false },
+  ])(
+    'gates Connected accounts with organization groups=$groups and search=$search',
+    async ({ groups, search, allowed }) => {
+      mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+      mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(groups)
+      mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(search)
+
+      await expect(authorize('connected-accounts')).resolves.toEqual(
+        allowed ? { allowed: true } : { allowed: false, disposition: 'redirect-general' }
+      )
+      expect(mocks.canOpenOrganizationSettingsSection).toHaveBeenCalledWith(
+        'organization-1',
+        'viewer-1',
+        'connected-accounts'
+      )
+      expect(mocks.isScopedCredentialGroupsAvailable).toHaveBeenCalledWith({
+        kind: 'organization',
+        organizationId: 'organization-1',
+      })
+      if (groups) {
+        expect(mocks.isKnowledgeMemberAccessAvailable).toHaveBeenCalledWith({
+          organizationId: 'organization-1',
+        })
+      }
+      expect(mocks.isOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not infer organization admin access from workspace admin access', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.canOpenOrganizationSettingsSection.mockResolvedValue(false)
+
+    await expect(authorize('connected-accounts')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isScopedCredentialGroupsAvailable).not.toHaveBeenCalled()
+  })
+
+  it('requires a host organization for Connected accounts', async () => {
+    await expect(authorize('connected-accounts')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
+  })
+
+  it('propagates feature lookup failures instead of opening Connected accounts', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.isKnowledgeMemberAccessAvailable.mockRejectedValue(new Error('Feature lookup failed'))
+
+    await expect(authorize('connected-accounts')).rejects.toThrow('Feature lookup failed')
   })
 
   it('requires current organization access and plan availability for enterprise sections', async () => {

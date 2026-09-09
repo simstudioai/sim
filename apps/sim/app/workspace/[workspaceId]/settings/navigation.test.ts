@@ -33,6 +33,7 @@ describe('unified settings navigation', () => {
       { id: 'organization', label: 'Members', section: 'organization' },
       { id: 'usage', label: 'Usage tracking', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
+      { id: 'connected-accounts', label: 'Connected accounts', section: 'organization' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
       { id: 'apikeys', label: 'Sim API keys', section: 'workspace' },
@@ -84,6 +85,7 @@ describe('unified settings navigation', () => {
     expect(idsForSection('organization')).toEqual([
       'organization',
       'usage',
+      'connected-accounts',
       'access-control',
       'audit-logs',
       'whitelabeling',
@@ -144,9 +146,9 @@ describe('resolveSettingsSection', () => {
     expect(resolveSettingsSection('')).toBeNull()
   })
 
-  it('does not expose credential group management through workspace settings', () => {
+  it('resolves organization connected accounts in the unified settings shell', () => {
     expect(resolveSettingsSection('credential-groups')).toBeNull()
-    expect(resolveSettingsSection('connected-accounts')).toBeNull()
+    expect(resolveSettingsSection('connected-accounts')?.id).toBe('connected-accounts')
   })
 
   it('carries the catalog label through as the header title', () => {

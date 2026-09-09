@@ -45,6 +45,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
       'general',
       'billing',
       'secrets',
+      'connected-accounts',
       'organization',
       'usage',
       'access-control',
@@ -164,6 +165,21 @@ describe('WorkspaceSettingsSectionPage', () => {
       'NEXT_NOT_FOUND'
     )
     expect(mockSectionPrefetch).not.toHaveBeenCalled()
+  })
+
+  it('gates direct Connected accounts links before loading the settings panel', async () => {
+    mockAuthorizeSection.mockResolvedValue({ allowed: false, disposition: 'redirect-general' })
+
+    await expect(WorkspaceSettingsSectionPage(pageProps('connected-accounts'))).rejects.toThrow(
+      'NEXT_REDIRECT:/workspace/workspace-b/settings/general'
+    )
+    expect(mockAuthorizeSection).toHaveBeenCalledWith({
+      workspaceId: 'workspace-b',
+      userId: 'viewer-a',
+      section: 'connected-accounts',
+    })
+    expect(mockGetHostContext).not.toHaveBeenCalled()
+    expect(mockGetQueryClient).not.toHaveBeenCalled()
   })
 
   it('redirects unavailable visible-catalog sections to General', async () => {

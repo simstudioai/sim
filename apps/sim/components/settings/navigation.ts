@@ -96,6 +96,7 @@ export interface SettingsNavigationItem<Section extends string = string> {
 }
 
 export type UnifiedSettingsSection =
+  | 'connected-accounts'
   | 'general'
   | 'desktop'
   | 'browser'
@@ -531,6 +532,13 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Connected accounts',
     icon: GridOffset,
+    unified: {
+      id: 'connected-accounts',
+      description: 'Manage accounts shared with your organization’s workflows.',
+      group: 'organization',
+      order: 1,
+      organizationSection: 'connected-accounts',
+    },
     planes: {
       account: {
         id: 'connected-accounts',
