@@ -3,7 +3,7 @@ import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { Editor, getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown'
 import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import { dispatchEditorDrop } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drop.test-helpers'
 import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 import {
   beginImageUploads,
@@ -333,13 +333,7 @@ describe('heading images', () => {
       seed.destroy()
       const originalAttrs = a.editor.state.doc.nodeAt(imagePositions(a.editor)[0])?.attrs
       a.editor.commands.setNodeSelection(imagePositions(a.editor)[0])
-      vi.spyOn(a.editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
-      expect(
-        moveDraggedImageNode(a.editor.view, new MouseEvent('drop') as DragEvent, {
-          images: [],
-          html: '<img src="/logo.png">',
-        })
-      ).toBe(true)
+      expect(dispatchEditorDrop(a.editor, 8).defaultPrevented).toBe(true)
       expect(a.editor.state.doc.nodeAt(8)?.type.name).toBe('inlineImage')
       expect(a.editor.state.doc.nodeAt(8)?.attrs).toEqual(originalAttrs)
       b.editor.commands.insertContentAt(b.editor.state.doc.content.size - 1, ' preserved')

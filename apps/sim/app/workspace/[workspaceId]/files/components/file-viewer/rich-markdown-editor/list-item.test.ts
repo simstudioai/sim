@@ -75,7 +75,7 @@ describe('Markdown list item schema', () => {
       expect(list.child(index).firstChild?.type.name).toBe('paragraph')
     }
     expect(list.child(1).textContent).toBe('')
-    expect(serializeMarkdownBody('- Before\n-\n- Following')).toBe('- Before\n- \n- Following\n\n')
+    expect(serializeMarkdownBody('- Before\n-\n- Following')).toBe('- Before\n-\n- Following\n\n')
   })
 
   it.each(BLOCK_FIRST_ITEMS)(

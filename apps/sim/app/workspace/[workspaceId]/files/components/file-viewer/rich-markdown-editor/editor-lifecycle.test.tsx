@@ -12,6 +12,7 @@ import { exportWorkspaceFileSnapshotBodySchema } from '@/lib/api/contracts/works
 import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { useFileDocCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
@@ -215,6 +216,7 @@ async function pasteImage(editor: Editor) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  uploadFile.mockReset()
   collaborationRef.current = null
   vi.spyOn(toast, 'warning').mockReturnValue('test-toast')
   vi.spyOn(toast, 'info').mockReturnValue('uploading-toast')
@@ -231,6 +233,44 @@ afterEach(async () => {
 })
 
 describe('loaded rich editor lifecycle', () => {
+  it.each(['paste', 'drop'] as const)(
+    '%s uploads a standalone display-only image from another document',
+    async (method) => {
+      await render('before TARGET after')
+      const editor = getEditor()
+      await act(async () => editor.commands.setTextSelection({ from: 8, to: 14 }))
+      if (method === 'drop')
+        vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      const src = '/api/workspaces/another-workspace/files/inline?fileId=another-image'
+      const image = new File(['image'], 'image.png', { type: 'image/png' })
+      const html = `<img src="${window.location.origin}${src}">`
+      uploadFile.mockResolvedValueOnce({ file: { url: '/api/files/view/uploaded-image' } })
+      const event = new MouseEvent(method, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
+        value: {
+          files: [image],
+          items: [],
+          types: ['Files', 'text/html'],
+          getData: (type: string) => (type === 'text/html' ? html : ''),
+        },
+      })
+      await act(async () => editor.view.dom.dispatchEvent(event))
+      expect(event.defaultPrevented).toBe(true)
+      expect(uploadFile).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: FILE.workspaceId,
+        file: image,
+        folderId: null,
+      })
+      expect(editor.getMarkdown()).toContain('/api/files/view/uploaded-image')
+      expect(editor.getMarkdown()).not.toContain('/inline?')
+      const storedSrc = editor.getJSON().content?.find((node) => node.type === 'image')?.attrs?.src
+      expect(extractEmbeddedFileRef(storedSrc)).toEqual({ fileId: 'uploaded-image' })
+      expect(editor.state.doc.textContent).toBe(
+        method === 'paste' ? 'before  after' : 'before TARGET after'
+      )
+    }
+  )
+
   it('captures immediate collaborative edits with current shared frontmatter without saving', async () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()

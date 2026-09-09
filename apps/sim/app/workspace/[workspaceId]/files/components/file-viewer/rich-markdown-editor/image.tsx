@@ -222,9 +222,6 @@ export function ResizableImageView({ node, selected, editor, getPos }: ReactNode
       src={source.resolveImageSrc(attrs.src)}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
-      // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node
-      // view's wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
-      // the resize button sits outside this element, so it keeps its own pointer behavior.)
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
       style={imageStyle}

@@ -13,7 +13,7 @@ import {
   ResizableImage,
   ResizableInlineImage,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
-import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import { dispatchEditorDrop } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drop.test-helpers'
 import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 let host: HTMLDivElement
@@ -126,16 +126,8 @@ async function addPeerSibling(sameSource = true): Promise<number> {
 }
 
 function movePeerImage(from: number, to: number): void {
-  const image = peer.state.doc.nodeAt(from)!
   peer.commands.setNodeSelection(from)
-  vi.spyOn(peer.view, 'posAtCoords').mockReturnValue({ pos: to, inside: 0 })
-  expect(
-    moveDraggedImageNode(
-      peer.view,
-      new MouseEvent('drop', { clientX: 0, clientY: 0, cancelable: true }) as DragEvent,
-      { images: [], html: `<img src="${image.attrs.src}">` }
-    )
-  ).toBe(true)
+  expect(dispatchEditorDrop(peer, to).defaultPrevented).toBe(true)
 }
 
 async function setNestedImages(depth: number): Promise<void> {
@@ -220,15 +212,9 @@ describe('image resizing during real peer Yjs updates', () => {
       local.setOptions({ editorProps: { handleScrollToSelection: () => false } })
       yUndoPluginKey.getState(local.state).undoManager.clear()
       const dropPosition = target === 'heading' ? 8 : imagePosition(local) + 5
-      vi.spyOn(local.view, 'posAtCoords').mockReturnValue({ pos: dropPosition, inside: 0 })
       await act(async () => {
         local.view.focus()
-        expect(
-          moveDraggedImageNode(local.view, new MouseEvent('drop') as DragEvent, {
-            images: [],
-            html: '<img src="https://sim.ai/image.png">',
-          })
-        ).toBe(true)
+        expect(dispatchEditorDrop(local, dropPosition).defaultPrevented).toBe(true)
       })
       expect(local.state.selection).toBeInstanceOf(NodeSelection)
       expect(host.querySelector(`${target === 'heading' ? 'h2' : 'p'} img`)).not.toBeNull()
