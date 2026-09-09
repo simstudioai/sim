@@ -5,6 +5,7 @@ interface CustomerStoryMediaProps {
   story: CustomerStory
   priority?: boolean
   playable?: boolean
+  sizes?: string
 }
 
 /** Customer artwork, with on-demand playback on story detail pages. */
@@ -12,6 +13,7 @@ export function CustomerStoryMedia({
   story,
   priority = false,
   playable = false,
+  sizes = '(max-width: 1023px) calc(100vw - 64px), (max-width: 1728px) 78vw, 1374px',
 }: CustomerStoryMediaProps) {
   return (
     <div
@@ -34,7 +36,7 @@ export function CustomerStoryMedia({
           src={story.heroImage}
           alt={story.heroAlt}
           fill
-          sizes='(max-width: 1023px) calc(100vw - 64px), (max-width: 1728px) 78vw, 1374px'
+          sizes={sizes}
           preload={priority}
           quality={90}
           className='object-cover'

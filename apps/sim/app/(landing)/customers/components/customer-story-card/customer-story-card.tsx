@@ -7,16 +7,23 @@ import { CustomerStoryMedia } from '@/app/(landing)/customers/components/custome
 interface CustomerStoryCardProps {
   story: CustomerStory
   post: ContentMeta
+  priority?: boolean
+  sizes?: string
 }
 
 /** A quiet editorial link shared by the customer index and next-story section. */
-export function CustomerStoryCard({ story, post }: CustomerStoryCardProps) {
+export function CustomerStoryCard({
+  story,
+  post,
+  priority = false,
+  sizes = '(max-width: 767px) calc(100vw - 56px), 640px',
+}: CustomerStoryCardProps) {
   return (
     <Link
       href={`/customers/${story.slug}`}
       className='group flex min-w-0 flex-col gap-5 rounded-[12px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-4'
     >
-      <CustomerStoryMedia story={story} />
+      <CustomerStoryMedia story={story} priority={priority} sizes={sizes} />
       <div className='flex items-start justify-between gap-6'>
         <div>
           <p className='mb-2 text-[14px] text-[var(--text-muted)]'>{story.company}</p>
