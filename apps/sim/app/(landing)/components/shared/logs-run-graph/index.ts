@@ -1,1 +1,1 @@
-export { LogsRunGraph } from './logs-run-graph'
+export { LogsRunGraph } from '@/app/(landing)/components/shared/logs-run-graph/logs-run-graph'
