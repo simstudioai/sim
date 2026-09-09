@@ -318,7 +318,8 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       loggingSession: loggingSession as any,
     })
 
-    await Promise.resolve()
+    // setImmediate, not a fixed hop count: the assertion is about ordering, not how many microtasks precede the loads
+    await new Promise((resolve) => setImmediate(resolve))
 
     expect(callOrder).toContain('load-workflow:start')
     expect(callOrder).toContain('load-env:start')
