@@ -441,10 +441,14 @@ describe('organization setup entry points', () => {
       }),
       expect.any(Object)
     )
-    await click(button('Cancel'))
-    expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ queryString: '?search=keep' })
-    )
+    await act(async () => {
+      button('Cancel').click()
+      await vi.waitFor(() =>
+        expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+          expect.objectContaining({ queryString: '?search=keep' })
+        )
+      )
+    })
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.push).not.toHaveBeenCalled()
     expect(
