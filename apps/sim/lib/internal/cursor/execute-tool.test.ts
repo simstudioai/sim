@@ -47,7 +47,7 @@ describe('executeCursorTool', () => {
       expect(response.status).toBe(200)
       expect(mocks.downloadCursorArtifact).toHaveBeenCalledWith(
         { apiKey: 'cursor-key', agentId: 'agent-1', path: '/src/index.ts' },
-        { requestId: 'request-1', signal: controller.signal }
+        expect.objectContaining({ requestId: 'request-1', signal: controller.signal })
       )
     }
   )

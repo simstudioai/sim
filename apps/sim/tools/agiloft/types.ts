@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 /**
@@ -149,12 +150,7 @@ export interface AgiloftRetrieveAttachmentParams extends AgiloftBaseParams {
 
 export interface AgiloftRetrieveAttachmentResponse extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
+    file: UserFile
   }
 }
 

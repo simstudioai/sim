@@ -523,46 +523,31 @@ registry/direct-handler test. There is no HTTP fallback.
 
 ### File Output Pattern (Downloads)
 
-For tools that return files, use `FileToolProcessor` to store files and return `UserFile` objects.
+Declare downloads as `file` / `file[]` outputs and return canonical `UserFile` objects.
+Internal operation responses are capped at 10 MiB **before** `transformResponse` and
+`FileToolProcessor` run. Inline base64 expands the bytes by roughly one third, so it
+cannot carry a download near that limit. Persist downloads in the server operation
+**before `Response.json`**, not in a response transform.
 
-#### In Tool transformResponse
+Follow `executeQuickBooksDownloadDocument` or `executeAgiloftRetrieveAttachment`:
 
-```typescript
-import { FileToolProcessor } from '@/executor/utils/file-tool-processor'
+- Derive storage scope only from trusted `request.context`, never tool parameters.
+  Use `uploadExecutionFile` for a complete workspace/workflow/execution scope;
+  otherwise use `uploadCopilotFile` with the trusted user identity. Reject missing
+  storage authority before downloading. Do not fabricate an `ExecutionContext`.
+- Keep provider authentication, DNS-pinned downloads, byte caps and cancellation.
+  Normalize image metadata with `resolveStoredFileMetadata` before uploading.
+- Return the stored file unchanged through the response schema and transform; use
+  `userFileSchema` / `UserFile` rather than rebuilding a base64-only shape.
+  `FileToolProcessor` passes stored files through; the executor records them for
+  execution consumers. Do not call its private `processFileData` method.
+- Surface storage failures instead of falling back to an oversized inline payload.
+  Storage helpers do not promise rollback when later execution steps fail.
 
-transformResponse: async (response, context) => {
-  const data = await response.json()
-
-  // Process file outputs to UserFile objects
-  const fileProcessor = new FileToolProcessor(context)
-  const file = await fileProcessor.processFileData({
-    data: data.content,      // base64 or buffer
-    mimeType: data.mimeType,
-    filename: data.filename,
-  })
-
-  return {
-    success: true,
-    output: { file },
-  }
-}
-```
-
-#### In the operation handler (for complex file handling)
-
-```typescript
-// Return file data that FileToolProcessor can handle. No API route is involved.
-return Response.json({
-  success: true,
-  output: {
-    file: {
-      data: base64Content,
-      mimeType: 'application/pdf',
-      filename: 'document.pdf',
-    },
-  },
-})
-```
+Test provider bytes larger than the inline JSON budget through the actual handler,
+bounded response reader, transform and file processor, mocking provider/storage
+boundaries only. Preserve explicit legacy base64 outputs when they are a separate
+versioned contract; do not silently convert those outputs or raise the global cap.
 
 ### Key Helpers Reference
 

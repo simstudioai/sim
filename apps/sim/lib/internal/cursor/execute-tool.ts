@@ -33,6 +33,16 @@ export const executeCursorTool: InternalToolOperationHandler = async (request) =
       await downloadCursorArtifact(parsed.data, {
         requestId: request.requestId,
         signal: request.signal,
+        ...(request.toolId === 'cursor_download_artifact_v2'
+          ? {
+              persistFile: true,
+              userId:
+                request.context.executorDelegationOrigin?.subjectUserId ?? request.context.userId,
+              workspaceId: request.context.workspaceId,
+              workflowId: request.context.workflowId,
+              executionId: request.context.executionId,
+            }
+          : {}),
       })
     )
   } catch (error) {

@@ -185,11 +185,14 @@ describe('executeAgiloftTool', () => {
       })
     )
 
-    expect(operationMocks.executeAgiloftCreateRecord).toHaveBeenCalledWith(input, {
-      requestId: 'request-1',
-      userId: 'user-origin',
-      signal: controller.signal,
-    })
+    expect(operationMocks.executeAgiloftCreateRecord).toHaveBeenCalledWith(
+      input,
+      expect.objectContaining({
+        requestId: 'request-1',
+        userId: 'user-origin',
+        signal: controller.signal,
+      })
+    )
   })
 
   it('preserves non-object input and canonical validation envelopes', async () => {

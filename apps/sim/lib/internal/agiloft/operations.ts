@@ -65,7 +65,10 @@ import {
   getLockHttpMethod,
   parseFieldList,
 } from '@/lib/internal/agiloft/urls'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot/copilot-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveStoredFileMetadata } from '@/lib/uploads/utils/validation'
 import type {
   AgiloftAsyncStatusResponse,
   AgiloftAttachmentInfoResponse,
@@ -88,6 +91,9 @@ import type { ToolResponse } from '@/tools/types'
 export interface AgiloftOperationContext {
   requestId: string
   userId?: string
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
   signal?: AbortSignal
 }
 
@@ -894,6 +900,20 @@ export async function executeAgiloftRetrieveAttachment(
   input: AgiloftRetrieveBody,
   context: AgiloftOperationContext
 ): Promise<ToolResponse> {
+  const executionContext =
+    context.workspaceId && context.workflowId && context.executionId
+      ? {
+          workspaceId: context.workspaceId,
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+        }
+      : null
+  if (!executionContext && !context.userId) {
+    throw new AgiloftOperationError(401, {
+      success: false,
+      error: 'User context is required to store attachments',
+    })
+  }
   let resolvedIP: string
   try {
     resolvedIP = await resolveAgiloftInstance(input.instanceUrl, context.signal)
@@ -930,15 +950,25 @@ export async function executeAgiloftRetrieveAttachment(
       error: `Agiloft error: ${buffer.toString('utf8').slice(0, 300)}`,
     })
   }
-  return {
-    success: true,
-    output: {
-      file: {
-        name: fileName,
-        mimeType: resolveEffectiveMimeType(contentType, fileName),
-        data: buffer.toString('base64'),
-        size: buffer.length,
-      },
-    },
-  }
+  const metadata = resolveStoredFileMetadata(
+    fileName,
+    resolveEffectiveMimeType(contentType, fileName),
+    buffer
+  )
+  const file = executionContext
+    ? await uploadExecutionFile(
+        executionContext,
+        buffer,
+        metadata.fileName,
+        metadata.mimeType,
+        context.userId
+      )
+    : await uploadCopilotFile({
+        buffer,
+        fileName: metadata.fileName,
+        contentType: metadata.mimeType,
+        userId: context.userId!,
+      })
+  context.signal?.throwIfAborted()
+  return { success: true, output: { file } }
 }
