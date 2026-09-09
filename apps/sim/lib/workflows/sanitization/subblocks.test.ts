@@ -12,6 +12,8 @@ vi.mock('@/blocks/registry-maps', async () => {
   const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
   return partialBlockRegistry(
     await import('@/blocks/blocks/condition'),
+    await import('@/blocks/blocks/file'),
+    await import('@/blocks/blocks/pagerduty'),
     await import('@/blocks/blocks/function')
   )
 })
@@ -117,6 +119,61 @@ describe('sanitizeMalformedSubBlocks', () => {
   })
 
   describe('regular blocks (config is the schema)', () => {
+    it('repairs scalar blanks for multi-select fields while preserving their empty arrays', () => {
+      const block = {
+        id: 'block-1',
+        type: 'file_v5',
+        subBlocks: {
+          folderSelection: { id: 'folderSelection', type: 'folder-selector', value: '' },
+        },
+      }
+      const options = { convertEmptyStringToNull: true }
+
+      expect(sanitizeMalformedSubBlocks(block, options).subBlocks.folderSelection.value).toBeNull()
+      expect(
+        sanitizeMalformedSubBlocks(
+          {
+            ...block,
+            subBlocks: {
+              folderSelection: { ...block.subBlocks.folderSelection, value: [] },
+            },
+          },
+          options
+        ).subBlocks.folderSelection.value
+      ).toEqual([])
+    })
+
+    it('preserves declared empty dropdown choices and cleared selectors without suppressing dropdown defaults', () => {
+      const { subBlocks } = sanitizeMalformedSubBlocks(
+        {
+          id: 'block-1',
+          type: 'pagerduty',
+          subBlocks: {
+            updateStatus: { id: 'updateStatus', type: 'dropdown', value: '' },
+            operation: { id: 'operation', type: 'dropdown', value: '' },
+            assignee: { id: 'assignee', type: 'user-selector', value: '' },
+          },
+        },
+        { convertEmptyStringToNull: true }
+      )
+
+      expect(subBlocks.updateStatus.value).toBe('')
+      expect(subBlocks.operation.value).toBeNull()
+      expect(subBlocks.assignee.value).toBe('')
+    })
+
+    it.each(['', { id: 'code', type: 'table', value: '' }])(
+      'preserves cleared code using its configured type when repairing %j',
+      (code) => {
+        const { subBlocks } = sanitizeMalformedSubBlocks(
+          { id: 'block-1', type: 'function', subBlocks: { code } },
+          { convertEmptyStringToNull: true }
+        )
+
+        expect(subBlocks.code).toEqual({ id: 'code', type: 'code', value: '' })
+      }
+    )
+
     it('still drops an "unknown"-typed entry that matches no configured sub-block', () => {
       const { subBlocks, changed } = sanitizeMalformedSubBlocks({
         id: 'block-1',
