@@ -41,7 +41,7 @@ Keep the default date range for the previous and next 30 days. **More options** 
 </Step>
 </Steps>
 
-<Image src="/static/search/google-calendar-setup.jpg" alt="Google Calendar Search source configuration" width={520} height={397} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-calendar-setup.jpg" alt="Google Calendar Search source configuration" width={520} height={397} />
 
 <Callout type="info">
   `primary` means the connected person's main calendar. A calendar selected from the list is a specific calendar ID, even when it is your main calendar. That same ID applies to every member, and only members with access to it can search its events.
@@ -100,7 +100,7 @@ The deployment operator configures Google OAuth once; teammates then use the nor
 https://<your-sim-domain>/api/auth/oauth2/callback/google-calendar
 ```
 
-<Image src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
 
 This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
 

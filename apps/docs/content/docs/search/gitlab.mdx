@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed GitLab email.
 
-<Image src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={520} height={479} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={520} height={479} />
 
 Admin setup uses your organization's **Settings → Sources** page. Teammates do not need a personal GitLab connection. For workspace Search, use **Search → Add source** instead.
 
@@ -30,7 +30,7 @@ Use a self-managed GitLab instance running version **17.4 or later**. Setup need
 
 Sign in to your self-managed GitLab instance as an instance administrator, then open **Avatar → Edit profile → Access → Personal access tokens**. On current releases choose **Generate token → Legacy token**; older versions show **Add new token** or the token form directly.
 
-<Image src="https://handbook.gitlab.com/images/security/product-security/security-platforms-and-architecture/service-account-access-token-page.png" alt="Official GitLab example of the Access Tokens page with the Add new token button" width={1759} height={586} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="https://handbook.gitlab.com/images/security/product-security/security-platforms-and-architecture/service-account-access-token-page.png" alt="Official GitLab example of the Access Tokens page with the Add new token button" width={1759} height={586} />
 
 *Official [GitLab Handbook example](https://handbook.gitlab.com/handbook/security/product-security/security-platforms-architecture/product-security-engineering/runbooks/rotate-service-account-personal-access-tokens/). Navigation and button labels vary by version. The example's existing `api` tokens are unrelated to Sim; use the scopes below.*
 
@@ -63,7 +63,7 @@ Open **Settings → Sources → Add integration** and choose **GitLab**. On its 
 
 **More options** contains the repository and issue filters, **Max Items**, and **Metadata tags**. Unlike member-account sources, GitLab retains this optional item limit.
 
-<Image src="/static/search/gitlab-options.jpg" alt="GitLab source setup with More options expanded for repository and issue filters, item limit, and metadata tags" width={520} height={625} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/gitlab-options.jpg" alt="GitLab source setup with More options expanded for repository and issue filters, item limit, and metadata tags" width={520} height={625} />
 
 Select **Connect & Sync**. Sim validates the token and source policy, then starts indexing.
 

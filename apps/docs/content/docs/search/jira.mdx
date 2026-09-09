@@ -45,7 +45,7 @@ If you already know the project keys, use the switch beside **Projects** to sele
 
 **Account for browsing** only populates the project picker. It does not enroll you or share that account's issue access with teammates.
 
-<Image
+<Image className="mx-auto h-auto w-full max-w-md"
   src="/static/search/jira-setup.jpg"
   alt="Jira source setup with an account for browsing and required site and project fields"
   width={520}
@@ -110,7 +110,7 @@ First, open a missing issue in Jira using the same account you connected to Sim.
 
 For company-managed projects, an admin can open **Settings → System → Admin Helper → Permission Helper**, enter the affected user and issue key, and check **Browse Projects**. The result explains which permission condition failed. Fix access in Jira, then let the next Sim sync finish. See Atlassian's [Permission Helper instructions](https://support.atlassian.com/jira-cloud-administration/docs/check-a-users-access-from-a-work-item/) and [illustrated permissions tutorial](https://www.atlassian.com/software/jira/guides/permissions/tutorials).
 
-<Image
+<Image className="mx-auto h-auto w-full max-w-xl"
   src="https://dam-cdn.atl.orangelogic.com/AssetLink/3ud2hh403t5og84cwcs2kp38cd6dn0d3.png"
   alt="Atlassian illustration of Jira's Permission helper with User and Issue fields and Browse Projects selected"
   width={2880}
@@ -127,7 +127,7 @@ The deployment operator configures one shared Jira OAuth integration. Teammates 
 1. Open the [Atlassian developer console](https://developer.atlassian.com/console/myapps/) and select your deployment's **OAuth 2.0 integration**, or create one for the deployment.
 2. Under **Authorization**, configure **OAuth 2.0 (3LO)**. Add `https://<your-sim-domain>/api/auth/oauth2/callback/jira` to **Callback URLs**, keeping any callbacks already used by your deployment, then save.
 
-   <Image
+   <Image className="mx-auto h-auto w-full max-w-md"
      src="/static/search/atlassian-oauth-callback.png"
      alt="Atlassian OAuth Authorization form with an example Sim Jira callback URL"
      width={768}

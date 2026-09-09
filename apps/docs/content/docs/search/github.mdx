@@ -45,7 +45,7 @@ https://<your-sim-domain>/api/auth/oauth2/callback/github-repositories
 
 Authorization starts from Sim so the callback can finish the pending connection. The connector polls GitHub's API and does not need a webhook.
 
-<Image src="/static/search/github-app-callback.jpg" alt="GitHub App registration with the Redirect URI, expiring tokens enabled, and installation authorization, Device Flow, and webhooks disabled" width={768} height={929} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-callback.jpg" alt="GitHub App registration with the Redirect URI, expiring tokens enabled, and installation authorization, Device Flow, and webhooks disabled" width={768} height={929} />
 
 *Example registration. Replace `sim.example.com` with your Sim domain.*
 
@@ -56,11 +56,11 @@ Authorization starts from Sim so the callback can finish the pending connection.
 
 Expand **Permissions → Repository permissions**. Set **Contents → Access: Read-only**; leave the mandatory **Metadata** permission at **Read-only**.
 
-<Image src="/static/search/github-app-repository-permissions.jpg" alt="GitHub repository permissions with Contents set to Read-only and Metadata shown as mandatory Read-only" width={768} height={929} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-repository-permissions.jpg" alt="GitHub repository permissions with Contents set to Read-only and Metadata shown as mandatory Read-only" width={768} height={929} />
 
 Expand **Account permissions** and set **Email addresses → Access: Read-only**.
 
-<Image src="/static/search/github-app-email-permission.jpg" alt="GitHub account permissions with only Email addresses selected for Read-only access" width={768} height={929} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-email-permission.jpg" alt="GitHub account permissions with only Email addresses selected for Read-only access" width={768} height={929} />
 
 | Permission area | Permission | Access |
 |---|---|---|
@@ -111,7 +111,7 @@ As a Sim organization admin, open **Settings → Sources → Add integration** a
 
 Enter **Repository** as `owner/repo`. Open **More options** only if you need a different branch, path or extension filters, metadata tags, or a dedicated indexing account. **Sync documents with** defaults to **Connected members**.
 
-<Image src="/static/search/github-setup.jpg" alt="GitHub source setup with a required Repository field and More options" width={520} height={254} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-setup.jpg" alt="GitHub source setup with a required Repository field and More options" width={520} height={254} />
 
 | Field | What to enter |
 |---|---|

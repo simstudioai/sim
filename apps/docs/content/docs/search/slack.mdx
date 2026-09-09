@@ -8,7 +8,7 @@ import { Image } from '@/components/ui/image'
 
 Slack Search indexes channel messages and threads. A Sim organization admin configures your Slack app once, then each teammate authorizes their own Slack account. Their results are limited to the selected public channels and private channels they can access. DMs and group DMs are not indexed.
 
-<Image src="/static/search/slack-setup.jpg" alt="Slack app setup for Sim Search with application and client credential fields" width={520} height={502} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/slack-setup.jpg" alt="Slack app setup for Sim Search with application and client credential fields" width={520} height={502} />
 
 ## Before you start
 
@@ -34,7 +34,7 @@ Open **Settings → Sources → Add integration** and choose **Slack**. Select *
 
 On the [Slack Apps page](https://api.slack.com/apps), create an app for the target workspace, or use an app dedicated to your Sim organization. Under **OAuth & Permissions**, add the user scopes and both redirect URLs listed below. Keep **Token Rotation** disabled.
 
-<Image src="https://docs.slack.dev/assets/images/basic-information-page-e7d531fe4721830376d61a91de5d933e.png" alt="Slack app settings showing Basic Information and App Credentials" width={2692} height={1538} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="https://docs.slack.dev/assets/images/basic-information-page-e7d531fe4721830376d61a91de5d933e.png" alt="Slack app settings showing Basic Information and App Credentials" width={2692} height={1538} />
 
 *Official Slack example: [Basic Information](https://docs.slack.dev/tools/bolt-python/creating-an-app/#create-a-new-app). Use your own app's credentials.*
 

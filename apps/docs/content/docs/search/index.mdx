@@ -39,7 +39,7 @@ Open **Integrations** in the main sidebar and select **Connect account** if prom
 </Step>
 </Steps>
 
-<Image src="/static/search/add-source.jpg" alt="Organization Sources settings with the Add integration action" width={738} height={720} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/add-source.jpg" alt="Organization Sources settings with the Add integration action" width={738} height={720} />
 
 Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue.
 
@@ -84,13 +84,13 @@ These requests are separate from organization invitations. They let recipients c
 
 **Revoke all account access** withdraws every account that person contributed to the organization, including other providers. It does not remove their organization membership.
 
-<Image src="/static/search/request-connections.jpg" alt="Request Gmail connections with an Emails field and Send requests action" width={520} height={290} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/request-connections.jpg" alt="Request Gmail connections with an Emails field and Send requests action" width={520} height={290} />
 
 ## Manage sources and documents
 
 Open **Settings → Sources → [integration]**, then select a source. Providers with personal connections have **Sources** and **Accounts** tabs; providers such as GitLab open directly to the source list. Multiple sources can have different folder, repository, space, or project scopes.
 
-<Image src="/static/search/integration-provider.jpg" alt="Integration detail with Sources and Accounts tabs and a nested source list" width={738} height={390} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.jpg" alt="Integration detail with Sources and Accounts tabs and a nested source list" width={738} height={390} />
 
 | Source tab | What you can do |
 | --- | --- |
@@ -100,9 +100,9 @@ Open **Settings → Sources → [integration]**, then select a source. Providers
 
 Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. **Deactivate** on the integration page makes its content unavailable in Search, Assistant, and MCP while preserving its sources and connected accounts; **Activate** enables it again.
 
-<Image src="/static/search/source-settings.jpg" alt="Gmail source Settings tab with label, date range, and search filters" width={1022} height={680} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-settings.jpg" alt="Gmail source Settings tab with label, date range, and search filters" width={1022} height={680} />
 
-<Image src="/static/search/source-sync-history.jpg" alt="Source Sync history with no connected accounts or synced members" width={1022} height={430} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-sync-history.jpg" alt="Source Sync history with no connected accounts or synced members" width={1022} height={430} />
 
 ## Search, Assistant, and MCP
 
@@ -141,7 +141,7 @@ A completed sync means the source was checked; some documents may still be index
 
 As an admin, open **Settings → Sources → [integration] → Sources → [source]**. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
-<Image src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
 
 Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
 

@@ -56,7 +56,7 @@ Open **Settings → Sources → Google Drive → Sources → Add source**. This 
 
 This requires a Google Workspace domain and a Workspace super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path.
 
-<Image src="/static/search/google-drive-setup.jpg" alt="Google Drive central source setup with an indexing account, sharing policy, and folder scope" width={520} height={404} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-drive-setup.jpg" alt="Google Drive central source setup with an indexing account, sharing policy, and folder scope" width={520} height={404} />
 
 <Steps>
 <Step>
@@ -65,11 +65,11 @@ This requires a Google Workspace domain and a Workspace super administrator to a
 
 In [Google Cloud Console](https://console.cloud.google.com/), select your project and enable **Google Drive API** and **Admin SDK API** under **APIs & Services → Library**. Then open **IAM & Admin → Service Accounts → Create service account**, enter a name, and finish creation. Google Cloud project roles do not grant access to Workspace files; they are not required for this crawl.
 
-<Image src="/static/search/google-create-service-account.png" alt="Google Cloud Console form for creating a service account" width={1024} height={735} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/google-create-service-account.png" alt="Google Cloud Console form for creating a service account" width={1024} height={735} />
 
 Open the service account's **Keys** tab and choose **Add key → Create new key → JSON**, then select **Create** to download the key. Store it securely; you will add it to Sim next. See [Google's key creation guide](https://docs.cloud.google.com/iam/docs/keys-create-delete#creating).
 
-<Image src="/static/search/google-create-private-key.png" alt="Google Cloud Create private key dialog with JSON selected" width={1024} height={502} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/google-create-private-key.png" alt="Google Cloud Create private key dialog with JSON selected" width={1024} height={502} />
 
 </Step>
 <Step>
@@ -78,7 +78,7 @@ Open the service account's **Keys** tab and choose **Add key → Create new key 
 
 In the service account's **Details**, expand **Advanced settings** and copy its numeric **Client ID**. Sign in to the [Workspace Admin Console](https://admin.google.com/ac/owl/domainwidedelegation) as a super administrator. Open **Security → Access and data control → API controls → Manage Domain Wide Delegation → Add new**.
 
-<Image src="/static/search/google-domain-delegation.png" alt="Google Workspace Admin Console Add a new client ID dialog with Client ID and OAuth scopes fields" width={768} height={929} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-domain-delegation.png" alt="Google Workspace Admin Console Add a new client ID dialog with Client ID and OAuth scopes fields" width={768} height={929} />
 
 Paste that Client ID into **Client ID**, then enter these exact scopes as a comma-separated list under **OAuth scopes**:
 
@@ -97,7 +97,7 @@ These are Search's central crawl scopes. The general [Google service account gui
 
 Under **Indexing account**, choose the service-account connection action, or select an existing service account. Paste the JSON key into **Add Google Service Account**, give it a name, and add it. Sim returns you to the source form with that credential selected.
 
-<Image src="/static/search/google-service-account.jpg" alt="Add Google Service Account credential modal in Sim" width={520} height={562} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-service-account.jpg" alt="Add Google Service Account credential modal in Sim" width={520} height={562} />
 
 </Step>
 <Step>
@@ -146,7 +146,7 @@ The deployment operator configures Google OAuth for member accounts and **Accoun
 https://<your-sim-domain>/api/auth/oauth2/callback/google-drive
 ```
 
-<Image src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
 
 This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
 
