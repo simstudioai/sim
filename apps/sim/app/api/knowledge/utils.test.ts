@@ -15,6 +15,7 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import * as apiKeysModule from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import * as workspacesUtilsModule from '@/lib/workspaces/utils'
@@ -322,21 +323,20 @@ describe('Knowledge Utils', () => {
     })
 
     it('should throw error when no API configuration provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      // The env object lazily reads process.env, so a developer's local .env
-      // keys survive the deletion above — stub the direct key empty and fail
-      // the hosted rotation fallback for hermeticity on any machine.
+      Object.keys(env).forEach((key) => delete (env as Record<string, unknown>)[key])
+      /** Prevent local credentials from satisfying the missing-configuration scenario. */
       vi.stubEnv('OPENAI_API_KEY', '')
-      const apiKeysModule = await import('@/lib/core/config/api-keys')
+      const configurationError = new Error('No rotation keys configured')
       const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
-        throw new Error('No rotation keys configured')
+        throw configurationError
       })
 
       try {
-        await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
-          'OPENAI_API_KEY is not configured'
+        await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toBe(
+          configurationError
         )
+        expect(rotationSpy).toHaveBeenCalledWith('openai')
+        expect(fetch).not.toHaveBeenCalled()
       } finally {
         rotationSpy.mockRestore()
         vi.unstubAllEnvs()

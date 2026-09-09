@@ -35,6 +35,7 @@ export function useSlackSearchManifest(organizationId: string, name = SLACK_SEAR
         signal,
       }),
     staleTime: SLACK_SEARCH_STALE_TIME,
+    retry: false,
   })
 }
 

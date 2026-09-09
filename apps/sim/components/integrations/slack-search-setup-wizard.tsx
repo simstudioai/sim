@@ -13,7 +13,6 @@ import {
 } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
-import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -87,9 +86,11 @@ export function SlackSearchSetupWizard({
       </ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-muted)] text-caption'>
-          Step {stepNumber} of 4 ·{' '}
+          Step {stepNumber} of 3 ·{' '}
           {step === 'manifest'
-            ? 'Create the app in Slack'
+            ? configuredAppId
+              ? 'Update your Slack app'
+              : 'Create your Slack app'
             : step === 'credentials'
               ? 'App credentials'
               : 'Install in Slack'}
@@ -169,9 +170,6 @@ export function SlackSearchSetupWizard({
               <p className='text-[var(--text-muted)] text-caption'>
                 The bot responds to direct messages and channel mentions and reads members’ email
                 addresses. Each member separately authorizes indexing through this same app.
-              </p>
-              <p className='text-[var(--text-muted)] text-caption'>
-                {SLACK_SEARCH_SCOPES.join(', ')}
               </p>
             </ChipModalField>
           </>

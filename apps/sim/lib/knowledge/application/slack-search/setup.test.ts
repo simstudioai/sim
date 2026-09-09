@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   values: vi.fn(),
   set: vi.fn(),
   audit: vi.fn(),
+  baseUrl: vi.fn(),
 }))
 vi.mock('@sim/audit', () => ({
   AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
@@ -31,7 +32,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: async () => null,
 }))
 vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
+  getBaseUrl: m.baseUrl,
   SITE_URL: 'https://sim.test',
 }))
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -83,6 +84,7 @@ const complete = () =>
   completeSlackSearchSetup.execute({ principal, input: { state: 'state', code: 'code' } })
 beforeEach(() => {
   vi.clearAllMocks()
+  m.baseUrl.mockReturnValue('https://sim.test')
   m.membership.mockResolvedValue([{ role: 'admin' }])
   m.rows.mockReset().mockResolvedValue([])
   m.consume.mockResolvedValue(attempt)
@@ -128,6 +130,24 @@ beforeEach(() => {
   )
 })
 describe('Search OAuth installation', () => {
+  it('fails setup and OAuth with actionable validation before storing secrets on localhost', async () => {
+    m.baseUrl.mockReturnValue('http://localhost:3000')
+    const input = { organizationId: 'org1', name: 'Sim Search', description: 'Search with sources' }
+    await expect(prepareSlackSearchSetup.execute({ principal, input })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('public HTTPS'),
+    })
+    await expect(
+      startSlackSearchSetup.execute({
+        principal,
+        input: { ...input, clientId: 'client', clientSecret: 'secret', signingSecret: 'signing' },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(m.store).not.toHaveBeenCalled()
+    expect(m.exchange).not.toHaveBeenCalled()
+    expect(db.transaction).not.toHaveBeenCalled()
+  })
+
   it('opens Slack with the generated JSON manifest prefilled', async () => {
     const prepared = await prepareSlackSearchSetup.execute({
       principal,

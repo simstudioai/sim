@@ -198,7 +198,7 @@ describe('Slack member access selection', () => {
     await clickButton('Install Sim Search')
     const dialog = appSetupDialog(true)
     expect(dialog).toBeDefined()
-    expect(dialog?.textContent).toContain('Step 1 of 4')
+    expect(dialog?.textContent).toContain('Step 1 of 3')
     expect(dialog?.textContent).toContain('App manifest')
     expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Sim Search')
     expect(mocks.start).not.toHaveBeenCalled()

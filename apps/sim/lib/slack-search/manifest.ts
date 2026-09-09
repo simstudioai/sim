@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
@@ -19,7 +20,12 @@ export function createSlackSearchManifest(
   existingUserScopes: readonly string[] = []
 ) {
   const url = new URL(origin)
-  if (url.protocol !== 'https:') throw new Error('Slack setup requires a public HTTPS app URL')
+  if (url.protocol !== 'https:') {
+    throw new OrchestrationError(
+      'validation',
+      'Slack needs a public HTTPS URL to send messages to Sim. Configure this instance with a public HTTPS app URL, then retry setup. Localhost is not reachable from Slack.'
+    )
+  }
   const webhookUrl = new URL(SLACK_SEARCH_WEBHOOK_PATH, url).href
   return {
     display_information: { name, description },

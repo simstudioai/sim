@@ -214,7 +214,9 @@ export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegr
                       ? 'Connect a different site or content scope'
                       : canConnect
                         ? 'Connect your account to search this source'
-                        : 'An admin needs to finish source setup'
+                        : type === 'slack' && viewer.isAdmin
+                          ? 'Finish setting up Slack indexing to connect accounts'
+                          : 'An admin needs to finish source setup'
                   }
                   trailing={
                     canConnect ? (
@@ -225,6 +227,8 @@ export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegr
                       >
                         {hasSources ? 'Add source' : 'Connect account'}
                       </Chip>
+                    ) : type === 'slack' && viewer.isAdmin ? (
+                      <ChipLink href={routes.searchProvider('slack')}>Finish Slack setup</ChipLink>
                     ) : undefined
                   }
                 />

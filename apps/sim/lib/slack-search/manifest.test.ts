@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createSlackSearchManifest } from '@/lib/slack-search/manifest'
 
 describe('Search app manifest', () => {
@@ -77,6 +78,6 @@ describe('Search app manifest', () => {
   it('requires HTTPS before directing the admin to Slack', () => {
     expect(() =>
       createSlackSearchManifest('Sim Search', 'Search', 'http://localhost:3003')
-    ).toThrow()
+    ).toThrow(OrchestrationError)
   })
 })

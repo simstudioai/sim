@@ -22,7 +22,7 @@ vi.mock('next/navigation', () => ({
 
 import SlackSearchOnboardingPage from '@/app/slack-search/connect/[token]/page'
 
-const token = 'bf1ff774-505b-4f2f-946d-9c54ed75de47'
+const token = '11111111-1111-4111-8111-111111111111'
 
 beforeEach(() => {
   vi.clearAllMocks()

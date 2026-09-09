@@ -25,7 +25,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/knowledge/slack/onboarding/retry/route'
 import { GET } from '@/app/api/knowledge/slack/onboarding/route'
 
-const token = 'bf1ff774-505b-4f2f-946d-9c54ed75de47'
+const token = '11111111-1111-4111-8111-111111111111'
 const url = `http://localhost/api/knowledge/slack/onboarding?token=${token}`
 
 beforeEach(() => {
