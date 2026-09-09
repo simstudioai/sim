@@ -4,18 +4,19 @@
 
 import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
+import { dehydrate } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetOrganizationSurfaceContext,
   mockWorkspaceChrome,
-  mockPrefetchUserProfile,
+  mockPrefetchOrganizationSidebar,
   mockUseSession,
 } = vi.hoisted(() => ({
   mockGetOrganizationSurfaceContext: vi.fn(),
   mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
-  mockPrefetchUserProfile: vi.fn(async () => undefined),
+  mockPrefetchOrganizationSidebar: vi.fn(async () => undefined),
   mockUseSession: vi.fn(),
 }))
 
@@ -30,15 +31,15 @@ vi.mock('@/lib/auth/stale-session-recovery', () => ({
 
 vi.mock('@tanstack/react-query', () => ({
   HydrationBoundary: ({ children }: { children: ReactNode }) => children,
-  dehydrate: () => ({}),
+  dehydrate: vi.fn(() => ({})),
 }))
 
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: () => ({}),
 }))
 
-vi.mock('@/lib/users/prefetch-user-profile', () => ({
-  prefetchUserProfile: mockPrefetchUserProfile,
+vi.mock('@/app/o/[organizationId]/prefetch', () => ({
+  prefetchOrganizationSidebar: mockPrefetchOrganizationSidebar,
 }))
 
 vi.mock('next/headers', () => ({
@@ -80,7 +81,10 @@ const SURFACE_CONTEXT = {
 describe('OrganizationLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'viewer-1' } })
+    mockGetSession.mockResolvedValue({
+      user: { id: 'viewer-1' },
+      session: { id: 'session-1', activeOrganizationId: 'active-org' },
+    })
     mockUseSession.mockReturnValue({ data: { user: { id: 'viewer-1' } }, isPending: false })
   })
 
@@ -94,6 +98,7 @@ describe('OrganizationLayout', () => {
       })
     ).rejects.toThrow('redirect:/login?callbackUrl=%2Fo%2Forg-1')
     expect(mockGetOrganizationSurfaceContext).not.toHaveBeenCalled()
+    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it('renders the surface for a member and seeds the chrome from the collapse cookie', async () => {
@@ -106,7 +111,12 @@ describe('OrganizationLayout', () => {
     const html = renderToStaticMarkup(element)
 
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
-    expect(mockPrefetchUserProfile).toHaveBeenCalledWith({}, 'viewer-1')
+    expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledWith(
+      {},
+      'org-1',
+      { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
+      'active-org'
+    )
     expect(html).toContain('Organization child')
     expect(html).not.toContain('Stop impersonating')
     expect(mockWorkspaceChrome).toHaveBeenCalledWith(
@@ -118,7 +128,7 @@ describe('OrganizationLayout', () => {
   it('shows the shared impersonation banner above organization content', async () => {
     const session = {
       user: { id: 'viewer-1', name: 'QA Member', email: 'member@example.com' },
-      session: { impersonatedBy: 'platform-admin' },
+      session: { id: 'session-1', impersonatedBy: 'platform-admin' },
     }
     mockGetSession.mockResolvedValue(session)
     mockUseSession.mockReturnValue({ data: session, isPending: false })
@@ -132,6 +142,12 @@ describe('OrganizationLayout', () => {
     )
 
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
+    expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledWith(
+      {},
+      'org-1',
+      { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
+      null
+    )
     expect(html).toContain('Impersonating QA Member (member@example.com)')
     expect(html).toContain('Stop impersonating')
     expect(html.indexOf('Stop impersonating')).toBeLessThan(html.indexOf('Organization child'))
@@ -140,7 +156,7 @@ describe('OrganizationLayout', () => {
   it('does not use the impersonating admin to enter an organization outside the rollout', async () => {
     mockGetSession.mockResolvedValue({
       user: { id: 'customer-member' },
-      session: { impersonatedBy: 'platform-admin' },
+      session: { id: 'session-1', impersonatedBy: 'platform-admin' },
     })
     mockGetOrganizationSurfaceContext.mockResolvedValue({
       ...SURFACE_CONTEXT,
@@ -158,6 +174,7 @@ describe('OrganizationLayout', () => {
       'customer-member'
     )
     expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it('renders an explicit denial for a non-member without the surface', async () => {
@@ -172,6 +189,7 @@ describe('OrganizationLayout', () => {
     expect(html).toContain('Organization access denied')
     expect(html).not.toContain('Secret organization child')
     expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it.each(['owner', 'admin', 'member'])(
@@ -190,6 +208,24 @@ describe('OrganizationLayout', () => {
         })
       ).rejects.toThrow('redirect:/workspace?redirect=settings')
       expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+      expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
     }
   )
+
+  it('waits for sidebar reads before serializing hydration', async () => {
+    const ready = Promise.withResolvers<void>()
+    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
+    mockPrefetchOrganizationSidebar.mockReturnValue(ready.promise)
+    const pending = OrganizationLayout({
+      children: null,
+      params: Promise.resolve({ organizationId: 'org-1' }),
+    })
+    await vi.waitFor(() => expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledOnce(), {
+      interval: 1,
+    })
+    expect(dehydrate).not.toHaveBeenCalled()
+    ready.resolve()
+    await pending
+    expect(dehydrate).toHaveBeenCalledOnce()
+  })
 })

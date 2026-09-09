@@ -84,6 +84,66 @@ afterEach(() => {
 })
 
 describe('sidebar context menu dismissal', () => {
+  it('keeps the exiting menu inert after handing focus to the rename input', () => {
+    const getComputedStyle = window.getComputedStyle
+    /** JSDOM snapshots styles; Radix Presence requires a live exit-animation name. */
+    const animationStyles = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const styles = getComputedStyle(element)
+      if (element.getAttribute('role') === 'menu') {
+        Object.defineProperty(styles, 'animationName', {
+          get: () => (element.getAttribute('data-state') === 'closed' ? 'menu-exit' : 'menu-enter'),
+        })
+      }
+      return styles
+    })
+    const menuRef = { current: null as HTMLDivElement | null }
+    const renameInputRef = { current: null as HTMLInputElement | null }
+    const onRenameBlur = vi.fn()
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    function renderRenameMenu(isOpen: boolean) {
+      root?.render(
+        <>
+          <input ref={renameInputRef} aria-label='Rename chat' onBlur={onRenameBlur} />
+          <ContextMenu
+            isOpen={isOpen}
+            position={{ x: 10, y: 10 }}
+            menuRef={menuRef}
+            onClose={() => renderRenameMenu(false)}
+            onRename={() => renameInputRef.current?.focus()}
+            renameInputRef={renameInputRef}
+            showDelete={false}
+            showDuplicate={false}
+          />
+        </>
+      )
+    }
+
+    try {
+      act(() => renderRenameMenu(true))
+      const menu = menuRef.current!
+      const renameItem = menu.querySelector<HTMLElement>('[role="menuitem"]')!
+      expect(menu.hasAttribute('inert')).toBe(false)
+      const pointerMove = new MouseEvent('pointermove', { bubbles: true, cancelable: true })
+      Object.defineProperty(pointerMove, 'pointerType', { value: 'mouse' })
+      act(() => renameItem.dispatchEvent(pointerMove))
+      expect(document.activeElement).toBe(renameItem)
+
+      act(() => renameItem.click())
+
+      expect(menu.isConnected).toBe(true)
+      expect(menu.getAttribute('data-state')).toBe('closed')
+      expect(menu.hasAttribute('inert')).toBe(true)
+      expect(document.activeElement).toBe(renameInputRef.current)
+      expect(onRenameBlur).not.toHaveBeenCalled()
+    } finally {
+      animationStyles.mockRestore()
+    }
+  })
+
   it('stays open when a surrounding menu takes focus back', () => {
     const onClose = vi.fn()
     renderMenu(onClose)
