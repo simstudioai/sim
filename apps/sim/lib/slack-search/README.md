@@ -144,6 +144,8 @@ existing conflicting active workspace bindings before applying the unique index.
    per thread. The three-minute execution deadline starts after a claim.
    Expired executions are marked failed and never replayed after an ambiguous
    external send. The shared outbox processor repairs missed wake-ups.
+   Wakes use the database-backed inline queue and run in the app process (ECS
+   on hosted deployments), even when other background jobs use Trigger.dev.
 4. `knowledge/application/slack-search/assistant.ts` resolves the sender’s email
    through that installation’s bot credential. It requires exactly one current,
    verified Sim member of the bound organization. Email never selects the

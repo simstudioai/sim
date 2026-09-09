@@ -1,8 +1,11 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn() }))
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: async () => ({ enqueue: mocks.enqueue }) }))
+const mocks = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn(), externalEnqueue: vi.fn() }))
+vi.mock('@/lib/core/async-jobs', () => ({
+  getInlineJobQueue: async () => ({ enqueue: mocks.enqueue }),
+  getJobQueue: async () => ({ enqueue: mocks.externalEnqueue }),
+}))
 vi.mock('@/lib/slack-search/handlers/search-message', () => ({
   handleSlackSearchMessage: mocks.run,
 }))
@@ -32,11 +35,12 @@ describe('Slack Search queue', () => {
       ])
     }
   })
-  it('supplies the same handler to the database runner', async () => {
+  it('runs in the app process even when the default queue has an external worker', async () => {
     const signal = new AbortController().signal
     await enqueueSlackSearch(job)
     await mocks.enqueue.mock.calls[0][2].runner(job, signal)
     expect(mocks.run).toHaveBeenCalledWith(job, signal)
+    expect(mocks.externalEnqueue).not.toHaveBeenCalled()
   })
   it('propagates enqueue failures so ingress can request a retry', async () => {
     mocks.enqueue.mockRejectedValueOnce(new Error('unavailable'))
