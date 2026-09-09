@@ -43,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   document.body.replaceChildren()
 })
 
@@ -87,7 +88,7 @@ describe('FeaturedCustomer', () => {
     )
     const expVideo = expRealty.querySelector('video') as HTMLVideoElement
     expect(expVideo.getAttribute('src')).toBe('/landing/customer-stories/exp-house-color-loop.mp4')
-    expect(expVideo.getAttribute('preload')).toBe('none')
+    expect(expVideo.getAttribute('preload')).toBe('auto')
     expect(expVideo.muted).toBe(true)
     expect(vi.mocked(video.play).mock.contexts).not.toContain(expVideo)
     expect(
@@ -176,6 +177,55 @@ describe('FeaturedCustomer', () => {
     act(() => {
       root.unmount()
     })
+  })
+
+  it('prepares neighboring videos only once the carousel is visible without starting playback', () => {
+    const observers: Array<{
+      target: Element
+      intersect: (isIntersecting: boolean) => void
+    }> = []
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(private readonly callback: IntersectionObserverCallback) {}
+
+        observe(target: Element) {
+          observers.push({
+            target,
+            intersect: (isIntersecting) =>
+              this.callback(
+                [{ target, isIntersecting } as IntersectionObserverEntry],
+                {} as IntersectionObserver
+              ),
+          })
+        }
+
+        disconnect() {}
+      }
+    )
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    act(() => root.render(<FeaturedCustomer />))
+
+    const videos = [...host.querySelectorAll('video')]
+    expect(videos.map((video) => video.preload)).toEqual(['none', 'none'])
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+
+    const regionObserver = observers.find(({ target }) => target.tagName === 'DIV')!
+    act(() => regionObserver.intersect(true))
+    expect(videos.map((video) => video.preload)).toEqual(['auto', 'auto'])
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+
+    const playbackObserver = observers.find(({ target }) => target === videos[0])!
+    act(() => playbackObserver.intersect(true))
+    expect(vi.mocked(HTMLMediaElement.prototype.play).mock.contexts).toEqual([videos[0]])
+
+    motionPreference.reduced = true
+    act(() => root.render(<FeaturedCustomer />))
+    expect(videos.map((video) => video.preload)).toEqual(['none', 'none'])
+
+    act(() => root.unmount())
   })
 
   it('keeps video paused with reduced motion and responds to preference changes', () => {
