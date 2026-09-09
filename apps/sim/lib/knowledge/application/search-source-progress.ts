@@ -31,7 +31,9 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
         `Provide between 1 and ${MAX_SEARCH_SOURCE_PROGRESS_ITEMS} sources`
       )
     }
-    const access = await createKnowledgeAccessProvider(principal, context).get()
+    const access = await createKnowledgeAccessProvider(principal, context).getForConnectors(
+      input.connectorIds
+    )
     const hasDocumentsInState = (statuses: string[]) =>
       sql<boolean>`${exists(
         db

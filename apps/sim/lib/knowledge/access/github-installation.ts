@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   credential,
+  credentialGroupEnrollment,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
@@ -13,7 +14,10 @@ import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
-import type { GitHubInstallationReadGrant } from '@/lib/knowledge/access/types'
+import {
+  type GitHubInstallationReadGrant,
+  MAX_KNOWLEDGE_ACCESS_CANDIDATES,
+} from '@/lib/knowledge/access/types'
 import {
   assertGitHubInstallationActive,
   assertGitHubInstallationRepositoryActive,
@@ -25,9 +29,9 @@ import {
 } from '@/lib/oauth/github-installation-types'
 
 const logger = createLogger('GitHubInstallationReadAccess')
-export const GITHUB_READ_SOURCE_LIMIT = 100
 export const GITHUB_READ_CONCURRENCY = 4
 export const GITHUB_READ_TIMEOUT_MS = 8000
+export const GITHUB_READ_SOURCE_TIMEOUT_MS = 4000
 export const GITHUB_READ_RESPONSE_MAX_BYTES = 64 * 1024
 const INSTALLATION_BINDING_MAX_BYTES = 16 * 1024
 
@@ -135,16 +139,14 @@ async function verifyRepository(
 export async function resolveGitHubInstallationReadGrants(input: {
   scope: ResourceScope
   readers: readonly GitHubReaderCredential[]
+  connectorIds: readonly string[]
   knowledgeBaseIds?: readonly string[]
   signal?: AbortSignal
 }): Promise<GitHubInstallationReadGrant[]> {
-  if (
-    !input.readers.length ||
-    input.readers.length > GITHUB_READ_SOURCE_LIMIT ||
-    (input.knowledgeBaseIds &&
-      (input.knowledgeBaseIds.length === 0 ||
-        input.knowledgeBaseIds.length > GITHUB_READ_SOURCE_LIMIT))
-  )
+  input.signal?.throwIfAborted()
+  if (input.connectorIds.length > MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+    throw new Error('Knowledge access candidates must be authorized in bounded pages')
+  if (!input.readers.length || !input.connectorIds.length || input.knowledgeBaseIds?.length === 0)
     return []
   const readers = new Map(input.readers.map((reader) => [reader.credentialId, reader.subjectToken]))
   const sources: GitHubReadSource[] = await db
@@ -165,9 +167,24 @@ export async function resolveGitHubInstallationReadGrants(input: {
       knowledgeConnectorMember,
       eq(knowledgeConnectorMember.connectorId, knowledgeConnector.id)
     )
+    .innerJoin(
+      credential,
+      and(
+        eq(credential.id, knowledgeConnectorMember.credentialId),
+        eq(credential.credentialGroupOptionId, knowledgeConnector.credentialGroupOptionId)
+      )
+    )
+    .innerJoin(
+      credentialGroupEnrollment,
+      and(
+        eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId),
+        eq(credentialGroupEnrollment.credentialGroupId, knowledgeConnector.credentialGroupId)
+      )
+    )
     .where(
       and(
         resourceScopeCondition(knowledgeBase, input.scope),
+        inArray(knowledgeConnector.id, [...new Set(input.connectorIds)]),
         input.knowledgeBaseIds ? inArray(knowledgeBase.id, [...input.knowledgeBaseIds]) : undefined,
         isNull(knowledgeBase.deletedAt),
         eq(knowledgeConnector.connectorType, 'github'),
@@ -180,8 +197,8 @@ export async function resolveGitHubInstallationReadGrants(input: {
       )
     )
     .orderBy(asc(knowledgeConnector.id), asc(knowledgeConnectorMember.id))
-    .limit(GITHUB_READ_SOURCE_LIMIT + 1)
-  if (sources.length > GITHUB_READ_SOURCE_LIMIT || !sources.length) return []
+    .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+  if (!sources.length) return []
   const contentCredentialIds = [
     ...new Set(
       sources.flatMap((source) => (source.contentCredentialId ? [source.contentCredentialId] : []))
@@ -206,92 +223,95 @@ export async function resolveGitHubInstallationReadGrants(input: {
         sql`octet_length(${credential.encryptedServiceAccountKey}) <= ${INSTALLATION_BINDING_MAX_BYTES}`
       )
     )
-    .limit(GITHUB_READ_SOURCE_LIMIT)
+    .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
   const contentById = new Map(credentials.map((entry) => [entry.id, entry]))
   const timeout = AbortSignal.timeout(GITHUB_READ_TIMEOUT_MS)
-  const signal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout
+  const admissionSignal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout
   const installations = new Map<string, Promise<GitHubInstallationBinding>>()
   const tokens = new Map<string, Promise<string>>()
   const proofs = new Map<string, Promise<boolean>>()
   const grants = new Map<string, GitHubInstallationReadGrant>()
-  for (
-    let offset = 0;
-    offset < sources.length && !signal.aborted;
-    offset += GITHUB_READ_CONCURRENCY
-  ) {
-    await Promise.all(
-      sources.slice(offset, offset + GITHUB_READ_CONCURRENCY).map(async (source) => {
-        if (readers.get(source.memberCredentialId) !== source.subjectToken) return
-        const content = source.contentCredentialId
-          ? contentById.get(source.contentCredentialId)
-          : undefined
-        if (!content?.key || !source.repositoryId) return
-        try {
-          let installation = installations.get(content.id)
-          if (!installation) {
-            installation = (async () => {
-              const { decrypted } = await decryptSecret(content.key!)
-              const binding = parseGitHubInstallationBinding(JSON.parse(decrypted))
-              if (
-                binding.installationId !== content.installationId ||
-                binding.accountId !== content.accountId
-              )
-                throw new Error('GitHub installation credential identity mismatch')
-              await assertGitHubInstallationActive(binding, { signal })
-              return binding
-            })()
-            installations.set(content.id, installation)
-          }
-          const binding = await installation
-          signal.throwIfAborted()
-          let token = tokens.get(source.memberCredentialId)
-          if (!token) {
-            token = resolveManagedOAuthToken({
-              credentialId: source.memberCredentialId,
-              ...resourceScopeFields(input.scope),
-              expectedProviderId: 'github-repositories',
-              requiredScopes: [],
-            }).then(({ accessToken }) => {
-              if (!accessToken.startsWith('ghu_'))
-                throw new Error('A GitHub App user token is required')
-              return accessToken
-            })
-            tokens.set(source.memberCredentialId, token)
-          }
-          const accessToken = await withinAdmission(token, signal)
-          signal.throwIfAborted()
-          const key = JSON.stringify([
-            content.id,
-            source.memberCredentialId,
-            source.repositoryId,
-            source.repository,
-            source.branch,
-          ])
-          let proof = proofs.get(key)
-          if (!proof) {
-            proof = (async () => {
-              if (!source.repository) return false
-              await assertGitHubInstallationRepositoryActive(binding, source.repository, { signal })
-              return verifyRepository(source, binding.accountId, accessToken, signal)
-            })()
-            proofs.set(key, proof)
-          }
-          if (await proof)
-            grants.set(source.connectorId, {
-              connectorId: source.connectorId,
-              contentCredentialId: content.id,
-              readerCredentialId: source.memberCredentialId,
-              readerSubjectToken: source.subjectToken,
-              repositoryId: source.repositoryId,
-            })
-        } catch {
-          logger.warn('GitHub did not confirm current Search access', {
-            connectorId: source.connectorId,
-          })
+  let nextSource = 0
+  const worker = async () => {
+    while (nextSource < sources.length && !admissionSignal.aborted) {
+      const source = sources[nextSource++]
+      const signal = AbortSignal.any([
+        admissionSignal,
+        AbortSignal.timeout(GITHUB_READ_SOURCE_TIMEOUT_MS),
+      ])
+      if (readers.get(source.memberCredentialId) !== source.subjectToken) continue
+      const content = source.contentCredentialId
+        ? contentById.get(source.contentCredentialId)
+        : undefined
+      if (!content?.key || !source.repositoryId) continue
+      try {
+        let installation = installations.get(content.id)
+        if (!installation) {
+          installation = (async () => {
+            const { decrypted } = await decryptSecret(content.key!)
+            const binding = parseGitHubInstallationBinding(JSON.parse(decrypted))
+            if (
+              binding.installationId !== content.installationId ||
+              binding.accountId !== content.accountId
+            )
+              throw new Error('GitHub installation credential identity mismatch')
+            await assertGitHubInstallationActive(binding, { signal: admissionSignal })
+            return binding
+          })()
+          installations.set(content.id, installation)
         }
-      })
-    )
+        const binding = await withinAdmission(installation, signal)
+        signal.throwIfAborted()
+        let token = tokens.get(source.memberCredentialId)
+        if (!token) {
+          token = resolveManagedOAuthToken({
+            credentialId: source.memberCredentialId,
+            ...resourceScopeFields(input.scope),
+            expectedProviderId: 'github-repositories',
+            requiredScopes: [],
+          }).then(({ accessToken }) => {
+            if (!accessToken.startsWith('ghu_'))
+              throw new Error('A GitHub App user token is required')
+            return accessToken
+          })
+          tokens.set(source.memberCredentialId, token)
+        }
+        const accessToken = await withinAdmission(token, signal)
+        signal.throwIfAborted()
+        const key = JSON.stringify([
+          content.id,
+          source.memberCredentialId,
+          source.repositoryId,
+          source.repository,
+          source.branch,
+        ])
+        let proof = proofs.get(key)
+        if (!proof) {
+          proof = (async () => {
+            if (!source.repository) return false
+            await assertGitHubInstallationRepositoryActive(binding, source.repository, { signal })
+            return verifyRepository(source, binding.accountId, accessToken, signal)
+          })()
+          proofs.set(key, proof)
+        }
+        if (await withinAdmission(proof, signal))
+          grants.set(source.connectorId, {
+            connectorId: source.connectorId,
+            contentCredentialId: content.id,
+            readerCredentialId: source.memberCredentialId,
+            readerSubjectToken: source.subjectToken,
+            repositoryId: source.repositoryId,
+          })
+      } catch {
+        logger.warn('GitHub did not confirm current Search access', {
+          connectorId: source.connectorId,
+        })
+      }
+    }
   }
-  /** Once admission expires, none of its partial proofs may authorize a later content query. */
-  return signal.aborted ? [] : [...grants.values()]
+  await Promise.all(
+    Array.from({ length: Math.min(GITHUB_READ_CONCURRENCY, sources.length) }, worker)
+  )
+  input.signal?.throwIfAborted()
+  return [...grants.values()]
 }

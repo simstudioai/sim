@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   loadWorkspaceIncludingArchived: vi.fn(),
   createAccessProvider: vi.fn(() => ({
     get: async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] }),
+    getForDocuments: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
+    getForConnectors: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
   })),
 }))
 
@@ -48,6 +51,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 import {
   loadKnowledgeWorkspaceAuthorizationContext,
   resolveActiveKnowledgeBaseContext,
+  resolveActiveKnowledgeChunkContext,
   resolveActiveKnowledgeConnectorContext,
   resolveActiveKnowledgeResourceContext,
   resolveActiveKnowledgeTagContext,
@@ -67,6 +71,7 @@ const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'sess
 describe('knowledge application contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
     mocks.getKnowledgeBaseWithCounts.mockResolvedValue({
       ...knowledgeBase,
@@ -75,6 +80,24 @@ describe('knowledge application contexts', () => {
     })
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.loadWorkspaceIncludingArchived.mockResolvedValue(workspace)
+  })
+
+  it('selects only chunk identity before document authorization and never hydrates a denied chunk', async () => {
+    queueTableRows(schemaMock.embedding, [
+      { id: 'chunk-1', documentId: 'document-1', knowledgeBaseId: 'knowledge-1' },
+    ])
+    mocks.getDocumentById.mockResolvedValueOnce(null)
+    await expect(
+      resolveActiveKnowledgeChunkContext(
+        { chunkId: 'chunk-1', documentId: 'document-1', knowledgeBaseId: 'knowledge-1' },
+        principal
+      )
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(dbChainMockFns.select).toHaveBeenCalledExactlyOnceWith({
+      id: schemaMock.embedding.id,
+      documentId: schemaMock.embedding.documentId,
+      knowledgeBaseId: schemaMock.embedding.knowledgeBaseId,
+    })
   })
 
   it('resolves child-resource context without loading display counts', async () => {
@@ -87,6 +110,7 @@ describe('knowledge application contexts', () => {
     expect(mocks.getKnowledgeBaseWithCounts).not.toHaveBeenCalled()
     expect(mocks.createAccessProvider).toHaveBeenCalledWith(principal, {
       workspaceId: 'workspace-1',
+      knowledgeBaseIds: ['knowledge-1'],
     })
   })
 

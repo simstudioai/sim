@@ -374,6 +374,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       topK: candidateTopK,
       filters: input.filters,
       access,
+      accessProvider: context.organizationId ? context.access : undefined,
+      signal: input.signal,
       searchMode: searchDefaults.searchMode,
       boostRecency: searchDefaults.boostRecency,
       query: input.query,
@@ -575,7 +577,9 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
      */
     const basicDocumentMetadata = await getDocumentMetadataByIds(
       rows.map((row) => row.documentId),
-      access
+      access,
+      context.organizationId ? context.access : undefined,
+      input.signal
     )
     const results = rows
       .filter((row) => basicDocumentMetadata[row.documentId])

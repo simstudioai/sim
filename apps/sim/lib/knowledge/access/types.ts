@@ -74,7 +74,18 @@ export type MirroredDocumentAcl = readonly string[] | SourceDocumentAcl
  */
 export interface KnowledgeAccessProvider {
   get(): Promise<KnowledgeAccessScope>
+  getForConnectors(
+    connectorIds: readonly string[],
+    signal?: AbortSignal
+  ): Promise<KnowledgeAccessScope>
+  getForDocuments(
+    documentIds: readonly string[],
+    signal?: AbortSignal
+  ): Promise<KnowledgeAccessScope>
 }
+
+/** Two existing search legs each contribute at most 200 candidates to one authorization batch. */
+export const MAX_KNOWLEDGE_ACCESS_CANDIDATES = 400
 
 declare const systemAccessScopeBrand: unique symbol
 

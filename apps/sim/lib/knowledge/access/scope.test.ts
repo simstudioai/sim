@@ -468,14 +468,18 @@ describe('organization document ACL scope', () => {
         providerTenantId: null,
       },
     ])
-    const scope = await resolveKnowledgeAccessScope(SESSION, {
+    const provider = createKnowledgeAccessProvider(SESSION, {
       ...organization,
       knowledgeBaseIds: ['index-1'],
     })
+    expect(await provider.get()).not.toHaveProperty('githubInstallationGrants')
+    expect(mockGitHubReadGrants).not.toHaveBeenCalled()
+    const scope = await provider.getForConnectors(['source-after-100'])
     expect(mockGitHubReadGrants).toHaveBeenCalledWith({
       scope: { kind: 'organization', organizationId: 'org-1' },
       readers: [{ credentialId: 'personal-github', subjectToken: 's:github-repositories:-:42' }],
       knowledgeBaseIds: ['index-1'],
+      connectorIds: ['source-after-100'],
       signal: undefined,
     })
     expect(scope).toMatchObject({ githubInstallationGrants: [] })

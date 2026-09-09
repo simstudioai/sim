@@ -97,6 +97,27 @@ function githubInstallationAccessCondition(scope: KnowledgeAccessScope): SQL {
  * partial listings confirm only the documents actually observed.
  */
 export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAccessScope): SQL {
+  return storedKnowledgeAccessCondition(
+    scope,
+    scope.kind === 'system' ? sql`true` : githubInstallationAccessCondition(scope)
+  )
+}
+
+/**
+ * Stored access for fixed identifier/rank candidate projections only. Candidate identities
+ * must pass live source authorization and knowledgeAccessCondition before content, names,
+ * tags, counts, provenance, or model input are selected or returned.
+ */
+export function knowledgeMetadataCandidateAccessCondition(
+  scope: KnowledgeAccessScope | SystemAccessScope
+): SQL {
+  return storedKnowledgeAccessCondition(scope, sql`true`)
+}
+
+function storedKnowledgeAccessCondition(
+  scope: KnowledgeAccessScope | SystemAccessScope,
+  liveSourceAccess: SQL
+): SQL {
   if (scope.kind === 'system') return sql`true`
   if (scope.tokens.length === 0) return sql`false`
   const tokens = textArrayLiteral(scope.tokens)
@@ -113,7 +134,7 @@ export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAcc
         SELECT 1 FROM ${knowledgeConnector}
         WHERE ${knowledgeConnector.id} = ${document.connectorId}
           AND ${searchIntegrationAccessCondition()}
-          AND ${githubInstallationAccessCondition(scope)}
+          AND ${liveSourceAccess}
           AND (
             (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
             OR (${document.acl} <> ARRAY['ws']::text[] AND (

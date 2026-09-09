@@ -1,12 +1,14 @@
 /** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   GITHUB_READ_CONCURRENCY,
   GITHUB_READ_RESPONSE_MAX_BYTES,
-  GITHUB_READ_SOURCE_LIMIT,
+  GITHUB_READ_SOURCE_TIMEOUT_MS,
+  GITHUB_READ_TIMEOUT_MS,
   resolveGitHubInstallationReadGrants,
 } from '@/lib/knowledge/access/github-installation'
+import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 
 const mocks = vi.hoisted(() => ({
   token: vi.fn(),
@@ -27,6 +29,7 @@ const input = {
   scope: { kind: 'organization' as const, organizationId: 'org-1' },
   readers: [{ credentialId: 'alice-credential', subjectToken: 's:github-repositories:-:alice' }],
   knowledgeBaseIds: ['index-1'],
+  connectorIds: ['source-1'],
 }
 const source = {
   connectorId: 'source-1',
@@ -55,6 +58,7 @@ const metadata = { id: 123, owner: { id: 90 }, default_branch: 'main' }
 const reference = { ref: 'refs/heads/main', object: { type: 'commit', sha: 'a'.repeat(40) } }
 
 function queueSources(rows: (typeof source)[] = [source]) {
+  input.connectorIds = rows.map((row) => row.connectorId)
   queueTableRows(schemaMock.knowledgeConnector, rows)
   queueTableRows(schemaMock.credential, [contentCredential])
 }
@@ -71,6 +75,7 @@ beforeEach(() => {
     Response.json(url.includes('/git/ref/') ? reference : metadata)
   )
 })
+afterEach(() => vi.restoreAllMocks())
 
 describe('live GitHub installation reader access', () => {
   it('requires both current installation and personal Contents access for the immutable repository', async () => {
@@ -194,17 +199,70 @@ describe('live GitHub installation reader access', () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('bounds sources before any provider request', async () => {
+  it('authorizes a candidate batch beyond the old 100-source cliff', async () => {
     queueSources(
-      Array.from({ length: GITHUB_READ_SOURCE_LIMIT + 1 }, (_, index) => ({
+      Array.from({ length: 101 }, (_, index) => ({
         ...source,
         connectorId: `source-${index}`,
       }))
     )
-    await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([])
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(GITHUB_READ_SOURCE_LIMIT + 1)
+    await expect(resolveGitHubInstallationReadGrants(input)).resolves.toHaveLength(101)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+    expect(mocks.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds one candidate batch without enumerating all organization sources', async () => {
+    await expect(
+      resolveGitHubInstallationReadGrants({
+        ...input,
+        connectorIds: Array.from(
+          { length: MAX_KNOWLEDGE_ACCESS_CANDIDATES + 1 },
+          (_, index) => `source-${index}`
+        ),
+      })
+    ).rejects.toThrow('bounded pages')
     expect(mocks.installation).not.toHaveBeenCalled()
   })
+
+  it.each(['source', 'admission'])(
+    'retains completed proofs and advances other workers while a %s deadline expires',
+    async (deadline) => {
+      const overall = new AbortController()
+      const sourceTimers: AbortController[] = []
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((duration) => {
+        if (duration === GITHUB_READ_TIMEOUT_MS) return overall.signal
+        expect(duration).toBe(GITHUB_READ_SOURCE_TIMEOUT_MS)
+        const timer = new AbortController()
+        sourceTimers.push(timer)
+        return timer.signal
+      })
+      queueSources(
+        Array.from({ length: 6 }, (_, index) => ({
+          ...source,
+          connectorId: `source-${index}`,
+          repository: `company/repo-${index}`,
+        }))
+      )
+      let lastFastCheck: (() => void) | undefined
+      const allFastChecks = new Promise<void>((resolve) => {
+        lastFastCheck = resolve
+      })
+      mocks.fetch.mockImplementation(async (url: string) => {
+        if (url.includes('/repo-0')) return new Promise<Response>(() => {})
+        if (url.includes('/repo-5/git/ref/')) lastFastCheck?.()
+        return Response.json(url.includes('/git/ref/') ? reference : metadata)
+      })
+      const pending = resolveGitHubInstallationReadGrants(input)
+      await allFastChecks
+      /** Let the response proof finish before expiring the unrelated stalled request. */
+      for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+      ;(deadline === 'source' ? sourceTimers[0] : overall).abort(new Error('deadline'))
+      const grants = await pending
+      expect(grants).toHaveLength(5)
+      expect(grants.map((entry) => entry.connectorId)).not.toContain('source-0')
+      expect(grants.map((entry) => entry.connectorId)).toContain('source-5')
+    }
+  )
 
   it('bounds concurrent source checks and never buffers unbounded response bytes', async () => {
     queueSources(
@@ -241,7 +299,7 @@ describe('live GitHub installation reader access', () => {
     })
     await expect(
       resolveGitHubInstallationReadGrants({ ...input, signal: controller.signal })
-    ).resolves.toEqual([])
+    ).rejects.toThrow('cancelled')
     expect(mocks.fetch).not.toHaveBeenCalled()
   })
 })
