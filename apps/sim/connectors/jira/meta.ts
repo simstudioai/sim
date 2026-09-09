@@ -4,8 +4,6 @@ import type { ConnectorMeta } from '@/connectors/types'
 export const jiraConnectorMeta: ConnectorMeta = {
   search: true,
   searchDocsUrl: 'https://docs.sim.ai/search/jira',
-  memberSetupHint:
-    'Each teammate connects their Jira account to search issue titles, descriptions, and tags they can access.',
   id: 'jira',
   name: 'Jira',
   description: 'Search issue titles and descriptions from Jira projects',
@@ -47,6 +45,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'jql',
+      setupGroup: 'options',
       title: 'JQL Filter',
       type: 'short-input',
       required: false,
@@ -54,6 +53,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxIssues',
+      setupGroup: 'options',
       title: 'Max Issues',
       type: 'short-input',
       required: false,

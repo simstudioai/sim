@@ -386,6 +386,7 @@ describe('ConnectOAuthModal reauthorization', () => {
             knowledgeBaseId='kb-search'
             connectorType='slack'
             connectorId={connectorId}
+            sourceAccess='members'
             requiredScopes={[]}
           />
         )
@@ -400,6 +401,7 @@ describe('ConnectOAuthModal reauthorization', () => {
           knowledgeBaseId: 'kb-search',
           connectorType: 'slack',
           connectorId,
+          sourceAccess: 'members',
         })
       )
       expect(mocks.connectOAuthService).toHaveBeenCalledWith({

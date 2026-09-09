@@ -394,3 +394,54 @@ it('keeps a failed revoke confirmation open for retry and blocks dismissal while
     enrollmentId: 'enrollment-1',
   })
 })
+
+it.each([
+  ['invited', [], 'Not connected'],
+  ['completed', [{ provider: 'gmail', status: 'needs_reauth', count: 1 }], 'Reconnect required'],
+  ['revoked', [], 'Access revoked'],
+])(
+  'preserves provider navigation and exposes an honest connection state: %s',
+  async (status, connections, label) => {
+    mocks.people.mockReturnValue({
+      data: {
+        pages: [
+          {
+            enrollments: [
+              {
+                id: 'person-1',
+                email: 'person@example.com',
+                status,
+                connections,
+                mcpConnections: [],
+              },
+            ],
+          },
+        ],
+      },
+      hasNextPage: false,
+    })
+    await act(async () =>
+      root.render(
+        <NuqsTestingAdapter hasMemory>
+          <SettingsHeaderProvider>
+            <SettingsHeaderShell>
+              <OrganizationAccountPeople
+                organizationId='organization-1'
+                searchConnection={{ optionId: 'gmail-option', providerName: 'Gmail' }}
+                panel={{ title: 'Gmail', back: { text: 'Integrations', onSelect: vi.fn() } }}
+              />
+            </SettingsHeaderShell>
+          </SettingsHeaderProvider>
+        </NuqsTestingAdapter>
+      )
+    )
+    expect(mocks.people).toHaveBeenLastCalledWith('organization-1', '', {
+      enabled: true,
+      optionId: 'gmail-option',
+    })
+    expect(container.textContent).toContain('Gmail')
+    expect(container.textContent).toContain('Organization account contributors')
+    expect(container.textContent).toContain(label)
+    expect(container.textContent).not.toContain('No people invited')
+  }
+)

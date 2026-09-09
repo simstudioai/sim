@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import {
   booleanQueryFlagSchema,
+  organizationIdSchema,
   resourceOwnerSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -365,6 +366,7 @@ export const searchSourceCursorSchema = z.object({
 
 export const listSearchSourcesQuerySchema = resourceOwnerSchema.safeExtend({
   cursor: z.string().min(1).max(1024).optional(),
+  connectorType: z.string().trim().min(1, 'connectorType cannot be empty').max(100).optional(),
   search: z.string().trim().max(200).optional(),
   mine: booleanQueryFlagSchema.optional(),
 })
@@ -401,6 +403,47 @@ export const readSearchSourceOverviewContract = defineRouteContract({
   path: '/api/knowledge/sim-search/sources/overview',
   query: resourceOwnerSchema,
   response: { mode: 'json', schema: successResponseSchema(searchSourceOverviewSchema) },
+})
+
+export const organizationSearchProviderStatusSchema = z.enum([
+  'needs_setup',
+  'waiting_for_connections',
+  'indexing',
+  'needs_attention',
+  'paused',
+  'active',
+])
+export type OrganizationSearchProviderStatus = z.output<
+  typeof organizationSearchProviderStatusSchema
+>
+
+export const organizationSearchProviderSummarySchema = z.object({
+  connectorType: z.string().min(1).max(100),
+  approved: z.boolean(),
+  sourceCount: z.number().int().nonnegative(),
+  status: organizationSearchProviderStatusSchema,
+})
+export type OrganizationSearchProviderSummary = z.output<
+  typeof organizationSearchProviderSummarySchema
+>
+
+export const organizationSearchOverviewSchema = z.object({
+  providers: z.array(organizationSearchProviderSummarySchema).max(MAX_SEARCH_SOURCE_PROVIDER_TYPES),
+})
+export type OrganizationSearchOverview = z.output<typeof organizationSearchOverviewSchema>
+
+export const readOrganizationSearchOverviewQuerySchema = z.object({
+  organizationId: organizationIdSchema,
+})
+export type ReadOrganizationSearchOverviewQuery = z.input<
+  typeof readOrganizationSearchOverviewQuerySchema
+>
+
+export const readOrganizationSearchOverviewContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/sim-search/integrations/overview',
+  query: readOrganizationSearchOverviewQuerySchema,
+  response: { mode: 'json', schema: successResponseSchema(organizationSearchOverviewSchema) },
 })
 
 export const searchSourceProgressSchema = z.object({

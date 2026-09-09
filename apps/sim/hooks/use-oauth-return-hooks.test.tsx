@@ -170,6 +170,34 @@ describe('organization source OAuth return routing', () => {
     })
   }
 
+  it.each(['confluence', 'google_drive', 'github', 'jira', 'gmail', 'google_calendar', 'slack'])(
+    'preserves the %s member-source form on successful and canceled OAuth returns',
+    async (connectorType) => {
+      mocks.params = { organizationId: 'org-1' }
+      for (const canceled of [false, true]) {
+        const pending: OAuthReturnContext = {
+          ...context(),
+          workspaceId: undefined,
+          organizationId: 'org-1',
+          connectorType,
+          sourceAccess: 'members',
+        }
+        writeOAuthReturnContext(pending)
+        window.history.replaceState(
+          null,
+          '',
+          `/o/org-1/settings/integrations${canceled ? '?error=access_denied' : ''}`
+        )
+        await renderRouter()
+        expect(mocks.replace).toHaveBeenLastCalledWith(
+          `/o/org-1/settings/integrations?addConnector=${connectorType}&source-access=members`
+        )
+        expect(readOAuthReturnContext()).toEqual(canceled ? null : pending)
+        await act(async () => root.render(null))
+      }
+    }
+  )
+
   it.each([false, true])(
     'returns to source settings after OAuth with canceled=%s',
     async (canceled) => {

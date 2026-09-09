@@ -24,6 +24,7 @@ vi.mock('@/hooks/queries/kb/knowledge', () => ({
   useUpdateDocument: () => ({ ...mocks.retryState, mutate: mocks.retry }),
 }))
 
+import { ConnectorDocuments } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-documents'
 import { ConnectorDocumentsTab } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-documents-tab'
 
 let root: Root
@@ -95,6 +96,28 @@ afterEach(() => {
 })
 
 describe('connector document recovery', () => {
+  it('labels Search documents by the current viewer access without changing general knowledge bases', () => {
+    render()
+    expect(document.body.textContent).not.toContain('Documents you can access')
+    act(() =>
+      root.render(
+        <ChipModal open srTitle='Source documents'>
+          <ChipModalBody>
+            <ConnectorDocuments
+              knowledgeBaseId='kb'
+              connectorId='connector'
+              isSearchIndex
+              filter='active'
+              onFilterChange={vi.fn()}
+            />
+          </ChipModalBody>
+        </ChipModal>
+      )
+    )
+    expect(document.body.textContent).toContain('Documents you can access')
+    expect(document.body.textContent).toContain('Handbook.txt')
+  })
+
   it('shows the failed file and retries through the existing scoped document mutation', () => {
     render()
     expect(document.body.textContent).toContain('Indexing failed')

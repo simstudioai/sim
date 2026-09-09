@@ -134,6 +134,7 @@ type ConnectOAuthModalConnectProps = ConnectOAuthModalBaseProps & {
         knowledgeBaseId: string
         connectorType?: string
         connectorId?: string
+        sourceAccess?: 'members'
       }
     | { origin: 'integrations' }
   )
@@ -396,6 +397,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             knowledgeBaseId: props.knowledgeBaseId,
             connectorType: props.connectorType,
             connectorId: props.connectorId,
+            sourceAccess: props.sourceAccess,
           }
         } else if (props.origin === 'workflow') {
           returnContext = {

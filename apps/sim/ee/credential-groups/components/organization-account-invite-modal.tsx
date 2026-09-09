@@ -16,6 +16,7 @@ import { useInviteOrganizationAccountPeople } from '@/hooks/queries/organization
 
 interface OrganizationAccountInviteModalProps {
   organizationId: string
+  searchConnection?: { optionId: string; providerName: string }
   onClose: () => void
 }
 
@@ -26,6 +27,7 @@ function validateEmail(email: string): string | null {
 
 export function OrganizationAccountInviteModal({
   organizationId,
+  searchConnection,
   onClose,
 }: OrganizationAccountInviteModalProps) {
   const invite = useInviteOrganizationAccountPeople()
@@ -55,6 +57,7 @@ export function OrganizationAccountInviteModal({
       const result = await invite.mutateAsync({
         organizationId,
         emails,
+        ...(searchConnection ? { optionId: searchConnection.optionId } : {}),
       })
       const failures = result.results.filter((item) => !item.success)
       if (failures.length === 0) {
@@ -82,13 +85,24 @@ export function OrganizationAccountInviteModal({
     <ChipModal
       open
       onOpenChange={handleOpenChange}
-      srTitle='Request account connections'
+      srTitle={
+        searchConnection
+          ? `Request ${searchConnection.providerName} connections`
+          : 'Request account connections'
+      }
       dismissDisabled={invite.isPending}
     >
       <ChipModalHeader onClose={() => handleOpenChange(false)}>
-        Request account connections
+        {searchConnection
+          ? `Request ${searchConnection.providerName} connections`
+          : 'Request account connections'}
       </ChipModalHeader>
       <ChipModalBody>
+        <p className='px-2 text-[var(--text-muted)] text-small'>
+          {searchConnection
+            ? `Ask people to connect their ${searchConnection.providerName} account for Search. This does not invite them to join the organization.`
+            : 'Ask people to connect their accounts. This does not invite them to join the organization.'}
+        </p>
         <ChipModalField
           type='emails'
           title='Emails'

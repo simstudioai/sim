@@ -25,6 +25,7 @@ interface ConnectorDocumentsProps {
   search?: string
   searchControl?: { value: string; onChange: (value: string) => void }
   progressScope?: ResourceScope
+  isSearchIndex?: boolean
   syncing?: boolean
   filter: ConnectorDocumentFilter
   onFilterChange: (filter: ConnectorDocumentFilter) => void
@@ -37,6 +38,7 @@ export function ConnectorDocuments({
   search,
   searchControl,
   progressScope,
+  isSearchIndex = false,
   syncing,
   onFilterChange,
 }: ConnectorDocumentsProps) {
@@ -72,6 +74,9 @@ export function ConnectorDocuments({
   return (
     <>
       <div className='flex flex-col gap-4'>
+        {isSearchIndex && (
+          <p className='text-[var(--text-body)] text-sm'>Documents you can access</p>
+        )}
         <div className='flex items-center gap-2'>
           {searchControl && (
             <ChipInput

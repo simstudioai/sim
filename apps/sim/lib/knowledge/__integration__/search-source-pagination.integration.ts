@@ -102,6 +102,14 @@ afterAll(async () => {
 })
 
 describe('bounded source pagination and provider overview', () => {
+  it('finds a provider beyond the unfiltered candidate bound on its first filtered page', async () => {
+    const result = await listSearchSources.execute({
+      principal: alice,
+      input: { ...input, connectorType: 'google_drive' },
+    })
+    expect(result.sources.map((source) => source.connectorId)).toEqual([olderSourceId])
+    expect(result.nextCursor).toBeNull()
+  })
   it('walks tied microsecond timestamps without duplicating or skipping sources', async () => {
     const found: string[] = []
     let cursor: string | undefined

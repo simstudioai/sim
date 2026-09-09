@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   bind: vi.fn(),
+  memberAccess: vi.fn(),
+  searchAvailable: vi.fn(),
   completeEnrollment: vi.fn(),
   completeOAuth: vi.fn(),
   fireTrigger: vi.fn(),
@@ -18,6 +20,13 @@ const mocks = vi.hoisted(() => ({
   completeMcpOAuth: vi.fn(),
   startMcpOAuth: vi.fn(),
   startOAuth: vi.fn(),
+}))
+
+vi.mock('@/lib/organizations/settings-access', () => ({
+  getOrganizationSettingsAccess: mocks.memberAccess,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mocks.searchAvailable,
 }))
 
 vi.mock('@/lib/credential-groups/enrollments', () => ({
@@ -93,6 +102,8 @@ describe('public Credential Group enrollment application operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.bind.mockResolvedValue(undefined)
+    mocks.memberAccess.mockResolvedValue({ isMember: false })
+    mocks.searchAvailable.mockResolvedValue(true)
     mocks.getEnrollment.mockResolvedValue({
       status: 'invited',
       credentialGroupName: 'Credential Group',
@@ -146,6 +157,7 @@ describe('public Credential Group enrollment application operations', () => {
 
     expect(mocks.getEnrollment).toHaveBeenCalledWith(identity, undefined)
     expect(result).toEqual({
+      canSearch: false,
       enrollment: {
         status: 'invited',
         credentialGroupName: 'Credential Group',
@@ -153,6 +165,24 @@ describe('public Credential Group enrollment application operations', () => {
       },
     })
   })
+
+  it.each([
+    [true, true, true],
+    [false, true, false],
+    [true, false, false],
+  ])(
+    'returns to organization Search only for current members with Search enabled',
+    async (isMember, available, expected) => {
+      mocks.memberAccess.mockResolvedValue({ isMember })
+      mocks.searchAvailable.mockResolvedValue(available)
+      const result = await readPublicCredentialGroupEnrollment.execute({
+        principal,
+        input: { optionId: 'option-1' },
+      })
+      expect(result.canSearch).toBe(expected)
+      expect(mocks.memberAccess).toHaveBeenCalledWith('org-1', 'user-1')
+    }
+  )
 
   it('fails closed when the current invitation no longer resolves', async () => {
     mocks.getEnrollment.mockResolvedValue(null)

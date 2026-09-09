@@ -6,7 +6,6 @@ export const DEFAULT_MAX_THREADS = 500
 export const gmailConnectorMeta: ConnectorMeta = {
   search: true,
   searchDocsUrl: 'https://docs.sim.ai/search/gmail',
-  memberSetupHint: 'Each teammate connects their Gmail account. Only they can search their email.',
   id: 'gmail',
   name: 'Gmail',
   description: 'Sync email threads from Gmail',
@@ -62,6 +61,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'excludePromotions',
+      setupGroup: 'options',
       title: 'Exclude Promotions',
       type: 'dropdown',
       required: false,
@@ -73,6 +73,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'excludeSocial',
+      setupGroup: 'options',
       title: 'Exclude Social',
       type: 'dropdown',
       required: false,
@@ -84,6 +85,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'query',
+      setupGroup: 'options',
       title: 'Search Filter',
       type: 'short-input',
       placeholder: 'e.g. from:boss@company.com subject:report has:attachment',
@@ -92,6 +94,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxThreads',
+      setupGroup: 'options',
       title: 'Max Threads',
       type: 'short-input',
       required: false,

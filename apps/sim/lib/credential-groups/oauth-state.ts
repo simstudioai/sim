@@ -38,7 +38,7 @@ interface StoredCredentialGroupOAuthAttempt {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
-  returnTo?: 'search'
+  returnTo?: 'search' | 'accounts'
   nonceHash: string
   encryptedCodeVerifier?: string
   encryptedInvitationToken: string
@@ -61,7 +61,7 @@ export interface CredentialGroupOAuthAttempt {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
-  returnTo?: 'search'
+  returnTo?: 'search' | 'accounts'
   codeVerifier?: string
   invitationToken: string
   createdAt: number
@@ -81,7 +81,7 @@ interface CreateCredentialGroupOAuthAttemptParams {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
-  returnTo?: 'search'
+  returnTo?: 'search' | 'accounts'
   codeVerifier?: string
   invitationToken: string
 }
@@ -129,7 +129,9 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     typeof candidate.redirectUri === 'string' &&
     (candidate.completionRedirect === undefined ||
       typeof candidate.completionRedirect === 'boolean') &&
-    (candidate.returnTo === undefined || candidate.returnTo === 'search') &&
+    (candidate.returnTo === undefined ||
+      candidate.returnTo === 'search' ||
+      candidate.returnTo === 'accounts') &&
     typeof candidate.nonceHash === 'string' &&
     (candidate.encryptedCodeVerifier === undefined ||
       typeof candidate.encryptedCodeVerifier === 'string') &&

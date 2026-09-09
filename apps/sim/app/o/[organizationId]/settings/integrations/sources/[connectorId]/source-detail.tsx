@@ -44,6 +44,7 @@ import {
   useConnectorDetail,
   useSearchIndex,
 } from '@/hooks/queries/kb/connectors'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
@@ -128,7 +129,8 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
       key={`${organization.id}:${connectorId}`}
       connector={detail.data}
       scope={scope}
-      backHref={backHref}
+      backHref={organizationRoutes(organization.id).searchProvider(detail.data.connectorType)}
+      backText={CONNECTOR_META_REGISTRY[detail.data.connectorType]?.name ?? 'Integration'}
       queryError={
         failedQuery ? (
           <SettingsQueryErrorState
@@ -148,10 +150,17 @@ interface SourceDetailContentProps {
   connector: ConnectorDetailData
   scope: ResourceScope
   backHref: string
+  backText: string
   queryError?: ReactNode
 }
 
-function SourceDetailContent({ connector, scope, backHref, queryError }: SourceDetailContentProps) {
+function SourceDetailContent({
+  connector,
+  scope,
+  backHref,
+  backText,
+  queryError,
+}: SourceDetailContentProps) {
   useOAuthReturnForKBConnectors(
     connector.knowledgeBaseId,
     undefined,
@@ -159,6 +168,8 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
     scope,
     connector.id
   )
+  const { organization } = useOrganizationContext()
+  const integrations = useSearchIntegrations(organization.id)
   const router = useRouter()
   const [view, setView] = useQueryState(
     sourceViewParam.key,
@@ -190,6 +201,48 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
     const next = sourceViewParam.parser.parse(value)
     if (next) void setView(next)
   }
+  if (
+    integrations.isError &&
+    isApiClientError(integrations.error) &&
+    [401, 403, 404].includes(integrations.error.status)
+  )
+    return (
+      <SettingsPanel
+        back={{ text: backText, icon: ArrowLeft, onSelect: onBack }}
+        title='Search source'
+      >
+        <SettingsQueryErrorState
+          error={integrations.error}
+          isRetrying={integrations.isFetching}
+          onRetry={() => void integrations.refetch()}
+          fallback='Could not load integration status'
+          variant='inline'
+        />
+      </SettingsPanel>
+    )
+  const integrationFeedback = (
+    <>
+      {queryError}
+      {integrations.isError ? (
+        <SettingsQueryErrorState
+          error={integrations.error}
+          isRetrying={integrations.isFetching}
+          onRetry={() => void integrations.refetch()}
+          fallback='Could not load integration status'
+          variant='inline'
+        />
+      ) : integrations.isPending ? (
+        <SettingsEmptyState variant='inline'>Loading integration status…</SettingsEmptyState>
+      ) : null}
+      {integrations.data?.find((item) => item.connectorType === connector.connectorType)
+        ?.approved === false && (
+        <SettingsResourceRow
+          title={`${meta?.name ?? 'This integration'} is deactivated`}
+          description='Its content is unavailable in Search, Assistant, and MCP.'
+        />
+      )}
+    </>
+  )
   if (view === 'settings')
     return (
       <SourceSettingsEditor
@@ -198,7 +251,8 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
         scope={scope}
         title={title}
         description={description}
-        queryError={queryError}
+        queryError={integrationFeedback}
+        backText={backText}
         onBack={onBack}
         onViewChange={onViewChange}
       />
@@ -206,13 +260,13 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
   return (
     <SourcePanel
       connector={connector}
-      back={{ text: 'Integrations', icon: ArrowLeft, onSelect: onBack }}
+      back={{ text: backText, icon: ArrowLeft, onSelect: onBack }}
       title={title}
       description={description}
       docsLink={meta?.searchDocsUrl}
       onRemoved={onBack}
     >
-      {queryError}
+      {integrationFeedback}
       <SourceNavigation view={view} onViewChange={onViewChange} />
       {effectiveStatus === 'active' && lastSyncError && (
         <SettingsResourceRow
@@ -237,6 +291,7 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
           filter={filter}
           onFilterChange={(next) => void setFilter(next)}
           progressScope={scope}
+          isSearchIndex
           syncing={isConnectorSyncingOrPending(connector)}
         />
       ) : (
@@ -310,6 +365,7 @@ interface SourceSettingsEditorProps {
   title: string
   description?: string
   queryError?: ReactNode
+  backText: string
   onBack: () => void
   onViewChange: (view: string) => void
 }
@@ -342,6 +398,7 @@ function SourceSettingsForm({
   title,
   description,
   queryError,
+  backText,
   onBack,
   onViewChange,
   onSaved,
@@ -358,7 +415,7 @@ function SourceSettingsForm({
   return (
     <SourcePanel
       connector={connector}
-      back={{ text: 'Integrations', icon: ArrowLeft, onSelect: () => guard.guardBack(onBack) }}
+      back={{ text: backText, icon: ArrowLeft, onSelect: () => guard.guardBack(onBack) }}
       title={title}
       description={description}
       docsLink={form.docsUrl}

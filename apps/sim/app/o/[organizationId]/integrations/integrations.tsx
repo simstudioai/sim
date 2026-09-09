@@ -1,8 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn'
+import { getAccountSettingsHref } from '@/components/settings/navigation'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   getConnectorAccessAvailability,
   SEARCH_CONNECTORS,
@@ -40,14 +42,14 @@ const TABS = [
 ] as const
 
 /**
- * The organization's sources as every member sees them — the same list and the
- * same actions whatever the viewer's role. Setting sources up and managing them
- * is an organization admin's job, done in the organization's settings.
+ * Personal connections and approved source scopes available to the organization.
+ * Administrators can open source management without leaving this journey.
  */
 export function OrganizationIntegrations() {
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
-  const { organization, searchAccess } = useOrganizationContext()
+  const { organization, searchAccess, viewer } = useOrganizationContext()
+  const routes = organizationRoutes(organization.id)
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const { tab, search } = useOrganizationPageFilters()
   const sources = useSearchSources(scope, { search, mine: tab === 'mine' })
@@ -80,12 +82,15 @@ export function OrganizationIntegrations() {
   const configuredTypes = new Set(
     overview.data?.providers.map((provider) => provider.connectorType)
   )
-  const unconfigured = mineOnly
+  const sourceChoices = mineOnly
     ? []
     : SEARCH_SOURCE_TYPES.filter(
         ([type, meta]) =>
           approvedTypes.has(type) &&
-          !configuredTypes.has(type) &&
+          (!configuredTypes.has(type) ||
+            SEARCH_CONNECTORS.some(
+              (connector) => connector.type === type && connector.setupFields.length > 0
+            )) &&
           meta.name.toLowerCase().includes(query)
       )
   const failedQuery =
@@ -102,6 +107,14 @@ export function OrganizationIntegrations() {
       title='Integrations'
       description='Connect your tools for Sim Search'
       tabs={TABS}
+      action={
+        <div className='flex items-center gap-2'>
+          <ChipLink href={getAccountSettingsHref('connected-accounts')}>Your accounts</ChipLink>
+          {viewer.isAdmin && (
+            <ChipLink href={routes.settingsSection('integrations')}>Manage integrations</ChipLink>
+          )}
+        </div>
+      }
     >
       <div className={RESOURCE_LIST_STACK}>
         {failedQuery ? (
@@ -125,9 +138,9 @@ export function OrganizationIntegrations() {
           integrations.isPending ||
           !availability.isIntegrationAvailabilityReady ? (
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
-        ) : visibleSources.length > 0 || unconfigured.length > 0 || sources.hasNextPage ? (
+        ) : visibleSources.length > 0 || sourceChoices.length > 0 || sources.hasNextPage ? (
           <>
-            {unconfigured.map(([type, meta]) => {
+            {sourceChoices.map(([type, meta]) => {
               const connector = SEARCH_CONNECTORS.find((item) => item.type === type)
               const access = getConnectorAccessAvailability(
                 meta,
@@ -140,16 +153,20 @@ export function OrganizationIntegrations() {
                 }
               )
               const canConnect = connector && type !== 'slack' && access.members
+              const hasSources = configuredTypes.has(type)
+              if (hasSources && !canConnect) return null
               return (
                 <SettingsResourceRow
                   key={type}
                   iconVariant='custom'
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
-                  title={meta.name}
+                  title={hasSources ? `Add another ${meta.name} source` : meta.name}
                   description={
-                    canConnect
-                      ? 'Approved · Connect your account to search this source'
-                      : 'Approved · An admin needs to finish source setup'
+                    hasSources
+                      ? 'Connect a different site or content scope'
+                      : canConnect
+                        ? 'Approved · Connect your account to search this source'
+                        : 'Approved · An admin needs to finish source setup'
                   }
                   trailing={
                     canConnect ? (
@@ -158,7 +175,7 @@ export function OrganizationIntegrations() {
                         disabled={enrollment.isPending}
                         onClick={() => enrollment.connectSearchSource(scope, connector, undefined)}
                       >
-                        Connect account
+                        {hasSources ? 'Add source' : 'Connect account'}
                       </Chip>
                     ) : undefined
                   }
@@ -170,7 +187,8 @@ export function OrganizationIntegrations() {
                 key={source.connectorId}
                 source={source}
                 scope={scope}
-                canAdmin={false}
+                canAdmin={viewer.isAdmin}
+                manageHref={viewer.isAdmin ? routes.searchSource(source.connectorId) : undefined}
                 available={
                   source.accessMode === 'members'
                     ? searchAccess.memberScoped
@@ -190,7 +208,9 @@ export function OrganizationIntegrations() {
               ? 'No matching sources.'
               : mineOnly
                 ? 'You haven’t connected any sources yet.'
-                : 'Your organization hasn’t added any sources yet. Ask an organization admin to get started.'}
+                : viewer.isAdmin
+                  ? 'Your organization hasn’t added any sources yet. Open Manage integrations to get started.'
+                  : 'Your organization hasn’t added any sources yet. Ask an organization admin to get started.'}
           </SettingsEmptyState>
         )}
         {enrollment.error && (

@@ -30,7 +30,6 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import {
-  BROWSE_WITH_HINT,
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -329,7 +328,7 @@ export function ConnectorSettingsFields({
         connectorConfig.configFields.some(
           (field) => field.type === 'selector' && isFieldVisible(field)
         ) && (
-          <ChipModalField type='custom' title='Browse with' hint={BROWSE_WITH_HINT}>
+          <ChipModalField type='custom' title='Account for browsing'>
             <ChipCombobox
               options={credentialOptions}
               value={browseCredentialId ?? undefined}

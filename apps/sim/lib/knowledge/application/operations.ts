@@ -654,6 +654,15 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  readOrganizationSearchOverview: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.integrations.overview',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   approveSearchIntegration: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.approve',

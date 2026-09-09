@@ -56,6 +56,7 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
         status: knowledgeConnector.status,
         accessMode: knowledgeConnector.accessMode,
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
+        hasRetainedSyncError: sql<boolean>`${knowledgeConnector.lastSyncError} IS NOT NULL`,
         approved: sql<boolean>`${searchIntegrationAccessCondition()}`,
         isIndexing: hasDocumentsInState(['pending', 'processing']),
         hasIndexingError: hasDocumentsInState(['failed']),
@@ -89,6 +90,7 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
             row.isIndexing),
         hasSyncError:
           row.status === 'error' ||
+          row.hasRetainedSyncError === true ||
           (row.accessMode === 'members' && row.memberSyncStatus === 'error'),
         hasIndexingError: row.hasIndexingError,
       })),

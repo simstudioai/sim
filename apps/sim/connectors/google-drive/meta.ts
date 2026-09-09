@@ -56,6 +56,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     {
       id: GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID,
       title: 'Openly shared files',
+      placeholder: 'Keep out of search',
       type: 'dropdown',
       required: false,
       hideInMemberMode: true,
@@ -93,6 +94,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'fileType',
+      setupGroup: 'options',
       title: 'File Type',
       type: 'dropdown',
       required: false,
@@ -106,6 +108,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxFiles',
+      setupGroup: 'options',
       title: 'Max Files',
       type: 'short-input',
       required: false,

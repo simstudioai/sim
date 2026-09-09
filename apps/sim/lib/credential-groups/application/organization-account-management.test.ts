@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   group: vi.fn(),
   setup: vi.fn(),
   list: vi.fn(),
+  invite: vi.fn(),
+  resend: vi.fn(),
+  inviter: vi.fn(),
 }))
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   authorizeOrganizationOperation: mocks.authorize,
@@ -38,9 +41,9 @@ vi.mock('@/lib/credential-groups/service', () => ({
 vi.mock('@/lib/credential-groups/enrollments', () => ({
   CredentialGroupEnrollmentError: class extends Error {},
   listCredentialGroupEnrollments: mocks.list,
-  inviteCredentialGroupEnrollments: vi.fn(),
-  loadCredentialGroupInviterIdentity: vi.fn(),
-  resendCredentialGroupEnrollment: vi.fn(),
+  inviteCredentialGroupEnrollments: mocks.invite,
+  loadCredentialGroupInviterIdentity: mocks.inviter,
+  resendCredentialGroupEnrollment: mocks.resend,
   revokeCredentialGroupEnrollment: vi.fn(),
 }))
 vi.mock('@/lib/credential-groups/managed-mcp-service', () => ({
@@ -55,8 +58,10 @@ vi.mock('@/lib/mcp/connection-pool', () => ({ evictMcpServerConnections: vi.fn()
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  inviteOrganizationAccountPeople,
   listOrganizationAccountPeople,
   organizationAccountManagementOperations,
+  resendOrganizationAccountInvitation,
 } from '@/lib/credential-groups/application/organization-account-management'
 
 const principal: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
@@ -69,7 +74,63 @@ describe('organization account people search application', () => {
     mocks.available.mockResolvedValue(true)
     mocks.group.mockResolvedValue({ credentialGroupId: 'group-1' })
     mocks.setup.mockResolvedValue(undefined)
+    mocks.inviter.mockResolvedValue({ name: 'Admin' })
+    mocks.invite.mockResolvedValue({ results: [], sentCount: 0, failedCount: 0 })
     mocks.list.mockResolvedValue({ enrollments: [], nextCursor: null })
+  })
+
+  it('forwards provider projection without removing contributors who have not connected', async () => {
+    await listOrganizationAccountPeople.execute({
+      principal,
+      input: { ...input, optionId: 'gmail-option' },
+    })
+    expect(mocks.list).toHaveBeenCalledWith(expect.any(Object), 'group-1', 50, 'cursor-1', {
+      email: undefined,
+      search: 'example',
+      optionId: 'gmail-option',
+    })
+  })
+
+  it('keeps canonical provider intent on connection requests and resends', async () => {
+    mocks.group.mockResolvedValue({
+      credentialGroupId: 'group-1',
+      options: [{ id: 'gmail-option', provider: 'gmail', status: 'active' }],
+    })
+    await inviteOrganizationAccountPeople.execute({
+      principal,
+      input: { organizationId: 'org-1', emails: ['person@example.com'], optionId: 'gmail-option' },
+    })
+    expect(mocks.invite).toHaveBeenCalledWith(
+      { kind: 'organization', organizationId: 'org-1' },
+      'group-1',
+      'admin-1',
+      'Admin',
+      { emails: ['person@example.com'] },
+      { optionId: 'gmail-option', providerName: 'Gmail' }
+    )
+    await resendOrganizationAccountInvitation.execute({
+      principal,
+      input: { organizationId: 'org-1', enrollmentId: 'person', optionId: 'gmail-option' },
+    })
+    expect(mocks.resend).toHaveBeenCalledWith(
+      { kind: 'organization', organizationId: 'org-1' },
+      'group-1',
+      'person',
+      'admin-1',
+      'Admin',
+      { optionId: 'gmail-option', providerName: 'Gmail' }
+    )
+  })
+
+  it('refuses a removed provider before requesting any account connection', async () => {
+    mocks.group.mockResolvedValue({ credentialGroupId: 'group-1', options: [] })
+    await expect(
+      inviteOrganizationAccountPeople.execute({
+        principal,
+        input: { organizationId: 'org-1', emails: ['person@example.com'], optionId: 'removed' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.invite).not.toHaveBeenCalled()
   })
 
   it('keeps the existing session-only admin operation and forwards search after authorization', async () => {

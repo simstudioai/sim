@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   admin: true,
   index: vi.fn(),
   detail: vi.fn(),
+  integrations: vi.fn(),
   push: vi.fn(),
   documents: vi.fn(),
   actions: vi.fn(),
@@ -36,6 +37,9 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: mocks.index,
   useConnectorDetail: mocks.detail,
   isConnectorSyncingOrPending: () => false,
+}))
+vi.mock('@/hooks/queries/search-integrations', () => ({
+  useSearchIntegrations: mocks.integrations,
 }))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
@@ -128,6 +132,9 @@ describe('organization source detail navigation', () => {
     mocks.saving = false
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
     mocks.detail.mockReturnValue({ data: connector })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'google_drive', approved: true }],
+    })
     mocks.actions.mockImplementation((options: ConnectorActionsOptions) => ({
       actions: [
         {
@@ -186,13 +193,16 @@ describe('organization source detail navigation', () => {
         knowledgeBaseId: 'index-one',
         connectorId: 'source-one',
         filter: 'active',
+        isSearchIndex: true,
       })
     )
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     await click('Sync history')
     expect(mocks.history).toHaveBeenCalled()
-    await click('Integrations')
-    expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
+    await click('Google Drive')
+    expect(mocks.push).toHaveBeenCalledWith(
+      '/o/org-one/settings/integrations/providers/google_drive'
+    )
   })
   it('restores document search and status from the shared URL', async () => {
     await render('?search=notes&document-filter=excluded')
@@ -223,6 +233,42 @@ describe('organization source detail navigation', () => {
     await render()
     expect(container.textContent).not.toContain('Some source updates are incomplete')
     expect(container.textContent).not.toContain('Review the source settings and try syncing again.')
+  })
+
+  it.each(['', '?view=settings', '?view=history'])(
+    'shows integration deactivation independently of source sync state at %s',
+    async (searchParams) => {
+      mocks.detail.mockReturnValue({ data: { ...connector, status: 'paused' } })
+      mocks.integrations.mockReturnValue({
+        data: [{ connectorType: 'google_drive', approved: false }],
+      })
+      await render(searchParams)
+      expect(mocks.integrations).toHaveBeenCalledWith('org-one')
+      expect(container.textContent).toContain('Google Drive is deactivated')
+      expect(container.textContent).toContain(
+        'Its content is unavailable in Search, Assistant, and MCP.'
+      )
+      expect(container.textContent).toContain('Sync paused')
+    }
+  )
+
+  it('keeps source settings and their guard when integration status cannot refresh', async () => {
+    mocks.dirty = true
+    const refetch = vi.fn()
+    mocks.integrations.mockReturnValue({
+      isError: true,
+      error: new Error('Integration status unavailable'),
+      refetch,
+    })
+    await render('?view=settings')
+    expect(container.textContent).toContain('Source configuration')
+    expect(container.textContent).toContain('Integration status unavailable')
+    expect(container.textContent).not.toContain('is deactivated')
+    await click('Try again')
+    expect(refetch).toHaveBeenCalledOnce()
+    await click('Google Drive')
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Unsaved Changes')
   })
 
   it.each(['pending', 'syncing', 'paused', 'error', 'disabled'] as const)(
@@ -299,6 +345,7 @@ describe('organization source detail navigation', () => {
     )
     expect(mocks.detail).toHaveBeenLastCalledWith(undefined, 'source-one')
     expect(mocks.actions).not.toHaveBeenCalled()
+    expect(mocks.integrations).not.toHaveBeenCalled()
   })
   it('shows a missing source when there is no search index', async () => {
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: null }, isPending: false })
@@ -306,6 +353,8 @@ describe('organization source detail navigation', () => {
     await render()
     expect(container.textContent).toContain('This source is no longer available')
     expect(mocks.actions).not.toHaveBeenCalled()
+    await click('Integrations')
+    expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
   })
   it('requires discard confirmation before leaving dirty settings', async () => {
     mocks.dirty = true
@@ -323,10 +372,12 @@ describe('organization source detail navigation', () => {
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Unsaved Changes')
     expect(mocks.documents).not.toHaveBeenCalled()
     await click('Keep editing')
-    await click('Integrations')
+    await click('Google Drive')
     expect(mocks.push).not.toHaveBeenCalled()
     await click('Discard Changes')
-    expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
+    expect(mocks.push).toHaveBeenCalledWith(
+      '/o/org-one/settings/integrations/providers/google_drive'
+    )
   })
 
   it('places source actions in the resource header before the view tabs', async () => {
@@ -373,6 +424,19 @@ describe('organization source detail navigation', () => {
     })
     mocks.detail.mockReturnValue({
       data: connector,
+      isError: true,
+      error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
+      refetch: vi.fn(),
+    })
+    await render('?view=settings')
+    expect(container.textContent).toContain('Access denied')
+    expect(container.textContent).not.toContain('Source configuration')
+  })
+
+  it('hides cached source settings when integration status reports revoked access', async () => {
+    await render('?view=settings')
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'google_drive', approved: true }],
       isError: true,
       error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
       refetch: vi.fn(),
@@ -444,7 +508,7 @@ describe('organization source detail navigation', () => {
 
       await click('Documents')
       await click('Sync history')
-      await click('Integrations')
+      await click('Google Drive')
       expect(mocks.documents).not.toHaveBeenCalled()
       expect(mocks.history).not.toHaveBeenCalled()
       expect(mocks.push).not.toHaveBeenCalled()

@@ -180,6 +180,21 @@ describe('resolveOAuthCallbackError', () => {
 })
 
 describe('buildKnowledgeBaseOAuthReturnUrl', () => {
+  it('keeps member setup separate from central setup without changing workspace returns', () => {
+    expect(
+      buildKnowledgeBaseOAuthReturnUrl(
+        { kind: 'organization', organizationId: 'org-1' },
+        'kb-1',
+        'google_drive',
+        undefined,
+        'members'
+      )
+    ).toBe('/o/org-1/settings/integrations?addConnector=google_drive&source-access=members')
+    expect(
+      buildKnowledgeBaseOAuthReturnUrl('workspace-1', 'kb-1', 'google_drive', undefined, 'members')
+    ).toBe('/workspace/workspace-1/knowledge/kb-1?addConnector=google_drive')
+  })
+
   it('preserves the connector picker on both successful and failed OAuth returns', () => {
     expect(buildKnowledgeBaseOAuthReturnUrl('workspace-1', 'kb-1', 'google_drive')).toBe(
       '/workspace/workspace-1/knowledge/kb-1?addConnector=google_drive'

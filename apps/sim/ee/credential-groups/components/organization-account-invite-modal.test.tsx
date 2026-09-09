@@ -34,12 +34,16 @@ describe.each(['organization', 'workspace'] as const)(
       })
     }
 
-    async function render() {
+    async function render(searchConnection?: { optionId: string; providerName: string }) {
       await act(async () =>
         root.render(
           <QueryClientProvider client={client}>
             {scope === 'organization' ? (
-              <OrganizationAccountInviteModal organizationId='org-1' onClose={mocks.close} />
+              <OrganizationAccountInviteModal
+                organizationId='org-1'
+                onClose={mocks.close}
+                searchConnection={searchConnection}
+              />
             ) : (
               <CredentialGroupInviteModal
                 open
@@ -102,6 +106,25 @@ describe.each(['organization', 'workspace'] as const)(
       vi.useRealTimers()
       vi.unstubAllGlobals()
     })
+
+    if (scope === 'organization')
+      it('carries the provider into a Search connection request without inviting membership', async () => {
+        mocks.invite.mockResolvedValue({
+          sentCount: 1,
+          results: [{ email: 'member@example.com', success: true }],
+        })
+        await render({ optionId: 'gmail-option', providerName: 'Gmail' })
+        expect(document.body.textContent).toContain(
+          'This does not invite them to join the organization'
+        )
+        await paste('member@example.com')
+        await submit()
+        expect(mocks.invite.mock.calls[0][0]).toEqual({
+          organizationId: 'org-1',
+          emails: ['member@example.com'],
+          optionId: 'gmail-option',
+        })
+      })
 
     it('requires valid recipients and excludes invalid and disposable addresses', async () => {
       await render()

@@ -182,6 +182,34 @@ describe('organization integrations role and source paths', () => {
       undefined
     )
   })
+  it('allows a second approved content scope after another source is configured', async () => {
+    mocks.sources.mockReturnValue({
+      data: [{ ...memberSource, connectorType: 'confluence', sourceDescription: 'ENG' }],
+      isPending: false,
+    })
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ connectorType: 'confluence' }] },
+      isPending: false,
+    })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'confluence', approved: true }],
+      isPending: false,
+    })
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map(),
+      oauthServiceAvailability: new Map([['confluence', true]]),
+      isIntegrationAvailabilityReady: true,
+    })
+    await render()
+    expect(buttons('Add source')).toHaveLength(1)
+    await act(async () => buttons('Add source')[0].click())
+    expect(mocks.connect).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ type: 'confluence' }),
+      undefined
+    )
+  })
+
   it('withholds connection when an integration is deactivated', async () => {
     mocks.sources.mockReturnValue({
       data: [{ ...memberSource, approved: false }],
@@ -245,13 +273,19 @@ describe('organization integrations role and source paths', () => {
     expect(buttons('Connect account')).toHaveLength(0)
     expect(document.body.textContent).toContain('An admin needs to finish source setup')
   })
-  it('shows an organization admin exactly what a member sees, with no setup or management', async () => {
+  it('keeps personal connection actions and gives organization admins source management links', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
       searchAccess: { memberScoped: true, sourceMirrored: true },
     })
     await render()
+    expect(
+      document.querySelector(
+        'a[href="/o/organization-a/settings/integrations/sources/member-source"]'
+      )
+    ).not.toBeNull()
+    expect(document.querySelector('a[href="/account/settings/connected-accounts"]')).not.toBeNull()
     expect(buttons('Add source')).toHaveLength(0)
     expect(buttons('Manage')).toHaveLength(0)
     expect(document.querySelector('[aria-label$="source actions"]')).toBeNull()

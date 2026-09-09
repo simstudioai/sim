@@ -6,6 +6,7 @@ import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { createSerializer, parseAsString } from 'nuqs/server'
 import { requestJson } from '@/lib/api/client/request'
 import { listWorkspaceCredentialsContract } from '@/lib/api/contracts'
 import { listOrganizationCredentialsContract } from '@/lib/api/contracts/organization-credentials'
@@ -28,6 +29,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
+import { searchSetupAccessParam } from '@/app/workspace/[workspaceId]/search/search-params'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import {
   organizationCredentialKeys,
@@ -38,6 +40,10 @@ import { SETTINGS_RETURN_URL_KEY } from '@/hooks/use-settings-navigation'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
+const serializeConnectorReturn = createSerializer({
+  [ADD_CONNECTOR_SEARCH_PARAM]: parseAsString,
+  [searchSetupAccessParam.key]: searchSetupAccessParam.parser,
+})
 
 export interface OAuthResultMessage {
   kind: 'success' | 'error'
@@ -317,7 +323,8 @@ export function useOAuthReturnRouter() {
             resourceScopeFromOwner(ctx),
             ctx.knowledgeBaseId,
             ctx.connectorType,
-            ctx.connectorId
+            ctx.connectorId,
+            ctx.sourceAccess
           )
         )
       }
@@ -351,7 +358,8 @@ export function useOAuthReturnRouter() {
           resourceScopeFromOwner(ctx),
           ctx.knowledgeBaseId,
           ctx.connectorType,
-          ctx.connectorId
+          ctx.connectorId,
+          ctx.sourceAccess
         )
       )
       return
@@ -363,7 +371,8 @@ export function buildKnowledgeBaseOAuthReturnUrl(
   owner: string | ResourceScope,
   knowledgeBaseId: string,
   connectorType?: string,
-  connectorId?: string
+  connectorId?: string,
+  sourceAccess?: Extract<OAuthReturnContext, { origin: 'kb-connectors' }>['sourceAccess']
 ): string {
   const scope =
     typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
@@ -375,7 +384,10 @@ export function buildKnowledgeBaseOAuthReturnUrl(
       ? organizationSearchSetupPath(scope.organizationId)
       : `/workspace/${scope.workspaceId}/knowledge/${knowledgeBaseId}`
   return connectorType
-    ? `${kbUrl}?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(connectorType)}`
+    ? serializeConnectorReturn(kbUrl, {
+        [ADD_CONNECTOR_SEARCH_PARAM]: connectorType,
+        [searchSetupAccessParam.key]: scope.kind === 'organization' ? sourceAccess : undefined,
+      })
     : kbUrl
 }
 

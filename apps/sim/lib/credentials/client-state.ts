@@ -79,6 +79,7 @@ interface OAuthReturnKBConnectors extends OAuthReturnBase {
   knowledgeBaseId: string
   connectorType?: string
   connectorId?: string
+  sourceAccess?: 'members'
 }
 
 export type OAuthReturnContext =

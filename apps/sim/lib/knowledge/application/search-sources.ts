@@ -26,6 +26,7 @@ import { getConnectorMeta } from '@/connectors/registry'
 
 export interface ListSearchSourcesInput extends ResourceOwner {
   cursor?: string
+  connectorType?: string
   search?: string
   mine?: boolean
 }
@@ -37,11 +38,13 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context }) {
     const search = input.search?.trim().toLowerCase() ?? ''
+    const connectorType = input.connectorType?.trim()
     const cursorScope = cursorScopeKey(cursorRoute(listSearchSourcesContract), {
       workspaceId: context.workspaceId,
       organizationId: context.organizationId,
       userId: principal.userId,
       search,
+      connectorType: connectorType ?? '',
       mine: input.mine === true,
       order: 'newest',
     })
@@ -71,6 +74,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         status: knowledgeConnector.status,
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
         lastSyncAt: knowledgeConnector.lastSyncAt,
+        hasRetainedSyncError: sql<boolean>`${knowledgeConnector.lastSyncError} IS NOT NULL`,
         lastMemberSyncAt: knowledgeConnector.lastMemberSyncAt,
         credentialGroupId: knowledgeConnector.credentialGroupId,
         credentialGroupOptionId: knowledgeConnector.credentialGroupOptionId,
@@ -85,6 +89,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           inArray(knowledgeConnector.accessMode, ['admin', 'members']),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
+          connectorType ? eq(knowledgeConnector.connectorType, connectorType) : undefined,
           cursor
             ? or(
                 sql`${knowledgeConnector.createdAt} < ${cursor.createdAt}::timestamp`,
@@ -212,6 +217,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
             null,
           hasSyncError:
             row.status === 'error' ||
+            row.hasRetainedSyncError === true ||
             (row.accessMode === 'members' && row.memberSyncStatus === 'error'),
           viewerDocumentCount: available ? (state?.count ?? 0) : 0,
           viewerFailedDocumentCount: available ? (state?.failedCount ?? 0) : 0,

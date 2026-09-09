@@ -25,12 +25,14 @@ describe('organization people search pagination', () => {
     search,
     organizationId,
     enabled,
+    optionId,
   }: {
     search: string
     organizationId: string
     enabled: boolean
+    optionId?: string
   }) {
-    result = useOrganizationAccountPeople(organizationId, search, { enabled })
+    result = useOrganizationAccountPeople(organizationId, search, { enabled, optionId })
     return (
       <span>
         {result.status}: {result.data?.pages.length}
@@ -44,11 +46,21 @@ describe('organization people search pagination', () => {
     })
   }
 
-  async function render(search: string, organizationId = 'org-1', enabled = true) {
+  async function render(
+    search: string,
+    organizationId = 'org-1',
+    enabled = true,
+    optionId?: string
+  ) {
     await act(async () =>
       root.render(
         <QueryClientProvider client={client}>
-          <Probe search={search} organizationId={organizationId} enabled={enabled} />
+          <Probe
+            search={search}
+            organizationId={organizationId}
+            enabled={enabled}
+            optionId={optionId}
+          />
         </QueryClientProvider>
       )
     )
@@ -70,6 +82,34 @@ describe('organization people search pagination', () => {
     client.clear()
     container.remove()
     vi.unstubAllGlobals()
+  })
+
+  it('keeps provider projection on every page and isolates another provider’s first page', async () => {
+    mocks.request
+      .mockResolvedValueOnce({ enrollments: [], nextCursor: 'next' })
+      .mockResolvedValueOnce({ enrollments: [], nextCursor: null })
+      .mockResolvedValueOnce({ enrollments: [], nextCursor: null })
+    await render('', 'org-1', true, 'gmail-option')
+    await act(async () => {
+      await result.fetchNextPage()
+    })
+    await flushQueries()
+    expect(mocks.request).toHaveBeenNthCalledWith(
+      2,
+      listOrganizationAccountPeopleContract,
+      expect.objectContaining({
+        query: { limit: 50, cursor: 'next', search: undefined, optionId: 'gmail-option' },
+      })
+    )
+    await render('', 'org-1', true, 'confluence-option')
+    expect(mocks.request).toHaveBeenNthCalledWith(
+      3,
+      listOrganizationAccountPeopleContract,
+      expect.objectContaining({
+        query: { limit: 50, cursor: undefined, search: undefined, optionId: 'confluence-option' },
+      })
+    )
+    expect(result.data?.pages).toHaveLength(1)
   })
 
   it('sends search on every bounded page and starts a new first page when it changes', async () => {

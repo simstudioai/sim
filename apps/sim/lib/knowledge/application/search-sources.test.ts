@@ -90,6 +90,7 @@ function source(id: string, connectorType = 'google_drive', accessMode = 'admin'
     status: 'active',
     memberSyncStatus: 'idle',
     lastSyncAt: LAST_SYNC as Date | null,
+    hasRetainedSyncError: false,
     lastMemberSyncAt: null as Date | null,
     credentialGroupId: 'group-secret',
     credentialGroupOptionId: 'option-secret',
@@ -257,6 +258,13 @@ describe('Search source summaries', () => {
     expect(sources[2]).toMatchObject({ lastSyncAt: null, isSyncing: false })
     expect(sources[3]).toMatchObject({ viewerDocumentCount: 2, isSyncing: true })
     expect(sources.every((row) => row.viewerEmailVerified === false)).toBe(true)
+  })
+
+  it('surfaces retained partial sync errors without returning the private error message', async () => {
+    seed([{ ...source('drive'), hasRetainedSyncError: true }])
+    const result = await listSearchSources.execute({ principal, input })
+    expect(result.sources[0].hasSyncError).toBe(true)
+    expect(result.sources[0]).not.toHaveProperty('lastSyncError')
   })
 
   it('preserves legacy configured sources even when they are no longer offered for new Search setup', async () => {
@@ -583,7 +591,23 @@ describe('bounded Search source pagination', () => {
     expect(result.nextCursor).toBeNull()
   })
 
-  it.each(['filter', 'viewer', 'scope'] as const)(
+  it('filters the candidate query by provider before applying pagination', async () => {
+    seed([source('drive')])
+    await listSearchSources.execute({
+      principal,
+      input: { ...input, connectorType: 'google_drive' },
+    })
+    expect(dbChainMockFns.where.mock.calls).toContainEqual([
+      expect.objectContaining({
+        type: 'and',
+        conditions: expect.arrayContaining([
+          { type: 'eq', left: knowledgeConnector.connectorType, right: 'google_drive' },
+        ]),
+      }),
+    ])
+  })
+
+  it.each(['filter', 'provider', 'viewer', 'scope'] as const)(
     'rejects a cursor replayed under a different %s before reading sources',
     async (change) => {
       seed(rows(26))
@@ -602,6 +626,7 @@ describe('bounded Search source pagination', () => {
             ...input,
             cursor: first.nextCursor!,
             ...(change === 'filter' ? { mine: true } : {}),
+            ...(change === 'provider' ? { connectorType: 'gmail' } : {}),
           },
         })
       ).rejects.toMatchObject({ code: 'validation' })

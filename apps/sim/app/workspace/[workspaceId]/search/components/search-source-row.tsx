@@ -99,6 +99,9 @@ export function SearchSourceRow({
           </ChipLink>
         ) : (
           <div className='flex items-center gap-2'>
+            {usable && supported && !source.viewerEmailVerified && (
+              <ChipLink href='/verify'>Verify email</ChipLink>
+            )}
             {connectable && (
               <Chip variant='primary' disabled={isPending} onClick={onConnect}>
                 {waiting

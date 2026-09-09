@@ -1,9 +1,6 @@
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { effectiveConnectorSyncIntervalMinutes } from '@/lib/knowledge/connectors/access-modes'
 
-/** Under the account picker of a per-member connector, whose account only browses. */
-export const BROWSE_WITH_HINT = 'Used only to choose what to sync.'
-
 /** Explain when permission refresh requires a more frequent pass than content indexing. */
 export function connectorSyncFrequencyHint(
   accessMode: ConnectorAccessMode,

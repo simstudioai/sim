@@ -41,6 +41,7 @@ import {
   type ConnectorDocumentsQuery,
   type PrepareSearchSourceBody,
   prepareSearchSourceContract,
+  readOrganizationSearchOverviewContract,
   readSearchIndexContract,
   readSearchSourceOverviewContract,
   readSearchSourceProgressContract,
@@ -442,10 +443,14 @@ export const searchSourceKeys = {
       scope ? resourceScopeKey(scope) : '',
       connectorIds,
     ] as const,
-  pages: (scope: string | ResourceScope | undefined, filters: { search: string; mine: boolean }) =>
-    [...searchSourceKeys.list(scope), 'pages', filters] as const,
+  pages: (
+    scope: string | ResourceScope | undefined,
+    filters: { search: string; mine: boolean; connectorType?: string }
+  ) => [...searchSourceKeys.list(scope), 'pages', filters] as const,
   overview: (scope?: string | ResourceScope) =>
     [...searchSourceKeys.list(scope), 'overview'] as const,
+  organizationOverview: (organizationId: string) =>
+    [...searchSourceKeys.list({ kind: 'organization', organizationId }), 'admin-overview'] as const,
   list: (scope?: string | ResourceScope) =>
     [
       ...searchSourceKeys.lists(),
@@ -499,9 +504,32 @@ export function useSearchSourceOverview(scope: ResourceScope, options?: { enable
   })
 }
 
+/** Administrative health is independent of the viewer's account and document permissions. */
+export function useOrganizationSearchOverview(
+  organizationId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: searchSourceKeys.organizationOverview(organizationId),
+    queryFn: async ({ signal }) =>
+      (
+        await requestJson(readOrganizationSearchOverviewContract, {
+          query: { organizationId },
+          signal,
+        })
+      ).data,
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
+    staleTime: CONNECTOR_LIST_STALE_TIME,
+    refetchInterval: (query) =>
+      query.state.data?.providers.some((provider) => provider.status === 'indexing')
+        ? SEARCH_SOURCE_SUMMARY_POLL_MS
+        : false,
+  })
+}
+
 export function useSearchSources(
   owner?: string | ResourceScope,
-  options?: { enabled?: boolean; search?: string; mine?: boolean }
+  options?: { enabled?: boolean; search?: string; mine?: boolean; connectorType?: string }
 ) {
   const queryClient = useQueryClient()
   const scope =
@@ -516,6 +544,7 @@ export function useSearchSources(
   const filters = {
     search: options?.search?.trim().toLowerCase() ?? '',
     mine: options?.mine ?? false,
+    ...(options?.connectorType?.trim() ? { connectorType: options.connectorType.trim() } : {}),
   }
   const summary = useInfiniteQuery({
     queryKey: searchSourceKeys.pages(scope, filters),

@@ -65,6 +65,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'ref',
+      setupGroup: 'options',
       title: 'Branch',
       type: 'short-input',
       required: false,
@@ -74,6 +75,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'pathPrefix',
+      setupGroup: 'options',
       title: 'Path Filter',
       type: 'short-input',
       required: false,
@@ -84,6 +86,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'fileExtensions',
+      setupGroup: 'options',
       title: 'File Extensions',
       type: 'short-input',
       required: false,
@@ -94,6 +97,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'issueState',
+      setupGroup: 'options',
       title: 'Issue State',
       type: 'dropdown',
       required: false,
@@ -107,6 +111,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'issueLabels',
+      setupGroup: 'options',
       title: 'Issue Labels',
       type: 'short-input',
       required: false,
@@ -117,6 +122,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'issueMilestone',
+      setupGroup: 'options',
       title: 'Issue Milestone',
       type: 'short-input',
       required: false,
@@ -127,6 +133,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxItems',
+      setupGroup: 'options',
       title: 'Max Items',
       type: 'short-input',
       required: false,
