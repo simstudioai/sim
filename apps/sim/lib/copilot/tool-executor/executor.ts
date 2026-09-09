@@ -218,10 +218,6 @@ function buildAppToolParams(
 ): Record<string, unknown> {
   const result = { ...params }
 
-  if (result.credentialId && !result.credential && !result.oauthCredential) {
-    result.credential = result.credentialId
-  }
-
   result._context = {
     ...(typeof result._context === 'object' && result._context !== null
       ? (result._context as object)

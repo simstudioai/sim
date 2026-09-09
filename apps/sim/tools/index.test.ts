@@ -4541,6 +4541,16 @@ describe('Copilot OAuth Credential Enforcement', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
+    tools.test_credential_alias = {
+      id: 'test_credential_alias',
+      name: 'Credential Alias Test',
+      description: 'A synthetic stored-credential tool',
+      version: '1.0.0',
+      params: {
+        oauthCredential: { type: 'string', required: true, visibility: 'user-or-llm' },
+      },
+      operation: { input: (params) => ({ oauthCredential: params.oauthCredential }) },
+    } satisfies InternalToolConfig
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     /*
      * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
@@ -4556,8 +4566,170 @@ describe('Copilot OAuth Credential Enforcement', () => {
   })
 
   afterEach(() => {
+    Reflect.deleteProperty(tools, 'test_credential_alias')
     vi.resetAllMocks()
     cleanupEnvVars()
+  })
+
+  it.each([
+    { params: { credentialId: ' alias-id ' }, expected: 'alias-id' },
+    { params: { credential: 'generic-id' }, expected: 'generic-id' },
+    { params: { credential: 'generic-id', credentialId: 'alias-id' }, expected: 'generic-id' },
+    {
+      params: {
+        oauthCredential: 'explicit-id',
+        credential: 'generic-id',
+        credentialId: 'alias-id',
+      },
+      expected: 'explicit-id',
+    },
+  ])(
+    'normalizes credential selectors before validation: $expected',
+    async ({ params, expected }) => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'resolved-token',
+        credentialType: 'service_account',
+      })
+      for (const copilotToolExecution of [false, true]) {
+        mockExecuteInternalToolOperation.mockClear()
+        const result = await executeTool('test_credential_alias', params, {
+          executionContext: createToolExecutionContext({
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution,
+          }),
+        })
+        expect(result.success, result.error).toBe(true)
+        expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
+          oauthCredential: expected,
+        })
+      }
+    }
+  )
+
+  it.each(['', ' ', null, false, 123])(
+    'does not replace an invalid explicit selector: %s',
+    async (oauthCredential) => {
+      mockExecuteInternalToolOperation.mockClear()
+      mockResolveExecutorCredentialToken.mockClear()
+      const result = await executeTool('test_credential_alias', {
+        oauthCredential,
+        credentialId: 'another-credential',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Credential selection must be a nonempty string',
+      })
+      expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+      expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['credential', 'credentialId'])(
+    'keeps declared %s authoritative over other aliases',
+    async (selector) => {
+      tools.test_credential_alias.params = {
+        [selector]: { type: 'string', required: true, visibility: 'user-or-llm' },
+      }
+      mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'resolved-token' })
+      const result = await executeTool(
+        'test_credential_alias',
+        {
+          credential: 'declared-id',
+          oauthCredential: 'other-id',
+          credentialId: 'alias-id',
+          [selector]: 'declared-id',
+        },
+        {
+          executionContext: createToolExecutionContext({
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+          }),
+        }
+      )
+
+      expect(result.success, result.error).toBe(true)
+      expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentialId: 'declared-id',
+        })
+      )
+    }
+  )
+
+  it('does not bypass authorization when an alias identifies an unavailable credential', async () => {
+    mockResolveExecutorCredentialToken.mockRejectedValueOnce(new Error('Credential unavailable'))
+    mockExecuteInternalToolOperation.mockClear()
+    const result = await executeTool(
+      'test_credential_alias',
+      { credentialId: 'unavailable-id' },
+      {
+        executionContext: createToolExecutionContext({
+          workspaceId: 'workspace-456',
+          userId: 'user-1',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({ success: false, error: 'Credential unavailable' })
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+  })
+
+  it.each(['oauthCredential', 'credential', 'credentialId'])(
+    'uses resolved %s references instead of stale compatibility aliases',
+    async (selector) => {
+      tools.test_credential_alias.params = {
+        [selector]: { type: 'string', required: true, visibility: 'user-only' },
+      }
+      mockGetEffectiveDecryptedEnv.mockResolvedValue({ TEST_CREDENTIAL: 'resolved-id' })
+      mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'resolved-token' })
+      const result = await executeTool(
+        'test_credential_alias',
+        {
+          oauthCredential: 'other-id',
+          credential: 'other-id',
+          credentialId: 'other-id',
+          [selector]: '{{TEST_CREDENTIAL}}',
+        },
+        {
+          executionContext: createToolExecutionContext({
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          }),
+        }
+      )
+
+      expect(result.success, result.error).toBe(true)
+      expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-1', 'workspace-456')
+      expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentialId: 'resolved-id',
+        })
+      )
+    }
+  )
+
+  it('resolves alias-only OAuth calls through the authorized credential path', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({ accessToken: 'resolved-token' })
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    })
+    const result = await executeTool(
+      'gmail_read',
+      { credentialId: 'alias-id' },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'alias-id',
+        toolId: 'gmail_read',
+      })
+    )
   })
 
   it('fails fast when copilot executes an oauth tool without an explicit credential selector', async () => {

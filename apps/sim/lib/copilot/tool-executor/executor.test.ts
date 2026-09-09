@@ -189,7 +189,6 @@ describe('copilot tool executor fallback', () => {
       expect.objectContaining({
         maxResults: 10,
         credentialId: 'cred-123',
-        credential: 'cred-123',
         _context: expect.objectContaining({
           userId: 'user-1',
           workflowId: 'workflow-1',
@@ -206,6 +205,7 @@ describe('copilot tool executor fallback', () => {
         }),
       })
     )
+    expect(executeAppTool.mock.calls[0]?.[1]).not.toHaveProperty('credential')
     expect(result).toEqual({ success: true, output: { emails: [] } })
   })
 
