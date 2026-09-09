@@ -698,7 +698,7 @@ export function WorkflowSidebarBody({
               <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                 {workflowState.isLoading ? (
                   <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                    <Loader className='size-5 animate-spin text-[var(--text-tertiary)]' />
+                    <Loader className='size-5 text-[var(--text-tertiary)]' animate />
                   </div>
                 ) : workflowState.data ? (
                   <>

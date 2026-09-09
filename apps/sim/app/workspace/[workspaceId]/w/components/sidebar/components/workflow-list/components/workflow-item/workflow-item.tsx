@@ -3,7 +3,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { chipVariants, cn, OverflowText } from '@sim/emcn'
 import { Lock, MoreHorizontal } from '@sim/emcn/icons'
-import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -18,6 +17,7 @@ import {
   buildDragResources,
   createSidebarDragGhost,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import { WorkflowNavigationLink } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import {
   useCanDelete,
   useDeleteSelection,
@@ -402,7 +402,7 @@ export const WorkflowItem = memo(function WorkflowItem({
 
   return (
     <>
-      <Link
+      <WorkflowNavigationLink
         href={`/workspace/${workspaceId}/w/${workflow.id}`}
         data-item-id={workflow.id}
         className={cn(
@@ -486,7 +486,7 @@ export const WorkflowItem = memo(function WorkflowItem({
             </button>
           </div>
         )}
-      </Link>
+      </WorkflowNavigationLink>
 
       <ContextMenu
         isOpen={isContextMenuOpen}

@@ -88,6 +88,7 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -154,6 +155,7 @@ function SearchModalContent({
 }: SearchModalContentProps) {
   const params = useParams()
   const router = useRouter()
+  const navigateToWorkflow = useWorkflowNavigation()
   const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined
@@ -804,7 +806,8 @@ function SearchModalContent({
   const handleWorkflowSelect = useCallback(
     (workflow: WorkflowItem) => {
       if (!workflow.isCurrent && workflow.href) {
-        routerRef.current.push(workflow.href)
+        if (navigateToWorkflow) navigateToWorkflow(workflow.href)
+        else routerRef.current.push(workflow.href)
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflow.id } })
         )
@@ -816,7 +819,7 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [workspaceId, navigateToWorkflow]
   )
 
   const handleWorkspaceSelect = useCallback(

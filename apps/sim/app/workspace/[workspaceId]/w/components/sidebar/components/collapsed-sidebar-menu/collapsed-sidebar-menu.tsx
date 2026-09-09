@@ -27,6 +27,7 @@ import {
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import { WorkflowNavigationLink } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -453,7 +454,7 @@ export function CollapsedWorkflowFlyoutItem({
         ) : undefined
       }
     >
-      <Link
+      <WorkflowNavigationLink
         href={href}
         onContextMenu={
           hasActions
@@ -465,7 +466,7 @@ export function CollapsedWorkflowFlyoutItem({
         }
       >
         <OverflowText label={workflow.name} className='flex-1' />
-      </Link>
+      </WorkflowNavigationLink>
     </DropdownMenuItem>
   )
 }

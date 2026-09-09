@@ -1,42 +1,78 @@
-import type { SVGProps } from 'react'
+'use client'
+
+import { type SVGProps, useId } from 'react'
 import { cn } from '../lib/cn'
-import styles from './animate/loader.module.css'
+import styles from './animate/relay-loader.module.css'
 
 export interface LoaderProps extends SVGProps<SVGSVGElement> {
   /**
-   * Enable animation on the loader icon
+   * Enable the relay animation. Otherwise the dot rests between the bars.
    * @default false
    */
   animate?: boolean
 }
 
 /**
- * Loader icon component with optional CSS-based spinning animation
- * Based on refresh-cw but without the arrows, just the circular arcs.
- * When animate is false, this is a lightweight static icon with no animation overhead.
- * When animate is true, CSS module animations are applied for continuous spin.
- * @param props - SVG properties including className, animate, etc.
+ * Shared loading indicator: a dot travels between two bars with a gooey merge.
+ * Inherits the caller's color and sizing; reduced motion keeps the dot still.
  */
 export function Loader({ animate = false, className, ...props }: LoaderProps) {
-  const svgClassName = cn(animate && styles['animated-loader-svg'], className)
+  const id = useId().replace(/[^a-zA-Z0-9-]/g, '')
+  const filterId = `loader-relay-${id}`
 
   return (
     <svg
       xmlns='http://www.w3.org/2000/svg'
       width='24'
       height='24'
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      className={svgClassName}
+      viewBox='0 0 100 100'
+      fill='currentColor'
+      className={className}
       aria-hidden='true'
       {...props}
     >
-      <path d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74' />
-      <path d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74' />
+      <defs>
+        <filter
+          id={filterId}
+          x='-30%'
+          y='-30%'
+          width='160%'
+          height='160%'
+          colorInterpolationFilters='sRGB'
+        >
+          <feGaussianBlur in='SourceGraphic' stdDeviation='5' result='blur' />
+          <feColorMatrix
+            in='blur'
+            values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9'
+            result='goo'
+          />
+          <feColorMatrix
+            in='goo'
+            values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 127 0'
+            result='gooAlpha'
+          />
+          <feGaussianBlur in='gooAlpha' stdDeviation='4.86' result='innerBlur' />
+          <feComposite
+            in='innerBlur'
+            in2='gooAlpha'
+            operator='arithmetic'
+            k2='-1'
+            k3='1'
+            result='innerMask'
+          />
+          <feFlood className={styles.glow} result='glowColor' />
+          <feComposite in='glowColor' in2='innerMask' operator='in' result='glow' />
+          <feMerge>
+            <feMergeNode in='goo' />
+            <feMergeNode in='glow' />
+          </feMerge>
+        </filter>
+      </defs>
+      <g filter={`url(#${filterId})`} fill='currentColor' stroke='none'>
+        <rect x='13' y='28' width='16' height='44' />
+        <rect x='71' y='28' width='16' height='44' />
+        <circle className={cn(styles.ball, animate && styles.animated)} cx='21' cy='50' r='14' />
+      </g>
     </svg>
   )
 }

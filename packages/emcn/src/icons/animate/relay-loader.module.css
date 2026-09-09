@@ -1,0 +1,33 @@
+.ball {
+  transform: translateX(29px);
+}
+
+.animated {
+  animation: relay 1.3s linear infinite;
+}
+
+.glow {
+  flood-color: var(--white);
+  flood-opacity: 0.6;
+}
+
+@keyframes relay {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  20%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(58px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated {
+    animation: none;
+  }
+}

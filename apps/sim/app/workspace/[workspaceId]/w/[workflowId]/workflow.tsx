@@ -125,6 +125,7 @@ import {
   reactFlowProOptions,
   reactFlowStyles,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow-constants'
+import { WorkflowLoadingOverlay } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
@@ -5124,20 +5125,7 @@ const WorkflowContent = React.memo(
                as well as the canvas, and that grey is ~1.1:1 against one. */
             className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-secondary)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
           >
-            {!isWorkflowReady && (
-              <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
-                <div
-                  className='size-[18px] animate-spin rounded-full'
-                  style={{
-                    background:
-                      'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-                    mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                    WebkitMask:
-                      'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                  }}
-                />
-              </div>
-            )}
+            <WorkflowLoadingOverlay isLoading={!isWorkflowReady} embedded={embedded} />
 
             {isWorkflowReady && (
               <>
