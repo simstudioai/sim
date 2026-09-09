@@ -3114,8 +3114,10 @@ export const GenerateImage: ToolCatalogEntry = {
               },
               required: ['path'],
             },
+            minItems: 1,
           },
         },
+        required: ['files'],
       },
       outputs: {
         type: 'object',

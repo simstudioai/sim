@@ -1,6 +1,6 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
@@ -11,10 +11,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  assertOpaqueWorkspaceFileModelSafe,
-  ServerToolModelInputError,
-} from '@/lib/copilot/tools/server/model-input'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
@@ -79,58 +76,65 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
     try {
       const prompt = params.prompt
-      const apiKey = getRotatingApiKey('gemini')
-      const ai = new GoogleGenAI({ apiKey })
-
       const aspectRatio = params.aspectRatio || '1:1'
       const sizeHint = ASPECT_RATIO_TO_SIZE[aspectRatio]
 
       const parts: Part[] = []
+      const referenceFiles = params.inputs?.files
 
-      const referencePaths = params.inputs?.files?.map((file) => file.path) ?? []
+      if (params.inputs !== undefined && !referenceFiles?.length) {
+        throw new Error('inputs.files must contain at least one reference image when inputs is set')
+      }
 
-      if (referencePaths.length) {
-        for (const filePath of referencePaths) {
-          try {
-            const fileRecord = await resolveCopilotWorkspaceFileReference(
-              context,
-              fileOperations.readContent,
-              {
-                workspaceId,
-                reference: filePath,
-              }
-            )
-            await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
-            const { content: buffer } = await executeCopilotFileUseCase(
-              context,
-              readWorkspaceFileContent,
-              {
-                fileId: fileRecord.id,
-                assertedWorkspaceId: workspaceId,
-                maxBytes: MAX_MEDIA_BYTES,
-              },
-              { fileId: fileRecord.id }
-            )
-            const base64 = buffer.toString('base64')
-            const mime = fileRecord.type || 'image/png'
-            parts.push({
-              inlineData: { mimeType: mime, data: base64 },
-            })
-            logger.info('Loaded reference image', {
-              filePath,
-              name: fileRecord.name,
-              size: buffer.length,
-              mimeType: mime,
-            })
-          } catch (err) {
-            if (err instanceof ServerToolModelInputError) throw err
-            logger.warn('Failed to load reference image, skipping', {
-              filePath,
-              error: toError(err).message,
-            })
-          }
+      for (const { path: filePath } of referenceFiles ?? []) {
+        if (filePath.startsWith('uploads/')) {
+          throw new Error(
+            `Reference image "${filePath}" is still a chat upload. Run save_upload first, then use its canonical files/... path in generate_image inputs.files.`
+          )
+        }
+
+        try {
+          const fileRecord = await resolveCopilotWorkspaceFileReference(
+            context,
+            fileOperations.readContent,
+            {
+              workspaceId,
+              reference: filePath,
+            }
+          )
+          await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
+          const { content: buffer } = await executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileContent,
+            {
+              fileId: fileRecord.id,
+              assertedWorkspaceId: workspaceId,
+              maxBytes: MAX_MEDIA_BYTES,
+            },
+            { fileId: fileRecord.id }
+          )
+          const base64 = buffer.toString('base64')
+          const mime = fileRecord.type || 'image/png'
+          parts.push({
+            inlineData: { mimeType: mime, data: base64 },
+          })
+          logger.info('Loaded reference image', {
+            filePath,
+            name: fileRecord.name,
+            size: buffer.length,
+            mimeType: mime,
+          })
+        } catch (error) {
+          throw new Error(
+            `Failed to load reference image "${filePath}": ${getErrorMessage(error, 'Unknown error')}`
+          )
         }
       }
+
+      const loadedReferenceCount = parts.length
+
+      const apiKey = getRotatingApiKey('gemini')
+      const ai = new GoogleGenAI({ apiKey })
 
       const sizeInstruction = sizeHint
         ? ` Generate the image at ${sizeHint} resolution with a ${aspectRatio} aspect ratio.`
@@ -142,7 +146,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         model: NANO_BANANA_MODEL,
         aspectRatio,
         promptLength: prompt.length,
-        referenceImageCount: referencePaths.length,
+        referenceImageCount: loadedReferenceCount,
       })
 
       const response = await ai.models.generateContent({
@@ -220,7 +224,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
       return {
         success: true,
-        message: `Image ${referencePaths.length ? 'edited' : 'generated'} and ${written.mode === 'overwrite' ? 'updated' : 'saved'} at "${written.vfsPath}" (${imageBuffer.length} bytes)`,
+        message: `Image ${loadedReferenceCount ? 'edited' : 'generated'} and ${written.mode === 'overwrite' ? 'updated' : 'saved'} at "${written.vfsPath}" (${imageBuffer.length} bytes)`,
         fileId: written.id,
         fileName: written.name,
         vfsPath: written.vfsPath,
