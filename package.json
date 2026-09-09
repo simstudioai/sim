@@ -169,7 +169,7 @@
     "react": "19.2.4",
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "turbo": "2.9.14",
     "unified": "11.0.5",
     "unist-util-visit": "5.1.0",
