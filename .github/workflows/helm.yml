@@ -232,6 +232,44 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      # The release this chart ships with. On a release merge the tag does not
+      # exist yet -- it is cut by this very commit (detect-version in ci.yml) --
+      # so the subject is the only source available, and the source of truth for
+      # every other push is the latest release.
+      - name: Resolve the app release
+        id: release
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          subject=${HEAD_COMMIT_MESSAGE%%$'\n'*}
+          if [[ "$subject" =~ ^[[:space:]]*(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            resolved="${BASH_REMATCH[1]}"
+            echo "Release commit; shipping the chart with ${resolved}."
+          else
+            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+            echo "Not a release commit; shipping the chart with the latest release ${resolved}."
+          fi
+          if [ -z "$resolved" ]; then
+            echo "::error::Could not resolve an app release to ship this chart with."
+            exit 1
+          fi
+          echo "version=${resolved}" >> "$GITHUB_OUTPUT"
+
+      # Derives appVersion rather than checking it, so the published chart cannot
+      # be pinned to an older Sim than the release it ships with. The committed
+      # value is kept current too, but nothing depends on a human remembering.
+      - name: Sync chart appVersion to the release
+        env:
+          APP_VERSION: ${{ steps.release.outputs.version }}
+        run: bun run scripts/sync-chart-appversion.ts --version "${APP_VERSION}"
+
       - name: Package chart
         id: package
         run: |
@@ -246,44 +284,6 @@ jobs:
             echo "path=dist/${name}-${version}.tgz"
             echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}"
           } >> "$GITHUB_OUTPUT"
-
-      # `appVersion` is what the image tags default to, so a stale one publishes
-      # a chart that silently installs an old Sim -- and because published chart
-      # versions are immutable, every stale value is frozen forever. It sat six
-      # releases behind before this check existed, bumped only by hand.
-      #
-      # BEHIND is the failure. AHEAD is normal and must not be blocked: a
-      # version tag is cut by the main-branch merge commit that releases it
-      # (detect-version in ci.yml), so appVersion legitimately names a release
-      # that does not exist yet while that release is still being built. Failing
-      # on any mismatch would race that workflow and block the very publish the
-      # bump was for. `helm/sim/ci/kind-overlay.yaml` documents the same
-      # circularity, and it is why appVersion went unbumped for so long.
-      #
-      # Compares against the latest GitHub release rather than a hardcoded value
-      # so the check cannot go stale itself. Prereleases and drafts are excluded:
-      # the `/releases/latest` endpoint already returns neither.
-      - name: appVersion does not lag the app release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          app_version=$(helm show chart helm/sim | awk '/^appVersion:/ {print $2}' | tr -d '"')
-          latest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
-          if [ -z "$latest" ]; then
-            echo "::error::Could not resolve the latest release; refusing to publish unverified."
-            exit 1
-          fi
-          if [ "$app_version" = "$latest" ]; then
-            echo "appVersion ${app_version} matches the latest release."
-            exit 0
-          fi
-          oldest=$(printf '%s\n%s\n' "$app_version" "$latest" | sort -V | head -1)
-          if [ "$oldest" = "$app_version" ]; then
-            echo "::error::Chart.yaml appVersion is ${app_version} but the latest release is ${latest}. Bump appVersion (and the chart version) so the chart does not publish an install pinned to an older Sim."
-            exit 1
-          fi
-          echo "::notice::appVersion ${app_version} is ahead of the latest release ${latest}, which is expected while that release is still being cut."
 
       # Chart versions are immutable once published: whoever pinned a version
       # must keep resolving the same bytes forever. The PR gate above already
@@ -451,6 +451,46 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "::warning::No gh-pages branch, so the HTTP chart repo was not updated. Create it and point GitHub Pages at it to activate this job. The OCI publish is unaffected."
           fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      # The release this chart ships with. On a release merge the tag does not
+      # exist yet -- it is cut by this very commit (detect-version in ci.yml) --
+      # so the subject is the only source available, and the source of truth for
+      # every other push is the latest release.
+      - name: Resolve the app release
+        if: steps.pages.outputs.exists == 'true'
+        id: release
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          subject=${HEAD_COMMIT_MESSAGE%%$'\n'*}
+          if [[ "$subject" =~ ^[[:space:]]*(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            resolved="${BASH_REMATCH[1]}"
+            echo "Release commit; shipping the chart with ${resolved}."
+          else
+            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+            echo "Not a release commit; shipping the chart with the latest release ${resolved}."
+          fi
+          if [ -z "$resolved" ]; then
+            echo "::error::Could not resolve an app release to ship this chart with."
+            exit 1
+          fi
+          echo "version=${resolved}" >> "$GITHUB_OUTPUT"
+
+      # Derives appVersion rather than checking it, so the published chart cannot
+      # be pinned to an older Sim than the release it ships with. The committed
+      # value is kept current too, but nothing depends on a human remembering.
+      - name: Sync chart appVersion to the release
+        if: steps.pages.outputs.exists == 'true'
+        env:
+          APP_VERSION: ${{ steps.release.outputs.version }}
+        run: bun run scripts/sync-chart-appversion.ts --version "${APP_VERSION}"
 
       - name: Configure Git
         if: steps.pages.outputs.exists == 'true'
