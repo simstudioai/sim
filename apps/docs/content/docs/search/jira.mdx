@@ -32,7 +32,7 @@ Sim uses its existing Jira OAuth integration. Search uses `read:jira-work` to re
 
 ### Choose Jira
 
-Open **Settings → Sources → Add integration** and choose **Jira**. On its **Sources** tab, select **Add source**. If Jira is already listed, open it directly. Jira sources use member accounts.
+Open **Settings → Sources** and turn on **Jira** under **Allowed in Sim Search**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Jira sources use member accounts.
 
 </Step>
 <Step>
@@ -88,7 +88,7 @@ Search manages the sync schedule. Item limits and sync frequency are not setup d
 
 Existing organization members see the same source configuration and their own **Connect account**, **Reconnect**, or indexing status. They do not choose projects again. Invite new teammates to the Sim organization through its Members settings or SSO onboarding, then have them open Integrations and connect Jira. A Jira authorization does not grant Sim organization membership.
 
-Sim checks Jira separately using each connected person's account. Issue content and tags become searchable as processing finishes; changes and lost issue access are picked up by later syncs. The main Integrations page reports documents searchable by the current viewer. Admins open **Settings → Sources → Jira → Sources → [source]** for **Documents**, **Settings**, and **Sync history**.
+Sim checks Jira separately using each connected person's account. Issue content and tags become searchable as processing finishes; changes and lost issue access are picked up by later syncs. The main Integrations page reports documents searchable by the current viewer. Admins open **Settings → Sources**, select **Manage** beside **Jira**, then open the source for **Documents**, **Settings**, and **Sync history**.
 
 Use **Jira → Accounts → Request connections** to send Jira connection requests. These requests do not invite people into the Sim organization. For a different site or project scope, an admin can add another source; members can also use **Add another Jira source** in the main Integrations page.
 

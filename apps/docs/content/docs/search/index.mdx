@@ -7,25 +7,25 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search brings your connected sources into one place. An organization admin adds an integration and configures its sources. Teammates then [connect their accounts](/search/connect-your-account) when required. Each person searches with their own access.
+Search brings your connected sources into one place. An organization admin allows integrations and configures their sources. Teammates then [connect their accounts](/search/connect-your-account) when required. Each person searches with their own access.
 
 ## Add your first source
 
 <Steps>
 <Step>
 
-### Add an integration
+### Allow an integration
 
-As an organization admin, open **Settings → Sources → Add integration** and choose a provider. Sim opens that integration's page. If the integration is already listed, open it instead.
+As an organization admin, open **Settings → Sources** and turn on the integration under **Allowed in Sim Search**. It stays in the list; no setup page opens automatically.
 
-Adding an integration approves it for Search; it does not connect an account or start indexing. Slack also requires **Set up Slack app** before adding sources.
+The switch permits the integration in your organization. It does not connect an account, grant document access, or start indexing. Teammates connect from **Integrations** in the main sidebar; only admins manage these switches.
 
 </Step>
 <Step>
 
 ### Configure it once
 
-On the integration page, select **Add source**. Follow its **Setup guide** to connect the indexing account or choose the folders, repositories, calendars, spaces, or channels to include. **More options** contains secondary filters and **Metadata tags**.
+Select **Set up** beside the integration, or **Manage** if it already has sources. On its page, select **Add source**. For Slack, complete **Set up Slack app** first. Follow its **Setup guide** to connect the indexing account or choose the folders, repositories, calendars, spaces, or channels to include. **More options** contains secondary filters and **Metadata tags**.
 
 Select **Connect & Sync** for an administrator connection, or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
 
@@ -39,7 +39,7 @@ Open **Integrations** in the main sidebar and select **Connect account** if prom
 </Step>
 </Steps>
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/add-source.jpg" alt="Organization Sources settings with the Add integration action" width={738} height={720} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.jpg" alt="Organization Sources settings with Allowed in Sim Search switches and separate Set up and Manage actions" width={1632} height={1452} />
 
 Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue.
 
@@ -78,7 +78,7 @@ Some member sources offer **More options → Sync documents with**. **Connected 
 
 Invite people through the organization's **Settings → Members**, or use your organization's [SSO provisioning](/platform/enterprise/sso). Share the organization's **Home** or **Integrations** URL. People need their own Sim account and organization membership; they do not need access to a workspace. Connecting an external account alone does not grant organization membership.
 
-To request a particular account connection, open **Settings → Sources → [integration] → Accounts → Request connections**. This tab is available for providers that support personal connections. If setup is missing, complete the source or Slack app setup shown there first. The list shows organization account contributors and their connection status for that provider.
+To request a particular account connection, open **Settings → Sources**, select **Manage** beside the integration (or **Set up** if no sources exist), then **Accounts → Request connections**. This tab is available for providers that support personal connections. If setup is missing, complete the source or Slack app setup shown there first. The list shows organization account contributors and their connection status for that provider.
 
 These requests are separate from organization invitations. They let recipients contribute an external account; they do not grant Sim organization membership or Search access. **People** on the Sources settings page shows account contributors across providers. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
 
@@ -88,7 +88,7 @@ These requests are separate from organization invitations. They let recipients c
 
 ## Manage sources and documents
 
-Open **Settings → Sources → [integration]**, then select a source. Providers with personal connections have **Sources** and **Accounts** tabs; providers such as GitLab open directly to the source list. Multiple sources can have different folder, repository, space, or project scopes.
+Open **Settings → Sources**, select **Manage** beside the integration, then select a source. Providers with personal connections have **Sources** and **Accounts** tabs; providers such as GitLab open directly to the source list. Multiple sources can have different folder, repository, space, or project scopes.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.jpg" alt="Integration detail with Sources and Accounts tabs and a nested source list" width={738} height={390} />
 
@@ -98,7 +98,7 @@ Open **Settings → Sources → [integration]**, then select a source. Providers
 | **Settings** | Edit the source's scope, filters, and supported connection settings. Save your changes before leaving. |
 | **Sync history** | Review recent sync runs and errors. |
 
-Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. **Deactivate** on the integration page makes its content unavailable in Search, Assistant, and MCP while preserving its sources and connected accounts; **Activate** enables it again.
+Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. To disable an entire integration, turn off its **Allowed in Sim Search** switch. If it has sources, confirm **Deactivate**. Its content becomes unavailable in Search, Assistant, and MCP; sources and connected accounts are preserved. Turn the switch back on to allow it again.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-settings.jpg" alt="Gmail source Settings tab with label, date range, and search filters" width={1022} height={680} />
 
@@ -139,7 +139,7 @@ Search runs background syncs on an hourly schedule. Large sources, provider limi
 
 A completed sync means the source was checked; some documents may still be indexing. In the main **Integrations** page, each source row shows how many documents you can search and whether indexing failed for any documents you can access.
 
-As an admin, open **Settings → Sources → [integration] → Sources → [source]**. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+As an admin, open **Settings → Sources**, select **Manage** beside the integration, then open the source. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
 
