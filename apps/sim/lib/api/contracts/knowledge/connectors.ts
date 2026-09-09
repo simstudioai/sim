@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import {
   booleanQueryFlagSchema,
+  organizationIdSchema,
   resourceOwnerSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -15,6 +16,10 @@ import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
+  MAX_SEARCH_SOURCE_PROGRESS_ITEMS,
+  MAX_SEARCH_SOURCE_PROVIDER_TYPES,
+  SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
 import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
 
@@ -60,7 +65,14 @@ export const deleteConnectorQuerySchema = z.object({
   deleteDocuments: booleanQueryFlagSchema.optional().default(false),
 })
 
+export const connectorDocumentFilterSchema = z.enum(['active', 'excluded', 'failed'])
+export type ConnectorDocumentFilter = z.output<typeof connectorDocumentFilterSchema>
+
 export const connectorDocumentsQuerySchema = z.object({
+  /** When present, selects the document set instead of the legacy inclusion flags. */
+  filter: connectorDocumentFilterSchema.optional(),
+  search: z.string().trim().max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH).optional(),
+  failedOnly: booleanQueryFlagSchema.optional().default(false),
   includeExcluded: booleanQueryFlagSchema.optional(),
   limit: z.coerce
     .number()
@@ -71,6 +83,7 @@ export const connectorDocumentsQuerySchema = z.object({
     .default(DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE),
   offset: z.coerce.number().int().min(0).optional().default(0),
 })
+export type ConnectorDocumentsQuery = z.output<typeof connectorDocumentsQuerySchema>
 
 export const connectorDocumentsPatchBodySchema = z.object({
   operation: z.enum(['restore', 'exclude']),
@@ -218,7 +231,12 @@ export type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
 
 export const connectorDocumentsDataSchema = z.object({
   documents: z.array(connectorDocumentDataSchema),
-  counts: z.object({ active: z.number(), excluded: z.number() }),
+  counts: z.object({
+    active: z.number().int().nonnegative(),
+    excluded: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative().default(0),
+  }),
+  hasMore: z.boolean().optional(),
 })
 export type ConnectorDocumentsData = z.output<typeof connectorDocumentsDataSchema>
 
@@ -322,6 +340,7 @@ const searchSourceSummaryFields = {
   lastSyncAt: z.string().datetime().nullable(),
   hasSyncError: z.boolean(),
   viewerDocumentCount: z.number().int().nonnegative(),
+  viewerFailedDocumentCount: z.number().int().nonnegative().default(0),
   viewerEmailVerified: z.boolean(),
 }
 
@@ -339,13 +358,117 @@ export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequire
 ])
 export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
 
+export const searchSourceCursorSchema = z.object({
+  createdAt: z.string().datetime(),
+  id: knowledgeConnectorParamsSchema.shape.connectorId.max(255),
+  scope: z.string().min(1).max(64),
+})
+
+export const listSearchSourcesQuerySchema = resourceOwnerSchema.safeExtend({
+  cursor: z.string().min(1).max(1024).optional(),
+  connectorType: z.string().trim().min(1, 'connectorType cannot be empty').max(100).optional(),
+  search: z.string().trim().max(200).optional(),
+  mine: booleanQueryFlagSchema.optional(),
+})
+export type ListSearchSourcesQuery = z.input<typeof listSearchSourcesQuerySchema>
+
+export const searchSourcePageSchema = z.object({
+  sources: z.array(searchSourceSummarySchema).max(SEARCH_SOURCE_PAGE_SIZE),
+  nextCursor: z.string().max(1024).nullable(),
+})
+export type SearchSourcePage = z.output<typeof searchSourcePageSchema>
+
 export const listSearchSourcesContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/sim-search/sources',
+  query: listSearchSourcesQuerySchema,
+  response: { mode: 'json', schema: successResponseSchema(searchSourcePageSchema) },
+})
+
+export const searchSourceOverviewSchema = z.object({
+  providers: z
+    .array(
+      z.object({
+        connectorType: z.string().min(1).max(100),
+        isSyncing: z.boolean(),
+      })
+    )
+    .max(MAX_SEARCH_SOURCE_PROVIDER_TYPES),
+  hasSearchableDocuments: z.boolean(),
+})
+export type SearchSourceOverview = z.output<typeof searchSourceOverviewSchema>
+
+export const readSearchSourceOverviewContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/sim-search/sources/overview',
   query: resourceOwnerSchema,
+  response: { mode: 'json', schema: successResponseSchema(searchSourceOverviewSchema) },
+})
+
+export const organizationSearchProviderStatusSchema = z.enum([
+  'needs_setup',
+  'waiting_for_connections',
+  'indexing',
+  'needs_attention',
+  'paused',
+  'active',
+])
+export type OrganizationSearchProviderStatus = z.output<
+  typeof organizationSearchProviderStatusSchema
+>
+
+export const organizationSearchProviderSummarySchema = z.object({
+  connectorType: z.string().min(1).max(100),
+  approved: z.boolean(),
+  sourceCount: z.number().int().nonnegative(),
+  status: organizationSearchProviderStatusSchema,
+  isSyncing: z.boolean(),
+})
+export type OrganizationSearchProviderSummary = z.output<
+  typeof organizationSearchProviderSummarySchema
+>
+
+export const organizationSearchOverviewSchema = z.object({
+  providers: z.array(organizationSearchProviderSummarySchema).max(MAX_SEARCH_SOURCE_PROVIDER_TYPES),
+})
+export type OrganizationSearchOverview = z.output<typeof organizationSearchOverviewSchema>
+
+export const readOrganizationSearchOverviewQuerySchema = z.object({
+  organizationId: organizationIdSchema,
+})
+export type ReadOrganizationSearchOverviewQuery = z.input<
+  typeof readOrganizationSearchOverviewQuerySchema
+>
+
+export const readOrganizationSearchOverviewContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/sim-search/integrations/overview',
+  query: readOrganizationSearchOverviewQuerySchema,
+  response: { mode: 'json', schema: successResponseSchema(organizationSearchOverviewSchema) },
+})
+
+export const searchSourceProgressSchema = z.object({
+  connectorId: knowledgeConnectorParamsSchema.shape.connectorId,
+  isSyncing: z.boolean(),
+  hasSyncError: z.boolean(),
+  hasIndexingError: z.boolean(),
+})
+export type SearchSourceProgress = z.output<typeof searchSourceProgressSchema>
+
+export const readSearchSourceProgressContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/sim-search/sources/progress',
+  body: resourceOwnerSchema.safeExtend({
+    connectorIds: z
+      .array(knowledgeConnectorParamsSchema.shape.connectorId.max(255))
+      .min(1)
+      .max(MAX_SEARCH_SOURCE_PROGRESS_ITEMS),
+  }),
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.array(searchSourceSummarySchema)),
+    schema: successResponseSchema(
+      z.array(searchSourceProgressSchema).max(MAX_SEARCH_SOURCE_PROGRESS_ITEMS)
+    ),
   },
 })
 

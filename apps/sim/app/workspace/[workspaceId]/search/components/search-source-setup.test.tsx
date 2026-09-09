@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
+  replace: vi.fn(),
+  push: vi.fn(),
   availabilityReady: true,
   availabilityLoading: false,
   availabilityError: null as Error | null,
@@ -101,6 +103,7 @@ vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-status', 
   },
 }))
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
   useParams: () => ({ workspaceId: 'workspace-1' }),
   usePathname: () => '/workspace/workspace-1/search',
 }))
@@ -168,6 +171,9 @@ vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   useOAuthCredentials: () => ({
     data: mocks.credentials,
     isLoading: false,
+    isSuccess: true,
+    isFetching: false,
+    error: null,
     refetch: vi.fn(),
   }),
 }))
@@ -239,12 +245,16 @@ async function fill(placeholder: string, value: string) {
   })
 }
 
-async function chooseCombo(currentLabel: string, nextLabel: string) {
+async function openCombo(currentLabel: string) {
   const combo = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
     (node) => node.textContent?.includes(currentLabel)
   )
   expect(combo, `Combobox ${currentLabel}`).toBeDefined()
   await click(combo!)
+}
+
+async function chooseCombo(currentLabel: string, nextLabel: string) {
+  await openCombo(currentLabel)
   const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
     (node) => node.textContent?.trim() === nextLabel
   )
@@ -352,7 +362,169 @@ function setup() {
   )
 }
 
+function organizationSetup() {
+  return (
+    <SearchSourceSetup
+      scope={{ kind: 'organization', organizationId: 'org-1' }}
+      canAdmin={mocks.canAdmin}
+      memberAccessAvailable={mocks.features.knowledgeMemberAccess}
+      mirroredAccessAvailable={mocks.features.knowledgeSourceMirroredAccess}
+    />
+  )
+}
+
+describe('organization setup entry points', () => {
+  it('uses central mode and its own draft even when the saved draft contains member mode', async () => {
+    useConnectorSetupStore
+      .getState()
+      .saveDraft('user-1:organization:org-1:kb-search:confluence:admin', {
+        sourceConfig: { domain: 'team.atlassian.net', spaceKey: ['ENG'] },
+        canonicalModes: { spaceKey: 'advanced' },
+        accessMode: 'members',
+        credentialId: 'cred-source',
+        contentCredentialId: null,
+        disabledTagIds: [],
+        savedAt: Date.now(),
+      })
+    await render(organizationSetup(), '?addConnector=confluence')
+
+    expect(document.body.textContent).not.toContain('Sync using')
+    expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
+    expect(
+      document.querySelector<HTMLInputElement>('input[placeholder="yoursite.atlassian.net"]')?.value
+    ).toBe('team.atlassian.net')
+    await click(button('Connect & Sync'))
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'confluence',
+        accessMode: 'admin',
+        credentialId: 'cred-source',
+      }),
+      expect.any(Object)
+    )
+    expect(mocks.push).not.toHaveBeenCalled()
+    const created = connector({
+      id: 'new-source',
+      connectorType: 'confluence',
+      accessMode: 'admin',
+    })
+    await act(async () => mocks.create.mock.calls[0][1].onSuccess(created))
+    expect(mocks.urlUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ queryString: '' }))
+    expect(mocks.push).toHaveBeenCalledWith('/o/org-1/settings/integrations/sources/new-source')
+  })
+
+  it('honors explicit member-source URLs and clears both setup parameters on close', async () => {
+    useConnectorSetupStore
+      .getState()
+      .saveDraft('user-1:organization:org-1:kb-search:github:members', {
+        sourceConfig: { repository: 'acme/docs' },
+        canonicalModes: {},
+        accessMode: 'members',
+        credentialId: 'cred-source',
+        contentCredentialId: null,
+        disabledTagIds: [],
+        savedAt: Date.now(),
+      })
+    await render(organizationSetup(), '?addConnector=github&source-access=members&search=keep')
+
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('Sync using')
+    expect(document.body.textContent).not.toContain('Sync documents with')
+    expect(button('Add source')).toBeEnabled()
+    await click(button('Add source'))
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'github',
+        accessMode: 'members',
+        sourceConfig: { repository: 'acme/docs' },
+      }),
+      expect.any(Object)
+    )
+    await click(button('Cancel'))
+    expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ queryString: '?search=keep' })
+    )
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(
+      useConnectorSetupStore
+        .getState()
+        .getDraft('user-1:organization:org-1:kb-search:github:members')
+    ).toBeUndefined()
+  })
+
+  it.each(['github', 'gmail', 'google_calendar', 'jira'])(
+    'returns old %s organization setup links to personal integrations without loading the index',
+    async (type) => {
+      await render(organizationSetup(), `?addConnector=${type}`)
+      expect(mocks.replace).toHaveBeenCalledWith('/o/org-1/integrations')
+      expect(mocks.basesQuery).toHaveBeenLastCalledWith('org-1', { enabled: false })
+      expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(mocks.prepare).not.toHaveBeenCalled()
+    }
+  )
+
+  it('prepares explicit member sources under the organization without switching them to central mode', async () => {
+    mocks.bases = []
+    await render(organizationSetup(), '?addConnector=confluence&source-access=members')
+    await click(button('Continue setup'))
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      { organizationId: 'org-1', connectorType: 'confluence', accessMode: 'members' },
+      expect.any(Object)
+    )
+  })
+
+  it.each([
+    { query: '?addConnector=confluence', member: true, mirrored: false },
+    { query: '?addConnector=confluence&source-access=members', member: false, mirrored: true },
+  ])(
+    'does not substitute the other connection mode when its selected feature is denied: $query',
+    async ({ query, member, mirrored }) => {
+      mocks.bases = []
+      mocks.features = { knowledgeMemberAccess: member, knowledgeSourceMirroredAccess: mirrored }
+      await render(organizationSetup(), query)
+      expect(document.body.textContent).toContain('Not available in this organization')
+      expect(document.body.textContent).not.toContain('Continue setup')
+      expect(mocks.prepare).not.toHaveBeenCalled()
+    }
+  )
+
+  it('remounts the locked form when the same provider URL changes connection mode', async () => {
+    await render(organizationSetup(), '?addConnector=confluence&source-access=members')
+    expect(button('Add source')).toBeDisabled()
+    await render(organizationSetup(), '?addConnector=confluence')
+    expect(button('Connect & Sync')).toBeDisabled()
+    expect(document.body.textContent).not.toContain('Add source')
+    expect(document.body.textContent).not.toContain('Sync using')
+  })
+})
+
 describe('Search source setup with real connector dialogs', () => {
+  it.each([
+    ['source-one', '/o/org-1/settings/integrations/sources/source-one'],
+    ['confluence', '/o/org-1/settings/integrations'],
+    ['', '/o/org-1/settings/integrations'],
+  ])(
+    'redirects legacy organization management for %s without loading the connector list',
+    async (source, destination) => {
+      await render(
+        <SearchSourceSetup
+          scope={{ kind: 'organization', organizationId: 'org-1' }}
+          canAdmin
+          memberAccessAvailable
+          mirroredAccessAvailable
+        />,
+        `?manage-source=${source}`
+      )
+      if (source === 'source-one') expect(mocks.replace).toHaveBeenCalledWith(destination)
+      else expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    }
+  )
+
   it.each([false, true])(
     'does not fetch admin data while closed for canAdmin=%s',
     async (canAdmin) => {
@@ -528,7 +700,6 @@ describe('Search source setup with real connector dialogs', () => {
         canAdmin
         memberAccessAvailable
         mirroredAccessAvailable
-        membersOnly
       />,
       '?addConnector=slack'
     )
@@ -650,8 +821,10 @@ describe('Search source setup with real connector dialogs', () => {
     expect(document.body.textContent).not.toContain('Member accounts')
     expect(button('Connect & Sync')).toBeDisabled()
     await fill('Enter your GitLab PAT', 'test-pat')
-    await fill('gitlab.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', 'engineering/search')
+    expect(button('Connect & Sync')).toBeDisabled()
+    await fill('gitlab.example.com', 'gitlab.example.test')
+    expect(button('Connect & Sync')).toBeEnabled()
     await click(button('Connect & Sync'))
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -725,7 +898,8 @@ describe('member content credentials in real add and edit dialogs', () => {
         initialAccessMode='members'
       />
     )
-    expect(document.body.textContent).toContain('Each teammate connects their Slack account.')
+    expect(document.body.textContent).toContain('Member accounts')
+    expect(document.body.textContent).toContain('Set up Slack')
     expect(
       Array.from(document.querySelectorAll('a')).map((node) => node.getAttribute('href'))
     ).toEqual(['/workspace/workspace-1/settings/credential-groups'])
@@ -815,6 +989,7 @@ describe('member content credentials in real add and edit dialogs', () => {
     expect(button('Workspace')).toHaveAttribute('aria-checked', 'true')
     await fill('Enter your GitLab PAT', 'new-pat')
     await fill('group/project or numeric ID', '1')
+    expect(button('Connect & Sync')).toBeEnabled()
     await click(button('Connect & Sync'))
     expect(mocks.create.mock.calls[1][0]).toMatchObject({
       connectorType: 'gitlab',
@@ -992,14 +1167,14 @@ describe('administrator source prerequisites in real connector dialogs', () => {
           initialAccessMode='admin'
         />
       )
-      const picker = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
-        (node) => node.textContent?.includes('Select Confluence account')
+      await openCombo('Select Confluence account')
+      const options = Array.from(document.querySelectorAll('[role="option"]'))
+      expect(
+        options.some((node) => node.textContent?.trim() === 'Connect Confluence account')
+      ).toBe(true)
+      const serviceAccountOption = options.find(
+        (node) => node.textContent?.trim() === 'Add service account'
       )
-      expect(picker).toBeDefined()
-      await click(picker!)
-      const serviceAccountOption = Array.from(
-        document.querySelectorAll<HTMLElement>('[role="option"]')
-      ).find((node) => node.textContent?.trim() === 'Add service account')
 
       expect(Boolean(serviceAccountOption)).toBe(state === 'ready' || state === 'limited')
     }
@@ -1019,16 +1194,11 @@ describe('administrator source prerequisites in real connector dialogs', () => {
           initialAccessMode={accessMode}
         />
       )
-      const picker = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
-        (node) =>
-          node.textContent?.includes(
-            accessMode === 'admin' ? 'Select a service account' : 'Select Google Drive account'
-          )
+      await openCombo(
+        accessMode === 'admin' ? 'Select a service account' : 'Select Google Drive account'
       )
-      expect(picker).toBeDefined()
-      await click(picker!)
-      const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map(
-        (node) => node.textContent?.trim()
+      const options = Array.from(document.querySelectorAll('[role="option"]')).map((node) =>
+        node.textContent?.trim()
       )
 
       expect(options.includes('Add service account')).toBe(accessMode === 'admin')
@@ -1387,6 +1557,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       )
       expect(document.querySelector(`input[placeholder="${adminEmailPlaceholder}"]`)).toBeDisabled()
       expect(button('Switch Folders to manual input')).toBeDisabled()
+      if (phase === 'creating') await click(button('More options'))
       const dropdown = Array.from(document.querySelectorAll('[role="combobox"]')).find((node) =>
         node.textContent?.includes('Select file type')
       )
@@ -1462,7 +1633,7 @@ describe('canonical Search connector safety', () => {
       )
     ).toBe(false)
     await fill('Enter your GitLab PAT', 'fixture-pat')
-    await fill('gitlab.com', 'gitlab.example.test')
+    await fill('gitlab.example.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', 'engineering/search')
     await click(button('Connect & Sync'))
     expect(mocks.create).toHaveBeenCalledWith(
@@ -1499,7 +1670,7 @@ describe('canonical Search connector safety', () => {
 })
 
 describe('resuming Search source setup', () => {
-  const key = 'user-1:workspace-1:kb-search:slack'
+  const key = 'user-1:workspace-1:kb-search:slack:choose'
 
   it('reopens the source from the URL even when the source filter hides its row', async () => {
     await render(setup(), '?search=nothing-matches&addConnector=gitlab&credentialDraftId=draft-1')
@@ -1536,6 +1707,7 @@ describe('resuming Search source setup', () => {
       />
     )
     await render(form)
+    await click(button('More options'))
     await chooseCombo('Connected members', 'Indexing account')
     await fill('e.g. hr, legal, C01ABC23DEF', 'legal')
     mocks.credentialGroup = null
@@ -1570,6 +1742,7 @@ describe('resuming Search source setup', () => {
       ],
     }
     await render(form)
+    await click(button('More options'))
     expect(
       document.querySelector<HTMLInputElement>('input[placeholder="e.g. hr, legal, C01ABC23DEF"]')
         ?.value
@@ -1581,8 +1754,10 @@ describe('resuming Search source setup', () => {
       credentialId: 'cred-source',
       sourceConfig: { excludeChannels: 'legal' },
     })
-    await act(async () => mocks.create.mock.calls[0][1].onSuccess())
-    expect(onCreated).toHaveBeenCalledWith('slack')
+    const created = connector()
+    await act(async () => mocks.create.mock.calls[0][1].onSuccess(created))
+    expect(onCreated).toHaveBeenCalledWith('slack', created)
+    expect(mocks.push).not.toHaveBeenCalled()
     expect(useConnectorSetupStore.getState().getDraft(key)).toBeUndefined()
   })
 
@@ -1630,7 +1805,7 @@ describe('resuming Search source setup', () => {
       />
     )
     expect(document.body.textContent).not.toContain('Sync Frequency')
-    expect(button('Document details (optional)')).toHaveAttribute('aria-expanded', 'false')
+    expect(button('More options')).toHaveAttribute('aria-expanded', 'false')
   })
 })
 

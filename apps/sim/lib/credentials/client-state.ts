@@ -78,6 +78,8 @@ interface OAuthReturnKBConnectors extends OAuthReturnBase {
   origin: 'kb-connectors'
   knowledgeBaseId: string
   connectorType?: string
+  connectorId?: string
+  sourceAccess?: 'members'
 }
 
 export type OAuthReturnContext =

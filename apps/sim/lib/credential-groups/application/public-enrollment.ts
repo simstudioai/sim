@@ -31,6 +31,8 @@ import {
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 import { fireCredentialGroupTrigger } from '@/lib/credential-groups/trigger'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 
 interface AuthorizedCredentialGroupEnrollmentUseCaseDefinition<O, I, C, R> {
   operation: O
@@ -143,8 +145,12 @@ export const readPublicCredentialGroupEnrollment = defineAuthorizedCredentialGro
       principal: CredentialGroupEnrollmentPrincipal
       input: { optionId?: string }
     }) => resolvePublicEnrollmentContext(principal, input.optionId),
-    async execute({ context }) {
-      return { enrollment: context.enrollment }
+    async execute({ context, principal }) {
+      const canSearch =
+        !context.organizationId ||
+        ((await getOrganizationSettingsAccess(context.organizationId, principal.userId)).isMember &&
+          (await isKnowledgeMemberAccessAvailable({ organizationId: context.organizationId })))
+      return { enrollment: context.enrollment, canSearch }
     },
   }
 )
@@ -173,7 +179,7 @@ export const completePublicCredentialGroupEnrollment =
 interface PublicCredentialGroupOAuthInput {
   invitationToken: string
   optionId: string
-  returnTo?: 'search'
+  returnTo?: 'search' | 'accounts'
 }
 
 interface PublicCredentialGroupOAuthContext extends PublicCredentialGroupEnrollmentIdentity {

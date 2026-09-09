@@ -149,6 +149,8 @@ export const listOrganizationAccountPeopleContract = defineRouteContract({
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.string().min(1).max(512).optional(),
     email: z.string().trim().max(320).optional(),
+    search: z.string().trim().max(320).optional(),
+    optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
   }),
   response: {
     mode: 'json',
@@ -162,7 +164,9 @@ export const inviteOrganizationAccountPeopleContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/people',
   params: organizationAccountsParamsSchema,
-  body: inviteCredentialGroupEnrollmentsBodySchema,
+  body: inviteCredentialGroupEnrollmentsBodySchema.extend({
+    optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
+  }),
   response: inviteCredentialGroupEnrollmentsContract.response,
 })
 const organizationAccountEnrollmentParamsSchema = organizationAccountsParamsSchema.extend({
@@ -172,6 +176,9 @@ export const resendOrganizationAccountInvitationContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/people/[enrollmentId]/resend',
   params: organizationAccountEnrollmentParamsSchema,
+  query: z.object({
+    optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
+  }),
   response: {
     mode: 'json',
     schema: z.object({ credentialGroupEnrollment: credentialGroupEnrollmentSchema }),
@@ -207,6 +214,9 @@ export type OrganizationAccountPeopleQuery = z.input<
 >
 export type InviteOrganizationAccountPeopleBody = z.input<
   NonNullable<typeof inviteOrganizationAccountPeopleContract.body>
+>
+export type ResendOrganizationAccountInvitationQuery = z.input<
+  NonNullable<typeof resendOrganizationAccountInvitationContract.query>
 >
 export type AddOrganizationAccountMcpProviderBody = z.input<
   NonNullable<typeof addOrganizationAccountMcpProviderContract.body>

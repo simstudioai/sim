@@ -11,8 +11,6 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
   icon: GoogleCalendarIcon,
   search: true,
   searchDocsUrl: 'https://docs.sim.ai/search/google-calendar',
-  memberSetupHint:
-    'Each teammate connects their Google Calendar account. They see only event details available to them.',
 
   auth: {
     mode: 'oauth',
@@ -51,6 +49,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
       title: 'Date Range',
       type: 'dropdown',
       required: false,
+      placeholder: 'Last 30 days + next 30 days (default)',
       options: [
         { label: 'Last 30 days + next 30 days (default)', id: 'default' },
         { label: 'Past events only (last 30 days)', id: 'past_only' },
@@ -60,6 +59,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'searchQuery',
+      setupGroup: 'options',
       title: 'Search Query',
       type: 'short-input',
       placeholder: 'e.g. standup, sprint review (optional)',
@@ -69,9 +69,11 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'includeAttendees',
+      setupGroup: 'options',
       title: 'Include Attendees',
       type: 'dropdown',
       required: false,
+      placeholder: 'Yes (default)',
       options: [
         { label: 'Yes (default)', id: 'true' },
         { label: 'No', id: 'false' },
@@ -81,6 +83,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxEvents',
+      setupGroup: 'options',
       title: 'Max Events',
       type: 'short-input',
       required: false,

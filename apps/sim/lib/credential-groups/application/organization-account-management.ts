@@ -11,6 +11,7 @@ import {
   resendCredentialGroupEnrollment,
   revokeCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
+import { getCredentialGroupIndexingConnector } from '@/lib/credential-groups/indexing'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   type CreateManagedMcpConnectorInput,
@@ -18,6 +19,7 @@ import {
   deleteManagedMcpConnector,
 } from '@/lib/credential-groups/managed-mcp-service'
 import { clearCredentialGroupMcpOAuthAttempts } from '@/lib/credential-groups/mcp-oauth-state'
+import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { evictMcpServerConnections } from '@/lib/mcp/connection-pool'
 
 export const organizationAccountManagementOperations = {
@@ -82,6 +84,21 @@ async function requireInviterName(userId: string) {
   return name
 }
 
+function searchConnectionIntent(
+  group: Awaited<ReturnType<typeof requireGroup>>['group'],
+  optionId?: string
+) {
+  if (!optionId) return undefined
+  const option = group.options.find((item) => item.id === optionId && item.status === 'active')
+  const connector =
+    option && isCredentialGroupProvider(option.provider)
+      ? getCredentialGroupIndexingConnector(option.provider)
+      : undefined
+  if (!connector)
+    throw new OrchestrationError('not_found', 'Search account provider is no longer available')
+  return { optionId, providerName: connector.meta.name }
+}
+
 function groupAudit(result: { credentialGroupId: string; description: string }) {
   return {
     resourceId: result.credentialGroupId,
@@ -104,7 +121,13 @@ export const listOrganizationAccountPeople = defineOrganizationAccountsUseCase({
     input,
     context,
   }: OrganizationExecution<
-    OrganizationInput & { limit: number; cursor?: string; email?: string }
+    OrganizationInput & {
+      limit: number
+      cursor?: string
+      email?: string
+      search?: string
+      optionId?: string
+    }
   >) {
     const { scope, group } = await requireGroup(context.organizationId)
     return listCredentialGroupEnrollments(
@@ -112,7 +135,11 @@ export const listOrganizationAccountPeople = defineOrganizationAccountsUseCase({
       group.credentialGroupId,
       input.limit,
       input.cursor,
-      { email: input.email }
+      {
+        email: input.email,
+        search: input.search,
+        ...(input.optionId ? { optionId: input.optionId } : {}),
+      }
     )
   },
 })
@@ -122,7 +149,7 @@ export const inviteOrganizationAccountPeople = defineOrganizationAccountsUseCase
   async execute({
     input,
     context,
-  }: OrganizationExecution<OrganizationInput & { emails: string[] }>) {
+  }: OrganizationExecution<OrganizationInput & { emails: string[]; optionId?: string }>) {
     const emails = validateCredentialGroupInvitationEmails(input.emails)
     const { scope, group } = await requireGroup(context.organizationId)
     const result = await inviteCredentialGroupEnrollments(
@@ -130,7 +157,8 @@ export const inviteOrganizationAccountPeople = defineOrganizationAccountsUseCase
       group.credentialGroupId,
       context.userId,
       await requireInviterName(context.userId),
-      { emails }
+      { emails },
+      searchConnectionIntent(group, input.optionId)
     )
     return {
       ...result,
@@ -146,14 +174,15 @@ export const resendOrganizationAccountInvitation = defineOrganizationAccountsUse
   async execute({
     input,
     context,
-  }: OrganizationExecution<OrganizationInput & { enrollmentId: string }>) {
+  }: OrganizationExecution<OrganizationInput & { enrollmentId: string; optionId?: string }>) {
     const { scope, group } = await requireGroup(context.organizationId)
     const enrollment = await resendCredentialGroupEnrollment(
       scope,
       group.credentialGroupId,
       input.enrollmentId,
       context.userId,
-      await requireInviterName(context.userId)
+      await requireInviterName(context.userId),
+      searchConnectionIntent(group, input.optionId)
     )
     return {
       credentialGroupEnrollment: enrollment,

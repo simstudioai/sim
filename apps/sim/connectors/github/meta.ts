@@ -11,8 +11,6 @@ export const githubConnectorMeta: ConnectorMeta = {
   searchDocsUrl: 'https://docs.sim.ai/search/github',
   permissionScopedListing: { capFieldIds: ['maxFiles'] },
   supportsSeparateContentCredential: true,
-  memberSetupHint:
-    'Install the GitHub App on the repositories you want to search. Each person connects their own GitHub account with a verified email matching their Sim account.',
 
   auth: {
     mode: 'oauth',
@@ -33,6 +31,7 @@ export const githubConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'branch',
+      setupGroup: 'options',
       title: 'Branch',
       type: 'short-input',
       placeholder: 'e.g. main',
@@ -42,6 +41,7 @@ export const githubConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'pathPrefix',
+      setupGroup: 'options',
       title: 'Path Filter',
       type: 'short-input',
       placeholder: 'e.g. docs/, src/components/',
@@ -49,6 +49,7 @@ export const githubConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'extensions',
+      setupGroup: 'options',
       title: 'File Extensions',
       type: 'short-input',
       placeholder: 'e.g. .md, .txt, .mdx',
@@ -56,6 +57,7 @@ export const githubConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxFiles',
+      setupGroup: 'options',
       title: 'Max Files',
       type: 'short-input',
       required: false,

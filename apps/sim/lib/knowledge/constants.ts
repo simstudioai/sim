@@ -19,6 +19,14 @@ export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS = 100
 /** Default and maximum bounded connector-document list page sizes. */
 export const DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 100
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 200
+export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH = 200
+
+/** Maximum source IDs in one viewer-authorized progress request. */
+export const MAX_SEARCH_SOURCE_PROGRESS_ITEMS = 100
+/** Bound viewer-specific source resolution and document counts to a single page. */
+export const SEARCH_SOURCE_PAGE_SIZE = 25
+export const SEARCH_SOURCE_CANDIDATE_PAGE_SIZE = 100
+export const MAX_SEARCH_SOURCE_PROVIDER_TYPES = 100
 
 /**
  * Chunking a knowledge base gets when its creator names no configuration.

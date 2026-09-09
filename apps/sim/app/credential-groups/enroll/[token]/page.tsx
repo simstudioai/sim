@@ -3,6 +3,7 @@ import { Chip, ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { getAccountSettingsHref } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
@@ -14,8 +15,7 @@ import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
-import { organizationRoutes } from '@/lib/navigation/paths'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
@@ -55,9 +55,16 @@ function PageShell({ children }: PageShellProps) {
 interface UnavailableInvitationProps {
   rateLimited?: boolean
   message?: string
+  recoveryHref?: string
+  recoveryLabel?: string
 }
 
-function UnavailableInvitation({ rateLimited = false, message }: UnavailableInvitationProps) {
+function UnavailableInvitation({
+  rateLimited = false,
+  message,
+  recoveryHref = APP_ENTRY_PATH,
+  recoveryLabel = 'Open Sim',
+}: UnavailableInvitationProps) {
   return (
     <PageShell>
       <div className='my-auto py-16 text-center'>
@@ -70,24 +77,31 @@ function UnavailableInvitation({ rateLimited = false, message }: UnavailableInvi
               : 'Sign in with the account this invitation was sent to. If the link has expired, ask an organization admin for a new invitation.')
           }
         />
+        <div className='mt-6 flex justify-center'>
+          <ChipLink href={recoveryHref}>{recoveryLabel}</ChipLink>
+        </div>
       </div>
     </PageShell>
   )
 }
 
 interface UnavailableSearchConnectionProps {
-  owner: ResourceOwner
+  returnHref: string
+  returnLabel: string
 }
 
-function UnavailableSearchConnection({ owner }: UnavailableSearchConnectionProps) {
+function UnavailableSearchConnection({
+  returnHref,
+  returnLabel,
+}: UnavailableSearchConnectionProps) {
   return (
     <PageShell>
       <AuthHeader
         title='Connection unavailable'
-        description='Ask a workspace admin to check this source’s connected account settings.'
+        description='Ask an admin to check this source’s connected account settings, then start a new connection.'
       />
       <div className='mt-6 flex justify-end'>
-        <ChipLink href={searchReturnPath(owner)}>Return to Search</ChipLink>
+        <ChipLink href={returnHref}>{returnLabel}</ChipLink>
       </div>
     </PageShell>
   )
@@ -137,23 +151,29 @@ export default async function CredentialGroupEnrollmentPage({
   }
   if (!session.user.emailVerified)
     return (
-      <UnavailableInvitation message='Verify your Sim email address before connecting your accounts.' />
+      <UnavailableInvitation
+        message='Verify your Sim email address before connecting your accounts, then reopen this connection link.'
+        recoveryHref='/verify'
+        recoveryLabel='Verify email'
+      />
     )
   const principal = await authenticateCredentialGroupEnrollment(token)
   if (!principal) return <UnavailableInvitation />
   const returnToSearch = resolvedSearchParams.returnTo === 'search'
+  const returnToAccounts = resolvedSearchParams.returnTo === 'accounts'
+  const focused = returnToSearch || returnToAccounts
   const requestedOptionId = resolvedSearchParams.optionId
   const focusedOptionId =
     typeof requestedOptionId === 'string' && requestedOptionId.length <= 128
       ? requestedOptionId
       : ''
   const enrollmentResult = await readPublicCredentialGroupEnrollment
-    .execute({ principal, input: returnToSearch ? { optionId: focusedOptionId } : {} })
+    .execute({ principal, input: focused ? { optionId: focusedOptionId } : {} })
     .catch((error: unknown) => {
       if (error instanceof CredentialGroupEnrollmentError)
         return { enrollment: null, enrollmentError: error.message }
       if (asOrchestrationError(error)?.code === 'not_found') return null
-      if (returnToSearch && error instanceof CredentialGroupProviderConfigurationError)
+      if (focused && error instanceof CredentialGroupProviderConfigurationError)
         return { enrollment: null }
       throw error
     })
@@ -161,7 +181,15 @@ export default async function CredentialGroupEnrollmentPage({
   if ('enrollmentError' in enrollmentResult)
     return <UnavailableInvitation message={enrollmentResult.enrollmentError} />
   const { enrollment } = enrollmentResult
-  if (!enrollment) return <UnavailableSearchConnection owner={principal} />
+  const canReturnToSearch =
+    returnToSearch &&
+    ('canSearch' in enrollmentResult ? enrollmentResult.canSearch : !principal.organizationId)
+  const returnHref = canReturnToSearch
+    ? searchReturnPath(principal)
+    : getAccountSettingsHref('connected-accounts')
+  const returnLabel = canReturnToSearch ? 'Return to Search' : 'Your connected accounts'
+  if (!enrollment)
+    return <UnavailableSearchConnection returnHref={returnHref} returnLabel={returnLabel} />
 
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')
   const connectedOptionId = getSearchParam(resolvedSearchParams, 'connected')
@@ -174,19 +202,15 @@ export default async function CredentialGroupEnrollmentPage({
       ? OAUTH_MESSAGES[oauthStatus as keyof typeof OAUTH_MESSAGES]
       : null
   const activeOptions = enrollment.options.filter((option) => option.status === 'active')
-  const focusedOption = returnToSearch
+  const focusedOption = focused
     ? activeOptions.find((option) => option.id === focusedOptionId)
     : undefined
-  if (returnToSearch && !focusedOption) return <UnavailableSearchConnection owner={principal} />
+  if (focused && !focusedOption)
+    return <UnavailableSearchConnection returnHref={returnHref} returnLabel={returnLabel} />
   const visibleOptions = focusedOption ? [focusedOption] : activeOptions
-  const focusedConnected = focusedOption?.connections[0]?.status === 'connected'
-  const focusedProviderId = focusedOption
-    ? getCredentialGroupProviderService(focusedOption.provider).providerId
-    : undefined
-  const docsUrl = focusedProviderId
-    ? SEARCH_CONNECTORS.find((connector) => connector.providerIds.includes(focusedProviderId))?.meta
-        .searchDocsUrl
-    : undefined
+  const focusedConnected =
+    focusedOption?.connections[0]?.status === 'connected' &&
+    (returnToSearch || connectedOptionId === focusedOption.id)
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
     : undefined
@@ -194,13 +218,13 @@ export default async function CredentialGroupEnrollmentPage({
     ? enrollment.mcpServers.find((server) => server.id === connectedMcpServerId)
     : undefined
   const notification =
-    !returnToSearch && connectedMcpServerId
+    !focused && connectedMcpServerId
       ? {
           message: `${connectedMcpServer?.name ?? 'MCP server'} connected successfully.`,
           variant: 'success' as const,
         }
       : connectedOptionId &&
-          (!returnToSearch || (connectedOptionId === focusedOption?.id && focusedConnected))
+          (!focused || (connectedOptionId === focusedOption?.id && focusedConnected))
         ? {
             message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
             variant: 'success' as const,
@@ -224,7 +248,7 @@ export default async function CredentialGroupEnrollmentPage({
             : 'Connect your accounts'
         }
         description={
-          returnToSearch
+          focused
             ? `${focusedConnected ? 'Your account is connected for' : 'Connect your account for'} ${enrollment.workspaceName}.`
             : `${enrollment.inviterName ? `${enrollment.inviterName} invited you` : 'You have been invited'} to connect accounts for ${enrollment.workspaceName}.`
         }
@@ -242,23 +266,23 @@ export default async function CredentialGroupEnrollmentPage({
                   icon={<ProviderIcon />}
                   title={option.label}
                   description={
-                    returnToSearch && connection?.status === 'connected'
+                    focused && connection?.status === 'connected'
                       ? `${connection.email} · Connected`
                       : (connection?.email ?? 'Not connected')
                   }
                   trailing={
-                    returnToSearch && connection?.status === 'connected' ? undefined : (
+                    focusedConnected ? undefined : (
                       <OAuthConnectLink
-                        href={`/api/credential-groups/enroll/${encodeURIComponent(token)}/oauth/${encodeURIComponent(option.id)}${returnToSearch ? '?returnTo=search' : ''}`}
+                        href={`/api/credential-groups/enroll/${encodeURIComponent(token)}/oauth/${encodeURIComponent(option.id)}${focused ? `?returnTo=${returnToSearch ? 'search' : 'accounts'}` : ''}`}
                         reconnect={Boolean(connection)}
-                        variant={returnToSearch ? 'primary' : undefined}
+                        variant={focused ? 'primary' : undefined}
                       />
                     )
                   }
                 />
               )
             })}
-            {!returnToSearch &&
+            {!focused &&
               enrollment.mcpServers.map((server) => {
                 const ConnectorIcon = getManagedMcpConnectorIcon(server.managedConnectorId)
                 return (
@@ -284,18 +308,10 @@ export default async function CredentialGroupEnrollmentPage({
               })}
           </div>
         </SettingsSection>
-        {returnToSearch ? (
-          <div className='mt-6 flex justify-end gap-2'>
-            {docsUrl && (
-              <ChipLink href={docsUrl} target='_blank' rel='noopener noreferrer'>
-                Setup guide
-              </ChipLink>
-            )}
-            <ChipLink
-              href={searchReturnPath(principal)}
-              variant={focusedConnected ? 'primary' : undefined}
-            >
-              Return to Search
+        {focused ? (
+          <div className='mt-6 flex justify-end'>
+            <ChipLink href={returnHref} variant={focusedConnected ? 'primary' : undefined}>
+              {returnLabel}
             </ChipLink>
           </div>
         ) : (
@@ -318,5 +334,5 @@ function searchReturnPath(owner: ResourceOwner): string {
   const scope = resourceScopeFromOwner(owner)
   return scope.kind === 'workspace'
     ? `/workspace/${encodeURIComponent(scope.workspaceId)}/search`
-    : organizationRoutes(scope.organizationId).integrations
+    : organizationRoutes(scope.organizationId).search
 }

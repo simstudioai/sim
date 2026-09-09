@@ -62,6 +62,7 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { connectorKeys, searchSourceKeys } from '@/hooks/queries/kb/connectors'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   KNOWLEDGE_BASE_LIST_STALE_TIME,
@@ -556,6 +557,8 @@ export function useUpdateDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
     },
   })
 }

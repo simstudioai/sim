@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { eq, inArray, isNull } from 'drizzle-orm'
+import { eq, ilike, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { adapter } = vi.hoisted(() => ({
@@ -12,7 +12,7 @@ const { adapter } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/components/emails/render', () => ({
+vi.mock('@/components/emails/credential-groups/render', () => ({
   renderCredentialGroupInvitationEmail: vi.fn(),
 }))
 
@@ -37,6 +37,7 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
   getCredentialGroupProviderAdapter: () => adapter,
 }))
 
+import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getOrganizationSubscriptionUsable } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
@@ -247,6 +248,28 @@ describe('listCredentialGroupEnrollments', () => {
     )
   })
 
+  it('projects an exact provider in SQL while retaining contributors with no account', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          options: [
+            { id: 'first', status: 'active' },
+            { id: 'second', status: 'active' },
+          ],
+        },
+      ])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
+      .mockResolvedValueOnce([])
+    const result = await listCredentialGroupEnrollments('workspace-1', 'group-1', 50, undefined, {
+      optionId: 'second',
+    })
+    expect(inArray).toHaveBeenCalledWith(schemaMock.credential.credentialGroupOptionId, ['second'])
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.mcpServers)
+    expect(result.enrollments).toEqual([
+      expect.objectContaining({ id: ENROLLMENT.id, connections: [], mcpConnections: [] }),
+    ])
+  })
+
   it('rejects an unbounded enrollment page request', async () => {
     await expect(listCredentialGroupEnrollments('workspace-1', 'group-1', 101)).rejects.toThrow(
       'Credential group enrollment limit must be between 1 and 100'
@@ -290,6 +313,35 @@ describe('listCredentialGroupEnrollments', () => {
       'completed',
       'delivery_failed',
     ])
+  })
+
+  it('filters email in SQL before the bounded page and preserves exact-email compatibility', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }]).mockResolvedValueOnce([])
+    const result = await listCredentialGroupEnrollments(
+      { kind: 'organization', organizationId: 'org-1' },
+      'group-1',
+      50,
+      undefined,
+      { search: '  A_%\\b  ', email: 'exact@example.com' }
+    )
+    expect(ilike).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.email, '%A\\_\\%\\\\b%')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.email, 'exact@example.com')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.organizationId, 'org-1')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.id, 'group-1')
+    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(2, 51)
+    expect(result).toEqual({ enrollments: [], nextCursor: null })
+  })
+
+  it('ignores blank search and rejects oversized direct search before database loading', async () => {
+    await expect(
+      listCredentialGroupEnrollments('workspace-1', 'group-1', 50, undefined, {
+        search: 'x'.repeat(321),
+      })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }]).mockResolvedValueOnce([])
+    await listCredentialGroupEnrollments('workspace-1', 'group-1', 50, undefined, { search: '   ' })
+    expect(ilike).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed enrollment cursor', async () => {
@@ -474,9 +526,16 @@ describe('resendCredentialGroupEnrollment', () => {
       'group-1',
       ENROLLMENT.id,
       'user-1',
-      'Inviter'
+      'Inviter',
+      { optionId: 'option-1', providerName: 'Gmail' }
     )
 
+    expect(renderCredentialGroupInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        searchProviderName: 'Gmail',
+        invitationLink: expect.stringMatching(/\?optionId=option-1&returnTo=search$/),
+      })
+    )
     expect(result.status).toBe('completed')
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
       1,

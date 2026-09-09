@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/icons', () => ({ GmailIcon: () => null, GoogleDriveIcon: () => null }))
 
+import { describeSearchSource, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
 import {
   type UseConnectorConfigFieldsOptions,
   type UseConnectorConfigFieldsResult,
@@ -167,5 +168,94 @@ describe('useConnectorConfigFields member configuration', () => {
     render({ connectorConfig: googleDriveConnectorMeta, accessMode: 'admin' })
     expect(current!.isFieldVisible(field)).toBe(true)
     expect(current!.resolveSourceConfig()).toMatchObject({ openSharing: 'domain' })
+  })
+
+  it('persists selector labels with the canonical IDs without changing provider values', () => {
+    render({ connectorConfig: googleDriveConnectorMeta })
+    act(() =>
+      current.handleFieldChange(
+        'folderSelector',
+        ['folder-a'],
+        [{ id: 'folder-a', label: 'Engineering' }]
+      )
+    )
+    expect(current.resolveSourceConfig()).toMatchObject({ folderId: ['folder-a'] })
+    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
+      'Engineering'
+    )
+    act(() => current.handleFieldChange('folderSelector', ['folder-b']))
+    expect(current.resolveSourceConfig()[SOURCE_LABELS_KEY]).toBeNull()
+    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
+      '1 folder selected'
+    )
+  })
+
+  it('discards names on manual mode changes and form resets', () => {
+    render({ connectorConfig: googleDriveConnectorMeta })
+    act(() =>
+      current.handleFieldChange(
+        'folderSelector',
+        ['folder-a'],
+        [{ id: 'folder-a', label: 'Engineering' }]
+      )
+    )
+    act(() => current.toggleCanonicalMode('folderId'))
+    expect(current.selectionLabels).toEqual({})
+    act(() => current.toggleCanonicalMode('folderId'))
+    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
+      '1 folder selected'
+    )
+    act(() =>
+      current.handleFieldChange(
+        'folderSelector',
+        ['folder-a'],
+        [{ id: 'folder-a', label: 'Engineering' }]
+      )
+    )
+    act(() => current.setSourceConfig({}))
+    expect(current.selectionLabels).toEqual({})
+  })
+
+  it('clears dependent selector labels together with their values', () => {
+    const meta: ConnectorMeta = {
+      ...googleDriveConnectorMeta,
+      configFields: [
+        { id: 'host', title: 'Host', type: 'short-input' },
+        ...googleDriveConnectorMeta.configFields.map((field) =>
+          field.canonicalParamId === 'folderId' ? { ...field, dependsOn: ['host'] } : field
+        ),
+      ],
+    }
+    render({ connectorConfig: meta })
+    act(() => current.handleFieldChange('host', 'one.example'))
+    act(() =>
+      current.handleFieldChange(
+        'folderSelector',
+        ['folder-a'],
+        [{ id: 'folder-a', label: 'Engineering' }]
+      )
+    )
+    act(() => current.handleFieldChange('host', 'two.example'))
+    expect(current.selectionLabels).toEqual({})
+    expect(current.resolveSourceConfig()).toMatchObject({ folderId: [] })
+  })
+
+  it('restores OAuth draft labels only when they match the restored selection', () => {
+    render({
+      connectorConfig: googleDriveConnectorMeta,
+      initialSourceConfig: { folderSelector: ['folder-a'] },
+      initialSelectionLabels: { folderId: [{ id: 'folder-a', label: 'Engineering' }] },
+    })
+    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
+      'Engineering'
+    )
+    act(() =>
+      current.handleFieldChange(
+        'folderSelector',
+        ['folder-a'],
+        [{ id: 'folder-b', label: 'Other docs' }]
+      )
+    )
+    expect(current.resolveSourceConfig()[SOURCE_LABELS_KEY]).toBeNull()
   })
 })

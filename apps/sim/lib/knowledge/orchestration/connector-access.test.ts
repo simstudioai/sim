@@ -557,6 +557,138 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(mocks.dispatchSync).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { accessMode: 'admin' as const, credentialId: 'revoked-credential' },
+    { accessMode: 'admin' as const, credentialId: null },
+    { accessMode: 'workspace' as const, credentialId: 'revoked-credential' },
+    { accessMode: 'workspace' as const, credentialId: null },
+  ])(
+    'replaces a disabled $accessMode credential ($credentialId) without resuming the source',
+    async ({ accessMode, credentialId }) => {
+      const disabled = {
+        ...WORKSPACE_CONNECTOR,
+        accessMode,
+        credentialId,
+        status: 'disabled',
+        consecutiveFailures: 10,
+        lastSyncError: 'Auto-disabled after repeated authentication failures',
+        lastSyncAt: new Date('2026-08-01T00:00:00Z'),
+        listingCheckpoint: { pageToken: 'old-listing' },
+        directoryCheckpoint: { pageToken: 'old-directory' },
+      }
+      queueTableRows(schemaMock.knowledgeConnector, [disabled])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { ...disabled, credentialId: 'cred-2', lastSyncAt: null },
+      ])
+
+      const outcome = await switchTo({ accessMode, credentialId: 'cred-2' })
+
+      expect(outcome).toMatchObject({
+        success: true,
+        changed: true,
+        connector: {
+          credentialId: 'cred-2',
+          status: 'disabled',
+          consecutiveFailures: 10,
+          lastSyncError: disabled.lastSyncError,
+        },
+      })
+      expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        credentialId: 'cred-2',
+        lastSyncAt: null,
+        listingCheckpoint: null,
+        directoryCheckpoint: null,
+        nextSyncAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      })
+      const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+      expect(
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'inArray' &&
+            node.column === schemaMock.knowledgeConnector.status &&
+            Array.isArray(node.values) &&
+            node.values.includes('disabled')
+        )
+      ).toBe(true)
+      for (const [column, value] of [
+        [schemaMock.knowledgeConnector.id, 'c-1'],
+        [schemaMock.knowledgeConnector.knowledgeBaseId, 'kb-1'],
+        [schemaMock.knowledgeConnector.status, 'disabled'],
+      ]) {
+        expect(
+          hasMockCondition(
+            condition,
+            (node: MockCondition) =>
+              node.type === 'eq' && node.left === column && node.right === value
+          )
+        ).toBe(true)
+      }
+      for (const column of [
+        schemaMock.knowledgeConnector.syncLockToken,
+        schemaMock.knowledgeConnector.archivedAt,
+        schemaMock.knowledgeConnector.deletedAt,
+      ]) {
+        expect(
+          hasMockCondition(
+            condition,
+            (node: MockCondition) => node.type === 'isNull' && node.column === column
+          )
+        ).toBe(true)
+      }
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      expect(mocks.dispatchSync).not.toHaveBeenCalled()
+      expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+      expect(mocks.rewriteAcls).not.toHaveBeenCalled()
+      expect(mocks.grant).not.toHaveBeenCalled()
+      expect(mocks.revoke).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a disabled credential replacement when Resume acquires the row first', async () => {
+    const disabled = { ...WORKSPACE_CONNECTOR, accessMode: 'admin', status: 'disabled' }
+    queueTableRows(schemaMock.knowledgeConnector, [disabled])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...disabled, status: 'syncing', syncLockToken: 'run-1' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(outcome).toEqual({
+      success: false,
+      error: 'Sync already in progress',
+      errorCode: 'conflict',
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(mocks.dispatchSync).not.toHaveBeenCalled()
+    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  it('still refuses access-mode switches while a source is disabled', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'disabled' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-1)?.[0],
+        (node: MockCondition) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.knowledgeConnector.status &&
+          Array.isArray(node.values) &&
+          !node.values.includes('disabled')
+      )
+    ).toBe(true)
+    expect(mocks.rewriteAcls).not.toHaveBeenCalled()
+    expect(mocks.dispatchSync).not.toHaveBeenCalled()
+    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+  })
+
   it('leaves a paused connector paused and queues nothing', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
     queueGroupRow('option-1')

@@ -1,19 +1,23 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn'
+import { getAccountSettingsHref } from '@/components/settings/navigation'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   connectorDisplayName,
   getConnectorAccessAvailability,
   SEARCH_CONNECTORS,
   SEARCH_SOURCE_TYPES,
 } from '@/lib/sim-search/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import {
   SettingsEmptyState,
@@ -23,8 +27,13 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connectors'
+import {
+  searchSourceKeys,
+  useSearchSourceOverview,
+  useSearchSources,
+} from '@/hooks/queries/kb/connectors'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -36,19 +45,21 @@ const TABS = [
 ] as const
 
 /**
- * The organization's sources as every member sees them — the same list and the
- * same actions whatever the viewer's role. Setting sources up and managing them
- * is an organization admin's job, done in the organization's settings.
+ * Personal connections and approved source scopes available to the organization.
+ * Administrators can open source management without leaving this journey.
  */
 export function OrganizationIntegrations() {
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
-  const { organization, searchAccess } = useOrganizationContext()
+  const { organization, searchAccess, viewer } = useOrganizationContext()
+  const routes = organizationRoutes(organization.id)
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const sources = useSearchSources(scope)
+  const { tab, search } = useOrganizationPageFilters()
+  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const sources = useSearchSources(scope, { search: sourceSearch, mine: tab === 'mine' })
+  const overview = useSearchSourceOverview(scope)
   const integrations = useSearchIntegrations(organization.id)
   const availability = usePermissionConfig()
-  const { tab, search } = useOrganizationPageFilters()
   const membershipQueryKeys = useMemo(
     () => [searchSourceKeys.list({ kind: 'organization', organizationId: organization.id })],
     [organization.id]
@@ -65,36 +76,64 @@ export function OrganizationIntegrations() {
   const enrollment = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
   const query = search.trim().toLowerCase()
   const mineOnly = tab === 'mine'
-  const visibleSources =
-    sources.data?.filter(
-      (source) =>
-        (!mineOnly || source.viewerMembership === 'connected') &&
-        `${connectorDisplayName(source.connectorType)} ${source.sourceDescription}`
-          .toLowerCase()
-          .includes(query)
-    ) ?? []
+  const visibleSources = sources.data ?? []
 
   const approvedTypes = new Set(
     integrations.data
       ?.filter((integration) => integration.approved)
       .map((integration) => integration.connectorType)
   )
-  const configuredTypes = new Set(sources.data?.map((source) => source.connectorType))
-  const unconfigured = mineOnly
+  const configuredTypes = new Set(
+    overview.data?.providers.map((provider) => provider.connectorType)
+  )
+  const sourceChoices = mineOnly
     ? []
     : SEARCH_SOURCE_TYPES.filter(
         ([type, meta]) =>
           approvedTypes.has(type) &&
-          !configuredTypes.has(type) &&
+          (!configuredTypes.has(type) ||
+            SEARCH_CONNECTORS.some(
+              (connector) => connector.type === type && connector.setupFields.length > 0
+            )) &&
           meta.name.toLowerCase().includes(query)
       )
-  const failedQuery = sources.isError ? sources : integrations.isError ? integrations : null
+  const integrationRows = [
+    ...sourceChoices.map(([type, meta]) => ({
+      kind: 'provider' as const,
+      type,
+      meta,
+      name: meta.name,
+    })),
+    ...visibleSources.map((source) => ({
+      kind: 'source' as const,
+      source,
+      name: connectorDisplayName(source.connectorType),
+    })),
+  ].sort(
+    (a, b) => a.name.localeCompare(b.name) || (a.kind === b.kind ? 0 : a.kind === 'source' ? -1 : 1)
+  )
+  const failedQuery =
+    sources.isError && !sources.isFetchNextPageError
+      ? sources
+      : overview.isError
+        ? overview
+        : integrations.isError
+          ? integrations
+          : null
 
   return (
     <OrganizationPage
       title='Integrations'
       description='Connect your tools for Sim Search'
       tabs={TABS}
+      action={
+        <div className='flex items-center gap-2'>
+          <ChipLink href={getAccountSettingsHref('connected-accounts')}>Your accounts</ChipLink>
+          {viewer.isAdmin && (
+            <ChipLink href={routes.settingsSection('integrations')}>Manage sources</ChipLink>
+          )}
+        </div>
+      }
     >
       <div className={RESOURCE_LIST_STACK}>
         {failedQuery ? (
@@ -105,9 +144,43 @@ export function OrganizationIntegrations() {
             onRetry={() => void failedQuery.refetch()}
             variant='inline'
           />
-        ) : visibleSources.length > 0 || unconfigured.length > 0 ? (
+        ) : availability.integrationAvailabilityError ? (
+          <SettingsQueryErrorState
+            error={availability.integrationAvailabilityError}
+            fallback='Could not load connection availability'
+            isRetrying={availability.isIntegrationAvailabilityFetching}
+            onRetry={() => void availability.refetchIntegrationAvailability()}
+            variant='inline'
+          />
+        ) : sources.isPending ||
+          overview.isPending ||
+          integrations.isPending ||
+          !availability.isIntegrationAvailabilityReady ? (
+          <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+        ) : visibleSources.length > 0 || sourceChoices.length > 0 || sources.hasNextPage ? (
           <>
-            {unconfigured.map(([type, meta]) => {
+            {integrationRows.map((row) => {
+              if (row.kind === 'source') {
+                const { source } = row
+                return (
+                  <SearchSourceRow
+                    key={source.connectorId}
+                    source={source}
+                    scope={scope}
+                    canAdmin={false}
+                    available={
+                      source.accessMode === 'members'
+                        ? searchAccess.memberScoped
+                        : searchAccess.sourceMirrored &&
+                          (!source.connectionRequired || searchAccess.memberScoped)
+                    }
+                    waiting={enrollment.isAwaiting(source.connectorId)}
+                    isPending={enrollment.isPending}
+                    onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
+                  />
+                )
+              }
+              const { type, meta } = row
               const connector = SEARCH_CONNECTORS.find((item) => item.type === type)
               const access = getConnectorAccessAvailability(
                 meta,
@@ -120,16 +193,20 @@ export function OrganizationIntegrations() {
                 }
               )
               const canConnect = connector && type !== 'slack' && access.members
+              const hasSources = configuredTypes.has(type)
+              if (hasSources && !canConnect) return null
               return (
                 <SettingsResourceRow
                   key={type}
                   iconVariant='custom'
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
-                  title={meta.name}
+                  title={hasSources ? `Add another ${meta.name} source` : meta.name}
                   description={
-                    canConnect
-                      ? 'Approved · Connect your account to search this source'
-                      : 'Approved · An admin needs to finish source setup'
+                    hasSources
+                      ? 'Connect a different site or content scope'
+                      : canConnect
+                        ? 'Connect your account to search this source'
+                        : 'An admin needs to finish source setup'
                   }
                   trailing={
                     canConnect ? (
@@ -138,38 +215,24 @@ export function OrganizationIntegrations() {
                         disabled={enrollment.isPending}
                         onClick={() => enrollment.connectSearchSource(scope, connector, undefined)}
                       >
-                        Connect account
+                        {hasSources ? 'Add source' : 'Connect account'}
                       </Chip>
                     ) : undefined
                   }
                 />
               )
             })}
-            {visibleSources.map((source) => (
-              <SearchSourceRow
-                key={source.connectorId}
-                source={source}
-                scope={scope}
-                canAdmin={false}
-                available={
-                  source.accessMode === 'members'
-                    ? searchAccess.memberScoped
-                    : searchAccess.sourceMirrored &&
-                      (!source.connectionRequired || searchAccess.memberScoped)
-                }
-                waiting={enrollment.isAwaiting(source.connectorId)}
-                isPending={enrollment.isPending}
-                onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-              />
-            ))}
+            <SearchSourcePagination {...sources} />
           </>
-        ) : sources.isPending || integrations.isPending ? null : (
+        ) : (
           <SettingsEmptyState variant='inline'>
             {query
               ? 'No matching sources.'
               : mineOnly
                 ? 'You haven’t connected any sources yet.'
-                : 'Your organization hasn’t added any sources yet. Ask an organization admin to get started.'}
+                : viewer.isAdmin
+                  ? 'Your organization hasn’t added any sources yet. Open Manage sources to get started.'
+                  : 'Your organization hasn’t added any sources yet. Ask an organization admin to get started.'}
           </SettingsEmptyState>
         )}
         {enrollment.error && (

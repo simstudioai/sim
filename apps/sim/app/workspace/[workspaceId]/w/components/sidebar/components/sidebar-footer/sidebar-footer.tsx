@@ -56,11 +56,12 @@ import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
  * never lists a page the server would refuse.
  */
 const PROFILE_MENU_ITEMS: readonly {
-  section: SettingsSection
+  section: SettingsSection | 'organization'
   label: string
   icon: ComponentType<{ className?: string }>
 }[] = [
   { section: 'general', label: 'Settings', icon: Settings },
+  { section: 'organization', label: 'Organization', icon: Building },
   { section: 'billing', label: 'Subscription', icon: Credit },
   { section: 'teammates', label: 'Teammates', icon: Users },
   { section: 'recently-deleted', label: 'Recently deleted', icon: Trash },
@@ -157,7 +158,9 @@ export function SidebarFooter({
   const name = profile ? profile.name?.trim() || profile.email : ''
   const updateAvailable = hasAvailableDesktopUpdate(updateState)
   const organizationHref =
-    hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember
+    hostContext.hostOrganizationId &&
+    hostContext.viewer.isHostOrganizationMember &&
+    hostContext.features?.organizationSearch
       ? organizationRoutes(hostContext.hostOrganizationId).root
       : null
 
@@ -178,7 +181,9 @@ export function SidebarFooter({
    */
   const menuItems = PROFILE_MENU_ITEMS.filter(
     (item) =>
-      item.section !== 'billing' || canViewWorkspaceBillingSettings(hostContext, session?.user?.id)
+      (item.section !== 'organization' || Boolean(organizationHref)) &&
+      (item.section !== 'billing' ||
+        canViewWorkspaceBillingSettings(hostContext, session?.user?.id))
   )
 
   /**
@@ -271,18 +276,18 @@ export function SidebarFooter({
         </DropdownMenuTrigger>
       </SidebarTooltip>
       <DropdownMenuContent align='start' side='top' sideOffset={4}>
-        {organizationHref && (
-          <>
-            <DropdownMenuItem asChild>
-              <SettingsIntentLink href={organizationHref}>
-                <Building className='size-[14px]' />
-                <DropdownMenuItemLabel label='Organization' />
-              </SettingsIntentLink>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
         {menuItems.map(({ section, label, icon: Icon }) => {
+          if (section === 'organization') {
+            if (!organizationHref) return null
+            return (
+              <DropdownMenuItem key={section} asChild>
+                <SettingsIntentLink href={organizationHref}>
+                  <Icon className='size-[14px]' />
+                  <DropdownMenuItemLabel label={label} />
+                </SettingsIntentLink>
+              </DropdownMenuItem>
+            )
+          }
           const destination = resolveMenuDestination(section)
           if (!destination) {
             return (

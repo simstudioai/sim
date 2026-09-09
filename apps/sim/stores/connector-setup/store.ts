@@ -3,11 +3,13 @@
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 export interface ConnectorSetupDraft {
   sourceConfig: Record<string, string | string[]>
   canonicalModes: Record<string, 'basic' | 'advanced'>
+  selectionLabels?: SourceSelectionLabels
   accessMode: ConnectorAccessMode
   credentialId: string | null
   contentCredentialId: string | null

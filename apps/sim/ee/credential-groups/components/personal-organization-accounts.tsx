@@ -25,9 +25,8 @@ export function PersonalOrganizationAccounts() {
     <SettingsPanel>
       <div className='flex flex-col gap-4'>
         <p className='text-[var(--text-muted)] text-small'>
-          These are accounts you contributed to organizations. Disconnecting stops their workflows
-          from using that account. Organization admins control which workspaces can use the shared
-          pool.
+          Manage accounts you connected to organizations. Disconnecting stops new indexing and
+          workflows that use the account, and removes Search access that depends on it.
         </p>
         {error && (
           <p role='alert' className='text-[var(--text-error)] text-caption'>
@@ -108,7 +107,7 @@ export function PersonalOrganizationAccounts() {
               if (!open && !disconnect.isPending) setDisconnectingId(null)
             }}
             title={`Disconnect ${disconnectingAccount.displayName}`}
-            text={`${disconnectingAccount.organizationName} workflows will no longer be able to use this account.`}
+            text={`${disconnectingAccount.organizationName} will stop indexing and running workflows with this account. You will lose Search access that depends on this connection.`}
             defaultAction='none'
             confirm={{
               label: 'Disconnect',

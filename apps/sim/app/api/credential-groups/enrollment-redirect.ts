@@ -21,6 +21,7 @@ export function createCredentialGroupEnrollmentRedirect(
 }
 
 export type CredentialGroupOAuthFailure =
+  | 'expired'
   | 'denied'
   | 'account_mismatch'
   | 'permissions_required'

@@ -1,17 +1,21 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, type ReactNode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '@/lib/api/client/errors'
+import type { MyInvitation } from '@/lib/api/contracts/invitations'
 
 const {
   mockCancelQueries,
+  mockClearUserData,
   mockGetSession,
   mockInvalidateQueries,
   mockLogger,
   mockPush,
   mockRequestJson,
+  mockRefetch,
   mockSearchParams,
   mockSetActive,
   mockSetQueryData,
@@ -19,6 +23,7 @@ const {
   mockUseSession,
 } = vi.hoisted(() => ({
   mockCancelQueries: vi.fn(),
+  mockClearUserData: vi.fn(),
   mockGetSession: vi.fn(),
   mockInvalidateQueries: vi.fn(),
   mockLogger: {
@@ -27,6 +32,7 @@ const {
   },
   mockPush: vi.fn(),
   mockRequestJson: vi.fn(),
+  mockRefetch: vi.fn(),
   mockSearchParams: { current: new URLSearchParams('token=token-1') },
   mockSetActive: vi.fn(),
   mockSetQueryData: vi.fn(),
@@ -44,8 +50,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams.current,
 }))
 
-vi.mock('@tanstack/react-query', async () => {
-  const React = await import('react')
+vi.mock('@tanstack/react-query', () => {
   return {
     useQueryClient: () => ({
       cancelQueries: mockCancelQueries,
@@ -60,13 +65,13 @@ vi.mock('@tanstack/react-query', async () => {
       queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
       enabled?: boolean
     }) => {
-      const [state, setState] = React.useState<{
+      const [state, setState] = useState<{
         data: unknown
         error: unknown
         isPending: boolean
       }>({ data: undefined, error: null, isPending: true })
       const enabled = options.enabled !== false
-      React.useEffect(() => {
+      useEffect(() => {
         if (!enabled) return
         let cancelled = false
         options.queryFn({}).then(
@@ -82,7 +87,7 @@ vi.mock('@tanstack/react-query', async () => {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [enabled])
-      return state
+      return { ...state, refetch: mockRefetch, isFetching: false }
     },
   }
 })
@@ -90,6 +95,8 @@ vi.mock('@tanstack/react-query', async () => {
 vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
 }))
+
+vi.mock('@/stores', () => ({ clearUserData: mockClearUserData }))
 
 vi.mock('@/lib/auth/auth-client', () => ({
   client: {
@@ -100,24 +107,35 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
 }))
 
-vi.mock('@/app/invite/components', () => ({
-  InviteLayout: ({ children }: { children: ReactNode }) => children,
+vi.mock('@/app/invite/components/layout', () => ({
+  default: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock('@/app/invite/components/status-card', () => ({
   InviteStatusCard: ({
     actions = [],
     description,
+    details,
     title,
     type,
   }: {
-    actions?: Array<{ label: string; onClick: () => void }>
+    actions?: Array<{ label: string; onClick: () => void; disabled?: boolean }>
     description?: ReactNode
+    details?: ReactNode
     title: string
     type: string
   }) => (
     <>
       <div data-invite-status={type}>{title}</div>
       <div>{description}</div>
+      {details}
       {actions.map((action) => (
-        <button key={action.label} type='button' onClick={action.onClick}>
+        <button
+          key={action.label}
+          type='button'
+          onClick={action.onClick}
+          disabled={action.disabled}
+        >
           {action.label}
         </button>
       ))}
@@ -131,6 +149,7 @@ import { sessionKeys } from '@/hooks/queries/session'
 let container: HTMLDivElement
 let root: Root
 let membershipIntent: 'external' | 'internal'
+let joinPreview: MyInvitation['joinPreview']
 
 const EXTERNAL_REFRESHED_SESSION = {
   user: { id: 'user-1', email: 'invitee@example.com' },
@@ -197,12 +216,20 @@ beforeEach(() => {
     isPending: false,
   })
   membershipIntent = 'external'
+  joinPreview = {
+    outcome: 'external',
+    organizationName: null,
+    workspaceIdsToMove: [],
+    workspacesToMove: [],
+  }
   mockCancelQueries.mockResolvedValue(undefined)
+  mockClearUserData.mockResolvedValue(true)
   mockGetSession.mockResolvedValue({ data: EXTERNAL_REFRESHED_SESSION })
   mockInvalidateQueries.mockResolvedValue(undefined)
   mockRequestJson.mockImplementation((contract: { method?: string }) => {
     if (contract.method === 'GET') {
       return Promise.resolve({
+        joinPreview,
         invitation: {
           id: 'invitation-1',
           kind: 'workspace',
@@ -249,6 +276,105 @@ afterEach(() => {
 })
 
 describe('Invite', () => {
+  it('clears the previous account cache before navigating to the invitation sign-in', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        message: 'Wrong account',
+        body: { error: 'email-mismatch' },
+      })
+    )
+    let completeCleanup: (result: boolean) => void = () => undefined
+    mockClearUserData.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        completeCleanup = resolve
+      })
+    )
+    await renderInvite()
+    expect(container.textContent).toContain('Wrong Account')
+    await clickAction('Sign in with a different account')
+    expect(mockSignOut).toHaveBeenCalledOnce()
+    expect(mockClearUserData).toHaveBeenCalledOnce()
+    expect(mockPush).not.toHaveBeenCalled()
+    await act(async () => completeCleanup(true))
+    expect(mockPush).toHaveBeenCalledWith(
+      `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
+    )
+  })
+
+  it('renders the actual join target and complete migration before echoing that preview', async () => {
+    membershipIntent = 'internal'
+    joinPreview = {
+      outcome: 'will-join',
+      organizationName: 'Actual Organization',
+      workspacesToMove: ['Personal work', 'Archived project'],
+      workspaceIdsToMove: ['personal', 'archived'],
+    }
+    await renderInvite()
+    expect(container.textContent).toContain(
+      'You will join Actual Organization as an organization admin'
+    )
+    expect(container.textContent).toContain('including archived workspaces')
+    expect(
+      Array.from(
+        container.querySelectorAll('[aria-label="Workspaces moving into the organization"] li'),
+        (item) => item.textContent
+      )
+    ).toEqual(['Personal work', 'Archived project'])
+    expect(container.textContent).toContain('External Workspace: admin access')
+    await clickAction('Accept Invitation')
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.objectContaining({ method: 'POST' }), {
+      params: { id: 'invitation-1' },
+      body: {
+        token: 'token-1',
+        disclosedWorkspaceIds: ['personal', 'archived'],
+        disclosedOutcome: 'will-join',
+      },
+    })
+  })
+
+  it.each([
+    ['already-member', 'Your organization role will stay the same'],
+    ['external', 'workspace access without joining an organization'],
+    ['blocked', 'This invitation cannot currently be accepted'],
+  ] as const)('discloses %s without promising a membership change', async (outcome, message) => {
+    membershipIntent = 'internal'
+    joinPreview = {
+      outcome,
+      organizationName: null,
+      workspaceIdsToMove: [],
+      workspacesToMove: [],
+    }
+    await renderInvite()
+    expect(container.textContent).toContain(message)
+    expect(container.textContent).not.toContain('as an organization admin')
+    await clickAction('Accept Invitation')
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        body: { token: 'token-1', disclosedWorkspaceIds: [], disclosedOutcome: outcome },
+      })
+    )
+  })
+
+  it('withholds internal acceptance and offers refresh when disclosure is missing', async () => {
+    membershipIntent = 'internal'
+    joinPreview = null
+    await renderInvite()
+    expect(container.textContent).toContain('We could not load how this invitation affects')
+    const accept = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Accept Invitation'
+    )
+    expect(accept?.disabled).toBe(true)
+    await clickAction('Accept Invitation')
+    expect(mockRequestJson).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'POST' }),
+      expect.anything()
+    )
+    await clickAction('Refresh invitation')
+    expect(mockRefetch).toHaveBeenCalledOnce()
+  })
+
   it('refreshes an external acceptance without replacing the viewer organization client-side', async () => {
     await acceptCurrentInvitation()
 

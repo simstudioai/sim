@@ -65,6 +65,7 @@ export const slackConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'excludeChannels',
+      setupGroup: 'options',
       title: 'Excluded Channels',
       type: 'short-input',
       required: false,
@@ -74,6 +75,7 @@ export const slackConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'includeArchived',
+      setupGroup: 'options',
       title: 'Archived Channels',
       type: 'dropdown',
       required: false,
@@ -93,6 +95,7 @@ export const slackConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxMessages',
+      setupGroup: 'options',
       title: 'Max Messages',
       type: 'short-input',
       required: false,

@@ -137,6 +137,7 @@ import {
   updateKnowledgeConnectorDocuments,
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
+import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH } from '@/lib/knowledge/constants'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
@@ -791,6 +792,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
     queueTableRows(document, [{ value: 5 }])
     queueTableRows(document, [{ value: 2 }])
+    queueTableRows(document, [{ value: 1 }])
     queueTableRows(document, [
       { id: 'document-3', filename: 'c.txt', userExcluded: false },
       { id: 'document-4', filename: 'd.txt', userExcluded: true },
@@ -813,7 +815,7 @@ describe('knowledge connector application use cases', () => {
         { id: 'document-3', filename: 'c.txt', userExcluded: false },
         { id: 'document-4', filename: 'd.txt', userExcluded: true },
       ],
-      counts: { active: 5, excluded: 2 },
+      counts: { active: 5, excluded: 2, failed: 1 },
       hasMore: false,
       offset: 2,
       limit: 2,
@@ -847,6 +849,25 @@ describe('knowledge connector application use cases', () => {
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('bounds connector filename searches for direct application callers', async () => {
+    mocks.resolveConnector.mockResolvedValueOnce({
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+    })
+    await expect(
+      listKnowledgeConnectorDocuments.execute({
+        principal: delegatedPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-a',
+          connectorId: 'connector-b',
+          search: 'x'.repeat(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH + 1),
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('deduplicates connector document IDs before mutation and audit', async () => {

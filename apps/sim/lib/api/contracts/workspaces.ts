@@ -294,6 +294,8 @@ export const workspaceHostContextSchema = z.object({
   features: z
     .object({
       credentialGroups: z.boolean(),
+      /** Optional for rolling compatibility; absent keeps settings in the workspace. */
+      organizationSearch: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate the flag. */
       knowledgeMemberAccess: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate administrator mode. */

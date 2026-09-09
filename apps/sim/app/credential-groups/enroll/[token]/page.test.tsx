@@ -148,6 +148,66 @@ describe('focused Search enrollment', () => {
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: {} })
   })
 
+  it('keeps account-settings reconnect focused and returns to account settings', async () => {
+    await render({ returnTo: 'accounts', optionId: 'site-two' })
+    expect(oauthLinks().map((link) => link.getAttribute('href'))).toEqual([
+      '/api/credential-groups/enroll/invitation/oauth/site-two?returnTo=accounts',
+    ])
+    expect(document.querySelector('form')).toBeNull()
+    expect(
+      Array.from(document.querySelectorAll('a'))
+        .find((link) => link.textContent === 'Your connected accounts')
+        ?.getAttribute('href')
+    ).toBe('/account/settings/connected-accounts')
+  })
+
+  it('lets an account owner deliberately reconnect an active grant before reporting completion', async () => {
+    enrollment.options[1]!.connections = [
+      {
+        email: 'member@example.test',
+        displayName: null,
+        avatarUrl: null,
+        status: 'connected',
+        grantedAt: new Date().toISOString(),
+      },
+    ]
+    await render({ returnTo: 'accounts', optionId: 'site-two' })
+    expect(oauthLinks()).toHaveLength(1)
+    expect(oauthLinks()[0].textContent).toContain('Reconnect')
+    await render({ returnTo: 'accounts', optionId: 'site-two', connected: 'site-two' })
+    expect(oauthLinks()).toHaveLength(0)
+    expect(document.querySelector('h1')?.textContent).toBe('Confluence connected')
+  })
+
+  it.each([true, false])(
+    'uses current Search eligibility for organization return links: %s',
+    async (canSearch) => {
+      mocks.authenticate.mockResolvedValue({
+        ...principal,
+        workspaceId: undefined,
+        organizationId: 'canonical-org',
+      })
+      mocks.read.mockResolvedValue({ enrollment, canSearch })
+      await render({ returnTo: 'search', optionId: 'site-two' })
+      const label = canSearch ? 'Return to Search' : 'Your connected accounts'
+      expect(
+        Array.from(document.querySelectorAll('a'))
+          .find((link) => link.textContent === label)
+          ?.getAttribute('href')
+      ).toBe(canSearch ? '/o/canonical-org/search' : '/account/settings/connected-accounts')
+    }
+  )
+
+  it('gives an unverified person a verification action before resolving enrollment', async () => {
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'member', emailVerified: false },
+      session: { id: 'session-1' },
+    })
+    await render({ returnTo: 'search', optionId: 'site-two' })
+    expect(document.querySelector('a')?.getAttribute('href')).toBe('/verify')
+    expect(mocks.read).not.toHaveBeenCalled()
+  })
+
   it('shows only the exact requested option and derives the return workspace from the principal', async () => {
     await render({ returnTo: 'search', optionId: 'site-two', workspaceId: 'other-workspace' })
     expect(document.querySelector('h1')?.textContent).toBe('Connect your Confluence account')
@@ -164,12 +224,7 @@ describe('focused Search enrollment', () => {
         .find((link) => link.textContent === 'Return to Search')
         ?.getAttribute('href')
     ).toBe('/workspace/canonical-workspace/search')
-    const guide = Array.from(document.querySelectorAll('a')).find(
-      (link) => link.textContent === 'Setup guide'
-    )
-    expect(guide?.getAttribute('href')).toBe('https://docs.sim.ai/search/confluence')
-    expect(guide?.getAttribute('target')).toBe('_blank')
-    expect(guide?.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(document.body.textContent).not.toContain('Setup guide')
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: { optionId: 'site-two' } })
   })
 
@@ -181,7 +236,7 @@ describe('focused Search enrollment', () => {
         returnTo: 'search',
         optionId: Array.isArray(optionId) ? [...optionId] : optionId,
       })
-      expect(document.body.textContent).toContain('Ask a workspace admin')
+      expect(document.body.textContent).toContain('Ask an admin')
       expect(oauthLinks()).toHaveLength(0)
       expect(document.querySelector('form')).toBeNull()
       expect(document.body.textContent).toContain('Return to Search')
@@ -194,7 +249,7 @@ describe('focused Search enrollment', () => {
     )
     await render({ returnTo: 'search', optionId: 'slack' })
     expect(document.body.textContent).toContain('Connection unavailable')
-    expect(document.body.textContent).toContain('Ask a workspace admin')
+    expect(document.body.textContent).toContain('Ask an admin')
     expect(document.querySelector('a')?.getAttribute('href')).toBe(
       '/workspace/canonical-workspace/search'
     )
@@ -252,6 +307,6 @@ describe('focused Search enrollment', () => {
     await render({ returnTo: 'search', optionId: 'site-two', workspaceId: 'other-workspace' })
     expect(document.body.textContent).toContain('Invitation unavailable')
     expect(mocks.read).not.toHaveBeenCalled()
-    expect(document.querySelector('a')).toBeNull()
+    expect(document.querySelector('a')?.getAttribute('href')).toBe('/home')
   })
 })

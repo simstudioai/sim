@@ -1,19 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalError, Switch } from '@sim/emcn'
-import { useQueryState } from 'nuqs'
-import type { ResourceScope } from '@/lib/core/resource-scope'
-import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import { useState } from 'react'
+import { Plus } from '@sim/emcn/icons'
+import { useRouter } from 'next/navigation'
+import { SettingsPanel } from '@/components/settings/settings-panel'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { OrganizationIntegrationCatalog } from '@/app/o/[organizationId]/settings/components/integrations/organization-integration-catalog'
+import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
-import {
-  managedSourceParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -22,231 +19,92 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connectors'
-import {
-  useSearchIntegrations,
-  useUpdateSearchIntegration,
-} from '@/hooks/queries/search-integrations'
-import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { useOrganizationSearchOverview } from '@/hooks/queries/kb/connectors'
 
-/** A change of approval the admin has asked for but not yet confirmed. */
-interface PendingApproval {
-  type: string
-  name: string
-  approve: boolean
-}
-
-/**
- * Organization approval is independent of source setup. Each integration lists
- * all of its configured sources using the same rows members see, with management
- * actions for admins. Setup and OAuth returns stay within this settings section.
- */
 export function OrganizationIntegrationsSetup() {
   const { organization, viewer, searchAccess } = useOrganizationContext()
-  const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const sources = useSearchSources(scope)
-  const integrations = useSearchIntegrations(organization.id)
-  const updateApproval = useUpdateSearchIntegration()
-  const {
-    integrationAvailability,
-    oauthServiceAvailability,
-    isIntegrationAvailabilityReady,
-    isIntegrationAvailabilityFetching,
-    integrationAvailabilityError,
-    refetchIntegrationAvailability,
-  } = usePermissionConfig()
-  const [, setSelectedType] = useQueryState(
-    searchSetupParam.key,
-    searchSetupParam.parser.withOptions({ history: 'replace' })
+  const router = useRouter()
+  const [search, setSearch] = useSettingsSearch()
+  const [catalogOpen, setCatalogOpen] = useState(false)
+  const overview = useOrganizationSearchOverview(organization.id, { enabled: viewer.isAdmin })
+  const providers = overview.data?.providers ?? []
+  const query = search.trim().toLowerCase()
+  const visible = providers.filter((provider) =>
+    CONNECTOR_META_REGISTRY[provider.connectorType]?.name.toLowerCase().includes(query)
   )
-  const [, setManagedSource] = useQueryState(
-    managedSourceParam.key,
-    managedSourceParam.parser.withOptions({ history: 'replace' })
-  )
-  const membershipQueryKeys = useMemo(
-    () => [searchSourceKeys.list({ kind: 'organization', organizationId: organization.id })],
-    [organization.id]
-  )
-  const connectedConnectorIds = useMemo(
-    () =>
-      new Set(
-        sources.data
-          ?.filter((source) => source.viewerMembership === 'connected')
-          .map((source) => source.connectorId)
-      ),
-    [sources.data]
-  )
-  const enrollment = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
-  const enabled = searchAccess.memberScoped || searchAccess.sourceMirrored
-  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null)
-  const approvals = new Map(
-    integrations.data?.map((integration) => [integration.connectorType, integration.approved])
-  )
-  const failedQuery = sources.isError ? sources : integrations.isError ? integrations : null
-
-  const confirmApproval = () => {
-    if (!pendingApproval) return
-    updateApproval.mutate(
-      {
-        organizationId: organization.id,
-        connectorType: pendingApproval.type,
-        approved: pendingApproval.approve,
-      },
-      {
-        onSuccess: () => setPendingApproval(null),
-      }
-    )
-  }
-
-  if (!enabled) {
+  if (!viewer.isAdmin) return null
+  if (!searchAccess.memberScoped && !searchAccess.sourceMirrored)
     return (
       <SettingsEmptyState variant='inline'>
         Search sources are not enabled for this organization.
       </SettingsEmptyState>
     )
-  }
 
   return (
-    <>
+    <SettingsPanel
+      search={{ value: search, onChange: setSearch, placeholder: 'Search sources...' }}
+      actions={[
+        {
+          text: 'Add integration',
+          icon: Plus,
+          variant: 'primary',
+          disabled: overview.isPending || overview.isError,
+          onSelect: () => setCatalogOpen(true),
+        },
+      ]}
+    >
       <div className={RESOURCE_LIST_STACK}>
-        {failedQuery ? (
+        {overview.isError ? (
           <SettingsQueryErrorState
-            error={failedQuery.error}
+            error={overview.error}
             fallback='Could not load sources'
-            isRetrying={failedQuery.isFetching}
-            onRetry={() => void failedQuery.refetch()}
+            isRetrying={overview.isFetching}
+            onRetry={() => void overview.refetch()}
             variant='inline'
           />
-        ) : integrationAvailabilityError ? (
-          <SettingsQueryErrorState
-            error={integrationAvailabilityError}
-            fallback='Could not load connection availability'
-            isRetrying={isIntegrationAvailabilityFetching}
-            onRetry={() => void refetchIntegrationAvailability()}
-            variant='inline'
-          />
+        ) : overview.isPending ? (
+          <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+        ) : visible.length === 0 ? (
+          <SettingsEmptyState variant='inline'>
+            {query ? 'No matching sources' : 'Add an integration to get started.'}
+          </SettingsEmptyState>
         ) : (
-          SEARCH_SOURCE_TYPES.map(([type, meta]) => {
-            const configured = sources.data?.filter((source) => source.connectorType === type) ?? []
-            const { admin: central, members } = getConnectorAccessAvailability(
-              meta,
-              integrationAvailability,
-              {
-                memberAccessAvailable: searchAccess.memberScoped,
-                mirroredAccessAvailable: searchAccess.sourceMirrored,
-                oauthServiceAvailability,
-                isIntegrationAvailabilityReady,
-              }
-            )
-            const available = central || members
-            const approved = approvals.get(type) ?? false
-            const loading = sources.isPending || integrations.isPending
+          visible.map((provider) => {
+            const meta = CONNECTOR_META_REGISTRY[provider.connectorType]
             return (
-              <div key={type}>
-                <SettingsResourceRow
-                  iconVariant='custom'
-                  icon={<IntegrationTile blockType={type} icon={meta.icon} />}
-                  title={meta.name}
-                  description={
-                    loading
-                      ? 'Loading approval…'
-                      : approved
-                        ? available
-                          ? 'Approved for Sim Search'
-                          : 'Approved · Connection setup is unavailable'
-                        : 'Not approved for Sim Search'
-                  }
-                  trailing={
-                    <div className='flex items-center gap-2'>
-                      {available && (
-                        <Chip
-                          disabled={loading || !viewer.isAdmin}
-                          variant='primary'
-                          onClick={() => void setSelectedType(searchSetupParam.parser.parse(type))}
-                        >
-                          Set up
-                        </Chip>
-                      )}
-                      <Switch
-                        aria-label={`Approve ${meta.name} for Sim Search`}
-                        checked={approved}
-                        disabled={loading || updateApproval.isPending || !viewer.isAdmin}
-                        onCheckedChange={(approve) => {
-                          updateApproval.reset()
-                          setPendingApproval({ type, name: meta.name, approve })
-                        }}
-                      />
-                    </div>
-                  }
-                />
-                {configured.map((source) => (
-                  <SearchSourceRow
-                    key={source.connectorId}
-                    source={source}
-                    scope={scope}
-                    canAdmin={viewer.isAdmin}
-                    available={
-                      source.accessMode === 'members'
-                        ? searchAccess.memberScoped
-                        : searchAccess.sourceMirrored &&
-                          (!source.connectionRequired || searchAccess.memberScoped)
-                    }
-                    waiting={enrollment.isAwaiting(source.connectorId)}
-                    isPending={enrollment.isPending}
-                    onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-                    onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
-                  />
-                ))}
-              </div>
+              <SettingsResourceRow
+                key={provider.connectorType}
+                iconVariant='custom'
+                icon={<IntegrationTile blockType={provider.connectorType} icon={meta.icon} />}
+                title={meta.name}
+                description={organizationSearchStatusLabel(provider)}
+                href={organizationRoutes(organization.id).searchProvider(provider.connectorType)}
+                clickLabel={`Manage ${meta.name}`}
+                navigable
+              />
             )
           })
         )}
-        {enrollment.error && (
-          <p className='text-[var(--text-error)] text-caption'>{enrollment.error}</p>
-        )}
       </div>
+      {catalogOpen && (
+        <OrganizationIntegrationCatalog
+          organizationId={organization.id}
+          providers={providers}
+          memberAccessAvailable={searchAccess.memberScoped}
+          mirroredAccessAvailable={searchAccess.sourceMirrored}
+          onClose={() => setCatalogOpen(false)}
+          onAdded={(type) => router.push(organizationRoutes(organization.id).searchProvider(type))}
+        />
+      )}
       <SearchSourceSetup
-        key={`sources:${organization.id}`}
-        scope={scope}
+        scope={{ kind: 'organization', organizationId: organization.id }}
         canAdmin={viewer.isAdmin}
         memberAccessAvailable={searchAccess.memberScoped}
         mirroredAccessAvailable={searchAccess.sourceMirrored}
       />
-      <OrganizationSlackAccountSetup key={`slack:${organization.id}`} />
-      <ChipConfirmModal
-        open={pendingApproval !== null}
-        onOpenChange={(open) => {
-          if (!open && !updateApproval.isPending) setPendingApproval(null)
-        }}
-        title={
-          pendingApproval?.approve
-            ? `Approve ${pendingApproval.name}?`
-            : `Deactivate ${pendingApproval?.name}?`
-        }
-        text={
-          pendingApproval?.approve
-            ? [
-                'You are approving ',
-                { text: pendingApproval.name, bold: true },
-                ' for your organization in Sim Search. Members can connect their own accounts when supported. Sources that need a service account or custom app still require setup.',
-              ]
-            : [
-                'Are you sure you want to deactivate ',
-                { text: pendingApproval?.name ?? '', bold: true },
-                ' for your organization? Its indexed content will be unavailable in Search, Assistant, and MCP until approved again. Source setup and connected accounts are preserved.',
-              ]
-        }
-        confirm={{
-          label: pendingApproval?.approve ? 'Approve' : 'Deactivate',
-          variant: pendingApproval?.approve ? 'primary' : 'destructive',
-          onClick: confirmApproval,
-          pending: updateApproval.isPending,
-          pendingLabel: 'Saving…',
-        }}
-      >
-        {updateApproval.error && <ChipModalError>{updateApproval.error.message}</ChipModalError>}
-      </ChipConfirmModal>
-    </>
+      <OrganizationSlackAccountSetup />
+    </SettingsPanel>
   )
 }

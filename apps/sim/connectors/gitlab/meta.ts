@@ -33,9 +33,10 @@ export const gitlabConnectorMeta: ConnectorMeta = {
       id: 'host',
       title: 'Host',
       type: 'short-input',
-      placeholder: 'gitlab.com',
+      placeholder: 'gitlab.example.com',
       required: false,
-      description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
+      requiredInAdminMode: true,
+      description: 'Your GitLab instance host. Sim Search requires a self-managed instance.',
     },
     {
       id: 'project',
@@ -64,6 +65,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'ref',
+      setupGroup: 'options',
       title: 'Branch',
       type: 'short-input',
       required: false,
@@ -73,6 +75,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'pathPrefix',
+      setupGroup: 'options',
       title: 'Path Filter',
       type: 'short-input',
       required: false,
@@ -83,6 +86,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'fileExtensions',
+      setupGroup: 'options',
       title: 'File Extensions',
       type: 'short-input',
       required: false,
@@ -93,6 +97,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'issueState',
+      setupGroup: 'options',
       title: 'Issue State',
       type: 'dropdown',
       required: false,
@@ -106,6 +111,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'issueLabels',
+      setupGroup: 'options',
       title: 'Issue Labels',
       type: 'short-input',
       required: false,
@@ -116,6 +122,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'issueMilestone',
+      setupGroup: 'options',
       title: 'Issue Milestone',
       type: 'short-input',
       required: false,
@@ -126,6 +133,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxItems',
+      setupGroup: 'options',
       title: 'Max Items',
       type: 'short-input',
       required: false,

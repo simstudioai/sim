@@ -13,9 +13,9 @@ if (!databaseUrl)
 const target = new URL(databaseUrl)
 if (
   !['localhost', '127.0.0.1'].includes(target.hostname) ||
-  !target.pathname.startsWith('/sim_acl_test')
+  (!target.pathname.startsWith('/sim_acl_test') && target.pathname !== '/sim_auth_scim')
 ) {
-  throw new Error('Knowledge integration tests require a local sim_acl_test database')
+  throw new Error('Knowledge integration tests require a local disposable test database')
 }
 
 /** Never inherit an application secret or transport endpoint from the developer's shell. */

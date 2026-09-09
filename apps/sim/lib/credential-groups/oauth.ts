@@ -110,7 +110,7 @@ const logger = createLogger('CredentialGroupOAuth')
 export async function startCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
   invitationToken: string,
-  options: { completionRedirect?: boolean; returnTo?: 'search' } = {}
+  options: { completionRedirect?: boolean; returnTo?: 'search' | 'accounts' } = {}
 ): Promise<string> {
   if (!context.credentialOwnerId) throw new CredentialGroupInvitationUnavailableError()
   const adapter = getOptionAdapter(context)

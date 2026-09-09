@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type InfiniteData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import type { SearchSourcePage } from '@/lib/api/contracts/knowledge/connectors'
 import {
   listSearchIntegrationsContract,
   type UpdateSearchIntegrationBody,
@@ -30,8 +30,17 @@ export function useUpdateSearchIntegration() {
       (await requestJson(updateSearchIntegrationContract, { body })).data,
     onSuccess: async (_data, { organizationId }) => {
       const scope = { kind: 'organization', organizationId } as const
-      const sources = queryClient.getQueryData<SearchSourceSummary[]>(searchSourceKeys.list(scope))
-      const knowledgeBaseIds = new Set(sources?.map((source) => source.knowledgeBaseId))
+      const pages = queryClient.getQueriesData<InfiniteData<SearchSourcePage>>({
+        queryKey: searchSourceKeys.list(scope),
+        predicate: (query) => query.queryKey[3] === 'pages',
+      })
+      const knowledgeBaseIds = new Set(
+        pages.flatMap(
+          ([, data]) =>
+            data?.pages.flatMap((page) => page.sources.map((source) => source.knowledgeBaseId)) ??
+            []
+        )
+      )
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.list(organizationId) }),
         queryClient.invalidateQueries({ queryKey: searchSourceKeys.list(scope) }),

@@ -254,6 +254,10 @@ export interface ConnectorConfigField {
   type: 'short-input' | 'dropdown' | 'selector'
   placeholder?: string
   required?: boolean
+  /** Required when an administrator account supplies documents and source permissions. */
+  requiredInAdminMode?: true
+  /** Secondary Search setup controls, shown in the shared More options disclosure. */
+  setupGroup?: 'options'
   description?: string
   /** Excludes settings unused by member crawls and account-local selectors that need a manual sibling. */
   hideInMemberMode?: true
@@ -372,8 +376,6 @@ export interface ConnectorMeta {
   mirrorsSourceAcls?: true
   /** Provider prerequisites shown when an administrator configures permission-aware indexing. */
   adminSetupHint?: string
-  /** Provider prerequisites or content scope shown for per-member setup. */
-  memberSetupHint?: string
   /** Mirrored ACLs identify people by their own verified OAuth subject instead of email. */
   requiresMemberIdentity?: true
 }

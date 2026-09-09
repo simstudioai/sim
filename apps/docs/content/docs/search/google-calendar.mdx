@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Search meetings and event details available to your Google account. An organization admin enables the source; every teammate connects their own account. Google controls which calendar and event details each person can read.
 
-Admin setup uses your organization's **Settings → Integrations** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Set up the source
 
@@ -20,28 +20,28 @@ These steps require a Sim organization admin.
 
 ### Add Google Calendar
 
-Open **Settings → Integrations → Providers**, approve **Google Calendar**, then select **Set up**. Search uses **Member accounts**; an admin or service account cannot connect on behalf of everyone.
+Open **Settings → Sources → Add integration** and choose **Google Calendar**. On its **Sources** tab, select **Add source**. If it is already listed, open it directly. Search uses member accounts; an admin or service account cannot connect on behalf of everyone.
 
 </Step>
 <Step>
 
 ### Choose the calendars
 
-Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select them using **Browse with**, or switch to **Calendar IDs** and enter their IDs.
+Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select an **Account for browsing** and choose calendars, or switch to **Calendar IDs** and enter their IDs.
 
-**Browse with** only helps you choose calendars. It does not connect your account for Search or grant teammates access.
+**Account for browsing** only helps you choose calendars. It does not connect your account for Search or grant teammates access.
 
 </Step>
 <Step>
 
 ### Create the source
 
-Keep the default date range for the previous and next 30 days, then click **Add source**. Each person, including the admin, connects their own account from the **Sources** list.
+Keep the default date range for the previous and next 30 days. **More options** contains **Search Query**, **Include Attendees**, and **Metadata tags**. Click **Add source**, then connect your own account from **Integrations** in the main sidebar.
 
 </Step>
 </Steps>
 
-<Image src="/static/search/google-calendar-setup.jpg" alt="Google Calendar Search source configuration" width={1280} height={720} />
+<Image src="/static/search/google-calendar-setup.jpg" alt="Google Calendar Search source configuration" width={520} height={397} />
 
 <Callout type="info">
   `primary` means the connected person's main calendar. A calendar selected from the list is a specific calendar ID, even when it is your main calendar. That same ID applies to every member, and only members with access to it can search its events.
@@ -53,11 +53,11 @@ Keep the default date range for the previous and next 30 days, then click **Add 
 2. In the connection tab, choose the Google account whose verified email matches your Sim email. Grant the requested permissions.
 3. Return to Integrations to see indexing status and your searchable document count.
 
-Teammates repeat only these connection steps after joining the organization. They do not need to configure the source. Connecting Gmail or Google Drive does not replace the Calendar connection.
+Teammates repeat only these connection steps after joining the organization. They do not need to configure the source. An admin can send connection requests from **Settings → Sources → Google Calendar → Accounts → Request connections**. These requests do not grant organization membership. Connecting Gmail or Google Drive does not replace the Calendar connection.
 
 ## Source options
 
-An admin can change these under **Manage** on the source.
+An admin opens **Settings → Sources → Google Calendar → Sources → [source] → Settings** to change these options. **Documents** shows indexed events and **Sync history** shows recent runs.
 
 | Option | Behavior |
 | --- | --- |
@@ -66,7 +66,7 @@ An admin can change these under **Manage** on the source.
 | Search Query | Optional text filter applied by Google to event titles, descriptions, locations, and organizer or attendee names and emails. Leave empty to include all matching events in the date range. |
 | Include Attendees | **Yes** by default. **No** omits organizer and attendee identity fields and keeps the attendee count. It does not redact names written into titles or descriptions. |
 
-**Document details** contains optional metadata tags. Search hides sync frequency and the general knowledge-base **Max Events** setting.
+In the add-source form, **More options** contains optional **Metadata tags**. Search hides sync frequency and the general knowledge-base **Max Events** setting.
 
 ## What gets indexed
 

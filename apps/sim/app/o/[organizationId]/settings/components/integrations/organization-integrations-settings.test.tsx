@@ -27,6 +27,7 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
   useRevokeOrganizationAccountEnrollment: () => ({}),
 }))
 
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationIntegrationsSettings } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
 
 describe('organization integration invitations', () => {
@@ -67,18 +68,26 @@ describe('organization integration invitations', () => {
     await act(async () =>
       root.render(
         <NuqsTestingAdapter hasMemory searchParams={searchParams}>
-          <OrganizationIntegrationsSettings />
+          <SettingsHeaderProvider>
+            <SettingsHeaderShell>
+              <OrganizationIntegrationsSettings />
+            </SettingsHeaderShell>
+          </SettingsHeaderProvider>
         </NuqsTestingAdapter>
       )
     )
   }
 
-  async function click(label: string) {
+  function findButton(label: string) {
     const button = Array.from(document.querySelectorAll('button')).find(
       (element) => element.textContent === label
     )
     if (!button) throw new Error(`Missing ${label} button`)
-    await act(async () => button.click())
+    return button
+  }
+
+  async function click(label: string) {
+    await act(async () => findButton(label).click())
   }
 
   it('keeps provider setup as the default and sends manual invitations from People to this org', async () => {
@@ -90,8 +99,8 @@ describe('organization integration invitations', () => {
     await click('People')
     expect(container.textContent).not.toContain('Provider setup')
     expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a')
-    expect(container.querySelector('[aria-label="Search people"]')).not.toBeNull()
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+    expect(container.querySelector('input[placeholder="Search people..."]')).not.toBeNull()
     expect(mocks.invite).not.toHaveBeenCalled()
 
     await click('Request connections')
@@ -114,16 +123,51 @@ describe('organization integration invitations', () => {
     await render('?tab=people')
     expect(container.textContent).toContain('Request connections')
     expect(container.textContent).not.toContain('Provider setup')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+  })
+
+  it('loads people alongside setup but waits for the pool before allowing invitations', async () => {
+    mocks.accounts.mockReturnValue({ data: undefined, error: null, isPending: true })
+    await render('?tab=people')
+    expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+    expect(container.textContent).toContain('Loading connected accounts')
+    expect(container.textContent).not.toContain('No people invited yet')
+    expect(findButton('Request connections')).toBeDisabled()
+    await click('Request connections')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+
+    mocks.accounts.mockReturnValue({ data: { credentialGroup: { id: 'group-a' } }, error: null })
+    await render('?tab=people')
+    expect(container.textContent).not.toContain('Loading connected accounts')
+    expect(findButton('Request connections')).not.toBeDisabled()
+    await click('Request connections')
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(mocks.invite).not.toHaveBeenCalled()
+  })
+
+  it('stops the people query when setup resolves without a pool and preserves the setup action', async () => {
+    mocks.accounts.mockReturnValue({ data: undefined, error: null, isPending: true })
+    mocks.people.mockReturnValue({ error: new Error('Organization accounts not configured') })
+    await render('?tab=people')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+    expect(container.textContent).not.toContain('Organization accounts not configured')
+
+    mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, error: null })
+    await render('?tab=people')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(container.textContent).toContain('before requesting connections')
+    expect(container.textContent).not.toContain('Organization accounts not configured')
+    expect(findButton('Request connections')).toBeDisabled()
   })
 
   it('sends an org without a credential group back to provider setup before invitations', async () => {
     mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, error: null })
     await render('?tab=people')
-    expect(container.textContent).toContain('before inviting people')
-    expect(mocks.people).not.toHaveBeenCalled()
-    expect(container.textContent).not.toContain('Request connections')
-    await click('Set up providers')
+    expect(container.textContent).toContain('before requesting connections')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(findButton('Request connections')).toBeDisabled()
+    await click('View sources')
     expect(container.textContent).toContain('Provider setup')
     expect(mocks.invite).not.toHaveBeenCalled()
   })
@@ -135,8 +179,9 @@ describe('organization integration invitations', () => {
     })
     await render('?tab=people')
     expect(container.textContent).toContain('Account access denied')
-    expect(container.textContent).not.toContain('Set up providers')
-    expect(mocks.people).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('View sources')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(findButton('Request connections')).toBeDisabled()
     await click('Try again')
     expect(mocks.refetch).toHaveBeenCalledOnce()
   })

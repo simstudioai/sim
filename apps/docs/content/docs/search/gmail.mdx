@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Search email threads from your own Gmail account. An organization admin enables the source; each teammate connects their own account. An admin's connection does not make their mailbox available to the team.
 
-Admin setup uses your organization's **Settings → Integrations** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Set up the source
 
@@ -20,26 +20,26 @@ These steps require a Sim organization admin.
 
 ### Add Gmail
 
-Open **Settings → Integrations → Providers**, approve **Gmail**, then select **Set up**. Gmail uses **Member accounts**; there is no domain-wide or service-account crawl in Search.
+Open **Settings → Sources → Add integration** and choose **Gmail**. On its **Sources** tab, select **Add source**. If Gmail is already listed, open it directly. Gmail uses member accounts; there is no domain-wide or service-account crawl in Search.
 
 </Step>
 <Step>
 
 ### Choose what to include
 
-Keep the defaults to search all dates and labels, excluding Promotions, Social, Spam, and Trash. Add filters below if your team needs a narrower source.
+Keep the defaults to search all dates and labels, excluding Promotions, Social, Spam, and Trash. **Labels** and **Date Range** are shown first. Open **More options** for category exclusions, **Search Filter**, and **Metadata tags**.
 
 </Step>
 <Step>
 
 ### Create the source
 
-Click **Add source**. Gmail appears in the **Sources** list. Each person, including the admin, then connects their own account.
+Click **Add source**. Gmail appears in the provider's **Sources** list. Each person, including the admin, then connects their own account from **Integrations** in the main sidebar. To send a Gmail connection request, open **Gmail → Accounts → Request connections**; this does not invite the recipient to the Sim organization.
 
 </Step>
 </Steps>
 
-<Image src="/static/search/gmail-setup.jpg" alt="Gmail Search source configuration" width={1280} height={720} />
+<Image src="/static/search/gmail-setup.jpg" alt="Gmail Search source configuration" width={520} height={329} />
 
 ## Connect your account
 
@@ -51,7 +51,7 @@ Teammates follow these same steps after joining the organization. Once an admin 
 
 ## Source options
 
-An admin can change these under **Manage** on the Gmail source. Filters apply separately to each connected mailbox.
+An admin opens **Settings → Sources → Gmail → Sources → [source] → Settings** to change these options. Filters apply separately to each connected mailbox. **Documents** shows indexed threads and **Sync history** shows recent runs.
 
 | Option | Behavior |
 | --- | --- |
@@ -60,7 +60,7 @@ An admin can change these under **Manage** on the Gmail source. Filters apply se
 | Exclude Promotions / Exclude Social | Both enabled by default. Choose **No** to include either category. |
 | Search Filter | Optional [Gmail query](https://developers.google.com/workspace/gmail/api/guides/filtering), such as `from:team@example.com subject:release`. This filters what is indexed; it is not a Sim Search query. |
 
-**Document details** contains optional metadata tags. Sync frequency and the general knowledge-base **Max Threads** setting are hidden in Search.
+In the add-source form, **More options** contains optional **Metadata tags**. Sync frequency and the general knowledge-base **Max Threads** setting are hidden in Search.
 
 ## What gets indexed
 

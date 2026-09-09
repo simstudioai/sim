@@ -71,6 +71,17 @@ describe('personal organization contributions', () => {
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
   })
 
+  it('returns OAuth contributors to the exact account in account settings', async () => {
+    queueTableRows(schemaMock.credential, [
+      { ...row, type: 'managed_oauth', optionId: 'gmail-option' },
+    ])
+    const result = await reconnectPersonalOrganizationAccount.execute({ principal, input })
+    const url = new URL(result.invitationLink)
+    expect(url.searchParams.get('optionId')).toBe('gmail-option')
+    expect(url.searchParams.get('returnTo')).toBe('accounts')
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
+  })
+
   it('refuses disconnect of another contributor’s account', async () => {
     queueTableRows(schemaMock.credential, [])
     await expect(

@@ -8,7 +8,15 @@
  */
 import { assert, describe, expect, it } from 'vitest'
 import { canConnectPersonally } from '@/lib/sim-search/connectors'
-import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import {
+  connectorMemberProvider,
+  isConnectorFieldRequired,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import {
+  GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
+  googleDriveConnectorMeta,
+} from '@/connectors/google-drive/meta'
 import { getAllConnectorMeta } from '@/connectors/registry'
 
 const permissionScopedOAuthConnectors = Object.entries(getAllConnectorMeta()).filter(([, meta]) =>
@@ -34,5 +42,30 @@ describe('connectorMemberProvider', () => {
     )
     assert(plain)
     expect(connectorMemberProvider(plain)).toBeNull()
+  })
+})
+
+describe('isConnectorFieldRequired', () => {
+  it.each([
+    ['admin', true],
+    ['workspace', false],
+  ] as const)('requires GitLab Host in %s mode: %s', (accessMode, required) => {
+    const host = gitlabConnectorMeta.configFields.find((field) => field.id === 'host')
+    assert(host)
+
+    expect(isConnectorFieldRequired(host, gitlabConnectorMeta, accessMode)).toBe(required)
+  })
+
+  it.each([
+    ['admin', true],
+    ['workspace', false],
+    ['members', false],
+  ] as const)('preserves Drive subject requirements in %s mode: %s', (accessMode, required) => {
+    const subject = googleDriveConnectorMeta.configFields.find(
+      (field) => field.id === GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID
+    )
+    assert(subject)
+
+    expect(isConnectorFieldRequired(subject, googleDriveConnectorMeta, accessMode)).toBe(required)
   })
 })

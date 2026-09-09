@@ -12,6 +12,7 @@ interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
   title: string
   description: string | React.ReactNode
+  details?: React.ReactNode
   icon?: 'userPlus' | 'mail' | 'users' | 'error' | 'success' | 'warning'
   actions?: Array<{
     label: string
@@ -28,6 +29,7 @@ export function InviteStatusCard({
   type,
   title,
   description,
+  details,
   icon: _icon,
   actions = EMPTY_ACTIONS,
   isExpiredError = false,
@@ -54,6 +56,7 @@ export function InviteStatusCard({
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
+        {details}
         {isExpiredError && (
           <AuthSubmitButton type='button' onClick={returnHome} loadingLabel=''>
             Request New Invitation
