@@ -155,6 +155,25 @@ export async function sendSlackSearchOnboarding(
         )
   if (response.status !== 200 || response.data.ok !== true)
     throw new Error('Could not deliver Slack onboarding')
+  if (reason === 'sources') {
+    await requireSlackSearchTurnLease(turnId, leaseId)
+    if (!(await authorizeSlackSearchInstallation(principal, job)))
+      throw new OrchestrationError('forbidden', 'Slack Search is disabled')
+    signal.throwIfAborted()
+    const reply = await postSlackMessage(
+      context.secret.botToken,
+      {
+        channel: job.message.channelId,
+        thread_ts: job.message.threadTs ?? job.message.messageTs,
+        text: 'I don’t have any sources I can search for you yet. Check the “Connect sources” message in our DM to get set up, then retry this question.',
+        unfurl_links: false,
+        unfurl_media: false,
+      },
+      signal
+    )
+    if (reply.status !== 200 || reply.data.ok !== true)
+      throw new Error('Could not deliver the Slack sources notice')
+  }
   await recordSlackSearchOutcome(
     context.installation,
     reason === 'account' ? 'account_required' : 'sources_required'
