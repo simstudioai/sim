@@ -9,6 +9,7 @@ const { mockUsePathname } = vi.hoisted(() => ({ mockUsePathname: vi.fn() }))
 
 vi.mock('next/navigation', () => ({ usePathname: mockUsePathname }))
 
+import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 
 let root: Root
@@ -37,6 +38,15 @@ function render(pathname: string) {
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  /** The global storage mock is not a native jsdom Storage instance. */
+  vi.stubGlobal(
+    'StorageEvent',
+    class extends window.StorageEvent {
+      constructor(type: string, init: StorageEventInit) {
+        super(type, { ...init, storageArea: null })
+      }
+    }
+  )
   stubDarkOs()
   localStorage.clear()
   document.documentElement.className = ''
@@ -73,5 +83,62 @@ describe('ThemeProvider theme stores', () => {
     localStorage.setItem('sim-theme', 'dark')
     localStorage.setItem('sim-landing-theme', 'dark')
     expect(render('/login')).toContain('light')
+  })
+
+  it.each(['/', '/blog', '/customers/example'])(
+    'keeps %s light when account settings resolve dark',
+    (pathname) => {
+      localStorage.setItem('sim-theme', 'dark')
+      const classes = render(pathname)
+      expect(classes).toContain('light')
+
+      act(() => syncThemeToNextThemes('dark'))
+
+      expect(classes).toContain('light')
+      expect(classes).not.toContain('dark')
+    }
+  )
+
+  it('preserves the landing footer choice when account settings change', () => {
+    localStorage.setItem('sim-landing-theme', 'dark')
+    const classes = render('/workflows')
+
+    act(() => syncThemeToNextThemes('light'))
+
+    expect(classes).toContain('dark')
+    expect(localStorage.getItem('sim-landing-theme')).toBe('dark')
+    expect(localStorage.getItem('sim-theme')).toBe('light')
+  })
+
+  it('preserves the forced auth theme when account settings resolve', () => {
+    const classes = render('/login')
+
+    act(() => syncThemeToNextThemes('dark'))
+
+    expect(classes).toContain('light')
+    expect(classes).not.toContain('dark')
+  })
+
+  it('updates the workspace theme when account settings resolve', () => {
+    localStorage.setItem('sim-theme', 'light')
+    const classes = render('/workspace/ws-1/home')
+    expect(classes).toContain('light')
+
+    act(() => syncThemeToNextThemes('dark'))
+
+    expect(classes).toContain('dark')
+    expect(classes).not.toContain('light')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+  })
+
+  it('resolves the workspace system theme through the active provider', () => {
+    localStorage.setItem('sim-theme', 'light')
+    const classes = render('/workspace/ws-1/home')
+
+    act(() => syncThemeToNextThemes('system'))
+
+    expect(classes).toContain('dark')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(localStorage.getItem('sim-theme')).toBe('system')
   })
 })

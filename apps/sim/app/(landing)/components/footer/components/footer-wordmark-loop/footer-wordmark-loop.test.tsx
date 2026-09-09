@@ -15,6 +15,8 @@ const CYCLE_MS = 17_100
 
 let pending: FrameRequestCallback[] = []
 let clock = 0
+let reducedMotion = false
+let onMotionPreference: (() => void) | undefined
 let root: Root | null = null
 let host: HTMLDivElement | null = null
 
@@ -40,15 +42,23 @@ beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   pending = []
   clock = 0
+  reducedMotion = false
+  onMotionPreference = undefined
   const stubs = {
     requestAnimationFrame: (cb: FrameRequestCallback) => pending.push(cb),
     cancelAnimationFrame: () => {
       pending = []
     },
     matchMedia: () => ({
-      matches: false,
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      get matches() {
+        return reducedMotion
+      },
+      addEventListener: (_type: string, listener: () => void) => {
+        onMotionPreference = listener
+      },
+      removeEventListener: () => {
+        onMotionPreference = undefined
+      },
     }),
   }
   for (const [name, value] of Object.entries(stubs)) {
@@ -80,6 +90,8 @@ describe('FooterWordmarkLoop', () => {
     expect(html).toContain('data-stage="wm" opacity="1"')
     expect(html).toContain('data-stage="orb" opacity="0"')
     expect(html).toContain('stdDeviation="0.55"')
+    expect(html).toContain('data-goo-group="" filter="none"')
+    expect(html).not.toContain('<feGaussianBlur in="goo"')
     for (const shape of SHAPES) {
       expect(html).toContain(`data-stage="${shape}" opacity="0"`)
     }
@@ -91,11 +103,13 @@ describe('FooterWordmarkLoop', () => {
   it('plays the master timeline: wordmark, orb, the seven shapes, orb, wordmark', () => {
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-goo]', 'stdDeviation')).toBe('0.550')
+    expect(attr('[data-goo-group]', 'filter')).toBe('none')
 
     advanceTo(2700)
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('0.0000')
     expect(attr('[data-stage="orb"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-goo]', 'stdDeviation')).toBe('5.000')
+    expect(attr('[data-goo-group]', 'filter')).toMatch(/^url\(#fwl-goo-/)
 
     advanceTo(3900)
     expect(attr('[data-stage="metaballs"]', 'opacity')).toBe('1.0000')
@@ -113,10 +127,24 @@ describe('FooterWordmarkLoop', () => {
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-stage="thinking"]', 'opacity')).toBe('0.0000')
     expect(attr('[data-goo]', 'stdDeviation')).toBe('0.550')
+    expect(attr('[data-goo-group]', 'filter')).toBe('none')
 
     advanceTo(CYCLE_MS + 2700)
     expect(attr('[data-stage="orb"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('0.0000')
+  })
+
+  it('returns to an unfiltered wordmark when reduced motion is enabled mid-morph', () => {
+    advanceTo(2700)
+    expect(attr('[data-goo-group]', 'filter')).toMatch(/^url\(#fwl-goo-/)
+
+    reducedMotion = true
+    act(() => onMotionPreference?.())
+
+    expect(pending).toHaveLength(0)
+    expect(attr('[data-stage="wm"]', 'opacity')).toBe('1.0000')
+    expect(attr('[data-stage="orb"]', 'opacity')).toBe('0.0000')
+    expect(attr('[data-goo-group]', 'filter')).toBe('none')
   })
 
   it('stops requesting frames on unmount', () => {

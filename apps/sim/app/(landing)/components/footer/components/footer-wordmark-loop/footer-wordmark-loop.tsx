@@ -43,11 +43,9 @@ const ORB_BEAT = 450
 /** Closing hold on the wordmark before the loop wraps back to the opening hold. */
 const HOLD_LOGO_END = 1700
 const TAIL = 200
-/** Goo blur while liquid (through the cycle) and while crisp (the wordmark). */
+/** Blur range for the filtered portion of the morph. */
 const GOO_HI = 5
 const GOO_LO = 0.55
-/** Post-threshold blur, about half a device pixel at the mark's largest size. */
-const EDGE_SMOOTHING = 0.16
 /**
  * Shapes that restart from compact when they appear and play exactly one pulse
  * of this many ms (just under a loop, so the dots reach the edge without
@@ -356,13 +354,19 @@ interface StageNode {
   key: StageKey
 }
 
+interface GooFilterNodes {
+  blur: SVGFEGaussianBlurElement
+  group: SVGGElement
+  url: string
+}
+
 /**
  * Paints one frame of the choreography at `t` ms into the cycle by writing
  * SVG attributes directly - no React render per frame.
  */
 function paintFrame(
   t: number,
-  blur: SVGFEGaussianBlurElement,
+  goo: GooFilterNodes,
   stages: StageNode[],
   anims: AnimatedNode[]
 ): void {
@@ -412,7 +416,12 @@ function paintFrame(
     1 - smooth(T_OUTRO_START, T_OUTRO_END, t)
   )
   const deviation = round(GOO_LO + (GOO_HI - GOO_LO) * liquid)
-  if (blur.getAttribute('stdDeviation') !== deviation) blur.setAttribute('stdDeviation', deviation)
+  if (goo.blur.getAttribute('stdDeviation') !== deviation) {
+    goo.blur.setAttribute('stdDeviation', deviation)
+  }
+  /** Resting vectors retain native antialiasing; only the liquid morph needs raster filtering. */
+  const filter = liquid > 0 ? goo.url : 'none'
+  if (goo.group.getAttribute('filter') !== filter) goo.group.setAttribute('filter', filter)
 }
 
 interface FooterWordmarkLoopProps {
@@ -454,7 +463,9 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
     const svg = svgRef.current
     if (!svg) return
     const blur = svg.querySelector<SVGFEGaussianBlurElement>('[data-goo]')
-    if (!blur) return
+    const group = svg.querySelector<SVGGElement>('[data-goo-group]')
+    if (!blur || !group) return
+    const goo: GooFilterNodes = { blur, group, url: `url(#${gooId})` }
 
     const stages: StageNode[] = Array.from(
       svg.querySelectorAll<SVGGElement>('[data-stage]'),
@@ -475,7 +486,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
     const tick = (now: number) => {
       if (previous !== null) elapsed += Math.min(now - previous, MAX_FRAME_STEP)
       previous = now
-      paintFrame(elapsed % CYCLE_MS, blur, stages, anims)
+      paintFrame(elapsed % CYCLE_MS, goo, stages, anims)
       frame = requestAnimationFrame(tick)
     }
     const play = () => {
@@ -492,7 +503,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
       if (reducedMotion?.matches) {
         pause()
         elapsed = 0
-        paintFrame(0, blur, stages, anims)
+        paintFrame(0, goo, stages, anims)
       } else {
         play()
       }
@@ -517,7 +528,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
       observer?.disconnect()
       reducedMotion?.removeEventListener('change', onMotionPreference)
     }
-  }, [])
+  }, [gooId])
 
   return (
     <div className={cn('relative mx-auto aspect-[5/3] w-[clamp(180px,17vw,320px)]', className)}>
@@ -545,11 +556,6 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
               values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -19'
               result='goo'
             />
-            {/* The threshold discards the rasterizer's edge coverage, so at the
-                resting blur the wordmark's edge fell inside a device pixel and
-                stair-stepped at the largest size. A sub-pixel blur after it
-                restores ordinary anti-aliasing without touching the melt. */}
-            <feGaussianBlur in='goo' stdDeviation={EDGE_SMOOTHING} />
           </filter>
           <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
             <stop style={INK_STOP_INNER} />
@@ -575,7 +581,8 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
         </defs>
 
         <g
-          filter={`url(#${gooId})`}
+          data-goo-group=''
+          filter='none'
           fill={`url(#${inkId})`}
           stroke={`url(#${inkId})`}
           strokeWidth={0}
