@@ -9,8 +9,10 @@ import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/fi
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
 import {
   extractImageFiles,
-  needsImageFileFallback,
+  getImageFileFallback,
+  type ImageFileFallback,
   normalizePastedImageSources,
+  resolveImageFileFallback,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 import {
   beginImageUploads,
@@ -181,7 +183,7 @@ function LoadedRichMarkdownField({
    * Reuse the file editor's mapped anchors without adding upload chrome to embedded fields.
    * A streamed replacement invalidates the batch even if editing resumes before upload completes.
    */
-  async function insertImages(images: File[], range: Range) {
+  async function insertImages(images: File[], range: Range, fallback?: ImageFileFallback | null) {
     const upload = uploadImageRef.current
     const owner = editorInstanceRef.current
     if (!upload || !owner || owner.isDestroyed || !owner.isEditable) return
@@ -203,7 +205,14 @@ function LoadedRichMarkdownField({
         if (!anchor || findImageUpload(owner, anchor) === null) continue
         const result = await upload(image).catch(() => null)
         if (!canInsert()) break
-        if (result) finishImageUpload(owner, anchor, result.url, result.alt)
+        if (result)
+          finishImageUpload(
+            owner,
+            anchor,
+            result.url,
+            result.alt,
+            fallback ? resolveImageFileFallback(fallback, result.url) : undefined
+          )
         else removeImageUpload(owner, anchor)
       }
     } finally {
@@ -269,12 +278,10 @@ function LoadedRichMarkdownField({
         if (currentEditor && isPlainTextPaste(currentEditor)) return false
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
         const clipboardHtml = event.clipboardData?.getData('text/html') ?? ''
-        if (
-          images.length > 0 &&
-          (!clipboardHtml || !slice.content.size || needsImageFileFallback(slice, images))
-        ) {
+        const fallback = getImageFileFallback(slice, images)
+        if (images.length > 0 && (!clipboardHtml || !slice.content.size || fallback)) {
           event.preventDefault()
-          void insertImages(images, view.state.selection)
+          void insertImages(images, view.state.selection, fallback)
           return true
         }
         const handler = onPasteTextRef.current
@@ -287,7 +294,7 @@ function LoadedRichMarkdownField({
         if (!view.editable) return false
         const html = event.dataTransfer?.getData('text/html') ?? ''
         const images = uploadImageRef.current ? extractImageFiles(event.dataTransfer) : []
-        const uploadFallback = needsImageFileFallback(slice, images)
+        const uploadFallback = getImageFileFallback(slice, images)
         if (!uploadFallback && moveDraggedImageNode(view, event, slice, moved)) return true
         if (html && slice.content.size > 0 && !uploadFallback) return false
         if (event.dataTransfer?.files.length) {
@@ -295,7 +302,7 @@ function LoadedRichMarkdownField({
           if (images.length > 0) {
             const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
             const at = dropPos ?? view.state.selection.from
-            void insertImages(images, { from: at, to: at })
+            void insertImages(images, { from: at, to: at }, uploadFallback)
           }
           return true
         }

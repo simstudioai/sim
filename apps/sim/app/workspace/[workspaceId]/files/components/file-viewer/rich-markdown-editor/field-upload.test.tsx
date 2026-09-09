@@ -82,6 +82,51 @@ async function submit(
 }
 
 describe('field upload completion boundary', () => {
+  it.each(['paste', 'drop'] as const)(
+    '%s uploads a non-portable image without losing its accompanying fragment',
+    async (method) => {
+      const pending = Promise.withResolvers<{ url: string; alt: string }>()
+      upload.mockReturnValueOnce(pending.promise)
+      await render()
+      const owner = editor()
+      const before = owner.getJSON()
+      await act(async () => owner.commands.setTextSelection({ from: 8, to: 14 }))
+      if (method === 'drop')
+        vi.spyOn(owner.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      const html =
+        '<p>Lead</p><h2>Caption</h2><p><a href="/destination"><img src="/api/workspaces/source/files/inline?fileId=image" alt="Original alt" width="123"></a><strong>Tail</strong><img src="/other.png" alt="Other"></p>'
+      const event = new MouseEvent(method, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
+        value: {
+          files: [new File(['image'], 'image.png', { type: 'image/png' })],
+          items: [],
+          types: ['Files', 'text/html'],
+          getData: (type: string) => (type === 'text/html' ? html : ''),
+        },
+      })
+      await act(async () => owner.view.dom.dispatchEvent(event))
+      expect(upload).toHaveBeenCalledOnce()
+      expect(owner.getJSON()).toEqual(before)
+      await act(async () => owner.commands.insertContentAt(1, 'prefix '))
+      await act(async () => pending.resolve({ url: '/api/files/view/uploaded', alt: 'New alt' }))
+      expect(owner.state.doc.textContent).toBe(
+        method === 'paste'
+          ? 'prefix before LeadCaptionTail after'
+          : 'prefix before LeadCaptionTailTARGET after'
+      )
+      expect(host.querySelector('h2')?.textContent).toBe('Caption')
+      expect(host.querySelector('strong')?.textContent).toBe('Tail')
+      expect(host.querySelector('a')?.getAttribute('href')).toBe('/destination')
+      expect(
+        Array.from(host.querySelectorAll('img')).map((image) => image.getAttribute('src'))
+      ).toEqual(['/api/files/view/uploaded', '/other.png'])
+      expect(host.querySelector('img')?.getAttribute('alt')).toBe('Original alt')
+      expect(owner.getMarkdown()).toContain('width="123"')
+      expect(owner.getMarkdown()).not.toContain('/inline?')
+      expect(() => owner.state.doc.check()).not.toThrow()
+    }
+  )
+
   it('replaces the selected range only after a pasted image finishes uploading', async () => {
     const pending = Promise.withResolvers<{ url: string; alt: string }>()
     upload.mockReturnValueOnce(pending.promise)

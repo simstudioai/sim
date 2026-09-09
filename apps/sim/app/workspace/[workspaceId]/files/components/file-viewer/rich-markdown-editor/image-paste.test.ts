@@ -7,7 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
 import {
   extractImageFiles,
+  getImageFileFallback,
   normalizePastedImageSources,
+  resolveImageFileFallback,
   toSameOriginPath,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 
@@ -97,6 +99,42 @@ describe('normalizePastedImageSources', () => {
       editor.destroy()
     }
   }
+
+  it.each([
+    'blob:https://editor.example/temporary-image',
+    '/api/workspaces/source/files/inline?fileId=image',
+    '/api/files/public/share/inline?fileId=image',
+  ])('resolves a bitmap for repeated non-portable images inside a complete fragment: %s', (src) => {
+    withEditor((editor, parse) => {
+      const html = (source: string) =>
+        `<h2>Heading <img src="${source}" width="120" alt="First"></h2><p><a href="/destination"><img src="${source}" width="240" alt="Second"></a>Caption<img src="/other.png"></p>`
+      const slice = parse(html(src))
+      const fallback = getImageFileFallback(slice, [imageFile()])
+      expect(fallback).not.toBeNull()
+      expect(fallback?.source).toBe(src)
+      expect(
+        resolveImageFileFallback(fallback!, '/api/files/view/uploaded').eq(
+          parse(html('/api/files/view/uploaded'))
+        )
+      ).toBe(true)
+      expect(editor.state.doc.textContent).toContain('Existing')
+    })
+  })
+
+  it('does not associate bitmap bytes with an ambiguous source or file ordering', () => {
+    withEditor((_editor, parse) => {
+      const twoSources = parse(
+        '<p><img src="blob:https://editor.example/a"><img src="blob:https://editor.example/b"></p>'
+      )
+      expect(getImageFileFallback(twoSources, [imageFile()])).toBeNull()
+      expect(
+        getImageFileFallback(twoSources, [imageFile('one.png'), imageFile('two.png')])
+      ).toBeNull()
+      expect(
+        getImageFileFallback(parse('<p>Caption<img src="/portable.png"></p>'), [imageFile()])
+      ).toBeNull()
+    })
+  })
 
   it('preserves the full fragment, image attributes, links and open boundaries', () => {
     withEditor((editor, parse) => {

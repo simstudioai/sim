@@ -2,7 +2,8 @@
 import { Editor } from '@tiptap/core'
 import Collaboration from '@tiptap/extension-collaboration'
 import { undoDepth } from '@tiptap/pm/history'
-import { afterEach, describe, expect, it } from 'vitest'
+import { DOMParser } from '@tiptap/pm/model'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
@@ -13,6 +14,7 @@ import {
   ImageUploadPlaceholders,
   removeImageUpload,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
+import { createRichMarkdownPasteAdmission } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 
 let editor: Editor
 afterEach(() => editor?.destroy())
@@ -26,6 +28,33 @@ function mount(content = '<p>abcd</p>') {
 }
 
 describe('image upload anchors', () => {
+  it('rechecks the paste budget when an uploaded fragment completes after intervening edits', () => {
+    const rejected = vi.fn()
+    editor = new Editor({
+      extensions: [
+        ...createMarkdownContentExtensions(),
+        ImageUploadPlaceholders,
+        createRichMarkdownPasteAdmission({
+          maxResultBytes: 100,
+          maxResultCharacters: 100,
+          getCurrentText: () => editor.getMarkdown(),
+          onRejected: rejected,
+        }),
+      ],
+      content: '<p>Seed</p>',
+    })
+    const [id] = beginImageUploads(editor, { from: 5, to: 5 }, ['image'])
+    editor.commands.insertContentAt(1, 'x'.repeat(70))
+    const before = editor.getJSON()
+    const container = document.createElement('div')
+    container.innerHTML = '<p>Pasted caption <img src="/new.png"></p>'
+    const fragment = DOMParser.fromSchema(editor.schema).parseSlice(container)
+    expect(finishImageUpload(editor, id, '/new.png', 'image', fragment)).toBe(false)
+    expect(rejected).toHaveBeenCalledWith('paste')
+    expect(editor.getJSON()).toEqual(before)
+    expect(findImageUpload(editor, id)).toBeNull()
+  })
+
   it.each([false, true])(
     'safely cancels an anchor replaced by a peer update (unrelated paragraph=%s)',
     (unrelated) => {

@@ -233,9 +233,14 @@ afterEach(async () => {
 })
 
 describe('loaded rich editor lifecycle', () => {
-  it.each(['paste', 'drop'] as const)(
-    '%s uploads a standalone display-only image from another document',
-    async (method) => {
+  it.each([
+    { method: 'paste', caption: false },
+    { method: 'drop', caption: false },
+    { method: 'paste', caption: true },
+    { method: 'drop', caption: true },
+  ] as const)(
+    '$method uploads a display-only image from another document (caption: $caption)',
+    async ({ method, caption }) => {
       await render('before TARGET after')
       const editor = getEditor()
       await act(async () => editor.commands.setTextSelection({ from: 8, to: 14 }))
@@ -243,7 +248,8 @@ describe('loaded rich editor lifecycle', () => {
         vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
       const src = '/api/workspaces/another-workspace/files/inline?fileId=another-image'
       const image = new File(['image'], 'image.png', { type: 'image/png' })
-      const html = `<img src="${window.location.origin}${src}">`
+      const img = `<img src="${window.location.origin}${src}" alt="Original" width="140">`
+      const html = caption ? `<p>Caption<a href="/destination">${img}</a></p><p>Tail</p>` : img
       uploadFile.mockResolvedValueOnce({ file: { url: '/api/files/view/uploaded-image' } })
       const event = new MouseEvent(method, { bubbles: true, cancelable: true })
       Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
@@ -263,11 +269,19 @@ describe('loaded rich editor lifecycle', () => {
       })
       expect(editor.getMarkdown()).toContain('/api/files/view/uploaded-image')
       expect(editor.getMarkdown()).not.toContain('/inline?')
-      const storedSrc = editor.getJSON().content?.find((node) => node.type === 'image')?.attrs?.src
+      let storedSrc = ''
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'image' || node.type.name === 'inlineImage')
+          storedSrc = node.attrs.src
+      })
       expect(extractEmbeddedFileRef(storedSrc)).toEqual({ fileId: 'uploaded-image' })
       expect(editor.state.doc.textContent).toBe(
-        method === 'paste' ? 'before  after' : 'before TARGET after'
+        `before ${caption ? 'CaptionTail' : ''}${method === 'paste' ? '' : 'TARGET'} after`
       )
+      expect(editor.view.dom.querySelector('img')?.getAttribute('alt')).toBe('Original')
+      expect(editor.getMarkdown()).toContain('width="140"')
+      if (caption)
+        expect(editor.view.dom.querySelector('a')?.getAttribute('href')).toBe('/destination')
     }
   )
 

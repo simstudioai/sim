@@ -17,14 +17,14 @@ function runtimeOrigin(): string {
   return typeof window === 'undefined' ? '' : window.location.origin
 }
 
-/** A native image copy can carry bytes for a display URL that cannot survive sharing or reload. */
-export function needsImageFileFallback(slice: Slice, files: readonly File[]): boolean {
-  if (files.length !== 1 || slice.content.childCount !== 1) return false
-  let node = slice.content.firstChild!
-  if (node.type.name === 'paragraph' && node.childCount === 1) node = node.firstChild!
-  if (!isImageNode(node) || typeof node.attrs.src !== 'string') return false
+export interface ImageFileFallback {
+  slice: Slice
+  source: string
+}
+
+function isNonPortableImageSource(src: string): boolean {
   try {
-    const url = new URL(node.attrs.src, runtimeOrigin() || 'http://placeholder')
+    const url = new URL(src, runtimeOrigin() || 'http://placeholder')
     return (
       url.protocol === 'blob:' ||
       /^\/api\/(?:workspaces\/[^/]+\/files|files\/public\/[^/]+)\/inline$/.test(url.pathname)
@@ -32,6 +32,30 @@ export function needsImageFileFallback(slice: Slice, files: readonly File[]): bo
   } catch {
     return false
   }
+}
+
+/** Associate a single attached bitmap with its source, without guessing a multi-file ordering. */
+export function getImageFileFallback(
+  slice: Slice,
+  files: readonly File[]
+): ImageFileFallback | null {
+  if (files.length !== 1) return null
+  const sources = new Set<string>()
+  slice.content.descendants((node) => {
+    if (
+      isImageNode(node) &&
+      typeof node.attrs.src === 'string' &&
+      isNonPortableImageSource(node.attrs.src)
+    ) {
+      sources.add(node.attrs.src)
+    }
+  })
+  return sources.size === 1 ? { slice, source: sources.values().next().value! } : null
+}
+
+/** Replace the uploaded image's source while retaining the original fragment and node attributes. */
+export function resolveImageFileFallback(fallback: ImageFileFallback, uploadedSrc: string): Slice {
+  return mapImageSources(fallback.slice, (src) => (src === fallback.source ? uploadedSrc : src))
 }
 
 /** Normalize native clipboard URLs against the actual page origin, never another host. */
@@ -70,14 +94,20 @@ export function normalizePastedImageSources(
     const path = toSameOriginPath(resolved, origin)
     if (path) sources.set(path, node.attrs.src)
   })
+  return mapImageSources(slice, (source) => {
+    const path = toSameOriginPath(source, origin)
+    return (path && (sources.get(path) ?? (extractEmbeddedFileRef(path) ? path : null))) || source
+  })
+}
+
+function mapImageSources(slice: Slice, map: (src: string) => string): Slice {
   let changed = false
   const normalize = (fragment: Fragment): Fragment => {
     const children: Node[] = []
     fragment.forEach((node) => {
       if (isImageNode(node) && typeof node.attrs.src === 'string') {
-        const path = toSameOriginPath(node.attrs.src, origin)
-        const src = path && (sources.get(path) ?? (extractEmbeddedFileRef(path) ? path : null))
-        if (src && src !== node.attrs.src) {
+        const src = map(node.attrs.src)
+        if (src !== node.attrs.src) {
           changed = true
           children.push(node.type.create({ ...node.attrs, src }, node.content, node.marks))
         } else children.push(node)

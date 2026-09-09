@@ -47,8 +47,10 @@ import { findHeadingPos } from '@/app/workspace/[workspaceId]/files/components/f
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
 import {
   extractImageFiles,
-  needsImageFileFallback,
+  getImageFileFallback,
+  type ImageFileFallback,
   normalizePastedImageSources,
+  resolveImageFileFallback,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 import {
   beginImageUploads,
@@ -593,10 +595,14 @@ export function LoadedRichMarkdownEditor({
    * Uploads are sequential; every position is anchored before awaiting so queued images also follow
    * edits. Capture the editor instance, never a later file's editor, for completion and teardown.
    */
-  const insertImagesRef = useRef<(images: File[], range: Range) => Promise<void>>(() =>
-    Promise.resolve()
-  )
-  const insertImages = async (images: File[], range: Range) => {
+  const insertImagesRef = useRef<
+    (images: File[], range: Range, fallback?: ImageFileFallback | null) => Promise<void>
+  >(() => Promise.resolve())
+  const insertImages = async (
+    images: File[],
+    range: Range,
+    fallback?: ImageFileFallback | null
+  ) => {
     const editor = editorInstanceRef.current
     if (!editor) return
     const anchors = beginImageUploads(
@@ -618,7 +624,13 @@ export function LoadedRichMarkdownEditor({
         .catch(() => null)
       toast.dismiss(uploadingToastId)
       if (result) {
-        const inserted = finishImageUpload(editor, anchor, result.file.url, image.name)
+        const inserted = finishImageUpload(
+          editor,
+          anchor,
+          result.file.url,
+          image.name,
+          fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
+        )
         if (!inserted && !editor.isDestroyed) {
           toast.info('The image was uploaded to the workspace but was not inserted.')
         }
@@ -733,24 +745,25 @@ export function LoadedRichMarkdownEditor({
         if (currentEditor && isPlainTextPaste(currentEditor)) return false
         const html = event.clipboardData?.getData('text/html') ?? ''
         const images = extractImageFiles(event.clipboardData)
-        if (html && slice.content.size > 0 && !needsImageFileFallback(slice, images)) return false
+        const fallback = getImageFileFallback(slice, images)
+        if (html && slice.content.size > 0 && !fallback) return false
         if (images.length === 0) return false
         event.preventDefault()
-        void insertImagesRef.current(images, view.state.selection)
+        void insertImagesRef.current(images, view.state.selection, fallback)
         return true
       },
       handleDrop: (view, event, slice, moved) => {
         if (!view.editable) return false
         const html = event.dataTransfer?.getData('text/html') ?? ''
         const images = extractImageFiles(event.dataTransfer)
-        const uploadFallback = needsImageFileFallback(slice, images)
+        const uploadFallback = getImageFileFallback(slice, images)
         if (!uploadFallback && moveDraggedImageNode(view, event, slice, moved)) return true
         if (html && slice.content.size > 0 && !uploadFallback) return false
         if (images.length > 0) {
           event.preventDefault()
           const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
           const at = dropPos ?? view.state.selection.from
-          void insertImagesRef.current(images, { from: at, to: at })
+          void insertImagesRef.current(images, { from: at, to: at }, uploadFallback)
           return true
         }
         if (event.dataTransfer?.files.length) {
