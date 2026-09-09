@@ -128,7 +128,10 @@ export function ChatsSection({
 }: ChatsSectionProps) {
   const actions = useOrganizationChatActions({ organizationId, chats })
   const { menu, hover, rename, selectedChat } = actions
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [requestedCount, setRequestedCount] = useState(PAGE_SIZE)
+  const minimumCount = Math.max(PAGE_SIZE, chats.findIndex((chat) => chat.href === pathname) + 1)
+  const visibleCount = Math.min(chats.length, Math.max(requestedCount, minimumCount))
+  const hasMore = chats.length > visibleCount
   const menuOpenChatId = menu.isOpen ? selectedChat?.id : null
   const saveRename = () => {
     void rename.saveRename()
@@ -217,16 +220,14 @@ export function ChatsSection({
                       />
                     )
                   )}
-                {chats.length > PAGE_SIZE && (
+                {(hasMore || visibleCount > minimumCount) && (
                   <Chip
                     fullWidth
                     onClick={() =>
-                      setVisibleCount(
-                        chats.length > visibleCount ? visibleCount + PAGE_SIZE : PAGE_SIZE
-                      )
+                      setRequestedCount(hasMore ? visibleCount + PAGE_SIZE : PAGE_SIZE)
                     }
                   >
-                    {chats.length > visibleCount ? 'See more' : 'See less'}
+                    {hasMore ? 'See more' : 'See less'}
                   </Chip>
                 )}
               </>
