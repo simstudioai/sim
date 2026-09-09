@@ -48,7 +48,7 @@ export function FactValue({ fact, label, tone = 'default', wrap = false }: FactV
   const valueNode = glance ?? (
     <span
       className={cn(
-        'block min-w-0 text-[var(--text-body)] text-small',
+        'block min-w-0 text-[var(--text-body)] text-sm',
         wrap ? 'whitespace-normal break-words leading-relaxed' : 'truncate',
         tone === 'inverse-desktop' && 'lg:text-white'
       )}

@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({
+  Badge: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
   TableOfContents: () => null,
 }))

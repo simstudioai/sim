@@ -8,7 +8,8 @@ regression. This decision concerns the transient pinch-scroll symptom, not every
 possible sticky-header or border defect.
 
 - Native CSS `position: sticky` owns header and category movement. Category rails
-  end at the next category so labels push one another upward. The navigation
+  overlap the next category by one header height so incoming labels cover outgoing
+  labels in DOM order, with every rail bounded by the table bottom. The navigation
   hook measures layout on resize; its scroll handler only tracks the active TOC
   section. Keep positioning writes out of the scroll handler.
 - Preserve native `border-t` pseudo-elements on the header and category labels.
