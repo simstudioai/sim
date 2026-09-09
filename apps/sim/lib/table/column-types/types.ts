@@ -20,7 +20,6 @@
  */
 
 import type React from 'react'
-import type { NormalizeDateCellOptions } from '@/lib/table/dates'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 /**
@@ -50,6 +49,8 @@ export type ColumnCellEditor =
   | 'text'
   /** Calendar + time picker. */
   | 'date'
+  /** Calendar + time picker using literal UTC fields, independent of viewer settings. */
+  | 'utc-date'
   /** Option dropdown. */
   | 'select'
   /** Not editable inline — the grid toggles it in place instead. */
@@ -161,17 +162,13 @@ export interface ColumnTypeDefinition {
    * implementation — the server calls it before persisting and the grid calls
    * it to fill the optimistic cache, so the two can no longer disagree.
    */
-  coerce(
-    value: JsonValue,
-    column: ColumnDefinition,
-    context?: NormalizeDateCellOptions
-  ): CoerceResult
-
-  /** Source-owned normalization applied before checking or rewriting a type conversion. */
-  valueForConversion?(value: JsonValue, target: ColumnDefinition): JsonValue
+  coerce(value: JsonValue, column: ColumnDefinition): CoerceResult
 
   /** Validates a stored cell's shape. Returns an error message, or null when valid. */
   validateCell(value: JsonValue, column: ColumnDefinition): string | null
+
+  /** Optional strict validation for non-null equality, membership, and range operands. */
+  validateFilterValue?(value: JsonValue, column: ColumnDefinition): string | null
 
   /**
    * Validates this type's own column metadata (a `select`'s options, a
@@ -214,11 +211,7 @@ export interface ColumnTypeDefinition {
   formatForDisplay(value: unknown, column: ColumnDefinition): string
 
   /** Stored value → the text an editor input starts with. */
-  formatForInput(
-    value: unknown,
-    column: ColumnDefinition,
-    context?: NormalizeDateCellOptions
-  ): string
+  formatForInput(value: unknown, column: ColumnDefinition): string
 
   /**
    * Metadata stamped onto a newly created column of this type, so the schema

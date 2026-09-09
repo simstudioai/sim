@@ -364,7 +364,7 @@ function validateComparisonValue(
         `Range operator on column "${label}" (date) requires a date string, got ${typeof value}`
       )
     }
-    if (normalizeDateCellValue(value) === null) {
+    if (!columnTypeById(columnType).coerce(value, { name: label, type: columnType ?? 'date' }).ok) {
       throw new TableQueryValidationError(
         `Range operator on column "${label}" (date) requires a parseable date string, got "${truncate(value, 64)}"`
       )
@@ -560,6 +560,18 @@ export function fieldPredicate(
   }
 
   const columnType = column?.type
+  const validateFilterValue = column && columnTypeOf(column).validateFilterValue
+  if (
+    column &&
+    validateFilterValue &&
+    ['eq', 'ne', 'in', 'nin', 'gt', 'gte', 'lt', 'lte'].includes(op)
+  ) {
+    for (const operand of Array.isArray(value) ? value : [value]) {
+      if (operand === null) continue
+      const error = validateFilterValue(operand as JsonValue, column)
+      if (error) throw new TableQueryValidationError(error)
+    }
+  }
   // Messages must name what the CALLER sent. `field` is the storage key by the
   // time it reaches here (the boundaries translate name → id before building
   // SQL), so a raw `field` reports a `col_…` the caller never supplied.

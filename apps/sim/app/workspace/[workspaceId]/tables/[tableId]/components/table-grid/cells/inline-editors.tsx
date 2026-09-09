@@ -17,6 +17,7 @@ import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
+import { ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
@@ -120,11 +121,14 @@ function ReadyInlineDateEditor({
   const editTimeZoneRef = useRef(initialTimeZone)
   const timeZone = editTimeZoneRef.current
 
-  const storedValue = formatValueForInput(value, column.type, timeZone)
+  const isUtc = columnTypeOf(column).editor === 'utc-date'
+  const storedValue = formatValueForInput(value, column.type)
   const initialDraft =
     initialCharacter !== undefined
       ? initialCharacter
-      : storageToDisplay(storedValue, { seconds: true })
+      : isUtc
+        ? storedValue
+        : storageToDisplay(storedValue, { seconds: true })
   const [draft, setDraft] = useState(initialDraft)
   const [invalid, setInvalid] = useState(false)
   /** Picker commits mutate the draft from timeouts/child handlers; reading it
@@ -132,9 +136,10 @@ function ReadyInlineDateEditor({
   const draftRef = useRef(draft)
   draftRef.current = draft
 
-  /** The calendar works on wall times; feed it the draft's literal wall
-   *  representation. */
-  const draftParts = dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
+  /** Expiration pickers use UTC; Date pickers preserve the stored wall time. */
+  const draftParts = isUtc
+    ? ttlValueToPickerParts(draft)
+    : dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
   const pickerValue = draftParts.day
     ? draftParts.time
       ? `${draftParts.day}T${draftParts.time}`
@@ -160,19 +165,11 @@ function ReadyInlineDateEditor({
       if (doneRef.current) return
       clearTimeout(blurTimeoutRef.current)
       const current = draftRef.current
-      // Untouched draft → re-save the stored value byte-identical. Re-parsing
-      // the display form would re-stamp the offset with THIS viewer's zone,
-      // silently shifting the instant of a value someone else wrote.
+      /** Preserve Date cells' stored offsets instead of reinterpreting their
+       * display text in the viewer's timezone. */
       if (storageVal === undefined && initialCharacter === undefined && current === initialDraft) {
         doneRef.current = true
-        onSave(
-          column.type === 'ttl'
-            ? (value ?? null)
-            : storedValue
-              ? cleanCellValue(storedValue, column, timeZone)
-              : null,
-          reason
-        )
+        onSave(storedValue ? cleanCellValue(storedValue, column, timeZone) : null, reason)
         return
       }
       const raw = dateEditorRawValue(current, column, timeZone, storageVal)
@@ -193,17 +190,7 @@ function ReadyInlineDateEditor({
       doneRef.current = true
       onSave(cleaned, reason)
     },
-    [
-      invalid,
-      onSave,
-      onCancel,
-      timeZone,
-      initialDraft,
-      initialCharacter,
-      storedValue,
-      column,
-      value,
-    ]
+    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue, column]
   )
 
   const handleKeyDown = useCallback(
@@ -249,21 +236,25 @@ function ReadyInlineDateEditor({
    * immediately) or a local `YYYY-MM-DDTHH:mm[:ss]` wall time (update the
    * draft and keep editing).
    */
-  const handlePickerChange = useCallback(
-    (picked: string) => {
-      clearTimeout(blurTimeoutRef.current)
-      if (isCalendarDateString(picked)) {
-        doSave('enter', picked)
-        return
-      }
-      const canonical = displayToStorage(picked, timeZone)
-      if (!canonical) return
-      setDraft(storageToDisplay(canonical, { seconds: true }))
+  const handlePickerChange = (picked: string) => {
+    clearTimeout(blurTimeoutRef.current)
+    if (isCalendarDateString(picked)) {
+      doSave('enter', isUtc ? ttlValueFromPicker(picked, null) : picked)
+      return
+    }
+    if (isUtc) {
+      const [day, time] = picked.split('T')
+      setDraft(ttlValueFromPicker(day, time ?? null))
       setInvalid(false)
       inputRef.current?.focus()
-    },
-    [doSave, timeZone]
-  )
+      return
+    }
+    const canonical = displayToStorage(picked, timeZone)
+    if (!canonical) return
+    setDraft(storageToDisplay(canonical, { seconds: true }))
+    setInvalid(false)
+    inputRef.current?.focus()
+  }
 
   const handlePickerOpenChange = useCallback((open: boolean) => {
     if (!open && !doneRef.current) {
@@ -284,7 +275,7 @@ function ReadyInlineDateEditor({
         }}
         onKeyDown={handleKeyDown}
         onBlur={scheduleBlurSave}
-        placeholder='mm/dd/yyyy'
+        placeholder={isUtc ? 'YYYY-MM-DDTHH:mm:ss±HH:mm' : 'mm/dd/yyyy'}
         className={cn(
           'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden',
           invalid && 'text-[var(--text-error)]'
@@ -304,6 +295,7 @@ function ReadyInlineDateEditor({
             value={pickerValue}
             onChange={handlePickerChange}
             showTime
+            timeLabel={isUtc ? 'Time (UTC)' : undefined}
             today={todayLocalCalendarDate(timeZone)}
           />
         </PopoverContent>
@@ -503,6 +495,8 @@ export function InlineEditor(props: InlineEditorProps) {
   switch (columnTypeOf(props.column).editor) {
     case 'date':
       return <InlineDateEditor {...props} />
+    case 'utc-date':
+      return <ReadyInlineDateEditor {...props} initialTimeZone='UTC' />
     case 'select':
       return <InlineSelectEditor {...props} />
     // `toggle` types never open an editor — the grid flips them in place — so

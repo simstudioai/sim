@@ -94,16 +94,6 @@ export function isValueCompatible(value: unknown, target: ColumnDefinition): boo
   return definition.coerce(value as JsonValue, target).ok
 }
 
-/** Applies source-owned normalization before a value is converted to another type. */
-export function valueForTypeConversion(
-  value: JsonValue,
-  source: ColumnDefinition,
-  target: ColumnDefinition
-): JsonValue {
-  const normalized = columnTypeOf(source).valueForConversion?.(value, target)
-  return normalized === undefined ? value : normalized
-}
-
 /** This type's own metadata errors; types carrying no metadata report none. */
 export function validateTypeMetadata(column: ColumnDefinition): string[] {
   return columnTypeOf(column).validateDefinition?.(column) ?? []
