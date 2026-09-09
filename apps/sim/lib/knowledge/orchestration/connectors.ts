@@ -14,13 +14,11 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   hasWorkspaceLiveSyncAccess,
   isOrganizationOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
 import {
-  applyStorageUsageDeltasInTx,
   incrementStorageUsageForBillingContextInTx,
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
@@ -1099,10 +1097,6 @@ export async function performDeleteKnowledgeConnector(
       !deleteDocuments && owner.workspaceId
         ? await resolveStorageBillingContext(owner.workspaceId)
         : undefined
-    const legacySubscription =
-      !deleteDocuments && !owner.workspaceId && !owner.organizationId
-        ? await getHighestPrioritySubscription(owner.userId)
-        : null
 
     docCount = await db.transaction(async (tx) => {
       /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
@@ -1219,17 +1213,6 @@ export async function performDeleteKnowledgeConnector(
             )
             if (updatedUsage !== undefined)
               storageNotification = { context: storageContext, updatedUsage }
-          } else if (!owner.organizationId) {
-            await applyStorageUsageDeltasInTx(tx, {
-              workspaceDeltas: [],
-              legacyDeltas: [
-                {
-                  userId: owner.userId,
-                  subscription: legacySubscription,
-                  deltaBytes: retainedBytes,
-                },
-              ],
-            })
           }
         }
         await tx

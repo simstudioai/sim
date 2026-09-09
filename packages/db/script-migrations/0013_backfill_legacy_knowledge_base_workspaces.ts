@@ -23,6 +23,11 @@ export interface LegacyKnowledgeBaseWorkspaceStore {
   moveCandidate(id: string): Promise<LegacyKnowledgeBaseMoveOutcome>
 }
 
+/** The follow-up ownership repair includes archived KBs without restoring them. */
+interface LegacyKnowledgeBaseWorkspaceOptions {
+  includeArchived?: boolean
+}
+
 interface BackfillOptions {
   batchSize?: number
   maxBatches?: number
@@ -95,19 +100,21 @@ function legacyPayerId(sql: MigrationSql, userId: string | Fragment): Fragment {
  */
 export async function selectLegacyKnowledgeBaseWorkspace(
   sql: MigrationSql,
-  knowledgeBaseId: string
+  knowledgeBaseId: string,
+  options: LegacyKnowledgeBaseWorkspaceOptions = {}
 ) {
   const [destination] = await sql<Array<{ workspace_id: string; has_reference: boolean }>>`
     WITH kb AS MATERIALIZED (
-      SELECT id, user_id FROM knowledge_base
+      SELECT id, user_id, deleted_at FROM knowledge_base
       WHERE id = ${knowledgeBaseId} AND workspace_id IS NULL AND organization_id IS NULL
-        AND deleted_at IS NULL AND NOT is_search_index
+        AND (${options.includeArchived ?? false} OR deleted_at IS NULL) AND NOT is_search_index
     ), candidates AS MATERIALIZED (
-      SELECT w.id, w.created_at, s.last_active_workspace_id = w.id AS last_selected
+      SELECT w.id, w.created_at, w.archived_at, s.last_active_workspace_id = w.id AS last_selected
       FROM kb
       JOIN permissions p ON p.user_id = kb.user_id AND p.entity_type = 'workspace'
         AND p.permission_type IN ('write', 'admin')
-      JOIN workspace w ON w.id = p.entity_id AND w.archived_at IS NULL
+      JOIN workspace w ON w.id = p.entity_id
+        AND (w.archived_at IS NULL OR (${options.includeArchived ?? false} AND kb.deleted_at IS NOT NULL))
       LEFT JOIN settings s ON s.user_id = kb.user_id
     ), activity AS (
       SELECT c.*, a.total_runs, a.last_run_at, a.referring_runs, a.referring_last_run_at, a.has_reference
@@ -135,7 +142,7 @@ export async function selectLegacyKnowledgeBaseWorkspace(
       ) a
     )
     SELECT id AS workspace_id, has_reference FROM activity
-    ORDER BY has_reference DESC, referring_runs DESC, referring_last_run_at DESC NULLS LAST,
+    ORDER BY (archived_at IS NULL) DESC, has_reference DESC, referring_runs DESC, referring_last_run_at DESC NULLS LAST,
       total_runs DESC, last_run_at DESC NULLS LAST, last_selected DESC NULLS LAST, created_at, id
     LIMIT 1
   `
@@ -181,22 +188,24 @@ async function reconcilePayer(tx: TransactionSql, kind: 'user' | 'organization',
 /** Uses the same KB → workspace → user payer → organization payer lock order as live moves. */
 async function moveKnowledgeBase(
   tx: TransactionSql,
-  knowledgeBaseId: string
+  knowledgeBaseId: string,
+  options: LegacyKnowledgeBaseWorkspaceOptions
 ): Promise<LegacyKnowledgeBaseMoveOutcome> {
-  const [kb] = await tx<Array<{ user_id: string }>>`
-    SELECT user_id FROM knowledge_base
+  const [kb] = await tx<Array<{ user_id: string; deleted_at: Date | null }>>`
+    SELECT user_id, deleted_at FROM knowledge_base
     WHERE id = ${knowledgeBaseId} AND workspace_id IS NULL AND organization_id IS NULL
-      AND deleted_at IS NULL AND NOT is_search_index
+      AND (${options.includeArchived ?? false} OR deleted_at IS NULL) AND NOT is_search_index
     FOR UPDATE
   `
   if (!kb) return 'already_scoped'
-  const destination = await selectLegacyKnowledgeBaseWorkspace(tx, knowledgeBaseId)
+  const destination = await selectLegacyKnowledgeBaseWorkspace(tx, knowledgeBaseId, options)
   if (!destination) return 'no_workspace'
   const [target] = await tx<
     Array<{ id: string; organization_id: string | null; billed_account_user_id: string }>
   >`
     SELECT w.id, w.organization_id, w.billed_account_user_id FROM workspace w
-    WHERE w.id = ${destination.workspace_id} AND w.archived_at IS NULL
+    WHERE w.id = ${destination.workspace_id}
+      AND (w.archived_at IS NULL OR ${Boolean(options.includeArchived && kb.deleted_at)})
       AND EXISTS (SELECT 1 FROM permissions p WHERE p.user_id = ${kb.user_id}
         AND p.entity_type = 'workspace' AND p.entity_id = w.id AND p.permission_type IN ('write', 'admin'))
     FOR NO KEY UPDATE
@@ -256,13 +265,13 @@ async function moveKnowledgeBase(
       WHERE k.id = ${knowledgeBaseId}
     ), chosen AS (
       SELECT name, old_name FROM candidate_names c
-      WHERE NOT EXISTS (SELECT 1 FROM knowledge_base existing
+      WHERE ${kb.deleted_at !== null} OR NOT EXISTS (SELECT 1 FROM knowledge_base existing
         WHERE existing.workspace_id = ${target.id} AND existing.name = c.name AND existing.deleted_at IS NULL)
       ORDER BY attempt LIMIT 1
     )
     UPDATE knowledge_base k SET workspace_id = ${target.id}, folder_id = NULL, name = chosen.name, updated_at = now()
     FROM chosen WHERE k.id = ${knowledgeBaseId} AND k.workspace_id IS NULL AND k.organization_id IS NULL
-      AND k.deleted_at IS NULL AND NOT k.is_search_index
+      AND (${options.includeArchived ?? false} OR k.deleted_at IS NULL) AND NOT k.is_search_index
     RETURNING k.name <> chosen.old_name AS renamed
   `
   if (!moved) throw new Error('KB workspace backfill could not allocate a unique name')
@@ -279,13 +288,15 @@ async function moveKnowledgeBase(
 }
 
 export function createPostgresLegacyKnowledgeBaseWorkspaceStore(
-  sql: Sql
+  sql: Sql,
+  options: LegacyKnowledgeBaseWorkspaceOptions = {}
 ): LegacyKnowledgeBaseWorkspaceStore {
   return {
     async listCandidateIds(afterId, limit) {
       const rows = await sql<Array<{ id: string }>>`
         SELECT id FROM knowledge_base WHERE id > ${afterId}
-          AND workspace_id IS NULL AND organization_id IS NULL AND deleted_at IS NULL AND NOT is_search_index
+          AND workspace_id IS NULL AND organization_id IS NULL
+          AND (${options.includeArchived ?? false} OR deleted_at IS NULL) AND NOT is_search_index
         ORDER BY id LIMIT ${limit}
       `
       return rows.map((row) => row.id)
@@ -293,7 +304,7 @@ export function createPostgresLegacyKnowledgeBaseWorkspaceStore(
     async moveCandidate(id) {
       for (let attempt = 0; ; attempt++) {
         try {
-          return await sql.begin((tx) => moveKnowledgeBase(tx, id))
+          return await sql.begin((tx) => moveKnowledgeBase(tx, id, options))
         } catch (error) {
           if (getPostgresErrorCode(error) !== '23505' || attempt >= MAX_NAME_ATTEMPTS - 1)
             throw error

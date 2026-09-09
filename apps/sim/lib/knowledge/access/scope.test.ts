@@ -143,12 +143,10 @@ describe('resolveKnowledgeAccessScope', () => {
     })
   })
 
-  it('does not query for a legacy personal knowledge base', async () => {
-    await expect(resolveKnowledgeAccessScope(SESSION, {})).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 'ws'],
-    })
+  it('rejects missing ownership before querying document access', async () => {
+    await expect(resolveKnowledgeAccessScope(SESSION, {})).rejects.toThrow(
+      'Resource requires exactly one workspace or organization owner'
+    )
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 

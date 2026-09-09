@@ -64,6 +64,8 @@ import {
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
+import { listKnowledgeBaseCatalog } from '@/lib/knowledge/application/knowledge-bases'
+import { prepareSearchSource } from '@/lib/knowledge/application/sim-search'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
@@ -84,8 +86,9 @@ describe('organization Search MCP with real ingestion and current access', () =>
     groupIds,
   } = ids
   const otherOrganizationId = generateId()
-  const otherKnowledgeBaseId = generateId()
+  const workspaceKnowledgeBaseId = generateId()
   const outsiderId = generateId()
+  const otherAdminId = generateId()
   const bobMembershipId = generateId()
   const tokens = {
     alice: generateId(),
@@ -98,10 +101,16 @@ describe('organization Search MCP with real ingestion and current access', () =>
   const clients: Client[] = []
   const alicePrincipal: Principal = { kind: 'session', userId: aliceId, sessionId: generateId() }
   const bobPrincipal: Principal = { kind: 'session', userId: bobId, sessionId: generateId() }
+  const otherAdminPrincipal: Principal = {
+    kind: 'session',
+    userId: otherAdminId,
+    sessionId: generateId(),
+  }
   const bobSourceMembership = {
     groupId: groupIds[2],
     subjectToken: `u:${bobId}@fixture.test`,
   }
+  let otherKnowledgeBaseId: string
   let documentId: string
   let alice: Client
   let bob: Client
@@ -210,14 +219,16 @@ describe('organization Search MCP with real ingestion and current access', () =>
     })
     fixtures.storageRoot = mkdtempSync(path.join(tmpdir(), 'sim-organization-mcp-integration-'))
     await seedKnowledgeAclFixture(ids)
-    await db.insert(user).values({
-      id: outsiderId,
-      name: 'Other organization fixture',
-      email: `${outsiderId}@fixture.test`,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+    await db.insert(user).values(
+      [outsiderId, otherAdminId].map((id) => ({
+        id,
+        name: 'Other organization fixture',
+        email: `${id}@fixture.test`,
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))
+    )
     await db.insert(organization).values({
       id: otherOrganizationId,
       name: 'Other organization MCP fixture',
@@ -228,6 +239,12 @@ describe('organization Search MCP with real ingestion and current access', () =>
       { id: generateId(), userId: aliceId, organizationId, role: 'owner' },
       { id: bobMembershipId, userId: bobId, organizationId, role: 'member' },
       { id: generateId(), userId: outsiderId, organizationId: otherOrganizationId, role: 'owner' },
+      {
+        id: generateId(),
+        userId: otherAdminId,
+        organizationId: otherOrganizationId,
+        role: 'admin',
+      },
     ])
     /** Reuse source identities, but establish exclusive organization ownership before ingestion. */
     await db
@@ -244,12 +261,16 @@ describe('organization Search MCP with real ingestion and current access', () =>
       .update(knowledgeExternalGroup)
       .set({ workspaceId: null, organizationId })
       .where(inArray(knowledgeExternalGroup.id, groupIds))
+    const prepared = await prepareSearchSource.execute({
+      principal: otherAdminPrincipal,
+      input: { organizationId: otherOrganizationId, connectorType: 'gitlab' },
+    })
+    otherKnowledgeBaseId = prepared.knowledgeBaseId
     await db.insert(knowledgeBase).values({
-      id: otherKnowledgeBaseId,
-      userId: outsiderId,
-      organizationId: otherOrganizationId,
-      isSearchIndex: true,
-      name: 'Other org index',
+      id: workspaceKnowledgeBaseId,
+      userId: bobId,
+      workspaceId,
+      name: 'Workspace documents',
     })
     await db.insert(organizationSearchIntegration).values({
       organizationId,
@@ -363,10 +384,54 @@ describe('organization Search MCP with real ingestion and current access', () =>
       .delete(organization)
       .where(inArray(organization.id, [organizationId, otherOrganizationId]))
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
-    await db.delete(user).where(inArray(user.id, [aliceId, bobId, outsiderId]))
+    await db.delete(user).where(inArray(user.id, [aliceId, bobId, outsiderId, otherAdminId]))
     if (fixtures.storageRoot) await rm(fixtures.storageRoot, { recursive: true, force: true })
     await db.$client.end()
     vi.unstubAllGlobals()
+  })
+
+  it('creates an organization-only index, keeps it out of the workspace catalog, and separates actor from payer', async () => {
+    const input = { organizationId: otherOrganizationId, connectorType: 'gitlab' }
+    const results = await Promise.all([
+      prepareSearchSource.execute({ principal: otherAdminPrincipal, input }),
+      prepareSearchSource.execute({ principal: otherAdminPrincipal, input }),
+    ])
+    expect(results.map((result) => result.knowledgeBaseId)).toEqual([
+      otherKnowledgeBaseId,
+      otherKnowledgeBaseId,
+    ])
+    const indexes = await db
+      .select()
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.organizationId, otherOrganizationId))
+    expect(indexes).toEqual([
+      expect.objectContaining({
+        id: otherKnowledgeBaseId,
+        workspaceId: null,
+        organizationId: otherOrganizationId,
+        isSearchIndex: true,
+        userId: otherAdminId,
+      }),
+    ])
+    const catalog = await listKnowledgeBaseCatalog.execute({
+      principal: alicePrincipal,
+      input: { workspaceId },
+    })
+    expect(catalog.knowledgeBases.map(({ knowledgeBase }) => knowledgeBase.id)).toEqual([
+      workspaceKnowledgeBaseId,
+    ])
+    await expect(
+      resolveOrganizationBillingAttribution({
+        actorUserId: otherAdminId,
+        organizationId: otherOrganizationId,
+      })
+    ).resolves.toMatchObject({
+      actorUserId: otherAdminId,
+      workspaceId: null,
+      organizationId: otherOrganizationId,
+      billedAccountUserId: outsiderId,
+      billingEntity: { type: 'organization', id: otherOrganizationId },
+    })
   })
 
   it('finds the canonical org-owned index and applies each current member’s source ACL to all tools', async () => {

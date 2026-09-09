@@ -3,7 +3,6 @@ import {
   resolvePrincipalAttribution,
   resolvePrincipalExecutionActorUserId,
 } from '@sim/auth/principal'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
@@ -48,7 +47,7 @@ export function resolveKnowledgeBillingAttribution(
       organizationId: context.organizationId,
     })
   if (context.workspaceId === undefined) {
-    throw new Error('Legacy personal knowledge bases do not have workspace billing attribution')
+    throw new Error('Knowledge base billing requires a workspace or organization')
   }
   if (principal.kind === 'workspace_api_key') {
     return resolveSystemBillingAttribution(context.workspaceId)
@@ -65,15 +64,10 @@ export async function resolveKnowledgeUsageAdmission(
   resolveAttribution?: (workspaceId: string) => Promise<BillingAttributionSnapshot>
 ) {
   const userId = resolveKnowledgeAttributedUserId(principal, context)
-  const billingAttribution = context.organizationId
-    ? await resolveKnowledgeBillingAttribution(principal, context)
-    : context.workspaceId
-      ? resolveAttribution
-        ? await resolveAttribution(context.workspaceId)
-        : await resolveKnowledgeBillingAttribution(principal, context)
-      : undefined
-  const usage = billingAttribution
-    ? await checkAttributedUsageLimits(billingAttribution)
-    : await checkActorUsageLimits(userId)
+  const billingAttribution =
+    resolveAttribution && context.workspaceId
+      ? await resolveAttribution(context.workspaceId)
+      : await resolveKnowledgeBillingAttribution(principal, context)
+  const usage = await checkAttributedUsageLimits(billingAttribution)
   return { billingAttribution, usage, userId }
 }

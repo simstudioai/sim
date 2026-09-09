@@ -1,17 +1,13 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import {
-  checkAndBillOverageThreshold,
-  checkAndBillPayerOverageThreshold,
-} from '@/lib/billing/threshold-billing'
+import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -191,7 +187,10 @@ async function resolveKnowledgeSearchContext(
     )
   }
   const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
-  const missingIds = input.knowledgeBaseIds.filter((_, index) => !knowledgeBases[index])
+  const missingIds = input.knowledgeBaseIds.filter((_, index) => {
+    const knowledgeBase = knowledgeBases[index]
+    return !knowledgeBase || (!knowledgeBase.workspaceId && !knowledgeBase.organizationId)
+  })
   if (missingIds.length > 0) {
     throw new OrchestrationError(
       'not_found',
@@ -199,11 +198,7 @@ async function resolveKnowledgeSearchContext(
     )
   }
   const canonicalWorkspaceIds = new Set(
-    knowledgeBases.map((kb) =>
-      kb?.organizationId || kb?.workspaceId
-        ? resourceScopeKey(resourceScopeFromOwner(kb))
-        : `personal:${kb?.userId}`
-    )
+    knowledgeBases.map((kb) => resourceScopeKey(resourceScopeFromOwner(kb!)))
   )
   if (canonicalWorkspaceIds.size !== 1) {
     throw new OrchestrationError(
@@ -233,21 +228,7 @@ async function resolveKnowledgeSearchContext(
     }
   }
   if (!canonicalWorkspaceId) {
-    const ownerUserIds = new Set(knowledgeBases.map((knowledgeBase) => knowledgeBase?.userId))
-    if (ownerUserIds.size !== 1) {
-      throw new OrchestrationError(
-        'not_found',
-        `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
-      )
-    }
-    const legacyPersonalOwnerUserId = knowledgeBases[0]?.userId
-    if (!legacyPersonalOwnerUserId) throw new Error('Legacy Knowledge base owner is missing')
-    return {
-      workspaceId: undefined,
-      legacyPersonalOwnerUserId,
-      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
-      access: createKnowledgeAccessProvider(principal, {}),
-    }
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
   const workspaceContext = await resolveKnowledgeWorkspaceContext({
     workspaceId: canonicalWorkspaceId,
@@ -281,16 +262,13 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       principal.kind === 'delegated' &&
       principal.serviceId === 'executor'
     )
-    const billingAttribution =
-      hasQuery && (context.workspaceId || context.organizationId)
-        ? input.resolveBillingAttribution && context.workspaceId
-          ? await input.resolveBillingAttribution(context.workspaceId)
-          : await resolveKnowledgeBillingAttribution(principal, context)
-        : undefined
-    if (shouldMeter && hasQuery) {
-      const usage = billingAttribution
-        ? await checkAttributedUsageLimits(billingAttribution)
-        : await checkActorUsageLimits(userId)
+    const billingAttribution = hasQuery
+      ? input.resolveBillingAttribution && context.workspaceId
+        ? await input.resolveBillingAttribution(context.workspaceId)
+        : await resolveKnowledgeBillingAttribution(principal, context)
+      : undefined
+    if (shouldMeter && billingAttribution) {
+      const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(
           usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
@@ -543,12 +521,12 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             }
       }
     }
-    if (shouldMeter && baseCost && baseCost.total > 0) {
+    if (shouldMeter && billingAttribution && baseCost && baseCost.total > 0) {
       try {
         await recordUsage({
           userId,
           ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
-          ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
+          ...toBillingContext(billingAttribution),
           entries: [
             {
               category: 'model',
@@ -559,11 +537,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             },
           ],
         })
-        if (billingAttribution) {
-          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-        } else {
-          await checkAndBillOverageThreshold(userId)
-        }
+        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
       } catch (error) {
         logger.error('Failed to record Knowledge search usage', { error })
       }
