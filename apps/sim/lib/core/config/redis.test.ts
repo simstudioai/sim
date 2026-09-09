@@ -49,6 +49,7 @@ import {
   getRedisClient,
   onRedisReconnect,
   resetForTesting,
+  warmRedisConnection,
 } from '@/lib/core/config/redis'
 
 describe('redis config', () => {
@@ -469,6 +470,64 @@ describe('redis config', () => {
       await acquireLock(lockKey, value, ttlSeconds)
 
       expect(mockLogger.error).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('warmRedisConnection', () => {
+    it('resolves immediately when the connection is already usable', async () => {
+      mockRedisInstance.status = 'ready'
+
+      await expect(warmRedisConnection()).resolves.toBe(true)
+    })
+
+    it('resolves once the connection becomes ready', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+      const client = getRedisClient()
+
+      Object.assign(client ?? {}, { status: 'ready' })
+      client?.emit('ready')
+
+      await expect(warm).resolves.toBe(true)
+    })
+
+    it('gives up at the deadline rather than waiting on a connection that never lands', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection(10_000)
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      // False, not a rejection: a cold connection is the caller's normal case.
+      await expect(warm).resolves.toBe(false)
+    })
+
+    it('shares one warm-up across concurrent callers', async () => {
+      mockRedisInstance.status = 'connecting'
+
+      expect(warmRedisConnection()).toBe(warmRedisConnection())
+    })
+
+    it('warms again after the health check replaces the client', async () => {
+      mockRedisInstance.status = 'connecting'
+      const first = warmRedisConnection()
+      resetForTesting()
+
+      // Keyed on the client, so a replacement is warmed on its own terms rather
+      // than inheriting a settled promise describing a connection that is gone.
+      expect(warmRedisConnection()).not.toBe(first)
+    })
+
+    it('reports not-warm instead of throwing when Redis is unconfigured', async () => {
+      mockEnv.REDIS_URL = undefined
+
+      await expect(warmRedisConnection()).resolves.toBe(false)
+    })
+
+    it('reports not-warm instead of throwing when the URL is invalid', async () => {
+      // A start-up hook that throws here would take the whole run attempt with it.
+      mockEnv.REDIS_URL = 'https://cache.example.com'
+
+      await expect(warmRedisConnection()).resolves.toBe(false)
     })
   })
 

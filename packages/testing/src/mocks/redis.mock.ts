@@ -14,6 +14,11 @@ import { vi } from 'vitest'
  * ```
  */
 export function createMockRedis() {
+  /** Per-instance listener registry, so `emit` can drive the lifecycle events
+   *  a real client emits. `on` stays a spy: tests read `on.mock.calls` to reach
+   *  the handlers the client registered. */
+  const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
+
   return {
     // Hash operations
     hset: vi.fn().mockResolvedValue(1),
@@ -49,7 +54,22 @@ export function createMockRedis() {
     publish: vi.fn().mockResolvedValue(0),
     subscribe: vi.fn().mockResolvedValue(undefined),
     unsubscribe: vi.fn().mockResolvedValue(undefined),
-    on: vi.fn(),
+    on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+      const existing = listeners.get(event)
+      if (existing) existing.add(listener)
+      else listeners.set(event, new Set([listener]))
+    }),
+    removeListener: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+      listeners.get(event)?.delete(listener)
+    }),
+    /** Drives the lifecycle events a real client emits (`connect`, `ready`, `error`). */
+    emit: vi.fn((event: string, ...args: unknown[]) => {
+      const registered = listeners.get(event)
+      if (!registered?.size) return false
+      // Copy first: a listener may remove itself while the event is dispatching.
+      for (const listener of [...registered]) listener(...args)
+      return true
+    }),
 
     // Transaction
     multi: vi.fn(() => ({

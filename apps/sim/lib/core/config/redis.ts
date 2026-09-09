@@ -67,6 +67,14 @@ interface RedisState {
   reconnects: number
   errors: number
   lastErrorMessage: string | null
+  /**
+   * In-flight warm-up, tied to the client it is warming. Keying on the client
+   * is what makes a replacement re-warm, so this is never cleared by hand —
+   * every site that drops the client would otherwise have to remember to, and
+   * one that forgot would hand back a promise describing a connection that is
+   * already gone.
+   */
+  warmup: { client: Redis; promise: Promise<boolean> } | null
 }
 
 const g = globalThis as typeof globalThis & { _redisState?: RedisState }
@@ -84,6 +92,7 @@ if (!g._redisState) {
     reconnects: 0,
     errors: 0,
     lastErrorMessage: null,
+    warmup: null,
   }
 }
 const state = g._redisState
@@ -194,6 +203,12 @@ export function describeRedisConnection(
 
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
+/**
+ * Warm-up budget. Sized to outlast a slow handshake rather than a fast one,
+ * because giving up early just returns the handshake to the first command's
+ * deadline, which is the thing this exists to avoid.
+ */
+const REDIS_WARMUP_TIMEOUT_MS = 10_000
 
 export function getConfiguredRedisUrl(): string | null {
   if (getConfiguredCacheProvider() === 'database') return null
@@ -341,6 +356,61 @@ export function getRedisClient(): Redis | null {
     logger.error('Failed to initialize Redis client', { error })
     return null
   }
+}
+
+/**
+ * Establishing a connection is far more expensive than the commands that run
+ * over it, so it should cost once per process rather than once per unit of
+ * work. Its own budget, too: `commandTimeout` is armed before ioredis checks
+ * whether the socket is writable, so a first command issued against a client
+ * still shaking hands spends that budget waiting to connect and fails as a
+ * command timeout from a server that never received it.
+ *
+ * Resolves `true` once the shared connection is usable, `false` when Redis is
+ * not configured or the wait ran out. It never throws and never rejects:
+ * callers run at process start — a Trigger.dev `init` hook fails the whole run
+ * attempt if it throws — and a warm-up is an optimization, so failing to warm
+ * must cost nothing beyond the connection staying cold.
+ */
+export function warmRedisConnection(timeoutMs = REDIS_WARMUP_TIMEOUT_MS): Promise<boolean> {
+  let client: Redis | null = null
+  try {
+    client = getRedisClient()
+  } catch {
+    // A misconfigured URL belongs to the first real caller, which can report it
+    // against the operation that needed Redis. Warming must not turn it into a
+    // start-up failure.
+    return Promise.resolve(false)
+  }
+  if (!client) return Promise.resolve(false)
+  if (client.status === 'ready') return Promise.resolve(true)
+  if (state.warmup?.client === client) return state.warmup.promise
+
+  const warming = client
+  const promise = new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (warm: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      warming.removeListener('ready', onReady)
+      resolve(warm)
+    }
+    const onReady = () => finish(true)
+    const timer = setTimeout(() => {
+      logger.warn('Redis warm-up timed out; first command will pay the handshake', {
+        timeoutMs,
+        redis: describeRedisConnection(warming),
+      })
+      finish(false)
+    }, timeoutMs)
+    // A pending warm-up must never be the reason a process stays alive.
+    timer.unref?.()
+    warming.on('ready', onReady)
+  })
+
+  state.warmup = { client: warming, promise }
+  return promise
 }
 
 /**
