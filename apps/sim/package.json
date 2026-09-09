@@ -172,7 +172,7 @@
     "cmdk": "^1.0.0",
     "croner": "^9.0.0",
     "cronstrue": "3.3.0",
-    "csv-parse": "6.1.0",
+    "csv-parse": "7.0.2",
     "date-fns": "4.1.0",
     "decimal.js": "10.6.0",
     "docx-preview": "^0.3.7",
