@@ -6,7 +6,6 @@ import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
@@ -188,143 +187,65 @@ describe('knowledge search application use case', () => {
     expect(result.totalResults).toBe(0)
   })
 
-  it('uses provider-reported rerank units for the returned usage cost', async () => {
-    mocks.rerank.mockResolvedValue({
-      results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.9 }],
-      isBYOK: false,
-      billedSearchUnits: 3,
-    })
-    const result = await searchKnowledge.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workspaceId: 'workspace-1',
-        knowledgeBaseIds: ['knowledge-1'],
-        query: 'answer',
-        topK: 5,
-        rerankerEnabled: true,
-        rerankerModel: 'rerank-v4.0-fast',
-      },
-    })
-    expect(result.cost?.rerankerSearchUnits).toBe(3)
-    expect(result.cost?.rerankerCost).toBe(3 * 0.002)
-    expect(mocks.rerank).toHaveBeenCalledWith(
-      'answer',
-      [{ id: 'embedding-1', text: 'answer' }],
-      expect.objectContaining({ timeoutMs: undefined })
-    )
-  })
-
-  describe('organization reranking', () => {
+  describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {
     beforeEach(() => {
-      mocks.getKnowledgeBase.mockResolvedValue({
-        ...knowledgeBase,
-        workspaceId: null,
-        organizationId: 'org-canonical',
-        isSearchIndex: true,
-      })
-      queueTableRows(member, [{ role: 'member' }])
-      mocks.importProvenance.mockResolvedValue({
-        imported: true,
-        unrecordedCount: 0,
-        documentMetadata: {
-          'document-1': {
-            filename: 'REV-781 approval',
-            sourceUrl: null,
-            provenance: EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
-          },
-        },
-      })
-      mocks.rerank.mockResolvedValue({
-        results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.9 }],
-        isBYOK: false,
-        billedSearchUnits: 1,
-      })
+      if (scope === 'organization') {
+        mocks.getKnowledgeBase.mockResolvedValue({
+          ...knowledgeBase,
+          workspaceId: null,
+          organizationId: 'org-canonical',
+          isSearchIndex: true,
+        })
+        queueTableRows(member, [{ role: 'member' }])
+      }
     })
 
     const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
-    const input = { knowledgeBaseIds: ['knowledge-1'], query: 'approval', topK: 10 }
+    const input = { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10 }
 
-    it('uses the canonical organization owner to apply bounded title-aware reranking', async () => {
-      const result = await searchKnowledge.execute({ principal, input })
-      expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 50 }))
-      expect(mocks.importProvenance).toHaveBeenCalledWith(
-        expect.objectContaining({ includeDocumentNames: true })
-      )
-      expect(mocks.rerank).toHaveBeenCalledWith(
-        'approval',
-        [{ id: 'embedding-1', text: 'Title: REV-781 approval\n\nanswer' }],
-        expect.objectContaining({ model: 'rerank-v4.0-fast', topN: 10, timeoutMs: 3_000 })
-      )
-      expect(result.rerankerStatus).toBe('applied')
-      expect(result.results[0].documentName).toBe('REV-781 approval')
-      expect(result.cost?.rerankerModel).toBe('rerank-v4.0-fast')
-    })
+    it.each([undefined, false])(
+      'preserves retrieval without reranking when enabled is %s',
+      async (rerankerEnabled) => {
+        const result = await searchKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            ...(rerankerEnabled === undefined ? {} : { rerankerEnabled }),
+          },
+        })
 
-    it('honors an explicit opt-out without expanding candidates or importing titles', async () => {
+        expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 10 }))
+        expect(mocks.rerank).not.toHaveBeenCalled()
+        expect(mocks.importProvenance).not.toHaveBeenCalled()
+        expect(result.rerankerStatus).toBe('not_requested')
+        expect(result.cost?.rerankerSearchUnits).toBeUndefined()
+        expect(result.results[0]).toMatchObject({ embeddingId: 'embedding-1', content: 'answer' })
+      }
+    )
+
+    it('preserves the existing explicit reranking option', async () => {
+      mocks.rerank.mockResolvedValueOnce({
+        results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.9 }],
+        isBYOK: false,
+      })
+
       const result = await searchKnowledge.execute({
         principal,
-        input: { ...input, rerankerEnabled: false },
+        input: {
+          ...input,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-pro',
+          rerankerInputCount: 20,
+        },
       })
-      expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 10 }))
-      expect(mocks.rerank).not.toHaveBeenCalled()
-      expect(mocks.importProvenance).not.toHaveBeenCalled()
-      expect(result.rerankerStatus).toBe('not_requested')
-    })
 
-    it('preserves explicit model and candidate choices within the organization latency budget', async () => {
-      await searchKnowledge.execute({
-        principal,
-        input: { ...input, rerankerModel: 'rerank-v4.0-pro', rerankerInputCount: 20 },
-      })
       expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }))
       expect(mocks.rerank).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        expect.objectContaining({ model: 'rerank-v4.0-pro', timeoutMs: 3_000 })
+        'answer',
+        [{ id: 'embedding-1', text: 'answer' }],
+        expect.objectContaining({ model: 'rerank-v4.0-pro', topN: 10 })
       )
-    })
-
-    it('does not send a title to a model when its provenance snapshot is missing', async () => {
-      mocks.importProvenance.mockResolvedValue({
-        imported: true,
-        unrecordedCount: 0,
-        documentMetadata: {},
-      })
-      await expect(searchKnowledge.execute({ principal, input })).rejects.toThrow(
-        'Knowledge result secret provenance is unavailable'
-      )
-      expect(mocks.rerank).not.toHaveBeenCalled()
-    })
-
-    it('does not disguise a provenance refusal as provider fallback', async () => {
-      mocks.importProvenance.mockResolvedValue({
-        imported: false,
-        unrecordedCount: 0,
-        documentMetadata: {},
-      })
-      await expect(searchKnowledge.execute({ principal, input })).rejects.toThrow(
-        'Knowledge result secret provenance is unavailable'
-      )
-      expect(mocks.rerank).not.toHaveBeenCalled()
-    })
-
-    it('preserves authorized results and reports provider failure', async () => {
-      mocks.rerank.mockRejectedValue(new Error('Reranker unavailable'))
-      const result = await searchKnowledge.execute({ principal, input })
-      expect(result.rerankerStatus).toBe('unavailable')
-      expect(result.results).toHaveLength(1)
-      expect(result.results[0].rerankerScore).toBeUndefined()
-      expect(result.cost?.rerankerSearchUnits).toBeUndefined()
-    })
-
-    it('skips reranking when retrieval finds no authorized candidates', async () => {
-      mocks.executeSearch.mockResolvedValue([])
-      const result = await searchKnowledge.execute({
-        principal,
-        input,
-      })
-      expect(mocks.rerank).not.toHaveBeenCalled()
-      expect(result.rerankerStatus).toBe('skipped')
+      expect(result.rerankerStatus).toBe('applied')
     })
   })
 
@@ -671,7 +592,6 @@ describe('knowledge search application use case', () => {
 
     expect(mocks.importProvenance).toHaveBeenCalledWith({
       registry,
-      includeDocumentNames: false,
       results: expect.arrayContaining([
         expect.objectContaining({ id: 'embedding-1', documentId: 'document-1' }),
       ]),
@@ -748,6 +668,22 @@ describe('knowledge search application use case', () => {
      */
     it('reports unavailable rather than silently falling back to vector ordering', async () => {
       mocks.rerank.mockRejectedValueOnce(new Error('No Cohere API key configured.'))
+
+      const result = await rerankedSearch(true)
+
+      expect(result.rerankerStatus).toBe('unavailable')
+      expect(result.results[0]).not.toHaveProperty('rerankerScore')
+    })
+
+    /**
+     * A resolved call with an empty ordering leaves the caller in the same place a
+     * thrown one does — vector order, no `rerankerScore` — so it reports the same
+     * status. It is not "the reranker matched nothing": `rerank` sends a non-empty
+     * document list and asks for `top_n` of it, so an empty array means the
+     * response carried nothing usable rather than a legitimate empty ranking.
+     */
+    it('reports unavailable when the call resolves without a usable ordering', async () => {
+      mocks.rerank.mockResolvedValueOnce({ results: [], isBYOK: false })
 
       const result = await rerankedSearch(true)
 

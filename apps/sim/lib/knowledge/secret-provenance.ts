@@ -574,13 +574,10 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
 export async function importKnowledgeSearchResultSecretProvenance(options: {
   registry: ResolvedSecretTraceRegistry
   results: readonly { id: string; documentId: string; content: string }[]
-  /** Imports each candidate title before a reranker includes it in model input. */
-  includeDocumentNames?: boolean
 }): Promise<{
   imported: boolean
   /**
-   * Chunks and requested titles whose stored provenance was unrecorded and whose import proceeded
-   * fail-open. Each document title is counted once. The caller
+   * Chunks whose stored provenance was unrecorded and whose import proceeded fail-open. The caller
    * folds this into one read-level audit report — it owns the workspace and the metadata imports
    * that share the same read, and it reports nothing when the registry latched, since a latched
    * read never reaches a model.
@@ -667,41 +664,11 @@ export async function importKnowledgeSearchResultSecretProvenance(options: {
   > = {}
   for (const row of documents) {
     const source = createKnowledgeDocumentSourceValue(row)
-    const boundProvenance = readBoundKnowledgeDocumentSecretProvenance({ ...row, source })
-    if (options.includeDocumentNames) {
-      if (row.status === 'exact' && boundProvenance.status === 'unknown') {
-        options.registry.markIncomplete('knowledge-row-content-mismatch')
-        return { imported: false, unrecordedCount: 0, documentMetadata: {} }
-      }
-      const filenameProvenance = filterKnowledgeDocumentMetadataSecretProvenance(
-        boundProvenance,
-        source,
-        ['filename']
-      )
-      if (filenameProvenance.status === 'unknown' && !knowledgeEnforced) unrecordedCount += 1
-      if (
-        !(await importDurableSecretProvenance(
-          options.registry,
-          filenameProvenance,
-          row.filename,
-          'knowledge',
-          { reportUnrecorded: false }
-        ))
-      ) {
-        return { imported: false, unrecordedCount: 0, documentMetadata: {} }
-      }
-    }
-    const provenance = filterKnowledgeDocumentMetadataSecretProvenance(boundProvenance, source, [
-      'filename',
-      'sourceUrl',
-      'tag1',
-      'tag2',
-      'tag3',
-      'tag4',
-      'tag5',
-      'tag6',
-      'tag7',
-    ])
+    const provenance = filterKnowledgeDocumentMetadataSecretProvenance(
+      readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
+      source,
+      ['filename', 'sourceUrl', 'tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7']
+    )
     documentMetadata[row.id] = {
       filename: row.filename,
       sourceUrl: row.sourceUrl,

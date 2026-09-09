@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { z } from 'zod'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
@@ -31,7 +30,12 @@ const logger = createLogger('Reranker')
 
 const RERANK_OPERATION_TIMEOUT_MS = 30_000
 
-/** Bounds candidate work; long documents can consume multiple provider search units. */
+/**
+ * Cohere bills per "search unit" = one query with up to 100 documents.
+ * We cap at 100 so each rerank call costs exactly 1 unit and matches
+ * `RERANK_MODEL_PRICING` in `providers/models.ts`. The search route also
+ * caps `candidateTopK` at 100, so this is a defensive ceiling.
+ */
 const MAX_DOCUMENTS_PER_RERANK = 100
 
 export interface RerankItem {
@@ -49,8 +53,6 @@ export interface RerankResponse<T extends RerankItem> {
   results: RerankedResult<T>[]
   /** True when a workspace-supplied (BYOK) Cohere key was used. Callers should skip platform billing in that case. */
   isBYOK: boolean
-  /** The provider's actual bill, when included in its response. */
-  billedSearchUnits?: number
 }
 
 class RerankAPIError extends Error {
@@ -103,19 +105,12 @@ async function resolveCohereKey(
  * - `meta.warnings` is documented as an array of strings; we surface them in logs
  *   so issues like document truncation don't disappear silently.
  */
-const cohereRerankResponseSchema = z.object({
-  results: z
-    .array(
-      z.object({ index: z.number().int().nonnegative(), relevance_score: z.number().min(0).max(1) })
-    )
-    .max(MAX_DOCUMENTS_PER_RERANK),
-  meta: z
-    .object({
-      warnings: z.array(z.string()).nullish(),
-      billed_units: z.object({ search_units: z.number().nonnegative().nullish() }).nullish(),
-    })
-    .nullish(),
-})
+interface CohereRerankResponse {
+  results: Array<{ index: number; relevance_score: number }>
+  meta?: {
+    warnings?: string[]
+  }
+}
 
 /**
  * Rerank documents against a query using Cohere's `/v2/rerank` endpoint.
@@ -131,8 +126,6 @@ export async function rerank<T extends RerankItem>(
     /** User-supplied Cohere key from the Knowledge block field. Honored only on self-hosted. */
     apiKey?: string
     signal?: AbortSignal
-    /** Total budget for provider admission, requests, response bodies, and retries; defaults to 30s. */
-    timeoutMs?: number
   }
 ): Promise<RerankResponse<T>> {
   options.signal?.throwIfAborted()
@@ -156,9 +149,10 @@ export async function rerank<T extends RerankItem>(
     providerId: 'cohere',
     credentialFingerprint: sha256Hex(apiKey),
   }
+  const deadlineAt = Date.now() + RERANK_OPERATION_TIMEOUT_MS
   let attempt = 0
   const response = await retryWithExponentialBackoff(
-    async (signal, deadlineAt) => {
+    async (signal) => {
       await waitForProviderAdmission({
         ...identity,
         signal,
@@ -183,8 +177,6 @@ export async function rerank<T extends RerankItem>(
       if (!res.ok) {
         const error = new RerankAPIError(`Cohere rerank failed: ${res.status}`, res.status)
         attachRetryHeaders(error, res.headers)
-        error.retryAfterMs =
-          parseRetryAfter(res.headers.get('retry-after'), Number.POSITIVE_INFINITY) ?? undefined
         try {
           if (res.status === 429) {
             error.retryAfterMs = backoffWithJitter(
@@ -204,19 +196,17 @@ export async function rerank<T extends RerankItem>(
         }
         throw error
       }
-      return cohereRerankResponseSchema.parse(
-        await readResponseJsonWithLimit(res, {
-          maxBytes: 1024 * 1024,
-          label: 'Cohere rerank response',
-          signal,
-        })
-      )
+      return (await readResponseJsonWithLimit(res, {
+        maxBytes: 1024 * 1024,
+        label: 'Cohere rerank response',
+        signal,
+      })) as CohereRerankResponse
     },
     {
       maxRetries: 3,
       initialDelayMs: 500,
       maxDelayMs: 5000,
-      retryBudgetMs: options.timeoutMs ?? RERANK_OPERATION_TIMEOUT_MS,
+      retryBudgetMs: RERANK_OPERATION_TIMEOUT_MS,
       signal: options.signal,
       retryCondition: (error: unknown) => {
         if (options.signal?.aborted) return false
@@ -228,15 +218,6 @@ export async function rerank<T extends RerankItem>(
     }
   )
 
-  const rankedIndices = new Set(response.results.map((result) => result.index))
-  if (
-    response.results.length !== Math.min(options.topN ?? cappedItems.length, cappedItems.length) ||
-    rankedIndices.size !== response.results.length ||
-    response.results.some((result) => result.index >= cappedItems.length)
-  ) {
-    throw new Error('Cohere returned an incomplete or invalid ranking')
-  }
-
   if (response.meta?.warnings && response.meta.warnings.length > 0) {
     logger.warn('Cohere rerank returned warnings', {
       model: options.model,
@@ -245,11 +226,12 @@ export async function rerank<T extends RerankItem>(
   }
 
   return {
-    results: response.results.map((r) => ({
-      item: cappedItems[r.index],
-      relevanceScore: r.relevance_score,
-    })),
+    results: response.results
+      .filter((r) => r.index >= 0 && r.index < cappedItems.length)
+      .map((r) => ({
+        item: cappedItems[r.index],
+        relevanceScore: r.relevance_score,
+      })),
     isBYOK,
-    billedSearchUnits: response.meta?.billed_units?.search_units ?? undefined,
   }
 }

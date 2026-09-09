@@ -35,66 +35,7 @@ describe('provider admission', () => {
     consumeTokens.mockResolvedValue({ allowed: true, tokensRemaining: 1, resetAt: new Date() })
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllEnvs()
-  })
-
-  it.each([
-    { requestsPerMinute: 1, capacity: 1 },
-    { requestsPerMinute: 60, capacity: 2 },
-    { requestsPerMinute: 120, capacity: 2 },
-    { requestsPerMinute: 121, capacity: 3 },
-    { requestsPerMinute: 600, capacity: 10 },
-  ])(
-    'admits a complete rerank refill at $requestsPerMinute requests per minute',
-    async ({ requestsPerMinute, capacity }) => {
-      vi.stubEnv('KB_CONFIG_RERANK_REQUESTS_PER_MINUTE', String(requestsPerMinute))
-
-      await waitForProviderAdmission({ ...INPUT, operation: 'rerank', providerId: 'cohere' })
-
-      expect(consumeTokens).toHaveBeenCalledExactlyOnceWith(
-        [
-          {
-            key: 'provider:rerank:cohere:hashed-credential:requests',
-            cost: 1,
-            config: {
-              maxTokens: capacity,
-              refillRate: requestsPerMinute / 60,
-              refillIntervalMs: 1000,
-            },
-          },
-        ],
-        expect.objectContaining({
-          cooldownKeys: [
-            'provider:rerank:cohere:hashed-credential:cooldown',
-            'provider:rerank:cohere:hashed-credential:quota',
-          ],
-        })
-      )
-    }
-  )
-
-  it.each([
-    { operation: 'embedding' as const, capacity: 8, refillRate: 10 },
-    { operation: 'ocr' as const, capacity: 2, refillRate: 1 },
-    { operation: 'rerank' as const, capacity: 2, refillRate: 1 },
-  ])('preserves default $operation request limits', async ({ operation, capacity, refillRate }) => {
-    vi.stubEnv('KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE', undefined)
-    vi.stubEnv('KB_CONFIG_OCR_REQUESTS_PER_MINUTE', undefined)
-    vi.stubEnv('KB_CONFIG_RERANK_REQUESTS_PER_MINUTE', undefined)
-
-    await waitForProviderAdmission({ ...INPUT, operation })
-
-    expect(consumeTokens.mock.calls[0][0]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          key: `provider:${operation}:openai:hashed-credential:requests`,
-          config: { maxTokens: capacity, refillRate, refillIntervalMs: 1000 },
-        }),
-      ])
-    )
-  })
+  afterEach(() => vi.useRealTimers())
 
   it('shares both credential dimensions in one reservation across concurrent callers', async () => {
     await Promise.all([waitForProviderAdmission(INPUT), waitForProviderAdmission(INPUT)])
