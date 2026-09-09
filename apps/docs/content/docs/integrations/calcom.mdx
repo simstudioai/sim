@@ -5,7 +5,7 @@ description: Manage Cal.com bookings, event types, schedules, and availability
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="calcom"
   color="#292929"
 />
@@ -764,8 +764,6 @@ Get available booking slots for a Cal.com event type within a time range
 | `status` | string | Response status |
 | `data` | json | Available time slots grouped by date \(YYYY-MM-DD keys\). Each date maps to an array of slot objects with start time, optional end time, and seated event info. |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1134,4 +1132,3 @@ Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
 | `triggerEvent` | string | The webhook event type \(e.g., BOOKING_CREATED, MEETING_ENDED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
-

@@ -5,7 +5,7 @@ description: Send and manage Slack messages, Agent Sessions, streamed replies, v
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="slack_v2"
   color="#611f69"
 />
@@ -914,7 +914,7 @@ Create or update the state of a Slack agent session associated with a thread.
 | `ok` | boolean | Whether Slack updated the agent session |
 | `status` | string | Requested agent session status |
 | `agentStatus` | string | Agent status recorded by Slack |
-| `title` | string | Current agent session title, or null when the session has no title |
+| `title` | string (nullable) | Current agent session title, or null when the session has no title |
 
 ### Slack Rename Agent Session
 
@@ -1940,8 +1940,6 @@ Set the purpose (description) for a Slack channel (max 250 characters).
 | --------- | ---- | ----------- |
 | `purpose` | string | The purpose/description that was set on the channel |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2017,4 +2015,3 @@ Trigger from Slack events, interactions, and slash commands
 |   ↳ `state` | json | Current values of all stateful elements in the surface \(state.values\) at the time of a block action — e.g. inputs read on a button click. Present for block_actions; null otherwise |
 |   ↳ `hasFiles` | boolean | Whether the message has file attachments |
 |   ↳ `files` | file[] | File attachments downloaded from the message \(if includeFiles is enabled and bot token is provided\) |
-

@@ -5,7 +5,7 @@ description: Send iMessage, SMS, and RCS messages and manage conversations with 
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="linq"
   color="#000000"
 />
@@ -484,8 +484,8 @@ List all phone numbers assigned to your partner account, with line health
 | `phoneNumbers` | array | Phone numbers assigned to the account |
 |   ↳ `id` | string | Phone number ID |
 |   ↳ `phoneNumber` | string | Phone number in E.164 format |
-|   ↳ `forwardingNumber` | string | Forwarding number in E.164 format, or null |
-|   ↳ `healthStatus` | json | Line reputation/health status \(status, doc_url\) |
+|   ↳ `forwardingNumber` | string (nullable) | Forwarding number in E.164 format, or null |
+|   ↳ `healthStatus` | json (nullable) | Line reputation/health status \(status, doc_url\) |
 
 ### List Thread Messages
 
@@ -543,10 +543,10 @@ List all webhook subscriptions on your account
 |   ↳ `id` | string | Subscription ID |
 |   ↳ `targetUrl` | string | Endpoint that receives events |
 |   ↳ `subscribedEvents` | json | Subscribed event types |
-|   ↳ `phoneNumbers` | json | Filtered phone numbers \(null = all\) |
+|   ↳ `phoneNumbers` | json (nullable) | Filtered phone numbers \(null = all\) |
 |   ↳ `isActive` | boolean | Whether the subscription is active |
-|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
-|   ↳ `updatedAt` | string | ISO 8601 update timestamp |
+|   ↳ `createdAt` | string (nullable) | ISO 8601 creation timestamp |
+|   ↳ `updatedAt` | string (nullable) | ISO 8601 update timestamp |
 
 ### Mark Chat as Read
 
@@ -786,8 +786,6 @@ Update a webhook subscription (target URL, events, phone filter, or active state
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -932,4 +930,3 @@ Trigger on any Linq webhook event (messages, reactions, chats, and more)
 | `createdAt` | string | ISO 8601 timestamp of when the event occurred |
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
-

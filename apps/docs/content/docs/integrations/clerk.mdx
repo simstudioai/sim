@@ -5,7 +5,7 @@ description: Manage users, organizations, and sessions in Clerk
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="clerk"
   color="#131316"
 />
@@ -1078,8 +1078,6 @@ Revoke an actor token before it is used or expires
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1474,4 +1472,3 @@ Trigger workflow on any Clerk webhook event
 | `timestamp` | number | Timestamp in milliseconds when the event occurred |
 | `instance_id` | string | Identifier of your Clerk instance |
 | `data` | json | Raw event `data` object \(shape varies by event type\) |
-

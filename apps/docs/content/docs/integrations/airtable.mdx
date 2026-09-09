@@ -5,7 +5,7 @@ description: Read, create, and update Airtable
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="airtable"
   color="#FFFFFF"
 />
@@ -266,8 +266,6 @@ Get the schema of all tables, fields, and views in an Airtable base
 | `tables` | json | Array of table schemas with fields and views |
 | `metadata` | json | Operation metadata including total tables count |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -315,4 +313,3 @@ Trigger workflow from Airtable record changes like create, update, and delete ev
 |   ↳ `recordId` | string | Record ID |
 |   ↳ `changeType` | string | Type of change \(created, changed, destroyed\) |
 |   ↳ `cellValuesByFieldId` | object | Cell values by field ID |
-

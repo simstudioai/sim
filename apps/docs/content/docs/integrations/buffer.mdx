@@ -5,7 +5,7 @@ description: Schedule and publish social media posts across connected channels
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="buffer"
   color="#FFFFFF"
 />
@@ -64,21 +64,21 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 |   ↳ `via` | string | How the post was created \(buffer, network, api\) |
 |   ↳ `channelId` | string | Channel the post belongs to |
 |   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `schedulingType` | string (nullable) | How the post publishes \(automatic or notification\) |
 |   ↳ `shareMode` | string | Share mode used for the post |
 |   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
 |   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
+|   ↳ `dueAt` | string (nullable) | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string (nullable) | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string (nullable) | Link to the published post on the social network |
+|   ↳ `error` | object (nullable) | Publishing error details when the post failed |
 |     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
+|     ↳ `supportUrl` | string (nullable) | Support article URL |
+|     ↳ `rawError` | string (nullable) | Raw error from the network |
 |   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
+|     ↳ `id` | string (nullable) | Asset ID |
 |     ↳ `type` | string | Asset type |
 |     ↳ `mimeType` | string | MIME type of the asset |
 |     ↳ `source` | string | Source URL of the asset |
@@ -114,21 +114,21 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 |   ↳ `via` | string | How the post was created \(buffer, network, api\) |
 |   ↳ `channelId` | string | Channel the post belongs to |
 |   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `schedulingType` | string (nullable) | How the post publishes \(automatic or notification\) |
 |   ↳ `shareMode` | string | Share mode used for the post |
 |   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
 |   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
+|   ↳ `dueAt` | string (nullable) | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string (nullable) | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string (nullable) | Link to the published post on the social network |
+|   ↳ `error` | object (nullable) | Publishing error details when the post failed |
 |     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
+|     ↳ `supportUrl` | string (nullable) | Support article URL |
+|     ↳ `rawError` | string (nullable) | Raw error from the network |
 |   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
+|     ↳ `id` | string (nullable) | Asset ID |
 |     ↳ `type` | string | Asset type |
 |     ↳ `mimeType` | string | MIME type of the asset |
 |     ↳ `source` | string | Source URL of the asset |
@@ -162,28 +162,28 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 |   ↳ `via` | string | How the post was created \(buffer, network, api\) |
 |   ↳ `channelId` | string | Channel the post belongs to |
 |   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `schedulingType` | string (nullable) | How the post publishes \(automatic or notification\) |
 |   ↳ `shareMode` | string | Share mode used for the post |
 |   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
 |   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
+|   ↳ `dueAt` | string (nullable) | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string (nullable) | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string (nullable) | Link to the published post on the social network |
+|   ↳ `error` | object (nullable) | Publishing error details when the post failed |
 |     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
+|     ↳ `supportUrl` | string (nullable) | Support article URL |
+|     ↳ `rawError` | string (nullable) | Raw error from the network |
 |   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
+|     ↳ `id` | string (nullable) | Asset ID |
 |     ↳ `type` | string | Asset type |
 |     ↳ `mimeType` | string | MIME type of the asset |
 |     ↳ `source` | string | Source URL of the asset |
 |     ↳ `thumbnail` | string | Thumbnail URL of the asset |
 | `pageInfo` | object | Pagination info for fetching the next page |
 |   ↳ `hasNextPage` | boolean | Whether more results are available |
-|   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
+|   ↳ `endCursor` | string (nullable) | Cursor to pass as "after" for the next page |
 
 ### Buffer Get Post
 
@@ -207,21 +207,21 @@ Get a single Buffer post by ID, including its status, schedule, and media
 |   ↳ `via` | string | How the post was created \(buffer, network, api\) |
 |   ↳ `channelId` | string | Channel the post belongs to |
 |   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `schedulingType` | string (nullable) | How the post publishes \(automatic or notification\) |
 |   ↳ `shareMode` | string | Share mode used for the post |
 |   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
 |   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
+|   ↳ `dueAt` | string (nullable) | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string (nullable) | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string (nullable) | Link to the published post on the social network |
+|   ↳ `error` | object (nullable) | Publishing error details when the post failed |
 |     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
+|     ↳ `supportUrl` | string (nullable) | Support article URL |
+|     ↳ `rawError` | string (nullable) | Raw error from the network |
 |   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
+|     ↳ `id` | string (nullable) | Asset ID |
 |     ↳ `type` | string | Asset type |
 |     ↳ `mimeType` | string | MIME type of the asset |
 |     ↳ `source` | string | Source URL of the asset |
@@ -263,7 +263,7 @@ List the social media channels connected to a Buffer organization, including the
 | `channels` | array | Channels connected to the organization |
 |   ↳ `id` | string | Channel ID |
 |   ↳ `name` | string | Channel name |
-|   ↳ `displayName` | string | Channel display name |
+|   ↳ `displayName` | string (nullable) | Channel display name |
 |   ↳ `service` | string | Social network \(instagram, linkedin, twitter, ...\) |
 |   ↳ `serviceId` | string | ID of the account on the social network |
 |   ↳ `avatar` | string | Channel avatar URL |
@@ -294,9 +294,9 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 | `idea` | object | The created idea |
 |   ↳ `id` | string | Idea ID |
 |   ↳ `organizationId` | string | Organization the idea belongs to |
-|   ↳ `groupId` | string | Idea group ID |
-|   ↳ `title` | string | Idea title |
-|   ↳ `text` | string | Idea text content |
+|   ↳ `groupId` | string (nullable) | Idea group ID |
+|   ↳ `title` | string (nullable) | Idea title |
+|   ↳ `text` | string (nullable) | Idea text content |
 
 ### Buffer Get Ideas
 
@@ -318,12 +318,12 @@ List content ideas saved in a Buffer organization
 | `ideas` | array | Content ideas in the organization |
 |   ↳ `id` | string | Idea ID |
 |   ↳ `organizationId` | string | Organization the idea belongs to |
-|   ↳ `groupId` | string | Idea group ID |
-|   ↳ `title` | string | Idea title |
-|   ↳ `text` | string | Idea text content |
+|   ↳ `groupId` | string (nullable) | Idea group ID |
+|   ↳ `title` | string (nullable) | Idea title |
+|   ↳ `text` | string (nullable) | Idea text content |
 | `pageInfo` | object | Pagination info for fetching the next page |
 |   ↳ `hasNextPage` | boolean | Whether more results are available |
-|   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
+|   ↳ `endCursor` | string (nullable) | Cursor to pass as "after" for the next page |
 
 ### Buffer Get Idea Groups
 
@@ -362,12 +362,10 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 | `account` | object | The authenticated Buffer account |
 |   ↳ `id` | string | Account ID |
 |   ↳ `email` | string | Account email |
-|   ↳ `name` | string | Account holder name |
-|   ↳ `timezone` | string | Account timezone |
+|   ↳ `name` | string (nullable) | Account holder name |
+|   ↳ `timezone` | string (nullable) | Account timezone |
 |   ↳ `organizations` | array | Organizations the account belongs to |
 |     ↳ `id` | string | Organization ID |
 |     ↳ `name` | string | Organization name |
 |     ↳ `channelCount` | number | Number of connected channels |
 |     ↳ `ownerEmail` | string | Email of the organization owner |
-
-

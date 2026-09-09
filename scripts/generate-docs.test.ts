@@ -11,8 +11,11 @@ import {
   extractInheritedBlockCategory,
   extractToolInfo,
   extractUserSettableParamIds,
+  finalizeGeneratedMarkdown,
   generateIconMappings,
+  generateMarkdownForBlock,
   getToolInfo,
+  mergeWithManualContent,
   parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
@@ -50,6 +53,36 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it('renders evaluated tool outputs when the source constant cannot be resolved', async () => {
+    const [block] = extractAllBlockConfigs(
+      fs.readFileSync(path.resolve('apps/sim/blocks/blocks/ashby.ts'), 'utf-8')
+    )
+    const markdown = await generateMarkdownForBlock({
+      ...block,
+      tools: { access: ['ashby_get_candidate'] },
+    })
+
+    expect(markdown).toContain('| `primaryEmailAddress` |')
+    expect(markdown).not.toContain('| `candidates` |')
+    expect(markdown).not.toContain('| `jobs` |')
+    expect(markdown).not.toContain('| `applications` |')
+  })
+
+  it('renders nullable fields without making their parents or siblings nullable', async () => {
+    const [block] = extractAllBlockConfigs(
+      fs.readFileSync(path.resolve('apps/sim/blocks/blocks/affinity.ts'), 'utf-8')
+    )
+    const markdown = await generateMarkdownForBlock({
+      ...block,
+      tools: { access: ['affinity_get_current_user', 'affinity_list_calls'] },
+    })
+
+    expect(markdown).toContain('|   ↳ `lastName` | string (nullable) |')
+    expect(markdown).toContain('| `nextCursor` | string (nullable) |')
+    expect(markdown).toContain('| `user` | object |')
+    expect(markdown).toContain('| `count` | number |')
+  })
+
   it('uses evaluated outputs for factory-defined tools', async () => {
     const approve = await getToolInfo('sailpoint_approve_access_request')
     const identity = await getToolInfo('sailpoint_get_identity')
@@ -239,6 +272,26 @@ describe('documentation input parameter parsing', () => {
 })
 
 describe('documentation output property parsing', () => {
+  it('preserves nullable fields in constant schemas without reading nested flags or prose', () => {
+    const properties = parseConstProperties(
+      `record: {
+        type: 'object',
+        description: 'A record with nullable: true in its description',
+        properties: {
+          name: { type: 'string', nullable: true },
+          id: { type: 'string', nullable: false },
+        },
+      }`,
+      'test',
+      '',
+      0
+    )
+
+    expect(properties.record).not.toHaveProperty('nullable')
+    expect(properties.record.properties.name).toMatchObject({ type: 'string', nullable: true })
+    expect(properties.record.properties.id).not.toHaveProperty('nullable')
+  })
+
   it('keeps a response field named items inside an array element', () => {
     const properties = parsePropertiesContent(`
       vaults: {
@@ -983,6 +1036,23 @@ describe('template interpolation is lexed rather than brace-counted', () => {
 })
 
 describe('generated reference Markdown', () => {
+  it('cleans template whitespace and EOF while preserving manual Markdown hard breaks', async () => {
+    const markdown = await generateMarkdownForBlock({
+      type: 'test',
+      name: 'Test',
+      description: 'Test documentation',
+      category: 'tools',
+    })
+    expect(markdown).not.toMatch(/[\t ]+$/m)
+
+    const manual = 'First line  \nSecond line'
+    const merged = mergeWithManualContent(markdown, 'existing page', { intro: manual })
+    const final = finalizeGeneratedMarkdown(merged)
+    expect(final).toContain(manual)
+    expect(final).toMatch(/[^\n]\n$/)
+    expect(finalizeGeneratedMarkdown(final)).toBe(final)
+  })
+
   it('renders example URLs without adding punctuation or escape characters to their destinations', () => {
     const description = escapeMdxCell(
       'Use a URL (e.g., https://example.com/file) or [https://example.com/other].'

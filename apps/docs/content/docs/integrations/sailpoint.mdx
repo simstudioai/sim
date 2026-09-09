@@ -5,7 +5,7 @@ description: Govern identities and access in SailPoint Identity Security Cloud
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="sailpoint"
   color="#FFFFFF"
 />
@@ -177,19 +177,19 @@ List entitlements in one access profile.
 |   ↳ `attribute` | string | Source entitlement attribute |
 |   ↳ `value` | string | Source entitlement value |
 |   ↳ `sourceSchemaObjectType` | string | Source schema object type |
-|   ↳ `description` | string | Entitlement description |
+|   ↳ `description` | string (nullable) | Entitlement description |
 |   ↳ `privileged` | boolean | Whether the entitlement is privileged |
 |   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
 |   ↳ `requestable` | boolean | Whether the entitlement is requestable |
-|   ↳ `owner` | object | Primary owner reference |
+|   ↳ `owner` | object (nullable) | Primary owner reference |
 |     ↳ `id` | string | Identity ID |
 |     ↳ `type` | string | IDENTITY |
 |     ↳ `name` | string | Identity display name |
-|   ↳ `additionalOwners` | array | Additional owner references |
+|   ↳ `additionalOwners` | array (nullable) | Additional owner references |
 |     ↳ `type` | string | IDENTITY or GOVERNANCE_GROUP |
 |     ↳ `id` | string | Identity or governance-group ID |
-|     ↳ `name` | string | Display name |
-|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|     ↳ `name` | string (nullable) | Display name |
+|   ↳ `manuallyUpdatedFields` | json (nullable) | Fields manually updated in SailPoint |
 |   ↳ `accessModelMetadata` | object | Access-model metadata |
 |     ↳ `attributes` | array | Access-model metadata attributes |
 |       ↳ `key` | string | Metadata type identifier |
@@ -210,12 +210,12 @@ List entitlements in one access profile.
 |     ↳ `type` | string | SOURCE |
 |     ↳ `name` | string | Source name |
 |   ↳ `attributes` | json | Source-defined entitlement attributes |
-|   ↳ `segments` | array | Segment IDs |
+|   ↳ `segments` | array (nullable) | Segment IDs |
 |   ↳ `directPermissions` | array | Direct permissions |
 |     ↳ `rights` | array | Rights granted on the target |
 |     ↳ `target` | string | Permission target |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint Get Access Request Config
 
@@ -245,19 +245,19 @@ Get tenant access-request, request-on-behalf-of, and machine-identity configurat
 |     ↳ `accessRequestConfig` | object | Entitlement grant request configuration |
 |       ↳ `approvalSchemes` | array | Ordered approval schemes |
 |         ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
-|         ↳ `approverId` | string | Governance group or workflow approver ID |
+|         ↳ `approverId` | string (nullable) | Governance group or workflow approver ID |
 |       ↳ `requestCommentRequired` | boolean | Whether a request comment is required |
 |       ↳ `denialCommentRequired` | boolean | Whether a denial comment is required |
 |       ↳ `reauthorizationRequired` | boolean | Whether reauthorization is required |
 |       ↳ `requireEndDate` | boolean | Whether an end date is required |
-|       ↳ `maxPermittedAccessDuration` | object | Maximum permitted access duration |
+|       ↳ `maxPermittedAccessDuration` | object (nullable) | Maximum permitted access duration |
 |         ↳ `value` | number | Duration value |
 |         ↳ `timeUnit` | string | HOURS, DAYS, WEEKS, or MONTHS |
-|       ↳ `formDefinitionId` | string | Request form definition ID |
+|       ↳ `formDefinitionId` | string (nullable) | Request form definition ID |
 |     ↳ `revocationRequestConfig` | object | Entitlement revocation request configuration |
 |       ↳ `approvalSchemes` | array | Ordered revocation approval schemes |
 |         ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
-|         ↳ `approverId` | string | Governance group or workflow approver ID |
+|         ↳ `approverId` | string (nullable) | Governance group or workflow approver ID |
 |   ↳ `govGroupVisibilityEnabled` | boolean | Whether governance group visibility is enabled |
 |   ↳ `machineIdentityAccessRequestEnabled` | boolean | Whether machine identity access requests are enabled |
 
@@ -320,7 +320,7 @@ List requested-item status records for access requests.
 |   ↳ `jitDetails` | array | Just-in-time access details |
 |   ↳ `form` | json | Completed request form |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint Get Account
 
@@ -365,7 +365,7 @@ Get an account from the current /accounts/v1 service by ID.
 |   ↳ `hasEntitlements` | boolean | Whether the account has entitlements |
 |   ↳ `identity` | json | Correlated identity reference |
 |   ↳ `sourceOwner` | json | Source owner reference |
-|   ↳ `features` | string | Account features |
+|   ↳ `features` | string (nullable) | Account features |
 |   ↳ `origin` | string | Account origin |
 |   ↳ `ownerIdentity` | json | Owner identity reference |
 
@@ -428,19 +428,19 @@ List entitlements granted to one account.
 |   ↳ `attribute` | string | Source entitlement attribute |
 |   ↳ `value` | string | Source entitlement value |
 |   ↳ `sourceSchemaObjectType` | string | Source schema object type |
-|   ↳ `description` | string | Entitlement description |
+|   ↳ `description` | string (nullable) | Entitlement description |
 |   ↳ `privileged` | boolean | Whether the entitlement is privileged |
 |   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
 |   ↳ `requestable` | boolean | Whether the entitlement is requestable |
-|   ↳ `owner` | object | Primary owner reference |
+|   ↳ `owner` | object (nullable) | Primary owner reference |
 |     ↳ `id` | string | Identity ID |
 |     ↳ `type` | string | IDENTITY |
 |     ↳ `name` | string | Identity display name |
-|   ↳ `additionalOwners` | array | Additional owner references |
+|   ↳ `additionalOwners` | array (nullable) | Additional owner references |
 |     ↳ `type` | string | IDENTITY or GOVERNANCE_GROUP |
 |     ↳ `id` | string | Identity or governance-group ID |
-|     ↳ `name` | string | Display name |
-|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|     ↳ `name` | string (nullable) | Display name |
+|   ↳ `manuallyUpdatedFields` | json (nullable) | Fields manually updated in SailPoint |
 |   ↳ `accessModelMetadata` | object | Access-model metadata |
 |     ↳ `attributes` | array | Access-model metadata attributes |
 |       ↳ `key` | string | Metadata type identifier |
@@ -461,12 +461,12 @@ List entitlements granted to one account.
 |     ↳ `type` | string | SOURCE |
 |     ↳ `name` | string | Source name |
 |   ↳ `attributes` | json | Source-defined entitlement attributes |
-|   ↳ `segments` | array | Segment IDs |
+|   ↳ `segments` | array (nullable) | Segment IDs |
 |   ↳ `directPermissions` | array | Direct permissions |
 |     ↳ `rights` | array | Rights granted on the target |
 |     ↳ `target` | string | Permission target |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint Get Account Selections
 
@@ -494,7 +494,7 @@ Resolve eligible source accounts before submitting a machine or multi-account ac
 |     ↳ `requestedItems` | array | Requested items and their eligible accounts |
 |       ↳ `description` | string | Requested item description |
 |       ↳ `accountsSelectionBlocked` | boolean | Whether account selection is blocked |
-|       ↳ `accountsSelectionBlockedReason` | string | Provider reason account selection is blocked |
+|       ↳ `accountsSelectionBlockedReason` | string (nullable) | Provider reason account selection is blocked |
 |       ↳ `type` | string | ACCESS_PROFILE, ROLE, or ENTITLEMENT |
 |       ↳ `id` | string | Requested item ID |
 |       ↳ `name` | string | Requested item name |
@@ -615,21 +615,21 @@ Get an entitlement by ID.
 |   ↳ `attribute` | string | Source entitlement attribute |
 |   ↳ `value` | string | Source entitlement value |
 |   ↳ `sourceSchemaObjectType` | string | Source schema object type |
-|   ↳ `description` | string | Entitlement description |
-|   ↳ `privilegeLevel` | object | Privilege-level details |
+|   ↳ `description` | string (nullable) | Entitlement description |
+|   ↳ `privilegeLevel` | object (nullable) | Privilege-level details |
 |     ↳ `direct` | string | Direct privilege level assigned to the entitlement |
 |     ↳ `setBy` | string | User or process that set the privilege level |
-|     ↳ `setByType` | string | Method by which the privilege level was set |
-|     ↳ `inherited` | string | Inherited privilege level on the entitlement |
+|     ↳ `setByType` | string (nullable) | Method by which the privilege level was set |
+|     ↳ `inherited` | string (nullable) | Inherited privilege level on the entitlement |
 |     ↳ `effective` | string | Effective privilege level assigned to the entitlement |
-|   ↳ `tags` | array | Entitlement tags |
+|   ↳ `tags` | array (nullable) | Entitlement tags |
 |   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
 |   ↳ `requestable` | boolean | Whether the entitlement is requestable |
-|   ↳ `owner` | object | Primary owner reference |
+|   ↳ `owner` | object (nullable) | Primary owner reference |
 |     ↳ `id` | string | Identity ID |
 |     ↳ `type` | string | IDENTITY |
 |     ↳ `name` | string | Identity display name |
-|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `manuallyUpdatedFields` | json (nullable) | Fields manually updated in SailPoint |
 |   ↳ `accessModelMetadata` | object | Access-model metadata |
 |     ↳ `attributes` | array | Access-model metadata attributes |
 |       ↳ `key` | string | Metadata type identifier |
@@ -650,7 +650,7 @@ Get an entitlement by ID.
 |     ↳ `type` | string | SOURCE |
 |     ↳ `name` | string | Source name |
 |   ↳ `attributes` | json | Source-defined entitlement attributes |
-|   ↳ `segments` | array | Segment IDs |
+|   ↳ `segments` | array (nullable) | Segment IDs |
 |   ↳ `directPermissions` | array | Direct permissions |
 |     ↳ `rights` | array | Rights granted on the target |
 |     ↳ `target` | string | Permission target |
@@ -676,19 +676,19 @@ Get grant, revocation, duration, approval, and form settings for an entitlement.
 |   ↳ `accessRequestConfig` | object | Entitlement grant request configuration |
 |     ↳ `approvalSchemes` | array | Ordered approval schemes |
 |       ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
-|       ↳ `approverId` | string | Governance group or workflow approver ID |
+|       ↳ `approverId` | string (nullable) | Governance group or workflow approver ID |
 |     ↳ `requestCommentRequired` | boolean | Whether a request comment is required |
 |     ↳ `denialCommentRequired` | boolean | Whether a denial comment is required |
 |     ↳ `reauthorizationRequired` | boolean | Whether reauthorization is required |
 |     ↳ `requireEndDate` | boolean | Whether an end date is required |
-|     ↳ `maxPermittedAccessDuration` | object | Maximum permitted access duration |
+|     ↳ `maxPermittedAccessDuration` | object (nullable) | Maximum permitted access duration |
 |       ↳ `value` | number | Duration value |
 |       ↳ `timeUnit` | string | HOURS, DAYS, WEEKS, or MONTHS |
-|     ↳ `formDefinitionId` | string | Request form definition ID |
+|     ↳ `formDefinitionId` | string (nullable) | Request form definition ID |
 |   ↳ `revocationRequestConfig` | object | Entitlement revocation request configuration |
 |     ↳ `approvalSchemes` | array | Ordered revocation approval schemes |
 |       ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
-|       ↳ `approverId` | string | Governance group or workflow approver ID |
+|       ↳ `approverId` | string (nullable) | Governance group or workflow approver ID |
 
 ### SailPoint Get Identity
 
@@ -789,19 +789,19 @@ List entitlements in one role using the current non-experimental roles service.
 |   ↳ `attribute` | string | Source entitlement attribute |
 |   ↳ `value` | string | Source entitlement value |
 |   ↳ `sourceSchemaObjectType` | string | Source schema object type |
-|   ↳ `description` | string | Entitlement description |
+|   ↳ `description` | string (nullable) | Entitlement description |
 |   ↳ `privileged` | boolean | Whether the entitlement is privileged |
 |   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
 |   ↳ `requestable` | boolean | Whether the entitlement is requestable |
-|   ↳ `owner` | object | Primary owner reference |
+|   ↳ `owner` | object (nullable) | Primary owner reference |
 |     ↳ `id` | string | Identity ID |
 |     ↳ `type` | string | IDENTITY |
 |     ↳ `name` | string | Identity display name |
-|   ↳ `additionalOwners` | array | Additional owner references |
+|   ↳ `additionalOwners` | array (nullable) | Additional owner references |
 |     ↳ `type` | string | IDENTITY or GOVERNANCE_GROUP |
 |     ↳ `id` | string | Identity or governance-group ID |
-|     ↳ `name` | string | Display name |
-|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|     ↳ `name` | string (nullable) | Display name |
+|   ↳ `manuallyUpdatedFields` | json (nullable) | Fields manually updated in SailPoint |
 |   ↳ `accessModelMetadata` | object | Access-model metadata |
 |     ↳ `attributes` | array | Access-model metadata attributes |
 |       ↳ `key` | string | Metadata type identifier |
@@ -822,12 +822,12 @@ List entitlements in one role using the current non-experimental roles service.
 |     ↳ `type` | string | SOURCE |
 |     ↳ `name` | string | Source name |
 |   ↳ `attributes` | json | Source-defined entitlement attributes |
-|   ↳ `segments` | array | Segment IDs |
+|   ↳ `segments` | array (nullable) | Segment IDs |
 |   ↳ `directPermissions` | array | Direct permissions |
 |     ↳ `rights` | array | Rights granted on the target |
 |     ↳ `target` | string | Permission target |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint Get Source
 
@@ -901,36 +901,36 @@ Get the current status of a SailPoint background task by ID.
 |   ↳ `type` | string | Task type |
 |   ↳ `uniqueName` | string | Task unique name |
 |   ↳ `description` | string | Task description |
-|   ↳ `parentName` | string | Parent task name |
+|   ↳ `parentName` | string (nullable) | Parent task name |
 |   ↳ `launcher` | string | Task launcher |
-|   ↳ `target` | object | Task target |
+|   ↳ `target` | object (nullable) | Task target |
 |     ↳ `id` | string | Target ID |
-|     ↳ `type` | string | APPLICATION or IDENTITY |
+|     ↳ `type` | string (nullable) | APPLICATION or IDENTITY |
 |     ↳ `name` | string | Target name |
 |   ↳ `created` | string | Creation timestamp |
-|   ↳ `modified` | string | Last modification timestamp |
-|   ↳ `launched` | string | Launch timestamp |
-|   ↳ `completed` | string | Completion timestamp |
-|   ↳ `completionStatus` | string | Task completion status |
+|   ↳ `modified` | string (nullable) | Last modification timestamp |
+|   ↳ `launched` | string (nullable) | Launch timestamp |
+|   ↳ `completed` | string (nullable) | Completion timestamp |
+|   ↳ `completionStatus` | string (nullable) | Task completion status |
 |   ↳ `messages` | array | Task messages |
 |     ↳ `type` | string | INFO, WARN, or ERROR |
-|     ↳ `localizedText` | object | Localized task message |
+|     ↳ `localizedText` | object (nullable) | Localized task message |
 |       ↳ `locale` | string | Message locale |
 |       ↳ `message` | string | Message text |
 |     ↳ `key` | string | Message key |
-|     ↳ `parameters` | array | Internationalization parameters |
+|     ↳ `parameters` | array (nullable) | Internationalization parameters |
 |   ↳ `returns` | array | Task return descriptors |
 |     ↳ `name` | string | Return value display name |
 |     ↳ `attributeName` | string | Task attribute name |
 |   ↳ `attributes` | json | Task-specific attributes |
-|   ↳ `progress` | string | Human-readable progress |
+|   ↳ `progress` | string (nullable) | Human-readable progress |
 |   ↳ `percentComplete` | number | Completion percentage |
 |   ↳ `taskDefinitionSummary` | object | Task definition summary |
 |     ↳ `id` | string | Task-definition ID |
 |     ↳ `uniqueName` | string | Task-definition unique name |
-|     ↳ `description` | string | Task-definition description |
+|     ↳ `description` | string (nullable) | Task-definition description |
 |     ↳ `parentName` | string | Parent task-definition name |
-|     ↳ `executor` | string | Task-definition executor |
+|     ↳ `executor` | string (nullable) | Task-definition executor |
 |     ↳ `arguments` | json | Task-definition arguments |
 
 ### SailPoint List Access Profiles
@@ -975,7 +975,7 @@ List access profiles with current visibility and segmentation controls.
 |   ↳ `provisioningCriteria` | json | Multi-account provisioning criteria |
 |   ↳ `additionalOwners` | array | Additional owner references |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Account Activities
 
@@ -1017,7 +1017,7 @@ List provisioning activities with identity, filter, sort, and page controls.
 |   ↳ `executionStatus` | string | Execution status |
 |   ↳ `clientMetadata` | json | Caller-provided string metadata |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Accounts
 
@@ -1067,11 +1067,11 @@ List accounts with documented filtering, sorting, detail, and pagination.
 |   ↳ `hasEntitlements` | boolean | Whether the account has entitlements |
 |   ↳ `identity` | json | Correlated identity reference |
 |   ↳ `sourceOwner` | json | Source owner reference |
-|   ↳ `features` | string | Account features |
+|   ↳ `features` | string (nullable) | Account features |
 |   ↳ `origin` | string | Account origin |
 |   ↳ `ownerIdentity` | json | Owner identity reference |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Campaigns
 
@@ -1120,7 +1120,7 @@ List certification campaigns with detail, filtering, sorting, and pagination.
 |   ↳ `machineAccountCampaignInfo` | json | Machine-account campaign configuration |
 |   ↳ `sourcesWithOrphanEntitlements` | array | Sources containing orphan entitlements |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Certification Review Items
 
@@ -1156,7 +1156,7 @@ List access-review items in one identity certification.
 |   ↳ `decision` | string | Current certification decision |
 |   ↳ `comments` | string | Reviewer comments |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Certifications
 
@@ -1199,7 +1199,7 @@ List identity certifications assigned to a reviewer.
 |   ↳ `errorMessage` | string | Certification error message |
 |   ↳ `phase` | string | Certification phase |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Entitlements
 
@@ -1232,21 +1232,21 @@ List entitlements with current segmentation, cursor, filter, and page controls.
 |   ↳ `attribute` | string | Source entitlement attribute |
 |   ↳ `value` | string | Source entitlement value |
 |   ↳ `sourceSchemaObjectType` | string | Source schema object type |
-|   ↳ `description` | string | Entitlement description |
-|   ↳ `privilegeLevel` | object | Privilege-level details |
+|   ↳ `description` | string (nullable) | Entitlement description |
+|   ↳ `privilegeLevel` | object (nullable) | Privilege-level details |
 |     ↳ `direct` | string | Direct privilege level assigned to the entitlement |
 |     ↳ `setBy` | string | User or process that set the privilege level |
-|     ↳ `setByType` | string | Method by which the privilege level was set |
-|     ↳ `inherited` | string | Inherited privilege level on the entitlement |
+|     ↳ `setByType` | string (nullable) | Method by which the privilege level was set |
+|     ↳ `inherited` | string (nullable) | Inherited privilege level on the entitlement |
 |     ↳ `effective` | string | Effective privilege level assigned to the entitlement |
-|   ↳ `tags` | array | Entitlement tags |
+|   ↳ `tags` | array (nullable) | Entitlement tags |
 |   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
 |   ↳ `requestable` | boolean | Whether the entitlement is requestable |
-|   ↳ `owner` | object | Primary owner reference |
+|   ↳ `owner` | object (nullable) | Primary owner reference |
 |     ↳ `id` | string | Identity ID |
 |     ↳ `type` | string | IDENTITY |
 |     ↳ `name` | string | Identity display name |
-|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `manuallyUpdatedFields` | json (nullable) | Fields manually updated in SailPoint |
 |   ↳ `accessModelMetadata` | object | Access-model metadata |
 |     ↳ `attributes` | array | Access-model metadata attributes |
 |       ↳ `key` | string | Metadata type identifier |
@@ -1267,12 +1267,12 @@ List entitlements with current segmentation, cursor, filter, and page controls.
 |     ↳ `type` | string | SOURCE |
 |     ↳ `name` | string | Source name |
 |   ↳ `attributes` | json | Source-defined entitlement attributes |
-|   ↳ `segments` | array | Segment IDs |
+|   ↳ `segments` | array (nullable) | Segment IDs |
 |   ↳ `directPermissions` | array | Direct permissions |
 |     ↳ `rights` | array | Rights granted on the target |
 |     ↳ `target` | string | Permission target |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Identities
 
@@ -1311,7 +1311,7 @@ List identities with documented filtering, sorting, and pagination.
 |   ↳ `attributes` | json | Tenant-defined identity attributes |
 |   ↳ `lifecycleState` | json | Lifecycle-state reference |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Identity Entitlements
 
@@ -1337,7 +1337,7 @@ List tagged entitlement references held by one identity.
 |   ↳ `objectRef` | json | Tagged entitlement reference |
 |   ↳ `tags` | array | Tags applied to the entitlement |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Pending Access Request Approvals
 
@@ -1393,7 +1393,7 @@ List pending access-request approvals visible to the caller.
 |   ↳ `jitDetails` | array | Just-in-time access details |
 |   ↳ `form` | json | Completed request form |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Roles
 
@@ -1441,7 +1441,7 @@ List roles with current visibility, segmentation, filtering, and pagination cont
 |   ↳ `accessModelMetadata` | json | Access-model metadata |
 |   ↳ `privilegeLevel` | string | Role privilege level |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint List Sources
 
@@ -1499,7 +1499,7 @@ List identity sources with visibility, filtering, sorting, and pagination contro
 |   ↳ `credentialProviderEnabled` | boolean | Whether a credential provider is enabled |
 |   ↳ `category` | string | Source category |
 | `count` | number | Number of records returned in this page |
-| `totalCount` | number | Total matching records when count=true |
+| `totalCount` | number (nullable) | Total matching records when count=true |
 
 ### SailPoint Load Accounts
 
@@ -1528,17 +1528,17 @@ Start account aggregation for a source, optionally using a CSV file.
 |   ↳ `description` | string | Task description |
 |   ↳ `launcher` | string | Task launcher |
 |   ↳ `created` | string | Creation timestamp |
-|   ↳ `launched` | string | Launch timestamp |
-|   ↳ `completed` | string | Completion timestamp |
-|   ↳ `completionStatus` | string | Task completion status |
-|   ↳ `parentName` | string | Parent task name |
+|   ↳ `launched` | string (nullable) | Launch timestamp |
+|   ↳ `completed` | string (nullable) | Completion timestamp |
+|   ↳ `completionStatus` | string (nullable) | Task completion status |
+|   ↳ `parentName` | string (nullable) | Parent task name |
 |   ↳ `messages` | array | Task messages |
 |     ↳ `type` | string | INFO, WARN, or ERROR |
 |     ↳ `error` | boolean | Whether the message is an error |
 |     ↳ `warning` | boolean | Whether the message is a warning |
 |     ↳ `key` | string | Message key |
 |     ↳ `localizedText` | string | Localized message text |
-|   ↳ `progress` | string | Human-readable progress |
+|   ↳ `progress` | string (nullable) | Human-readable progress |
 |   ↳ `attributes` | json | Task-specific attributes |
 |   ↳ `returns` | array | Task return descriptors |
 |     ↳ `displayLabel` | string | Return value display label |
@@ -1669,7 +1669,7 @@ Search current SailPoint indices with every documented search query mode.
 | --------- | ---- | ----------- |
 | `results` | array | Index-dependent search documents |
 | `count` | number | Documents returned in this page |
-| `totalCount` | number | Total matching documents when count=true |
+| `totalCount` | number (nullable) | Total matching documents when count=true |
 
 ### SailPoint Search Aggregate
 
@@ -1708,7 +1708,7 @@ Run an Elasticsearch DSL or SailPoint aggregation over current search indices.
 | --------- | ---- | ----------- |
 | `aggregations` | json | Dynamic Elasticsearch aggregation result document |
 | `hits` | array | Index-dependent aggregation hits |
-| `totalCount` | number | Total matching documents when count=true |
+| `totalCount` | number (nullable) | Total matching documents when count=true |
 
 ### SailPoint Search Count
 
@@ -1779,5 +1779,3 @@ Sign off a completed identity certification.
 |   ↳ `hasErrors` | boolean | Whether the certification has errors |
 |   ↳ `errorMessage` | string | Certification error message |
 |   ↳ `phase` | string | Certification phase |
-
-

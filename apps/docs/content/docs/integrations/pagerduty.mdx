@@ -5,7 +5,7 @@ description: Manage incidents and on-call schedules with PagerDuty
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="pagerduty"
   color="#06AC38"
 />
@@ -456,8 +456,6 @@ Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a
 | `message` | string | Description of the result |
 | `dedupKey` | string | De-duplication key for the alert |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -698,4 +696,3 @@ Trigger workflow when a new incident is triggered in PagerDuty
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
-

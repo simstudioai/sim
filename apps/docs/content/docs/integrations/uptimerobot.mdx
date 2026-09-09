@@ -5,7 +5,7 @@ description: Monitor uptime, manage incidents, maintenance windows, and status p
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="uptimerobot"
   color="#111921"
 />
@@ -57,41 +57,41 @@ List monitors in your UptimeRobot account, with optional filters and pagination
 | `monitors` | array | List of monitors |
 |   ↳ `id` | number | Monitor ID |
 |   ↳ `friendlyName` | string | Friendly name of the monitor |
-|   ↳ `url` | string | Monitored URL or host |
-|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
-|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
-|   ↳ `interval` | number | Check interval in seconds |
-|   ↳ `timeout` | number | Check timeout in seconds |
-|   ↳ `port` | number | Port for Port/UDP monitors |
-|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
-|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
-|   ↳ `httpMethodType` | string | HTTP method used for the check |
-|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `url` | string (nullable) | Monitored URL or host |
+|   ↳ `type` | string (nullable) | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string (nullable) | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number (nullable) | Check interval in seconds |
+|   ↳ `timeout` | number (nullable) | Check timeout in seconds |
+|   ↳ `port` | number (nullable) | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string (nullable) | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string (nullable) | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string (nullable) | HTTP method used for the check |
+|   ↳ `authType` | string (nullable) | HTTP authentication method |
 |   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
-|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
-|   ↳ `followRedirections` | boolean | Whether redirects are followed |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
-|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
-|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
-|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
-|   ↳ `lastIncidentId` | string | ID of the most recent incident |
-|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
-|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `checkSSLErrors` | boolean (nullable) | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean (nullable) | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean (nullable) | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number (nullable) | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number (nullable) | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string (nullable) | ID of the most recent incident |
+|   ↳ `groupId` | number (nullable) | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string (nullable) | When the monitor was created |
 |   ↳ `tags` | array | Tags assigned to the monitor |
 |     ↳ `id` | number | Tag ID |
 |     ↳ `name` | string | Tag name |
-|     ↳ `color` | string | Tag color |
+|     ↳ `color` | string (nullable) | Tag color |
 |   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
 |     ↳ `alertContactId` | number | Alert contact ID |
 |     ↳ `threshold` | number | Notification delay threshold in minutes |
 |     ↳ `recurrence` | number | Repeat notification interval in minutes |
-|   ↳ `lastIncident` | object | Details of the most recent incident |
+|   ↳ `lastIncident` | object (nullable) | Details of the most recent incident |
 |     ↳ `id` | string | Incident ID |
-|     ↳ `status` | string | Incident status |
-|     ↳ `cause` | number | Incident cause code |
-|     ↳ `reason` | string | Incident reason |
-|     ↳ `startedAt` | string | When the incident started |
-|     ↳ `duration` | number | Incident duration in seconds |
+|     ↳ `status` | string (nullable) | Incident status |
+|     ↳ `cause` | number (nullable) | Incident cause code |
+|     ↳ `reason` | string (nullable) | Incident reason |
+|     ↳ `startedAt` | string (nullable) | When the incident started |
+|     ↳ `duration` | number (nullable) | Incident duration in seconds |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
 ### UptimeRobot Get Monitor
@@ -112,41 +112,41 @@ Get the details of a single UptimeRobot monitor by ID
 | `monitor` | object | The monitor details |
 |   ↳ `id` | number | Monitor ID |
 |   ↳ `friendlyName` | string | Friendly name of the monitor |
-|   ↳ `url` | string | Monitored URL or host |
-|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
-|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
-|   ↳ `interval` | number | Check interval in seconds |
-|   ↳ `timeout` | number | Check timeout in seconds |
-|   ↳ `port` | number | Port for Port/UDP monitors |
-|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
-|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
-|   ↳ `httpMethodType` | string | HTTP method used for the check |
-|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `url` | string (nullable) | Monitored URL or host |
+|   ↳ `type` | string (nullable) | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string (nullable) | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number (nullable) | Check interval in seconds |
+|   ↳ `timeout` | number (nullable) | Check timeout in seconds |
+|   ↳ `port` | number (nullable) | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string (nullable) | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string (nullable) | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string (nullable) | HTTP method used for the check |
+|   ↳ `authType` | string (nullable) | HTTP authentication method |
 |   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
-|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
-|   ↳ `followRedirections` | boolean | Whether redirects are followed |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
-|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
-|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
-|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
-|   ↳ `lastIncidentId` | string | ID of the most recent incident |
-|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
-|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `checkSSLErrors` | boolean (nullable) | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean (nullable) | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean (nullable) | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number (nullable) | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number (nullable) | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string (nullable) | ID of the most recent incident |
+|   ↳ `groupId` | number (nullable) | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string (nullable) | When the monitor was created |
 |   ↳ `tags` | array | Tags assigned to the monitor |
 |     ↳ `id` | number | Tag ID |
 |     ↳ `name` | string | Tag name |
-|     ↳ `color` | string | Tag color |
+|     ↳ `color` | string (nullable) | Tag color |
 |   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
 |     ↳ `alertContactId` | number | Alert contact ID |
 |     ↳ `threshold` | number | Notification delay threshold in minutes |
 |     ↳ `recurrence` | number | Repeat notification interval in minutes |
-|   ↳ `lastIncident` | object | Details of the most recent incident |
+|   ↳ `lastIncident` | object (nullable) | Details of the most recent incident |
 |     ↳ `id` | string | Incident ID |
-|     ↳ `status` | string | Incident status |
-|     ↳ `cause` | number | Incident cause code |
-|     ↳ `reason` | string | Incident reason |
-|     ↳ `startedAt` | string | When the incident started |
-|     ↳ `duration` | number | Incident duration in seconds |
+|     ↳ `status` | string (nullable) | Incident status |
+|     ↳ `cause` | number (nullable) | Incident cause code |
+|     ↳ `reason` | string (nullable) | Incident reason |
+|     ↳ `startedAt` | string (nullable) | When the incident started |
+|     ↳ `duration` | number (nullable) | Incident duration in seconds |
 
 ### UptimeRobot Create Monitor
 
@@ -189,41 +189,41 @@ Create a new monitor in UptimeRobot
 | `monitor` | object | The created monitor |
 |   ↳ `id` | number | Monitor ID |
 |   ↳ `friendlyName` | string | Friendly name of the monitor |
-|   ↳ `url` | string | Monitored URL or host |
-|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
-|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
-|   ↳ `interval` | number | Check interval in seconds |
-|   ↳ `timeout` | number | Check timeout in seconds |
-|   ↳ `port` | number | Port for Port/UDP monitors |
-|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
-|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
-|   ↳ `httpMethodType` | string | HTTP method used for the check |
-|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `url` | string (nullable) | Monitored URL or host |
+|   ↳ `type` | string (nullable) | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string (nullable) | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number (nullable) | Check interval in seconds |
+|   ↳ `timeout` | number (nullable) | Check timeout in seconds |
+|   ↳ `port` | number (nullable) | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string (nullable) | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string (nullable) | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string (nullable) | HTTP method used for the check |
+|   ↳ `authType` | string (nullable) | HTTP authentication method |
 |   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
-|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
-|   ↳ `followRedirections` | boolean | Whether redirects are followed |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
-|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
-|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
-|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
-|   ↳ `lastIncidentId` | string | ID of the most recent incident |
-|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
-|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `checkSSLErrors` | boolean (nullable) | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean (nullable) | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean (nullable) | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number (nullable) | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number (nullable) | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string (nullable) | ID of the most recent incident |
+|   ↳ `groupId` | number (nullable) | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string (nullable) | When the monitor was created |
 |   ↳ `tags` | array | Tags assigned to the monitor |
 |     ↳ `id` | number | Tag ID |
 |     ↳ `name` | string | Tag name |
-|     ↳ `color` | string | Tag color |
+|     ↳ `color` | string (nullable) | Tag color |
 |   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
 |     ↳ `alertContactId` | number | Alert contact ID |
 |     ↳ `threshold` | number | Notification delay threshold in minutes |
 |     ↳ `recurrence` | number | Repeat notification interval in minutes |
-|   ↳ `lastIncident` | object | Details of the most recent incident |
+|   ↳ `lastIncident` | object (nullable) | Details of the most recent incident |
 |     ↳ `id` | string | Incident ID |
-|     ↳ `status` | string | Incident status |
-|     ↳ `cause` | number | Incident cause code |
-|     ↳ `reason` | string | Incident reason |
-|     ↳ `startedAt` | string | When the incident started |
-|     ↳ `duration` | number | Incident duration in seconds |
+|     ↳ `status` | string (nullable) | Incident status |
+|     ↳ `cause` | number (nullable) | Incident cause code |
+|     ↳ `reason` | string (nullable) | Incident reason |
+|     ↳ `startedAt` | string (nullable) | When the incident started |
+|     ↳ `duration` | number (nullable) | Incident duration in seconds |
 
 ### UptimeRobot Update Monitor
 
@@ -264,41 +264,41 @@ Update an existing UptimeRobot monitor. Only the provided fields are changed.
 | `monitor` | object | The updated monitor |
 |   ↳ `id` | number | Monitor ID |
 |   ↳ `friendlyName` | string | Friendly name of the monitor |
-|   ↳ `url` | string | Monitored URL or host |
-|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
-|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
-|   ↳ `interval` | number | Check interval in seconds |
-|   ↳ `timeout` | number | Check timeout in seconds |
-|   ↳ `port` | number | Port for Port/UDP monitors |
-|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
-|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
-|   ↳ `httpMethodType` | string | HTTP method used for the check |
-|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `url` | string (nullable) | Monitored URL or host |
+|   ↳ `type` | string (nullable) | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string (nullable) | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number (nullable) | Check interval in seconds |
+|   ↳ `timeout` | number (nullable) | Check timeout in seconds |
+|   ↳ `port` | number (nullable) | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string (nullable) | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string (nullable) | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string (nullable) | HTTP method used for the check |
+|   ↳ `authType` | string (nullable) | HTTP authentication method |
 |   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
-|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
-|   ↳ `followRedirections` | boolean | Whether redirects are followed |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
-|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
-|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
-|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
-|   ↳ `lastIncidentId` | string | ID of the most recent incident |
-|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
-|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `checkSSLErrors` | boolean (nullable) | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean (nullable) | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean (nullable) | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number (nullable) | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number (nullable) | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string (nullable) | ID of the most recent incident |
+|   ↳ `groupId` | number (nullable) | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string (nullable) | When the monitor was created |
 |   ↳ `tags` | array | Tags assigned to the monitor |
 |     ↳ `id` | number | Tag ID |
 |     ↳ `name` | string | Tag name |
-|     ↳ `color` | string | Tag color |
+|     ↳ `color` | string (nullable) | Tag color |
 |   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
 |     ↳ `alertContactId` | number | Alert contact ID |
 |     ↳ `threshold` | number | Notification delay threshold in minutes |
 |     ↳ `recurrence` | number | Repeat notification interval in minutes |
-|   ↳ `lastIncident` | object | Details of the most recent incident |
+|   ↳ `lastIncident` | object (nullable) | Details of the most recent incident |
 |     ↳ `id` | string | Incident ID |
-|     ↳ `status` | string | Incident status |
-|     ↳ `cause` | number | Incident cause code |
-|     ↳ `reason` | string | Incident reason |
-|     ↳ `startedAt` | string | When the incident started |
-|     ↳ `duration` | number | Incident duration in seconds |
+|     ↳ `status` | string (nullable) | Incident status |
+|     ↳ `cause` | number (nullable) | Incident cause code |
+|     ↳ `reason` | string (nullable) | Incident reason |
+|     ↳ `startedAt` | string (nullable) | When the incident started |
+|     ↳ `duration` | number (nullable) | Incident duration in seconds |
 
 ### UptimeRobot Delete Monitor
 
@@ -336,41 +336,41 @@ Pause an UptimeRobot monitor so it stops running checks
 | `monitor` | object | The paused monitor |
 |   ↳ `id` | number | Monitor ID |
 |   ↳ `friendlyName` | string | Friendly name of the monitor |
-|   ↳ `url` | string | Monitored URL or host |
-|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
-|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
-|   ↳ `interval` | number | Check interval in seconds |
-|   ↳ `timeout` | number | Check timeout in seconds |
-|   ↳ `port` | number | Port for Port/UDP monitors |
-|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
-|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
-|   ↳ `httpMethodType` | string | HTTP method used for the check |
-|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `url` | string (nullable) | Monitored URL or host |
+|   ↳ `type` | string (nullable) | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string (nullable) | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number (nullable) | Check interval in seconds |
+|   ↳ `timeout` | number (nullable) | Check timeout in seconds |
+|   ↳ `port` | number (nullable) | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string (nullable) | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string (nullable) | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string (nullable) | HTTP method used for the check |
+|   ↳ `authType` | string (nullable) | HTTP authentication method |
 |   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
-|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
-|   ↳ `followRedirections` | boolean | Whether redirects are followed |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
-|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
-|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
-|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
-|   ↳ `lastIncidentId` | string | ID of the most recent incident |
-|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
-|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `checkSSLErrors` | boolean (nullable) | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean (nullable) | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean (nullable) | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number (nullable) | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number (nullable) | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string (nullable) | ID of the most recent incident |
+|   ↳ `groupId` | number (nullable) | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string (nullable) | When the monitor was created |
 |   ↳ `tags` | array | Tags assigned to the monitor |
 |     ↳ `id` | number | Tag ID |
 |     ↳ `name` | string | Tag name |
-|     ↳ `color` | string | Tag color |
+|     ↳ `color` | string (nullable) | Tag color |
 |   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
 |     ↳ `alertContactId` | number | Alert contact ID |
 |     ↳ `threshold` | number | Notification delay threshold in minutes |
 |     ↳ `recurrence` | number | Repeat notification interval in minutes |
-|   ↳ `lastIncident` | object | Details of the most recent incident |
+|   ↳ `lastIncident` | object (nullable) | Details of the most recent incident |
 |     ↳ `id` | string | Incident ID |
-|     ↳ `status` | string | Incident status |
-|     ↳ `cause` | number | Incident cause code |
-|     ↳ `reason` | string | Incident reason |
-|     ↳ `startedAt` | string | When the incident started |
-|     ↳ `duration` | number | Incident duration in seconds |
+|     ↳ `status` | string (nullable) | Incident status |
+|     ↳ `cause` | number (nullable) | Incident cause code |
+|     ↳ `reason` | string (nullable) | Incident reason |
+|     ↳ `startedAt` | string (nullable) | When the incident started |
+|     ↳ `duration` | number (nullable) | Incident duration in seconds |
 
 ### UptimeRobot Start Monitor
 
@@ -390,41 +390,41 @@ Resume a paused UptimeRobot monitor so it starts running checks again
 | `monitor` | object | The started monitor |
 |   ↳ `id` | number | Monitor ID |
 |   ↳ `friendlyName` | string | Friendly name of the monitor |
-|   ↳ `url` | string | Monitored URL or host |
-|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
-|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
-|   ↳ `interval` | number | Check interval in seconds |
-|   ↳ `timeout` | number | Check timeout in seconds |
-|   ↳ `port` | number | Port for Port/UDP monitors |
-|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
-|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
-|   ↳ `httpMethodType` | string | HTTP method used for the check |
-|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `url` | string (nullable) | Monitored URL or host |
+|   ↳ `type` | string (nullable) | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string (nullable) | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number (nullable) | Check interval in seconds |
+|   ↳ `timeout` | number (nullable) | Check timeout in seconds |
+|   ↳ `port` | number (nullable) | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string (nullable) | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string (nullable) | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string (nullable) | HTTP method used for the check |
+|   ↳ `authType` | string (nullable) | HTTP authentication method |
 |   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
-|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
-|   ↳ `followRedirections` | boolean | Whether redirects are followed |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
-|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
-|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
-|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
-|   ↳ `lastIncidentId` | string | ID of the most recent incident |
-|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
-|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `checkSSLErrors` | boolean (nullable) | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean (nullable) | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean (nullable) | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number (nullable) | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number (nullable) | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string (nullable) | ID of the most recent incident |
+|   ↳ `groupId` | number (nullable) | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string (nullable) | When the monitor was created |
 |   ↳ `tags` | array | Tags assigned to the monitor |
 |     ↳ `id` | number | Tag ID |
 |     ↳ `name` | string | Tag name |
-|     ↳ `color` | string | Tag color |
+|     ↳ `color` | string (nullable) | Tag color |
 |   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
 |     ↳ `alertContactId` | number | Alert contact ID |
 |     ↳ `threshold` | number | Notification delay threshold in minutes |
 |     ↳ `recurrence` | number | Repeat notification interval in minutes |
-|   ↳ `lastIncident` | object | Details of the most recent incident |
+|   ↳ `lastIncident` | object (nullable) | Details of the most recent incident |
 |     ↳ `id` | string | Incident ID |
-|     ↳ `status` | string | Incident status |
-|     ↳ `cause` | number | Incident cause code |
-|     ↳ `reason` | string | Incident reason |
-|     ↳ `startedAt` | string | When the incident started |
-|     ↳ `duration` | number | Incident duration in seconds |
+|     ↳ `status` | string (nullable) | Incident status |
+|     ↳ `cause` | number (nullable) | Incident cause code |
+|     ↳ `reason` | string (nullable) | Incident reason |
+|     ↳ `startedAt` | string (nullable) | When the incident started |
+|     ↳ `duration` | number (nullable) | Incident duration in seconds |
 
 ### UptimeRobot List Incidents
 
@@ -447,17 +447,17 @@ List incidents across your UptimeRobot account (last 24 hours by default), with 
 | --------- | ---- | ----------- |
 | `incidents` | array | List of incidents |
 |   ↳ `id` | string | Incident ID |
-|   ↳ `status` | string | Incident status |
-|   ↳ `type` | string | Incident type |
-|   ↳ `cause` | number | Incident cause code |
-|   ↳ `reason` | string | Incident reason |
-|   ↳ `monitorId` | number | Affected monitor ID |
-|   ↳ `monitorName` | string | Affected monitor name |
-|   ↳ `commentsCount` | number | Number of comments |
-|   ↳ `startedAt` | string | When the incident started |
-|   ↳ `resolvedAt` | string | When the incident resolved |
-|   ↳ `duration` | number | Incident duration in seconds |
-|   ↳ `includeInReports` | boolean | Whether the incident is included in reports |
+|   ↳ `status` | string (nullable) | Incident status |
+|   ↳ `type` | string (nullable) | Incident type |
+|   ↳ `cause` | number (nullable) | Incident cause code |
+|   ↳ `reason` | string (nullable) | Incident reason |
+|   ↳ `monitorId` | number (nullable) | Affected monitor ID |
+|   ↳ `monitorName` | string (nullable) | Affected monitor name |
+|   ↳ `commentsCount` | number (nullable) | Number of comments |
+|   ↳ `startedAt` | string (nullable) | When the incident started |
+|   ↳ `resolvedAt` | string (nullable) | When the incident resolved |
+|   ↳ `duration` | number (nullable) | Incident duration in seconds |
+|   ↳ `includeInReports` | boolean (nullable) | Whether the incident is included in reports |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
 ### UptimeRobot Get Incident
@@ -477,16 +477,16 @@ Get the details of a single UptimeRobot incident by ID
 | --------- | ---- | ----------- |
 | `incident` | object | The incident details |
 |   ↳ `id` | string | Incident ID |
-|   ↳ `status` | string | Incident status |
-|   ↳ `cause` | number | Incident cause code |
-|   ↳ `reason` | string | Incident reason |
-|   ↳ `duration` | number | Incident duration in seconds |
-|   ↳ `startedAt` | string | When the incident started |
-|   ↳ `resolvedAt` | string | When the incident resolved |
-|   ↳ `rootCause` | object | Root cause details for the incident |
-|     ↳ `url` | string | Checked URL |
-|     ↳ `httpResponseCode` | number | HTTP response code observed |
-|     ↳ `responseDownloadUrl` | string | URL to download the captured response body |
+|   ↳ `status` | string (nullable) | Incident status |
+|   ↳ `cause` | number (nullable) | Incident cause code |
+|   ↳ `reason` | string (nullable) | Incident reason |
+|   ↳ `duration` | number (nullable) | Incident duration in seconds |
+|   ↳ `startedAt` | string (nullable) | When the incident started |
+|   ↳ `resolvedAt` | string (nullable) | When the incident resolved |
+|   ↳ `rootCause` | object (nullable) | Root cause details for the incident |
+|     ↳ `url` | string (nullable) | Checked URL |
+|     ↳ `httpResponseCode` | number (nullable) | HTTP response code observed |
+|     ↳ `responseDownloadUrl` | string (nullable) | URL to download the captured response body |
 
 ### UptimeRobot List Maintenance Windows
 
@@ -505,17 +505,17 @@ List maintenance windows in your UptimeRobot account
 | --------- | ---- | ----------- |
 | `maintenanceWindows` | array | List of maintenance windows |
 |   ↳ `id` | number | Maintenance window ID |
-|   ↳ `userId` | number | Owner user ID |
+|   ↳ `userId` | number (nullable) | Owner user ID |
 |   ↳ `name` | string | Maintenance window name |
-|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
-|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
-|   ↳ `time` | string | Start time \(HH:mm:ss\) |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `interval` | string (nullable) | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string (nullable) | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string (nullable) | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number (nullable) | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean (nullable) | Whether all monitors are auto-added |
 |   ↳ `monitorIds` | array | Assigned monitor IDs |
 |   ↳ `days` | array | Days for weekly/monthly recurrence |
-|   ↳ `status` | string | Status \(active or paused\) |
-|   ↳ `created` | string | When the maintenance window was created |
+|   ↳ `status` | string (nullable) | Status \(active or paused\) |
+|   ↳ `created` | string (nullable) | When the maintenance window was created |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
 ### UptimeRobot Get Maintenance Window
@@ -535,17 +535,17 @@ Get the details of a single UptimeRobot maintenance window by ID
 | --------- | ---- | ----------- |
 | `maintenanceWindow` | object | The maintenance window details |
 |   ↳ `id` | number | Maintenance window ID |
-|   ↳ `userId` | number | Owner user ID |
+|   ↳ `userId` | number (nullable) | Owner user ID |
 |   ↳ `name` | string | Maintenance window name |
-|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
-|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
-|   ↳ `time` | string | Start time \(HH:mm:ss\) |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `interval` | string (nullable) | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string (nullable) | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string (nullable) | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number (nullable) | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean (nullable) | Whether all monitors are auto-added |
 |   ↳ `monitorIds` | array | Assigned monitor IDs |
 |   ↳ `days` | array | Days for weekly/monthly recurrence |
-|   ↳ `status` | string | Status \(active or paused\) |
-|   ↳ `created` | string | When the maintenance window was created |
+|   ↳ `status` | string (nullable) | Status \(active or paused\) |
+|   ↳ `created` | string (nullable) | When the maintenance window was created |
 
 ### UptimeRobot Create Maintenance Window
 
@@ -571,17 +571,17 @@ Create a new maintenance window to suppress alerts during planned downtime
 | --------- | ---- | ----------- |
 | `maintenanceWindow` | object | The created maintenance window |
 |   ↳ `id` | number | Maintenance window ID |
-|   ↳ `userId` | number | Owner user ID |
+|   ↳ `userId` | number (nullable) | Owner user ID |
 |   ↳ `name` | string | Maintenance window name |
-|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
-|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
-|   ↳ `time` | string | Start time \(HH:mm:ss\) |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `interval` | string (nullable) | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string (nullable) | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string (nullable) | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number (nullable) | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean (nullable) | Whether all monitors are auto-added |
 |   ↳ `monitorIds` | array | Assigned monitor IDs |
 |   ↳ `days` | array | Days for weekly/monthly recurrence |
-|   ↳ `status` | string | Status \(active or paused\) |
-|   ↳ `created` | string | When the maintenance window was created |
+|   ↳ `status` | string (nullable) | Status \(active or paused\) |
+|   ↳ `created` | string (nullable) | When the maintenance window was created |
 
 ### UptimeRobot Update Maintenance Window
 
@@ -608,17 +608,17 @@ Update an existing maintenance window. Only the provided fields are changed.
 | --------- | ---- | ----------- |
 | `maintenanceWindow` | object | The updated maintenance window |
 |   ↳ `id` | number | Maintenance window ID |
-|   ↳ `userId` | number | Owner user ID |
+|   ↳ `userId` | number (nullable) | Owner user ID |
 |   ↳ `name` | string | Maintenance window name |
-|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
-|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
-|   ↳ `time` | string | Start time \(HH:mm:ss\) |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `interval` | string (nullable) | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string (nullable) | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string (nullable) | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number (nullable) | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean (nullable) | Whether all monitors are auto-added |
 |   ↳ `monitorIds` | array | Assigned monitor IDs |
 |   ↳ `days` | array | Days for weekly/monthly recurrence |
-|   ↳ `status` | string | Status \(active or paused\) |
-|   ↳ `created` | string | When the maintenance window was created |
+|   ↳ `status` | string (nullable) | Status \(active or paused\) |
+|   ↳ `created` | string (nullable) | When the maintenance window was created |
 
 ### UptimeRobot Delete Maintenance Window
 
@@ -655,13 +655,13 @@ List the personal alert contacts in your UptimeRobot account
 | --------- | ---- | ----------- |
 | `alertContacts` | array | List of alert contacts |
 |   ↳ `id` | number | Alert contact ID |
-|   ↳ `friendlyName` | string | Display name |
-|   ↳ `type` | string | Alert contact type |
-|   ↳ `value` | string | Contact value \(e.g. email address\) |
-|   ↳ `customValue` | string | Custom value for webhook-style contacts |
-|   ↳ `status` | string | Activation status |
-|   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `friendlyName` | string (nullable) | Display name |
+|   ↳ `type` | string (nullable) | Alert contact type |
+|   ↳ `value` | string (nullable) | Contact value \(e.g. email address\) |
+|   ↳ `customValue` | string (nullable) | Custom value for webhook-style contacts |
+|   ↳ `status` | string (nullable) | Activation status |
+|   ↳ `enableNotificationsFor` | string (nullable) | Which monitor events trigger notifications |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
 ### UptimeRobot Get Alert Contact
@@ -681,13 +681,13 @@ Get the details of a single UptimeRobot alert contact by ID
 | --------- | ---- | ----------- |
 | `alertContact` | object | The alert contact details |
 |   ↳ `id` | number | Alert contact ID |
-|   ↳ `friendlyName` | string | Display name |
-|   ↳ `type` | string | Alert contact type |
-|   ↳ `value` | string | Contact value \(e.g. email address\) |
-|   ↳ `customValue` | string | Custom value for webhook-style contacts |
-|   ↳ `status` | string | Activation status |
-|   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `friendlyName` | string (nullable) | Display name |
+|   ↳ `type` | string (nullable) | Alert contact type |
+|   ↳ `value` | string (nullable) | Contact value \(e.g. email address\) |
+|   ↳ `customValue` | string (nullable) | Custom value for webhook-style contacts |
+|   ↳ `status` | string (nullable) | Activation status |
+|   ↳ `enableNotificationsFor` | string (nullable) | Which monitor events trigger notifications |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
 
 ### UptimeRobot Create Alert Contact
 
@@ -708,13 +708,13 @@ Create an email alert contact in UptimeRobot. The contact must be confirmed via 
 | --------- | ---- | ----------- |
 | `alertContact` | object | The created alert contact |
 |   ↳ `id` | number | Alert contact ID |
-|   ↳ `friendlyName` | string | Display name |
-|   ↳ `type` | string | Alert contact type |
-|   ↳ `value` | string | Contact value \(e.g. email address\) |
-|   ↳ `customValue` | string | Custom value for webhook-style contacts |
-|   ↳ `status` | string | Activation status |
-|   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
-|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `friendlyName` | string (nullable) | Display name |
+|   ↳ `type` | string (nullable) | Alert contact type |
+|   ↳ `value` | string (nullable) | Contact value \(e.g. email address\) |
+|   ↳ `customValue` | string (nullable) | Custom value for webhook-style contacts |
+|   ↳ `status` | string (nullable) | Activation status |
+|   ↳ `enableNotificationsFor` | string (nullable) | Which monitor events trigger notifications |
+|   ↳ `sslExpirationReminder` | boolean (nullable) | Whether SSL expiration reminders are enabled |
 
 ### UptimeRobot Delete Alert Contact
 
@@ -752,20 +752,20 @@ List the public status pages in your UptimeRobot account
 | `psps` | array | List of public status pages |
 |   ↳ `id` | number | Public status page ID |
 |   ↳ `friendlyName` | string | Status page name |
-|   ↳ `customDomain` | string | Custom domain |
-|   ↳ `isPasswordSet` | boolean | Whether the page is password protected |
+|   ↳ `customDomain` | string (nullable) | Custom domain |
+|   ↳ `isPasswordSet` | boolean (nullable) | Whether the page is password protected |
 |   ↳ `monitorIds` | array | Monitor IDs shown on the page |
 |   ↳ `tagIds` | array | Tag IDs shown on the page |
-|   ↳ `monitorsCount` | number | Number of monitors on the page |
-|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
-|   ↳ `urlKey` | string | Public URL key |
-|   ↳ `homepageLink` | string | Homepage link target |
-|   ↳ `gaCode` | string | Google Analytics code |
-|   ↳ `icon` | string | Icon URL |
-|   ↳ `logo` | string | Logo URL |
-|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
-|   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
-|   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
+|   ↳ `monitorsCount` | number (nullable) | Number of monitors on the page |
+|   ↳ `status` | string (nullable) | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string (nullable) | Public URL key |
+|   ↳ `homepageLink` | string (nullable) | Homepage link target |
+|   ↳ `gaCode` | string (nullable) | Google Analytics code |
+|   ↳ `icon` | string (nullable) | Icon URL |
+|   ↳ `logo` | string (nullable) | Logo URL |
+|   ↳ `noIndex` | boolean (nullable) | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean (nullable) | Whether the "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean (nullable) | Whether the subscribe feature is enabled |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
 ### UptimeRobot Get Status Page
@@ -786,20 +786,20 @@ Get the details of a single UptimeRobot public status page by ID
 | `psp` | object | The status page details |
 |   ↳ `id` | number | Public status page ID |
 |   ↳ `friendlyName` | string | Status page name |
-|   ↳ `customDomain` | string | Custom domain |
-|   ↳ `isPasswordSet` | boolean | Whether the page is password protected |
+|   ↳ `customDomain` | string (nullable) | Custom domain |
+|   ↳ `isPasswordSet` | boolean (nullable) | Whether the page is password protected |
 |   ↳ `monitorIds` | array | Monitor IDs shown on the page |
 |   ↳ `tagIds` | array | Tag IDs shown on the page |
-|   ↳ `monitorsCount` | number | Number of monitors on the page |
-|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
-|   ↳ `urlKey` | string | Public URL key |
-|   ↳ `homepageLink` | string | Homepage link target |
-|   ↳ `gaCode` | string | Google Analytics code |
-|   ↳ `icon` | string | Icon URL |
-|   ↳ `logo` | string | Logo URL |
-|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
-|   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
-|   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
+|   ↳ `monitorsCount` | number (nullable) | Number of monitors on the page |
+|   ↳ `status` | string (nullable) | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string (nullable) | Public URL key |
+|   ↳ `homepageLink` | string (nullable) | Homepage link target |
+|   ↳ `gaCode` | string (nullable) | Google Analytics code |
+|   ↳ `icon` | string (nullable) | Icon URL |
+|   ↳ `logo` | string (nullable) | Logo URL |
+|   ↳ `noIndex` | boolean (nullable) | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean (nullable) | Whether the "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean (nullable) | Whether the subscribe feature is enabled |
 
 ### UptimeRobot Create Status Page
 
@@ -827,20 +827,20 @@ Create a public status page in UptimeRobot, optionally with a logo and icon imag
 | `psp` | object | The created status page |
 |   ↳ `id` | number | Public status page ID |
 |   ↳ `friendlyName` | string | Status page name |
-|   ↳ `customDomain` | string | Custom domain |
-|   ↳ `isPasswordSet` | boolean | Whether the page is password protected |
+|   ↳ `customDomain` | string (nullable) | Custom domain |
+|   ↳ `isPasswordSet` | boolean (nullable) | Whether the page is password protected |
 |   ↳ `monitorIds` | array | Monitor IDs shown on the page |
 |   ↳ `tagIds` | array | Tag IDs shown on the page |
-|   ↳ `monitorsCount` | number | Number of monitors on the page |
-|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
-|   ↳ `urlKey` | string | Public URL key |
-|   ↳ `homepageLink` | string | Homepage link target |
-|   ↳ `gaCode` | string | Google Analytics code |
-|   ↳ `icon` | string | Icon URL |
-|   ↳ `logo` | string | Logo URL |
-|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
-|   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
-|   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
+|   ↳ `monitorsCount` | number (nullable) | Number of monitors on the page |
+|   ↳ `status` | string (nullable) | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string (nullable) | Public URL key |
+|   ↳ `homepageLink` | string (nullable) | Homepage link target |
+|   ↳ `gaCode` | string (nullable) | Google Analytics code |
+|   ↳ `icon` | string (nullable) | Icon URL |
+|   ↳ `logo` | string (nullable) | Logo URL |
+|   ↳ `noIndex` | boolean (nullable) | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean (nullable) | Whether the "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean (nullable) | Whether the subscribe feature is enabled |
 
 ### UptimeRobot Update Status Page
 
@@ -869,20 +869,20 @@ Update a public status page in UptimeRobot. Only the provided fields are changed
 | `psp` | object | The updated status page |
 |   ↳ `id` | number | Public status page ID |
 |   ↳ `friendlyName` | string | Status page name |
-|   ↳ `customDomain` | string | Custom domain |
-|   ↳ `isPasswordSet` | boolean | Whether the page is password protected |
+|   ↳ `customDomain` | string (nullable) | Custom domain |
+|   ↳ `isPasswordSet` | boolean (nullable) | Whether the page is password protected |
 |   ↳ `monitorIds` | array | Monitor IDs shown on the page |
 |   ↳ `tagIds` | array | Tag IDs shown on the page |
-|   ↳ `monitorsCount` | number | Number of monitors on the page |
-|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
-|   ↳ `urlKey` | string | Public URL key |
-|   ↳ `homepageLink` | string | Homepage link target |
-|   ↳ `gaCode` | string | Google Analytics code |
-|   ↳ `icon` | string | Icon URL |
-|   ↳ `logo` | string | Logo URL |
-|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
-|   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
-|   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
+|   ↳ `monitorsCount` | number (nullable) | Number of monitors on the page |
+|   ↳ `status` | string (nullable) | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string (nullable) | Public URL key |
+|   ↳ `homepageLink` | string (nullable) | Homepage link target |
+|   ↳ `gaCode` | string (nullable) | Google Analytics code |
+|   ↳ `icon` | string (nullable) | Icon URL |
+|   ↳ `logo` | string (nullable) | Logo URL |
+|   ↳ `noIndex` | boolean (nullable) | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean (nullable) | Whether the "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean (nullable) | Whether the subscribe feature is enabled |
 
 ### UptimeRobot Delete Status Page
 
@@ -917,13 +917,11 @@ Get details about the authenticated UptimeRobot account, including plan and limi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | object | The account details |
-|   ↳ `email` | string | Account email |
-|   ↳ `fullName` | string | Account holder name |
-|   ↳ `monitorsCount` | number | Number of monitors in the account |
-|   ↳ `monitorLimit` | number | Maximum number of monitors allowed |
-|   ↳ `smsCredits` | number | Remaining SMS credits |
-|   ↳ `plan` | string | Subscription plan name |
-|   ↳ `subscriptionStatus` | string | Subscription status |
-|   ↳ `subscriptionExpiresAt` | string | Subscription expiration date |
-
-
+|   ↳ `email` | string (nullable) | Account email |
+|   ↳ `fullName` | string (nullable) | Account holder name |
+|   ↳ `monitorsCount` | number (nullable) | Number of monitors in the account |
+|   ↳ `monitorLimit` | number (nullable) | Maximum number of monitors allowed |
+|   ↳ `smsCredits` | number (nullable) | Remaining SMS credits |
+|   ↳ `plan` | string (nullable) | Subscription plan name |
+|   ↳ `subscriptionStatus` | string (nullable) | Subscription status |
+|   ↳ `subscriptionExpiresAt` | string (nullable) | Subscription expiration date |

@@ -5,7 +5,7 @@ description: Send and receive iMessage and SMS
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="sendblue"
   color="#008BFF"
 />
@@ -206,8 +206,6 @@ Retrieve a single message and its current status by message handle/ID.
 | `date_sent` | string | ISO 8601 creation timestamp |
 | `date_updated` | string | ISO 8601 last-update timestamp |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -288,4 +286,3 @@ Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Send
 | `sender_email` | string | Email of the user who sent the message |
 | `seat_id` | string | Seat UUID, null if absent |
 | `raw` | string | Complete raw webhook payload from Sendblue as a JSON string |
-

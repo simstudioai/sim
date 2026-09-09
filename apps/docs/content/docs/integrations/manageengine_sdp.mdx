@@ -5,7 +5,7 @@ description: Manage ServiceDesk Plus Cloud requests, problems, changes, assets, 
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="manageengine_sdp"
   color="#FFFFFF"
 />
@@ -88,36 +88,36 @@ Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject,
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `request` | object | The created request |
+| `request` | object (nullable) | The created request |
 |   ↳ `id` | string | Request ID |
 |   ↳ `display_id` | string | Request number shown in the SDP UI |
 |   ↳ `subject` | string | Request subject |
-|   ↳ `description` | string | Request description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Request description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `color` | string | Status colour |
 |     ↳ `in_progress` | boolean | Whether the status is in progress |
 |     ↳ `internal_name` | string | Internal status name |
 |     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
-|   ↳ `priority` | json | Priority |
+|   ↳ `priority` | json (nullable) | Priority |
 |     ↳ `color` | string | Priority colour |
-|   ↳ `requester` | json | Requester |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `group` | json | Support group |
+|   ↳ `requester` | json (nullable) | Requester |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `group` | json (nullable) | Support group |
 |     ↳ `site` | string | Site the group belongs to |
 |     ↳ `deleted` | boolean | Whether the group is deleted |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `template` | json | Request template |
-|   ↳ `site` | json | Site |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `due_by_time` | json | SLA due time |
-|   ↳ `resolved_time` | json | Resolution time |
-|   ↳ `completed_time` | json | Completion time |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `template` | json (nullable) | Request template |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `due_by_time` | json (nullable) | SLA due time |
+|   ↳ `resolved_time` | json (nullable) | Resolution time |
+|   ↳ `completed_time` | json (nullable) | Completion time |
 |   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
 |   ↳ `has_notes` | boolean | Whether the request has notes |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 
 ### ManageEngine SDP Get Request
 
@@ -135,36 +135,36 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `request` | object | The request |
+| `request` | object (nullable) | The request |
 |   ↳ `id` | string | Request ID |
 |   ↳ `display_id` | string | Request number shown in the SDP UI |
 |   ↳ `subject` | string | Request subject |
-|   ↳ `description` | string | Request description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Request description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `color` | string | Status colour |
 |     ↳ `in_progress` | boolean | Whether the status is in progress |
 |     ↳ `internal_name` | string | Internal status name |
 |     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
-|   ↳ `priority` | json | Priority |
+|   ↳ `priority` | json (nullable) | Priority |
 |     ↳ `color` | string | Priority colour |
-|   ↳ `requester` | json | Requester |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `group` | json | Support group |
+|   ↳ `requester` | json (nullable) | Requester |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `group` | json (nullable) | Support group |
 |     ↳ `site` | string | Site the group belongs to |
 |     ↳ `deleted` | boolean | Whether the group is deleted |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `template` | json | Request template |
-|   ↳ `site` | json | Site |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `due_by_time` | json | SLA due time |
-|   ↳ `resolved_time` | json | Resolution time |
-|   ↳ `completed_time` | json | Completion time |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `template` | json (nullable) | Request template |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `due_by_time` | json (nullable) | SLA due time |
+|   ↳ `resolved_time` | json (nullable) | Resolution time |
+|   ↳ `completed_time` | json (nullable) | Completion time |
 |   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
 |   ↳ `has_notes` | boolean | Whether the request has notes |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 
 ### ManageEngine SDP List Requests
 
@@ -192,34 +192,34 @@ List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria
 |   ↳ `id` | string | Request ID |
 |   ↳ `display_id` | string | Request number shown in the SDP UI |
 |   ↳ `subject` | string | Request subject |
-|   ↳ `description` | string | Request description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Request description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `color` | string | Status colour |
 |     ↳ `in_progress` | boolean | Whether the status is in progress |
 |     ↳ `internal_name` | string | Internal status name |
 |     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
-|   ↳ `priority` | json | Priority |
+|   ↳ `priority` | json (nullable) | Priority |
 |     ↳ `color` | string | Priority colour |
-|   ↳ `requester` | json | Requester |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `group` | json | Support group |
+|   ↳ `requester` | json (nullable) | Requester |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `group` | json (nullable) | Support group |
 |     ↳ `site` | string | Site the group belongs to |
 |     ↳ `deleted` | boolean | Whether the group is deleted |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `template` | json | Request template |
-|   ↳ `site` | json | Site |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `due_by_time` | json | SLA due time |
-|   ↳ `resolved_time` | json | Resolution time |
-|   ↳ `completed_time` | json | Completion time |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `template` | json (nullable) | Request template |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `due_by_time` | json (nullable) | SLA due time |
+|   ↳ `resolved_time` | json (nullable) | Resolution time |
+|   ↳ `completed_time` | json (nullable) | Completion time |
 |   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
 |   ↳ `has_notes` | boolean | Whether the request has notes |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 | `count` | number | Number of requests returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -255,36 +255,36 @@ Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priorit
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `request` | object | The updated request |
+| `request` | object (nullable) | The updated request |
 |   ↳ `id` | string | Request ID |
 |   ↳ `display_id` | string | Request number shown in the SDP UI |
 |   ↳ `subject` | string | Request subject |
-|   ↳ `description` | string | Request description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Request description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `color` | string | Status colour |
 |     ↳ `in_progress` | boolean | Whether the status is in progress |
 |     ↳ `internal_name` | string | Internal status name |
 |     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
-|   ↳ `priority` | json | Priority |
+|   ↳ `priority` | json (nullable) | Priority |
 |     ↳ `color` | string | Priority colour |
-|   ↳ `requester` | json | Requester |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `group` | json | Support group |
+|   ↳ `requester` | json (nullable) | Requester |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `group` | json (nullable) | Support group |
 |     ↳ `site` | string | Site the group belongs to |
 |     ↳ `deleted` | boolean | Whether the group is deleted |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `template` | json | Request template |
-|   ↳ `site` | json | Site |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `due_by_time` | json | SLA due time |
-|   ↳ `resolved_time` | json | Resolution time |
-|   ↳ `completed_time` | json | Completion time |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `template` | json (nullable) | Request template |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `due_by_time` | json (nullable) | SLA due time |
+|   ↳ `resolved_time` | json (nullable) | Resolution time |
+|   ↳ `completed_time` | json (nullable) | Completion time |
 |   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
 |   ↳ `has_notes` | boolean | Whether the request has notes |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 
 ### ManageEngine SDP Delete Request
 
@@ -325,16 +325,16 @@ Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making i
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | object | The created note |
+| `note` | object (nullable) | The created note |
 |   ↳ `id` | string | Note ID |
 |   ↳ `description` | string | Note body \(HTML\) |
 |   ↳ `show_to_requester` | boolean | Whether the note is visible to the requester |
 |   ↳ `notify_technician` | boolean | Whether the technician was notified |
 |   ↳ `mark_first_response` | boolean | Whether the note counts as the first response |
 |   ↳ `add_to_linked_requests` | boolean | Whether the note was copied to linked requests |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `created_by` | json | Note author |
-|   ↳ `request` | json | The request the note belongs to |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `created_by` | json (nullable) | Note author |
+|   ↳ `request` | json (nullable) | The request the note belongs to |
 |     ↳ `id` | string | Request ID |
 |     ↳ `display_id` | string | Request number |
 |     ↳ `subject` | string | Request subject |
@@ -369,14 +369,14 @@ List the notes on a ManageEngine ServiceDesk Plus Cloud request.
 |   ↳ `notify_technician` | boolean | Whether the technician was notified |
 |   ↳ `mark_first_response` | boolean | Whether the note counts as the first response |
 |   ↳ `add_to_linked_requests` | boolean | Whether the note was copied to linked requests |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `created_by` | json | Note author |
-|   ↳ `request` | json | The request the note belongs to |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `created_by` | json (nullable) | Note author |
+|   ↳ `request` | json (nullable) | The request the note belongs to |
 |     ↳ `id` | string | Request ID |
 |     ↳ `display_id` | string | Request number |
 |     ↳ `subject` | string | Request subject |
 | `count` | number | Number of notes returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -413,28 +413,28 @@ Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, des
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `problem` | object | The created problem |
+| `problem` | object (nullable) | The created problem |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
-|   ↳ `description` | string | Problem description \(HTML\) |
-|   ↳ `status` | json | Current status |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `group` | json | Support group |
-|   ↳ `site` | json | Site |
-|   ↳ `reported_by` | json | User who reported the problem |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `reported_time` | json | Time the problem was reported |
-|   ↳ `due_by_time` | json | Due time |
-|   ↳ `closed_time` | json | Time the problem was closed |
-|   ↳ `root_cause` | json | Root cause analysis |
-|   ↳ `workaround_details` | json | Documented workaround |
-|   ↳ `resolution_details` | json | Documented resolution |
-|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `description` | string (nullable) | Problem description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `group` | json (nullable) | Support group |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `reported_by` | json (nullable) | User who reported the problem |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `reported_time` | json (nullable) | Time the problem was reported |
+|   ↳ `due_by_time` | json (nullable) | Due time |
+|   ↳ `closed_time` | json (nullable) | Time the problem was closed |
+|   ↳ `root_cause` | json (nullable) | Root cause analysis |
+|   ↳ `workaround_details` | json (nullable) | Documented workaround |
+|   ↳ `resolution_details` | json (nullable) | Documented resolution |
+|   ↳ `known_error_details` | json (nullable) | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 
 ### ManageEngine SDP Get Problem
@@ -453,28 +453,28 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `problem` | object | The problem |
+| `problem` | object (nullable) | The problem |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
-|   ↳ `description` | string | Problem description \(HTML\) |
-|   ↳ `status` | json | Current status |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `group` | json | Support group |
-|   ↳ `site` | json | Site |
-|   ↳ `reported_by` | json | User who reported the problem |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `reported_time` | json | Time the problem was reported |
-|   ↳ `due_by_time` | json | Due time |
-|   ↳ `closed_time` | json | Time the problem was closed |
-|   ↳ `root_cause` | json | Root cause analysis |
-|   ↳ `workaround_details` | json | Documented workaround |
-|   ↳ `resolution_details` | json | Documented resolution |
-|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `description` | string (nullable) | Problem description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `group` | json (nullable) | Support group |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `reported_by` | json (nullable) | User who reported the problem |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `reported_time` | json (nullable) | Time the problem was reported |
+|   ↳ `due_by_time` | json (nullable) | Due time |
+|   ↳ `closed_time` | json (nullable) | Time the problem was closed |
+|   ↳ `root_cause` | json (nullable) | Root cause analysis |
+|   ↳ `workaround_details` | json (nullable) | Documented workaround |
+|   ↳ `resolution_details` | json (nullable) | Documented resolution |
+|   ↳ `known_error_details` | json (nullable) | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 
 ### ManageEngine SDP List Problems
@@ -501,29 +501,29 @@ List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria
 | --------- | ---- | ----------- |
 | `problems` | array | Matching problems |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
-|   ↳ `description` | string | Problem description \(HTML\) |
-|   ↳ `status` | json | Current status |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `group` | json | Support group |
-|   ↳ `site` | json | Site |
-|   ↳ `reported_by` | json | User who reported the problem |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `reported_time` | json | Time the problem was reported |
-|   ↳ `due_by_time` | json | Due time |
-|   ↳ `closed_time` | json | Time the problem was closed |
-|   ↳ `root_cause` | json | Root cause analysis |
-|   ↳ `workaround_details` | json | Documented workaround |
-|   ↳ `resolution_details` | json | Documented resolution |
-|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `description` | string (nullable) | Problem description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `group` | json (nullable) | Support group |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `reported_by` | json (nullable) | User who reported the problem |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `reported_time` | json (nullable) | Time the problem was reported |
+|   ↳ `due_by_time` | json (nullable) | Due time |
+|   ↳ `closed_time` | json (nullable) | Time the problem was closed |
+|   ↳ `root_cause` | json (nullable) | Root cause analysis |
+|   ↳ `workaround_details` | json (nullable) | Documented workaround |
+|   ↳ `resolution_details` | json (nullable) | Documented resolution |
+|   ↳ `known_error_details` | json (nullable) | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 | `count` | number | Number of problems returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -561,28 +561,28 @@ Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `problem` | object | The updated problem |
+| `problem` | object (nullable) | The updated problem |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
-|   ↳ `description` | string | Problem description \(HTML\) |
-|   ↳ `status` | json | Current status |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `category` | json | Category |
-|   ↳ `subcategory` | json | Subcategory |
-|   ↳ `group` | json | Support group |
-|   ↳ `site` | json | Site |
-|   ↳ `reported_by` | json | User who reported the problem |
-|   ↳ `technician` | json | Assigned technician |
-|   ↳ `reported_time` | json | Time the problem was reported |
-|   ↳ `due_by_time` | json | Due time |
-|   ↳ `closed_time` | json | Time the problem was closed |
-|   ↳ `root_cause` | json | Root cause analysis |
-|   ↳ `workaround_details` | json | Documented workaround |
-|   ↳ `resolution_details` | json | Documented resolution |
-|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `description` | string (nullable) | Problem description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `category` | json (nullable) | Category |
+|   ↳ `subcategory` | json (nullable) | Subcategory |
+|   ↳ `group` | json (nullable) | Support group |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `reported_by` | json (nullable) | User who reported the problem |
+|   ↳ `technician` | json (nullable) | Assigned technician |
+|   ↳ `reported_time` | json (nullable) | Time the problem was reported |
+|   ↳ `due_by_time` | json (nullable) | Due time |
+|   ↳ `closed_time` | json (nullable) | Time the problem was closed |
+|   ↳ `root_cause` | json (nullable) | Root cause analysis |
+|   ↳ `workaround_details` | json (nullable) | Documented workaround |
+|   ↳ `resolution_details` | json (nullable) | Documented resolution |
+|   ↳ `known_error_details` | json (nullable) | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 
 ### ManageEngine SDP Delete Problem
@@ -620,11 +620,11 @@ Add a note to a ManageEngine ServiceDesk Plus Cloud problem.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | object | The created note |
+| `note` | object (nullable) | The created note |
 |   ↳ `id` | string | Note ID |
 |   ↳ `description` | string | Note body \(HTML\) |
-|   ↳ `performed_by` | json | Note author |
-|   ↳ `performed_time` | json | Time the note was added |
+|   ↳ `performed_by` | json (nullable) | Note author |
+|   ↳ `performed_time` | json (nullable) | Time the note was added |
 
 ### ManageEngine SDP List Problem Notes
 
@@ -652,10 +652,10 @@ List the notes on a ManageEngine ServiceDesk Plus Cloud problem.
 | `notes` | array | Notes on the problem |
 |   ↳ `id` | string | Note ID |
 |   ↳ `description` | string | Note body \(HTML\) |
-|   ↳ `performed_by` | json | Note author |
-|   ↳ `performed_time` | json | Time the note was added |
+|   ↳ `performed_by` | json (nullable) | Note author |
+|   ↳ `performed_time` | json (nullable) | Time the note was added |
 | `count` | number | Number of notes returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -697,32 +697,32 @@ Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stag
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `change` | object | The created change |
+| `change` | object (nullable) | The created change |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
-|   ↳ `description` | string | Change description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Change description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `internal_name` | string | Internal status name |
-|     ↳ `stage` | json | Change stage |
-|   ↳ `change_type` | json | Change type |
+|     ↳ `stage` | json (nullable) | Change stage |
+|   ↳ `change_type` | json (nullable) | Change type |
 |     ↳ `color` | string | Type colour |
 |     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `reason_for_change` | json | Reason for the change |
-|   ↳ `change_requester` | json | User who requested the change |
-|   ↳ `change_owner` | json | Change owner |
-|   ↳ `change_manager` | json | Change manager |
-|   ↳ `group` | json | Support group |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `reason_for_change` | json (nullable) | Reason for the change |
+|   ↳ `change_requester` | json (nullable) | User who requested the change |
+|   ↳ `change_owner` | json (nullable) | Change owner |
+|   ↳ `change_manager` | json (nullable) | Change manager |
+|   ↳ `group` | json (nullable) | Support group |
 |   ↳ `emergency` | boolean | Whether the change is an emergency |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `scheduled_start_time` | json | Scheduled start |
-|   ↳ `scheduled_end_time` | json | Scheduled end |
-|   ↳ `roll_out_plan` | json | Roll-out plan |
-|   ↳ `close_details` | json | Closure details |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `scheduled_start_time` | json (nullable) | Scheduled start |
+|   ↳ `scheduled_end_time` | json (nullable) | Scheduled end |
+|   ↳ `roll_out_plan` | json (nullable) | Roll-out plan |
+|   ↳ `close_details` | json (nullable) | Closure details |
 
 ### ManageEngine SDP Get Change
 
@@ -740,32 +740,32 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `change` | object | The change |
+| `change` | object (nullable) | The change |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
-|   ↳ `description` | string | Change description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Change description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `internal_name` | string | Internal status name |
-|     ↳ `stage` | json | Change stage |
-|   ↳ `change_type` | json | Change type |
+|     ↳ `stage` | json (nullable) | Change stage |
+|   ↳ `change_type` | json (nullable) | Change type |
 |     ↳ `color` | string | Type colour |
 |     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `reason_for_change` | json | Reason for the change |
-|   ↳ `change_requester` | json | User who requested the change |
-|   ↳ `change_owner` | json | Change owner |
-|   ↳ `change_manager` | json | Change manager |
-|   ↳ `group` | json | Support group |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `reason_for_change` | json (nullable) | Reason for the change |
+|   ↳ `change_requester` | json (nullable) | User who requested the change |
+|   ↳ `change_owner` | json (nullable) | Change owner |
+|   ↳ `change_manager` | json (nullable) | Change manager |
+|   ↳ `group` | json (nullable) | Support group |
 |   ↳ `emergency` | boolean | Whether the change is an emergency |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `scheduled_start_time` | json | Scheduled start |
-|   ↳ `scheduled_end_time` | json | Scheduled end |
-|   ↳ `roll_out_plan` | json | Roll-out plan |
-|   ↳ `close_details` | json | Closure details |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `scheduled_start_time` | json (nullable) | Scheduled start |
+|   ↳ `scheduled_end_time` | json (nullable) | Scheduled end |
+|   ↳ `roll_out_plan` | json (nullable) | Roll-out plan |
+|   ↳ `close_details` | json (nullable) | Closure details |
 
 ### ManageEngine SDP List Changes
 
@@ -791,32 +791,32 @@ List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria,
 | --------- | ---- | ----------- |
 | `changes` | array | Matching changes |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
-|   ↳ `description` | string | Change description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Change description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `internal_name` | string | Internal status name |
-|     ↳ `stage` | json | Change stage |
-|   ↳ `change_type` | json | Change type |
+|     ↳ `stage` | json (nullable) | Change stage |
+|   ↳ `change_type` | json (nullable) | Change type |
 |     ↳ `color` | string | Type colour |
 |     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `reason_for_change` | json | Reason for the change |
-|   ↳ `change_requester` | json | User who requested the change |
-|   ↳ `change_owner` | json | Change owner |
-|   ↳ `change_manager` | json | Change manager |
-|   ↳ `group` | json | Support group |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `reason_for_change` | json (nullable) | Reason for the change |
+|   ↳ `change_requester` | json (nullable) | User who requested the change |
+|   ↳ `change_owner` | json (nullable) | Change owner |
+|   ↳ `change_manager` | json (nullable) | Change manager |
+|   ↳ `group` | json (nullable) | Support group |
 |   ↳ `emergency` | boolean | Whether the change is an emergency |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `scheduled_start_time` | json | Scheduled start |
-|   ↳ `scheduled_end_time` | json | Scheduled end |
-|   ↳ `roll_out_plan` | json | Roll-out plan |
-|   ↳ `close_details` | json | Closure details |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `scheduled_start_time` | json (nullable) | Scheduled start |
+|   ↳ `scheduled_end_time` | json (nullable) | Scheduled end |
+|   ↳ `roll_out_plan` | json (nullable) | Roll-out plan |
+|   ↳ `close_details` | json (nullable) | Closure details |
 | `count` | number | Number of changes returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -859,32 +859,32 @@ Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, r
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `change` | object | The updated change |
+| `change` | object (nullable) | The updated change |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
-|   ↳ `description` | string | Change description \(HTML\) |
-|   ↳ `status` | json | Current status |
+|   ↳ `description` | string (nullable) | Change description \(HTML\) |
+|   ↳ `status` | json (nullable) | Current status |
 |     ↳ `internal_name` | string | Internal status name |
-|     ↳ `stage` | json | Change stage |
-|   ↳ `change_type` | json | Change type |
+|     ↳ `stage` | json (nullable) | Change stage |
+|   ↳ `change_type` | json (nullable) | Change type |
 |     ↳ `color` | string | Type colour |
 |     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
-|   ↳ `priority` | json | Priority |
-|   ↳ `urgency` | json | Urgency |
-|   ↳ `impact` | json | Impact |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `reason_for_change` | json | Reason for the change |
-|   ↳ `change_requester` | json | User who requested the change |
-|   ↳ `change_owner` | json | Change owner |
-|   ↳ `change_manager` | json | Change manager |
-|   ↳ `group` | json | Support group |
+|   ↳ `priority` | json (nullable) | Priority |
+|   ↳ `urgency` | json (nullable) | Urgency |
+|   ↳ `impact` | json (nullable) | Impact |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `reason_for_change` | json (nullable) | Reason for the change |
+|   ↳ `change_requester` | json (nullable) | User who requested the change |
+|   ↳ `change_owner` | json (nullable) | Change owner |
+|   ↳ `change_manager` | json (nullable) | Change manager |
+|   ↳ `group` | json (nullable) | Support group |
 |   ↳ `emergency` | boolean | Whether the change is an emergency |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `scheduled_start_time` | json | Scheduled start |
-|   ↳ `scheduled_end_time` | json | Scheduled end |
-|   ↳ `roll_out_plan` | json | Roll-out plan |
-|   ↳ `close_details` | json | Closure details |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `scheduled_start_time` | json (nullable) | Scheduled start |
+|   ↳ `scheduled_end_time` | json (nullable) | Scheduled end |
+|   ↳ `roll_out_plan` | json (nullable) | Roll-out plan |
+|   ↳ `close_details` | json (nullable) | Closure details |
 
 ### ManageEngine SDP Delete Change
 
@@ -921,11 +921,11 @@ Add a note to a ManageEngine ServiceDesk Plus Cloud change.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | object | The created note |
+| `note` | object (nullable) | The created note |
 |   ↳ `id` | string | Note ID |
 |   ↳ `description` | string | Note body \(HTML\) |
-|   ↳ `performed_by` | json | Note author |
-|   ↳ `performed_time` | json | Time the note was added |
+|   ↳ `performed_by` | json (nullable) | Note author |
+|   ↳ `performed_time` | json (nullable) | Time the note was added |
 
 ### ManageEngine SDP List Change Notes
 
@@ -953,10 +953,10 @@ List the notes on a ManageEngine ServiceDesk Plus Cloud change.
 | `notes` | array | Notes on the change |
 |   ↳ `id` | string | Note ID |
 |   ↳ `description` | string | Note body \(HTML\) |
-|   ↳ `performed_by` | json | Note author |
-|   ↳ `performed_time` | json | Time the note was added |
+|   ↳ `performed_by` | json (nullable) | Note author |
+|   ↳ `performed_time` | json (nullable) | Time the note was added |
 | `count` | number | Number of notes returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -996,30 +996,30 @@ Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `asset` | object | The created asset |
+| `asset` | object (nullable) | The created asset |
 |   ↳ `id` | string | Asset ID |
 |   ↳ `name` | string | Asset name |
-|   ↳ `asset_tag` | string | Asset tag |
-|   ↳ `barcode` | string | Barcode |
-|   ↳ `serial_number` | string | Serial number |
-|   ↳ `ip_address` | string | IP address |
-|   ↳ `mac_address` | string | MAC address |
-|   ↳ `location` | string | Location |
-|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|   ↳ `asset_tag` | string (nullable) | Asset tag |
+|   ↳ `barcode` | string (nullable) | Barcode |
+|   ↳ `serial_number` | string (nullable) | Serial number |
+|   ↳ `ip_address` | string (nullable) | IP address |
+|   ↳ `mac_address` | string (nullable) | MAC address |
+|   ↳ `location` | string (nullable) | Location |
+|   ↳ `state` | json (nullable) | Asset state \(In Use, In Store, ...\) |
 |     ↳ `description` | string | State description |
-|   ↳ `product` | json | Product this asset is an instance of |
+|   ↳ `product` | json (nullable) | Product this asset is an instance of |
 |     ↳ `manufacturer` | string | Manufacturer |
 |     ↳ `part_no` | string | Part number |
-|   ↳ `product_type` | json | Product type |
-|   ↳ `vendor` | json | Vendor |
-|   ↳ `department` | json | Owning department |
-|   ↳ `site` | json | Site |
-|   ↳ `user` | json | User the asset is assigned to |
-|   ↳ `purchase_cost` | number | Purchase cost |
-|   ↳ `total_cost` | number | Total cost |
-|   ↳ `acquisition_date` | json | Acquisition date |
-|   ↳ `expiry_date` | json | Expiry date |
-|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `product_type` | json (nullable) | Product type |
+|   ↳ `vendor` | json (nullable) | Vendor |
+|   ↳ `department` | json (nullable) | Owning department |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `user` | json (nullable) | User the asset is assigned to |
+|   ↳ `purchase_cost` | number (nullable) | Purchase cost |
+|   ↳ `total_cost` | number (nullable) | Total cost |
+|   ↳ `acquisition_date` | json (nullable) | Acquisition date |
+|   ↳ `expiry_date` | json (nullable) | Expiry date |
+|   ↳ `warranty_expiry` | json (nullable) | Warranty expiry date |
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 
@@ -1039,30 +1039,30 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `asset` | object | The asset |
+| `asset` | object (nullable) | The asset |
 |   ↳ `id` | string | Asset ID |
 |   ↳ `name` | string | Asset name |
-|   ↳ `asset_tag` | string | Asset tag |
-|   ↳ `barcode` | string | Barcode |
-|   ↳ `serial_number` | string | Serial number |
-|   ↳ `ip_address` | string | IP address |
-|   ↳ `mac_address` | string | MAC address |
-|   ↳ `location` | string | Location |
-|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|   ↳ `asset_tag` | string (nullable) | Asset tag |
+|   ↳ `barcode` | string (nullable) | Barcode |
+|   ↳ `serial_number` | string (nullable) | Serial number |
+|   ↳ `ip_address` | string (nullable) | IP address |
+|   ↳ `mac_address` | string (nullable) | MAC address |
+|   ↳ `location` | string (nullable) | Location |
+|   ↳ `state` | json (nullable) | Asset state \(In Use, In Store, ...\) |
 |     ↳ `description` | string | State description |
-|   ↳ `product` | json | Product this asset is an instance of |
+|   ↳ `product` | json (nullable) | Product this asset is an instance of |
 |     ↳ `manufacturer` | string | Manufacturer |
 |     ↳ `part_no` | string | Part number |
-|   ↳ `product_type` | json | Product type |
-|   ↳ `vendor` | json | Vendor |
-|   ↳ `department` | json | Owning department |
-|   ↳ `site` | json | Site |
-|   ↳ `user` | json | User the asset is assigned to |
-|   ↳ `purchase_cost` | number | Purchase cost |
-|   ↳ `total_cost` | number | Total cost |
-|   ↳ `acquisition_date` | json | Acquisition date |
-|   ↳ `expiry_date` | json | Expiry date |
-|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `product_type` | json (nullable) | Product type |
+|   ↳ `vendor` | json (nullable) | Vendor |
+|   ↳ `department` | json (nullable) | Owning department |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `user` | json (nullable) | User the asset is assigned to |
+|   ↳ `purchase_cost` | number (nullable) | Purchase cost |
+|   ↳ `total_cost` | number (nullable) | Total cost |
+|   ↳ `acquisition_date` | json (nullable) | Acquisition date |
+|   ↳ `expiry_date` | json (nullable) | Expiry date |
+|   ↳ `warranty_expiry` | json (nullable) | Warranty expiry date |
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 
@@ -1091,31 +1091,31 @@ List ManageEngine ServiceDesk Plus Cloud assets, with optional search criteria, 
 | `assets` | array | Matching assets |
 |   ↳ `id` | string | Asset ID |
 |   ↳ `name` | string | Asset name |
-|   ↳ `asset_tag` | string | Asset tag |
-|   ↳ `barcode` | string | Barcode |
-|   ↳ `serial_number` | string | Serial number |
-|   ↳ `ip_address` | string | IP address |
-|   ↳ `mac_address` | string | MAC address |
-|   ↳ `location` | string | Location |
-|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|   ↳ `asset_tag` | string (nullable) | Asset tag |
+|   ↳ `barcode` | string (nullable) | Barcode |
+|   ↳ `serial_number` | string (nullable) | Serial number |
+|   ↳ `ip_address` | string (nullable) | IP address |
+|   ↳ `mac_address` | string (nullable) | MAC address |
+|   ↳ `location` | string (nullable) | Location |
+|   ↳ `state` | json (nullable) | Asset state \(In Use, In Store, ...\) |
 |     ↳ `description` | string | State description |
-|   ↳ `product` | json | Product this asset is an instance of |
+|   ↳ `product` | json (nullable) | Product this asset is an instance of |
 |     ↳ `manufacturer` | string | Manufacturer |
 |     ↳ `part_no` | string | Part number |
-|   ↳ `product_type` | json | Product type |
-|   ↳ `vendor` | json | Vendor |
-|   ↳ `department` | json | Owning department |
-|   ↳ `site` | json | Site |
-|   ↳ `user` | json | User the asset is assigned to |
-|   ↳ `purchase_cost` | number | Purchase cost |
-|   ↳ `total_cost` | number | Total cost |
-|   ↳ `acquisition_date` | json | Acquisition date |
-|   ↳ `expiry_date` | json | Expiry date |
-|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `product_type` | json (nullable) | Product type |
+|   ↳ `vendor` | json (nullable) | Vendor |
+|   ↳ `department` | json (nullable) | Owning department |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `user` | json (nullable) | User the asset is assigned to |
+|   ↳ `purchase_cost` | number (nullable) | Purchase cost |
+|   ↳ `total_cost` | number (nullable) | Total cost |
+|   ↳ `acquisition_date` | json (nullable) | Acquisition date |
+|   ↳ `expiry_date` | json (nullable) | Expiry date |
+|   ↳ `warranty_expiry` | json (nullable) | Warranty expiry date |
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 | `count` | number | Number of assets returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -1156,30 +1156,30 @@ Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its stat
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `asset` | object | The updated asset |
+| `asset` | object (nullable) | The updated asset |
 |   ↳ `id` | string | Asset ID |
 |   ↳ `name` | string | Asset name |
-|   ↳ `asset_tag` | string | Asset tag |
-|   ↳ `barcode` | string | Barcode |
-|   ↳ `serial_number` | string | Serial number |
-|   ↳ `ip_address` | string | IP address |
-|   ↳ `mac_address` | string | MAC address |
-|   ↳ `location` | string | Location |
-|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|   ↳ `asset_tag` | string (nullable) | Asset tag |
+|   ↳ `barcode` | string (nullable) | Barcode |
+|   ↳ `serial_number` | string (nullable) | Serial number |
+|   ↳ `ip_address` | string (nullable) | IP address |
+|   ↳ `mac_address` | string (nullable) | MAC address |
+|   ↳ `location` | string (nullable) | Location |
+|   ↳ `state` | json (nullable) | Asset state \(In Use, In Store, ...\) |
 |     ↳ `description` | string | State description |
-|   ↳ `product` | json | Product this asset is an instance of |
+|   ↳ `product` | json (nullable) | Product this asset is an instance of |
 |     ↳ `manufacturer` | string | Manufacturer |
 |     ↳ `part_no` | string | Part number |
-|   ↳ `product_type` | json | Product type |
-|   ↳ `vendor` | json | Vendor |
-|   ↳ `department` | json | Owning department |
-|   ↳ `site` | json | Site |
-|   ↳ `user` | json | User the asset is assigned to |
-|   ↳ `purchase_cost` | number | Purchase cost |
-|   ↳ `total_cost` | number | Total cost |
-|   ↳ `acquisition_date` | json | Acquisition date |
-|   ↳ `expiry_date` | json | Expiry date |
-|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `product_type` | json (nullable) | Product type |
+|   ↳ `vendor` | json (nullable) | Vendor |
+|   ↳ `department` | json (nullable) | Owning department |
+|   ↳ `site` | json (nullable) | Site |
+|   ↳ `user` | json (nullable) | User the asset is assigned to |
+|   ↳ `purchase_cost` | number (nullable) | Purchase cost |
+|   ↳ `total_cost` | number (nullable) | Total cost |
+|   ↳ `acquisition_date` | json (nullable) | Acquisition date |
+|   ↳ `expiry_date` | json (nullable) | Expiry date |
+|   ↳ `warranty_expiry` | json (nullable) | Warranty expiry date |
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 
@@ -1222,26 +1222,26 @@ Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `solution` | object | The created solution |
+| `solution` | object (nullable) | The created solution |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
-|   ↳ `description` | string | Solution body \(HTML\) |
-|   ↳ `topic` | json | Topic the solution is filed under |
-|     ↳ `parent_topic` | json | Parent topic |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `keywords` | string | Search keywords |
+|   ↳ `description` | string (nullable) | Solution body \(HTML\) |
+|   ↳ `topic` | json (nullable) | Topic the solution is filed under |
+|     ↳ `parent_topic` | json (nullable) | Parent topic |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `keywords` | string (nullable) | Search keywords |
 |   ↳ `is_public` | boolean | Whether requesters can see the solution |
 |   ↳ `likes` | number | Like count |
 |   ↳ `dislikes` | number | Dislike count |
 |   ↳ `no_of_hits` | number | View count |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `last_updated_time` | json | Last update time |
-|   ↳ `review_date` | json | Date the solution is due for review |
-|   ↳ `expiry_date` | json | Date the solution expires |
-|   ↳ `created_by` | json | Author |
-|   ↳ `last_updated_by` | json | User who last updated the solution |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `last_updated_time` | json (nullable) | Last update time |
+|   ↳ `review_date` | json (nullable) | Date the solution is due for review |
+|   ↳ `expiry_date` | json (nullable) | Date the solution expires |
+|   ↳ `created_by` | json (nullable) | Author |
+|   ↳ `last_updated_by` | json (nullable) | User who last updated the solution |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 
 ### ManageEngine SDP Get Solution
 
@@ -1259,26 +1259,26 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `solution` | object | The solution |
+| `solution` | object (nullable) | The solution |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
-|   ↳ `description` | string | Solution body \(HTML\) |
-|   ↳ `topic` | json | Topic the solution is filed under |
-|     ↳ `parent_topic` | json | Parent topic |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `keywords` | string | Search keywords |
+|   ↳ `description` | string (nullable) | Solution body \(HTML\) |
+|   ↳ `topic` | json (nullable) | Topic the solution is filed under |
+|     ↳ `parent_topic` | json (nullable) | Parent topic |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `keywords` | string (nullable) | Search keywords |
 |   ↳ `is_public` | boolean | Whether requesters can see the solution |
 |   ↳ `likes` | number | Like count |
 |   ↳ `dislikes` | number | Dislike count |
 |   ↳ `no_of_hits` | number | View count |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `last_updated_time` | json | Last update time |
-|   ↳ `review_date` | json | Date the solution is due for review |
-|   ↳ `expiry_date` | json | Date the solution expires |
-|   ↳ `created_by` | json | Author |
-|   ↳ `last_updated_by` | json | User who last updated the solution |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `last_updated_time` | json (nullable) | Last update time |
+|   ↳ `review_date` | json (nullable) | Date the solution is due for review |
+|   ↳ `expiry_date` | json (nullable) | Date the solution expires |
+|   ↳ `created_by` | json (nullable) | Author |
+|   ↳ `last_updated_by` | json (nullable) | User who last updated the solution |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 
 ### ManageEngine SDP List Solutions
 
@@ -1304,26 +1304,26 @@ Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional sea
 | --------- | ---- | ----------- |
 | `solutions` | array | Matching solutions |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
-|   ↳ `description` | string | Solution body \(HTML\) |
-|   ↳ `topic` | json | Topic the solution is filed under |
-|     ↳ `parent_topic` | json | Parent topic |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `keywords` | string | Search keywords |
+|   ↳ `description` | string (nullable) | Solution body \(HTML\) |
+|   ↳ `topic` | json (nullable) | Topic the solution is filed under |
+|     ↳ `parent_topic` | json (nullable) | Parent topic |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `keywords` | string (nullable) | Search keywords |
 |   ↳ `is_public` | boolean | Whether requesters can see the solution |
 |   ↳ `likes` | number | Like count |
 |   ↳ `dislikes` | number | Dislike count |
 |   ↳ `no_of_hits` | number | View count |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `last_updated_time` | json | Last update time |
-|   ↳ `review_date` | json | Date the solution is due for review |
-|   ↳ `expiry_date` | json | Date the solution expires |
-|   ↳ `created_by` | json | Author |
-|   ↳ `last_updated_by` | json | User who last updated the solution |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `last_updated_time` | json (nullable) | Last update time |
+|   ↳ `review_date` | json (nullable) | Date the solution is due for review |
+|   ↳ `expiry_date` | json (nullable) | Date the solution expires |
+|   ↳ `created_by` | json (nullable) | Author |
+|   ↳ `last_updated_by` | json (nullable) | User who last updated the solution |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 | `count` | number | Number of solutions returned in this page |
-| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+| `listInfo` | object (nullable) | Paging metadata echoed by ServiceDesk Plus |
 |   ↳ `row_count` | number | Rows returned |
 |   ↳ `start_index` | number | Index the page started at |
 |   ↳ `page` | number | Page number |
@@ -1354,26 +1354,26 @@ Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `solution` | object | The updated solution |
+| `solution` | object (nullable) | The updated solution |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
+|   ↳ `display_id` | json (nullable) | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
-|   ↳ `description` | string | Solution body \(HTML\) |
-|   ↳ `topic` | json | Topic the solution is filed under |
-|     ↳ `parent_topic` | json | Parent topic |
-|   ↳ `approval_status` | json | Approval status |
-|   ↳ `keywords` | string | Search keywords |
+|   ↳ `description` | string (nullable) | Solution body \(HTML\) |
+|   ↳ `topic` | json (nullable) | Topic the solution is filed under |
+|     ↳ `parent_topic` | json (nullable) | Parent topic |
+|   ↳ `approval_status` | json (nullable) | Approval status |
+|   ↳ `keywords` | string (nullable) | Search keywords |
 |   ↳ `is_public` | boolean | Whether requesters can see the solution |
 |   ↳ `likes` | number | Like count |
 |   ↳ `dislikes` | number | Dislike count |
 |   ↳ `no_of_hits` | number | View count |
-|   ↳ `created_time` | json | Creation time |
-|   ↳ `last_updated_time` | json | Last update time |
-|   ↳ `review_date` | json | Date the solution is due for review |
-|   ↳ `expiry_date` | json | Date the solution expires |
-|   ↳ `created_by` | json | Author |
-|   ↳ `last_updated_by` | json | User who last updated the solution |
-|   ↳ `udf_fields` | json | Portal-defined custom fields |
+|   ↳ `created_time` | json (nullable) | Creation time |
+|   ↳ `last_updated_time` | json (nullable) | Last update time |
+|   ↳ `review_date` | json (nullable) | Date the solution is due for review |
+|   ↳ `expiry_date` | json (nullable) | Date the solution expires |
+|   ↳ `created_by` | json (nullable) | Author |
+|   ↳ `last_updated_by` | json (nullable) | User who last updated the solution |
+|   ↳ `udf_fields` | json (nullable) | Portal-defined custom fields |
 
 ### ManageEngine SDP Delete Solution
 
@@ -1392,5 +1392,3 @@ Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the solution was deleted |
-
-

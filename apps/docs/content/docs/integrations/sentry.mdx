@@ -5,7 +5,7 @@ description: Manage Sentry issues, projects, events, and releases
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="sentry"
   color="#362D59"
 />
@@ -664,8 +664,6 @@ List all teams in a Sentry organization. Useful for discovering the team slug re
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -884,4 +882,3 @@ Trigger workflow when a Sentry metric alert changes state (critical, warning, re
 | `description_text` | string | Human-friendly description of the alert |
 | `description_title` | string | Human-friendly title of the alert |
 | `web_url` | string | API URL for the incident |
-

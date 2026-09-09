@@ -5,7 +5,7 @@ description: Deploy, edit, search, and measure Mintlify documentation
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="mintlify"
   color="#000000"
 />
@@ -57,7 +57,7 @@ Queue a deployment update for a Mintlify documentation project from its configur
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statusId` | string | Status ID of the queued update. Poll it with Get Update Status. |
+| `statusId` | string (nullable) | Status ID of the queued update. Poll it with Get Update Status. |
 
 ### Mintlify Get Update Status
 
@@ -74,30 +74,30 @@ Get the status of a Mintlify deployment update from its status ID, including log
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Status ID of the update |
-| `projectId` | string | Documentation project ID |
-| `createdAt` | string | ISO 8601 UTC start time |
-| `endedAt` | string | ISO 8601 UTC end time |
-| `status` | string | Update status: queued, in_progress, success, or failure |
-| `summary` | string | Summary of the update status |
+| `id` | string (nullable) | Status ID of the update |
+| `projectId` | string (nullable) | Documentation project ID |
+| `createdAt` | string (nullable) | ISO 8601 UTC start time |
+| `endedAt` | string (nullable) | ISO 8601 UTC end time |
+| `status` | string (nullable) | Update status: queued, in_progress, success, or failure |
+| `summary` | string (nullable) | Summary of the update status |
 | `logs` | array | Deployment log lines |
-| `subdomain` | string | Subdomain of the docs being updated |
-| `screenshot` | string | Screenshot of the docs |
-| `screenshotLight` | string | Light-mode screenshot of the docs |
-| `screenshotDark` | string | Dark-mode screenshot of the docs |
-| `author` | object | Author of the update |
-|   ↳ `name` | string | Author name |
-|   ↳ `avatarUrl` | string | Author avatar image URL |
-|   ↳ `githubUserId` | number | Author GitHub user ID |
-| `commit` | object | Commit that produced the update |
-|   ↳ `sha` | string | Commit SHA |
-|   ↳ `ref` | string | Git ref of the commit |
-|   ↳ `message` | string | Commit message |
-|   ↳ `filesChanged` | object | Files added, modified, and removed by the commit |
+| `subdomain` | string (nullable) | Subdomain of the docs being updated |
+| `screenshot` | string (nullable) | Screenshot of the docs |
+| `screenshotLight` | string (nullable) | Light-mode screenshot of the docs |
+| `screenshotDark` | string (nullable) | Dark-mode screenshot of the docs |
+| `author` | object (nullable) | Author of the update |
+|   ↳ `name` | string (nullable) | Author name |
+|   ↳ `avatarUrl` | string (nullable) | Author avatar image URL |
+|   ↳ `githubUserId` | number (nullable) | Author GitHub user ID |
+| `commit` | object (nullable) | Commit that produced the update |
+|   ↳ `sha` | string (nullable) | Commit SHA |
+|   ↳ `ref` | string (nullable) | Git ref of the commit |
+|   ↳ `message` | string (nullable) | Commit message |
+|   ↳ `filesChanged` | object (nullable) | Files added, modified, and removed by the commit |
 |     ↳ `added` | array | New files added |
 |     ↳ `modified` | array | Existing files that were modified |
 |     ↳ `removed` | array | Files that were removed |
-| `source` | string | Source of the update trigger: internal, github-app-installation, api, github, dashboard, gitlab, or onboarding |
+| `source` | string (nullable) | Source of the update trigger: internal, github-app-installation, api, github, dashboard, gitlab, or onboarding |
 
 ### Mintlify Trigger Preview Deployment
 
@@ -115,8 +115,8 @@ Create or update a Mintlify preview deployment for a Git branch. Redeploys when 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statusId` | string | Status ID for tracking the preview deployment |
-| `previewUrl` | string | URL where the preview deployment is hosted |
+| `statusId` | string (nullable) | Status ID for tracking the preview deployment |
+| `previewUrl` | string (nullable) | URL where the preview deployment is hosted |
 
 ### Mintlify Trigger Automation
 
@@ -134,9 +134,9 @@ Run a scheduled Mintlify automation immediately instead of waiting for its next 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `schemaId` | string | ID of the triggered automation |
-| `instanceId` | string | ID of the queued automation run, visible in the run history |
-| `jobId` | string | ID of the background job processing the run |
+| `schemaId` | string (nullable) | ID of the triggered automation |
+| `instanceId` | string (nullable) | ID of the queued automation run, visible in the run history |
+| `jobId` | string (nullable) | ID of the background job processing the run |
 
 ### Mintlify Detect AI-Sounding Prose
 
@@ -155,23 +155,23 @@ Analyze a documentation page for AI-generated prose and return flagged passages 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `path` | string | Path from the request |
-| `skipped` | string | Reason the page was skipped \("too_short"\), or null when the page was checked |
-| `predictionShort` | string | Overall verdict for the page: AI, AI-Assisted, Human, or Mixed. Null when the page was skipped. |
-| `fractionAi` | number | Fraction of the page detected as AI-generated \(0-1\). Null when the page was skipped. |
-| `fractionAiAssisted` | number | Fraction of the page detected as AI-assisted \(0-1\). Null when the page was skipped. |
-| `fractionHuman` | number | Fraction of the page detected as human-written \(0-1\). Null when the page was skipped. |
+| `path` | string (nullable) | Path from the request |
+| `skipped` | string (nullable) | Reason the page was skipped \("too_short"\), or null when the page was checked |
+| `predictionShort` | string (nullable) | Overall verdict for the page: AI, AI-Assisted, Human, or Mixed. Null when the page was skipped. |
+| `fractionAi` | number (nullable) | Fraction of the page detected as AI-generated \(0-1\). Null when the page was skipped. |
+| `fractionAiAssisted` | number (nullable) | Fraction of the page detected as AI-assisted \(0-1\). Null when the page was skipped. |
+| `fractionHuman` | number (nullable) | Fraction of the page detected as human-written \(0-1\). Null when the page was skipped. |
 | `windows` | array | Flagged non-human passages with line ranges and suggested rewrites. Empty when the page was skipped. |
 |   ↳ `text` | string | The flagged passage text |
 |   ↳ `label` | string | Detection label, for example AI-Generated |
-|   ↳ `aiAssistanceScore` | number | AI-assistance score for the passage \(0-1\) |
-|   ↳ `confidence` | json | Detection confidence, either a label such as High or a numeric score |
-|   ↳ `startLine` | number | 1-based start line of the passage |
-|   ↳ `endLine` | number | 1-based end line of the passage |
+|   ↳ `aiAssistanceScore` | number (nullable) | AI-assistance score for the passage \(0-1\) |
+|   ↳ `confidence` | json (nullable) | Detection confidence, either a label such as High or a numeric score |
+|   ↳ `startLine` | number (nullable) | 1-based start line of the passage |
+|   ↳ `endLine` | number (nullable) | 1-based end line of the passage |
 |   ↳ `rewrites` | array | Suggested human rewrites of the passage |
 |     ↳ `text` | string | The rewritten passage |
 |     ↳ `rationale` | string | Why the rewrite reads more human |
-| `creditsCharged` | number | AI credits charged for this request \(0 when skipped\) |
+| `creditsCharged` | number (nullable) | AI credits charged for this request \(0 when skipped\) |
 
 ### Mintlify Create Agent Job
 
@@ -189,55 +189,15 @@ Create a background Mintlify agent job that edits your documentation from a prom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statusId` | string | Status ID of a queued deployment |
-| `previewUrl` | string | URL where the preview deployment is hosted |
-| `id` | string | Deployment status ID or agent job ID |
-| `projectId` | string | Documentation project ID |
-| `createdAt` | string | Creation timestamp |
-| `endedAt` | string | Deployment end timestamp |
-| `archivedAt` | string | Agent job archive timestamp |
-| `status` | string | Deployment status or agent job status |
-| `summary` | string | Summary of the deployment status |
-| `logs` | array | Deployment log lines |
-| `subdomain` | string | Subdomain of the docs being updated |
-| `screenshot` | string | Screenshot of the docs |
-| `screenshotLight` | string | Light-mode screenshot of the docs |
-| `screenshotDark` | string | Dark-mode screenshot of the docs |
-| `author` | json | Author of the deployment update |
-| `commit` | json | Commit that produced the deployment |
-| `source` | json | Deployment trigger source \(string\) or agent job source repository details \(object\) |
-| `schemaId` | string | ID of the triggered automation |
-| `instanceId` | string | ID of the queued automation run |
-| `jobId` | string | ID of the background job processing an automation run |
-| `model` | string | AI model used for the agent job |
-| `prLink` | string | Pull request URL created by the agent |
-| `path` | string | Documentation page path |
-| `content` | string | Full text content of the page |
-| `skipped` | string | Reason a prose check was skipped |
-| `predictionShort` | string | Prose verdict: AI, AI-Assisted, Human, Mixed |
-| `fractionAi` | number | Fraction of the page detected as AI-generated |
-| `fractionAiAssisted` | number | Fraction detected as AI-assisted |
-| `fractionHuman` | number | Fraction detected as human-written |
-| `windows` | array | Flagged passages with suggested rewrites |
-| `creditsCharged` | number | AI credits charged for the prose check |
-| `results` | array | Documentation search results |
-| `resultCount` | number | Number of search results returned |
-| `text` | string | Assembled assistant answer |
-| `threadId` | string | Assistant thread ID for follow-up messages |
-| `sources` | array | Documentation sources the assistant cited |
-| `feedback` | array | Feedback entries or per-page feedback aggregates |
-| `conversations` | array | Assistant conversation history |
-| `searches` | array | Documentation search terms with hit counts |
-| `totalSearches` | number | Total search events in the date range |
-| `views` | array | Per-page content view event counts |
-| `visitors` | array | Per-page unique visitor counts |
-| `totals` | json | Site-wide human, AI, and total traffic counts |
-| `web` | number | Assistant queries from the documentation site |
-| `api` | number | Assistant queries from API calls |
-| `other` | number | Assistant queries from other sources |
-| `total` | number | Total assistant queries across all caller types |
-| `nextCursor` | string | Cursor for the next page of results |
-| `hasMore` | boolean | Whether additional results are available |
+| `id` | string (nullable) | Unique identifier for the agent job |
+| `status` | string (nullable) | Current job status: active, completed, archived, or failed |
+| `source` | object (nullable) | Source repository information |
+|   ↳ `repository` | string (nullable) | Full GitHub repository URL |
+|   ↳ `ref` | string (nullable) | Git branch the agent is working on |
+| `model` | string (nullable) | AI model used for this job |
+| `prLink` | string (nullable) | GitHub pull request URL created by the agent. Null while the job is active or if no files changed. |
+| `createdAt` | string (nullable) | Timestamp when the job was created |
+| `archivedAt` | string (nullable) | Timestamp when the job was archived |
 
 ### Mintlify Get Agent Job
 
@@ -255,55 +215,15 @@ Retrieve the current status and details of a Mintlify agent job, including the p
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statusId` | string | Status ID of a queued deployment |
-| `previewUrl` | string | URL where the preview deployment is hosted |
-| `id` | string | Deployment status ID or agent job ID |
-| `projectId` | string | Documentation project ID |
-| `createdAt` | string | Creation timestamp |
-| `endedAt` | string | Deployment end timestamp |
-| `archivedAt` | string | Agent job archive timestamp |
-| `status` | string | Deployment status or agent job status |
-| `summary` | string | Summary of the deployment status |
-| `logs` | array | Deployment log lines |
-| `subdomain` | string | Subdomain of the docs being updated |
-| `screenshot` | string | Screenshot of the docs |
-| `screenshotLight` | string | Light-mode screenshot of the docs |
-| `screenshotDark` | string | Dark-mode screenshot of the docs |
-| `author` | json | Author of the deployment update |
-| `commit` | json | Commit that produced the deployment |
-| `source` | json | Deployment trigger source \(string\) or agent job source repository details \(object\) |
-| `schemaId` | string | ID of the triggered automation |
-| `instanceId` | string | ID of the queued automation run |
-| `jobId` | string | ID of the background job processing an automation run |
-| `model` | string | AI model used for the agent job |
-| `prLink` | string | Pull request URL created by the agent |
-| `path` | string | Documentation page path |
-| `content` | string | Full text content of the page |
-| `skipped` | string | Reason a prose check was skipped |
-| `predictionShort` | string | Prose verdict: AI, AI-Assisted, Human, Mixed |
-| `fractionAi` | number | Fraction of the page detected as AI-generated |
-| `fractionAiAssisted` | number | Fraction detected as AI-assisted |
-| `fractionHuman` | number | Fraction detected as human-written |
-| `windows` | array | Flagged passages with suggested rewrites |
-| `creditsCharged` | number | AI credits charged for the prose check |
-| `results` | array | Documentation search results |
-| `resultCount` | number | Number of search results returned |
-| `text` | string | Assembled assistant answer |
-| `threadId` | string | Assistant thread ID for follow-up messages |
-| `sources` | array | Documentation sources the assistant cited |
-| `feedback` | array | Feedback entries or per-page feedback aggregates |
-| `conversations` | array | Assistant conversation history |
-| `searches` | array | Documentation search terms with hit counts |
-| `totalSearches` | number | Total search events in the date range |
-| `views` | array | Per-page content view event counts |
-| `visitors` | array | Per-page unique visitor counts |
-| `totals` | json | Site-wide human, AI, and total traffic counts |
-| `web` | number | Assistant queries from the documentation site |
-| `api` | number | Assistant queries from API calls |
-| `other` | number | Assistant queries from other sources |
-| `total` | number | Total assistant queries across all caller types |
-| `nextCursor` | string | Cursor for the next page of results |
-| `hasMore` | boolean | Whether additional results are available |
+| `id` | string (nullable) | Unique identifier for the agent job |
+| `status` | string (nullable) | Current job status: active, completed, archived, or failed |
+| `source` | object (nullable) | Source repository information |
+|   ↳ `repository` | string (nullable) | Full GitHub repository URL |
+|   ↳ `ref` | string (nullable) | Git branch the agent is working on |
+| `model` | string (nullable) | AI model used for this job |
+| `prLink` | string (nullable) | GitHub pull request URL created by the agent. Null while the job is active or if no files changed. |
+| `createdAt` | string (nullable) | Timestamp when the job was created |
+| `archivedAt` | string (nullable) | Timestamp when the job was archived |
 
 ### Mintlify Send Agent Message
 
@@ -322,55 +242,15 @@ Send a follow-up instruction to an existing Mintlify agent job. The message is p
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statusId` | string | Status ID of a queued deployment |
-| `previewUrl` | string | URL where the preview deployment is hosted |
-| `id` | string | Deployment status ID or agent job ID |
-| `projectId` | string | Documentation project ID |
-| `createdAt` | string | Creation timestamp |
-| `endedAt` | string | Deployment end timestamp |
-| `archivedAt` | string | Agent job archive timestamp |
-| `status` | string | Deployment status or agent job status |
-| `summary` | string | Summary of the deployment status |
-| `logs` | array | Deployment log lines |
-| `subdomain` | string | Subdomain of the docs being updated |
-| `screenshot` | string | Screenshot of the docs |
-| `screenshotLight` | string | Light-mode screenshot of the docs |
-| `screenshotDark` | string | Dark-mode screenshot of the docs |
-| `author` | json | Author of the deployment update |
-| `commit` | json | Commit that produced the deployment |
-| `source` | json | Deployment trigger source \(string\) or agent job source repository details \(object\) |
-| `schemaId` | string | ID of the triggered automation |
-| `instanceId` | string | ID of the queued automation run |
-| `jobId` | string | ID of the background job processing an automation run |
-| `model` | string | AI model used for the agent job |
-| `prLink` | string | Pull request URL created by the agent |
-| `path` | string | Documentation page path |
-| `content` | string | Full text content of the page |
-| `skipped` | string | Reason a prose check was skipped |
-| `predictionShort` | string | Prose verdict: AI, AI-Assisted, Human, Mixed |
-| `fractionAi` | number | Fraction of the page detected as AI-generated |
-| `fractionAiAssisted` | number | Fraction detected as AI-assisted |
-| `fractionHuman` | number | Fraction detected as human-written |
-| `windows` | array | Flagged passages with suggested rewrites |
-| `creditsCharged` | number | AI credits charged for the prose check |
-| `results` | array | Documentation search results |
-| `resultCount` | number | Number of search results returned |
-| `text` | string | Assembled assistant answer |
-| `threadId` | string | Assistant thread ID for follow-up messages |
-| `sources` | array | Documentation sources the assistant cited |
-| `feedback` | array | Feedback entries or per-page feedback aggregates |
-| `conversations` | array | Assistant conversation history |
-| `searches` | array | Documentation search terms with hit counts |
-| `totalSearches` | number | Total search events in the date range |
-| `views` | array | Per-page content view event counts |
-| `visitors` | array | Per-page unique visitor counts |
-| `totals` | json | Site-wide human, AI, and total traffic counts |
-| `web` | number | Assistant queries from the documentation site |
-| `api` | number | Assistant queries from API calls |
-| `other` | number | Assistant queries from other sources |
-| `total` | number | Total assistant queries across all caller types |
-| `nextCursor` | string | Cursor for the next page of results |
-| `hasMore` | boolean | Whether additional results are available |
+| `id` | string (nullable) | Unique identifier for the agent job |
+| `status` | string (nullable) | Current job status: active, completed, archived, or failed |
+| `source` | object (nullable) | Source repository information |
+|   ↳ `repository` | string (nullable) | Full GitHub repository URL |
+|   ↳ `ref` | string (nullable) | Git branch the agent is working on |
+| `model` | string (nullable) | AI model used for this job |
+| `prLink` | string (nullable) | GitHub pull request URL created by the agent. Null while the job is active or if no files changed. |
+| `createdAt` | string (nullable) | Timestamp when the job was created |
+| `archivedAt` | string (nullable) | Timestamp when the job was archived |
 
 ### Mintlify Search Documentation
 
@@ -395,9 +275,9 @@ Run a semantic and keyword search across a Mintlify documentation site, with opt
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Matching documentation chunks ordered by relevance |
-|   ↳ `content` | string | The matching content from your documentation |
-|   ↳ `path` | string | Path or URL to the source document |
-|   ↳ `metadata` | json | Additional metadata about the search result |
+|   ↳ `content` | string (nullable) | The matching content from your documentation |
+|   ↳ `path` | string (nullable) | Path or URL to the source document |
+|   ↳ `metadata` | json (nullable) | Additional metadata about the search result |
 | `resultCount` | number | Number of results returned |
 
 ### Mintlify Get Page Content
@@ -417,8 +297,8 @@ Retrieve the full text content of a Mintlify documentation page by its path. Use
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `path` | string | The page path that was requested |
-| `content` | string | Full text content of the page |
+| `path` | string (nullable) | The page path that was requested |
+| `content` | string (nullable) | Full text content of the page |
 
 ### Mintlify Create Assistant Message
 
@@ -446,11 +326,11 @@ Ask the Mintlify assistant, trained on your documentation, a question and get th
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `text` | string | Assembled assistant answer |
-| `threadId` | string | Thread ID for continuing this conversation in a follow-up call |
+| `threadId` | string (nullable) | Thread ID for continuing this conversation in a follow-up call |
 | `sources` | array | Documentation sources the assistant cited |
-|   ↳ `sourceId` | string | Source identifier |
-|   ↳ `url` | string | URL of the cited page |
-|   ↳ `title` | string | Title of the cited page |
+|   ↳ `sourceId` | string (nullable) | Source identifier |
+|   ↳ `url` | string (nullable) | URL of the cited page |
+|   ↳ `title` | string (nullable) | Title of the cited page |
 
 ### Mintlify Get Feedback
 
@@ -474,18 +354,18 @@ Export paginated user feedback from a Mintlify documentation project, with optio
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `feedback` | array | Feedback entries for the requested window |
-|   ↳ `id` | string | Unique feedback identifier |
-|   ↳ `path` | string | Path or URL of the page |
-|   ↳ `comment` | string | Text of the feedback comment |
-|   ↳ `createdAt` | string | Submission timestamp |
-|   ↳ `source` | string | Origin: code_snippet, contextual, agent, or thumbs_only |
-|   ↳ `status` | string | Review status: pending, in_progress, resolved, or dismissed |
-|   ↳ `helpful` | boolean | Whether the user found the content helpful \(contextual feedback only\) |
-|   ↳ `contact` | string | Email the user provided for follow-up \(contextual feedback only\) |
-|   ↳ `code` | string | Code snippet the feedback relates to \(code_snippet feedback only\) |
-|   ↳ `filename` | string | Filename of the code snippet \(code_snippet feedback only\) |
-|   ↳ `lang` | string | Language of the code snippet \(code_snippet feedback only\) |
-| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+|   ↳ `id` | string (nullable) | Unique feedback identifier |
+|   ↳ `path` | string (nullable) | Path or URL of the page |
+|   ↳ `comment` | string (nullable) | Text of the feedback comment |
+|   ↳ `createdAt` | string (nullable) | Submission timestamp |
+|   ↳ `source` | string (nullable) | Origin: code_snippet, contextual, agent, or thumbs_only |
+|   ↳ `status` | string (nullable) | Review status: pending, in_progress, resolved, or dismissed |
+|   ↳ `helpful` | boolean (nullable) | Whether the user found the content helpful \(contextual feedback only\) |
+|   ↳ `contact` | string (nullable) | Email the user provided for follow-up \(contextual feedback only\) |
+|   ↳ `code` | string (nullable) | Code snippet the feedback relates to \(code_snippet feedback only\) |
+|   ↳ `filename` | string (nullable) | Filename of the code snippet \(code_snippet feedback only\) |
+|   ↳ `lang` | string (nullable) | Language of the code snippet \(code_snippet feedback only\) |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null when there are no more results |
 | `hasMore` | boolean | Whether additional results are available |
 
 ### Mintlify Get Feedback By Page
@@ -509,11 +389,11 @@ Export Mintlify feedback counts aggregated by documentation page path, broken do
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `feedback` | array | Feedback counts aggregated by documentation page path |
-|   ↳ `path` | string | The documentation page path |
-|   ↳ `thumbsUp` | number | Positive contextual feedback entries |
-|   ↳ `thumbsDown` | number | Negative contextual feedback entries |
-|   ↳ `code` | number | Code snippet feedback entries |
-|   ↳ `total` | number | Total feedback entries |
+|   ↳ `path` | string (nullable) | The documentation page path |
+|   ↳ `thumbsUp` | number (nullable) | Positive contextual feedback entries |
+|   ↳ `thumbsDown` | number (nullable) | Negative contextual feedback entries |
+|   ↳ `code` | number (nullable) | Code snippet feedback entries |
+|   ↳ `total` | number (nullable) | Total feedback entries |
 | `hasMore` | boolean | Whether additional results are available |
 
 ### Mintlify Get Assistant Conversations
@@ -536,17 +416,17 @@ Export paginated Mintlify AI assistant conversation history, including the query
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `conversations` | array | Assistant conversations for the requested window |
-|   ↳ `id` | string | Unique conversation identifier |
-|   ↳ `timestamp` | string | When the conversation occurred |
-|   ↳ `query` | string | The user's question |
-|   ↳ `response` | string | The assistant's response |
+|   ↳ `id` | string (nullable) | Unique conversation identifier |
+|   ↳ `timestamp` | string (nullable) | When the conversation occurred |
+|   ↳ `query` | string (nullable) | The user's question |
+|   ↳ `response` | string (nullable) | The assistant's response |
 |   ↳ `sources` | array | Documentation pages referenced in the response |
-|     ↳ `title` | string | Title of the page |
-|     ↳ `url` | string | URL of the page |
-|   ↳ `resolutionStatus` | string | Whether the assistant answered the question: answered or unanswered |
-|   ↳ `queryCategory` | string | Auto-assigned category grouping for the conversation |
-|   ↳ `pageUrl` | string | Full URL of the page where the conversation started |
-| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+|     ↳ `title` | string (nullable) | Title of the page |
+|     ↳ `url` | string (nullable) | URL of the page |
+|   ↳ `resolutionStatus` | string (nullable) | Whether the assistant answered the question: answered or unanswered |
+|   ↳ `queryCategory` | string (nullable) | Auto-assigned category grouping for the conversation |
+|   ↳ `pageUrl` | string (nullable) | Full URL of the page where the conversation started |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null when there are no more results |
 | `hasMore` | boolean | Whether additional results are available |
 
 ### Mintlify Get Assistant Caller Stats
@@ -566,10 +446,10 @@ Get a breakdown of Mintlify assistant query counts by caller type — web, API, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `web` | number | Assistant queries originating from the documentation site |
-| `api` | number | Assistant queries originating from API calls |
-| `other` | number | Assistant queries from other sources such as integrations and SDKs |
-| `total` | number | Total assistant queries across all caller types |
+| `web` | number (nullable) | Assistant queries originating from the documentation site |
+| `api` | number (nullable) | Assistant queries originating from API calls |
+| `other` | number (nullable) | Assistant queries from other sources such as integrations and SDKs |
+| `total` | number (nullable) | Total assistant queries across all caller types |
 
 ### Mintlify Get Search Queries
 
@@ -591,13 +471,13 @@ Export Mintlify documentation search terms for a date range, ordered by hit coun
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `searches` | array | Search terms ordered by hit count descending |
-|   ↳ `searchQuery` | string | The search term entered by users |
-|   ↳ `hits` | number | Number of times this term was searched |
-|   ↳ `ctr` | number | Click-through rate for this search term |
-|   ↳ `topClickedPage` | string | Most-clicked result path for this query |
-|   ↳ `lastSearchedAt` | string | Timestamp of the last time this term was searched |
-| `totalSearches` | number | Total search events in the date range, summing all hits rather than distinct queries |
-| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+|   ↳ `searchQuery` | string (nullable) | The search term entered by users |
+|   ↳ `hits` | number (nullable) | Number of times this term was searched |
+|   ↳ `ctr` | number (nullable) | Click-through rate for this search term |
+|   ↳ `topClickedPage` | string (nullable) | Most-clicked result path for this query |
+|   ↳ `lastSearchedAt` | string (nullable) | Timestamp of the last time this term was searched |
+| `totalSearches` | number (nullable) | Total search events in the date range, summing all hits rather than distinct queries |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null when there are no more results |
 
 ### Mintlify Get Page Views
 
@@ -619,10 +499,10 @@ Export Mintlify per-path and site-wide content view counts for a date range, spl
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `views` | array | Per-page content view event counts |
-|   ↳ `path` | string | The documentation page path |
-|   ↳ `human` | number | Content view events from human traffic |
-|   ↳ `ai` | number | Content view events from AI bot traffic |
-|   ↳ `total` | number | Total content view events |
+|   ↳ `path` | string (nullable) | The documentation page path |
+|   ↳ `human` | number (nullable) | Content view events from human traffic |
+|   ↳ `ai` | number (nullable) | Content view events from AI bot traffic |
+|   ↳ `total` | number (nullable) | Total content view events |
 | `hasMore` | boolean | Whether additional results are available |
 
 ### Mintlify Get Unique Visitors
@@ -645,10 +525,8 @@ Export Mintlify per-path and site-wide approximate distinct visitor counts for a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `visitors` | array | Per-page unique visitor counts |
-|   ↳ `path` | string | The documentation page path |
-|   ↳ `human` | number | Unique human visitors |
-|   ↳ `ai` | number | Unique AI bot visitors |
-|   ↳ `total` | number | Approximate distinct visitors, deduplicated across human and AI |
+|   ↳ `path` | string (nullable) | The documentation page path |
+|   ↳ `human` | number (nullable) | Unique human visitors |
+|   ↳ `ai` | number (nullable) | Unique AI bot visitors |
+|   ↳ `total` | number (nullable) | Approximate distinct visitors, deduplicated across human and AI |
 | `hasMore` | boolean | Whether additional results are available |
-
-

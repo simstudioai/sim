@@ -5,7 +5,7 @@ description: Connect to Amazon SQS
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -56,9 +56,9 @@ Send a message to an Amazon SQS queue
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `id` | string | Message ID |
-| `md5OfMessageBody` | string | MD5 digest of the message body, for verifying SQS received it intact |
-| `md5OfMessageAttributes` | string | MD5 digest of the message attributes |
-| `sequenceNumber` | string | Large, non-consecutive sequence number assigned by a FIFO queue |
+| `md5OfMessageBody` | string (nullable) | MD5 digest of the message body, for verifying SQS received it intact |
+| `md5OfMessageAttributes` | string (nullable) | MD5 digest of the message attributes |
+| `sequenceNumber` | string (nullable) | Large, non-consecutive sequence number assigned by a FIFO queue |
 
 ### SQS Send Message Batch
 
@@ -491,15 +491,15 @@ List the most recent message move tasks for an Amazon SQS source queue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Move tasks for the source queue |
-|   ↳ `taskHandle` | string | Handle of the task, populated only while its status is RUNNING |
-|   ↳ `status` | string | RUNNING, COMPLETED, CANCELLING, CANCELLED, or FAILED |
-|   ↳ `sourceArn` | string | ARN of the source queue |
-|   ↳ `destinationArn` | string | ARN of the destination queue, absent when redriving to source queues |
-|   ↳ `maxNumberOfMessagesPerSecond` | number | Per-second throttle applied to the move |
-|   ↳ `approximateNumberOfMessagesMoved` | number | Approximate number of messages moved so far |
-|   ↳ `approximateNumberOfMessagesToMove` | number | Approximate number of messages still to move |
-|   ↳ `failureReason` | string | Why the task failed, set only when the status is FAILED |
-|   ↳ `startedTimestamp` | number | Epoch milliseconds when the task started |
+|   ↳ `taskHandle` | string (nullable) | Handle of the task, populated only while its status is RUNNING |
+|   ↳ `status` | string (nullable) | RUNNING, COMPLETED, CANCELLING, CANCELLED, or FAILED |
+|   ↳ `sourceArn` | string (nullable) | ARN of the source queue |
+|   ↳ `destinationArn` | string (nullable) | ARN of the destination queue, absent when redriving to source queues |
+|   ↳ `maxNumberOfMessagesPerSecond` | number (nullable) | Per-second throttle applied to the move |
+|   ↳ `approximateNumberOfMessagesMoved` | number (nullable) | Approximate number of messages moved so far |
+|   ↳ `approximateNumberOfMessagesToMove` | number (nullable) | Approximate number of messages still to move |
+|   ↳ `failureReason` | string (nullable) | Why the task failed, set only when the status is FAILED |
+|   ↳ `startedTimestamp` | number (nullable) | Epoch milliseconds when the task started |
 | `count` | number | Number of move tasks returned |
 
 ### SQS Cancel Message Move Task
@@ -520,6 +520,4 @@ Cancel an in-progress Amazon SQS message move task
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
-| `approximateNumberOfMessagesMoved` | number | Approximate number of messages already moved before the task was cancelled |
-
-
+| `approximateNumberOfMessagesMoved` | number (nullable) | Approximate number of messages already moved before the task was cancelled |

@@ -5,7 +5,7 @@ description: Read and write companies, people, lists, notes, and relationships i
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="affinity"
   color="#1B1C1E"
 />
@@ -123,9 +123,9 @@ Add a selectable option to a dropdown field on a list. A ranked or status option
 | `text` | string | The option label |
 | `type` | string | dropdown, ranked-dropdown, or status-dropdown |
 | `rank` | number | Sort order, on ranked and status options |
-| `color` | string | white, gray, blue, green, purple, orange, or red |
+| `color` | string (nullable) | white, gray, blue, green, purple, orange, or red |
 | `statusCategory` | string | open, won, lost, or on-hold, on status options |
-| `winRate` | number | Win rate of a status option |
+| `winRate` | number (nullable) | Win rate of a status option |
 
 ### Affinity Create Merge
 
@@ -175,13 +175,13 @@ Write a note — attached to companies, persons, and opportunities, anchored to 
 | `content` | json | The note body as \{html\} |
 | `creator` | object | Person who authored the note |
 |   ↳ `id` | number | The person's unique identifier |
-|   ↳ `firstName` | string | The person's first name |
-|   ↳ `lastName` | string | The person's last name |
-|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `firstName` | string (nullable) | The person's first name |
+|   ↳ `lastName` | string (nullable) | The person's last name |
+|   ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |   ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 | `mentions` | array | Persons mentioned in the note body |
 | `createdAt` | string | When the note was created |
-| `updatedAt` | string | When the note was last updated |
+| `updatedAt` | string (nullable) | When the note was last updated |
 | `repliesCount` | number | Number of replies, on root notes only |
 | `parent` | json | The note being replied to, on reply notes only |
 | `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
@@ -215,18 +215,18 @@ Create a reminder on one company, person, or opportunity. A recurring reminder r
 | `id` | number | The reminder's unique identifier |
 | `type` | string | one-time or recurring |
 | `status` | string | active, overdue, or completed |
-| `content` | string | The reminder text |
+| `content` | string (nullable) | The reminder text |
 | `dueDate` | string | When the reminder is due |
 | `creator` | json | User who created the reminder, as \{id\} |
 | `owner` | json | User the reminder is assigned to, as \{id\} |
-| `completer` | json | User who completed it, as \{id\} |
-| `company` | json | Tagged company, as \{id\} |
-| `person` | json | Tagged person, as \{id\} |
-| `opportunity` | json | Tagged opportunity, as \{id\} |
-| `completedAt` | string | When the reminder was completed |
-| `recurrence` | json | Recurrence as \{resetTrigger, periodDays\}, null on a one-time reminder |
+| `completer` | json (nullable) | User who completed it, as \{id\} |
+| `company` | json (nullable) | Tagged company, as \{id\} |
+| `person` | json (nullable) | Tagged person, as \{id\} |
+| `opportunity` | json (nullable) | Tagged opportunity, as \{id\} |
+| `completedAt` | string (nullable) | When the reminder was completed |
+| `recurrence` | json (nullable) | Recurrence as \{resetTrigger, periodDays\}, null on a one-time reminder |
 | `createdAt` | string | When the reminder was created |
-| `updatedAt` | string | When the reminder was last updated |
+| `updatedAt` | string (nullable) | When the reminder was last updated |
 
 ### Affinity Delete List Field Dropdown Option
 
@@ -285,14 +285,14 @@ Look up one company by ID. Field data is returned only for the Field IDs or Fiel
 | --------- | ---- | ----------- |
 | `id` | number | The company's unique identifier |
 | `name` | string | The company name |
-| `domain` | string | The primary domain |
+| `domain` | string (nullable) | The primary domain |
 | `domains` | array | Every domain associated with the company |
 | `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
 | `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
 |   ↳ `id` | string | The field's unique identifier |
 |   ↳ `name` | string | The field name |
 |   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
 ### Affinity Get Current User
@@ -316,7 +316,7 @@ Verify an Affinity API key and return the tenant, the user behind the key, and t
 | `user` | object | The user the key authenticates as |
 |   ↳ `id` | number | The user's unique identifier |
 |   ↳ `firstName` | string | The user's first name |
-|   ↳ `lastName` | string | The user's last name |
+|   ↳ `lastName` | string (nullable) | The user's last name |
 |   ↳ `emailAddress` | string | The user's email address |
 | `grant` | object | How the request is authenticated and what it may reach |
 |   ↳ `type` | string | api-key or access-token |
@@ -343,7 +343,7 @@ Read one non-list field value from a company or person.
 | `id` | string | The field's unique identifier |
 | `name` | string | The field name |
 | `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-| `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+| `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 | `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
 ### Affinity Get List
@@ -391,7 +391,7 @@ Read one row of a list with its entity. Field data is returned only for the Fiel
 | `type` | string | company, person, or opportunity |
 | `listId` | number | The list the entry belongs to |
 | `createdAt` | string | When the entity was added to the list |
-| `creatorId` | number | User who added the entity |
+| `creatorId` | number (nullable) | User who added the entity |
 | `entity` | json | The company, person, or opportunity on the row, including its field values |
 
 ### Affinity Get List Entry Field
@@ -414,7 +414,7 @@ Read one field value on a list row.
 | `id` | string | The field's unique identifier |
 | `name` | string | The field name |
 | `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-| `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+| `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 | `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
 ### Affinity Get List Field Dropdown Option
@@ -438,9 +438,9 @@ Read one dropdown option on a list field.
 | `text` | string | The option label |
 | `type` | string | dropdown, ranked-dropdown, or status-dropdown |
 | `rank` | number | Sort order, on ranked and status options |
-| `color` | string | white, gray, blue, green, purple, orange, or red |
+| `color` | string (nullable) | white, gray, blue, green, purple, orange, or red |
 | `statusCategory` | string | open, won, lost, or on-hold, on status options |
-| `winRate` | number | Win rate of a status option |
+| `winRate` | number (nullable) | Win rate of a status option |
 
 ### Affinity Get Merge
 
@@ -462,8 +462,8 @@ Read the status of one company or person merge, including why it failed if it di
 | `status` | string | in-progress, success, or failed |
 | `taskId` | string | Task that groups this merge with its siblings |
 | `startedAt` | string | When the merge started |
-| `completedAt` | string | When the merge finished |
-| `errorMessage` | string | Why the merge failed |
+| `completedAt` | string (nullable) | When the merge finished |
+| `errorMessage` | string (nullable) | Why the merge failed |
 | `primaryCompanyId` | number | Company kept by a company merge |
 | `duplicateCompanyId` | number | Company folded in by a company merge |
 | `primaryPersonId` | number | Person kept by a person merge |
@@ -510,13 +510,13 @@ Read one note with its body, author, mentions, and attached records.
 | `content` | json | The note body as \{html\} |
 | `creator` | object | Person who authored the note |
 |   ↳ `id` | number | The person's unique identifier |
-|   ↳ `firstName` | string | The person's first name |
-|   ↳ `lastName` | string | The person's last name |
-|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `firstName` | string (nullable) | The person's first name |
+|   ↳ `lastName` | string (nullable) | The person's last name |
+|   ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |   ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 | `mentions` | array | Persons mentioned in the note body |
 | `createdAt` | string | When the note was created |
-| `updatedAt` | string | When the note was last updated |
+| `updatedAt` | string (nullable) | When the note was last updated |
 | `repliesCount` | number | Number of replies, on root notes only |
 | `parent` | json | The note being replied to, on reply notes only |
 | `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
@@ -566,15 +566,15 @@ Look up one person by ID. Field data is returned only for the Field IDs or Field
 | --------- | ---- | ----------- |
 | `id` | number | The person's unique identifier |
 | `firstName` | string | The person's first name |
-| `lastName` | string | The person's last name |
-| `primaryEmailAddress` | string | The person's primary email address |
+| `lastName` | string (nullable) | The person's last name |
+| `primaryEmailAddress` | string (nullable) | The person's primary email address |
 | `emailAddresses` | array | Every email address on the person |
 | `type` | string | Whether the person is internal or external |
 | `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
 |   ↳ `id` | string | The field's unique identifier |
 |   ↳ `name` | string | The field name |
 |   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
 ### Affinity Get Saved View
@@ -636,10 +636,10 @@ Read one internal user. A user and their person record share the same numeric ID
 | --------- | ---- | ----------- |
 | `id` | number | The user's unique identifier, shared with their person ID |
 | `firstName` | string | The user's first name |
-| `lastName` | string | The user's last name |
-| `primaryEmailAddress` | string | The user's primary email address |
+| `lastName` | string (nullable) | The user's last name |
+| `primaryEmailAddress` | string (nullable) | The user's primary email address |
 | `emailAddresses` | array | Every email address, for callers with the Manage Users permission |
-| `photoUrl` | string | URL of the user's photo |
+| `photoUrl` | string (nullable) | URL of the user's photo |
 | `status` | string | active, invited, or deactivated |
 | `role` | string | Account role, for callers with the Manage Users permission |
 
@@ -663,17 +663,17 @@ Page through logged calls and their participants. Only calls the API key holder 
 | `calls` | array | Logged calls, newest page first |
 |   ↳ `id` | number | The call's unique identifier |
 |   ↳ `loggingType` | string | How the call was logged |
-|   ↳ `title` | string | The call title |
+|   ↳ `title` | string (nullable) | The call title |
 |   ↳ `startTime` | string | When the call started |
-|   ↳ `endTime` | string | When the call ended |
+|   ↳ `endTime` | string (nullable) | When the call ended |
 |   ↳ `allDay` | boolean | Whether the call spans the whole day |
-|   ↳ `creator` | json | Who logged the call |
+|   ↳ `creator` | json (nullable) | Who logged the call |
 |   ↳ `createdAt` | string | When the record was created |
-|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the record was last updated |
 |   ↳ `attendeesPreview` | json | Attendees, with a total count |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Chat Messages
 
@@ -699,16 +699,16 @@ Page through logged chat messages and their participants. Only messages the API 
 |   ↳ `direction` | string | sent or received |
 |   ↳ `creator` | object | Person who sent the message |
 |     ↳ `id` | number | The person's unique identifier |
-|     ↳ `firstName` | string | The person's first name |
-|     ↳ `lastName` | string | The person's last name |
-|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `firstName` | string (nullable) | The person's first name |
+|     ↳ `lastName` | string (nullable) | The person's last name |
+|     ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 |   ↳ `createdAt` | string | When the record was created |
-|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the record was last updated |
 |   ↳ `participantsPreview` | json | Participants, with a total count |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Companies
 
@@ -732,18 +732,18 @@ Page through companies. Companies come back without field data unless Field IDs 
 | `companies` | array | Companies with any requested field values |
 |   ↳ `id` | number | The company's unique identifier |
 |   ↳ `name` | string | The company name |
-|   ↳ `domain` | string | The primary domain |
+|   ↳ `domain` | string (nullable) | The primary domain |
 |   ↳ `domains` | array | Every domain associated with the company |
 |   ↳ `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
 |   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
 |     ↳ `id` | string | The field's unique identifier |
 |     ↳ `name` | string | The field name |
 |     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Coworker Connections
 
@@ -767,9 +767,9 @@ Find warm paths into a company through shared work history: who in your Affinity
 |   ↳ `target` | json | The person to reach, as \{fullName, title, linkedinUrl, currentCompany\} |
 |   ↳ `connections` | array | People in your Affinity data who might know the target, each with the inference that links them |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Emails
 
@@ -793,15 +793,15 @@ Page through email metadata — subject, participants, and timestamps. Affinity 
 |   ↳ `sentAt` | string | When the email was sent |
 |   ↳ `loggingType` | string | How the email was logged |
 |   ↳ `direction` | string | sent or received |
-|   ↳ `subject` | string | The subject line |
+|   ↳ `subject` | string (nullable) | The subject line |
 |   ↳ `createdAt` | string | When the record was created |
-|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the record was last updated |
 |   ↳ `from` | json | Sender, as \{emailAddress, person\} |
 |   ↳ `toParticipantsPreview` | json | To recipients, with a total count |
 |   ↳ `ccParticipantsPreview` | json | Cc recipients, with a total count |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Entity Field Values
 
@@ -827,11 +827,11 @@ Page through a company's or person's non-list field values. List fields are not 
 |   ↳ `id` | string | The field's unique identifier |
 |   ↳ `name` | string | The field name |
 |   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Entity List Entries
 
@@ -856,16 +856,16 @@ Page through a company's or person's rows across every list, each carrying that 
 |   ↳ `listId` | number | The list the entry belongs to |
 |   ↳ `listName` | string | Name of that list |
 |   ↳ `createdAt` | string | When the entity was added to the list |
-|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `creatorId` | number (nullable) | User who added the entity |
 |   ↳ `fields` | array | Field values on the row, including list-specific fields |
 |     ↳ `id` | string | The field's unique identifier |
 |     ↳ `name` | string | The field name |
 |     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Entity Lists
 
@@ -893,8 +893,8 @@ List every list a company or person appears on that the caller can view.
 |   ↳ `isPublic` | boolean | Whether the list is visible to the organization |
 |   ↳ `createdAt` | string | When the list was created |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Entity Notes
 
@@ -922,13 +922,13 @@ List the notes relevant to one company, person, or opportunity — directly atta
 |   ↳ `content` | json | The note body as \{html\} |
 |   ↳ `creator` | object | Person who authored the note |
 |     ↳ `id` | number | The person's unique identifier |
-|     ↳ `firstName` | string | The person's first name |
-|     ↳ `lastName` | string | The person's last name |
-|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `firstName` | string (nullable) | The person's first name |
+|     ↳ `lastName` | string (nullable) | The person's last name |
+|     ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 |   ↳ `mentions` | array | Persons mentioned in the note body |
 |   ↳ `createdAt` | string | When the note was created |
-|   ↳ `updatedAt` | string | When the note was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the note was last updated |
 |   ↳ `repliesCount` | number | Number of replies, on root notes only |
 |   ↳ `parent` | json | The note being replied to, on reply notes only |
 |   ↳ `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
@@ -937,9 +937,9 @@ List the notes relevant to one company, person, or opportunity — directly atta
 |   ↳ `companiesPreview` | json | Attached companies, with a count |
 |   ↳ `opportunitiesPreview` | json | Attached opportunities, with a count |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Entity Relationships
 
@@ -965,22 +965,22 @@ List who knows a company or person, scored 0.0 to 1.0 by how much the two actual
 | `relationships` | array | Scored relationships involving the entity |
 |   ↳ `person1` | object | One side of the relationship |
 |     ↳ `id` | number | The person's unique identifier |
-|     ↳ `firstName` | string | The person's first name |
-|     ↳ `lastName` | string | The person's last name |
-|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `firstName` | string (nullable) | The person's first name |
+|     ↳ `lastName` | string (nullable) | The person's last name |
+|     ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 |   ↳ `person2` | object | The other side of the relationship |
 |     ↳ `id` | number | The person's unique identifier |
-|     ↳ `firstName` | string | The person's first name |
-|     ↳ `lastName` | string | The person's last name |
-|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `firstName` | string (nullable) | The person's first name |
+|     ↳ `lastName` | string (nullable) | The person's last name |
+|     ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 |   ↳ `interactionScore` | number | Strength of the relationship, between 0.0 and 1.0 |
-|   ↳ `linkedIn` | json | When the two connected on LinkedIn, as \{connectedOn\} |
+|   ↳ `linkedIn` | json (nullable) | When the two connected on LinkedIn, as \{connectedOn\} |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Field Dropdown Options
 
@@ -1005,12 +1005,12 @@ List the selectable options on a dropdown or ranked-dropdown company or person f
 |   ↳ `text` | string | The option label |
 |   ↳ `type` | string | dropdown, ranked-dropdown, or status-dropdown |
 |   ↳ `rank` | number | Sort order, on ranked and status options |
-|   ↳ `color` | string | white, gray, blue, green, purple, orange, or red |
+|   ↳ `color` | string (nullable) | white, gray, blue, green, purple, orange, or red |
 |   ↳ `statusCategory` | string | open, won, lost, or on-hold, on status options |
-|   ↳ `winRate` | number | Win rate of a status option |
+|   ↳ `winRate` | number (nullable) | Win rate of a status option |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Field Metadata
 
@@ -1035,14 +1035,14 @@ List the non-list company or person fields, with the value type, filter operator
 |   ↳ `id` | string | The field's unique identifier |
 |   ↳ `name` | string | The field name |
 |   ↳ `type` | string | enriched, global, list, or relationship-intelligence |
-|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `valueType` | string | The value shape: person, person-multi, company, company-multi, filterable-text, filterable-text-multi, number, number-multi, datetime, location, location-multi, text, ranked-dropdown, dropdown, dropdown-multi, formula-number, or interaction |
-|   ↳ `createdAt` | string | When the field was created |
-|   ↳ `filterability` | json | Supported filter operators, or the attributes that can be filtered on. Only present when requested through Includes |
-|   ↳ `sortability` | json | Whether the field can be sorted on, and by which attributes. Only present when requested through Includes |
+|   ↳ `createdAt` | string (nullable) | When the field was created |
+|   ↳ `filterability` | json (nullable) | Supported filter operators, or the attributes that can be filtered on. Only present when requested through Includes |
+|   ↳ `sortability` | json (nullable) | Whether the field can be sorted on, and by which attributes. Only present when requested through Includes |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Field Value Changes
 
@@ -1067,14 +1067,14 @@ Page through field value changes across the whole workspace. Built for delta syn
 |   ↳ `type` | string | The value type the change applies to |
 |   ↳ `field` | json | The changed field as \{id, entityType, name, type\} |
 |   ↳ `entity` | json | The entity whose field changed, as \{id\} |
-|   ↳ `listEntry` | json | The list entry the change happened on, for list fields |
-|   ↳ `changer` | json | User who made the change |
+|   ↳ `listEntry` | json (nullable) | The list entry the change happened on, for list fields |
+|   ↳ `changer` | json (nullable) | User who made the change |
 |   ↳ `changedAt` | string | When the change happened |
 |   ↳ `actionType` | string | add, update, or delete |
 |   ↳ `value` | json | The value that was added, set, or removed |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Investor Executive Connections
 
@@ -1098,9 +1098,9 @@ Find warm paths into a company through investment history: which investors in yo
 |   ↳ `target` | json | The person to reach, as \{fullName, title, linkedinUrl, currentCompany\} |
 |   ↳ `connections` | array | People in your Affinity data who might know the target, each with the inference that links them |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List List Entries
 
@@ -1126,11 +1126,11 @@ Page through the rows of a list. Rows come back without field data unless Field 
 |   ↳ `type` | string | company, person, or opportunity |
 |   ↳ `listId` | number | The list the entry belongs to |
 |   ↳ `createdAt` | string | When the entity was added to the list |
-|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `creatorId` | number (nullable) | User who added the entity |
 |   ↳ `entity` | json | The company, person, or opportunity on the row, including its field values |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List List Entry Field Value Changes
 
@@ -1156,14 +1156,14 @@ Page through the history of one list row — who changed which field, when, and 
 |   ↳ `type` | string | The value type the change applies to |
 |   ↳ `field` | json | The changed field as \{id, entityType, name, type\} |
 |   ↳ `entity` | json | The entity whose field changed, as \{id\} |
-|   ↳ `listEntry` | json | The list entry the change happened on, for list fields |
-|   ↳ `changer` | json | User who made the change |
+|   ↳ `listEntry` | json (nullable) | The list entry the change happened on, for list fields |
+|   ↳ `changer` | json (nullable) | User who made the change |
 |   ↳ `changedAt` | string | When the change happened |
 |   ↳ `actionType` | string | add, update, or delete |
 |   ↳ `value` | json | The value that was added, set, or removed |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List List Entry Fields
 
@@ -1189,11 +1189,11 @@ Page through every field value on one list row, including the list-specific colu
 |   ↳ `id` | string | The field's unique identifier |
 |   ↳ `name` | string | The field name |
 |   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List List Field Dropdown Options
 
@@ -1218,12 +1218,12 @@ List the selectable options on a dropdown, ranked-dropdown, or status-dropdown f
 |   ↳ `text` | string | The option label |
 |   ↳ `type` | string | dropdown, ranked-dropdown, or status-dropdown |
 |   ↳ `rank` | number | Sort order, on ranked and status options |
-|   ↳ `color` | string | white, gray, blue, green, purple, orange, or red |
+|   ↳ `color` | string (nullable) | white, gray, blue, green, purple, orange, or red |
 |   ↳ `statusCategory` | string | open, won, lost, or on-hold, on status options |
-|   ↳ `winRate` | number | Win rate of a status option |
+|   ↳ `winRate` | number (nullable) | Win rate of a status option |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List List Fields
 
@@ -1248,14 +1248,14 @@ List the fields available on one list, including its list-specific columns. Use 
 |   ↳ `id` | string | The field's unique identifier |
 |   ↳ `name` | string | The field name |
 |   ↳ `type` | string | enriched, global, list, or relationship-intelligence |
-|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `valueType` | string | The value shape: person, person-multi, company, company-multi, filterable-text, filterable-text-multi, number, number-multi, datetime, location, location-multi, text, ranked-dropdown, dropdown, dropdown-multi, formula-number, or interaction |
-|   ↳ `createdAt` | string | When the field was created |
-|   ↳ `filterability` | json | Supported filter operators, or the attributes that can be filtered on. Only present when requested through Includes |
-|   ↳ `sortability` | json | Whether the field can be sorted on, and by which attributes. Only present when requested through Includes |
+|   ↳ `createdAt` | string (nullable) | When the field was created |
+|   ↳ `filterability` | json (nullable) | Supported filter operators, or the attributes that can be filtered on. Only present when requested through Includes |
+|   ↳ `sortability` | json (nullable) | Whether the field can be sorted on, and by which attributes. Only present when requested through Includes |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Lists
 
@@ -1283,8 +1283,8 @@ Page through the lists in the organization that the caller can view.
 |   ↳ `createdAt` | string | When the list was created |
 |   ↳ `type` | string | company, opportunity, or person — the entity kind the list holds |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Meetings
 
@@ -1306,18 +1306,18 @@ Page through past and upcoming meetings with their organizer and attendees.
 | `meetings` | array | Meetings with their attendees |
 |   ↳ `id` | number | The call's unique identifier |
 |   ↳ `loggingType` | string | automated or manual |
-|   ↳ `title` | string | The call title |
+|   ↳ `title` | string (nullable) | The call title |
 |   ↳ `startTime` | string | When the call started |
-|   ↳ `endTime` | string | When the call ended |
+|   ↳ `endTime` | string (nullable) | When the call ended |
 |   ↳ `allDay` | boolean | Whether the call spans the whole day |
-|   ↳ `creator` | json | Who logged the call |
+|   ↳ `creator` | json (nullable) | Who logged the call |
 |   ↳ `createdAt` | string | When the record was created |
-|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the record was last updated |
 |   ↳ `attendeesPreview` | json | Attendees, with a total count |
-|   ↳ `organizer` | json | Who organized the meeting |
+|   ↳ `organizer` | json (nullable) | Who organized the meeting |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Merge Tasks
 
@@ -1342,8 +1342,8 @@ Page through merge tasks, each summarizing how many of its merges are in progres
 |   ↳ `status` | string | in-progress, success, or failed |
 |   ↳ `resultsSummary` | json | Counts of the grouped merges as \{total, inProgress, success, failed\} |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Merges
 
@@ -1368,15 +1368,15 @@ Page through the company or person merges the organization has run, with the sta
 |   ↳ `status` | string | in-progress, success, or failed |
 |   ↳ `taskId` | string | Task that groups this merge with its siblings |
 |   ↳ `startedAt` | string | When the merge started |
-|   ↳ `completedAt` | string | When the merge finished |
-|   ↳ `errorMessage` | string | Why the merge failed |
+|   ↳ `completedAt` | string (nullable) | When the merge finished |
+|   ↳ `errorMessage` | string (nullable) | Why the merge failed |
 |   ↳ `primaryCompanyId` | number | Company kept by a company merge |
 |   ↳ `duplicateCompanyId` | number | Company folded in by a company merge |
 |   ↳ `primaryPersonId` | number | Person kept by a person merge |
 |   ↳ `duplicatePersonId` | number | Person folded in by a person merge |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Note Attached Companies
 
@@ -1399,11 +1399,11 @@ List the companies directly attached to one note.
 | `companies` | array | Companies attached to the note |
 |   ↳ `id` | number | The company's unique identifier |
 |   ↳ `name` | string | The company name |
-|   ↳ `domain` | string | The company's primary domain |
+|   ↳ `domain` | string (nullable) | The company's primary domain |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Note Attached Opportunities
 
@@ -1431,9 +1431,9 @@ List the opportunities directly attached to one note.
 |   ↳ `isRestricted` | boolean | Whether list permissions restrict access to the opportunity |
 |   ↳ `isRedacted` | boolean | Whether the opportunity fields were redacted |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Note Attached Persons
 
@@ -1455,14 +1455,14 @@ List the persons directly attached to one note.
 | --------- | ---- | ----------- |
 | `persons` | array | Persons attached to the note |
 |   ↳ `id` | number | The person's unique identifier |
-|   ↳ `firstName` | string | The person's first name |
-|   ↳ `lastName` | string | The person's last name |
-|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `firstName` | string (nullable) | The person's first name |
+|   ↳ `lastName` | string (nullable) | The person's last name |
+|   ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |   ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Note Replies
 
@@ -1489,13 +1489,13 @@ Page through the replies on one note, including AI Notetaker replies.
 |   ↳ `content` | json | The note body as \{html\} |
 |   ↳ `creator` | object | Person who authored the note |
 |     ↳ `id` | number | The person's unique identifier |
-|     ↳ `firstName` | string | The person's first name |
-|     ↳ `lastName` | string | The person's last name |
-|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `firstName` | string (nullable) | The person's first name |
+|     ↳ `lastName` | string (nullable) | The person's last name |
+|     ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 |   ↳ `mentions` | array | Persons mentioned in the note body |
 |   ↳ `createdAt` | string | When the note was created |
-|   ↳ `updatedAt` | string | When the note was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the note was last updated |
 |   ↳ `repliesCount` | number | Number of replies, on root notes only |
 |   ↳ `parent` | json | The note being replied to, on reply notes only |
 |   ↳ `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
@@ -1504,9 +1504,9 @@ Page through the replies on one note, including AI Notetaker replies.
 |   ↳ `companiesPreview` | json | Attached companies, with a count |
 |   ↳ `opportunitiesPreview` | json | Attached opportunities, with a count |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Notes
 
@@ -1533,13 +1533,13 @@ Page through every note the caller can see. Replies are excluded.
 |   ↳ `content` | json | The note body as \{html\} |
 |   ↳ `creator` | object | Person who authored the note |
 |     ↳ `id` | number | The person's unique identifier |
-|     ↳ `firstName` | string | The person's first name |
-|     ↳ `lastName` | string | The person's last name |
-|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `firstName` | string (nullable) | The person's first name |
+|     ↳ `lastName` | string (nullable) | The person's last name |
+|     ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
 |   ↳ `mentions` | array | Persons mentioned in the note body |
 |   ↳ `createdAt` | string | When the note was created |
-|   ↳ `updatedAt` | string | When the note was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the note was last updated |
 |   ↳ `repliesCount` | number | Number of replies, on root notes only |
 |   ↳ `parent` | json | The note being replied to, on reply notes only |
 |   ↳ `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
@@ -1548,9 +1548,9 @@ Page through every note the caller can see. Replies are excluded.
 |   ↳ `companiesPreview` | json | Attached companies, with a count |
 |   ↳ `opportunitiesPreview` | json | Attached opportunities, with a count |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Opportunities
 
@@ -1577,8 +1577,8 @@ Page through opportunities. Field data lives on the list entry, not here — rea
 |   ↳ `isRestricted` | boolean | Whether list permissions restrict access to the opportunity |
 |   ↳ `isRedacted` | boolean | Whether the opportunity fields were redacted |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Persons
 
@@ -1602,19 +1602,19 @@ Page through persons. Persons come back without field data unless Field IDs or F
 | `persons` | array | Persons with any requested field values |
 |   ↳ `id` | number | The person's unique identifier |
 |   ↳ `firstName` | string | The person's first name |
-|   ↳ `lastName` | string | The person's last name |
-|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `lastName` | string (nullable) | The person's last name |
+|   ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |   ↳ `emailAddresses` | array | Every email address on the person |
 |   ↳ `type` | string | Whether the person is internal or external |
 |   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
 |     ↳ `id` | string | The field's unique identifier |
 |     ↳ `name` | string | The field name |
 |     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Reminders
 
@@ -1638,22 +1638,22 @@ Page through the reminders the caller can see. Filter by status to surface what 
 |   ↳ `id` | number | The reminder's unique identifier |
 |   ↳ `type` | string | one-time or recurring |
 |   ↳ `status` | string | active, overdue, or completed |
-|   ↳ `content` | string | The reminder text |
+|   ↳ `content` | string (nullable) | The reminder text |
 |   ↳ `dueDate` | string | When the reminder is due |
 |   ↳ `creator` | json | User who created the reminder, as \{id\} |
 |   ↳ `owner` | json | User the reminder is assigned to, as \{id\} |
-|   ↳ `completer` | json | User who completed it, as \{id\} |
-|   ↳ `company` | json | Tagged company, as \{id\} |
-|   ↳ `person` | json | Tagged person, as \{id\} |
-|   ↳ `opportunity` | json | Tagged opportunity, as \{id\} |
-|   ↳ `completedAt` | string | When the reminder was completed |
-|   ↳ `recurrence` | json | Recurrence as \{resetTrigger, periodDays\}, null on a one-time reminder |
+|   ↳ `completer` | json (nullable) | User who completed it, as \{id\} |
+|   ↳ `company` | json (nullable) | Tagged company, as \{id\} |
+|   ↳ `person` | json (nullable) | Tagged person, as \{id\} |
+|   ↳ `opportunity` | json (nullable) | Tagged opportunity, as \{id\} |
+|   ↳ `completedAt` | string (nullable) | When the reminder was completed |
+|   ↳ `recurrence` | json (nullable) | Recurrence as \{resetTrigger, periodDays\}, null on a one-time reminder |
 |   ↳ `createdAt` | string | When the reminder was created |
-|   ↳ `updatedAt` | string | When the reminder was last updated |
+|   ↳ `updatedAt` | string (nullable) | When the reminder was last updated |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Saved View Entries
 
@@ -1678,11 +1678,11 @@ Page through the rows of a saved view. The view's own filters and columns decide
 |   ↳ `type` | string | company, person, or opportunity |
 |   ↳ `listId` | number | The list the entry belongs to |
 |   ↳ `createdAt` | string | When the entity was added to the list |
-|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `creatorId` | number (nullable) | User who added the entity |
 |   ↳ `entity` | json | The company, person, or opportunity on the row, including its field values |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Saved Views
 
@@ -1707,8 +1707,8 @@ List the saved views on a list that the caller can view.
 |   ↳ `type` | string | sheet, board, or dashboard |
 |   ↳ `createdAt` | string | When the saved view was created |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity List Transcript Fragments
 
@@ -1734,9 +1734,9 @@ Page through everything said in a meeting, segment by segment with the speaker.
 |   ↳ `startTimestamp` | string | When the segment starts |
 |   ↳ `endTimestamp` | string | When the segment ends |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Transcripts
 
@@ -1758,9 +1758,9 @@ Page through meeting transcript metadata. Read one transcript to get what was ac
 | --------- | ---- | ----------- |
 | `transcripts` | array | Transcript metadata, without the spoken content |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity List Users
 
@@ -1783,15 +1783,15 @@ Page through the internal users in the organization. Email addresses and roles a
 | `users` | array | Internal users in the organization |
 |   ↳ `id` | number | The user's unique identifier, shared with their person ID |
 |   ↳ `firstName` | string | The user's first name |
-|   ↳ `lastName` | string | The user's last name |
-|   ↳ `primaryEmailAddress` | string | The user's primary email address |
+|   ↳ `lastName` | string (nullable) | The user's last name |
+|   ↳ `primaryEmailAddress` | string (nullable) | The user's primary email address |
 |   ↳ `emailAddresses` | array | Every email address, for callers with the Manage Users permission |
-|   ↳ `photoUrl` | string | URL of the user's photo |
+|   ↳ `photoUrl` | string (nullable) | URL of the user's photo |
 |   ↳ `status` | string | active, invited, or deactivated |
 |   ↳ `role` | string | Account role, for callers with the Manage Users permission |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
 
 ### Affinity Search Companies
 
@@ -1819,19 +1819,19 @@ Search companies by filters, sorts, and a free-text term. Requires the "Export A
 | `companies` | array | Matching companies with any requested field values |
 |   ↳ `id` | number | The company's unique identifier |
 |   ↳ `name` | string | The company name |
-|   ↳ `domain` | string | The primary domain |
+|   ↳ `domain` | string (nullable) | The primary domain |
 |   ↳ `domains` | array | Every domain associated with the company |
 |   ↳ `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
 |   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
 |     ↳ `id` | string | The field's unique identifier |
 |     ↳ `name` | string | The field name |
 |     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity Search Files
 
@@ -1853,7 +1853,7 @@ Search files by keyword, ordered by relevance. Narrow to specific files or to on
 | --------- | ---- | ----------- |
 | `results` | array | Matching files, most relevant first |
 |   ↳ `file` | json | The matched file as \{id, name\} |
-|   ↳ `pageNumber` | number | Page the match was found on, for paginated documents |
+|   ↳ `pageNumber` | number (nullable) | Page the match was found on, for paginated documents |
 |   ↳ `preview` | string | Snippet of the file around the match |
 | `count` | number | Number of matches returned |
 
@@ -1886,12 +1886,12 @@ Search the rows of one list by filters, sorts, and a free-text term. Requires th
 |   ↳ `type` | string | company, person, or opportunity |
 |   ↳ `listId` | number | The list the entry belongs to |
 |   ↳ `createdAt` | string | When the entity was added to the list |
-|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `creatorId` | number (nullable) | User who added the entity |
 |   ↳ `entity` | json | The company, person, or opportunity on the row, including its field values |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity Search Notes
 
@@ -1942,20 +1942,20 @@ Search persons by filters, sorts, and a free-text term. Requires the "Export All
 | `persons` | array | Matching persons with any requested field values |
 |   ↳ `id` | number | The person's unique identifier |
 |   ↳ `firstName` | string | The person's first name |
-|   ↳ `lastName` | string | The person's last name |
-|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `lastName` | string (nullable) | The person's last name |
+|   ↳ `primaryEmailAddress` | string (nullable) | The person's primary email address |
 |   ↳ `emailAddresses` | array | Every email address on the person |
 |   ↳ `type` | string | Whether the person is internal or external |
 |   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
 |     ↳ `id` | string | The field's unique identifier |
 |     ↳ `name` | string | The field name |
 |     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
-|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `enrichmentSource` | string (nullable) | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 | `count` | number | Number of rows on this page |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `prevCursor` | string | Cursor for the previous page, or null on the first page |
-| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+| `nextCursor` | string (nullable) | Cursor for the next page, or null on the last page |
+| `prevCursor` | string (nullable) | Cursor for the previous page, or null on the first page |
+| `totalCount` | number (nullable) | Total size of the collection, only when Total Count was requested |
 
 ### Affinity Semantic Search
 
@@ -1977,7 +1977,7 @@ Find companies from a description in plain language — industry, technology, st
 | `companies` | array | Matching companies, best match first |
 |   ↳ `id` | number | The company's unique identifier |
 |   ↳ `name` | string | The company name |
-|   ↳ `domain` | string | The company's primary domain |
+|   ↳ `domain` | string (nullable) | The company's primary domain |
 |   ↳ `domains` | array | Every domain associated with the company |
 |   ↳ `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
 |   ↳ `score` | string | How well the company matched the prompt |
@@ -2073,5 +2073,3 @@ Rewrite a note's body or replace which records it is attached to. Each list of I
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
-
-

@@ -5,7 +5,7 @@ description: Send, read, search, reply, organize, and manage Outlook email and c
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="outlook"
   color="#FFFFFF"
 />
@@ -679,8 +679,6 @@ Accept, tentatively accept, or decline an Outlook calendar event invitation
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -722,4 +720,3 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 |   ↳ `messageId` | string | Message ID for threading |
 |   ↳ `threadId` | string | Thread ID for conversation threading |
 | `timestamp` | string | Event timestamp |
-

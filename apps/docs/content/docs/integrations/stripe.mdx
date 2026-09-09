@@ -5,7 +5,7 @@ description: Process payments and manage Stripe data
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="stripe"
   color="#635BFF"
 />
@@ -2892,8 +2892,6 @@ List all Events
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2922,4 +2920,3 @@ Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
 | `livemode` | boolean | Whether this event occurred in live mode \(true\) or test mode \(false\) |
 | `pending_webhooks` | number | Number of webhooks yet to be delivered for this event |
 | `request` | json | Information about the API request that triggered this event \(id, idempotency_key\) |
-

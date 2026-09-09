@@ -5,7 +5,7 @@ description: Revenue intelligence and conversation analytics
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="gong"
   color="#8039DF"
 />
@@ -1141,8 +1141,6 @@ Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchr
 | --------- | ---- | ----------- |
 | `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1239,4 +1237,3 @@ Generic webhook trigger for all Gong events
 | `trackers` | array | Keyword and smart trackers from call content \(same shape as Gong extensive-calls `content.trackers`\) |
 | `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
 | `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
-

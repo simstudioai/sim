@@ -5,7 +5,7 @@ description: Interact with ClickUp
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="clickup"
   color="#FFFFFF"
 />
@@ -285,13 +285,13 @@ Upload a file to a ClickUp task as an attachment
 | --------- | ---- | ----------- |
 | `attachment` | json | The created attachment |
 |   ↳ `id` | string | Attachment ID |
-|   ↳ `version` | string | Attachment version |
-|   ↳ `title` | string | Attachment title |
-|   ↳ `extension` | string | File extension |
-|   ↳ `url` | string | URL of the uploaded attachment |
-|   ↳ `date` | number | Upload timestamp \(Unix ms\) |
-|   ↳ `thumbnailSmall` | string | Small thumbnail URL |
-|   ↳ `thumbnailLarge` | string | Large thumbnail URL |
+|   ↳ `version` | string (nullable) | Attachment version |
+|   ↳ `title` | string (nullable) | Attachment title |
+|   ↳ `extension` | string (nullable) | File extension |
+|   ↳ `url` | string (nullable) | URL of the uploaded attachment |
+|   ↳ `date` | number (nullable) | Upload timestamp \(Unix ms\) |
+|   ↳ `thumbnailSmall` | string (nullable) | Small thumbnail URL |
+|   ↳ `thumbnailLarge` | string (nullable) | Large thumbnail URL |
 | `files` | file[] | The uploaded attachment file |
 
 ### ClickUp Add Tag To Task
@@ -394,11 +394,11 @@ List the custom fields accessible in a ClickUp list
 | --------- | ---- | ----------- |
 | `fields` | array | Custom fields accessible in the list |
 |   ↳ `id` | string | Custom field ID |
-|   ↳ `name` | string | Custom field name |
-|   ↳ `type` | string | Custom field type \(e.g. text, number, drop_down\) |
-|   ↳ `typeConfig` | json | Type-specific configuration \(e.g. dropdown options\) |
-|   ↳ `dateCreated` | string | Creation timestamp \(Unix ms\) |
-|   ↳ `hideFromGuests` | boolean | Whether the field is hidden from guests |
+|   ↳ `name` | string (nullable) | Custom field name |
+|   ↳ `type` | string (nullable) | Custom field type \(e.g. text, number, drop_down\) |
+|   ↳ `typeConfig` | json (nullable) | Type-specific configuration \(e.g. dropdown options\) |
+|   ↳ `dateCreated` | string (nullable) | Creation timestamp \(Unix ms\) |
+|   ↳ `hideFromGuests` | boolean (nullable) | Whether the field is hidden from guests |
 
 ### ClickUp Get Workspaces
 
@@ -415,9 +415,9 @@ List the ClickUp workspaces (teams) available to the connected account
 | --------- | ---- | ----------- |
 | `workspaces` | array | Workspaces available to the connected account |
 |   ↳ `id` | string | Workspace ID |
-|   ↳ `name` | string | Workspace name |
-|   ↳ `color` | string | Workspace color |
-|   ↳ `avatar` | string | Workspace avatar URL |
+|   ↳ `name` | string (nullable) | Workspace name |
+|   ↳ `color` | string (nullable) | Workspace color |
+|   ↳ `avatar` | string (nullable) | Workspace avatar URL |
 
 ### ClickUp Get Spaces
 
@@ -436,13 +436,13 @@ List the spaces in a ClickUp workspace
 | --------- | ---- | ----------- |
 | `spaces` | array | Spaces in the workspace |
 |   ↳ `id` | string | Space ID |
-|   ↳ `name` | string | Space name |
-|   ↳ `private` | boolean | Whether the space is private |
-|   ↳ `archived` | boolean | Whether the space is archived |
+|   ↳ `name` | string (nullable) | Space name |
+|   ↳ `private` | boolean (nullable) | Whether the space is private |
+|   ↳ `archived` | boolean (nullable) | Whether the space is archived |
 |   ↳ `statuses` | array | Task statuses available in the space |
-|     ↳ `status` | string | Status name |
-|     ↳ `color` | string | Status color |
-|     ↳ `type` | string | Status type |
+|     ↳ `status` | string (nullable) | Status name |
+|     ↳ `color` | string (nullable) | Status color |
+|     ↳ `type` | string (nullable) | Status type |
 
 ### ClickUp Get Folders
 
@@ -803,8 +803,6 @@ Get the currently running time entry in a ClickUp workspace (null when no timer 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The running time entry \(duration is negative while running\); null when no timer is running |
-
-
 
 ## Triggers
 
@@ -1586,4 +1584,3 @@ Trigger workflow on any ClickUp event (subscribes to all events)
 | `listId` | string | ID of the affected list \(list events only\) |
 | `folderId` | string | ID of the affected folder \(folder events only\) |
 | `spaceId` | string | ID of the affected space \(space events only\) |
-

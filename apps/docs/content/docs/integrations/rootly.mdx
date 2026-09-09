@@ -5,7 +5,7 @@ description: Manage incidents, alerts, and on-call with Rootly
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="rootly"
   color="#6C72C8"
 />
@@ -1318,8 +1318,6 @@ List incident roles configured in Rootly (e.g. commander, scribe).
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of incident roles returned |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1547,4 +1545,3 @@ Trigger workflow when an incident is updated in Rootly
 |   ↳ `events` | json | Timeline events |
 |   ↳ `action_items` | json | Action items |
 |   ↳ `incident_post_mortem` | json | Retrospective/post-mortem object |
-

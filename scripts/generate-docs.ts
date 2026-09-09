@@ -457,11 +457,17 @@ const wouldDeletePaths: string[] = []
 
 /** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
 function emitGeneratedFile(filePath: string, content: string): void {
+  if (filePath.endsWith('.mdx')) content = finalizeGeneratedMarkdown(content)
   if (CHECK_ONLY) {
     emittedByPath.set(filePath, content)
     return
   }
   fs.writeFileSync(filePath, content)
+}
+
+/** Keeps one final newline without stripping Markdown hard-break spaces from authored content. */
+export function finalizeGeneratedMarkdown(content: string): string {
+  return content.replace(/\n*$/, '\n')
 }
 
 /** Reads a generated artifact as the pipeline would see it mid-run: overlay first in check mode, then disk. */
@@ -2859,6 +2865,9 @@ function parseConstFieldContent(
   const result: any = {
     type: fieldType,
     description: description || '',
+    ...(findTopLevelMatch(blankStringsAndComments(fieldContent) ?? '', /\bnullable\s*:\s*true\b/)
+      ? { nullable: true }
+      : {}),
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
@@ -3370,6 +3379,9 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
       if (output.type) {
         type = output.type
       }
+      if (output.nullable === true) {
+        type += ' (nullable)'
+      }
 
       if (output.description) {
         description = output.description
@@ -3640,6 +3652,9 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
   const result: any = {
     type: fieldType,
     description: description || '',
+    ...(findTopLevelMatch(blankStringsAndComments(fieldContent) ?? '', /\bnullable\s*:\s*true\b/)
+      ? { nullable: true }
+      : {}),
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
@@ -4059,7 +4074,9 @@ export async function getToolInfo(
       outputs:
         toolPrefix === 'sailpoint' || toolName === 'file_edit'
           ? (generatedOutputs ?? sourceInfo?.outputs ?? {})
-          : (sourceInfo?.outputs ?? generatedOutputs ?? {}),
+          : sourceInfo && Object.keys(sourceInfo.outputs).length > 0
+            ? sourceInfo.outputs
+            : (generatedOutputs ?? {}),
     }
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
@@ -4082,7 +4099,7 @@ function extractManualContent(existingContent: string): Record<string, string> {
   return manualSections
 }
 
-function mergeWithManualContent(
+export function mergeWithManualContent(
   generatedMarkdown: string,
   existingContent: string | null,
   manualSections: Record<string, string>
@@ -4202,7 +4219,7 @@ async function generateBlockDoc(blockPath: string) {
   }
 }
 
-async function generateMarkdownForBlock(
+export async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
   displayType?: string
 ): Promise<string> {
@@ -4350,7 +4367,7 @@ description: ${description}
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />
@@ -5011,11 +5028,7 @@ async function generateAllTriggerDocs(): Promise<void> {
       if (existing?.includes('\n## Actions')) {
         // Actions page generated this run by the block pass — append the Triggers section.
         if (!existing.includes('\n## Triggers')) {
-          if (CHECK_ONLY) {
-            emittedByPath.set(outputFilePath, `${existing}\n${buildTriggersSection(triggers)}`)
-          } else {
-            fs.appendFileSync(outputFilePath, `\n${buildTriggersSection(triggers)}`)
-          }
+          emitGeneratedFile(outputFilePath, `${existing}\n${buildTriggersSection(triggers)}`)
         }
       } else {
         // Trigger-only service (no actions block) — (re)write the standalone page,

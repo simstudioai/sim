@@ -5,7 +5,7 @@ description: Manage Zoho Desk tickets, comments, threads, and contacts
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="zoho_desk"
   color="#FFFFFF"
 />
@@ -71,28 +71,28 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
-|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
-|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `description` | string (nullable) | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string (nullable) | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
-|   ↳ `priority` | string | Ticket priority |
-|   ↳ `category` | string | Ticket category |
-|   ↳ `subCategory` | string | Ticket sub-category |
-|   ↳ `classification` | string | Ticket classification |
+|   ↳ `priority` | string (nullable) | Ticket priority |
+|   ↳ `category` | string (nullable) | Ticket category |
+|   ↳ `subCategory` | string (nullable) | Ticket sub-category |
+|   ↳ `classification` | string (nullable) | Ticket classification |
 |   ↳ `channel` | string | Origin channel |
 |   ↳ `departmentId` | string | Department ID |
-|   ↳ `contactId` | string | Contact ID |
-|   ↳ `accountId` | string | Account ID |
-|   ↳ `assigneeId` | string | Assignee ID |
-|   ↳ `email` | string | Contact email |
-|   ↳ `phone` | string | Contact phone |
-|   ↳ `dueDate` | string | Due date |
-|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `contactId` | string (nullable) | Contact ID |
+|   ↳ `accountId` | string (nullable) | Account ID |
+|   ↳ `assigneeId` | string (nullable) | Assignee ID |
+|   ↳ `email` | string (nullable) | Contact email |
+|   ↳ `phone` | string (nullable) | Contact phone |
+|   ↳ `dueDate` | string (nullable) | Due date |
+|   ↳ `responseDueDate` | string (nullable) | Response due date |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `modifiedTime` | string | Last modified timestamp |
-|   ↳ `customerResponseTime` | string | Time the last customer response was received |
-|   ↳ `closedTime` | string | Closed timestamp |
-|   ↳ `resolution` | string | Resolution text |
+|   ↳ `customerResponseTime` | string (nullable) | Time the last customer response was received |
+|   ↳ `closedTime` | string (nullable) | Closed timestamp |
+|   ↳ `resolution` | string (nullable) | Resolution text |
 |   ↳ `threadCount` | string | Number of threads |
 |   ↳ `commentCount` | string | Number of comments |
 |   ↳ `webUrl` | string | Web URL to the ticket |
@@ -122,28 +122,28 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
-|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
-|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `description` | string (nullable) | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string (nullable) | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
-|   ↳ `priority` | string | Ticket priority |
-|   ↳ `category` | string | Ticket category |
-|   ↳ `subCategory` | string | Ticket sub-category |
-|   ↳ `classification` | string | Ticket classification |
+|   ↳ `priority` | string (nullable) | Ticket priority |
+|   ↳ `category` | string (nullable) | Ticket category |
+|   ↳ `subCategory` | string (nullable) | Ticket sub-category |
+|   ↳ `classification` | string (nullable) | Ticket classification |
 |   ↳ `channel` | string | Origin channel |
 |   ↳ `departmentId` | string | Department ID |
-|   ↳ `contactId` | string | Contact ID |
-|   ↳ `accountId` | string | Account ID |
-|   ↳ `assigneeId` | string | Assignee ID |
-|   ↳ `email` | string | Contact email |
-|   ↳ `phone` | string | Contact phone |
-|   ↳ `dueDate` | string | Due date |
-|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `contactId` | string (nullable) | Contact ID |
+|   ↳ `accountId` | string (nullable) | Account ID |
+|   ↳ `assigneeId` | string (nullable) | Assignee ID |
+|   ↳ `email` | string (nullable) | Contact email |
+|   ↳ `phone` | string (nullable) | Contact phone |
+|   ↳ `dueDate` | string (nullable) | Due date |
+|   ↳ `responseDueDate` | string (nullable) | Response due date |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `modifiedTime` | string | Last modified timestamp |
-|   ↳ `customerResponseTime` | string | Time the last customer response was received |
-|   ↳ `closedTime` | string | Closed timestamp |
-|   ↳ `resolution` | string | Resolution text |
+|   ↳ `customerResponseTime` | string (nullable) | Time the last customer response was received |
+|   ↳ `closedTime` | string (nullable) | Closed timestamp |
+|   ↳ `resolution` | string (nullable) | Resolution text |
 |   ↳ `threadCount` | string | Number of threads |
 |   ↳ `commentCount` | string | Number of comments |
 |   ↳ `webUrl` | string | Web URL to the ticket |
@@ -183,28 +183,28 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
-|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
-|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `description` | string (nullable) | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string (nullable) | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
-|   ↳ `priority` | string | Ticket priority |
-|   ↳ `category` | string | Ticket category |
-|   ↳ `subCategory` | string | Ticket sub-category |
-|   ↳ `classification` | string | Ticket classification |
+|   ↳ `priority` | string (nullable) | Ticket priority |
+|   ↳ `category` | string (nullable) | Ticket category |
+|   ↳ `subCategory` | string (nullable) | Ticket sub-category |
+|   ↳ `classification` | string (nullable) | Ticket classification |
 |   ↳ `channel` | string | Origin channel |
 |   ↳ `departmentId` | string | Department ID |
-|   ↳ `contactId` | string | Contact ID |
-|   ↳ `accountId` | string | Account ID |
-|   ↳ `assigneeId` | string | Assignee ID |
-|   ↳ `email` | string | Contact email |
-|   ↳ `phone` | string | Contact phone |
-|   ↳ `dueDate` | string | Due date |
-|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `contactId` | string (nullable) | Contact ID |
+|   ↳ `accountId` | string (nullable) | Account ID |
+|   ↳ `assigneeId` | string (nullable) | Assignee ID |
+|   ↳ `email` | string (nullable) | Contact email |
+|   ↳ `phone` | string (nullable) | Contact phone |
+|   ↳ `dueDate` | string (nullable) | Due date |
+|   ↳ `responseDueDate` | string (nullable) | Response due date |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `modifiedTime` | string | Last modified timestamp |
-|   ↳ `customerResponseTime` | string | Time the last customer response was received |
-|   ↳ `closedTime` | string | Closed timestamp |
-|   ↳ `resolution` | string | Resolution text |
+|   ↳ `customerResponseTime` | string (nullable) | Time the last customer response was received |
+|   ↳ `closedTime` | string (nullable) | Closed timestamp |
+|   ↳ `resolution` | string (nullable) | Resolution text |
 |   ↳ `threadCount` | string | Number of threads |
 |   ↳ `commentCount` | string | Number of comments |
 |   ↳ `webUrl` | string | Web URL to the ticket |
@@ -245,9 +245,9 @@ List comments on a Zoho Desk ticket.
 |     ↳ `email` | string | Email address |
 |     ↳ `type` | string | Commenter type \(AGENT/END_USER\) |
 |     ↳ `roleName` | string | Role name |
-|     ↳ `photoURL` | string | Avatar URL |
+|     ↳ `photoURL` | string (nullable) | Avatar URL |
 |   ↳ `commentedTime` | string | Commented timestamp |
-|   ↳ `modifiedTime` | string | Modified timestamp |
+|   ↳ `modifiedTime` | string (nullable) | Modified timestamp |
 |   ↳ `attachments` | array | Comment attachments |
 |     ↳ `id` | string | Attachment ID |
 |     ↳ `name` | string | File name |
@@ -287,9 +287,9 @@ Add a comment to a Zoho Desk ticket.
 |     ↳ `email` | string | Email address |
 |     ↳ `type` | string | Commenter type \(AGENT/END_USER\) |
 |     ↳ `roleName` | string | Role name |
-|     ↳ `photoURL` | string | Avatar URL |
+|     ↳ `photoURL` | string (nullable) | Avatar URL |
 |   ↳ `commentedTime` | string | Commented timestamp |
-|   ↳ `modifiedTime` | string | Modified timestamp |
+|   ↳ `modifiedTime` | string (nullable) | Modified timestamp |
 |   ↳ `attachments` | array | Comment attachments |
 |     ↳ `id` | string | Attachment ID |
 |     ↳ `name` | string | File name |
@@ -318,23 +318,23 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |   ↳ `id` | string | Thread ID |
 |   ↳ `channel` | string | Thread channel |
 |   ↳ `direction` | string | Direction \(in/out\) |
-|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
+|   ↳ `content` | string (nullable) | Thread content \(raw; may be HTML\) |
 |   ↳ `contentType` | string | Content type |
-|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
-|   ↳ `summary` | string | Thread summary |
-|   ↳ `responderId` | string | Responder ID |
+|   ↳ `contentText` | string (nullable) | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `summary` | string (nullable) | Thread summary |
+|   ↳ `responderId` | string (nullable) | Responder ID |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `hasAttach` | boolean | Whether the thread has attachments |
 |   ↳ `attachmentCount` | string | Number of attachments |
-|   ↳ `fromEmailAddress` | string | From email address |
-|   ↳ `to` | string | To email address |
-|   ↳ `cc` | string | CC email address |
-|   ↳ `bcc` | string | BCC email address |
-|   ↳ `replyTo` | string | Reply-to email address |
+|   ↳ `fromEmailAddress` | string (nullable) | From email address |
+|   ↳ `to` | string (nullable) | To email address |
+|   ↳ `cc` | string (nullable) | CC email address |
+|   ↳ `bcc` | string (nullable) | BCC email address |
+|   ↳ `replyTo` | string (nullable) | Reply-to email address |
 |   ↳ `isForward` | boolean | Whether the thread is a forward |
 |   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
-|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
-|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
+|   ↳ `fullContentURL` | string (nullable) | URL returning the untruncated thread content |
+|   ↳ `plainText` | string (nullable) | Zoho's own plain-text rendering of the thread, when it supplies one |
 |   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
 |   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
 |   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
@@ -345,7 +345,7 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |     ↳ `lastName` | string | Last name |
 |     ↳ `email` | string | Email address |
 |     ↳ `type` | string | Author type \(AGENT/END_USER\) |
-|     ↳ `photoURL` | string | Avatar URL |
+|     ↳ `photoURL` | string (nullable) | Avatar URL |
 |   ↳ `attachments` | array | Thread attachments |
 |     ↳ `id` | string | Attachment ID |
 |     ↳ `name` | string | File name |
@@ -374,23 +374,23 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |   ↳ `id` | string | Thread ID |
 |   ↳ `channel` | string | Thread channel |
 |   ↳ `direction` | string | Direction \(in/out\) |
-|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
+|   ↳ `content` | string (nullable) | Thread content \(raw; may be HTML\) |
 |   ↳ `contentType` | string | Content type |
-|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
-|   ↳ `summary` | string | Thread summary |
-|   ↳ `responderId` | string | Responder ID |
+|   ↳ `contentText` | string (nullable) | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `summary` | string (nullable) | Thread summary |
+|   ↳ `responderId` | string (nullable) | Responder ID |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `hasAttach` | boolean | Whether the thread has attachments |
 |   ↳ `attachmentCount` | string | Number of attachments |
-|   ↳ `fromEmailAddress` | string | From email address |
-|   ↳ `to` | string | To email address |
-|   ↳ `cc` | string | CC email address |
-|   ↳ `bcc` | string | BCC email address |
-|   ↳ `replyTo` | string | Reply-to email address |
+|   ↳ `fromEmailAddress` | string (nullable) | From email address |
+|   ↳ `to` | string (nullable) | To email address |
+|   ↳ `cc` | string (nullable) | CC email address |
+|   ↳ `bcc` | string (nullable) | BCC email address |
+|   ↳ `replyTo` | string (nullable) | Reply-to email address |
 |   ↳ `isForward` | boolean | Whether the thread is a forward |
 |   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
-|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
-|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
+|   ↳ `fullContentURL` | string (nullable) | URL returning the untruncated thread content |
+|   ↳ `plainText` | string (nullable) | Zoho's own plain-text rendering of the thread, when it supplies one |
 |   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
 |   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
 |   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
@@ -401,7 +401,7 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |     ↳ `lastName` | string | Last name |
 |     ↳ `email` | string | Email address |
 |     ↳ `type` | string | Author type \(AGENT/END_USER\) |
-|     ↳ `photoURL` | string | Avatar URL |
+|     ↳ `photoURL` | string (nullable) | Avatar URL |
 |   ↳ `attachments` | array | Thread attachments |
 |     ↳ `id` | string | Attachment ID |
 |     ↳ `name` | string | File name |
@@ -426,22 +426,22 @@ Retrieve a Zoho Desk contact by ID.
 | --------- | ---- | ----------- |
 | `contact` | object | The contact |
 |   ↳ `id` | string | Contact ID |
-|   ↳ `firstName` | string | First name |
+|   ↳ `firstName` | string (nullable) | First name |
 |   ↳ `lastName` | string | Last name |
-|   ↳ `email` | string | Primary email |
-|   ↳ `secondaryEmail` | string | Secondary email |
-|   ↳ `phone` | string | Phone number |
-|   ↳ `mobile` | string | Mobile number |
-|   ↳ `accountId` | string | Associated account ID |
-|   ↳ `ownerId` | string | Owner ID |
-|   ↳ `type` | string | Contact type |
-|   ↳ `title` | string | Job title |
-|   ↳ `street` | string | Street |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State |
-|   ↳ `country` | string | Country |
-|   ↳ `zip` | string | ZIP / postal code |
-|   ↳ `description` | string | Description |
+|   ↳ `email` | string (nullable) | Primary email |
+|   ↳ `secondaryEmail` | string (nullable) | Secondary email |
+|   ↳ `phone` | string (nullable) | Phone number |
+|   ↳ `mobile` | string (nullable) | Mobile number |
+|   ↳ `accountId` | string (nullable) | Associated account ID |
+|   ↳ `ownerId` | string (nullable) | Owner ID |
+|   ↳ `type` | string (nullable) | Contact type |
+|   ↳ `title` | string (nullable) | Job title |
+|   ↳ `street` | string (nullable) | Street |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `zip` | string (nullable) | ZIP / postal code |
+|   ↳ `description` | string (nullable) | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
 ### Zoho Desk Get Attachment
@@ -481,8 +481,6 @@ List the Zoho Desk organizations (portals) the connected account can access.
 |   ↳ `portalName` | string | Portal name |
 | `count` | number | Number of organizations returned |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -512,4 +510,3 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `orgId` | string | Zoho Desk organization ID |
 | `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
-

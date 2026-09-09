@@ -5,7 +5,7 @@ description: Search with Exa AI
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="exa"
   color="#1F40ED"
 />
@@ -208,10 +208,8 @@ Run a deep research task with Exa Agent. Handles multi-step list building, enric
 | --------- | ---- | ----------- |
 | `runId` | string | Identifier of the agent run, reusable as previousRunId |
 | `status` | string | Final status of the agent run |
-| `stopReason` | string | Why the agent stopped, such as schema_satisfied |
+| `stopReason` | string (nullable) | Why the agent stopped, such as schema_satisfied |
 | `text` | string | The written answer produced by the agent |
 | `structured` | json | Structured result matching outputSchema, when one was supplied |
 | `grounding` | json | Field-level citations backing the agent output |
 | `research` | array | The agent answer in the shape the retired Research operation emitted, so workflows that reference it keep resolving |
-
-
