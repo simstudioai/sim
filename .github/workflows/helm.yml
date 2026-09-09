@@ -193,6 +193,49 @@ jobs:
       - name: Run helm test
         run: helm test sim --namespace sim --timeout 5m
 
+  # Resolved once and shared, so the two publish paths cannot package the same
+  # immutable chart version with different appVersions -- they run in parallel,
+  # and a release becoming public between two independent API calls would be
+  # enough to make the OCI artifact and the HTTP repo install different Sims.
+  release-version:
+    name: Resolve the app release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read # Read the release list.
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      # On a release merge the tag does not exist yet -- this commit is what cuts
+      # it -- so the subject is the only source available, and the latest release
+      # is the source of truth for every other push.
+      #
+      # The subject pattern MUST stay identical to detect-version in ci.yml, which
+      # is what actually creates the tag and builds the images. If this one
+      # matched a subject that one rejects, the chart would publish naming a
+      # release that was never cut.
+      - name: Resolve the app release
+        id: resolve
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          subject=${HEAD_COMMIT_MESSAGE%%$'\n'*}
+          if [[ "$subject" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            resolved="${BASH_REMATCH[1]}"
+            echo "Release commit; shipping the chart with ${resolved}."
+          else
+            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+            echo "Not a release commit; shipping the chart with the latest release ${resolved}."
+          fi
+          if [ -z "$resolved" ]; then
+            echo "::error::Could not resolve an app release to ship this chart with."
+            exit 1
+          fi
+          echo "version=${resolved}" >> "$GITHUB_OUTPUT"
+
   # Publishes the chart to GHCR as an OCI artifact. Self-hosters cannot admit a
   # chart pulled from a git checkout — they need an immutable, versioned artifact
   # they can pin by digest and mirror into an internal registry — so shipping the
@@ -204,7 +247,7 @@ jobs:
   # A separate workflow would race those instead of waiting for them.
   publish:
     name: Publish chart to GHCR
-    needs: [chart, install]
+    needs: [chart, install, release-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
@@ -237,37 +280,12 @@ jobs:
         with:
           bun-version: 1.4.1
 
-      # The release this chart ships with. On a release merge the tag does not
-      # exist yet -- it is cut by this very commit (detect-version in ci.yml) --
-      # so the subject is the only source available, and the source of truth for
-      # every other push is the latest release.
-      - name: Resolve the app release
-        id: release
-        env:
-          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          subject=${HEAD_COMMIT_MESSAGE%%$'\n'*}
-          if [[ "$subject" =~ ^[[:space:]]*(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
-            resolved="${BASH_REMATCH[1]}"
-            echo "Release commit; shipping the chart with ${resolved}."
-          else
-            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
-            echo "Not a release commit; shipping the chart with the latest release ${resolved}."
-          fi
-          if [ -z "$resolved" ]; then
-            echo "::error::Could not resolve an app release to ship this chart with."
-            exit 1
-          fi
-          echo "version=${resolved}" >> "$GITHUB_OUTPUT"
-
       # Derives appVersion rather than checking it, so the published chart cannot
       # be pinned to an older Sim than the release it ships with. The committed
       # value is kept current too, but nothing depends on a human remembering.
       - name: Sync chart appVersion to the release
         env:
-          APP_VERSION: ${{ steps.release.outputs.version }}
+          APP_VERSION: ${{ needs.release-version.outputs.version }}
         run: bun run scripts/sync-chart-appversion.ts --version "${APP_VERSION}"
 
       - name: Package chart
@@ -422,7 +440,7 @@ jobs:
   # the job holding the signing identity.
   publish-http:
     name: Publish chart to the Helm repo
-    needs: [chart, install]
+    needs: [chart, install, release-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
@@ -457,39 +475,13 @@ jobs:
         with:
           bun-version: 1.4.1
 
-      # The release this chart ships with. On a release merge the tag does not
-      # exist yet -- it is cut by this very commit (detect-version in ci.yml) --
-      # so the subject is the only source available, and the source of truth for
-      # every other push is the latest release.
-      - name: Resolve the app release
-        if: steps.pages.outputs.exists == 'true'
-        id: release
-        env:
-          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          subject=${HEAD_COMMIT_MESSAGE%%$'\n'*}
-          if [[ "$subject" =~ ^[[:space:]]*(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
-            resolved="${BASH_REMATCH[1]}"
-            echo "Release commit; shipping the chart with ${resolved}."
-          else
-            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
-            echo "Not a release commit; shipping the chart with the latest release ${resolved}."
-          fi
-          if [ -z "$resolved" ]; then
-            echo "::error::Could not resolve an app release to ship this chart with."
-            exit 1
-          fi
-          echo "version=${resolved}" >> "$GITHUB_OUTPUT"
-
       # Derives appVersion rather than checking it, so the published chart cannot
       # be pinned to an older Sim than the release it ships with. The committed
       # value is kept current too, but nothing depends on a human remembering.
       - name: Sync chart appVersion to the release
         if: steps.pages.outputs.exists == 'true'
         env:
-          APP_VERSION: ${{ steps.release.outputs.version }}
+          APP_VERSION: ${{ needs.release-version.outputs.version }}
         run: bun run scripts/sync-chart-appversion.ts --version "${APP_VERSION}"
 
       - name: Configure Git

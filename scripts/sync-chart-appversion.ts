@@ -22,6 +22,9 @@
  * bun run scripts/sync-chart-appversion.ts --version v0.8.26
  * bun run scripts/sync-chart-appversion.ts --version v0.8.26 --check
  * ```
+ *
+ * `--check` verifies both halves: that Chart.yaml names the version and that the
+ * inventory generated from it is current.
  */
 import { spawnSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -67,7 +70,17 @@ async function main() {
       )
       process.exit(1)
     }
-    console.log(`appVersion is already ${version}.`)
+    /**
+     * The inventory derives from appVersion, so a matching Chart.yaml alone does
+     * not mean the pair is consistent -- checking only half of what this script
+     * writes would report success over a stale inventory.
+     */
+    const verified = spawnSync('bun', ['run', 'scripts/generate-image-manifest.ts', '--check'], {
+      cwd: ROOT,
+      stdio: 'inherit',
+    })
+    if (verified.status !== 0) process.exit(verified.status ?? 1)
+    console.log(`appVersion is ${version} and the image inventory matches.`)
     return
   }
 
