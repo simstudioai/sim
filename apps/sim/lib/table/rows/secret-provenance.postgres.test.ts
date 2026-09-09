@@ -23,7 +23,10 @@ import {
   mutateTableRowsWithSecretProvenance,
   updateTableRowsWithDerivedSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
-import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
+import { getRowById, updateRow } from '@/lib/table/rows/service'
+import { fireTableTrigger } from '@/lib/table/trigger'
+import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
+import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionCallbacks } from '@/executor/execution/types'
 
@@ -45,6 +48,10 @@ vi.mock('@sim/db', () => ({
       if (!database.current) throw new Error('PostgreSQL test database is not initialized')
       return Reflect.apply(database.current.select, database.current, args)
     },
+    transaction: (...args: unknown[]) => {
+      if (!database.current) throw new Error('PostgreSQL test database is not initialized')
+      return Reflect.apply(database.current.transaction, database.current, args)
+    },
   },
 }))
 vi.mock('@sim/logger', () => ({
@@ -54,6 +61,16 @@ vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: vi.fn(async () => ({ decrypted: 'secret-value' })),
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: vi.fn() }))
+vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn(async () => table) }))
+vi.mock('@/lib/core/async-jobs/config', () => ({
+  getJobQueue: vi.fn(async () => ({ cancelByKey: vi.fn(), cancelJob: vi.fn() })),
+}))
+vi.mock('@/lib/table/dispatcher', () => ({
+  listActiveDispatches: vi.fn(async () => []),
+  markActiveDispatchesCancelled: vi.fn(async () => []),
+}))
+vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
@@ -74,6 +91,25 @@ if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databas
 const connection = databaseUrl ? postgres(databaseUrl, { max: 1 }) : undefined
 const updatedAt = new Date('2026-08-05T00:00:00.123Z')
 const secretEntry = { columnId: 'retained', encryptedValue: 'encrypted-secret', name: 'SECRET' }
+const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+const table: TableDefinition = {
+  id: 'table-1',
+  workspaceId: 'workspace-1',
+  name: 'Test table',
+  description: null,
+  schema: {
+    columns: ['retained', 'removed', 'derived'].map((id) => ({ id, name: id, type: 'string' })),
+    workflowGroups: [{ id: 'group-1', workflowId: 'workflow-1', outputs: [] }],
+  },
+  metadata: null,
+  rowCount: 1,
+  maxRows: 100,
+  createdBy: 'user-1',
+  locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
+  archivedAt: null,
+  createdAt: updatedAt,
+  updatedAt,
+}
 
 interface Fixture {
   id?: string
@@ -155,7 +191,17 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
       CREATE TEMP TABLE user_table_definitions (id text PRIMARY KEY, workspace_id text NOT NULL, rows_version integer NOT NULL);
       CREATE TEMP TABLE user_table_rows (
         id text PRIMARY KEY, table_id text NOT NULL, workspace_id text NOT NULL,
-        data jsonb NOT NULL, updated_at timestamp NOT NULL, secret_provenance_version integer
+        data jsonb NOT NULL, updated_at timestamp NOT NULL, secret_provenance_version integer,
+        position integer NOT NULL DEFAULT 0, order_key text,
+        created_at timestamp NOT NULL DEFAULT now(), created_by text
+      );
+      CREATE TEMP TABLE table_row_executions (
+        table_id text NOT NULL, row_id text NOT NULL REFERENCES user_table_rows(id) ON DELETE CASCADE,
+        group_id text NOT NULL, status text NOT NULL, execution_id text, job_id text,
+        workflow_id text NOT NULL, error text, running_block_ids text[] NOT NULL DEFAULT '{}',
+        block_errors jsonb NOT NULL DEFAULT '{}', cancelled_at timestamp,
+        capability_governed_user_id text, enrichment_details jsonb,
+        updated_at timestamp NOT NULL DEFAULT now(), PRIMARY KEY (row_id, group_id)
       );
       CREATE TEMP TABLE user_table_row_secret_provenance (
         row_id text PRIMARY KEY, content_updated_at timestamp NOT NULL,
@@ -180,13 +226,213 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
     mockIsEnforced.mockReturnValue(false)
     if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection.unsafe(
-      'TRUNCATE user_table_rows, user_table_row_secret_provenance, user_table_definitions'
+      'TRUNCATE table_row_executions, user_table_rows, user_table_row_secret_provenance, user_table_definitions'
     )
     await connection`INSERT INTO user_table_definitions VALUES ('table-1', 'workspace-1', 7)`
   })
 
   afterAll(async () => {
     await connection?.end()
+  })
+
+  it.each(['exact', 'unknown', 'legacy', 'stale'] as const)(
+    'preserves %s row provenance through cancellation, restart, and a cell write',
+    async (baseStatus) => {
+      if (!connection) throw new Error('PostgreSQL fixture unavailable')
+      const boundEntry = {
+        ...secretEntry,
+        sourceUserId: scope.userId,
+        sourceWorkspaceId: scope.workspaceId,
+      }
+      await insertRow({
+        version: baseStatus === 'legacy' ? null : 1,
+        ...(baseStatus === 'legacy'
+          ? {}
+          : { status: baseStatus === 'stale' ? 'exact' : baseStatus }),
+        entries: baseStatus === 'unknown' ? [] : [boundEntry],
+        stale: baseStatus === 'stale',
+      })
+      await connection`
+        INSERT INTO table_row_executions (table_id, row_id, group_id, status, workflow_id)
+        VALUES ('table-1', 'row-1', 'group-1', 'pending', 'workflow-1')
+      `
+      const readStoredContent = () => connection`
+        SELECT r.data, r.updated_at::text, r.secret_provenance_version,
+          p.content_updated_at::text, p.status, p.entries, p.updated_at::text AS provenance_updated_at
+        FROM user_table_rows r LEFT JOIN user_table_row_secret_provenance p ON p.row_id = r.id
+        WHERE r.id = 'row-1'
+      `
+      const before = await readStoredContent()
+      expect(await cancelWorkflowGroupRuns('table-1', 'row-1')).toBe(1)
+      expect(await readStoredContent()).toEqual(before)
+      expect(
+        (await getRowById('table-1', 'row-1', 'workspace-1'))?.executions['group-1']
+      ).toMatchObject({
+        status: 'cancelled',
+      })
+
+      const guard = { groupId: 'group-1', executionId: 'execution-2' }
+      const running = {
+        status: 'running',
+        executionId: 'execution-2',
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: null,
+      } as const
+      const restarted = await updateRow(
+        {
+          tableId: 'table-1',
+          rowId: 'row-1',
+          workspaceId: 'workspace-1',
+          data: {},
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+          executionsPatch: { 'group-1': running },
+          cancellationGuard: { ...guard, allowNewExecution: true },
+        },
+        table,
+        'restart-test'
+      )
+      expect(restarted?.updatedAt).toEqual(updatedAt)
+      expect(await readStoredContent()).toEqual(before)
+      expect(fireTableTrigger).not.toHaveBeenCalled()
+
+      /** Usage-limit cleanup supplies no cells and must not stamp even explicit provenance. */
+      const cleared = await updateRow(
+        {
+          tableId: 'table-1',
+          rowId: 'row-1',
+          workspaceId: 'workspace-1',
+          data: {},
+          secretProvenance: { complete: true, columns: {} },
+          capabilityGovernedUserId: null,
+          executionsPatch: { 'group-1': null },
+          cancellationGuard: guard,
+        },
+        table,
+        'cleanup-test'
+      )
+      expect(cleared?.executions).toEqual({})
+      expect(await readStoredContent()).toEqual(before)
+      expect(fireTableTrigger).not.toHaveBeenCalled()
+
+      const written = await updateRow(
+        {
+          tableId: 'table-1',
+          rowId: 'row-1',
+          workspaceId: 'workspace-1',
+          data: { derived: 'public result' },
+          secretProvenance: {
+            complete: true,
+            columns: { derived: { version: 1, complete: true, entries: [], scope } },
+          },
+          capabilityGovernedUserId: null,
+          executionsPatch: { 'group-1': { ...running, status: 'completed' } },
+          cancellationGuard: guard,
+        },
+        table,
+        'write-test',
+        { computedWrite: true }
+      )
+      expect(written).not.toBeNull()
+      expect(written?.updatedAt.getTime()).toBeGreaterThan(updatedAt.getTime())
+      const [stored] = await readStoredContent()
+      expect(stored.data).toEqual({ retained: 'value', removed: 'other', derived: 'public result' })
+      expect(stored.content_updated_at).toBe(stored.updated_at)
+      expect(stored.status).toBe(
+        baseStatus === 'exact' || baseStatus === 'legacy' ? 'exact' : 'unknown'
+      )
+      expect(stored.entries).toEqual(baseStatus === 'exact' ? [boundEntry] : [])
+      expect(fireTableTrigger).toHaveBeenCalledOnce()
+      mockIsEnforced.mockReturnValue(true)
+      const provenance = await loadTableRowSecretProvenance(
+        [{ id: 'row-1', updatedAt: written!.updatedAt }],
+        scope
+      )
+      expect(provenance.complete).toBe(baseStatus === 'exact' || baseStatus === 'legacy')
+      expect(provenance.entries).toEqual(
+        baseStatus === 'exact'
+          ? [{ encryptedValue: secretEntry.encryptedValue, name: secretEntry.name }]
+          : []
+      )
+    }
+  )
+
+  it.each(['cancelled', 'replaced'] as const)(
+    'rolls back execution-only cleanup rejected by a %s attempt',
+    async (attempt) => {
+      if (!connection) throw new Error('PostgreSQL fixture unavailable')
+      await insertRow({ status: 'exact', entries: [secretEntry] })
+      await connection`
+      INSERT INTO table_row_executions (table_id, row_id, group_id, status, execution_id, workflow_id)
+      VALUES ('table-1', 'row-1', 'group-1', ${attempt === 'cancelled' ? 'cancelled' : 'running'}, ${attempt === 'cancelled' ? null : 'new-execution'}, 'workflow-1'),
+             ('table-1', 'row-1', 'other-group', 'pending', NULL, 'workflow-1')
+    `
+      const before = await getRowById('table-1', 'row-1', 'workspace-1')
+      expect(
+        await updateRow(
+          {
+            tableId: 'table-1',
+            rowId: 'row-1',
+            workspaceId: 'workspace-1',
+            data: {},
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+            executionsPatch: { 'other-group': null, 'group-1': null },
+            cancellationGuard: { groupId: 'group-1', executionId: 'old-execution' },
+          },
+          table,
+          'stale-cleanup-test'
+        )
+      ).toBeNull()
+      expect(await getRowById('table-1', 'row-1', 'workspace-1')).toEqual(before)
+      expect(
+        (await loadTableRowSecretProvenance([{ id: 'row-1', updatedAt }], scope)).complete
+      ).toBe(true)
+    }
+  )
+
+  it('rolls back cell data and provenance when a cancelled worker writes late', async () => {
+    if (!connection) throw new Error('PostgreSQL fixture unavailable')
+    await insertRow({ status: 'exact', entries: [secretEntry] })
+    await connection`
+      INSERT INTO table_row_executions (table_id, row_id, group_id, status, workflow_id)
+      VALUES ('table-1', 'row-1', 'group-1', 'cancelled', 'workflow-1')
+    `
+    const before = await getRowById('table-1', 'row-1', 'workspace-1')
+    expect(
+      await updateRow(
+        {
+          tableId: 'table-1',
+          rowId: 'row-1',
+          workspaceId: 'workspace-1',
+          data: { retained: 'late result' },
+          secretProvenance: {
+            complete: true,
+            columns: { retained: { version: 1, complete: true, entries: [], scope } },
+          },
+          capabilityGovernedUserId: null,
+          executionsPatch: {
+            'group-1': {
+              status: 'completed',
+              executionId: 'old-execution',
+              jobId: null,
+              workflowId: 'workflow-1',
+              error: null,
+            },
+          },
+          cancellationGuard: { groupId: 'group-1', executionId: 'old-execution' },
+        },
+        table,
+        'stale-write-test',
+        { computedWrite: true }
+      )
+    ).toBeNull()
+    expect(await getRowById('table-1', 'row-1', 'workspace-1')).toEqual(before)
+    expect(
+      (await loadTableRowSecretProvenance([{ id: 'row-1', updatedAt }], scope)).entries
+    ).toEqual([{ encryptedValue: secretEntry.encryptedValue }])
+    expect(fireTableTrigger).not.toHaveBeenCalled()
   })
 
   it.each(['exact', 'unknown', 'legacy'] as const)(
