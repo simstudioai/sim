@@ -2692,7 +2692,13 @@ async function executeDeclaredInternalOperation({
   try {
     stringifyRequestWithinLimit(operationInput, MAX_REQUEST_BODY_SIZE_BYTES)
   } catch (error) {
-    if (isPayloadSizeLimitError(error)) throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+    if (isPayloadSizeLimitError(error)) {
+      logger.error(`[${requestId}] Request body size exceeds limit for ${toolId}:`, {
+        bodySizeLowerBound: error.observedBytes,
+        maxSize: error.maxBytes,
+      })
+      throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+    }
     throw error
   }
   const deadline = serializeExecutionDeadlineHeader(signal)
