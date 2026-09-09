@@ -109,4 +109,80 @@ describe('FileToolProcessor', () => {
 
     expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
+
+  it.each([Buffer.alloc(0), '', { type: 'Buffer', data: [] }])(
+    'stores valid zero-byte inline files as UserFile outputs: %j',
+    async (data) => {
+      const storedFile = {
+        id: 'empty-file',
+        key: 'workspace/workspace-1/empty-file',
+        name: 'empty.txt',
+        size: 0,
+        type: 'text/plain',
+        url: '/api/files/serve?key=workspace%2Fworkspace-1%2Fempty-file',
+      } satisfies UserFile
+      mockUploadExecutionFile.mockResolvedValue(storedFile)
+
+      const result = await FileToolProcessor.processToolOutputs(
+        {
+          file: {
+            name: 'empty.txt',
+            mimeType: 'text/plain',
+            data,
+            url: 'https://example.com/file',
+          },
+        },
+        toolConfig,
+        executionContext
+      )
+
+      expect(result.file).toEqual(storedFile)
+      expect(mockUploadExecutionFile).toHaveBeenCalledWith(
+        expect.objectContaining({ workspaceId: 'workspace-1', executionId: 'execution-1' }),
+        Buffer.alloc(0),
+        'empty.txt',
+        'text/plain',
+        'user-1'
+      )
+      expect(mockDownloadFileFromUrl).not.toHaveBeenCalled()
+    }
+  )
+
+  it('preserves empty file entries in file-array outputs', async () => {
+    const result = await FileToolProcessor.processToolOutputs(
+      { file: [{ name: 'empty.txt', mimeType: 'text/plain', data: '' }] },
+      { ...toolConfig, outputs: { file: { type: 'file[]' } } },
+      executionContext
+    )
+
+    expect(result.file).toHaveLength(1)
+    expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.alloc(0))
+  })
+
+  it('stores a successful zero-byte URL download', async () => {
+    mockDownloadFileFromUrl.mockResolvedValue(Buffer.alloc(0))
+
+    await FileToolProcessor.processToolOutputs(
+      { file: { name: 'empty.txt', mimeType: 'text/plain', url: 'https://example.com/empty' } },
+      toolConfig,
+      executionContext
+    )
+
+    expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.alloc(0))
+  })
+
+  it.each([undefined, null, '!!!', { type: 'Buffer', data: 'invalid' }])(
+    'does not turn missing or malformed data into an empty file: %j',
+    async (data) => {
+      await expect(
+        FileToolProcessor.processToolOutputs(
+          { file: { name: 'invalid.txt', mimeType: 'text/plain', data } },
+          toolConfig,
+          executionContext
+        )
+      ).rejects.toThrow("Failed to process file output 'file'")
+
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    }
+  )
 })

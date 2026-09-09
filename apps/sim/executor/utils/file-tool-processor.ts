@@ -169,7 +169,7 @@ export class FileToolProcessor {
         } else {
           throw new Error(`Invalid serialized buffer format for ${data.name}`)
         }
-      } else if (typeof data.data === 'string' && data.data) {
+      } else if (typeof data.data === 'string') {
         let base64Data = data.data
 
         if (base64Data.includes('-') || base64Data.includes('_')) {
@@ -179,6 +179,9 @@ export class FileToolProcessor {
         const paddingBytes = base64Data.endsWith('==') ? 2 : base64Data.endsWith('=') ? 1 : 0
         assertFileSize(Math.floor((base64Data.length * 3) / 4) - paddingBytes, data.name)
         buffer = Buffer.from(base64Data, 'base64')
+        if (base64Data.length > 0 && buffer.length === 0) {
+          throw new Error(`File '${data.name}' has invalid base64 data`)
+        }
       }
 
       if (!buffer && data.url) {
@@ -189,9 +192,6 @@ export class FileToolProcessor {
       }
 
       if (buffer) {
-        if (buffer.length === 0) {
-          throw new Error(`File '${data.name}' has zero bytes`)
-        }
         assertFileSize(buffer.length, data.name)
         const storedMetadata = resolveStoredFileMetadata(data.name, data.mimeType, buffer)
 
