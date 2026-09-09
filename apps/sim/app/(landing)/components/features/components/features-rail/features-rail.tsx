@@ -230,6 +230,7 @@ export function FeaturesRail({ label, children }: FeaturesRailProps) {
     <div className='relative'>
       <div
         ref={railRef}
+        role='region'
         aria-label={label}
         className={cn(
           'flex gap-6 overflow-x-auto overscroll-x-contain pb-4 [overflow-anchor:none] [scrollbar-width:none] data-[dragging]:cursor-grabbing data-[dragging]:select-none [&::-webkit-scrollbar]:hidden',

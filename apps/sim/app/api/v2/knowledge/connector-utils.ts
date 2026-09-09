@@ -89,9 +89,18 @@ export function toV2KnowledgeConnectorDetail(
     ...toV2KnowledgeConnector(connector),
     syncLogs: connector.syncLogs.map((log) =>
       v2KnowledgeConnectorSyncLogSchema.parse({
-        ...log,
+        id: log.id,
+        connectorId: log.connectorId,
+        status: log.status,
         startedAt: serializeDate(log.startedAt),
         completedAt: serializeNullableDate(log.completedAt),
+        docsAdded: log.docsAdded,
+        docsUpdated: log.docsUpdated,
+        docsDeleted: log.docsDeleted,
+        docsUnchanged: log.docsUnchanged,
+        docsSkipped: log.docsSkipped,
+        docsFailed: log.docsFailed,
+        errorMessage: log.errorMessage,
       })
     ),
   })

@@ -73,6 +73,7 @@ function concealKnowledgeBase(base: InternalErrorPolicy): InternalErrorPolicy {
 export const internalKnowledgeErrorPolicies = {
   list: internalKnowledgeErrorPolicy('Failed to fetch knowledge bases'),
   read: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to fetch knowledge base')),
+  export: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to export knowledge base')),
   create: internalKnowledgeErrorPolicy('Failed to create knowledge base'),
   update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
   delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),

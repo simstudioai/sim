@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { z } from 'zod'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import {
@@ -60,6 +61,15 @@ export const executeMistralTool: InternalToolOperationHandler = async (request) 
     return Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
+    if (error instanceof ProviderCapacityDeferredError) {
+      return Response.json(
+        { success: false, error: 'Mistral OCR is at capacity. Retry after the indicated delay.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(Math.ceil((error.retryAfterMs ?? 60_000) / 1000)) },
+        }
+      )
+    }
     if (error instanceof MistralOperationError) {
       return Response.json(error.body, { status: error.status })
     }

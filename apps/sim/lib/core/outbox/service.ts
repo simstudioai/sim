@@ -24,12 +24,8 @@ function toPersistedHandlerError(error: unknown): string {
 const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 const MAX_BACKOFF_MS = 60 * 60 * 1000 // 1 hour
 const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
-// Kept below the serverless route `maxDuration` (120s) so our in-process
-// timeout fires before the platform kills the invocation and leaves the
-// row stranded in `processing` for the 10-minute reaper window. Also well
-// under `STUCK_PROCESSING_THRESHOLD_MS` so the reaper cannot steal a row
-// a worker is still actively processing.
-const DEFAULT_HANDLER_TIMEOUT_MS = 90 * 1000 // 90 seconds
+/** Ordinary handlers keep a short window; longer handlers explicitly opt in below the stale-lease limit. */
+const DEFAULT_HANDLER_TIMEOUT_MS = 90 * 1000
 
 class OutboxHandlerTimeoutError extends Error {
   constructor(timeoutMs: number) {
@@ -57,6 +53,8 @@ export interface OutboxEventContext {
    * External-operation handlers must stop before performing another side effect.
    */
   signal: AbortSignal
+  /** Hard deadline for this handler invocation, including handlers with a longer execution window. */
+  deadlineAt?: number
   /**
    * Durably shallow-merge fields into this event's JSON payload while the
    * current processing lease is still held. Long-running handlers can
@@ -114,10 +112,23 @@ export function continueOutboxHandler(
   return deferOutboxHandler(reason, minimumBackoffMs, false)
 }
 
-export type OutboxHandler<T = unknown> = (
+export type OutboxHandler<T = unknown> = ((
   payload: T,
   context: OutboxEventContext
-) => Promise<undefined | DeferredOutboxHandlerResult> | Promise<void>
+) => Promise<undefined | DeferredOutboxHandlerResult> | Promise<void>) & {
+  readonly timeoutMs?: number
+}
+
+/** Opts a handler into a bounded execution window that expires before the stale-lease reaper. */
+export function withOutboxHandlerTimeout<T>(
+  handler: OutboxHandler<T>,
+  timeoutMs: number
+): OutboxHandler<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 550_000) {
+    throw new Error('Outbox handler timeout must be between 1 and 550000 milliseconds')
+  }
+  return Object.assign(handler, { timeoutMs })
+}
 
 /**
  * Map of `eventType` → handler. Register all handlers in one place
@@ -428,6 +439,11 @@ export async function processOutboxEvents(
     const [event] = await claimBatch(1)
     if (!event) break
 
+    const handlerTimeout = handlers[event.eventType]?.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
+    if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+      await updateIfLeaseHeld(event, { status: 'pending', lockedAt: null })
+      break
+    }
     const result = await runHandler(event, handlers)
     if (result === 'completed') processed++
     else if (result === 'dead_letter') deadLettered++
@@ -815,7 +831,7 @@ async function updateProcessingIfLeaseHeld(
 function runHandlerWithTimeout(
   handler: OutboxHandler,
   event: typeof outboxEvent.$inferSelect,
-  timeoutMs: number = DEFAULT_HANDLER_TIMEOUT_MS
+  timeoutMs: number = handler.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
 ): Promise<undefined | DeferredOutboxHandlerResult> {
   const controller = new AbortController()
   const context: OutboxEventContext = {
@@ -824,6 +840,7 @@ function runHandlerWithTimeout(
     attempts: event.attempts,
     maxAttempts: event.maxAttempts,
     signal: controller.signal,
+    deadlineAt: Date.now() + timeoutMs,
     checkpointPayload: async (patch) => {
       controller.signal.throwIfAborted()
       const updated = await mergePayloadIfLeaseHeld(event, patch)

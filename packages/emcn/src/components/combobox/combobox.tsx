@@ -691,7 +691,7 @@ const Combobox = memo(
       const isLoadingContinuation = isLoadingMore || isLoadingAll
       const resolvedEmptyMessage =
         truncated && hasActiveSearch
-          ? 'No matches in the first 10,000 options'
+          ? 'No matches in partial results'
           : hasMore && hasActiveSearch
             ? 'No matches in loaded options'
             : hasMore
@@ -728,7 +728,7 @@ const Combobox = memo(
           </Button>
         ) : truncated && filteredOptions.length > 0 ? (
           <div className='py-2 text-center text-[var(--text-muted)] text-caption'>
-            Showing the first 10,000 options
+            Showing partial results
           </div>
         ) : null
 

@@ -8,6 +8,7 @@ import {
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings'
 import {
+  getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
@@ -15,7 +16,13 @@ import {
   assertDocumentProcessingBillingContext,
   assertDocumentProcessingPayload,
   type DocumentProcessingPayload,
+  shouldRefundDocumentProcessingPredecessor,
 } from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingProviderContinuation } from '@/lib/knowledge/documents/processing-provider-continuation'
+import {
+  getProviderCapacityDeferral,
+  ProviderCapacityContinuationExhaustedError,
+} from '@/lib/knowledge/documents/processing-provider-deferral'
 import {
   canScheduleDocumentProcessingQuotaContinuation,
   MAX_QUOTA_CONTINUATION_ATTEMPTS,
@@ -36,6 +43,12 @@ export async function runDocumentProcessing(
   const { knowledgeBaseId, documentId, docData, processingOptions, requestId } = payload
   const billingContext = assertDocumentProcessingBillingContext(payload)
   const canScheduleQuotaContinuation = canScheduleDocumentProcessingQuotaContinuation(payload)
+  const chargedAtDispatch =
+    (payload.chargedAtDispatch ?? payload.processingQueuedAt !== undefined) &&
+    attemptNumber === 1 &&
+    payload.quotaRetryCount === undefined &&
+    payload.providerRetryCount === undefined &&
+    payload.processingSliceCount === undefined
 
   logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
 
@@ -48,10 +61,13 @@ export async function runDocumentProcessing(
       billingContext,
       requestId,
       {
-        chargedAtDispatch:
-          (payload.chargedAtDispatch ?? payload.processingQueuedAt !== undefined) &&
-          attemptNumber === 1 &&
-          payload.quotaRetryCount === undefined,
+        chargedAtDispatch,
+        ...(payload.processingPredecessorToken
+          ? {
+              processingPredecessorToken: payload.processingPredecessorToken,
+              refundPredecessorAdmission: shouldRefundDocumentProcessingPredecessor(payload),
+            }
+          : {}),
         ...(payload.processingQueueToken
           ? { processingQueueToken: payload.processingQueueToken }
           : {}),
@@ -60,9 +76,12 @@ export async function runDocumentProcessing(
           : {}),
         ...(canScheduleQuotaContinuation
           ? {
-              scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(payload),
+              scheduleQuotaContinuation: () =>
+                scheduleDocumentProcessingQuotaContinuation(payload, true, chargedAtDispatch),
             }
           : { quotaContinuationExhausted: true }),
+        scheduleProviderContinuation: (error) =>
+          scheduleDocumentProcessingProviderContinuation(payload, error, true, chargedAtDispatch),
       }
     )
 
@@ -75,6 +94,30 @@ export async function runDocumentProcessing(
       processingTime: Date.now() - startedAt,
     }
   } catch (error) {
+    const providerDeferral = getProviderCapacityDeferral(error)
+    if (providerDeferral || error instanceof ProviderCapacityContinuationExhaustedError) {
+      const outcome =
+        error instanceof ProviderCapacityContinuationExhaustedError
+          ? 'provider_exhausted'
+          : 'provider_deferred'
+      logger.warn(`[${requestId}] Document processing is waiting for provider recovery`, {
+        documentId,
+        providerRetryCount: payload.providerRetryCount ?? 0,
+        reason: providerDeferral?.reason,
+        outcome,
+      })
+      return {
+        success: false,
+        outcome,
+        documentId,
+        filename: docData.filename,
+        error:
+          error instanceof ProviderCapacityContinuationExhaustedError
+            ? error.message
+            : providerDeferral!.message,
+        processingTime: Date.now() - startedAt,
+      }
+    }
     if (isUsageLimitDocumentProcessingError(error)) {
       logger.warn(`[${requestId}] Document processing is blocked by the current usage limit`, {
         filename: docData.filename,
@@ -117,6 +160,22 @@ export async function runDocumentProcessing(
         documentId,
         filename: docData.filename,
         error: BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+        processingTime: Date.now() - startedAt,
+      }
+    }
+    const ocrRejection = getOcrRequestRejection(error)
+    if (ocrRejection) {
+      logger.warn(`[${requestId}] OCR request requires remediation before retrying`, {
+        status: ocrRejection.status,
+        code: ocrRejection.code,
+      })
+      return {
+        success: false,
+        outcome: 'provider_request_rejected' as const,
+        documentId,
+        filename: docData.filename,
+        code: ocrRejection.code,
+        error: ocrRejection.message,
         processingTime: Date.now() - startedAt,
       }
     }

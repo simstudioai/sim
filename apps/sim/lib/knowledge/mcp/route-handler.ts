@@ -1,9 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import type { NextRequest } from 'next/server'
-import {
-  knowledgeMcpContract,
-  organizationKnowledgeMcpContract,
-} from '@/lib/api/contracts/knowledge/mcp'
+import { organizationKnowledgeMcpContract } from '@/lib/api/contracts/knowledge/mcp'
 import { parseRequest } from '@/lib/api/server'
 import {
   authenticateV2ApiKey,
@@ -42,16 +39,12 @@ function mcpAuth(resource: string) {
   }
 }
 
-export function createKnowledgeMcpHandlers(kind: 'workspace' | 'organization') {
+export function createKnowledgeMcpHandlers() {
   /** JSON-RPC is a protocol boundary; SDK dispatch calls the same authorized knowledge use cases. */
   const handler = withRouteHandler(
-    async (
-      request: NextRequest,
-      context: { params: Promise<{ workspaceId?: string; organizationId?: string }> }
-    ) => {
+    async (request: NextRequest, context: { params: Promise<{ organizationId: string }> }) => {
       const params = await context.params
-      const id = kind === 'workspace' ? params.workspaceId : params.organizationId
-      const resource = getSearchMcpUrl(kind, id ?? '')
+      const resource = getSearchMcpUrl(params.organizationId)
       const admission = await admitV2Request(
         request,
         knowledgeOperations.readSearchIndex,
@@ -64,14 +57,9 @@ export function createKnowledgeMcpHandlers(kind: 'workspace' | 'organization') {
         return v2Error('FORBIDDEN', 'Origin is not allowed')
       }
       try {
-        const parsed = await parseRequest(
-          kind === 'workspace' ? knowledgeMcpContract : organizationKnowledgeMcpContract,
-          request,
-          context,
-          {
-            maxBodyBytes: 64 * 1024,
-          }
-        )
+        const parsed = await parseRequest(organizationKnowledgeMcpContract, request, context, {
+          maxBodyBytes: 64 * 1024,
+        })
         if (!parsed.success) return parsed.response
         const index = await readSearchIndex.execute({
           principal: admission.auth.principal,
@@ -106,13 +94,9 @@ export function createKnowledgeMcpHandlers(kind: 'workspace' | 'organization') {
 
   /** Stateless clients use POST only; authenticate unsupported methods before returning 405. */
   const unsupportedMethod = withRouteHandler(
-    async (
-      request: NextRequest,
-      context: { params: Promise<{ workspaceId?: string; organizationId?: string }> }
-    ) => {
+    async (request: NextRequest, context: { params: Promise<{ organizationId: string }> }) => {
       const params = await context.params
-      const id = kind === 'workspace' ? params.workspaceId : params.organizationId
-      const resource = getSearchMcpUrl(kind, id ?? '')
+      const resource = getSearchMcpUrl(params.organizationId)
       const admission = await admitV2Request(
         request,
         knowledgeOperations.readSearchIndex,

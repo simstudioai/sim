@@ -346,7 +346,16 @@ describe('knowledge document storage attribution', () => {
     dbChainMockFns.for.mockResolvedValueOnce([
       { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
     ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'doc-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 100,
+        uploadedBy: 'external-collaborator',
+        connectorId: null,
+      },
+    ])
 
     const deletedCount = await hardDeleteDocuments(['doc-1', 'doc-2'], 'request-1')
 
@@ -356,6 +365,65 @@ describe('knowledge document storage attribution', () => {
       legacyDeltas: [],
     })
   })
+
+  it('uses bytes from the deleted row after a concurrent source revision', async () => {
+    const snapshot = {
+      id: 'doc-1',
+      knowledgeBaseId: 'knowledge-base-1',
+      fileUrl: 'data:text/plain;base64,QQ==',
+      fileSize: 100,
+      uploadedBy: 'external-collaborator',
+      connectorId: null,
+      workspaceId: 'workspace-1',
+      kbUserId: 'knowledge-owner',
+    }
+    dbChainMockFns.where.mockResolvedValueOnce([snapshot])
+    dbChainMockFns.for.mockResolvedValueOnce([
+      { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...snapshot, fileSize: 200 }])
+
+    await expect(hardDeleteDocuments(['doc-1'], 'request-1')).resolves.toBe(1)
+
+    expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
+      workspaceDeltas: [{ context: STORAGE_CONTEXT, deltaBytes: -200 }],
+      legacyDeltas: [],
+    })
+  })
+
+  it.each([
+    { connectorId: 'connector-1', deletedAt: null, fileSize: 100 },
+    { connectorId: null, deletedAt: new Date('2026-01-01'), fileSize: 100 },
+    { connectorId: null, deletedAt: null, fileSize: 0 },
+  ])(
+    'prepares the payer when an unmetered snapshot becomes billable before deletion: %j',
+    async (revision) => {
+      const snapshot = {
+        id: 'doc-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        uploadedBy: null,
+        workspaceId: 'workspace-1',
+        kbUserId: 'knowledge-owner',
+        ...revision,
+      }
+      dbChainMockFns.where.mockResolvedValueOnce([snapshot])
+      dbChainMockFns.for.mockResolvedValueOnce([
+        { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { ...snapshot, connectorId: null, deletedAt: null, fileSize: 200 },
+      ])
+
+      await expect(hardDeleteDocuments(['doc-1'], 'request-1')).resolves.toBe(1)
+
+      expect(mockResolveStorageBillingContext).toHaveBeenCalledTimes(1)
+      expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
+        workspaceDeltas: [{ context: STORAGE_CONTEXT, deltaBytes: -200 }],
+        legacyDeltas: [],
+      })
+    }
+  )
 
   it('excludes connector document bytes from hard-delete accounting', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([
@@ -373,12 +441,21 @@ describe('knowledge document storage attribution', () => {
     dbChainMockFns.for.mockResolvedValueOnce([
       { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
     ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'connector-doc' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'connector-doc',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 500,
+        uploadedBy: null,
+        connectorId: 'connector-1',
+      },
+    ])
 
     const deletedCount = await hardDeleteDocuments(['connector-doc'], 'request-1')
 
     expect(deletedCount).toBe(1)
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledWith('workspace-1')
     expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
       workspaceDeltas: [],
       legacyDeltas: [],
@@ -433,7 +510,16 @@ describe('knowledge document storage attribution', () => {
     ])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     queueTableRows(schemaMock.document, [{ id: 'connector-doc' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'connector-doc' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'connector-doc',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 500,
+        uploadedBy: null,
+        connectorId: 'connector-1',
+      },
+    ])
 
     await expect(
       hardDeleteDocuments(['connector-doc'], 'request-1', undefined, undefined, {
@@ -575,7 +661,16 @@ describe('organization document storage deletion', () => {
       queueTableRows(schemaMock.knowledgeBase, [
         { id: 'org-kb', workspaceId: null, organizationId: 'org-1', userId: 'creator' },
       ])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'org-doc' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'org-doc',
+          knowledgeBaseId: 'org-kb',
+          fileUrl: null,
+          fileSize: 100,
+          uploadedBy: 'creator',
+          connectorId,
+        },
+      ])
       await expect(hardDeleteDocuments(['org-doc'], 'request-1')).resolves.toBe(1)
       expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
       expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {

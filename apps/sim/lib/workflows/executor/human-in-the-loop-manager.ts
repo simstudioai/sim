@@ -418,7 +418,7 @@ interface StartResumeExecutionArgs {
   userId: string
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
   abortSignal?: AbortSignal
 }
 
@@ -1071,7 +1071,7 @@ export class PauseResumeManager {
     userId: string
     sendEvent?: (event: ExecutionEvent) => void
     onStream?: (streamingExec: StreamingExecution) => Promise<void>
-    onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+    onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
     abortSignal?: AbortSignal
   }): Promise<ExecutionResult> {
     const {
@@ -1727,7 +1727,7 @@ export class PauseResumeManager {
         } as ExecutionEvent)
 
         if (externalOnBlockComplete) {
-          await externalOnBlockComplete(blockId, callbackData.output)
+          await externalOnBlockComplete(blockId, callbackData)
         }
       },
       onChildWorkflowInstanceReady: async (

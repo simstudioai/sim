@@ -17,6 +17,7 @@ describe('knowledge capability rules', () => {
   const create = CAPABILITY_RULES['knowledge.create']
   const upload = CAPABILITY_RULES['knowledge.upload']
   const connectors = CAPABILITY_RULES['knowledge.connectors']
+  const exportRule = CAPABILITY_RULES['knowledge.export']
 
   it('permits creation and upload under the unrestricted config', () => {
     expect(create.deniedBy(DEFAULT_PERMISSION_GROUP_CONFIG)).toBe(false)
@@ -45,5 +46,17 @@ describe('knowledge capability rules', () => {
   it('withholds every connector when the allow-list is emptied rather than cleared', () => {
     const emptied = configWith({ allowedKnowledgeConnectors: [] })
     expect(connectors.deniedBy(emptied, 'google_drive')).toBe(true)
+  })
+
+  it('permits export under the unrestricted config', () => {
+    expect(exportRule.deniedBy(DEFAULT_PERMISSION_GROUP_CONFIG)).toBe(false)
+  })
+
+  it('withholds export from its own key', () => {
+    expect(exportRule.deniedBy(configWith({ disableKnowledgeBaseExport: true }))).toBe(true)
+  })
+
+  it('withholds export when the module is hidden', () => {
+    expect(exportRule.deniedBy(configWith({ hideKnowledgeBaseTab: true }))).toBe(true)
   })
 })

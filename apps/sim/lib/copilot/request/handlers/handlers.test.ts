@@ -4,6 +4,7 @@
 
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AsyncToolCallOwnershipError } from '@/lib/copilot/async-runs/errors'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 
 const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApproval } = vi.hoisted(
@@ -148,6 +149,26 @@ describe('sse-handlers tool lifecycle', () => {
       workflowId: 'workflow-1',
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
     }
+  })
+
+  it('propagates an ownership conflict before a client call can be forwarded', async () => {
+    isSimExecuted.mockReturnValue(false)
+    context.runId = 'current-run'
+    upsertAsyncToolCall.mockRejectedValueOnce(new AsyncToolCallOwnershipError())
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'colliding-call',
+        toolName: 'run_workflow',
+        arguments: {},
+        executor: 'client',
+        mode: 'async',
+        phase: 'call',
+      },
+    }
+    await expect(
+      prePersistClientExecutableToolCall(event, context, {}, execContext)
+    ).rejects.toBeInstanceOf(AsyncToolCallOwnershipError)
   })
 
   it('pins the workflow target into the args it persists and forwards', async () => {

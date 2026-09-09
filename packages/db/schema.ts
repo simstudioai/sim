@@ -1511,6 +1511,8 @@ export const rateLimitBucket = pgTable('rate_limit_bucket', {
   tokens: decimal('tokens').notNull(),
   lastRefillAt: timestamp('last_refill_at').notNull(),
   blockedUntil: timestamp('blocked_until'),
+  /** Bounded adaptive provider budgets and expiring request leases; ordinary buckets leave it null. */
+  capacityState: jsonb('capacity_state'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -2770,7 +2772,7 @@ export const knowledgeBase = pgTable(
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
-    /** The workspace search index retains its identity when renamed or moved. */
+    /** Search indexes retain their identity independently of their display name. */
     isSearchIndex: boolean('is_search_index').notNull().default(false),
 
     // Token tracking for usage
@@ -2795,7 +2797,11 @@ export const knowledgeBase = pgTable(
   (table) => ({
     ownerCheck: check(
       'kb_owner_check',
-      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) <= 1`
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationSearchIndexCheck: check(
+      'kb_organization_search_index_check',
+      sql`${table.organizationId} IS NULL OR ${table.isSearchIndex}`
     ),
     organizationIdIdx: index('kb_organization_id_idx').on(table.organizationId),
     organizationFolderCheck: check(

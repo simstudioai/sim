@@ -10,6 +10,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LandingShell } from '@/app/(landing)/components/landing-shell/landing-shell'
+import ctaDark from '@/public/landing/cta-san-francisco-painted-dark.webp'
+import ctaLight from '@/public/landing/cta-san-francisco-painted-light.webp'
 
 interface TestLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string
@@ -111,8 +113,8 @@ describe('LandingShell shared closing section', () => {
       'Every agent your company runs. All in one place. '
     )
     expect(Array.from(cta.querySelectorAll('img'), (image) => image.getAttribute('src'))).toEqual([
-      '/landing/cta-san-francisco-painted-light.webp',
-      '/landing/cta-san-francisco-painted-dark.webp',
+      ctaLight,
+      ctaDark,
     ])
     expect(Array.from(cta.querySelectorAll('img'), (image) => image.alt)).toEqual(['', ''])
     expect(

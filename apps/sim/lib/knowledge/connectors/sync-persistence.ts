@@ -1,11 +1,9 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
-import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
@@ -16,15 +14,17 @@ import {
 } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  claimConnectorUploadForAttachment,
+  uploadConnectorArtifact,
+} from '@/lib/knowledge/connectors/connector-upload'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import { StorageService } from '@/lib/uploads'
+import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
-import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
+import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { DocumentTags, ExternalDocument } from '@/connectors/types'
 
@@ -238,26 +238,6 @@ export interface KnowledgeBaseOwner {
   userId: string
 }
 
-/**
- * Build the storage `metadata` that records a trusted ownership binding for a
- * synced `kb/` object. Returns `undefined` for legacy null-workspace KBs (no
- * workspace-scoped ownership to bind), which `uploadFile` treats as "no binding".
- */
-function kbOwnershipMetadata(
-  kbOwner: KnowledgeBaseOwner,
-  originalName: string
-): Record<string, string> | undefined {
-  if (!kbOwner.workspaceId && !kbOwner.organizationId) return undefined
-  const scope = resourceScopeFromOwner(kbOwner)
-  return {
-    ...(scope.kind === 'organization'
-      ? { organizationId: scope.organizationId }
-      : { workspaceId: scope.workspaceId }),
-    userId: kbOwner.userId,
-    originalName,
-  }
-}
-
 /** Builds a content-less `failed` document row for a skipped (e.g. oversized) file. */
 function buildSkippedDocumentRow(
   knowledgeBaseId: string,
@@ -271,17 +251,14 @@ function buildSkippedDocumentRow(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-  const rawSize = extDoc.metadata?.fileSize ?? extDoc.metadata?.size
-  const fileSize =
-    typeof rawSize === 'number' && Number.isFinite(rawSize) ? Math.max(0, Math.trunc(rawSize)) : 0
-
   return {
     id: generateId(),
     knowledgeBaseId,
     filename: extDoc.title,
     fileUrl: '',
     storageKey: null,
-    fileSize,
+    /** No artifact was stored; a provider's reported source size is not local storage usage. */
+    fileSize: 0,
     mimeType: 'text/plain',
     processingStatus: 'failed',
     processingError: reason,
@@ -352,7 +329,6 @@ export async function persistSkippedDocuments(
   const replacements = skipOps.filter((op): op is typeof op & { existingId: string } =>
     Boolean(op.existingId)
   )
-  const replacedFileUrls: string[] = []
 
   await db.transaction(async (tx) => {
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
@@ -375,10 +351,16 @@ export async function persistSkippedDocuments(
         access
       )
       const [current] = await tx
-        .select({ fileUrl: document.fileUrl })
+        .select({
+          fileUrl: document.fileUrl,
+          workspaceId: knowledgeBase.workspaceId,
+          organizationId: knowledgeBase.organizationId,
+          userId: sql<string>`COALESCE(${document.uploadedBy}, ${knowledgeBase.userId})`,
+        })
         .from(document)
+        .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
         .where(connectorDocumentSyncTarget(replacement.existingId, knowledgeBaseId, connectorId))
-        .for('update')
+        .for('update', { of: document })
       if (!current) {
         throw new Error(`Document ${replacement.existingId} is no longer active`)
       }
@@ -417,25 +399,14 @@ export async function persistSkippedDocuments(
       if (replaced.length === 0) {
         throw new Error(`Document ${replacement.existingId} is no longer active`)
       }
-      if (current.fileUrl) replacedFileUrls.push(current.fileUrl)
+      await enqueueKnowledgeStorageCleanup(
+        tx,
+        [{ id: replacement.existingId, ...current }],
+        replacement.existingId
+      )
       await tx.delete(embedding).where(eq(embedding.documentId, replacement.existingId))
     }
   })
-
-  for (const fileUrl of replacedFileUrls) {
-    try {
-      const urlPath = new URL(fileUrl, 'http://localhost').pathname
-      const storageKey = extractStorageKey(urlPath)
-      if (storageKey && storageKey !== urlPath) {
-        await deleteFile({ key: storageKey, context: 'knowledge-base' })
-        await deleteFileMetadata(storageKey)
-      }
-    } catch (error) {
-      logger.warn('Failed to delete storage for an authoritatively skipped document', {
-        error: toError(error).message,
-      })
-    }
-  }
 
   return persisted
 }
@@ -565,14 +536,11 @@ export async function addDocument(
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, artifact.fileName)}`
 
-  const fileInfo = await StorageService.uploadFile({
-    file: artifact.bytes,
-    fileName: artifact.fileName,
-    contentType: artifact.mimeType,
-    context: 'knowledge-base',
-    customKey,
-    preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, artifact.fileName),
+  const fileInfo = await uploadConnectorArtifact({
+    documentId,
+    key: customKey,
+    owner: kbOwner,
+    artifact,
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -580,47 +548,46 @@ export async function addDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  try {
-    await db.transaction(async (tx) => {
-      const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
-      if (!isActive) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
-      }
-      await assertSyncLeaseHeldInTx(tx, connectorId, lease)
-
-      await tx.insert(document).values({
-        id: documentId,
-        knowledgeBaseId,
-        filename: extDoc.title,
-        fileUrl,
-        storageKey: fileInfo.key,
-        fileSize: artifact.bytes.length,
-        mimeType: artifact.mimeType,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        processingStatus: 'pending',
-        enabled: true,
-        connectorId,
-        externalId: extDoc.externalId,
-        contentHash: extDoc.contentHash,
-        sourceUrl: extDoc.sourceUrl ?? null,
-        sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
-        acl: insertedDocumentAcl(access),
-        ...tagValues,
-        uploadedAt: new Date(),
-      })
-    })
-  } catch (error) {
-    const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = extractStorageKey(urlPath)
-    if (storageKey && storageKey !== urlPath) {
-      await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
-      await deleteFileMetadata(storageKey).catch(() => undefined)
+  await db.transaction(async (tx) => {
+    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
+    const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+    if (!isActive) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
     }
-    throw error
-  }
+    await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+    const [uploadedBinding] = await getFileMetadataByKeys([fileInfo.key], 'knowledge-base', tx, {
+      lock: 'share',
+    })
+    if (
+      !uploadedBinding ||
+      uploadedBinding.id !== fileInfo.metadataId ||
+      uploadedBinding.contentUpdatedAt.getTime() !== fileInfo.contentUpdatedAt.getTime()
+    )
+      throw new Error('Connector upload expired before it could be attached')
+
+    await tx.insert(document).values({
+      id: documentId,
+      knowledgeBaseId,
+      filename: extDoc.title,
+      fileUrl,
+      storageKey: fileInfo.key,
+      fileSize: artifact.bytes.length,
+      mimeType: artifact.mimeType,
+      chunkCount: 0,
+      tokenCount: 0,
+      characterCount: 0,
+      processingStatus: 'pending',
+      enabled: true,
+      connectorId,
+      externalId: extDoc.externalId,
+      contentHash: extDoc.contentHash,
+      sourceUrl: extDoc.sourceUrl ?? null,
+      sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
+      acl: insertedDocumentAcl(access),
+      ...tagValues,
+      uploadedAt: new Date(),
+    })
+  })
 
   return {
     documentId,
@@ -668,19 +635,15 @@ export async function updateDocument(
     .limit(1)
   const existingRow = existingRows[0]
   if (!existingRow) throw new Error(`Document ${existingDocId} is no longer active`)
-  const oldFileUrl = existingRow.fileUrl
 
   const artifact = connectorStoredArtifact(extDoc)
-  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, artifact.fileName)}`
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${generateId()}-`, artifact.fileName)}`
 
-  const fileInfo = await StorageService.uploadFile({
-    file: artifact.bytes,
-    fileName: artifact.fileName,
-    contentType: artifact.mimeType,
-    context: 'knowledge-base',
-    customKey,
-    preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, artifact.fileName),
+  const fileInfo = await uploadConnectorArtifact({
+    documentId: existingDocId,
+    key: customKey,
+    owner: kbOwner,
+    artifact,
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -688,85 +651,80 @@ export async function updateDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  try {
-    await db.transaction(async (tx) => {
-      const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
-      if (!isActive) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
-      }
-      await assertSyncLeaseHeldInTx(tx, connectorId, lease)
-
-      await tx
-        .update(document)
-        .set({
-          filename: extDoc.title,
-          fileUrl,
-          storageKey: fileInfo.key,
-          fileSize: artifact.bytes.length,
-          /**
-           * Re-stated on every update: a document first stored as connector-extracted
-           * text and later re-synced as its source file has to stop declaring
-           * `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
-           */
-          mimeType: artifact.mimeType,
-          contentHash: extDoc.contentHash,
-          sourceUrl: extDoc.sourceUrl ?? null,
-          sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
-          ...tagValues,
-          processingStatus: 'pending',
-          /** Prevents an older delayed worker from claiming newly stored content. */
-          processingQueuedAt: null,
-          processingQueueToken: null,
-          processingDeferredUntil: null,
-          /** A new document version starts with a fresh unattended-retry budget. */
-          processingAttempts: 0,
-          processingStartedAt: null,
-          processingCompletedAt: null,
-          processingError: null,
-          uploadedAt: new Date(),
-          /**
-           * A tombstoned document reappearing with changed content is resurrected
-           * in the same write as its content update — otherwise reconciliation's
-           * separate resurrect step would clear deletedAt while this update, gated
-           * on deletedAt IS NULL, rejects the row and leaves stale content active.
-           */
-          deletedAt: null,
-          ...updatedDocumentAcl(access),
-        })
-        .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
-        .returning({ id: document.id })
-        .then((rows) => {
-          if (rows.length === 0) {
-            throw new Error(`Document ${existingDocId} is no longer active`)
-          }
-        })
+  await db.transaction(async (tx) => {
+    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
+    const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+    if (!isActive) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+    }
+    await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+    const [uploadedBinding] = await getFileMetadataByKeys([fileInfo.key], 'knowledge-base', tx, {
+      lock: 'share',
     })
-  } catch (error) {
-    const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = extractStorageKey(urlPath)
-    if (storageKey && storageKey !== urlPath) {
-      await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
-      await deleteFileMetadata(storageKey).catch(() => undefined)
-    }
-    throw error
-  }
+    if (
+      !uploadedBinding ||
+      uploadedBinding.id !== fileInfo.metadataId ||
+      uploadedBinding.contentUpdatedAt.getTime() !== fileInfo.contentUpdatedAt.getTime()
+    )
+      throw new Error('Connector upload expired before it could be attached')
+    const [previous] = await tx
+      .select({ fileUrl: document.fileUrl })
+      .from(document)
+      .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
+      .for('update')
+      .limit(1)
+    if (!previous) throw new Error(`Document ${existingDocId} is no longer active`)
+    await enqueueKnowledgeStorageCleanup(
+      tx,
+      [{ id: existingDocId, fileUrl: previous.fileUrl, ...kbOwner }],
+      existingDocId
+    )
 
-  if (oldFileUrl) {
-    try {
-      const urlPath = new URL(oldFileUrl, 'http://localhost').pathname
-      const storageKey = extractStorageKey(urlPath)
-      if (storageKey && storageKey !== urlPath) {
-        await deleteFile({ key: storageKey, context: 'knowledge-base' })
-        await deleteFileMetadata(storageKey)
-      }
-    } catch (error) {
-      logger.warn('Failed to delete old storage file', {
-        documentId: existingDocId,
-        error: toError(error).message,
+    await tx
+      .update(document)
+      .set({
+        filename: extDoc.title,
+        fileUrl,
+        storageKey: fileInfo.key,
+        fileSize: artifact.bytes.length,
+        /**
+         * Re-stated on every update: a document first stored as connector-extracted
+         * text and later re-synced as its source file has to stop declaring
+         * `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
+         */
+        mimeType: artifact.mimeType,
+        contentHash: extDoc.contentHash,
+        sourceUrl: extDoc.sourceUrl ?? null,
+        sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
+        ...tagValues,
+        processingStatus: 'pending',
+        /** Prevents an older delayed worker from claiming newly stored content. */
+        processingQueuedAt: null,
+        processingQueueToken: null,
+        processingDeferredUntil: null,
+        /** A new document version starts with a fresh unattended-retry budget. */
+        processingAttempts: 0,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+        processingError: null,
+        uploadedAt: new Date(),
+        /**
+         * A tombstoned document reappearing with changed content is resurrected
+         * in the same write as its content update — otherwise reconciliation's
+         * separate resurrect step would clear deletedAt while this update, gated
+         * on deletedAt IS NULL, rejects the row and leaves stale content active.
+         */
+        deletedAt: null,
+        ...updatedDocumentAcl(access),
       })
-    }
-  }
+      .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
+      .returning({ id: document.id })
+      .then((rows) => {
+        if (rows.length === 0) {
+          throw new Error(`Document ${existingDocId} is no longer active`)
+        }
+      })
+  })
 
   return {
     documentId: existingDocId,

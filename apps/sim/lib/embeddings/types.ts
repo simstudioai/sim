@@ -101,7 +101,36 @@ export type EmbeddingAdapterFactory<
   Ctx extends EmbeddingAdapterIdentity = EmbeddingAdapterContext,
 > = (context: Ctx) => EmbeddingProviderAdapter
 
+export interface EmbeddingBatchResult {
+  embeddings: number[][]
+  totalTokens: number
+  dimensions: number
+}
+
+/** Hashes bind a checkpoint to the fully projected request and its resolved provider. */
+export interface EmbeddingBatchIdentity {
+  key: string
+  itemCount: number
+  dimensions: number
+}
+
+/** Internal callers may preserve verified provider batches across durable processing attempts. */
+export interface EmbeddingBatchCheckpoints {
+  load(identity: EmbeddingBatchIdentity, signal?: AbortSignal): Promise<EmbeddingBatchResult | null>
+  save(
+    identity: EmbeddingBatchIdentity,
+    result: EmbeddingBatchResult,
+    signal?: AbortSignal
+  ): Promise<void>
+  beforeRequest(): void
+}
+
 export interface EmbedOptions {
+  /** Internal persistence; input projection and provider resolution always run before reuse. */
+  checkpoints?: EmbeddingBatchCheckpoints
+  /** Indexing refuses shortened inputs; interactive callers retain explicit legacy truncation. */
+  inputOverflow?: 'truncate' | 'reject'
+
   /** Cancels provider requests, retry waits, and remaining batches. */
   signal?: AbortSignal
   /** Catalog model id. Defaults to the platform default when omitted. */

@@ -9,7 +9,6 @@ import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import type {
   KnowledgeAuthorizationContext,
   KnowledgeOrganizationAuthorizationContext,
-  LegacyPersonalKnowledgeAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
 import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import {
@@ -35,15 +34,9 @@ export interface KnowledgeWorkspaceContext extends KnowledgeAuthorizationContext
   billedAccountUserId: string
 }
 
-export interface LegacyPersonalKnowledgeContext
-  extends LegacyPersonalKnowledgeAuthorizationContext {}
-
 export interface KnowledgeOrganizationContext extends KnowledgeOrganizationAuthorizationContext {}
 
-export type KnowledgeResourceContext =
-  | KnowledgeWorkspaceContext
-  | KnowledgeOrganizationContext
-  | LegacyPersonalKnowledgeContext
+export type KnowledgeResourceContext = KnowledgeWorkspaceContext | KnowledgeOrganizationContext
 
 export async function resolveKnowledgeOrganizationContext(input: {
   organizationId: string
@@ -137,8 +130,8 @@ export async function resolveKnowledgeWorkspaceContext(input: {
  * Loads a knowledge base and asserts it lives in `workspaceId` when the caller named one.
  *
  * Shared by both resolvers below so the not-found concealment — a base outside the asserted
- * workspace is reported as missing, never as forbidden — and the nullable-`workspaceId` guard
- * that legacy personal bases need are written once, and cannot be dropped from one path only.
+ * workspace is reported as missing, never as forbidden — and the guard concealing organization
+ * search indexes from workspace operations are written once.
  */
 async function requireKnowledgeBase(knowledgeBaseId: string, workspaceId: string | undefined) {
   const knowledgeBase = await getKnowledgeBaseById(knowledgeBaseId)
@@ -199,10 +192,8 @@ export async function resolveActiveKnowledgeBaseInWorkspace(
  * The workspace is loaded with `includeArchived`, because archiving a workspace
  * archives everything under it and a restore has to be able to reach both.
  *
- * A knowledge base with no workspace is a legacy personal one, which answers
- * only to its creator and has no workspace operation that could authorize it.
- * Reporting it as missing is the same concealment {@link requireKnowledgeBase}
- * applies — a caller who cannot own it must not learn it exists.
+ * Organization search indexes are not part of workspace restore. Reporting them
+ * as missing applies the same concealment as {@link requireKnowledgeBase}.
  */
 export async function resolveArchivedKnowledgeBaseContext(input: {
   knowledgeBaseId: string
@@ -260,13 +251,7 @@ export async function resolveActiveKnowledgeResourceContext(
     }
   }
   if (!knowledgeBase.workspaceId) {
-    return {
-      workspaceId: undefined,
-      legacyPersonalOwnerUserId: knowledgeBase.userId,
-      knowledgeBaseId: knowledgeBase.id,
-      knowledgeBase,
-      access: createKnowledgeAccessProvider(principal, {}),
-    }
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
   const workspaceContext = await loadKnowledgeWorkspaceContext(knowledgeBase.workspaceId)
   if (!workspaceContext) throw new OrchestrationError('not_found', 'Knowledge base not found')

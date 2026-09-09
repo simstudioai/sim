@@ -52,6 +52,10 @@ describe.runIf(Boolean(databaseUrl))('legacy KB workspace backfill in PostgreSQL
       connection: { search_path: schemaName },
       onnotice: () => undefined,
     })
+    /** Reproduce the pre-0014 schema so this historical backfill can seed unscoped rows. */
+    await sql`ALTER TABLE knowledge_base DROP CONSTRAINT kb_owner_check`
+    await sql`ALTER TABLE knowledge_base ADD CONSTRAINT kb_owner_check
+      CHECK (num_nonnulls(workspace_id, organization_id) <= 1)`
     subject = createPostgresLegacyKnowledgeBaseWorkspaceStore(sql)
   })
 
@@ -378,7 +382,7 @@ describe.runIf(Boolean(databaseUrl))('legacy KB workspace backfill in PostgreSQL
     await sql`UPDATE knowledge_base SET deleted_at = now() WHERE id = 'c-deleted'`
     await kb('d-scoped', 'Scoped', 'destination')
     await kb('e-org', 'Org')
-    await sql`UPDATE knowledge_base SET organization_id = 'org' WHERE id = 'e-org'`
+    await sql`UPDATE knowledge_base SET organization_id = 'org', is_search_index = true WHERE id = 'e-org'`
     expect(await backfillLegacyKnowledgeBaseWorkspaces(subject, { batchSize: 1 })).toMatchObject({
       moved: 1,
       no_workspace: 1,

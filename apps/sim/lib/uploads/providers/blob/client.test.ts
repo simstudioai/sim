@@ -108,6 +108,70 @@ describe('Azure Blob Storage Client', () => {
   })
 
   describe('uploadToBlob', () => {
+    it.each(['upload', 'delete'] as const)(
+      'cancels a stalled %s through the SDK signal',
+      async (operation) => {
+        const controller = new AbortController()
+        const aborted = new Error('Checkpoint expired')
+        let started!: () => void
+        const ready = new Promise<void>((resolve) => {
+          started = resolve
+        })
+        const waitForAbort = (options: { abortSignal: AbortSignal }) => {
+          started()
+          return new Promise((_resolve, reject) => {
+            options.abortSignal.addEventListener(
+              'abort',
+              () => reject(options.abortSignal.reason),
+              { once: true }
+            )
+          })
+        }
+        if (operation === 'upload') {
+          mockUpload.mockImplementationOnce((_file, _size, options) => waitForAbort(options))
+        } else {
+          mockDeleteIfExists.mockImplementationOnce(waitForAbort)
+        }
+        const pending =
+          operation === 'upload'
+            ? uploadToBlob(
+                Buffer.from('private text'),
+                'checkpoint.txt',
+                'text/plain',
+                undefined,
+                undefined,
+                true,
+                undefined,
+                false,
+                controller.signal
+              )
+            : deleteFromBlob('checkpoint.txt', undefined, controller.signal)
+        const result = expect(pending).rejects.toBe(aborted)
+        await ready
+        controller.abort(aborted)
+        await result
+      }
+    )
+
+    it('refuses an already canceled upload before dispatching it', async () => {
+      const controller = new AbortController()
+      controller.abort()
+      await expect(
+        uploadToBlob(
+          Buffer.from('private text'),
+          'checkpoint.txt',
+          'text/plain',
+          undefined,
+          undefined,
+          true,
+          undefined,
+          false,
+          controller.signal
+        )
+      ).rejects.toHaveProperty('name', 'AbortError')
+      expect(mockUpload).not.toHaveBeenCalled()
+    })
+
     it('adds an if-none-match precondition for an immutable upload', async () => {
       mockUpload.mockResolvedValueOnce({})
 

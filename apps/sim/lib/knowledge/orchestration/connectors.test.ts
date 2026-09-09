@@ -22,6 +22,9 @@ const {
   mockRecordAudit,
   mockEncryptApiKey,
   mockValidateGitHub,
+  mockResolveStorageBillingContext,
+  mockIncrementStorage,
+  mockNotifyStorage,
 } = vi.hoisted(() => ({
   mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
@@ -32,6 +35,9 @@ const {
   mockRecordAudit: vi.fn(),
   mockEncryptApiKey: vi.fn(),
   mockValidateGitHub: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
+  mockIncrementStorage: vi.fn(),
+  mockNotifyStorage: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -47,6 +53,15 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: mockEncryptApiKey }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
+}))
+vi.mock('@/lib/billing/storage', () => ({
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
+  incrementStorageUsageForBillingContextInTx: mockIncrementStorage,
+  maybeNotifyStorageLimitForBillingContext: mockNotifyStorage,
+  applyStorageUsageDeltasInTx: vi.fn(),
+}))
+vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  enqueueKnowledgeStorageCleanup: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
@@ -272,10 +287,28 @@ describe('performCreateKnowledgeConnector', () => {
   })
 })
 
+const STORAGE_CONTEXT = {
+  workspaceId: 'ws-1',
+  billedAccountUserId: 'user-1',
+  billingEntity: { type: 'organization', id: 'org-1' },
+  plan: null,
+  customStorageLimitGB: null,
+}
+
+function queueConnectorDeletionOwnerAndLock(accessMode = 'workspace') {
+  const owner = { id: 'kb-1', workspaceId: 'ws-1', organizationId: null, userId: 'user-1' }
+  queueTableRows(schemaMock.knowledgeBase, [owner])
+  queueTableRows(schemaMock.knowledgeBase, [owner])
+  queueTableRows(schemaMock.knowledgeConnector, [{ accessMode }])
+}
+
 describe('performDeleteKnowledgeConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueConnectorDeletionOwnerAndLock()
+    mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
+    mockIncrementStorage.mockResolvedValue(30)
   })
 
   afterAll(resetDbChainMock)
@@ -284,10 +317,7 @@ describe('performDeleteKnowledgeConnector', () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
     ])
-    queueTableRows(document, [
-      { id: 'doc-1', fileUrl: '/a.txt' },
-      { id: 'doc-2', fileUrl: '/b.txt' },
-    ])
+    queueTableRows(document, [{ count: 2, bytes: '30' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
     const outcome = await performDeleteKnowledgeConnector({
@@ -300,6 +330,8 @@ describe('performDeleteKnowledgeConnector', () => {
     // been removed while taking exactly this path.
     expect(outcome).toMatchObject({ success: true, documentsKept: 2, documentsDeleted: 0 })
     expect(dbChainMockFns.delete).not.toHaveBeenCalledWith(document)
+    expect(mockIncrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 30)
+    expect(mockNotifyStorage).toHaveBeenCalledWith(STORAGE_CONTEXT, 30)
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({ deleteDocuments: false, documentsKept: 2 }),
@@ -341,7 +373,7 @@ describe('performDeleteKnowledgeConnector', () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
     ])
-    queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
+    queueTableRows(document, [{ count: 1, bytes: '10' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
     const outcome = await performDeleteKnowledgeConnector({
@@ -355,6 +387,23 @@ describe('performDeleteKnowledgeConnector', () => {
     expect(outcome).toMatchObject({ success: true, documentsKept: 1 })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+  it('rolls back detachment when retained files exceed the storage quota', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
+    queueTableRows(document, [{ count: 2, bytes: '30' }])
+    mockIncrementStorage.mockRejectedValueOnce(new Error('Storage limit exceeded'))
+
+    const outcome = await performDeleteKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+    })
+
+    expect(outcome).toMatchObject({ success: false, error: 'Storage limit exceeded' })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(mockNotifyStorage).not.toHaveBeenCalled()
   })
 })
 
@@ -1134,6 +1183,7 @@ describe('members-mode connectors', () => {
 
   it('revokes the credential grant once the connector and its documents are gone', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+    queueConnectorDeletionOwnerAndLock('members')
     queueTableRows(schemaMock.document, [])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
 

@@ -1,8 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  COPILOT_APPLICATION_DELEGATION_TTL_MS,
-  createTrustedCopilotPrincipal,
-} from '@/lib/copilot/auth/application-delegation'
+import { createCopilotChatPrincipal } from '@/lib/copilot/auth/application-delegation'
 import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { buildVfsFolderPathMap, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
@@ -17,9 +14,17 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
 const logger = createLogger('ChatFolderContext')
 
 const FOLDER_DOMAINS = {
-  workflow: { root: 'workflows', policy: workflowDelegationPolicy },
-  table: { root: 'tables', policy: tableDelegationPolicy },
-  knowledge_base: { root: 'knowledgebases', policy: knowledgeDelegationPolicy },
+  workflow: {
+    root: 'workflows',
+    policy: workflowDelegationPolicy,
+    list: listWorkflowFolders,
+  },
+  table: { root: 'tables', policy: tableDelegationPolicy, list: listTableFoldersUseCase },
+  knowledge_base: {
+    root: 'knowledgebases',
+    policy: knowledgeDelegationPolicy,
+    list: listKnowledgeFolders,
+  },
 } as const
 
 type FolderDomain = keyof typeof FOLDER_DOMAINS
@@ -35,24 +40,12 @@ export function createChatFolderResolver(userId: string, workspaceId: string, ch
   const filePaths = new Map<string, Promise<string | null>>()
 
   async function loadPaths(domain: FolderDomain): Promise<Map<string, string>> {
-    const principal = createTrustedCopilotPrincipal(
-      { userId, workspaceId, chatId, delegationId: `copilot-chat:${chatId ?? workspaceId}` },
-      {
-        audience: FOLDER_DOMAINS[domain].policy.audience,
-        ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
-      }
+    const principal = createCopilotChatPrincipal(
+      { userId, workspaceId, chatId },
+      FOLDER_DOMAINS[domain].policy.audience
     )
     const input = { workspaceId, sortBy: 'name', sortOrder: 'asc' } as const
-    const { folders } = await (() => {
-      switch (domain) {
-        case 'workflow':
-          return listWorkflowFolders.execute({ principal, input })
-        case 'table':
-          return listTableFoldersUseCase.execute({ principal, input })
-        case 'knowledge_base':
-          return listKnowledgeFolders.execute({ principal, input })
-      }
-    })()
+    const { folders } = await FOLDER_DOMAINS[domain].list.execute({ principal, input })
     return buildVfsFolderPathMap(
       folders.map((folder) => ({
         folderId: folder.id,
@@ -93,7 +86,7 @@ export function createChatFolderResolver(userId: string, workspaceId: string, ch
       }
       return pending
     }
-    const domains: FolderDomain[] = ['workflow', 'table', 'knowledge_base']
+    const domains = Object.keys(FOLDER_DOMAINS) as FolderDomain[]
     const results = await Promise.allSettled(
       domains.map(async (domain) => {
         const path = await folderPath(folderId, domain)

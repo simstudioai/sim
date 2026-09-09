@@ -1,4 +1,5 @@
-import type { Readable } from 'node:stream'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import type { Storage } from '@google-cloud/storage'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -162,8 +163,10 @@ export async function uploadToGcs(
   size?: number,
   preserveKey?: boolean,
   metadata?: Record<string, string>,
-  createOnly = false
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: GcsConfig
   let fileSize: number
   let shouldPreserveKey: boolean
@@ -192,15 +195,25 @@ export async function uploadToGcs(
     Object.assign(gcsMetadata, sanitizeStorageMetadata(metadata, 8000))
   }
 
-  await storage
-    .bucket(config.bucket)
-    .file(uniqueKey)
-    .save(file, {
-      contentType,
-      resumable: false,
-      metadata: { metadata: gcsMetadata },
-      ...(createOnly ? { preconditionOpts: { ifGenerationMatch: 0 } } : {}),
-    })
+  signal?.throwIfAborted()
+  const object = storage.bucket(config.bucket).file(uniqueKey)
+  const uploadOptions = {
+    contentType,
+    resumable: false,
+    metadata: { metadata: gcsMetadata },
+    ...(createOnly ? { preconditionOpts: { ifGenerationMatch: 0 } } : {}),
+  }
+  if (signal) {
+    /** File.save cannot cancel; destroying the pipeline releases its buffered body. */
+    await pipeline(
+      Readable.from([file]),
+      object.createWriteStream({ ...uploadOptions, timeout: 30_000 }),
+      { signal }
+    )
+  } else {
+    await object.save(file, uploadOptions)
+  }
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -457,12 +470,33 @@ export async function deleteFromGcs(key: string): Promise<void>
  * @param key GCS object key
  * @param customConfig Custom GCS configuration
  */
-export async function deleteFromGcs(key: string, customConfig: GcsConfig): Promise<void>
+export async function deleteFromGcs(
+  key: string,
+  customConfig: GcsConfig | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromGcs(key: string, customConfig?: GcsConfig): Promise<void> {
+export async function deleteFromGcs(
+  key: string,
+  customConfig?: GcsConfig,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
-  await storage.bucket(config.bucket).file(key).delete({ ignoreNotFound: true })
+  signal?.throwIfAborted()
+  if (signal) {
+    /** File.delete has no abort option; the same SDK credentials support a cancelable JSON request. */
+    await storage.authClient.request<unknown>({
+      url: `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(config.bucket)}/o/${encodeURIComponent(key)}`,
+      method: 'DELETE',
+      signal,
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+    })
+  } else {
+    await storage.bucket(config.bucket).file(key).delete({ ignoreNotFound: true })
+  }
+  signal?.throwIfAborted()
 }
 
 /**

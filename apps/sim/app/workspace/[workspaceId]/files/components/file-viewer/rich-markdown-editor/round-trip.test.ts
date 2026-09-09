@@ -97,13 +97,11 @@ describe('markdown-fidelity utils', () => {
   })
 
   it('restores escaped callout markers', () => {
-    expect(postProcessSerializedMarkdown('> \\[!NOTE\\]\n> hi')).toBe('> [!NOTE]\n> hi')
+    expect(roundTrip('> [!NOTE]\n> hi').trim()).toBe('> [!NOTE]\n> hi')
   })
 
   it('restores escaped callout markers in nested blockquotes', () => {
-    expect(postProcessSerializedMarkdown('> > \\[!WARNING\\]\n> > hi')).toBe(
-      '> > [!WARNING]\n> > hi'
-    )
+    expect(roundTrip('> > [!WARNING]\n> > hi').trim()).toBe('> > [!WARNING]\n> > hi')
   })
 
   it('normalizes link hrefs', () => {
@@ -611,19 +609,23 @@ describe('highlight ==mark==', () => {
 })
 
 describe('autolink / bare-URL preservation', () => {
-  it('keeps a bare URL bare instead of rewriting it to [url](url)', () => {
-    expect(roundTrip('visit https://sim.ai today').trim()).toBe('visit https://sim.ai today')
+  it('uses the native link serializer without changing link text or destinations', () => {
+    expect(roundTrip('visit https://sim.ai today').trim()).toBe(
+      'visit [https://sim.ai](https://sim.ai) today'
+    )
     expect(roundTrip('both https://a.com and https://b.com').trim()).toBe(
-      'both https://a.com and https://b.com'
+      'both [https://a.com](https://a.com) and [https://b.com](https://b.com)'
     )
   })
 
-  it('collapses an angle autolink and a bare email to their bare form', () => {
-    expect(roundTrip('see <https://sim.ai> here').trim()).toBe('see https://sim.ai here')
-    expect(roundTrip('mail <a@b.com> now').trim()).toBe('mail a@b.com now')
+  it('preserves autolink and email destinations using explicit Markdown links', () => {
+    expect(roundTrip('see <https://sim.ai> here').trim()).toBe(
+      'see [https://sim.ai](https://sim.ai) here'
+    )
+    expect(roundTrip('mail <a@b.com> now').trim()).toBe('mail [a@b.com](mailto:a@b.com) now')
   })
 
-  it('preserves explicit and titled links (only bare autolinks collapse)', () => {
+  it('preserves explicit and titled links', () => {
     expect(roundTrip('[Sim](https://sim.ai)').trim()).toBe('[Sim](https://sim.ai)')
     expect(roundTrip('[https://a.com](https://b.com)').trim()).toBe(
       '[https://a.com](https://b.com)'

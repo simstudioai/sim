@@ -33,7 +33,8 @@ import {
   outboxEventHasSourceOperationId,
   outboxPayloadHasSourceOperationId,
   processOutboxEvents,
-} from './service'
+  withOutboxHandlerTimeout,
+} from '@/lib/core/outbox/service'
 
 function makePendingRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
@@ -494,6 +495,40 @@ describe('processOutboxEvents — handler timeout', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('allows an opted-in handler to finish after the default 90-second window', async () => {
+    let observedDeadline = 0
+    const startedAt = Date.now()
+    const handler = withOutboxHandlerTimeout(async (_payload, context) => {
+      observedDeadline = context.deadlineAt ?? 0
+      await new Promise<void>((resolve) => setTimeout(resolve, 120_000))
+    }, 550_000)
+    queueTableRows(outboxEvent, [makePendingRow()])
+    holdLease()
+    const promise = processOutboxEvents({ 'test.event': handler }, { maxRuntimeMs: 790_000 })
+    await vi.advanceTimersByTimeAsync(120_001)
+    expect(await promise).toMatchObject({ processed: 1, leaseLost: 0 })
+    expect(observedDeadline).toBe(startedAt + 550_000)
+  })
+
+  it('leaves a long handler pending when the remaining invocation cannot fit its complete window', async () => {
+    const handler = withOutboxHandlerTimeout(
+      vi.fn(async () => {}),
+      550_000
+    )
+    queueTableRows(outboxEvent, [makePendingRow()])
+    holdLease()
+    expect(
+      await processOutboxEvents({ 'test.event': handler }, { maxRuntimeMs: 110_000 })
+    ).toMatchObject({ processed: 0, retried: 0 })
+    expect(handler).not.toHaveBeenCalled()
+    expect(updateSets()).toContainEqual({ status: 'pending', lockedAt: null })
+    expect(updateSets().some((set) => 'attempts' in set)).toBe(false)
+  })
+
+  it('refuses a handler window that can overlap the ten-minute stale-lease reaper', () => {
+    expect(() => withOutboxHandlerTimeout(async () => {}, 600_000)).toThrow(/550000/)
   })
 
   it('times out a stuck handler without releasing it for overlapping retry', async () => {

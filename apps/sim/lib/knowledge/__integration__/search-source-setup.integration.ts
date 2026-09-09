@@ -5,6 +5,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
+  permissions,
   resourcePolicy,
   user,
   workspace,
@@ -139,13 +140,13 @@ describe('Search source identity and concurrent creation', () => {
     })
   }
 
-  it('creates connected accounts and its policy atomically with a new workspace', async () => {
+  it('creates a workspace and owner permission without an eager accounts container', async () => {
     const created = await db.transaction((tx) =>
       createWorkspaceInTransaction(tx, {
         userId: ids.aliceId,
         observedOrganizationId: null,
         governingPermissionGroupOrganizationId: null,
-        name: 'Connected accounts atomic fixture',
+        name: 'Workspace atomic fixture',
         skipDefaultWorkflow: true,
         organizationId: null,
         workspaceMode: 'personal',
@@ -153,67 +154,95 @@ describe('Search source identity and concurrent creation', () => {
       })
     )
     try {
+      const [storedWorkspace] = await db
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, created.id))
+      expect(storedWorkspace).toMatchObject({
+        ownerId: ids.aliceId,
+        organizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: ids.aliceId,
+      })
+      const ownerPermissions = await db
+        .select()
+        .from(permissions)
+        .where(eq(permissions.entityId, created.id))
+      expect(ownerPermissions).toEqual([
+        expect.objectContaining({
+          userId: ids.aliceId,
+          entityType: 'workspace',
+          permissionType: 'admin',
+        }),
+      ])
       const groups = await db
         .select()
         .from(credentialGroup)
         .where(eq(credentialGroup.workspaceId, created.id))
-      expect(groups).toHaveLength(1)
-      expect(groups[0]).toMatchObject({
-        name: 'Connected accounts',
-        options: [],
-        createdBy: ids.aliceId,
-      })
-      const [policy] = await db
+      expect(groups).toHaveLength(0)
+      const policies = await db
         .select()
         .from(resourcePolicy)
-        .where(eq(resourcePolicy.resourceId, groups[0]!.id))
-      expect(policy!.document).toEqual(
-        compileCredentialGroupWorkflowAccessPolicy({
-          credentialGroupId: groups[0]!.id,
-          allowedWorkflowIds: [],
-        })
-      )
+        .where(eq(resourcePolicy.workspaceId, created.id))
+      expect(policies).toHaveLength(0)
     } finally {
+      await db.delete(permissions).where(eq(permissions.entityId, created.id))
       await db.delete(workspace).where(eq(workspace.id, created.id))
     }
   })
 
-  it('rolls back the workspace, account container, and policy together', async () => {
+  it('rolls back the workspace and owner permission without creating account resources', async () => {
     let workspaceId = ''
-    let groupId = ''
+    let permissionId = ''
     await expect(
       db.transaction(async (tx) => {
         const created = await createWorkspaceInTransaction(tx, {
           userId: ids.aliceId,
           observedOrganizationId: null,
           governingPermissionGroupOrganizationId: null,
-          name: 'Connected accounts rollback fixture',
+          name: 'Workspace rollback fixture',
           skipDefaultWorkflow: true,
           organizationId: null,
           workspaceMode: 'personal',
           billedAccountUserId: ids.aliceId,
         })
         workspaceId = created.id
-        const [group] = await tx
+        const ownerPermissions = await tx
+          .select()
+          .from(permissions)
+          .where(eq(permissions.entityId, workspaceId))
+        expect(ownerPermissions).toEqual([
+          expect.objectContaining({
+            userId: ids.aliceId,
+            entityType: 'workspace',
+            permissionType: 'admin',
+          }),
+        ])
+        permissionId = ownerPermissions[0]!.id
+        const groups = await tx
           .select()
           .from(credentialGroup)
           .where(eq(credentialGroup.workspaceId, created.id))
-        groupId = group!.id
+        expect(groups).toHaveLength(0)
         const policies = await tx
           .select()
           .from(resourcePolicy)
-          .where(eq(resourcePolicy.resourceId, groupId))
-        expect(policies).toHaveLength(1)
+          .where(eq(resourcePolicy.workspaceId, workspaceId))
+        expect(policies).toHaveLength(0)
         throw new Error('Abort workspace creation fixture')
       })
     ).rejects.toThrow('Abort workspace creation fixture')
     expect(workspaceId).not.toBe('')
+    expect(permissionId).not.toBe('')
     expect(await db.select().from(workspace).where(eq(workspace.id, workspaceId))).toHaveLength(0)
     expect(
-      await db.select().from(credentialGroup).where(eq(credentialGroup.id, groupId))
+      await db.select().from(permissions).where(eq(permissions.id, permissionId))
     ).toHaveLength(0)
     expect(
-      await db.select().from(resourcePolicy).where(eq(resourcePolicy.resourceId, groupId))
+      await db.select().from(credentialGroup).where(eq(credentialGroup.workspaceId, workspaceId))
+    ).toHaveLength(0)
+    expect(
+      await db.select().from(resourcePolicy).where(eq(resourcePolicy.workspaceId, workspaceId))
     ).toHaveLength(0)
   })
 

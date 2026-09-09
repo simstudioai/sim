@@ -124,6 +124,66 @@ describe('S3 Client', () => {
   })
 
   describe('uploadToS3', () => {
+    it.each(['upload', 'delete'] as const)(
+      'cancels a stalled %s through the SDK signal',
+      async (operation) => {
+        const controller = new AbortController()
+        const aborted = new Error('Checkpoint expired')
+        let started!: () => void
+        const ready = new Promise<void>((resolve) => {
+          started = resolve
+        })
+        mockSend.mockImplementationOnce((_command, options: { abortSignal: AbortSignal }) => {
+          started()
+          return new Promise((_resolve, reject) => {
+            options.abortSignal.addEventListener(
+              'abort',
+              () => reject(options.abortSignal.reason),
+              { once: true }
+            )
+          })
+        })
+        const pending =
+          operation === 'upload'
+            ? uploadToS3(
+                Buffer.from('private text'),
+                'checkpoint.txt',
+                'text/plain',
+                undefined,
+                undefined,
+                true,
+                undefined,
+                false,
+                controller.signal
+              )
+            : deleteFromS3('checkpoint.txt', undefined, controller.signal)
+        const result = expect(pending).rejects.toBe(aborted)
+        await ready
+        controller.abort(aborted)
+        await result
+        expect(mockSend.mock.calls[0][1].abortSignal).toBe(controller.signal)
+      }
+    )
+
+    it('refuses an already canceled upload before dispatching it', async () => {
+      const controller = new AbortController()
+      controller.abort()
+      await expect(
+        uploadToS3(
+          Buffer.from('private text'),
+          'checkpoint.txt',
+          'text/plain',
+          undefined,
+          undefined,
+          true,
+          undefined,
+          false,
+          controller.signal
+        )
+      ).rejects.toHaveProperty('name', 'AbortError')
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
     it('adds a provider create-only precondition for an immutable upload', async () => {
       mockSend.mockResolvedValueOnce({})
 

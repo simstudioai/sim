@@ -24,11 +24,51 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
+  classifyExternalDoc,
   createSyncRunState,
   type DocOp,
   type ProcessDocOpsInput,
   processDocOps,
 } from '@/lib/knowledge/connectors/sync-primitives'
+
+describe('source-change skip retry policy', () => {
+  const listed: ExternalDocument = {
+    externalId: 'page',
+    title: 'Page',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    contentHash: 'source:page:3',
+    skippedRetryPolicy: 'source-change',
+  }
+  const existing = { id: 'document', contentHash: listed.contentHash, storageKey: null }
+
+  it('reuses a verified skip until the source changes', () => {
+    expect(classifyExternalDoc(listed, existing)).toEqual({ type: 'unchanged' })
+    expect(classifyExternalDoc({ ...listed, contentHash: 'source:page:4' }, existing)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+  })
+
+  it('still retries source failures and explicit rehydration', () => {
+    expect(classifyExternalDoc(listed, { ...existing, contentHash: null })).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+    expect(classifyExternalDoc(listed, existing, true)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+  })
+
+  it('keeps the default recovery behavior for other skipped sources', () => {
+    expect(classifyExternalDoc({ ...listed, skippedRetryPolicy: undefined }, existing)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+  })
+})
 
 function sourceDocument(externalId: string): ExternalDocument {
   return {
@@ -225,6 +265,33 @@ describe('processDocOps dispatch buffering', () => {
     expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
     expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 3, failed: 0 })
     expect(input.onBatchComplete).toHaveBeenCalledTimes(3)
+  })
+
+  it('persists successful hydration siblings before yielding and excludes only deferred sources from the page checkpoint', async () => {
+    const input = inputFor(5, 100)
+    const firstThrottle = Object.assign(new Error('Short throttle'), {
+      status: 429,
+      retryAfterMs: 60_000,
+    })
+    const longestThrottle = Object.assign(new Error('Long throttle'), {
+      status: 429,
+      retryAfterMs: 120_000,
+    })
+    input.hydration.getDocument = vi.fn(async (externalId: string) => {
+      if (externalId === 'source-2') throw firstThrottle
+      if (externalId === 'source-4') throw longestThrottle
+      if (externalId === 'source-5') throw new Error('Temporary source read failure')
+      return sourceDocument(externalId)
+    })
+    await expect(processDocOps(input)).rejects.toBe(longestThrottle)
+    expect(dispatchedIds()).toEqual([['source-1', 'source-3']])
+    expect(input.state.result).toMatchObject({ docsAdded: 2, docsFailed: 1 })
+    expect([...input.state.failedExternalIds]).toEqual(['source-5'])
+    expect(input.onBatchComplete).toHaveBeenCalledWith([
+      input.pendingOps[0].extDoc,
+      input.pendingOps[2].extDoc,
+      input.pendingOps[4].extDoc,
+    ])
   })
 
   it('counts an enqueue exception once and continues later batches without resending it', async () => {

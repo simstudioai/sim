@@ -6,9 +6,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: vi.fn() }))
 const { mockUploadFile } = vi.hoisted(() => ({ mockUploadFile: vi.fn() }))
+const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
 vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
-vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: vi.fn() }))
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
+    keys.flatMap((key) => bindings.get(key) ?? [])
+  ),
+  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }),
+}))
+vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
+  enqueueKnowledgeStorageCleanup: vi.fn(async () => {
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    return ['cleanup-guard']
+  }),
+  isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
+}))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
@@ -299,10 +317,10 @@ describe('organization source cache persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockUploadFile.mockResolvedValue({
-      key: 'kb/source.txt',
-      path: '/api/files/serve/kb%2Fsource.txt',
-    })
+    mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
+      key: customKey,
+      path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+    }))
     dbChainMockFns.limit.mockResolvedValue([{ id: 'org-kb' }])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
   })
@@ -319,7 +337,7 @@ describe('organization source cache persistence', () => {
       expect.objectContaining({
         knowledgeBaseId: 'org-kb',
         connectorId: 'connector-1',
-        storageKey: 'kb/source.txt',
+        storageKey: expect.stringMatching(/^kb\//),
         acl: [],
         processingStatus: 'pending',
       })

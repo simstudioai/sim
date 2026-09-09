@@ -85,6 +85,16 @@ describe('knowledge document processing outbox handler', () => {
     mocks.reclaimStaleDocumentProcessingClaim.mockResolvedValue(false)
   })
 
+  it('gives initial in-process indexing the same lease-bound window as a continuation', async () => {
+    const context = { ...createContext(), deadlineAt: Date.now() + 550_000 }
+    await handler()(PAYLOAD, context)
+    expect(handler().timeoutMs).toBe(550_000)
+    expect(mocks.processDocumentsWithQueue.mock.calls[0][6]).toEqual({
+      signal: context.signal,
+      deadlineAt: context.deadlineAt,
+    })
+  })
+
   it('dispatches the authoritative document with the stable outbox event id', async () => {
     await handler()(PAYLOAD, createContext('outbox-event-stable'))
 
@@ -106,7 +116,9 @@ describe('knowledge document processing outbox handler', () => {
       'knowledge-base-1',
       { recipe: 'default', lang: 'en' },
       'outbox-event-stable',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      undefined,
+      { signal: expect.any(AbortSignal), deadlineAt: undefined }
     )
   })
 
@@ -170,7 +182,9 @@ describe('knowledge document processing outbox handler', () => {
       'knowledge-base-1',
       { recipe: 'default', lang: 'en' },
       'outbox-event-retry',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      undefined,
+      { signal: expect.any(AbortSignal), deadlineAt: undefined }
     )
   })
 

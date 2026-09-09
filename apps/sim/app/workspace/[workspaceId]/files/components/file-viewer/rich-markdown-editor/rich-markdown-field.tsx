@@ -3,32 +3,39 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
-import type { JSONContent } from '@tiptap/core'
+import type { JSONContent, Range } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
+import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import {
+  extractImageFiles,
+  getImageFileFallback,
+  type ImageFileFallback,
+  normalizePastedImageSources,
+  resolveImageFileFallback,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 import {
   beginImageUploads,
   findImageUpload,
   finishImageUpload,
   removeImageUpload,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
-import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
-import { createMarkdownEditorExtensions } from './editor-extensions'
-import { moveDraggedImageNode } from './image-drag-move'
-import { extractImageFiles, isInlineRouteSrc, shouldSkipFileUpload } from './image-paste'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
   splitFrontmatter,
-} from './markdown-fidelity'
-import { parseMarkdownToDoc } from './markdown-parse'
-import { useEditorMentions } from './mention'
-import { EditorBubbleMenu } from './menus/bubble-menu'
-import { LinkHoverCard } from './menus/link-hover-card'
-import { normalizeMarkdownContent } from './normalize-content'
-import { isRoundTripSafe } from './round-trip-safety'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
+import { useEditorMentions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention'
+import { EditorBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu'
+import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card'
+import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
+import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
+import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 import '@sim/emcn/components/code/code.css'
-import '../document-table.css'
-import './rich-markdown-editor.css'
+import '@/app/workspace/[workspaceId]/files/components/file-viewer/document-table.css'
+import '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
 
 /**
  * Sends the formatting toolbar back to its body portal instead of anchoring it inside the editor's
@@ -176,14 +183,14 @@ function LoadedRichMarkdownField({
    * Reuse the file editor's mapped anchors without adding upload chrome to embedded fields.
    * A streamed replacement invalidates the batch even if editing resumes before upload completes.
    */
-  async function insertImages(images: File[], at: number) {
+  async function insertImages(images: File[], range: Range, fallback?: ImageFileFallback | null) {
     const upload = uploadImageRef.current
     const owner = editorInstanceRef.current
     if (!upload || !owner || owner.isDestroyed || !owner.isEditable) return
     const generation = uploadGenerationRef.current
     const anchors = beginImageUploads(
       owner,
-      { from: at, to: at },
+      range,
       images.map(() => '')
     )
     const canInsert = () =>
@@ -198,7 +205,14 @@ function LoadedRichMarkdownField({
         if (!anchor || findImageUpload(owner, anchor) === null) continue
         const result = await upload(image).catch(() => null)
         if (!canInsert()) break
-        if (result) finishImageUpload(owner, anchor, result.url, result.alt)
+        if (result)
+          finishImageUpload(
+            owner,
+            anchor,
+            result.url,
+            result.alt,
+            fallback ? resolveImageFileFallback(fallback, result.url) : undefined
+          )
         else removeImageUpload(owner, anchor)
       }
     } finally {
@@ -257,14 +271,17 @@ function LoadedRichMarkdownField({
         'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
         'data-paste-handles-images': uploadImage ? 'true' : 'false',
       },
-      handlePaste: (view, event) => {
+      transformPasted: (slice, view) => normalizePastedImageSources(slice, view.state.doc),
+      handlePaste: (view, event, slice) => {
+        if (!view.editable) return false
+        const currentEditor = editorInstanceRef.current
+        if (currentEditor && isPlainTextPaste(currentEditor)) return false
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
-        /* Copying an image already in the document puts its file on the clipboard too. Let the
-           html through instead of uploading a second copy of something already hosted. */
         const clipboardHtml = event.clipboardData?.getData('text/html') ?? ''
-        if (images.length > 0 && !shouldSkipFileUpload(images, clipboardHtml, isInlineRouteSrc)) {
+        const fallback = getImageFileFallback(slice, images)
+        if (images.length > 0 && (!clipboardHtml || !slice.content.size || fallback)) {
           event.preventDefault()
-          void insertImages(images, view.state.selection.from)
+          void insertImages(images, view.state.selection, fallback)
           return true
         }
         const handler = onPasteTextRef.current
@@ -273,23 +290,19 @@ function LoadedRichMarkdownField({
         if (!text) return false
         return handler(text)
       },
-      /**
-       * Mirrors the file editor's order: reposition an image dragged from inside the document, then
-       * bail on a same-page copy of an already-hosted one so ProseMirror inserts it from the html
-       * instead of uploading a duplicate, then upload anything genuinely new. Any remaining file drop
-       * is swallowed so the browser doesn't navigate to it and tear down the host; internal text drags
-       * carry no files and fall through.
-       */
-      handleDrop: (view, event) => {
+      handleDrop: (view, event, slice, moved) => {
+        if (!view.editable) return false
         const html = event.dataTransfer?.getData('text/html') ?? ''
         const images = uploadImageRef.current ? extractImageFiles(event.dataTransfer) : []
-        if (moveDraggedImageNode(view, event, { images, html })) return true
-        if (shouldSkipFileUpload(images, html, isInlineRouteSrc)) return false
+        const uploadFallback = getImageFileFallback(slice, images)
+        if (!uploadFallback && moveDraggedImageNode(view, event, slice, moved)) return true
+        if (html && slice.content.size > 0 && !uploadFallback) return false
         if (event.dataTransfer?.files.length) {
           event.preventDefault()
           if (images.length > 0) {
             const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
-            void insertImages(images, dropPos ?? view.state.selection.from)
+            const at = dropPos ?? view.state.selection.from
+            void insertImages(images, { from: at, to: at }, uploadFallback)
           }
           return true
         }
@@ -427,7 +440,7 @@ function LoadedRichMarkdownField({
               pendingImagePosRef.current ?? editorInstanceRef.current?.state.selection.from ?? 0
             pendingImagePosRef.current = null
             input.value = ''
-            if (images.length > 0) void insertImages(images, at)
+            if (images.length > 0) void insertImages(images, { from: at, to: at })
           }}
         />
       )}

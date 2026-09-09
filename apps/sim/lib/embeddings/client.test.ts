@@ -5,6 +5,7 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import {
   assertKnowledgeEmbeddingCapacityForDeployment,
   clampEmbeddingConcurrency,
@@ -168,7 +169,11 @@ describe('embedding cancellation', () => {
         })
     )
     const pending = embed(['text'], { apiKey: 'key' })
-    const rejected = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: 'ProviderCapacityDeferredError',
+      reason: 'provider_timeout',
+      cause: { name: 'TimeoutError' },
+    })
     await vi.advanceTimersByTimeAsync(150_000)
     await rejected
     expect(fetchMock).not.toHaveBeenCalled()
@@ -182,7 +187,11 @@ describe('embedding cancellation', () => {
     const cancelBody = vi.fn()
     fetchMock.mockResolvedValue(new Response(new ReadableStream({ cancel: cancelBody })))
     const pending = embed(['text'], { apiKey: 'key' })
-    const rejected = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: 'ProviderCapacityDeferredError',
+      reason: 'provider_timeout',
+      cause: { name: 'TimeoutError' },
+    })
     await vi.advanceTimersByTimeAsync(149_999)
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(cancelBody).not.toHaveBeenCalled()
@@ -190,6 +199,22 @@ describe('embedding cancellation', () => {
     await rejected
     expect(cancelBody).toHaveBeenCalledOnce()
     expect(mockAdmit).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('preserves a caller timeout instead of scheduling provider recovery', async () => {
+    vi.useFakeTimers()
+    const cancelBody = vi.fn()
+    fetchMock.mockResolvedValue(new Response(new ReadableStream({ cancel: cancelBody })))
+    const controller = new AbortController()
+    const timeout = new DOMException('Caller deadline reached', 'TimeoutError')
+    const pending = embed(['text'], { apiKey: 'key', signal: controller.signal })
+    const rejected = expect(pending).rejects.toBe(timeout)
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort(timeout)
+    await rejected
+    expect(cancelBody).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -1694,6 +1719,195 @@ describe('knowledge embedding capacity preflight', () => {
     await expect(
       assertKnowledgeEmbeddingCapacityForDeployment({ ...options, signal: duringRead.signal }, true)
     ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('durable embedding batches', () => {
+  function memoryCheckpoints() {
+    const stored = new Map<string, import('@/lib/embeddings/types').EmbeddingBatchResult>()
+    return {
+      stored,
+      load: vi.fn(
+        async (identity: import('@/lib/embeddings/types').EmbeddingBatchIdentity) =>
+          stored.get(identity.key) ?? null
+      ),
+      save: vi.fn(
+        async (
+          identity: import('@/lib/embeddings/types').EmbeddingBatchIdentity,
+          result: import('@/lib/embeddings/types').EmbeddingBatchResult
+        ) => {
+          stored.set(identity.key, result)
+        }
+      ),
+      beforeRequest: vi.fn(),
+    }
+  }
+
+  it.each([400, 401, 403])(
+    'preserves a slower terminal %i response after another batch yields its processing slice',
+    async (status) => {
+      const checkpoints = memoryCheckpoints()
+      checkpoints.beforeRequest.mockImplementationOnce(() => {
+        throw new ProviderCapacityDeferredError('processing_budget')
+      })
+      fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'Rejected' } }, status))
+      await expect(
+        embed(
+          Array.from({ length: 24 }, (_, index) => `part ${index} ${'token '.repeat(5000)}`),
+          { apiKey: 'fixture-key', checkpoints }
+        )
+      ).rejects.toMatchObject({ name: 'EmbeddingAPIError', status, isBYOK: true })
+      expect(fetchMock).toHaveBeenCalled()
+      expect(fetchMock.mock.calls.length).toBeLessThan(24)
+      const admittedRequests = fetchMock.mock.calls.length
+      await Promise.resolve()
+      expect(fetchMock).toHaveBeenCalledTimes(admittedRequests)
+    }
+  )
+
+  it('retains every admitted batch failure so durable recovery can honor the longest wait', async () => {
+    const checkpoints = memoryCheckpoints()
+    const shortWait = new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 60_000 })
+    const longWait = new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 600_000 })
+    checkpoints.beforeRequest
+      .mockImplementationOnce(() => {
+        throw shortWait
+      })
+      .mockImplementation(() => {
+        throw longWait
+      })
+    await expect(
+      embed(
+        Array.from({ length: 24 }, (_, index) => `part ${index} ${'token '.repeat(5000)}`),
+        { apiKey: 'fixture-key', checkpoints }
+      )
+    ).rejects.toMatchObject({
+      name: 'AggregateError',
+      errors: expect.arrayContaining([shortWait, longWait]),
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('limits checkpointed admission waits while retaining the interactive request budget', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(openAIBody([[1]], 7))))
+    await embed(['text'], { apiKey: 'fixture-key', checkpoints: memoryCheckpoints() })
+    expect(mockAdmit).toHaveBeenLastCalledWith(expect.objectContaining({ maxWaitMs: 5000 }))
+    await embed(['text'], { apiKey: 'fixture-key' })
+    expect(mockAdmit.mock.lastCall?.[0].maxWaitMs).toBeGreaterThan(5000)
+  })
+
+  it('drains admitted batches, resumes only missing requests and retains the complete token charge', async () => {
+    const checkpoints = memoryCheckpoints()
+    const texts = Array.from({ length: 24 }, (_, i) => `section ${i} ${'token '.repeat(5000)}`)
+    const successful = new Set<string>()
+    let failOnce = true
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const inputs = (JSON.parse(String(init.body)) as { input: string[] }).input
+      if (failOnce && inputs[0].startsWith('section 1 ')) {
+        failOnce = false
+        return jsonResponse({ error: { message: 'Synthetic rejection' } }, 400)
+      }
+      for (const input of inputs) {
+        expect(successful.has(input)).toBe(false)
+        successful.add(input)
+      }
+      return jsonResponse(
+        openAIBody(
+          inputs.map(() => [1]),
+          inputs.length * 5000
+        )
+      )
+    })
+    const options = {
+      apiKey: 'fixture-key',
+      model: 'text-embedding-3-small',
+      projectInputs: null,
+      checkpoints,
+    } as const
+    await expect(embed(texts, options)).rejects.toThrow('Embedding API failed: 400')
+    expect(successful.size).toBeGreaterThan(0)
+    expect(successful.size).toBeLessThan(texts.length)
+    expect(checkpoints.stored.size).toBe(successful.size)
+    const afterFailure = fetchMock.mock.calls.length
+    await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(afterFailure)
+    const result = await embed(texts, options)
+    expect(result.embeddings).toHaveLength(texts.length)
+    expect(result.totalTokens).toBe(120000)
+    expect(successful.size).toBe(texts.length)
+    expect(fetchMock).toHaveBeenCalledTimes(texts.length + 1)
+  })
+
+  it('reuses only requests with the current projected inputs, credential, task and dimensions', async () => {
+    const checkpoints = memoryCheckpoints()
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { input: string[]; dimensions?: number }
+      return jsonResponse(
+        openAIBody(
+          body.input.map(() => [1]),
+          7,
+          body.dimensions ?? 1536
+        )
+      )
+    })
+    const base = {
+      apiKey: 'fixture-key',
+      model: 'text-embedding-3-small',
+      projectInputs: () => ['projected-one'],
+      checkpoints,
+    } as const
+    await embed(['private input'], base)
+    checkpoints.beforeRequest.mockImplementation(() => {
+      throw new Error('new request refused')
+    })
+    expect((await embed(['private input'], base)).totalTokens).toBe(7)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await expect(embed(['private input'], { ...base, apiKey: 'replacement-key' })).rejects.toThrow(
+      'new request refused'
+    )
+    await expect(
+      embed(['private input'], { ...base, projectInputs: () => ['projected-two'] })
+    ).rejects.toThrow('new request refused')
+    await expect(embed(['private input'], { ...base, dimensions: 512 })).rejects.toThrow(
+      'new request refused'
+    )
+    await expect(embed(['private input'], { ...base, taskType: 'query' })).rejects.toThrow(
+      'new request refused'
+    )
+    expect(JSON.stringify([...checkpoints.stored.keys()])).not.toContain('private input')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it('preserves valid projected OpenAI inputs when the heuristic exceeds the token limit', async () => {
+    const text = 'x();\n'.repeat(3200).trimEnd()
+    const checkpoints = memoryCheckpoints()
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embed(['source input'], {
+      apiKey: 'fixture-key',
+      model: 'text-embedding-3-small',
+      projectInputs: () => [text],
+      checkpoints,
+      inputOverflow: 'reject',
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).input).toEqual([text])
+    expect(checkpoints.save).toHaveBeenCalledOnce()
+  })
+
+  it('rejects projected indexing inputs that would otherwise be silently shortened', async () => {
+    const checkpoints = memoryCheckpoints()
+    await expect(
+      embed(['short input'], {
+        apiKey: 'fixture-key',
+        model: 'text-embedding-3-small',
+        projectInputs: () => ['token '.repeat(20000)],
+        checkpoints,
+        inputOverflow: 'reject',
+      })
+    ).rejects.toThrow('projected embedding input exceeds')
+    expect(checkpoints.load).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

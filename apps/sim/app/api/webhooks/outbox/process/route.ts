@@ -24,7 +24,7 @@ import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-w
 const logger = createLogger('OutboxProcessorAPI')
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+export const maxDuration = 800
 
 const handlers = {
   ...adminInvitationOperationOutboxHandlers,
@@ -53,7 +53,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const result = await processOutboxEvents(handlers, {
       batchSize: 20,
-      maxRuntimeMs: 110_000,
+      maxRuntimeMs: 790_000,
       minRemainingMs: 95_000,
     })
 

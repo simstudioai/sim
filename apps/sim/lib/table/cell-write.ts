@@ -12,9 +12,9 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getValueAtPath } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import { appendTableEvent } from '@/lib/table/events'
-import { pluckByPath } from '@/lib/table/pluck'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { writeExecutionsPatch } from '@/lib/table/rows/executions'
 import {
@@ -29,6 +29,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table/types'
 import { coerceRowValues } from '@/lib/table/validation'
+import type { BlockCompletionCallbackData } from '@/executor/execution/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowCellWrite')
@@ -184,7 +185,10 @@ interface CreateWorkflowCellProgressWriterOptions {
 
 export interface WorkflowCellProgressWriter {
   onBlockStart: (blockId: string) => Promise<void>
-  onBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete: (
+    blockId: string,
+    data: Pick<BlockCompletionCallbackData, 'output' | 'resolvedSecretTraceProvenance'>
+  ) => Promise<void>
   waitForPendingWrites: () => Promise<void>
   finish: () => Promise<void>
   getEventOutputs: () => RowData
@@ -284,19 +288,12 @@ export function createWorkflowCellProgressWriter(
     scheduleWrite(undefined)
   }
 
-  const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
+  const onBlockComplete: WorkflowCellProgressWriter['onBlockComplete'] = async (blockId, data) => {
     const work = completionChain.then(async () => {
       const outputs = outputsByBlockId.get(blockId)
       if (!outputs) return
 
-      const callbackData =
-        output && typeof output === 'object' && 'output' in output
-          ? (output as {
-              output: unknown
-              resolvedSecretTraceProvenance?: unknown
-            })
-          : undefined
-      const blockResult = callbackData ? callbackData.output : output
+      const blockResult = data.output
       const blockErrorMessage =
         blockResult &&
         typeof blockResult === 'object' &&
@@ -309,7 +306,7 @@ export function createWorkflowCellProgressWriter(
         blockErrors[blockId] = blockErrorMessage
       } else {
         for (const outputMapping of outputs) {
-          const value = pluckByPath(blockResult, outputMapping.path)
+          const value = getValueAtPath(blockResult, outputMapping.path)
           if (value === undefined) continue
           changedData[outputMapping.columnName] = value as RowData[string]
           eventOutputs[outputMapping.columnName] = value as RowData[string]
@@ -318,7 +315,7 @@ export function createWorkflowCellProgressWriter(
         if (Object.keys(changedData).length > 0) {
           const provenance = await createTableRowSecretProvenanceFromEncryptedExecution(
             changedData,
-            callbackData?.resolvedSecretTraceProvenance
+            data.resolvedSecretTraceProvenance
           )
           for (const columnId of Object.keys(changedData)) {
             pendingSecretProvenance[columnId] = provenance.complete

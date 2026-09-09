@@ -23,7 +23,7 @@ export class ProviderAdmissionTimeoutError extends Error {
   readonly retryable = false
   readonly status = 429
 
-  constructor() {
+  constructor(readonly retryAfterMs?: number) {
     super('Provider request admission exceeded the available wait budget')
     this.name = 'ProviderAdmissionTimeoutError'
   }
@@ -93,13 +93,15 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       throw new ProviderAdmissionStorageError(error)
     }
     input.signal?.throwIfAborted()
-    if (Date.now() >= deadlineAt) throw new ProviderAdmissionTimeoutError()
+    if (Date.now() >= deadlineAt) {
+      throw new ProviderAdmissionTimeoutError(result.allowed ? undefined : result.retryAfterMs)
+    }
     if (result.allowed) return
     const waitMs = Math.max(1, result.retryAfterMs)
     if (!Number.isFinite(waitMs) || waitMs >= deadlineAt - Date.now()) {
       if (await isProviderQuotaExhausted(input))
         throw new ProviderQuotaExhaustedError(input.providerId)
-      throw new ProviderAdmissionTimeoutError()
+      throw new ProviderAdmissionTimeoutError(Number.isFinite(waitMs) ? waitMs : undefined)
     }
     await interruptibleSleep(waitMs, input.signal)
   }

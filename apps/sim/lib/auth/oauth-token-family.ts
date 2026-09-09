@@ -22,6 +22,7 @@ import {
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_TOKEN_FAMILY_MAX_GENERATION,
 } from '@/lib/auth/oauth-provider'
+import { parseOAuthSearchResource } from '@/lib/auth/oauth-resource'
 import {
   acquireOrganizationUserMutationLocks,
   getUserOrganization,
@@ -279,6 +280,11 @@ export async function rotateOAuthRefreshToken(
   }
   if (input.resource !== undefined && input.resource !== provisionalToken.resource) {
     return protocolError('invalid_target', 'The resource must match the original token grant.')
+  }
+  try {
+    parseOAuthSearchResource(provisionalToken.resource)
+  } catch {
+    return protocolError('invalid_target', 'The original resource is no longer supported.')
   }
 
   const membership = await getUserOrganization(provisionalToken.userId, database)

@@ -40,12 +40,32 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentsWithQueue: mockProcessDocumentsWithQueue,
 }))
 vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
-const { mockDeleteFile, mockDeleteFileMetadata } = vi.hoisted(() => ({
+const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi.hoisted(() => ({
   mockDeleteFile: vi.fn(),
   mockDeleteFileMetadata: vi.fn(),
+  mockEnqueueStorageCleanup: vi.fn(async () => {
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    return ['cleanup-guard']
+  }),
 }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
+const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  deleteFileMetadata: mockDeleteFileMetadata,
+  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
+    keys.flatMap((key) => bindings.get(key) ?? [])
+  ),
+  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }),
+}))
+vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
+  enqueueKnowledgeStorageCleanup: mockEnqueueStorageCleanup,
+  isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
+}))
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
@@ -390,10 +410,10 @@ describe('connector content replacement processing state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockUploadFile.mockResolvedValue({
-      key: 'kb/new-document.txt',
-      path: '/api/files/serve/kb/new-document.txt',
-    })
+    mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
+      key: customKey,
+      path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+    }))
     mockProcessDocumentsWithQueue.mockResolvedValue({ requested: 1, accepted: 1, failed: 0 })
   })
 
@@ -425,9 +445,11 @@ describe('connector content replacement processing state', () => {
         processingAttempts: MAX_PROCESSING_ATTEMPTS - 1,
       },
     ])
-    queueTableRows(schemaMock.document, [
-      { fileUrl: '/api/files/serve/kb/old-document.txt?context=knowledge-base' },
-    ])
+    for (let i = 0; i < 2; i++) {
+      queueTableRows(schemaMock.document, [
+        { fileUrl: '/api/files/serve/kb/old-document.txt?context=knowledge-base' },
+      ])
+    }
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [{ count: 1 }])
     dbChainMockFns.returning
@@ -605,11 +627,13 @@ describe('persistSkippedDocuments', () => {
       })
     )
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.embedding)
-    expect(mockDeleteFile).toHaveBeenCalledWith({
-      key: 'kb/old-document.txt',
-      context: 'knowledge-base',
-    })
-    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('kb/old-document.txt')
+    expect(mockEnqueueStorageCleanup).toHaveBeenCalledWith(
+      expect.anything(),
+      [expect.objectContaining({ id: 'doc-1', fileUrl: oldFileUrl })],
+      'doc-1'
+    )
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 
   it('does not delete old storage when the authoritative replacement fails', async () => {
@@ -934,6 +958,7 @@ describe('executeSync deferred hydration rate limits', () => {
         { id: 'c-1', connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
       ])
     queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    for (let i = 0; i < 4; i++) queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])
@@ -941,7 +966,15 @@ describe('executeSync deferred hydration rate limits', () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
     ])
-    dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }]).mockResolvedValueOnce([CONNECTOR])
+    mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
+      key: customKey,
+      path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+    }))
+    mockProcessDocumentsWithQueue.mockImplementation(async (documents: unknown[]) => ({
+      accepted: documents.length,
+      failed: 0,
+    }))
   })
 
   afterEach(() => {
@@ -979,12 +1012,12 @@ describe('executeSync deferred hydration rate limits', () => {
       expect.anything()
     )
     expect(result).toMatchObject({
-      docsAdded: 0,
+      docsAdded: 4,
       docsFailed: 0,
       error: rateLimitError.message,
     })
-    expect(mockUploadFile).not.toHaveBeenCalled()
-    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(mockUploadFile).toHaveBeenCalledTimes(4)
+    expect(mockProcessDocumentsWithQueue).toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'error',

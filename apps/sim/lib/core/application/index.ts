@@ -4,6 +4,7 @@ export {
   type AuthorizedWorkspaceUseCaseContext,
   type AuthorizedWorkspaceUseCaseDefinition,
   type AuthorizedWorkspaceUseCaseResultContext,
+  type AuthorizingUseCase,
   defineAuthorizedWorkspaceUseCase,
   recordProjectedUseCaseAuditEntries,
   type WorkspaceUseCaseAuditEntry,

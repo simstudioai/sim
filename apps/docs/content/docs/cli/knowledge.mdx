@@ -1099,6 +1099,34 @@ sim knowledge mv <knowledgeBaseId> <folder>
 
 </CommandTable>
 
+## Export a knowledge base as a .simkb.zip bundle
+
+```bash
+sim knowledge export <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base to export |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write the bundle to this path instead of the name the server suggests; pass - to stream it to stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+| `--no-vectors` | No | Leave chunk vectors out of the bundle, so an import re-embeds every chunk. |
+
+</CommandTable>
+
 ## List knowledge resources and child folders together
 
 ```bash

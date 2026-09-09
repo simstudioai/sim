@@ -3,12 +3,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import {
-  fetchWithRetry,
-  type RetryOptions,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { githubConnectorMeta } from '@/connectors/github/meta'
+import { fetchGitHubWithRetry as fetchWithRetry } from '@/connectors/github/request'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
@@ -133,35 +130,21 @@ interface TreeSnapshot {
 }
 
 class GitHubApiError extends Error {
-  readonly retryAfterMs: number | undefined
-
   constructor(
     message: string,
-    readonly status: number,
-    readonly rateLimited = false
+    readonly status: number
   ) {
     super(`${message}: ${status}`)
     this.name = 'GitHubApiError'
-    this.retryAfterMs = rateLimited ? 60_000 : undefined
   }
 }
 
-/** Secondary throttles may carry only a JSON message and must never withdraw member access. */
+/** The shared transport separates throttles before repository access errors reach this path. */
 async function repositoryRequestError(
   message: string,
   response: Response
 ): Promise<GitHubApiError> {
-  if (response.status === 403) {
-    const body = await readResponseJsonWithLimit<{ message?: unknown }>(response, {
-      maxBytes: 64 * 1024,
-      label: 'GitHub repository error',
-    }).catch(() => undefined)
-    if (typeof body?.message === 'string' && /rate limit|abuse detection/i.test(body.message)) {
-      return new GitHubApiError(message, response.status, true)
-    }
-  } else {
-    await response.body?.cancel()
-  }
+  await response.body?.cancel()
   return new GitHubApiError(message, response.status)
 }
 
@@ -374,9 +357,7 @@ export const githubConnector: ConnectorConfig = {
   isCredentialInvalidError: (error) => error instanceof GitHubApiError && error.status === 401,
   /** Provider throttles preserve membership; a genuine scope denial withdraws it. */
   isListingScopeUnavailableError: (error) =>
-    error instanceof GitHubApiError &&
-    !error.rateLimited &&
-    (error.status === 403 || error.status === 404),
+    error instanceof GitHubApiError && (error.status === 403 || error.status === 404),
 
   listDocuments: async (
     accessToken: string,
@@ -500,7 +481,10 @@ export const githubConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
-        if (response.status === 404) return null
+        if (response.status === 404) {
+          await response.body?.cancel()
+          return null
+        }
         throw await repositoryRequestError(`Failed to fetch file ${path}`, response)
       }
 
@@ -637,6 +621,8 @@ export const githubConnector: ConnectorConfig = {
         },
         VALIDATE_RETRY_OPTIONS
       )
+
+      await response.body?.cancel()
 
       if (response.status === 404) {
         return {

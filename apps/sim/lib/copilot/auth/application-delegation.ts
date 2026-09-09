@@ -64,6 +64,24 @@ interface CreateTrustedCopilotPrincipalOptions {
   resourceScope?: CopilotResourceScope
 }
 
+export interface CopilotChatDelegationContext {
+  userId: string
+  workspaceId: string
+  chatId?: string
+}
+
+/** Creates request-scoped authority for resource reads during an authenticated chat turn. */
+export function createCopilotChatPrincipal(
+  context: CopilotChatDelegationContext,
+  audience: string,
+  resourceScope?: CopilotResourceScope
+): DelegatedPrincipal {
+  return createTrustedCopilotPrincipal(
+    { ...context, delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}` },
+    { audience, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS, resourceScope }
+  )
+}
+
 function requireNonEmpty(value: string | undefined, field: string): asserts value is string {
   if (!value?.trim()) throw new Error(`Copilot execution context requires ${field}`)
 }

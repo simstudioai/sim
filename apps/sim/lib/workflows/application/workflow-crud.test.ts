@@ -103,7 +103,7 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
-import { readWorkflow } from '@/lib/workflows/application/read-workflow'
+import { readWorkflow, readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 
@@ -213,6 +213,45 @@ describe('authorized workflow CRUD and version reads', () => {
       createdAt: now,
       state: { blocks: {}, edges: [], loops: {}, parallels: {}, version: '1.0' },
     })
+  })
+
+  it('reads metadata through the shared read policy without loading the graph', async () => {
+    mocks.folderPathForId.mockReturnValue('/Planning/Nested')
+    const result = await readWorkflowMetadata.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'user-1',
+        workspaceId: WORKSPACE_ID,
+        delegationId: 'chat-read',
+        audience: 'sim:workflows',
+        issuedAt: now,
+        expiresAt: new Date('2999-01-01'),
+      },
+      input: { workflowId: WORKFLOW_ID, assertedWorkspaceId: WORKSPACE_ID },
+    })
+    expect(result).toEqual({ workflow: workflowRecord, folderPath: '/Planning/Nested' })
+    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+      workflowId: WORKFLOW_ID,
+      assertedWorkspaceId: undefined,
+    })
+    expect(mocks.loadFolderIndex).toHaveBeenCalledWith(WORKSPACE_ID, 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses metadata to a removed member before resolving folder paths', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      readWorkflowMetadata.execute({
+        principal: personalPrincipal,
+        input: { workflowId: WORKFLOW_ID, assertedWorkspaceId: WORKSPACE_ID },
+      })
+    ).rejects.toThrow()
+    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
+    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
   })
 
   it('creates for a personal key and projects one authoritative semantic audit', async () => {

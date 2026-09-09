@@ -82,6 +82,26 @@ function trigger(): HTMLButtonElement {
 }
 
 describe('MobileNav dismissal', () => {
+  it('stays open for internal focus and closes when focus moves into page content', () => {
+    const link = host.querySelector<HTMLAnchorElement>('#mobile-nav-sheet a[href="/workflows"]')
+    if (!link) throw new Error('Missing workflow link')
+    const pageLink = document.createElement('a')
+    pageLink.href = '#main-content'
+    host.append(pageLink)
+
+    act(() => {
+      trigger().focus()
+      trigger().click()
+      link.focus()
+    })
+    expect(trigger().getAttribute('aria-expanded')).toBe('true')
+
+    act(() => pageLink.focus())
+    expect(trigger().getAttribute('aria-expanded')).toBe('false')
+    expect(setMenuOpen).toHaveBeenLastCalledWith('mobile', false)
+    expect(document.activeElement).toBe(pageLink)
+  })
+
   it('enables prefetch only while the sheet is open and closes on navigation', () => {
     const link = host.querySelector<HTMLAnchorElement>('#mobile-nav-sheet a[href="/workflows"]')
     if (!link) throw new Error('Missing workflow link')

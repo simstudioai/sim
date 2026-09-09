@@ -26,6 +26,7 @@ import {
   CircleAlert,
   Database,
   DatabaseX,
+  Download,
   Loader,
   Pencil,
   Plus,
@@ -118,6 +119,7 @@ import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import { isConnectorSyncingOrPending, useConnectorList } from '@/hooks/queries/kb/connectors'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
+  downloadKnowledgeBaseExport,
   useBulkDocumentOperation,
   useDeleteDocument,
   useDeleteKnowledgeBase,
@@ -129,6 +131,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('KnowledgeBase')
@@ -313,6 +316,7 @@ export function KnowledgeBase({
 
   useOAuthReturnForKBConnectors(id)
   const userPermissions = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
 
   const { mutate: updateDocumentMutation, mutateAsync: updateDocumentAsync } = useUpdateDocument()
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
@@ -1009,6 +1013,9 @@ export function KnowledgeBase({
 
   const headerActions: ResourceAction[] = useMemo(
     () => [
+      ...(permissionConfig.disableKnowledgeBaseExport
+        ? []
+        : [{ text: 'Export', icon: Download, onSelect: () => downloadKnowledgeBaseExport(id) }]),
       ...(userPermissions.canEdit || userPermissions.isLoading
         ? [
             {
@@ -1028,6 +1035,8 @@ export function KnowledgeBase({
       },
     ],
     [
+      id,
+      permissionConfig.disableKnowledgeBaseExport,
       userPermissions.canEdit,
       userPermissions.isLoading,
       setShowAddConnectorModal,

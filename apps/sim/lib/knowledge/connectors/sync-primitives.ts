@@ -30,7 +30,7 @@ import {
   MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
-import { isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import type {
   ConnectorConfig,
   ExternalChange,
@@ -239,9 +239,9 @@ export function shouldReplaceExistingWithSkippedDocument(
  *   content stays last-known-good unless the connector marks the skip authoritative.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
- * - A deferred listing always rehydrates an existing content-less placeholder,
- *   even when its listing hash is unchanged, so a prior hydration-time skip can
- *   recover when the source becomes indexable.
+ * - A deferred listing rehydrates an existing content-less placeholder unless
+ *   the connector explicitly guarantees its skip recovers only on source changes.
+ *   Source failures and explicit rehydration always retry.
  *
  * `forceRehydrate` (set on a full resync of a `rehydrateOnFullSync` connector) promotes
  * an otherwise-`unchanged` deferred document to `update` so its content is re-fetched —
@@ -258,6 +258,7 @@ export function classifyExternalDoc(
     | 'contentHash'
     | 'skippedReason'
     | 'skippedExistingDisposition'
+    | 'skippedRetryPolicy'
   >,
   existing: { id: string; contentHash: string | null; storageKey?: string | null } | undefined,
   forceRehydrate = false
@@ -274,10 +275,14 @@ export function classifyExternalDoc(
   if (!existing) {
     return { type: 'add' }
   }
-  if (existing.storageKey === null && extDoc.contentDeferred) {
+  if (
+    existing.storageKey === null &&
+    extDoc.contentDeferred &&
+    extDoc.skippedRetryPolicy !== 'source-change'
+  ) {
     return { type: 'update', existingId: existing.id }
   }
-  if (existing.contentHash !== extDoc.contentHash) {
+  if (existing.contentHash === null || existing.contentHash !== extDoc.contentHash) {
     return { type: 'update', existingId: existing.id }
   }
   if (forceRehydrate && extDoc.contentDeferred) {
@@ -313,8 +318,9 @@ export function mergeHydratedDocument(
  *
  * A skipped hydration did not verify indexable content, so its provider-specific
  * fallback hash cannot supersede the listing hash used by the next sync's change
- * classification. Keeping the listing hash makes a newly persisted skip stable
- * until the source metadata changes. A connector can explicitly provide
+ * classification. A source-change retry policy instead requires the hydrated
+ * version: a listing/hydration race must not cache a skip for an unverified version.
+ * A connector can explicitly provide
  * `skippedRetryContentHash` when the skip must be retried independently of that
  * metadata, such as a Notion nested block whose access changes without editing
  * its parent page.
@@ -326,7 +332,9 @@ export function mergeHydratedSkippedDocument(
   return {
     ...stub,
     content: '',
-    contentHash: hydrated.skippedRetryContentHash ?? stub.contentHash,
+    contentHash:
+      hydrated.skippedRetryContentHash ??
+      (stub.skippedRetryPolicy === 'source-change' ? hydrated.contentHash : stub.contentHash),
     contentDeferred: false,
     skippedReason: hydrated.skippedReason,
     skippedExistingDisposition: hydrated.skippedExistingDisposition,
@@ -1025,6 +1033,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
       const contentOps = rawBatch.filter((op) => op.type !== 'skip')
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
+      let hydrationDeferral: unknown
+      const deferredExternalIds = new Set<string>()
 
       if (deferredOps.length > 0) {
         await input.hydration.beforeHydration?.()
@@ -1074,16 +1084,19 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
               return null
             }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            const existing = priorByExternalId.get(op.extDoc.externalId)
             /**
              * Normally an update whose hydrated hash matches the stored hash is a
-             * no-op (content unchanged). On a forced re-hydration the hash is
-             * version-based and cannot reflect the rendered-dependency change we are
-             * refreshing for, so re-index unconditionally instead of skipping.
+             * no-op when stored content exists. Content-less placeholders must
+             * index newly recovered text even if the source version is unchanged.
+             * Forced rehydration also refreshes rendered dependencies whose changes
+             * are not represented by the parent version hash.
              */
             if (
               op.type === 'update' &&
               !forceRehydrate &&
-              priorByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
+              existing?.storageKey !== null &&
+              existing?.contentHash === hydratedHash
             ) {
               result.docsUnchanged++
               return null
@@ -1092,19 +1105,21 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
           })
         )
 
-        const rateLimitFailure = hydrated.find(
-          (outcome): outcome is PromiseRejectedResult =>
-            outcome.status === 'rejected' && isRateLimitError(outcome.reason)
-        )
-        if (rateLimitFailure) {
-          throw rateLimitFailure.reason
-        }
-
         for (let i = 0; i < hydrated.length; i++) {
           const outcome = hydrated[i]
           if (outcome.status === 'fulfilled' && outcome.value) {
             readyOps.push(outcome.value)
           } else if (outcome.status === 'rejected') {
+            if (isRateLimitError(outcome.reason)) {
+              deferredExternalIds.add(deferredOps[i].extDoc.externalId)
+              if (
+                hydrationDeferral === undefined ||
+                (getRetryAfterMs(outcome.reason) ?? 0) > (getRetryAfterMs(hydrationDeferral) ?? 0)
+              ) {
+                hydrationDeferral = outcome.reason
+              }
+              continue
+            }
             result.docsFailed++
             failedExternalIds.add(deferredOps[i].extDoc.externalId)
             logger.error('Failed to hydrate deferred document', {
@@ -1238,7 +1253,12 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         if (pendingDispatch.length === PROCESSING_DISPATCH_BATCH_SIZE) await flushDispatch()
       }
       if (!bufferDispatch) await flushDispatch()
-      await input.onBatchComplete?.(rawBatch.map((op) => op.extDoc))
+      /** Persist completed siblings before yielding; deferred sources remain on this page for retry. */
+      const attempted = rawBatch
+        .filter((op) => !deferredExternalIds.has(op.extDoc.externalId))
+        .map((op) => op.extDoc)
+      if (attempted.length > 0) await input.onBatchComplete?.(attempted)
+      if (hydrationDeferral !== undefined) throw hydrationDeferral
     }
     return true
   } finally {

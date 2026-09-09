@@ -89,8 +89,10 @@ export async function uploadToS3(
   size?: number,
   skipTimestampPrefix?: boolean,
   metadata?: Record<string, string>,
-  createOnly = false
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: S3Config
   let fileSize: number
   let shouldSkipTimestamp: boolean
@@ -127,8 +129,10 @@ export async function uploadToS3(
       ContentType: contentType,
       Metadata: s3Metadata,
       ...(createOnly ? { IfNoneMatch: '*' } : {}),
-    })
+    }),
+    ...(signal ? [{ abortSignal: signal }] : [])
   )
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -344,17 +348,28 @@ export async function deleteFromS3(key: string): Promise<void>
  * @param key S3 object key
  * @param customConfig Custom S3 configuration
  */
-export async function deleteFromS3(key: string, customConfig: S3Config): Promise<void>
+export async function deleteFromS3(
+  key: string,
+  customConfig: S3Config | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromS3(key: string, customConfig?: S3Config): Promise<void> {
+export async function deleteFromS3(
+  key: string,
+  customConfig?: S3Config,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   await getS3Client().send(
     new DeleteObjectCommand({
       Bucket: config.bucket,
       Key: key,
-    })
+    }),
+    ...(signal ? [{ abortSignal: signal }] : [])
   )
+  signal?.throwIfAborted()
 }
 
 /** S3 `DeleteObjects` hard cap. */

@@ -1718,7 +1718,8 @@ async function handleExecutePost(
               isSecureMode: false,
               workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
               onStream,
-              onBlockComplete,
+              onBlockComplete: (blockId, data) =>
+                onBlockComplete(blockId, data.output, data.outputBlockId),
               skipLoggingComplete: true,
               includeFileBase64,
               base64MaxBytes,

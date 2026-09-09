@@ -17,9 +17,6 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
-import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import {
   applyStorageUsageDeltasInTx,
   maybeNotifyStorageLimitForBillingContext,
@@ -104,20 +101,11 @@ async function assertKnowledgeBaseFolder(
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
 
-type KnowledgeBaseStorageMove =
-  | {
-      kind: 'workspace-to-workspace'
-      sourceContext: StorageBillingContext
-      sourceWorkspaceId: string
-      destinationContext: StorageBillingContext
-    }
-  | {
-      kind: 'personal-to-workspace'
-      sourceWorkspaceId: null
-      destinationContext: StorageBillingContext
-      ownerSubscription: HighestPrioritySubscription | null
-      ownerUserId: string
-    }
+interface KnowledgeBaseStorageMove {
+  sourceContext: StorageBillingContext
+  sourceWorkspaceId: string
+  destinationContext: StorageBillingContext
+}
 
 /** The columns a knowledge-base keyset orders and resumes on. */
 interface KnowledgeBaseSortRow {
@@ -348,75 +336,6 @@ export async function getWorkspaceKnowledgeBases(
   }
 }
 
-/**
- * Lists the caller's legacy personal knowledge bases — the ones that predate workspaces and
- * carry no `workspaceId`, where the creator is the only possible authority. Workspace-owned
- * rows are read by {@link getWorkspaceKnowledgeBases} after an application use case has
- * authorized the workspace; nothing here re-derives that access.
- *
- * @deprecated Nothing creates workspace-less knowledge bases any more, so this population only
- * shrinks. Backfill the remaining rows onto a workspace and this function, its branch in
- * {@link listWorkspaceAndLegacyKnowledgeBases}, and the concept itself can go.
- */
-async function readLegacyPersonalKnowledgeBaseRows(
-  userId: string,
-  scope: KnowledgeBaseScope
-): Promise<
-  Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
-> {
-  const rows = await readKnowledgeBaseRows(
-    and(
-      knowledgeBaseScopeCondition(scope),
-      eq(knowledgeBase.userId, userId),
-      isNull(knowledgeBase.workspaceId),
-      isNull(knowledgeBase.organizationId)
-    ),
-    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc')
-  )
-
-  return rows
-}
-
-export async function getLegacyPersonalKnowledgeBases(
-  userId: string,
-  scope: KnowledgeBaseScope = 'active'
-): Promise<KnowledgeBaseWithCounts[]> {
-  return attachConnectorTypes(await readLegacyPersonalKnowledgeBaseRows(userId, scope))
-}
-
-/**
- * Every knowledge base a caller can see under one workspace, as one ordered list.
- *
- * Two reads, because the list answers to two authorities. The workspace's own rows are read
- * once the caller has been authorized FOR that workspace — re-deriving that access from a
- * `permissions` row would contradict the authorization that just passed, since workspace
- * `admin` can come from an organization role with no such row behind it. Legacy workspace-less
- * bases answer only to their creator and belong under no workspace at all, so they ride along
- * here; otherwise they are reachable from nowhere.
- *
- * Callers authorize first. Nothing here decides access.
- */
-export async function listWorkspaceAndLegacyKnowledgeBases(
-  userId: string,
-  workspaceId: string,
-  scope: KnowledgeBaseScope = 'active',
-  access?: KnowledgeAccessScope
-): Promise<KnowledgeBaseWithCounts[]> {
-  const [workspaceRows, legacyPersonalRows] = await Promise.all([
-    readWorkspaceKnowledgeBaseRows(workspaceId, scope, { access }).then((page) => page.data),
-    readLegacyPersonalKnowledgeBaseRows(userId, scope),
-  ])
-
-  /** One connector projection over the merged set, rather than one per source. */
-  return attachConnectorTypes(
-    legacyPersonalRows.length === 0
-      ? workspaceRows
-      : [...workspaceRows, ...legacyPersonalRows].sort(
-          (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-        )
-  )
-}
-
 /** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
 export async function findActiveKnowledgeBasesByExactName(
   workspaceId: string,
@@ -645,7 +564,12 @@ export async function updateKnowledgeBase(
     if (!kbSnapshot) {
       throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     }
-    const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
+    if (!kbSnapshot.workspaceId) {
+      throw new KnowledgeBasePermissionError(
+        'Only workspace knowledge bases can move between workspaces'
+      )
+    }
+    const sourceWorkspaceId = kbSnapshot.workspaceId
     const destinationWorkspaceId = updates.workspaceId
 
     /**
@@ -661,33 +585,15 @@ export async function updateKnowledgeBase(
       updateData.folderId = null
     }
 
-    if (
-      sourceWorkspaceId &&
-      destinationWorkspaceId &&
-      sourceWorkspaceId !== destinationWorkspaceId
-    ) {
+    if (sourceWorkspaceId !== destinationWorkspaceId) {
       const [sourceContext, destinationContext] = await Promise.all([
         resolveStorageBillingContext(sourceWorkspaceId),
         resolveStorageBillingContext(destinationWorkspaceId),
       ])
       storageMove = {
-        kind: 'workspace-to-workspace',
         sourceWorkspaceId,
         sourceContext,
         destinationContext,
-      }
-    } else if (!sourceWorkspaceId && destinationWorkspaceId) {
-      const [destinationContext, ownerSubscription] = await Promise.all([
-        resolveStorageBillingContext(destinationWorkspaceId),
-        getHighestPrioritySubscription(kbSnapshot.userId),
-        ensureUserStatsExists(kbSnapshot.userId),
-      ])
-      storageMove = {
-        kind: 'personal-to-workspace',
-        sourceWorkspaceId: null,
-        destinationContext,
-        ownerUserId: kbSnapshot.userId,
-        ownerSubscription,
       }
     }
   }
@@ -807,28 +713,13 @@ export async function updateKnowledgeBase(
           )
           .limit(1)
         const billableBytes = Number(billableStorage?.bytes ?? 0)
-        if (storageMove.kind === 'workspace-to-workspace') {
-          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
-            workspaceDeltas: [
-              { context: storageMove.sourceContext, deltaBytes: -billableBytes },
-              { context: storageMove.destinationContext, deltaBytes: billableBytes },
-            ],
-            legacyDeltas: [],
-          })
-        } else {
-          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
-            workspaceDeltas: [
-              { context: storageMove.destinationContext, deltaBytes: billableBytes },
-            ],
-            legacyDeltas: [
-              {
-                userId: storageMove.ownerUserId,
-                subscription: storageMove.ownerSubscription,
-                deltaBytes: -billableBytes,
-              },
-            ],
-          })
-        }
+        transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+          workspaceDeltas: [
+            { context: storageMove.sourceContext, deltaBytes: -billableBytes },
+            { context: storageMove.destinationContext, deltaBytes: billableBytes },
+          ],
+          legacyDeltas: [],
+        })
       }
 
       await tx
@@ -844,14 +735,7 @@ export async function updateKnowledgeBase(
           )
         )
 
-      // When a KB changes workspace, re-point the ownership bindings for its
-      // stored files so file authorization (which resolves the owning workspace
-      // from the trusted binding, not from document.fileUrl) follows the KB to
-      // its new workspace. Only bindings the KB's *current* workspace already
-      // owns are moved: this scopes the update to this KB's own files and
-      // prevents a document referencing another tenant's key (e.g. one planted
-      // while the KB had no workspace) from hijacking that key's binding on
-      // move. A null current workspace owns no bindings, so nothing is moved.
+      /** Move only bindings currently owned by this KB's workspace. */
       if (updates.workspaceId !== undefined) {
         const currentWorkspaceId = currentKb.workspaceId ?? null
         const targetWorkspaceId = updates.workspaceId
@@ -892,16 +776,9 @@ export async function updateKnowledgeBase(
   }
 
   if (storageMove && destinationUpdatedUsage !== undefined) {
-    if (storageMove.kind === 'workspace-to-workspace') {
-      const sourcePayer = storageMove.sourceContext.billingEntity
-      const destinationPayer = storageMove.destinationContext.billingEntity
-      if (sourcePayer.type !== destinationPayer.type || sourcePayer.id !== destinationPayer.id) {
-        void maybeNotifyStorageLimitForBillingContext(
-          storageMove.destinationContext,
-          destinationUpdatedUsage
-        )
-      }
-    } else if (storageMove.kind === 'personal-to-workspace') {
+    const sourcePayer = storageMove.sourceContext.billingEntity
+    const destinationPayer = storageMove.destinationContext.billingEntity
+    if (sourcePayer.type !== destinationPayer.type || sourcePayer.id !== destinationPayer.id) {
       void maybeNotifyStorageLimitForBillingContext(
         storageMove.destinationContext,
         destinationUpdatedUsage
@@ -1066,6 +943,11 @@ export async function deleteKnowledgeBase(
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
+    /**
+     * Soft deletion leaves the referenced key intact. Allow embedding inserts to
+     * take their foreign-key KEY SHARE lock while holding a document row lock,
+     * so they can finish before we archive that document without a lock cycle.
+     */
     const [locked] = await tx
       .select({
         id: knowledgeBase.id,
@@ -1084,7 +966,7 @@ export async function deleteKnowledgeBase(
         )
       )
       .limit(1)
-      .for('update')
+      .for('no key update')
     if (!locked) throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     if (locked.isSearchIndex && !options?.allowSearchIndexDelete) {
       throw new KnowledgeBasePermissionError('Only workspace admins can delete the search index')

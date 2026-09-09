@@ -1605,36 +1605,6 @@ export async function requireTableRowIds(
   }
 }
 
-/**
- * Fetches the `data` payloads for a set of rows by id, scoped to a table and
- * workspace. Returns lightweight `{ id, data }` records (no executions) in the
- * order the ids were requested, silently skipping ids that don't resolve. Used
- * to materialize a `table_selection` chat context server-side so the agent gets
- * fresh, authoritative cell values instead of trusting client-sent copies.
- */
-export async function getRowsByIds(
-  tableId: string,
-  rowIds: string[],
-  workspaceId: string
-): Promise<Array<{ id: string; data: RowData }>> {
-  const uniqueIds = Array.from(new Set(rowIds))
-  if (uniqueIds.length === 0) return []
-
-  const results = await db
-    .select({ id: userTableRows.id, data: userTableRows.data })
-    .from(userTableRows)
-    .where(
-      and(
-        inArray(userTableRows.id, uniqueIds),
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId)
-      )
-    )
-
-  const byId = new Map(results.map((r) => [r.id, r.data as RowData]))
-  return uniqueIds.filter((id) => byId.has(id)).map((id) => ({ id, data: byId.get(id) as RowData }))
-}
-
 /** Internal: thrown inside `db.transaction` to roll back when the executions
  *  guard rejects a write. The outer `.catch` translates it into a `null` return. */
 class GuardRejected extends Error {

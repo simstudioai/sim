@@ -5,7 +5,7 @@ import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,
   createCopilotApplicationPrincipal,
-  createTrustedCopilotPrincipal,
+  createCopilotChatPrincipal,
   createTrustedOrganizationCopilotPrincipal,
   requireTrustedCopilotExecutionContext,
   requireTrustedOrganizationCopilotContext,
@@ -61,15 +61,7 @@ export function resolveCopilotKnowledgePrincipal(
 export function createCopilotChatKnowledgePrincipal(
   context: CopilotChatKnowledgeDelegationContext
 ): DelegatedPrincipal {
-  return createTrustedCopilotPrincipal(
-    {
-      userId: context.userId,
-      workspaceId: context.workspaceId,
-      delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}`,
-      chatId: context.chatId,
-    },
-    knowledgeDelegation
-  )
+  return createCopilotChatPrincipal(context, knowledgeDelegationPolicy.audience)
 }
 
 /** Enters a registered knowledge application use case with trusted Copilot identity. */

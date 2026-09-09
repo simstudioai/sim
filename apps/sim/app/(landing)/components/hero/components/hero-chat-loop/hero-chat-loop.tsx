@@ -256,8 +256,6 @@ export function HeroChatLoop({
       </div>
 
       <div
-        data-preview-outline='frame'
-        data-preview-composer=''
         className={cn(
           'mx-auto w-[calc(100%-48px)] max-w-chat rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
           showWelcome

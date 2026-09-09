@@ -65,9 +65,10 @@ function editor() {
 async function submit(
   method: 'paste' | 'drop',
   target: Editor,
-  files = [new File(['image'], 'image.png', { type: 'image/png' })]
+  files = [new File(['image'], 'image.png', { type: 'image/png' })],
+  selection: number | { from: number; to: number } = 8
 ) {
-  await act(async () => target.commands.setTextSelection(8))
+  await act(async () => target.commands.setTextSelection(selection))
   if (method === 'drop') vi.spyOn(target.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
   const transfer = { files, items: [], types: ['Files'], getData: () => '' }
   const event = new Event(method, { bubbles: true, cancelable: true })
@@ -81,6 +82,112 @@ async function submit(
 }
 
 describe('field upload completion boundary', () => {
+  it.each(['paste', 'drop'] as const)(
+    '%s uploads a non-portable image without losing its accompanying fragment',
+    async (method) => {
+      const pending = Promise.withResolvers<{ url: string; alt: string }>()
+      upload.mockReturnValueOnce(pending.promise)
+      await render()
+      const owner = editor()
+      const before = owner.getJSON()
+      await act(async () => owner.commands.setTextSelection({ from: 8, to: 14 }))
+      if (method === 'drop')
+        vi.spyOn(owner.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      const html =
+        '<p>Lead</p><h2>Caption</h2><p><a href="/destination"><img src="/api/workspaces/source/files/inline?fileId=image" alt="Original alt" width="123"></a><strong>Tail</strong><img src="/other.png" alt="Other"></p>'
+      const event = new MouseEvent(method, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
+        value: {
+          files: [new File(['image'], 'image.png', { type: 'image/png' })],
+          items: [],
+          types: ['Files', 'text/html'],
+          getData: (type: string) => (type === 'text/html' ? html : ''),
+        },
+      })
+      await act(async () => owner.view.dom.dispatchEvent(event))
+      expect(upload).toHaveBeenCalledOnce()
+      expect(owner.getJSON()).toEqual(before)
+      await act(async () => owner.commands.insertContentAt(1, 'prefix '))
+      await act(async () => pending.resolve({ url: '/api/files/view/uploaded', alt: 'New alt' }))
+      expect(owner.state.doc.textContent).toBe(
+        method === 'paste'
+          ? 'prefix before LeadCaptionTail after'
+          : 'prefix before LeadCaptionTailTARGET after'
+      )
+      expect(host.querySelector('h2')?.textContent).toBe('Caption')
+      expect(host.querySelector('strong')?.textContent).toBe('Tail')
+      expect(host.querySelector('a')?.getAttribute('href')).toBe('/destination')
+      expect(
+        Array.from(host.querySelectorAll('img')).map((image) => image.getAttribute('src'))
+      ).toEqual(['/api/files/view/uploaded', '/other.png'])
+      expect(host.querySelector('img')?.getAttribute('alt')).toBe('Original alt')
+      expect(owner.getMarkdown()).toContain('width="123"')
+      expect(owner.getMarkdown()).not.toContain('/inline?')
+      expect(() => owner.state.doc.check()).not.toThrow()
+    }
+  )
+
+  it('replaces the selected range only after a pasted image finishes uploading', async () => {
+    const pending = Promise.withResolvers<{ url: string; alt: string }>()
+    upload.mockReturnValueOnce(pending.promise)
+    await render()
+    const owner = editor()
+    const before = owner.getJSON()
+    await submit('paste', owner, undefined, { from: 8, to: 14 })
+    expect(owner.getJSON()).toEqual(before)
+    await act(async () =>
+      pending.resolve({ url: 'https://sim.ai/replacement.png', alt: 'Replacement' })
+    )
+    expect(owner.state.doc.textContent).toBe('before  after')
+    expect(host.querySelectorAll('img')).toHaveLength(1)
+    await act(async () => owner.commands.undo())
+    expect(owner.getJSON()).toEqual(before)
+  })
+
+  it.each(['paste', 'drop'] as const)(
+    '%s preserves the whole HTML slice when the payload also contains a bitmap file',
+    async (method) => {
+      await render()
+      const owner = editor()
+      await act(async () => owner.commands.setTextSelection({ from: 8, to: 14 }))
+      if (method === 'drop')
+        vi.spyOn(owner.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      const html =
+        '<p>Lead</p><h2>Caption</h2><p><a href="https://sim.ai/link"><img src="https://sim.ai/one.png" alt="One" width="123"></a>Tail<img src="https://sim.ai/two.png" alt="Two" width="234"></p>'
+      const transfer = {
+        files: [new File(['image'], 'image.png', { type: 'image/png' })],
+        items: [],
+        types: ['text/html', 'text/plain', 'Files'],
+        getData: (type: string) =>
+          type === 'text/html' ? html : type === 'text/plain' ? 'CaptionTail' : '',
+      }
+      const event = new MouseEvent(method, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
+        value: transfer,
+      })
+      await act(async () => owner.view.dom.dispatchEvent(event))
+      expect(event.defaultPrevented).toBe(true)
+      expect(upload).not.toHaveBeenCalled()
+      expect(host.querySelector('h2')?.textContent).toBe('Caption')
+      expect(owner.state.doc.textContent).toContain('Tail')
+      expect(Array.from(host.querySelectorAll('img')).map((image) => image.alt)).toEqual([
+        'One',
+        'Two',
+      ])
+      const images: Array<{ src: string; width: string; href: string | null }> = []
+      owner.state.doc.descendants((node) => {
+        if (node.type.name === 'image' || node.type.name === 'inlineImage') {
+          images.push({ src: node.attrs.src, width: node.attrs.width, href: node.attrs.href })
+        }
+      })
+      expect(images).toEqual([
+        { src: 'https://sim.ai/one.png', width: '123', href: 'https://sim.ai/link' },
+        { src: 'https://sim.ai/two.png', width: '234', href: null },
+      ])
+      expect(() => owner.state.doc.check()).not.toThrow()
+    }
+  )
+
   it('invalidates an upload even when streaming ends before completion', async () => {
     const pending = Promise.withResolvers<{ url: string; alt: string }>()
     upload.mockReturnValueOnce(pending.promise)

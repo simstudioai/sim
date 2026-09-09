@@ -78,7 +78,7 @@ vi.mock('@/lib/table', () => ({
 }))
 vi.mock('@/lib/table/wire', () => ({ normalizeColumn: (column: unknown) => column }))
 vi.mock('@/lib/knowledge/service', () => ({
-  listWorkspaceAndLegacyKnowledgeBases: mockListKnowledgeBases,
+  getWorkspaceKnowledgeBases: mockListKnowledgeBases,
   getKnowledgeBaseById: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/orchestration', () => ({ performCreateKnowledgeBase: vi.fn() }))
@@ -158,7 +158,7 @@ beforeEach(() => {
   mockGetUserEntityPermissions.mockResolvedValue('admin')
   mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
   mockListTables.mockResolvedValue([])
-  mockListKnowledgeBases.mockResolvedValue([])
+  mockListKnowledgeBases.mockResolvedValue({ data: [], nextCursorKeys: null })
   mockListWorkspaceFiles.mockResolvedValue([])
   mockListPublicWorkflowLogs.mockResolvedValue({ data: [], nextCursor: null })
   mockGetDeploymentWorkflowTarget.mockResolvedValue({

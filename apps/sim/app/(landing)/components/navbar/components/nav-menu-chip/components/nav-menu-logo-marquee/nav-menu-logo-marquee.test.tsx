@@ -10,9 +10,15 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('next/image', () => ({
-  default: ({ alt, className }: { alt: string; className?: string }) => (
-    <img alt={alt} className={className} />
-  ),
+  default: ({
+    alt,
+    className,
+    draggable,
+  }: {
+    alt: string
+    className?: string
+    draggable?: boolean
+  }) => <img alt={alt} className={className} draggable={draggable} />,
 }))
 
 import { LOGOS } from '@/app/(landing)/components/logos'
@@ -23,7 +29,7 @@ afterEach(() => {
 })
 
 describe('NavMenuLogoMarquee', () => {
-  it('loops two copies of the shared logo row and hides the second from assistive technology', () => {
+  it('loops two non-draggable logo rows and hides the second from assistive technology', () => {
     const host = document.createElement('div')
     document.body.append(host)
     act(() => {
@@ -42,6 +48,10 @@ describe('NavMenuLogoMarquee', () => {
     expect(named).toEqual(LOGOS.map((logo) => logo.name))
     for (const img of rows[1].querySelectorAll('img')) {
       expect(img.getAttribute('alt')).toBe('')
+    }
+
+    for (const img of host.querySelectorAll('img')) {
+      expect(img.getAttribute('draggable')).toBe('false')
     }
 
     const track = rows[0].parentElement

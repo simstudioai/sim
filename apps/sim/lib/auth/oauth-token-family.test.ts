@@ -8,6 +8,7 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationUserMutationLocks: vi.fn(async () => undefined),
   getUserOrganization: vi.fn(async () => null),
 }))
+vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 vi.mock('@/lib/permission-groups/locks', () => ({
   acquirePermissionGroupOrgLock: vi.fn(async () => undefined),
 }))
@@ -127,6 +128,21 @@ describe('OAuth refresh audience binding', () => {
       expect.objectContaining({ resource, scopes: ['offline_access'] })
     )
   })
+
+  it.each([undefined, 'https://sim.example/api/mcp/search/workspace-one'])(
+    'does not renew a removed workspace resource when resource is %s',
+    async (requestedResource) => {
+      queueGrant('https://sim.example/api/mcp/search/workspace-one')
+      const result = await rotateOAuthRefreshToken({
+        credentials,
+        refreshToken: 'sim_ort_original',
+        ...(requestedResource ? { resource: requestedResource } : {}),
+      })
+      expect(result).toMatchObject({ success: false, error: 'invalid_target' })
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    }
+  )
 
   it('preserves unscoped API grants and refuses scope escalation', async () => {
     queueGrant(null, ['api:read', 'offline_access'])

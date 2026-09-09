@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { chunkArray } from '@sim/utils/helpers'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
@@ -14,6 +15,7 @@ import {
   recordProviderCooldown,
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -41,6 +43,8 @@ import {
 } from '@/lib/embeddings/quota-circuit'
 import { resolveEmbeddingRetryDelayMs } from '@/lib/embeddings/rate-limit'
 import type {
+  EmbeddingBatchCheckpoints,
+  EmbeddingBatchResult,
   EmbeddingProviderAdapter,
   EmbeddingProviderKind,
   EmbeddingTaskType,
@@ -54,7 +58,11 @@ import {
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 import { estimateTokenCount } from '@/lib/tokenization'
-import { batchByTokenLimit, truncateToTokenLimit } from '@/lib/tokenization/accurate'
+import {
+  batchByTokenLimit,
+  getAccurateTokenCount,
+  truncateToTokenLimit,
+} from '@/lib/tokenization/accurate'
 
 const logger = createLogger('EmbeddingClient')
 
@@ -138,7 +146,8 @@ export const EMBEDDING_MAX_RETRY_DELAY_MS = 30_000
  * Longest a request can stay in the retry loop. An admitted provider-stated wait
  * is honored in full when it fits inside this deadline.
  */
-const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
+export const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
+const KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS = 5000
 
 export class EmbeddingAPIError extends Error {
   public status: number
@@ -167,6 +176,15 @@ class EmbeddingResponseValidationError extends EmbeddingAPIError {
   constructor(message: string) {
     super(`Embedding API returned an invalid success response: ${message}`, 502)
     this.name = 'EmbeddingResponseValidationError'
+  }
+}
+
+export class EmbeddingInputLimitError extends Error {
+  constructor(model: string, maxInputTokens: number) {
+    super(
+      `A projected embedding input exceeds the ${maxInputTokens.toLocaleString()}-token limit for ${model}. Reduce the knowledge-base chunk size and retry.`
+    )
+    this.name = 'EmbeddingInputLimitError'
   }
 }
 
@@ -515,7 +533,8 @@ async function callEmbeddingAPI(
   requestedDimensions: number | undefined,
   expectedDimensions: number | undefined,
   isBYOK: boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  admissionWaitMs = EMBEDDING_RETRY_BUDGET_MS
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
   return retryWithExponentialBackoff(
@@ -533,7 +552,7 @@ async function callEmbeddingAPI(
             0
           ),
           signal: operationSignal,
-          maxWaitMs: Math.max(0, deadlineAt - Date.now()),
+          maxWaitMs: Math.min(admissionWaitMs, Math.max(0, deadlineAt - Date.now())),
         })
       } catch (error) {
         if (error instanceof ProviderQuotaExhaustedError)
@@ -650,7 +669,17 @@ async function callEmbeddingAPI(
       retryCondition: (error) => !signal?.aborted && isWorthRetrying(error),
       signal,
     }
-  )
+  ).catch((error: unknown) => {
+    signal?.throwIfAborted()
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new ProviderCapacityDeferredError('provider_timeout', {
+        providerId,
+        retryAfterMs: 60_000,
+        cause: error,
+      })
+    }
+    throw error
+  })
 }
 
 interface EmbeddingInputLimits {
@@ -673,7 +702,8 @@ function prepareEmbeddingInputs(
   texts: string[],
   model: string,
   limits: EmbeddingInputLimits,
-  projectInputs: EmbedOptions['projectInputs']
+  projectInputs: EmbedOptions['projectInputs'],
+  inputOverflow: EmbedOptions['inputOverflow'] = 'truncate'
 ): string[] {
   /**
    * Projected before batching, not after. The projector rewrites resolved-secret
@@ -701,7 +731,15 @@ function prepareEmbeddingInputs(
    */
   const ceiling = limits.maxInputTokens
   const boundedInputs = modelInputs.map((text) => {
-    if (estimateTokenCount(text, limits.tokenizerProvider).count <= ceiling) return text
+    let tokenCount = estimateTokenCount(text, limits.tokenizerProvider).count
+    if (inputOverflow === 'reject') {
+      const tokenizerCount = getAccurateTokenCount(text, model)
+      tokenCount = limits.approximateTokenCount
+        ? Math.max(tokenCount, tokenizerCount)
+        : tokenizerCount
+    }
+    if (tokenCount <= ceiling) return text
+    if (inputOverflow === 'reject') throw new EmbeddingInputLimitError(model, ceiling)
     logger.warn('Embedding input exceeds the model token limit and will be truncated', {
       model,
       maxInputTokens: ceiling,
@@ -714,13 +752,106 @@ function prepareEmbeddingInputs(
   return boundedInputs
 }
 
+/** Stops admitting new work on failure and drains admitted batches before handing off ownership. */
+async function mapEmbeddingBatches<T, R>(
+  batches: readonly T[],
+  mapper: (batch: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const failures: unknown[] = []
+  const results = await mapWithConcurrency(
+    batches,
+    MAX_CONCURRENT_BATCHES,
+    async (batch, index) => {
+      if (failures.length > 0) return undefined
+      try {
+        return { value: await mapper(batch, index) }
+      } catch (error) {
+        failures.push(error)
+        return undefined
+      }
+    }
+  )
+  if (failures.length > 0) {
+    /** A slower terminal response must not disappear behind another batch's earlier throttle. */
+    const terminalFailure =
+      failures.find((error) => error instanceof Error && error.name === 'AbortError') ??
+      failures.find(
+        (error) => error instanceof EmbeddingAPIError && !isTransientEmbeddingError(error)
+      )
+    if (terminalFailure) throw terminalFailure
+    if (failures.length === 1) throw failures[0]
+    throw new AggregateError(failures, 'Embedding batches could not complete')
+  }
+  return results.map((result) => result!.value)
+}
+
+async function callCheckpointedEmbeddingBatch(
+  batch: string[],
+  batchIndex: number,
+  inputHash: string,
+  taskType: EmbeddingTaskType,
+  requestedDimensions: number | undefined,
+  provider: ResolvedProvider,
+  signal?: AbortSignal,
+  checkpoints?: EmbeddingBatchCheckpoints
+): Promise<EmbeddingBatchResult> {
+  signal?.throwIfAborted()
+  const identity = checkpoints
+    ? {
+        key: sha256Hex(
+          JSON.stringify({
+            version: 1,
+            inputHash,
+            batchIndex,
+            batchHash: sha256Hex(JSON.stringify(batch)),
+            ...embeddingAdmissionIdentity(provider),
+            modelName: provider.modelName,
+            endpoint: provider.adapter.buildRequest({
+              inputs: [],
+              taskType,
+              dimensions: requestedDimensions,
+            }).apiUrl,
+            dimensions: provider.dimensions,
+            requestedDimensions,
+            taskType,
+            isBYOK: provider.isBYOK,
+          })
+        ),
+        itemCount: batch.length,
+        dimensions: provider.dimensions,
+      }
+    : undefined
+  if (identity) {
+    const cached = await checkpoints!.load(identity, signal)
+    signal?.throwIfAborted()
+    if (cached) return cached
+    checkpoints!.beforeRequest()
+  }
+  const result = await callEmbeddingAPI(
+    batch,
+    provider.adapter,
+    provider.info.tokenizerProvider,
+    taskType,
+    provider.providerId,
+    provider.quotaCircuitIdentity,
+    requestedDimensions,
+    provider.dimensions,
+    provider.isBYOK,
+    signal,
+    checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined
+  )
+  if (identity) await checkpoints!.save(identity, result, signal)
+  return result
+}
+
 async function embedWithProvider(
   boundedInputs: string[],
   model: string,
   taskType: EmbeddingTaskType,
   requestedDimensions: number | undefined,
   provider: ResolvedProvider,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  checkpoints?: EmbeddingBatchCheckpoints
 ): Promise<EmbedResult> {
   signal?.throwIfAborted()
   assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, provider.dimensions)
@@ -732,41 +863,36 @@ async function embedWithProvider(
     provider.dimensions
   )
 
-  const batchResults = await mapWithConcurrency(
-    batches,
-    MAX_CONCURRENT_BATCHES,
-    async (batch, i) => {
-      try {
-        signal?.throwIfAborted()
-        return await callEmbeddingAPI(
-          batch,
-          provider.adapter,
-          provider.info.tokenizerProvider,
-          taskType,
-          provider.providerId,
-          provider.quotaCircuitIdentity,
-          requestedDimensions,
-          provider.dimensions,
-          provider.isBYOK,
-          signal
-        )
-      } catch (error) {
-        const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
-        if (isEmbeddingQuotaExhaustion(error)) {
-          logger.warn(message, { providerId: provider.providerId, quotaExhausted: true })
-        } else if (isBYOKEmbeddingCredentialRejection(error)) {
-          logger.warn(message, {
-            providerId: provider.providerId,
-            outcome: 'customer_configuration',
-            status: error.status,
-          })
-        } else {
-          logger.error(message, error)
-        }
-        throw error
+  const inputHash = checkpoints ? sha256Hex(JSON.stringify(boundedInputs)) : ''
+  const batchResults = await mapEmbeddingBatches(batches, async (batch, i) => {
+    try {
+      signal?.throwIfAborted()
+      return await callCheckpointedEmbeddingBatch(
+        batch,
+        i,
+        inputHash,
+        taskType,
+        requestedDimensions,
+        provider,
+        signal,
+        checkpoints
+      )
+    } catch (error) {
+      const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
+      if (isEmbeddingQuotaExhaustion(error)) {
+        logger.warn(message, { providerId: provider.providerId, quotaExhausted: true })
+      } else if (isBYOKEmbeddingCredentialRejection(error)) {
+        logger.warn(message, {
+          providerId: provider.providerId,
+          outcome: 'customer_configuration',
+          status: error.status,
+        })
+      } else {
+        logger.error(message, error)
       }
+      throw error
     }
-  )
+  })
 
   const { embeddings, totalTokens } = combineEmbeddingBatches(batchResults)
 
@@ -884,7 +1010,8 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     texts,
     model,
     getEmbeddingInputLimits(provider.info),
-    options.projectInputs
+    options.projectInputs,
+    options.inputOverflow
   )
   return embedWithProvider(
     boundedInputs,
@@ -892,7 +1019,8 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     taskType,
     options.dimensions,
     provider,
-    options.signal
+    options.signal,
+    options.checkpoints
   )
 }
 
@@ -1155,7 +1283,8 @@ export async function embedKnowledgeForDeployment(
     texts,
     model,
     getEmbeddingInputLimits(info),
-    options.projectInputs
+    options.projectInputs,
+    options.inputOverflow
   )
 
   const itemLimits = fallback.providers.flatMap((provider) =>
@@ -1168,43 +1297,38 @@ export async function embedKnowledgeForDeployment(
     itemLimits.length > 0 ? Math.min(...itemLimits) : undefined,
     dimensions
   )
-  const batchResults = await mapWithConcurrency(
-    batches,
-    MAX_CONCURRENT_BATCHES,
-    async (batch, i) => {
-      try {
-        options.signal?.throwIfAborted()
-        return await fallback.execute(async (provider) => ({
-          ...(await callEmbeddingAPI(
-            batch,
-            provider.adapter,
-            provider.info.tokenizerProvider,
-            taskType,
-            provider.providerId,
-            provider.quotaCircuitIdentity,
-            options.dimensions,
-            provider.dimensions,
-            provider.isBYOK,
-            options.signal
-          )),
+  const inputHash = options.checkpoints ? sha256Hex(JSON.stringify(boundedInputs)) : ''
+  const batchResults = await mapEmbeddingBatches(batches, async (batch, i) => {
+    try {
+      options.signal?.throwIfAborted()
+      return await fallback.execute(async (provider) => ({
+        ...(await callCheckpointedEmbeddingBatch(
+          batch,
+          i,
+          inputHash,
+          taskType,
+          options.dimensions,
           provider,
-        }))
-      } catch (error) {
-        const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
-        if (isEmbeddingQuotaExhaustion(error)) {
-          logger.warn(message, { quotaExhausted: true })
-        } else if (isBYOKEmbeddingCredentialRejection(error)) {
-          logger.warn(message, {
-            outcome: 'customer_configuration',
-            status: error.status,
-          })
-        } else {
-          logger.error(message, error)
-        }
-        throw error
+          options.signal,
+          options.checkpoints
+        )),
+        provider,
+      }))
+    } catch (error) {
+      const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
+      if (isEmbeddingQuotaExhaustion(error)) {
+        logger.warn(message, { quotaExhausted: true })
+      } else if (isBYOKEmbeddingCredentialRejection(error)) {
+        logger.warn(message, {
+          outcome: 'customer_configuration',
+          status: error.status,
+        })
+      } else {
+        logger.error(message, error)
       }
+      throw error
     }
-  )
+  })
   const { embeddings, totalTokens } = combineEmbeddingBatches(batchResults)
   const defaultProvider = fallback.providers[0]
   const usedProviders = batchResults.map((batch) => batch.provider)

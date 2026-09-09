@@ -360,6 +360,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'knowledgebase/chunking-strategies.mdx',
   'knowledgebase/connectors.mdx',
   'knowledgebase/debugging-retrieval.mdx',
+  'knowledgebase/export-import.mdx',
   'knowledgebase/tags.mdx',
   'knowledgebase/using-in-workflows.mdx',
   'logs-debugging.mdx',

@@ -7,7 +7,6 @@ import {
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
-  workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
@@ -31,7 +30,6 @@ import {
   sql,
 } from 'drizzle-orm'
 import { searchFilter } from '@/lib/api/list-query'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
@@ -39,13 +37,9 @@ import {
   checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
-import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   applyStorageUsageDeltasInTx,
-  checkAndIncrementStorageUsageInTx,
-  checkStorageQuota,
   checkStorageQuotaForBillingContext,
   incrementStorageUsageForBillingContextInTx,
   maybeNotifyStorageLimitForBillingContext,
@@ -53,21 +47,14 @@ import {
   type StorageBillingContext,
   StorageLimitExceededError,
 } from '@/lib/billing/storage'
-import {
-  checkAndBillOverageThreshold,
-  checkAndBillPayerOverageThreshold,
-} from '@/lib/billing/threshold-billing'
+import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  type ResourceOwner,
-  resourceScopeFromOwner,
-  sameResourceScope,
-} from '@/lib/core/resource-scope'
+import type { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   assertKnowledgeEmbeddingCapacity,
@@ -92,8 +79,10 @@ import {
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   assertDocumentChunkCountWithinLimit,
+  getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
+  OcrRequestRejectedError,
   PermanentDocumentProcessingError,
   toPermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
@@ -102,23 +91,35 @@ import {
   processDocument,
   type SourceFileAccess,
 } from '@/lib/knowledge/documents/document-processor'
+import { createEmbeddingCheckpoints } from '@/lib/knowledge/documents/embedding-checkpoints'
 import {
   failStaleDocumentProcessingClaim,
   recordUndispatchedDocumentFailure,
 } from '@/lib/knowledge/documents/processing-claim'
+import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
-  createNonWorkspaceDocumentProcessingBillingContext,
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
   type DocumentProcessingBillingContext,
   type DocumentProcessingPayload,
   hasDocumentProcessingBillingScope,
 } from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingProviderContinuation } from '@/lib/knowledge/documents/processing-provider-continuation'
+import {
+  getProviderCapacityDeferral,
+  ProviderCapacityContinuationExhaustedError,
+} from '@/lib/knowledge/documents/processing-provider-deferral'
 import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
+import {
+  enqueueKnowledgeStorageCleanup,
+  getKnowledgeBaseStorageKey,
+  isKnowledgeBaseOwnedStorageKey,
+  type KnowledgeStorageCleanupDocument,
+} from '@/lib/knowledge/documents/storage-cleanup'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
@@ -161,14 +162,8 @@ import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
-import {
-  deleteFileMetadataByIdentity,
-  type FileMetadataRecord,
-  getFileMetadataByKeys,
-} from '@/lib/uploads/server/metadata'
+import { type FileMetadataRecord, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
-import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
@@ -193,27 +188,7 @@ export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   }
 }
 
-/**
- * Guard document `fileUrl`s at creation time. When a URL points at an internal
- * knowledge-base storage object, require that the target knowledge base owns the object,
- * resolved from the trusted `workspace_files` binding:
- *
- * - Workspace KB (`kbWorkspaceId` set): the binding's `workspaceId` must match.
- * - Personal KB (`kbWorkspaceId` null): the binding's `userId` must be the KB
- *   owner. A key bound to another tenant is rejected; an unbound key (legacy /
- *   never reserved) passes since it carries no cross-tenant ownership.
- *
- * External `http(s)`/`data:` URLs (ingestion sources) and other internal keys
- * pass through unchanged. This blocks a user from asserting ownership of another
- * tenant's object via a planted `fileUrl` — including in a personal KB, which
- * otherwise could be moved into a workspace to launder the binding. All
- * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
- * window). Single-document callers pass a one-element array.
- */
-function isKnowledgeBaseOwnedStorageKey(key: string): boolean {
-  return key.startsWith('kb/') || key.startsWith('knowledge-base/')
-}
-
+/** Internal KB uploads require the workspace's trusted file binding; external ingestion URLs do not. */
 function getKnowledgeBaseStorageKeys(fileUrls: readonly string[]): string[] {
   return [
     ...new Set(
@@ -238,11 +213,14 @@ function getWorkspaceSourceStorageKeys(fileUrls: readonly string[]): string[] {
 
 async function loadKnowledgeBaseFileBindings(
   fileUrls: readonly string[],
-  executor: DbExecutor = db
+  executor: DbExecutor = db,
+  lock?: 'share'
 ): Promise<Map<string, FileMetadataRecord>> {
   const keys = getKnowledgeBaseStorageKeys(fileUrls)
   const bindings =
-    keys.length > 0 ? await getFileMetadataByKeys(keys, 'knowledge-base', executor) : []
+    keys.length > 0
+      ? await getFileMetadataByKeys(keys, 'knowledge-base', executor, lock ? { lock } : undefined)
+      : []
 
   return new Map(bindings.map((binding) => [binding.key, binding]))
 }
@@ -264,8 +242,7 @@ async function loadWorkspaceSourceFileBindings(
 
 async function assertKnowledgeBaseFileUrlsOwnership(
   fileUrls: string[],
-  kbWorkspaceId: string | null,
-  kbUserId: string,
+  kbWorkspaceId: string,
   requestId: string,
   executor: DbExecutor = db
 ): Promise<Map<string, FileMetadataRecord>> {
@@ -274,35 +251,16 @@ async function assertKnowledgeBaseFileUrlsOwnership(
     return new Map()
   }
 
-  const bindingByKey = await loadKnowledgeBaseFileBindings(fileUrls, executor)
+  const bindingByKey = await loadKnowledgeBaseFileBindings(fileUrls, executor, 'share')
 
   for (const key of keys) {
     const binding = bindingByKey.get(key)
-
-    if (kbWorkspaceId) {
-      if (!binding || binding.workspaceId !== kbWorkspaceId) {
-        logger.warn(`[${requestId}] Rejected document referencing unowned knowledge-base file`, {
-          storageKey: key,
-          kbWorkspaceId,
-          bindingWorkspaceId: binding?.workspaceId ?? null,
-        })
-        throw new KnowledgeBaseFileOwnershipError(key)
-      }
-      continue
-    }
-
-    // Personal KB: reject a key whose binding belongs to a different user. An
-    // unbound key carries no ownership and is allowed (legacy personal files).
-    if (binding && binding.userId !== kbUserId) {
-      logger.warn(
-        `[${requestId}] Rejected personal-KB document referencing another tenant's file`,
-        {
-          storageKey: key,
-          kbUserId,
-          bindingUserId: binding.userId,
-          bindingWorkspaceId: binding.workspaceId ?? null,
-        }
-      )
+    if (!binding || binding.workspaceId !== kbWorkspaceId) {
+      logger.warn(`[${requestId}] Rejected document referencing unowned knowledge-base file`, {
+        storageKey: key,
+        kbWorkspaceId,
+        bindingWorkspaceId: binding?.workspaceId ?? null,
+      })
       throw new KnowledgeBaseFileOwnershipError(key)
     }
   }
@@ -343,14 +301,22 @@ const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
 async function withTimeout<T>(
   run: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
-  operation = 'Operation'
+  operation = 'Operation',
+  parentSignal?: AbortSignal
 ): Promise<T> {
   const controller = new AbortController()
+  const signal = parentSignal
+    ? AbortSignal.any([controller.signal, parentSignal])
+    : controller.signal
   let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort: (() => void) | undefined
   try {
+    signal.throwIfAborted()
     return await Promise.race([
-      run(controller.signal),
+      run(signal),
       new Promise<never>((_, reject) => {
+        onAbort = () => reject(signal.reason)
+        signal.addEventListener('abort', onAbort, { once: true })
         timer = setTimeout(() => {
           const error = new Error(`${operation} timed out after ${timeoutMs}ms`)
           controller.abort(error)
@@ -363,6 +329,7 @@ async function withTimeout<T>(
     throw error
   } finally {
     clearTimeout(timer)
+    if (onAbort) signal.removeEventListener('abort', onAbort)
   }
 }
 
@@ -770,11 +737,7 @@ async function resolveDocumentProcessingBillingContext(
     return billingContext
   }
 
-  if (providedBillingAttribution !== undefined) {
-    throw new Error('Non-workspace document processing cannot include billing attribution')
-  }
-
-  return createNonWorkspaceDocumentProcessingBillingContext(knowledgeBaseContext.userId)
+  throw new Error('Document processing requires a workspace or organization owner')
 }
 
 /**
@@ -1072,8 +1035,10 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined,
-  lease?: ProcessingDispatchLease
+  lease?: ProcessingDispatchLease,
+  executionContext?: DocumentProcessingExecutionContext
 ): Promise<DocumentProcessingDispatchResult> {
+  executionContext?.signal?.throwIfAborted()
   const seenDocumentIds = new Set<string>()
   const uniqueDocuments = createdDocuments.filter((createdDocument) => {
     if (seenDocumentIds.has(createdDocument.documentId)) return false
@@ -1156,8 +1121,8 @@ export async function processDocumentsWithQueue(
   let dispatchedIds: Set<string>
   try {
     dispatchedIds = useTrigger
-      ? await dispatchViaBatchTrigger(jobPayloads, requestId)
-      : await dispatchInProcess(jobPayloads, requestId)
+      ? await dispatchViaBatchTrigger(jobPayloads, requestId, executionContext)
+      : await dispatchInProcess(jobPayloads, requestId, executionContext)
   } catch (error) {
     await bestEffortWithdrawDocumentsQueued(
       newlyClaimedIds,
@@ -1210,7 +1175,8 @@ export async function processDocumentsWithQueue(
 
 async function dispatchViaBatchTrigger(
   jobPayloads: DocumentProcessingPayload[],
-  requestId: string
+  requestId: string,
+  executionContext?: DocumentProcessingExecutionContext
 ): Promise<Set<string>> {
   const dispatchedIds = new Set<string>()
   const batchIds: string[] = []
@@ -1257,7 +1223,7 @@ async function dispatchViaBatchTrigger(
     logger.warn(
       `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
     )
-    const directlyDispatchedIds = await dispatchInProcess(undispatched, requestId)
+    const directlyDispatchedIds = await dispatchInProcess(undispatched, requestId, executionContext)
     for (const documentId of directlyDispatchedIds) dispatchedIds.add(documentId)
   }
 
@@ -1267,24 +1233,38 @@ async function dispatchViaBatchTrigger(
 /** Each in-process job runs chunking + embedding + many DB inserts. */
 const IN_PROCESS_DISPATCH_CONCURRENCY = 5
 
-export interface DocumentProcessingAttemptContext {
+/** Cancellation and execution bounds inherited from the worker admitting in-process work. */
+export interface DocumentProcessingExecutionContext {
+  readonly signal?: AbortSignal
+  readonly deadlineAt?: number
+}
+
+export interface DocumentProcessingAttemptContext extends DocumentProcessingExecutionContext {
   /** True only when this invocation follows a successful queue-budget charge. */
   readonly chargedAtDispatch: boolean
   /** Opaque generation token; absent only for payloads created before token rollout. */
   readonly processingQueueToken?: string
+  /** Exact generation allowed to transfer its already-enqueued continuation claim. */
+  readonly processingPredecessorToken?: string
+  readonly refundPredecessorAdmission?: boolean
   /** Queue generation this invocation is allowed to claim. */
   readonly processingQueuedAt?: Date
   /** Durably schedules the next quota attempt and returns its execution time. */
-  readonly scheduleQuotaContinuation?: () => Promise<Date>
+  readonly scheduleQuotaContinuation?: () => Promise<DocumentProcessingContinuation>
   /** The durable quota retry horizon was exhausted for this indexing pass. */
   readonly quotaContinuationExhausted?: boolean
+  /** Schedules capacity pressure outside the running worker and returns its due time. */
+  readonly scheduleProviderContinuation?: (
+    error: ProviderCapacityDeferredError
+  ) => Promise<DocumentProcessingContinuation>
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
 }
 
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
-  requestId: string
+  requestId: string,
+  executionContext?: DocumentProcessingExecutionContext
 ): Promise<Set<string>> {
   const results = await mapWithConcurrency(
     jobPayloads,
@@ -1300,10 +1280,23 @@ async function dispatchInProcess(
           p,
           p.requestId,
           {
+            ...executionContext,
             chargedAtDispatch: p.chargedAtDispatch ?? true,
             processingQueueToken: p.processingQueueToken,
             ...(p.processingQueuedAt ? { processingQueuedAt: new Date(p.processingQueuedAt) } : {}),
-            scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(p),
+            scheduleQuotaContinuation: () =>
+              scheduleDocumentProcessingQuotaContinuation(
+                p,
+                undefined,
+                p.chargedAtDispatch ?? true
+              ),
+            scheduleProviderContinuation: (error) =>
+              scheduleDocumentProcessingProviderContinuation(
+                p,
+                error,
+                undefined,
+                p.chargedAtDispatch ?? true
+              ),
             onClaimed: () => {
               processingClaimed = true
             },
@@ -1318,7 +1311,7 @@ async function dispatchInProcess(
         )
         return acceptedByLiveGeneration
       } catch (error) {
-        if (isPermanentDocumentProcessingError(error)) {
+        if (isPermanentDocumentProcessingError(error) || error instanceof OcrRequestRejectedError) {
           logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {
             code: error.code,
           })
@@ -1328,6 +1321,20 @@ async function dispatchInProcess(
           logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
             documentId: p.documentId,
             quotaRetryCount: p.quotaRetryCount ?? 0,
+          })
+          return true
+        }
+        if (
+          getProviderCapacityDeferral(error) ||
+          error instanceof ProviderCapacityContinuationExhaustedError
+        ) {
+          logger.warn(`[${requestId}] Provider capacity interrupted document processing`, {
+            documentId: p.documentId,
+            providerRetryCount: p.providerRetryCount ?? 0,
+            outcome:
+              error instanceof ProviderCapacityContinuationExhaustedError
+                ? 'provider_exhausted'
+                : 'provider_deferred',
           })
           return true
         }
@@ -1413,22 +1420,20 @@ export async function processDocumentAsync(
   const processingStartedAt = new Date()
   let processingFilename = docData.filename
   try {
+    attemptContext?.signal?.throwIfAborted()
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
     })
 
-    // KB config + workspace billing + doc tags in one JOIN (was 3 SELECTs).
     const contextRows = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
-        knowledgeBaseUserId: knowledgeBase.userId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
         embeddingDimension: knowledgeBase.embeddingDimension,
-        billedAccountUserId: workspaceTable.billedAccountUserId,
         uploadedBy: document.uploadedBy,
         connectorId: document.connectorId,
         filename: document.filename,
@@ -1455,10 +1460,6 @@ export async function processDocumentAsync(
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
-      .leftJoin(
-        workspaceTable,
-        and(eq(workspaceTable.id, knowledgeBase.workspaceId), isNull(workspaceTable.archivedAt))
-      )
       .where(
         and(
           eq(document.id, documentId),
@@ -1520,6 +1521,18 @@ export async function processDocumentAsync(
      * an older delayed quota continuation becomes a harmless no-op instead of
      * stealing the newer pass.
      */
+    /**
+     * Queue acceptance can precede the parent's pending-state write. The published
+     * successor may adopt that exact processing generation; stamping its token
+     * fences the parent's delayed write and refunds admission at most once.
+     */
+    const predecessor =
+      attemptContext?.processingQueueToken && attemptContext.processingPredecessorToken
+        ? and(
+            eq(document.processingStatus, 'processing'),
+            eq(document.processingQueueToken, attemptContext.processingPredecessorToken)
+          )
+        : undefined
     const claimed = await db
       .update(document)
       .set({
@@ -1528,12 +1541,22 @@ export async function processDocumentAsync(
         processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
+        ...(attemptContext?.processingQueueToken
+          ? { processingQueueToken: attemptContext.processingQueueToken }
+          : {}),
+        ...(predecessor && attemptContext?.refundPredecessorAdmission
+          ? {
+              processingAttempts: sql`CASE WHEN ${document.processingQueueToken} = ${attemptContext.processingPredecessorToken} THEN GREATEST(${document.processingAttempts} - 1, 0) ELSE ${document.processingAttempts} END`,
+            }
+          : {}),
       })
       .where(
         and(
           eq(document.id, documentId),
           ne(document.processingStatus, 'completed'),
-          ...queueGenerationConditions(attemptContext),
+          ...(predecessor
+            ? [or(and(...queueGenerationConditions(attemptContext)), predecessor)]
+            : queueGenerationConditions(attemptContext)),
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
@@ -1579,39 +1602,17 @@ export async function processDocumentAsync(
         : providedBillingContext && !queuedBillingContext
           ? assertBillingAttributionSnapshot(providedBillingContext)
           : undefined
-    const documentActorUserId =
-      queuedBillingContext?.actorUserId ??
-      restoredBillingAttribution?.actorUserId ??
-      ctx.uploadedBy ??
-      ctx.billedAccountUserId ??
-      ctx.knowledgeBaseUserId
-    let billingAttribution: BillingAttributionSnapshot | undefined
-    if (ctx.workspaceId || ctx.organizationId) {
-      if (queuedBillingContext?.billingScope === 'non-workspace') {
-        throw new Error('Document processing billing scope does not match knowledge base workspace')
-      }
-      if (!restoredBillingAttribution) {
-        throw new Error('Billing attribution is required for queued document processing')
-      }
-      billingAttribution = restoredBillingAttribution
-      assertBillingAttributionOwner(billingAttribution, ctx)
-      if (billingAttribution.actorUserId !== documentActorUserId) {
-        throw new Error('Document billing attribution does not match its actor and workspace')
-      }
-    } else if (
-      restoredBillingAttribution ||
-      (queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace')
-    ) {
-      throw new Error('Workspace-less document processing cannot use workspace billing attribution')
+    if (queuedBillingContext?.billingScope === 'non-workspace') {
+      throw new Error('Document processing billing scope does not match knowledge base ownership')
     }
+    if (!restoredBillingAttribution) {
+      throw new Error('Billing attribution is required for queued document processing')
+    }
+    const billingAttribution = restoredBillingAttribution
+    assertBillingAttributionOwner(billingAttribution, ctx)
+    const documentActorUserId = billingAttribution.actorUserId
 
-    /**
-     * Authoritative gate covering every indexing path. Workspace-less legacy
-     * knowledge bases retain account-only enforcement.
-     */
-    const usageGate = billingAttribution
-      ? await checkAttributedUsageLimits(billingAttribution)
-      : await checkActorUsageLimits(documentActorUserId)
+    const usageGate = await checkAttributedUsageLimits(billingAttribution)
     if (usageGate.isExceeded) {
       logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
       throw new UsageLimitDocumentProcessingError(
@@ -1635,6 +1636,10 @@ export async function processDocumentAsync(
     )
 
     let processingCommitted = false
+    const processingDeadlineAt = Math.min(
+      startTime + TIMEOUTS.OVERALL_PROCESSING - 15_000,
+      (attemptContext?.deadlineAt ?? Number.POSITIVE_INFINITY) - 15_000
+    )
     await withTimeout(
       (signal) =>
         runWithKnowledgeModelInputProvenance(
@@ -1652,7 +1657,14 @@ export async function processDocumentAsync(
               kbConfig.maxSize,
               kbConfig.overlap,
               kbConfig.minSize,
-              { ...sourceFileAccessFor(ctx.connectorId, documentActorUserId), signal },
+              {
+                ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
+                signal,
+                processingDeadlineAt,
+                ...(indexingPassId
+                  ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
+                  : {}),
+              },
               ctx.workspaceId,
               rawConfig?.strategy,
               rawConfig?.strategyOptions
@@ -1684,6 +1696,9 @@ export async function processDocumentAsync(
               }
             }
             const embeddings: number[][] = []
+            const embeddingSourceHash = indexingPassId
+              ? sha256Hex(JSON.stringify(chunkTexts.map((text) => sha256Hex(text))))
+              : undefined
 
             if (chunkTexts.length > 0) {
               const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
@@ -1704,7 +1719,22 @@ export async function processDocumentAsync(
                   billableTokens: batchBillableTokens,
                   modelName,
                   pricingId,
-                } = await generateEmbeddings(batch, kbEmbedding, ctx.workspaceId, signal)
+                } = await generateEmbeddings(
+                  batch,
+                  kbEmbedding,
+                  ctx.workspaceId,
+                  signal,
+                  indexingPassId && embeddingSourceHash
+                    ? createEmbeddingCheckpoints({
+                        knowledgeBaseId,
+                        documentId,
+                        indexingPassId,
+                        sourceHash: embeddingSourceHash,
+                        batchOffset: i,
+                        deadlineAt: processingDeadlineAt,
+                      })
+                    : undefined
+                )
                 for (const emb of batchEmbeddings) {
                   embeddings.push(emb)
                 }
@@ -1867,8 +1897,9 @@ export async function processDocumentAsync(
               documentSecretContext.provenance.entries.length === 0,
           }
         ),
-      TIMEOUTS.OVERALL_PROCESSING,
-      'Document processing'
+      Math.max(1, processingDeadlineAt - Date.now()),
+      'Document processing',
+      attemptContext?.signal
     )
 
     if (!processingCommitted) {
@@ -1921,7 +1952,7 @@ export async function processDocumentAsync(
           await recordUsage({
             userId: documentActorUserId,
             workspaceId: ctx.workspaceId ?? undefined,
-            ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
+            ...toBillingContext(billingAttribution),
             entries: [
               {
                 category: 'model',
@@ -1933,11 +1964,7 @@ export async function processDocumentAsync(
               },
             ],
           })
-          if (billingAttribution) {
-            await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-          } else {
-            await checkAndBillOverageThreshold(documentActorUserId)
-          }
+          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -1954,18 +1981,32 @@ export async function processDocumentAsync(
     const byokCredentialRejected = isBYOKEmbeddingCredentialRejection(error)
     const usageLimitExceeded = isUsageLimitDocumentProcessingError(error)
     const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
-    let recordedError = permanentError ?? error
-    let quotaDeferredUntil: Date | null = null
+    const ocrRequestRejected = getOcrRequestRejection(error)
+    const providerDeferral = attemptContext?.signal?.aborted
+      ? null
+      : getProviderCapacityDeferral(error)
+    let recordedError = permanentError ?? ocrRequestRejected ?? providerDeferral ?? error
+    let continuation: DocumentProcessingContinuation | null = null
     let quotaContinuationAttempted = false
     if (embeddingQuotaExhausted && attemptContext?.scheduleQuotaContinuation) {
       quotaContinuationAttempted = true
       try {
-        quotaDeferredUntil = await attemptContext.scheduleQuotaContinuation()
+        continuation = await attemptContext.scheduleQuotaContinuation()
       } catch (continuationError) {
         recordedError = continuationError
       }
     }
-    const quotaContinuationFailed = quotaContinuationAttempted && !quotaDeferredUntil
+    if (providerDeferral && attemptContext?.scheduleProviderContinuation) {
+      try {
+        continuation = await attemptContext.scheduleProviderContinuation(providerDeferral)
+      } catch (continuationError) {
+        recordedError = continuationError
+      }
+    }
+    const deferredUntil = continuation?.deferredUntil ?? null
+    const providerContinuationExhausted =
+      recordedError instanceof ProviderCapacityContinuationExhaustedError
+    const quotaContinuationFailed = quotaContinuationAttempted && !deferredUntil
     const errorMessage = byokCredentialRejected
       ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE
       : embeddingQuotaExhausted
@@ -1986,13 +2027,16 @@ export async function processDocumentAsync(
           }
         : {}),
     }
-    const logMessage = quotaDeferredUntil
+    const logMessage = deferredUntil
       ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
       : `[${documentId}] Failed to process document after ${processingTime}ms:`
     if (
       (embeddingQuotaExhausted && !quotaContinuationFailed) ||
+      deferredUntil ||
+      providerContinuationExhausted ||
       byokCredentialRejected ||
       usageLimitExceeded ||
+      ocrRequestRejected ||
       permanentError
     ) {
       logger.warn(logMessage, logContext)
@@ -2003,19 +2047,25 @@ export async function processDocumentAsync(
     await db
       .update(document)
       .set({
-        processingStatus: quotaDeferredUntil ? 'pending' : 'failed',
-        processingError: quotaDeferredUntil ? null : errorMessage,
-        processingStartedAt: quotaDeferredUntil ? null : processingStartedAt,
-        ...(quotaDeferredUntil && attemptContext?.processingQueueToken
-          ? { processingQueuedAt: quotaDeferredUntil }
+        processingStatus: deferredUntil ? 'pending' : 'failed',
+        processingError: deferredUntil ? null : errorMessage,
+        processingStartedAt: deferredUntil ? null : processingStartedAt,
+        ...(continuation
+          ? {
+              processingQueuedAt: continuation.deferredUntil,
+              processingQueueToken: continuation.processingQueueToken,
+            }
           : {}),
-        processingDeferredUntil: quotaDeferredUntil,
-        processingCompletedAt: quotaDeferredUntil ? null : new Date(),
+        processingDeferredUntil: deferredUntil,
+        processingCompletedAt: deferredUntil ? null : new Date(),
         ...(permanentError ||
+        ocrRequestRejected ||
         byokCredentialRejected ||
+        providerContinuationExhausted ||
         (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
           ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
-          : (embeddingQuotaExhausted || usageLimitExceeded) && attemptContext?.chargedAtDispatch
+          : (embeddingQuotaExhausted || usageLimitExceeded || providerDeferral) &&
+              attemptContext?.chargedAtDispatch
             ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
             : {}),
       })
@@ -2073,16 +2123,10 @@ export function isTriggerAvailable(): boolean {
   return available
 }
 
-type DocumentStorageBilling =
-  | {
-      readonly context: StorageBillingContext
-      readonly bytes: number
-    }
-  | {
-      readonly userId: string
-      readonly bytes: number
-      readonly sub: HighestPrioritySubscription | null
-    }
+interface DocumentStorageBilling {
+  readonly context: StorageBillingContext
+  readonly bytes: number
+}
 
 interface DocumentStorageNotification {
   readonly context: StorageBillingContext
@@ -2090,14 +2134,13 @@ interface DocumentStorageNotification {
 }
 
 interface DocumentStorageAdmission {
-  readonly workspaceId: string | null
-  readonly knowledgeBaseUserId: string
+  readonly workspaceId: string
   readonly billing?: DocumentStorageBilling
 }
 
 /**
  * Uses trusted file metadata for a KB object size when that metadata already
- * exists. External/data URLs and legacy unbound objects retain the caller's
+ * exists. External/data URLs retain the caller's
  * size; this path deliberately does not add provider HEAD requests.
  */
 function getServerKnownDocumentSize(
@@ -2132,7 +2175,6 @@ async function resolveServerKnownDocumentSizes<
  */
 async function resolveDocumentStorageAdmission(
   knowledgeBaseId: string,
-  uploadedBy: string | null,
   bytes: number
 ): Promise<DocumentStorageAdmission> {
   const [kb] = await db
@@ -2153,35 +2195,22 @@ async function resolveDocumentStorageAdmission(
       'validation',
       'Add documents to organization Search through a connected source'
     )
-  if (bytes <= 0) {
-    return { workspaceId: kb.workspaceId, knowledgeBaseUserId: kb.userId }
+  if (!kb.workspaceId) {
+    throw new OrchestrationError(
+      'validation',
+      'Document uploads require a workspace knowledge base'
+    )
   }
+  if (bytes <= 0) return { workspaceId: kb.workspaceId }
 
-  const billedUserId = uploadedBy ?? kb.userId
-  if (kb.workspaceId) {
-    const context = await resolveStorageBillingContext(kb.workspaceId)
-    const quotaCheck = await checkStorageQuotaForBillingContext(context, bytes)
-    if (!quotaCheck.allowed) {
-      throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
-    }
-    return {
-      workspaceId: kb.workspaceId,
-      knowledgeBaseUserId: kb.userId,
-      billing: { context, bytes },
-    }
-  }
-
-  const [quotaCheck, sub] = await Promise.all([
-    checkStorageQuota(billedUserId, bytes),
-    getHighestPrioritySubscription(billedUserId),
-  ])
+  const context = await resolveStorageBillingContext(kb.workspaceId)
+  const quotaCheck = await checkStorageQuotaForBillingContext(context, bytes)
   if (!quotaCheck.allowed) {
     throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
   }
   return {
-    workspaceId: null,
-    knowledgeBaseUserId: kb.userId,
-    billing: { userId: billedUserId, bytes, sub },
+    workspaceId: kb.workspaceId,
+    billing: { context, bytes },
   }
 }
 
@@ -2210,7 +2239,7 @@ export async function createDocumentRecords(
   }
   const resolvedDocuments = await resolveServerKnownDocumentSizes(documents)
   const totalBytes = resolvedDocuments.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
-  const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, uploadedBy, totalBytes)
+  const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, totalBytes)
   const { returnData, storageNotification } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
@@ -2231,20 +2260,15 @@ export async function createDocumentRecords(
       throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
-    if (
-      kb[0].workspaceId !== admission.workspaceId ||
-      kb[0].userId !== admission.knowledgeBaseUserId
-    ) {
+    if (kb[0].workspaceId !== admission.workspaceId) {
       throw new Error(
         'Knowledge base storage ownership changed; retry with fresh storage admission'
       )
     }
 
-    const kbWorkspaceId = kb[0].workspaceId
     const bindingByKey = await assertKnowledgeBaseFileUrlsOwnership(
       resolvedDocuments.map((docData) => docData.fileUrl),
-      kbWorkspaceId,
-      kb[0].userId,
+      admission.workspaceId,
       requestId,
       tx
     )
@@ -2273,25 +2297,13 @@ export async function createDocumentRecords(
 
     if (admission.billing) {
       const preparedBilling = admission.billing
-      if ('context' in preparedBilling) {
-        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-          tx,
-          preparedBilling.context,
-          preparedBilling.bytes
-        )
-        if (updatedUsage !== undefined) {
-          storageNotification = { context: preparedBilling.context, updatedUsage }
-        }
-      } else {
-        const quotaCheck = await checkAndIncrementStorageUsageInTx(
-          tx,
-          preparedBilling.sub,
-          preparedBilling.userId,
-          preparedBilling.bytes
-        )
-        if (!quotaCheck.allowed) {
-          throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
-        }
+      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+        tx,
+        preparedBilling.context,
+        preparedBilling.bytes
+      )
+      if (updatedUsage !== undefined) {
+        storageNotification = { context: preparedBilling.context, updatedUsage }
       }
     }
 
@@ -2768,7 +2780,6 @@ export async function createSingleDocument(
   const [resolvedDocumentData] = await resolveServerKnownDocumentSizes([documentData])
   const admission = await resolveDocumentStorageAdmission(
     knowledgeBaseId,
-    uploadedBy,
     resolvedDocumentData.fileSize
   )
   let processedTags: ProcessedDocumentTags = {
@@ -2853,10 +2864,7 @@ export async function createSingleDocument(
       throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
-    if (
-      kb[0].workspaceId !== admission.workspaceId ||
-      kb[0].userId !== admission.knowledgeBaseUserId
-    ) {
+    if (kb[0].workspaceId !== admission.workspaceId) {
       throw new Error(
         'Knowledge base storage ownership changed; retry with fresh storage admission'
       )
@@ -2864,8 +2872,7 @@ export async function createSingleDocument(
 
     const bindingByKey = await assertKnowledgeBaseFileUrlsOwnership(
       [resolvedDocumentData.fileUrl],
-      kb[0].workspaceId,
-      kb[0].userId,
+      admission.workspaceId,
       requestId,
       tx
     )
@@ -2896,25 +2903,13 @@ export async function createSingleDocument(
 
     if (admission.billing) {
       const preparedBilling = admission.billing
-      if ('context' in preparedBilling) {
-        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-          tx,
-          preparedBilling.context,
-          preparedBilling.bytes
-        )
-        if (updatedUsage !== undefined) {
-          storageNotification = { context: preparedBilling.context, updatedUsage }
-        }
-      } else {
-        const quotaCheck = await checkAndIncrementStorageUsageInTx(
-          tx,
-          preparedBilling.sub,
-          preparedBilling.userId,
-          preparedBilling.bytes
-        )
-        if (!quotaCheck.allowed) {
-          throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
-        }
+      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+        tx,
+        preparedBilling.context,
+        preparedBilling.bytes
+      )
+      if (updatedUsage !== undefined) {
+        storageNotification = { context: preparedBilling.context, updatedUsage }
       }
     }
 
@@ -3654,91 +3649,12 @@ export async function updateDocument(
   }
 }
 
-function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
-  if (!fileUrl) {
-    return null
-  }
-
-  try {
-    const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = extractStorageKey(urlPath)
-    return storageKey !== urlPath ? storageKey : null
-  } catch {
-    return null
-  }
-}
-
-/** Each entry deletes a storage object plus its metadata row. */
-const STORAGE_DELETE_CONCURRENCY = 10
-
+/** Persists standalone cleanup intents; document mutations supply their own transaction. */
 export async function deleteDocumentStorageFiles(
-  documentsToDelete: Array<{ id: string; fileUrl: string | null } & ResourceOwner>,
+  documentsToDelete: readonly KnowledgeStorageCleanupDocument[],
   requestId: string
 ): Promise<void> {
-  const entries = documentsToDelete.map((doc) => ({
-    doc,
-    storageKey: getKnowledgeBaseStorageKey(doc.fileUrl),
-  }))
-
-  const storageKeys = [
-    ...new Set(
-      entries
-        .map((entry) => entry.storageKey)
-        .filter(
-          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
-        )
-    ),
-  ]
-  const bindingByKey = new Map<string, FileMetadataRecord>()
-  if (storageKeys.length > 0) {
-    const bindings = await getFileMetadataByKeys(storageKeys, 'knowledge-base')
-    for (const binding of bindings) {
-      bindingByKey.set(binding.key, binding)
-    }
-  }
-
-  await mapWithConcurrency(entries, STORAGE_DELETE_CONCURRENCY, async ({ doc, storageKey }) => {
-    if (!storageKey) {
-      return
-    }
-
-    if (!isKnowledgeBaseOwnedStorageKey(storageKey)) {
-      return
-    }
-
-    const binding = bindingByKey.get(storageKey)
-    if (!binding || binding.deletedAt || binding.context !== 'knowledge-base') {
-      logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
-        documentId: doc.id,
-        storageKey,
-      })
-      return
-    }
-    try {
-      if (!sameResourceScope(resourceScopeFromOwner(binding), resourceScopeFromOwner(doc))) {
-        throw new Error('Storage ownership binding does not match the document owner')
-      }
-      const metadataDeleted = await deleteFileMetadataByIdentity({
-        id: binding.id,
-        key: binding.key,
-        context: binding.context,
-        contentUpdatedAt: binding.contentUpdatedAt,
-      })
-      if (!metadataDeleted) {
-        logger.warn(`[${requestId}] Skipping storage delete: ownership binding changed`, {
-          documentId: doc.id,
-          storageKey,
-        })
-        return
-      }
-      await deleteFile({ key: storageKey, context: 'knowledge-base' })
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to delete document storage file`, {
-        documentId: doc.id,
-        error: toError(error).message,
-      })
-    }
-  })
+  await enqueueKnowledgeStorageCleanup(db, documentsToDelete, requestId)
 }
 
 async function excludeConnectorDocuments(
@@ -3924,9 +3840,9 @@ async function hardDeleteDocumentBatch(
       fileSize: document.fileSize,
       uploadedBy: document.uploadedBy,
       connectorId: document.connectorId,
+      deletedAt: document.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
-      kbUserId: knowledgeBase.userId,
     })
     .from(document)
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
@@ -3949,13 +3865,13 @@ async function hardDeleteDocumentBatch(
   const existingIds = documentsToDelete.map((doc) => doc.id)
 
   /**
-   * Resolve immutable workspace payers and legacy account subscriptions before
-   * opening the deletion transaction. Connector documents were never metered.
+   * Resolve each possible payer before taking database locks. A connector can be
+   * detached, a tombstone restored, or an empty source updated before this transaction
+   * wins the KB lock; the actual deleted revision determines whether bytes are billed.
    */
   const storageContextByWorkspace = new Map<string, StorageBillingContext>()
-  const candidateUserIds = new Set<string>()
   for (const doc of documentsToDelete) {
-    if (doc.organizationId || doc.connectorId || doc.fileSize <= 0) continue
+    if (doc.organizationId) continue
     if (doc.workspaceId) {
       if (!storageContextByWorkspace.has(doc.workspaceId)) {
         storageContextByWorkspace.set(
@@ -3965,12 +3881,7 @@ async function hardDeleteDocumentBatch(
       }
       continue
     }
-    const billedUserId = doc.uploadedBy ?? doc.kbUserId
-    if (billedUserId) candidateUserIds.add(billedUserId)
-  }
-  const subByUser = new Map<string, HighestPrioritySubscription | null>()
-  for (const billedUserId of candidateUserIds) {
-    subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
+    throw new Error('Document storage accounting requires a workspace or organization owner')
   }
 
   /**
@@ -4012,8 +3923,7 @@ async function hardDeleteDocumentBatch(
       if (
         !lockedKb ||
         lockedKb.workspaceId !== doc.workspaceId ||
-        (lockedKb.organizationId ?? null) !== (doc.organizationId ?? null) ||
-        lockedKb.userId !== doc.kbUserId
+        (lockedKb.organizationId ?? null) !== (doc.organizationId ?? null)
       ) {
         throw new Error(
           `Knowledge base ${doc.knowledgeBaseId} storage ownership changed; retry document deletion`
@@ -4079,25 +3989,37 @@ async function hardDeleteDocumentBatch(
     const deletedRows = await tx
       .delete(document)
       .where(inArray(document.id, stillTargetedIds))
-      .returning({ id: document.id })
+      .returning({
+        id: document.id,
+        knowledgeBaseId: document.knowledgeBaseId,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        uploadedBy: document.uploadedBy,
+        connectorId: document.connectorId,
+        deletedAt: document.deletedAt,
+      })
 
-    const deletedIds = new Set(deletedRows.map((row) => row.id))
-    deletedDocs = documentsToDelete.filter((doc) => deletedIds.has(doc.id))
+    const snapshotById = new Map(documentsToDelete.map((doc) => [doc.id, doc]))
+    deletedDocs = deletedRows.map((row) => {
+      const snapshot = snapshotById.get(row.id)
+      if (!snapshot || snapshot.knowledgeBaseId !== row.knowledgeBaseId) {
+        throw new Error('Document storage ownership changed; retry document deletion')
+      }
+      /** Accounting and cleanup use the row actually deleted, never a pre-lock source revision. */
+      return { ...snapshot, ...row }
+    })
+    await enqueueKnowledgeStorageCleanup(tx, deletedDocs, requestId)
 
     const bytesByWorkspace = new Map<string, number>()
-    const legacyBytesByUser = new Map<string, number>()
     for (const doc of deletedDocs) {
-      if (doc.organizationId || doc.connectorId || doc.fileSize <= 0) continue
+      if (doc.organizationId || doc.connectorId || doc.deletedAt != null || doc.fileSize <= 0)
+        continue
       if (doc.workspaceId) {
         bytesByWorkspace.set(
           doc.workspaceId,
           (bytesByWorkspace.get(doc.workspaceId) ?? 0) + doc.fileSize
         )
-        continue
       }
-      const billedUserId = doc.uploadedBy ?? doc.kbUserId
-      if (!billedUserId) continue
-      legacyBytesByUser.set(billedUserId, (legacyBytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
     }
     await applyStorageUsageDeltasInTx(tx, {
       workspaceDeltas: [...bytesByWorkspace.entries()]
@@ -4109,17 +4031,9 @@ async function hardDeleteDocumentBatch(
           }
           return { context, deltaBytes: -bytes }
         }),
-      legacyDeltas: [...legacyBytesByUser.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([userId, bytes]) => ({
-          userId,
-          subscription: subByUser.get(userId) ?? null,
-          deltaBytes: -bytes,
-        })),
+      legacyDeltas: [],
     })
   })
-
-  await deleteDocumentStorageFiles(deletedDocs, requestId)
 
   logger.info(`[${requestId}] Hard deleted ${deletedDocs.length} documents`, {
     documentIds: deletedDocs.map((doc) => doc.id),

@@ -801,6 +801,32 @@ describe('handleUnifiedChatPost', () => {
     expect(processContextsServer).not.toHaveBeenCalled()
   })
 
+  it('preserves the selected integration identifier through request parsing', async () => {
+    const context = { kind: 'integration', blockType: 'slack', label: 'Slack' }
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '@Slack help me use this integration',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [context],
+          resourceAttachments: [{ type: 'integration', id: 'slack', title: 'Slack', active: true }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(processContextsServer.mock.calls[0]?.[0]).toEqual([context])
+    expect(resolveActiveResourceContext).toHaveBeenCalledWith(
+      'integration',
+      'slack',
+      'ws-1',
+      'user-1',
+      expect.any(String)
+    )
+  })
+
   it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

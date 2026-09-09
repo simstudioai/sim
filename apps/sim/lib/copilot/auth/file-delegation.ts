@@ -4,6 +4,7 @@ import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,
   createCopilotApplicationPrincipal,
+  createCopilotChatPrincipal,
   createTrustedCopilotPrincipal,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/copilot/auth/application-delegation'
@@ -44,15 +45,7 @@ export function resolveCopilotFilePrincipal(
 export function createCopilotChatFilePrincipal(
   context: CopilotChatFileDelegationContext
 ): DelegatedPrincipal {
-  return createTrustedCopilotPrincipal(
-    {
-      userId: context.userId,
-      workspaceId: context.workspaceId,
-      delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}`,
-      chatId: context.chatId,
-    },
-    fileDelegation
-  )
+  return createCopilotChatPrincipal(context, workspaceFileDelegationPolicy.audience)
 }
 
 /** Creates the principal used while materializing the Copilot workspace index. */

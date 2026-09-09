@@ -16,6 +16,7 @@ export type { EmbedInfo } from './media-embed'
 export { getEmbedInfo } from './media-embed'
 export {
   filterUndefined,
+  getValueAtPath,
   isPlainRecord,
   isRecordLike,
   omit,

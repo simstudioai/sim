@@ -3,7 +3,10 @@ import { decodeHtmlEntities } from '@tiptap/core'
 import { Lexer, Marked, type Token, Tokenizer } from 'marked'
 import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { serializeMarkdownDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import {
+  hasUnusedMarkdownReference,
+  serializeMarkdownDocument,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 /**
  * Constructs the editor drops or mangles in a way that survives a second serialization
@@ -144,45 +147,6 @@ function inspectMarkdownFidelity(content: string) {
 }
 
 /**
- * A link/image reference definition line: `[label]: destination "optional title"` (up to 3 leading
- * spaces). The `(?!\^)` excludes GFM footnote definitions (`[^id]: …`) — those are preserved verbatim
- * by the footnote node and round-trip regardless of whether their reference is present, so they must
- * not be treated as droppable orphan definitions.
- */
-const REFERENCE_DEFINITION = /^ {0,3}\[(?!\^)([^\]]+)]:[ \t]+\S[^\n]*$/gm
-
-/** CommonMark reference labels match case-insensitively with internal whitespace collapsed. */
-function normalizeReferenceLabel(label: string): string {
-  return label.trim().replace(/\s+/g, ' ').toLowerCase()
-}
-
-/**
- * True when `content` defines a link/image reference that nothing uses. A *used* reference inlines
- * losslessly on serialize (`[x][id]` + `[id]: url` → `[x](url)`), but an *unused* definition is dropped
- * entirely — a silent deletion the idempotency probe can't see (the drop happens on the first pass,
- * which is then stable). We open such a file read-only rather than lose the definition on first edit.
- * Conservative: a label counts as used if it appears bracketed anywhere in the body, so the rare
- * inline-text collision errs toward editable, never toward a false read-only.
- */
-function hasOrphanReferenceDefinition(content: string): boolean {
-  const labels = new Set<string>()
-  for (const match of content.matchAll(REFERENCE_DEFINITION)) {
-    labels.add(normalizeReferenceLabel(match[1]))
-  }
-  if (labels.size === 0) return false
-  const body = content
-    .replace(REFERENCE_DEFINITION, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\[\s+/g, '[')
-    .replace(/\s+\]/g, ']')
-    .toLowerCase()
-  for (const label of labels) {
-    if (!body.includes(`[${label}]`)) return true
-  }
-  return false
-}
-
-/**
  * Whether `content` fits the rich editor's rendering budget and survives its Markdown round-trip
  * without known data loss or autosave churn. A refusal keeps rich preview read-only and offers
  * source editing; the character cap is a performance boundary, separate from fidelity checks.
@@ -198,8 +162,8 @@ export function isRoundTripSafe(content: string): boolean {
   const stripped = stripCode(content)
   if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped.replaceAll('&quot;', ''))))
     return false
-  if (hasOrphanReferenceDefinition(stripped)) return false
   try {
+    if (hasUnusedMarkdownReference(content)) return false
     const source = inspectMarkdownFidelity(content)
     if (source.hasTaskReference || source.hasUnsupportedImageContext || source.hasUnsafeQuotes)
       return false

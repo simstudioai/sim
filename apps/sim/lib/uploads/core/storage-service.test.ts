@@ -9,6 +9,7 @@ const {
   mockComplete,
   mockAbort,
   mockUploadToS3,
+  mockDeleteFromS3,
   mockInsertFileMetadata,
   mockInsertImmutableFileMetadata,
   mockCleanupUnboundKnowledgeUpload,
@@ -23,6 +24,7 @@ const {
   mockComplete: vi.fn(),
   mockAbort: vi.fn(),
   mockUploadToS3: vi.fn(),
+  mockDeleteFromS3: vi.fn(),
   mockInsertFileMetadata: vi.fn(),
   mockInsertImmutableFileMetadata: vi.fn(),
   mockCleanupUnboundKnowledgeUpload: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   completeS3MultipartUpload: mockComplete,
   abortS3MultipartUpload: mockAbort,
   uploadToS3: mockUploadToS3,
+  deleteFromS3: mockDeleteFromS3,
   getS3Client: () => mockS3Client,
   headS3Object: mockHeadS3Object,
 }))
@@ -67,7 +70,7 @@ vi.mock('@/lib/uploads/core/knowledge-upload-cleanup', () => ({
   cleanupUnboundKnowledgeUpload: mockCleanupUnboundKnowledgeUpload,
 }))
 
-import { createMultipartUpload, uploadFile } from '@/lib/uploads/core/storage-service'
+import { createMultipartUpload, deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const PART_SIZE = 8 * 1024 * 1024
 
@@ -102,6 +105,43 @@ describe('createMultipartUpload', () => {
 
     expect(mockUploadToS3).toHaveBeenCalledTimes(1)
     expect(mockInsertFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it('preserves a pre-reserved create-only identity without registering metadata again', async () => {
+    await uploadFile({
+      file: Buffer.from('reserved content'),
+      fileName: 'reserved.txt',
+      customKey: 'kb/reserved.txt',
+      contentType: 'text/plain',
+      context: 'knowledge-base',
+      preserveKey: true,
+      metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+      persistMetadata: false,
+      createOnlyUploadId: 'reserved-upload-1',
+    })
+    expect(mockUploadToS3.mock.calls[0][6]).toMatchObject({ uploadId: 'reserved-upload-1' })
+    expect(mockUploadToS3.mock.calls[0][7]).toBe(true)
+    expect(mockInsertImmutableFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it('forwards checkpoint cancellation to cloud uploads and deletes', async () => {
+    const signal = new AbortController().signal
+    await uploadFile({
+      file: Buffer.from('private text'),
+      fileName: 'checkpoint.txt',
+      contentType: 'text/plain',
+      context: 'knowledge-base',
+      preserveKey: true,
+      persistMetadata: false,
+      signal,
+    })
+    expect(mockUploadToS3.mock.calls[0][8]).toBe(signal)
+    await deleteFile({ key: 'checkpoint.txt', context: 'knowledge-base', signal })
+    expect(mockDeleteFromS3).toHaveBeenCalledWith(
+      'checkpoint.txt',
+      { bucket: 'b', region: 'r' },
+      signal
+    )
   })
 
   it('persists connector caches with an immutable organization binding', async () => {

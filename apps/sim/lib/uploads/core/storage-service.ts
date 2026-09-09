@@ -29,6 +29,12 @@ import type {
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('StorageService')
+let localStorageSetup: Promise<typeof import('@/lib/uploads/core/setup.server')> | undefined
+
+/** Reuse one lazy server module across concurrent local storage operations. */
+function getLocalStorageSetup() {
+  return (localStorageSetup ??= import('@/lib/uploads/core/setup.server'))
+}
 
 /**
  * Create a Blob config from StorageConfig
@@ -143,7 +149,13 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     customKey,
     metadata,
     persistMetadata = true,
+    createOnlyUploadId,
+    signal,
   } = options
+  signal?.throwIfAborted()
+  if (createOnlyUploadId && (context !== 'knowledge-base' || !metadata)) {
+    throw new Error('Reserved create-only uploads require knowledge-base ownership metadata')
+  }
 
   logger.info(`Uploading file to ${context} storage: ${fileName}`)
 
@@ -151,7 +163,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   const keyToUse = customKey || fileName
   const uploadId =
-    context === 'knowledge-base' && metadata && persistMetadata ? generateId() : undefined
+    context === 'knowledge-base' && metadata && (persistMetadata || createOnlyUploadId)
+      ? (createOnlyUploadId ?? generateId())
+      : undefined
   const objectMetadata = uploadId ? { ...metadata, uploadId } : metadata
 
   if (USE_BLOB_STORAGE) {
@@ -164,7 +178,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId)
+      Boolean(uploadId),
+      signal
     )
 
     if (metadata && persistMetadata) {
@@ -192,7 +207,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId)
+      Boolean(uploadId),
+      signal
     )
 
     if (metadata && persistMetadata) {
@@ -220,7 +236,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId)
+      Boolean(uploadId),
+      signal
     )
 
     if (metadata && persistMetadata) {
@@ -240,13 +257,14 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   const { writeFile, mkdir } = await import('fs/promises')
   const { join, dirname } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
 
   const storageKey = keyToUse
   const safeKey = sanitizeFileKey(keyToUse) // Validates and preserves path structure
   const filesystemPath = join(UPLOAD_DIR_SERVER, safeKey)
 
   await mkdir(dirname(filesystemPath), { recursive: true })
+  signal?.throwIfAborted()
 
   if (uploadId) {
     const { writeLocalPutObject } = await import('@/lib/uploads/upload-session/provider')
@@ -262,10 +280,12 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       expectedSize: file.length,
       contentType,
       metadata: objectMetadata ?? {},
+      signal,
     })
   } else {
-    await writeFile(filesystemPath, file)
+    await writeFile(filesystemPath, file, { signal })
   }
+  signal?.throwIfAborted()
 
   if (metadata && persistMetadata) {
     await insertFileMetadataHelper(
@@ -566,7 +586,7 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
 
   const { readFile } = await import('fs/promises')
   const { join } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
 
   const safeKey = sanitizeFileKey(key)
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
@@ -624,7 +644,7 @@ export async function downloadFileStream(options: {
 
   const { createReadStream } = await import('fs')
   const { join } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
   return createReadStream(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
 }
 
@@ -632,34 +652,36 @@ export async function downloadFileStream(options: {
  * Delete a file from the configured storage provider
  */
 export async function deleteFile(options: DeleteFileOptions): Promise<void> {
-  const { key, context } = options
+  const { key, context, signal } = options
+  signal?.throwIfAborted()
 
   if (context) {
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
       const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/client')
-      return deleteFromBlob(key, createBlobConfig(config))
+      return deleteFromBlob(key, createBlobConfig(config), signal)
     }
 
     if (USE_S3_STORAGE) {
       const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
-      return deleteFromS3(key, createS3Config(config))
+      return deleteFromS3(key, createS3Config(config), signal)
     }
 
     if (USE_GCS_STORAGE) {
       const { deleteFromGcs } = await import('@/lib/uploads/providers/google-cloud-storage/client')
-      return deleteFromGcs(key, createGcsConfig(config))
+      return deleteFromGcs(key, createGcsConfig(config), signal)
     }
   }
 
   const { rm, unlink } = await import('fs/promises')
   const { join } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
 
   const safeKey = sanitizeFileKey(key)
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
 
+  signal?.throwIfAborted()
   await unlink(filePath)
   await rm(`${filePath}${LOCAL_UPLOAD_METADATA_SUFFIX}`, { force: true })
 }
@@ -707,9 +729,9 @@ export async function deleteFiles(
 }
 
 /**
- * Check whether an object exists in the configured cloud storage provider.
- * Returns object size and content-type when present, or null when missing.
- * Throws on errors other than "not found". For local filesystem, returns null.
+ * Check whether an object exists in the configured storage provider.
+ * Returns object size and provider content-type when present, or null when missing.
+ * Throws on errors other than "not found"; local storage reads file metadata.
  */
 export async function headObject(
   key: string,
@@ -734,7 +756,7 @@ export async function headObject(
 
   const { stat } = await import('fs/promises')
   const { join } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
   try {
     const file = await stat(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
     return { size: file.size }

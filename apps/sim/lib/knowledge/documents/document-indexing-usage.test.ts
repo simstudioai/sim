@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCalculateCost,
-  mockCheckActorUsageLimits,
-  mockCheckAndBillOverageThreshold,
+  mockCheckAttributedUsageLimits,
+  mockCheckAndBillPayerOverageThreshold,
   mockGenerateEmbeddings,
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
   mockGetFileMetadataByKeys,
@@ -15,8 +15,8 @@ const {
   mockRecordUsage,
 } = vi.hoisted(() => ({
   mockCalculateCost: vi.fn(),
-  mockCheckActorUsageLimits: vi.fn(),
-  mockCheckAndBillOverageThreshold: vi.fn(),
+  mockCheckAttributedUsageLimits: vi.fn(),
+  mockCheckAndBillPayerOverageThreshold: vi.fn(),
   mockGenerateEmbeddings: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
   mockGetFileMetadataByKeys: vi.fn(),
@@ -24,17 +24,12 @@ const {
   mockRecordUsage: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: mockCheckActorUsageLimits,
-}))
-
 vi.mock('@/lib/billing/core/usage-log', () => ({
   recordUsage: mockRecordUsage,
 }))
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
-  checkAndBillOverageThreshold: mockCheckAndBillOverageThreshold,
-  checkAndBillPayerOverageThreshold: vi.fn(),
+  checkAndBillPayerOverageThreshold: mockCheckAndBillPayerOverageThreshold,
 }))
 
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
@@ -69,11 +64,15 @@ vi.mock('@/providers/utils', () => ({
   calculateCost: mockCalculateCost,
 }))
 
+import * as billingAttribution from '@/lib/billing/core/billing-attribution'
 import * as embeddingClient from '@/lib/embeddings/client'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
+  vi.spyOn(billingAttribution, 'checkAttributedUsageLimits').mockImplementation(
+    mockCheckAttributedUsageLimits
+  )
   mockEmbeddingCapacity.mockReset().mockResolvedValue(undefined)
   vi.spyOn(embeddingClient, 'assertKnowledgeEmbeddingCapacity').mockImplementation(
     mockEmbeddingCapacity
@@ -86,13 +85,26 @@ const PERSISTED_KEY = 'workspace/workspace-1/persisted.pdf'
 const PERSISTED_URL = `/api/files/serve/${encodeURIComponent(PERSISTED_KEY)}?context=workspace`
 const CONTENT_UPDATED_AT = new Date('2026-08-05T12:00:00.000Z')
 
+const BILLING_ATTRIBUTION: billingAttribution.BillingAttributionSnapshot = {
+  actorUserId: 'uploader-1',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'user', id: 'workspace-owner' },
+  billingPeriod: {
+    start: '2026-08-01T00:00:00.000Z',
+    end: '2026-09-01T00:00:00.000Z',
+    source: 'default',
+  },
+  payerSubscription: null,
+}
+
 const PERSISTED_CONTEXT = {
-  workspaceId: null,
-  knowledgeBaseUserId: 'knowledge-owner',
+  workspaceId: 'workspace-1',
+  organizationId: null,
   chunkingConfig: null,
   embeddingModel: 'text-embedding-3-small',
   embeddingDimension: 1536,
-  billedAccountUserId: null,
   uploadedBy: 'uploader-1',
   filename: 'persisted.pdf',
   fileUrl: PERSISTED_URL,
@@ -194,7 +206,7 @@ describe('knowledge document indexing usage', () => {
     // The processing claim is guarded and returns the row it claimed; without a
     // stub every worker would read as 'already completed' and return early.
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
-    mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [SOURCE_BINDING] : []
     )
@@ -233,7 +245,7 @@ describe('knowledge document indexing usage', () => {
       DOCUMENT_ID,
       DOC_DATA,
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       'timeout-pass'
     )
     const rejected = expect(pending).rejects.toThrow('Document processing timed out')
@@ -263,7 +275,7 @@ describe('knowledge document indexing usage', () => {
       DOCUMENT_ID,
       DOC_DATA,
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       'timeout-pass'
     )
     const rejected = expect(pending).rejects.toThrow('Document processing timed out')
@@ -278,10 +290,28 @@ describe('knowledge document indexing usage', () => {
 
   it('records one embedding charge per indexing pass', async () => {
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, undefined, 'pass-1')
+    await processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      BILLING_ATTRIBUTION,
+      'pass-1'
+    )
 
     expect(mockRecordUsage).toHaveBeenCalledTimes(1)
     expect(recordedSourceReference(0)).toBe(`knowledge-document:${DOCUMENT_ID}:pass-1`)
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+    expect(mockRecordUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: BILLING_ATTRIBUTION.actorUserId,
+        workspaceId: BILLING_ATTRIBUTION.workspaceId,
+        billingEntity: BILLING_ATTRIBUTION.billingEntity,
+      })
+    )
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith(
+      BILLING_ATTRIBUTION.billingEntity
+    )
   })
 
   it('reuses the same usage source reference across attempts of one indexing pass', async () => {
@@ -289,11 +319,25 @@ describe('knowledge document indexing usage', () => {
 
     nowSpy.mockReturnValue(1_000)
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, undefined, 'pass-1')
+    await processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      BILLING_ATTRIBUTION,
+      'pass-1'
+    )
 
     nowSpy.mockReturnValue(9_000)
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, undefined, 'pass-1')
+    await processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      BILLING_ATTRIBUTION,
+      'pass-1'
+    )
 
     nowSpy.mockRestore()
 
@@ -303,10 +347,24 @@ describe('knowledge document indexing usage', () => {
 
   it('uses a distinct usage source reference for a genuinely new indexing pass', async () => {
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, undefined, 'pass-1')
+    await processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      BILLING_ATTRIBUTION,
+      'pass-1'
+    )
 
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, undefined, 'pass-2')
+    await processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      BILLING_ATTRIBUTION,
+      'pass-2'
+    )
 
     expect(mockRecordUsage).toHaveBeenCalledTimes(2)
     expect(recordedSourceReference(1)).not.toBe(recordedSourceReference(0))
@@ -317,11 +375,11 @@ describe('knowledge document indexing usage', () => {
 
     nowSpy.mockReturnValue(1_000)
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {})
+    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, BILLING_ATTRIBUTION)
 
     nowSpy.mockReturnValue(9_000)
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {})
+    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, BILLING_ATTRIBUTION)
 
     nowSpy.mockRestore()
 
@@ -333,7 +391,7 @@ describe('knowledge document indexing usage', () => {
 
   it('re-bills the fallback reference when the embedding model changes', async () => {
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {})
+    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, BILLING_ATTRIBUTION)
 
     mockGenerateEmbeddings.mockResolvedValue({
       embeddings: [[0.3, 0.4]],
@@ -342,7 +400,7 @@ describe('knowledge document indexing usage', () => {
       pricingId: 'text-embedding-3-large',
     })
     armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {})
+    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, BILLING_ATTRIBUTION)
 
     expect(recordedSourceReference(1)).not.toBe(recordedSourceReference(0))
   })

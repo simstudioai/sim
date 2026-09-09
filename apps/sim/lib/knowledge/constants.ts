@@ -188,3 +188,13 @@ export function getPlaceholderForFieldType(fieldType: string): string {
  * same 45-minute floor prevents the default UI from racing a legitimate run.
  */
 export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 45 * 60 * 1000
+
+/** Bundle layout version written to `manifest.json`; an importer refuses any other. */
+export const KNOWLEDGE_BUNDLE_VERSION = 1
+/** Documents one export bundle may carry, so every produced bundle stays importable. */
+export const MAX_KNOWLEDGE_BUNDLE_DOCUMENTS = 2_000
+/**
+ * Characters one exported chunk may hold. Wider than the manual-chunk API cap
+ * because the processor's largest chunking config emits chunks past 10k.
+ */
+export const MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH = 100_000

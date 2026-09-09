@@ -529,7 +529,9 @@ export async function writeLocalPutObject(params: {
   expectedSize: number
   contentType: string
   metadata: Record<string, string>
+  signal?: AbortSignal
 }): Promise<void> {
+  params.signal?.throwIfAborted()
   const { Readable, Transform } = await import('node:stream')
   const destination = localObjectPath(params.key)
   const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(params.uploadId)
@@ -553,8 +555,10 @@ export async function writeLocalPutObject(params: {
     await pipeline(
       Readable.fromWeb(params.body as Parameters<typeof Readable.fromWeb>[0]),
       counter,
-      createWriteStream(temporary, { flags: 'wx' })
+      createWriteStream(temporary, { flags: 'wx' }),
+      { signal: params.signal }
     )
+    params.signal?.throwIfAborted()
     if (bytes !== params.expectedSize) {
       throw new LocalUploadBodyError(`Upload has ${bytes} bytes; expected ${params.expectedSize}`)
     }
@@ -563,6 +567,7 @@ export async function writeLocalPutObject(params: {
       contentType: params.contentType,
       metadata: { ...params.metadata, uploadId: params.uploadId },
     })
+    params.signal?.throwIfAborted()
     await publishLocalObject(
       temporary,
       temporaryMetadata,
@@ -574,6 +579,7 @@ export async function writeLocalPutObject(params: {
       rm(temporary, { force: true }),
       rm(temporaryMetadata, { force: true }),
     ])
+    params.signal?.throwIfAborted()
     if (error instanceof LocalUploadBodyError) throw error
     throw new Error(getErrorMessage(error, 'Failed to store PUT upload'), { cause: error })
   }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isCanonicalBase64 } from '@/lib/api/contracts/primitives'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
@@ -14,6 +15,26 @@ const IMAGE_FILE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+}
+
+/**
+ * Strip a base64 `data:` URI prefix, leaving the encoded payload. An empty payload is
+ * a legitimate zero-byte file; a payload that only looks empty after normalization is
+ * not, so callers compare against what this returns rather than the raw value.
+ */
+function stripBase64DataUri(value: string): string {
+  return /^data:[^,]*;base64,/i.test(value) ? value.slice(value.indexOf(',') + 1) : value
+}
+
+/**
+ * Normalize a base64 payload to canonical RFC 4648 form so it can be validated: drop
+ * the line wrapping MIME encoders emit, translate the base64url alphabet, and restore
+ * the padding unpadded encoders omit.
+ */
+function normalizeBase64(payload: string): string {
+  const compact = payload.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/')
+  const remainder = compact.length % 4
+  return remainder === 0 ? compact : compact + '='.repeat(4 - remainder)
 }
 
 function assertFileSize(size: number, fileName: string): void {
@@ -169,19 +190,19 @@ export class FileToolProcessor {
         } else {
           throw new Error(`Invalid serialized buffer format for ${data.name}`)
         }
-      } else if (typeof data.data === 'string' && data.data) {
-        let base64Data = data.data
-
-        if (base64Data.includes('-') || base64Data.includes('_')) {
-          base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
-        }
+      } else if (typeof data.data === 'string') {
+        const payload = stripBase64DataUri(data.data)
+        const base64Data = normalizeBase64(payload)
 
         const paddingBytes = base64Data.endsWith('==') ? 2 : base64Data.endsWith('=') ? 1 : 0
         assertFileSize(Math.floor((base64Data.length * 3) / 4) - paddingBytes, data.name)
+        if (!isCanonicalBase64(base64Data) || (payload.length > 0 && base64Data.length === 0)) {
+          throw new Error(`File '${data.name}' has invalid base64 data`)
+        }
         buffer = Buffer.from(base64Data, 'base64')
       }
 
-      if (!buffer && data.url) {
+      if ((!buffer || buffer.length === 0) && data.url) {
         buffer = await downloadFileFromUrl(data.url, {
           maxBytes: MAX_FILE_SIZE,
           userId: context.userId,
@@ -189,9 +210,6 @@ export class FileToolProcessor {
       }
 
       if (buffer) {
-        if (buffer.length === 0) {
-          throw new Error(`File '${data.name}' has zero bytes`)
-        }
         assertFileSize(buffer.length, data.name)
         const storedMetadata = resolveStoredFileMetadata(data.name, data.mimeType, buffer)
 

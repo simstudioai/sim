@@ -534,6 +534,38 @@ describe('Chat Identifier API Route', () => {
       )
     }, 10000)
 
+    it('projects the internal completion envelope to the public streaming callback', async () => {
+      const response = await POST(createMockNextRequest('POST', { input: 'Hello' }), {
+        params: Promise.resolve({ identifier: 'test-chat' }),
+      })
+      expect(response.status).toBe(200)
+      const onBlockComplete = vi.fn()
+      await vi.mocked(createStreamingResponse).mock.calls[0][0].executeFn({
+        onStream: vi.fn(),
+        onBlockComplete,
+        abortSignal: new AbortController().signal,
+      })
+      await vi.mocked(executeWorkflow).mock.calls[0][4]?.onBlockComplete?.('block-1', {
+        output: { value: 'public output' },
+        outputBlockId: 'child:block-1',
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ encryptedValue: 'private-ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+        executionTime: 1,
+        executionOrder: 0,
+        startedAt: '2026-01-01T00:00:00Z',
+        endedAt: '2026-01-01T00:00:01Z',
+      })
+      expect(onBlockComplete).toHaveBeenCalledExactlyOnceWith(
+        'block-1',
+        { value: 'public output' },
+        'child:block-1'
+      )
+    })
+
     it('executes with the email proven by the chat authentication gate', async () => {
       mockValidateChatAuth.mockResolvedValueOnce({
         authorized: true,

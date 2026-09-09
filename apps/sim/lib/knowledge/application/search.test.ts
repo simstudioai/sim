@@ -441,50 +441,27 @@ describe('knowledge search application use case', () => {
     )
   })
 
-  it('lets the owner search a legacy personal knowledge base with account billing', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      ...knowledgeBase,
-      workspaceId: null,
-    })
-    mocks.generateEmbedding.mockResolvedValueOnce({ embedding: [0.1], isBYOK: true })
-
-    const result = await searchKnowledge.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        knowledgeBaseIds: ['knowledge-1'],
-        query: 'answer',
-        topK: 5,
-      },
-    })
-
-    expect(result.workspaceId).toBeUndefined()
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
-    expect(mocks.checkActorUsage).toHaveBeenCalledWith('user-1')
-    expect(mocks.executeSearch).toHaveBeenCalled()
-  })
-
-  it('conceals a legacy personal knowledge base from a non-owner', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      ...knowledgeBase,
-      workspaceId: null,
-    })
-
-    await expect(
-      searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'other-user', sessionId: 'session-2' },
-        input: {
-          knowledgeBaseIds: ['knowledge-1'],
-          query: 'answer',
-          topK: 5,
-        },
+  it.each(['user-1', 'other-user'])(
+    'conceals an unscoped knowledge base before billing or search for %s',
+    async (userId) => {
+      mocks.getKnowledgeBase.mockResolvedValueOnce({
+        ...knowledgeBase,
+        workspaceId: null,
+        organizationId: null,
       })
-    ).rejects.toMatchObject({ code: 'not_found' })
 
-    expect(mocks.checkActorUsage).not.toHaveBeenCalled()
-    expect(mocks.executeSearch).not.toHaveBeenCalled()
-  })
+      await expect(
+        searchKnowledge.execute({
+          principal: { kind: 'session', userId, sessionId: 'session-1' },
+          input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+
+      expect(mocks.resolveBilling).not.toHaveBeenCalled()
+      expect(mocks.checkActorUsage).not.toHaveBeenCalled()
+      expect(mocks.executeSearch).not.toHaveBeenCalled()
+    }
+  )
 
   it('enforces semantic knowledge-base and result bounds for trusted callers', async () => {
     await expect(

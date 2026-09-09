@@ -335,6 +335,27 @@ describe('OAuth token route', () => {
     expect(response.status).toBe(200)
   })
 
+  it.each(['authorization_code', 'refresh_token'])(
+    'rejects removed workspace resources before %s issuance',
+    async (grantType) => {
+      const response = await POST(
+        tokenRequest(
+          new URLSearchParams({
+            grant_type: grantType,
+            client_id: 'search-client',
+            code: 'code',
+            refresh_token: 'sim_ort_original',
+            resource: 'https://sim.example/api/mcp/search/workspace-one',
+          }).toString()
+        )
+      )
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({ error: 'invalid_target' })
+      expect(mocks.betterAuthPost).not.toHaveBeenCalled()
+      expect(mocks.rotate).not.toHaveBeenCalled()
+    }
+  )
+
   it('passes a canonical resource to refresh rotation and preserves omission', async () => {
     const resource = 'https://sim.example/api/mcp/search/organizations/one'
     await POST(

@@ -10,7 +10,7 @@ interface OAuthResourceIssuance {
 }
 
 const issuance = new AsyncLocalStorage<OAuthResourceIssuance>()
-const SEARCH_RESOURCE_PATH = /^\/api\/mcp\/search\/(?:organizations\/)?[A-Za-z0-9_-]{1,128}$/
+const SEARCH_RESOURCE_PATH = /^\/api\/mcp\/search\/organizations\/[A-Za-z0-9_-]{1,128}$/
 
 export class InvalidOAuthResourceError extends Error {
   constructor() {
@@ -19,7 +19,7 @@ export class InvalidOAuthResourceError extends Error {
   }
 }
 
-/** Accepts only exact Search MCP endpoints on this deployment's canonical origin. */
+/** Accepts only organization Search MCP endpoints on this deployment's canonical origin. */
 export function parseOAuthSearchResource(value: string | null): string | null {
   if (value === null) return null
   try {
@@ -32,8 +32,7 @@ export function parseOAuthSearchResource(value: string | null): string | null {
       url.password ||
       url.search ||
       url.hash ||
-      !SEARCH_RESOURCE_PATH.test(url.pathname) ||
-      url.pathname === '/api/mcp/search/organizations'
+      !SEARCH_RESOURCE_PATH.test(url.pathname)
     ) {
       throw new InvalidOAuthResourceError()
     }

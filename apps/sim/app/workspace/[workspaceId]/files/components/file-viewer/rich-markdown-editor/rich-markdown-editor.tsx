@@ -25,7 +25,6 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'
 import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
@@ -46,11 +45,12 @@ import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/fi
 import { useMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
 import { findHeadingPos } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
-import { imageTypeAt } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 import {
   extractImageFiles,
-  findHostedImageAttrs,
-  shouldSkipFileUpload,
+  getImageFileFallback,
+  type ImageFileFallback,
+  normalizePastedImageSources,
+  resolveImageFileFallback,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 import {
   beginImageUploads,
@@ -595,10 +595,14 @@ export function LoadedRichMarkdownEditor({
    * Uploads are sequential; every position is anchored before awaiting so queued images also follow
    * edits. Capture the editor instance, never a later file's editor, for completion and teardown.
    */
-  const insertImagesRef = useRef<(images: File[], range: Range) => Promise<void>>(() =>
-    Promise.resolve()
-  )
-  const insertImages = async (images: File[], range: Range) => {
+  const insertImagesRef = useRef<
+    (images: File[], range: Range, fallback?: ImageFileFallback | null) => Promise<void>
+  >(() => Promise.resolve())
+  const insertImages = async (
+    images: File[],
+    range: Range,
+    fallback?: ImageFileFallback | null
+  ) => {
     const editor = editorInstanceRef.current
     if (!editor) return
     const anchors = beginImageUploads(
@@ -620,42 +624,19 @@ export function LoadedRichMarkdownEditor({
         .catch(() => null)
       toast.dismiss(uploadingToastId)
       if (result) {
-        const inserted = finishImageUpload(editor, anchor, result.file.url, image.name)
+        const inserted = finishImageUpload(
+          editor,
+          anchor,
+          result.file.url,
+          image.name,
+          fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
+        )
         if (!inserted && !editor.isDestroyed) {
           toast.info('The image was uploaded to the workspace but was not inserted.')
         }
       } else {
         removeImageUpload(editor, anchor)
       }
-    }
-  }
-
-  /**
-   * A same-page copy/drag of an already-hosted `<img>` carries the clipboard/dataTransfer `html`'s
-   * *display* src (`source.resolveImageSrc`'s rewrite), not the real persisted one — inserting a node
-   * built straight from that html would bake the display-only URL into the document, breaking public
-   * share/export/referenced-by-doc tracking for it (they only recognize the persisted shape).
-   * `findHostedImageAttrs` finds the real, already-present node with a matching resolved src instead,
-   * so the clone gets the exact real `src` (and every other attribute — width, href, title…) rather
-   * than a re-derived guess. Returns `false` (falls through to a normal upload) if no match is found,
-   * which is always correct, just occasionally a redundant upload — unlike blindly trusting the html.
-   */
-  const cloneHostedImageRef = useRef<(imgSrcs: string[], range: Range) => boolean>(() => false)
-  const cloneHostedImage = (imgSrcs: string[], range: Range) => {
-    const editor = editorInstanceRef.current
-    if (!editor) return false
-    const matchedAttrs = findHostedImageAttrs(editor.state.doc, imgSrcs, source.resolveImageSrc)
-    if (!matchedAttrs) return false
-    try {
-      return editor
-        .chain()
-        .insertContentAt(range, {
-          type: imageTypeAt(editor.state.doc, range.from),
-          attrs: matchedAttrs,
-        })
-        .run()
-    } catch {
-      return false
     }
   }
 
@@ -756,72 +737,33 @@ export function LoadedRichMarkdownEditor({
         window.open(normalized, '_blank', 'noopener,noreferrer')
         return true
       },
-      /**
-       * Inserts pasted image files at the caret. A same-page copy of an already-hosted `<img>` (e.g.
-       * Cmd+C after clicking it to select it) makes the browser add BOTH `text/html` (the real node,
-       * with its real hosted `src`) AND a synthesized image `File` to the clipboard — indistinguishable
-       * from a genuine external image paste by `clipboardData` files/items alone. When the HTML sibling
-       * already names one of our own hosted files, look up the matching node already in this doc and
-       * clone ITS real attrs (see `cloneHostedImageRef`) instead of re-uploading the pasted bytes as a
-       * brand-new, distinct file — letting the editor's DEFAULT html-based paste do that clone instead
-       * would persist the html's display-layer src rather than the real one. Only applied when exactly
-       * one image file is offered: a genuinely mixed paste (the hosted image plus a separate new one)
-       * must still upload the new file rather than have the whole paste diverted by this bypass.
-       */
-      handlePaste: (view, event) => {
+      transformPasted: (slice, view) =>
+        normalizePastedImageSources(slice, view.state.doc, resolveImageSrcRef.current),
+      handlePaste: (view, event, slice) => {
         if (!view.editable) return false
         const currentEditor = editorInstanceRef.current
         if (currentEditor && isPlainTextPaste(currentEditor)) return false
-        const images = extractImageFiles(event.clipboardData)
         const html = event.clipboardData?.getData('text/html') ?? ''
-        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
-          const cloned = cloneHostedImageRef.current(extractImgSrcs(html), view.state.selection)
-          if (cloned) {
-            event.preventDefault()
-            return true
-          }
-        }
+        const images = extractImageFiles(event.clipboardData)
+        const fallback = getImageFileFallback(slice, images)
+        if (html && slice.content.size > 0 && !fallback) return false
         if (images.length === 0) return false
         event.preventDefault()
-        void insertImagesRef.current(images, view.state.selection)
+        void insertImagesRef.current(images, view.state.selection, fallback)
         return true
       },
-      /**
-       * Inserts dropped image files at the drop point. Any other file drop (e.g. a PDF) is swallowed so
-       * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
-       * through to the default behavior.
-       *
-       * Drag-REORDER of an image node is the deceptive case, and {@link moveDraggedImageNode} owns it —
-       * uploading would duplicate the image (the original never moves), and falling through to
-       * ProseMirror is no better, since with `view.dragging` unset its default drop PARSES the html into
-       * a copy (persisting the display-layer src, which share/export tracking don't recognize) and never
-       * deletes the original.
-       *
-       * PM-serialized drags (a text selection spanning an image, dragged from a textblock) still reach
-       * the `shouldSkipFileUpload` bail below: PM set `view.dragging` for those itself, so its default
-       * move logic is correct there.
-       */
-      handleDrop: (view, event) => {
+      handleDrop: (view, event, slice, moved) => {
         if (!view.editable) return false
-        const images = extractImageFiles(event.dataTransfer)
         const html = event.dataTransfer?.getData('text/html') ?? ''
-        if (
-          moveDraggedImageNode(view, event, {
-            images,
-            html,
-            resolveSrc: resolveImageSrcRef.current,
-          })
-        ) {
-          return true
-        }
-        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
-          return false
-        }
+        const images = extractImageFiles(event.dataTransfer)
+        const uploadFallback = getImageFileFallback(slice, images)
+        if (!uploadFallback && moveDraggedImageNode(view, event, slice, moved)) return true
+        if (html && slice.content.size > 0 && !uploadFallback) return false
         if (images.length > 0) {
           event.preventDefault()
           const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
           const at = dropPos ?? view.state.selection.from
-          void insertImagesRef.current(images, { from: at, to: at })
+          void insertImagesRef.current(images, { from: at, to: at }, uploadFallback)
           return true
         }
         if (event.dataTransfer?.files.length) {
@@ -885,7 +827,6 @@ export function LoadedRichMarkdownEditor({
     routerRef.current = router
     resolveImageSrcRef.current = source.resolveImageSrc
     insertImagesRef.current = insertImages
-    cloneHostedImageRef.current = cloneHostedImage
     editorInstanceRef.current = editor
   })
 

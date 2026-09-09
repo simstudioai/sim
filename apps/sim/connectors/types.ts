@@ -128,6 +128,12 @@ export interface ExternalDocument {
    * even when the source's listing metadata is unchanged.
    */
   skippedRetryContentHash?: string
+  /**
+   * Listing policy for a previously skipped, content-less document. Opt in only
+   * when the listing hash changes whenever a verified skip can become indexable.
+   * Source failures (null hashes) and explicit rehydration always retry.
+   */
+  skippedRetryPolicy?: 'source-change'
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**

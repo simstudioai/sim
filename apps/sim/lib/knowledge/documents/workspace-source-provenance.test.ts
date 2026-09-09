@@ -294,7 +294,7 @@ describe('knowledge workspace source provenance', () => {
   })
 
   it.each(['kb', 'knowledge-base'])(
-    'deletes a trusted %s object only after its metadata identity is claimed',
+    'queues a trusted %s object with its exact metadata identity',
     async (keyPrefix) => {
       const storageKey = `${keyPrefix}/owned.pdf`
       const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`
@@ -304,46 +304,40 @@ describe('knowledge workspace source provenance', () => {
         key: storageKey,
         context: 'knowledge-base',
       }
-      mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
-        context === 'knowledge-base' ? [binding] : []
-      )
-      mockDeleteFileMetadataByIdentity.mockResolvedValue(true)
-
+      mockGetFileMetadataByKeys.mockResolvedValue([binding])
       await deleteDocumentStorageFiles(
         [{ id: 'document-1', fileUrl, workspaceId: WORKSPACE_ID }],
         'request-1'
       )
-
-      expect(mockDeleteFileMetadataByIdentity).toHaveBeenCalledWith({
-        id: binding.id,
-        key: storageKey,
-        context: 'knowledge-base',
-        contentUpdatedAt: binding.contentUpdatedAt,
-      })
-      expect(mockDeleteFile).toHaveBeenCalledWith({
-        key: storageKey,
-        context: 'knowledge-base',
-      })
-      expect(mockDeleteFileMetadataByIdentity.mock.invocationCallOrder[0]).toBeLessThan(
-        mockDeleteFile.mock.invocationCallOrder[0]
-      )
+      expect(dbChainMockFns.values).toHaveBeenCalledWith([
+        expect.objectContaining({
+          eventType: 'knowledge.document.storage.cleanup',
+          payload: expect.objectContaining({
+            fileId: binding.id,
+            key: storageKey,
+            contentUpdatedAt: CONTENT_UPDATED_AT.toISOString(),
+          }),
+        }),
+      ])
+      expect(mockDeleteFile).not.toHaveBeenCalled()
+      expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
     }
   )
 
   it.each(['org-1', 'org-2', null])(
-    'only deletes an organization cache for its exact owner: %s',
+    'only queues an organization cache for its exact owner: %s',
     async (organizationId) => {
       const storageKey = 'kb/org-source.pdf'
-      const binding = {
-        ...SOURCE_BINDING,
-        key: storageKey,
-        context: 'knowledge-base',
-        workspaceId: null,
-        organizationId: 'org-1',
-      }
-      mockGetFileMetadataByKeys.mockResolvedValue([binding])
-      mockDeleteFileMetadataByIdentity.mockResolvedValue(true)
-      await deleteDocumentStorageFiles(
+      mockGetFileMetadataByKeys.mockResolvedValue([
+        {
+          ...SOURCE_BINDING,
+          key: storageKey,
+          context: 'knowledge-base',
+          workspaceId: null,
+          organizationId: 'org-1',
+        },
+      ])
+      const cleanup = deleteDocumentStorageFiles(
         [
           {
             id: 'org-doc',
@@ -355,34 +349,13 @@ describe('knowledge workspace source provenance', () => {
         'request-1'
       )
       if (organizationId === 'org-1') {
-        expect(mockDeleteFile).toHaveBeenCalledWith({ key: storageKey, context: 'knowledge-base' })
+        await expect(cleanup).resolves.toBeUndefined()
+        expect(dbChainMockFns.values).toHaveBeenCalledOnce()
       } else {
-        expect(mockDeleteFile).not.toHaveBeenCalled()
-        expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
+        await expect(cleanup).rejects.toThrow()
+        expect(dbChainMockFns.values).not.toHaveBeenCalled()
       }
+      expect(mockDeleteFile).not.toHaveBeenCalled()
     }
   )
-
-  it('keeps the object when its metadata identity changed before deletion', async () => {
-    const storageKey = 'kb/changed.pdf'
-    const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`
-    const binding = {
-      ...SOURCE_BINDING,
-      id: 'changed-binding',
-      key: storageKey,
-      context: 'knowledge-base',
-    }
-    mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
-      context === 'knowledge-base' ? [binding] : []
-    )
-    mockDeleteFileMetadataByIdentity.mockResolvedValue(false)
-
-    await deleteDocumentStorageFiles(
-      [{ id: 'document-1', fileUrl, workspaceId: WORKSPACE_ID }],
-      'request-1'
-    )
-
-    expect(mockDeleteFileMetadataByIdentity).toHaveBeenCalledOnce()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
 })

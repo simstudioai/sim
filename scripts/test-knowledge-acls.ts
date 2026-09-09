@@ -10,6 +10,7 @@ import { generateId } from '@sim/utils/id'
  * Run with `bun scripts/test-knowledge-acls.ts` from the repository root.
  * Creates and removes its own Postgres and Redis containers; never reads an application DSN.
  * Set KNOWLEDGE_SCALE_TEST=true for the opt-in scale suite; its JSON report is saved in tmpdir.
+ * Optional positional Vitest filename filters limit a diagnostic run; omit them for full validation.
  */
 const logger = createLogger('KnowledgeAclIntegration')
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -17,6 +18,10 @@ const container = `sim-acl-test-${generateId()}`
 const redisContainer = `${container}-redis`
 const database = 'sim_acl_test_application'
 const scale = process.env.KNOWLEDGE_SCALE_TEST === 'true'
+const testFilters = process.argv.slice(2)
+if (testFilters.some((filter) => filter.startsWith('-')) || (scale && testFilters.length)) {
+  throw new Error('Pass only filename filters, and do not combine them with the scale suite')
+}
 const keepScaleDatabase = scale && process.env.KNOWLEDGE_SCALE_KEEP_DATABASE === 'true'
 const scaleReportFile =
   process.env.KNOWLEDGE_SCALE_REPORT_FILE ?? path.join(tmpdir(), `${container}.json`)
@@ -153,14 +158,14 @@ try {
       'run',
       '--mode',
       'integration',
-      ...(scale ? ['lib/knowledge/__integration__/scale.integration.ts'] : []),
+      ...(scale ? ['lib/knowledge/__integration__/scale.integration.ts'] : testFilters),
     ],
     {
       cwd: path.join(root, 'apps/sim'),
       env: environment,
     }
   )
-  if (!scale)
+  if (!scale && testFilters.length === 0)
     run(
       'bunx',
       [
@@ -178,7 +183,9 @@ try {
   logger.info(
     scale
       ? 'Opt-in knowledge scale measurements passed'
-      : 'Real ingestion, application access, ACL persistence, shared provider admission, and additive migration tests passed'
+      : testFilters.length > 0
+        ? 'Selected disposable integration tests passed'
+        : 'Real ingestion, application access, ACL persistence, shared provider admission, and additive migration tests passed'
   )
   if (scale) logger.info('Scale query plans and measurements', { reportFile: scaleReportFile })
 } finally {

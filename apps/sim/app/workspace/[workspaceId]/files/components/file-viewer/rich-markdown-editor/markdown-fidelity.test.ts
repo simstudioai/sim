@@ -1,64 +1,64 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { Editor, type JSONContent } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
-import { postProcessSerializedMarkdown } from './markdown-fidelity'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import { postProcessSerializedMarkdown } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
-describe('postProcessSerializedMarkdown — empty list-item stripping', () => {
-  it('drops a nested empty bullet that would re-parse as a Setext heading', () => {
-    // `- one\n  - ` re-parses as `- ## one` (the `  - ` acts as a Setext underline). Stripping the
-    // empty bullet on serialize keeps the parent a bullet and makes the round-trip stable.
-    expect(postProcessSerializedMarkdown('- one\n  - \n\n')).toBe('- one\n')
+describe('Markdown serialization boundaries', () => {
+  it.each([
+    '<pre>[https://example.com](https://example.com)</pre>\n',
+    '<details>\n> \\[!NOTE\\]\nparent\n  - \n</details>\n',
+    '````\n```\n- \n```\n````\n',
+    '> \\[!NOTE\\]\n> quoted source\n',
+  ])('does not rewrite syntax in assembled output: %s', (source) => {
+    expect(postProcessSerializedMarkdown(source)).toBe(source)
   })
 
-  it('drops a nested empty ordered item', () => {
-    expect(postProcessSerializedMarkdown('1. one\n   2. \n')).toBe('1. one\n')
-  })
-
-  it('preserves a top-level empty bullet (placeholder / imported blank — round-trips faithfully)', () => {
-    // A top-level empty item is not Setext-hazardous and round-trips as an empty item, so it must be
-    // kept: it may be a placeholder row the user is about to fill, or an intentionally-blank imported item.
-    expect(postProcessSerializedMarkdown('- one\n- \n')).toBe('- one\n- \n')
-    expect(postProcessSerializedMarkdown('- one\n- \n- three\n')).toBe('- one\n- \n- three\n')
-    expect(postProcessSerializedMarkdown('1. one\n2. \n')).toBe('1. one\n2. \n')
-  })
-
-  it('keeps bullets that have content', () => {
-    expect(postProcessSerializedMarkdown('- a\n- b\n')).toBe('- a\n- b\n')
-    expect(postProcessSerializedMarkdown('- a\n  - b\n')).toBe('- a\n  - b\n')
-  })
-
-  it('keeps a nested empty parent whose next line is an indented child (no orphaning)', () => {
-    expect(postProcessSerializedMarkdown('- top\n  - \n    - child\n')).toBe(
-      '- top\n  - \n    - child\n'
+  it('normalizes only the final separator', () => {
+    expect(postProcessSerializedMarkdown('\nfirst\n\n\n\nsecond\n\n\n')).toBe(
+      '\nfirst\n\n\n\nsecond\n'
     )
   })
 
-  it('keeps a nested empty item that follows a same-indent sibling (real placeholder, no Setext hazard)', () => {
-    // `  - ` after `  - two` (same indent) is a real empty item the parser keeps — it does NOT underline
-    // a shallower parent's text, so it must not be stripped. (Only `  - ` directly under `- one` does.)
-    expect(postProcessSerializedMarkdown('- one\n  - two\n  - \n  - three\n')).toBe(
-      '- one\n  - two\n  - \n  - three\n'
-    )
-    // The hazard case — empty item directly under the shallower parent — is still stripped.
-    expect(postProcessSerializedMarkdown('- one\n  - \n  - three\n')).toBe('- one\n  - three\n')
-  })
-
-  it('keeps a thematic break and empty checklist items (not Setext-hazardous)', () => {
-    expect(postProcessSerializedMarkdown('text\n\n---\n\nmore\n')).toBe('text\n\n---\n\nmore\n')
-    expect(postProcessSerializedMarkdown('- [ ] a\n- [ ] \n')).toBe('- [ ] a\n- [ ] \n')
-  })
-
-  it('leaves marker-only lines inside a fenced code block untouched', () => {
-    const code = '```\n- \n-\n1. \n```\n'
-    expect(postProcessSerializedMarkdown(code)).toBe(code)
-  })
-
-  it('leaves marker-only lines inside a tilde (~~~) fence untouched', () => {
-    const code = '~~~\n- \n1. \n~~~\n'
-    expect(postProcessSerializedMarkdown(code)).toBe(code)
-  })
-
-  it('does not strip inside an unterminated fence (fence stays open to EOF)', () => {
-    // A fence with no closing delimiter must keep every interior line, including marker-only ones.
-    const code = '```\n- \n-\n'
-    expect(postProcessSerializedMarkdown(code)).toBe(code)
-  })
+  it.each(['bulletList', 'orderedList', 'taskList'])(
+    'preserves empty nested %s items and their siblings across reload',
+    (listType) => {
+      const itemType = listType === 'taskList' ? 'taskItem' : 'listItem'
+      const paragraph = (text = ''): JSONContent => ({
+        type: 'paragraph',
+        content: text ? [{ type: 'text', text }] : [],
+      })
+      const item = (content: JSONContent[]): JSONContent => ({ type: itemType, content })
+      const editor = new Editor({
+        extensions: createMarkdownContentExtensions(),
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: listType,
+              content: [
+                item([
+                  paragraph('Parent'),
+                  { type: listType, content: [item([paragraph()]), item([paragraph('Child')])] },
+                ]),
+              ],
+            },
+          ],
+        },
+      })
+      try {
+        editor.commands.setContent(editor.getJSON())
+        const before = editor.getJSON().content?.[0]
+        const saved = postProcessSerializedMarkdown(editor.getMarkdown())
+        editor.commands.setContent(parseMarkdownToDoc(saved))
+        expect(editor.getJSON().content?.[0]).toEqual(before)
+        expect(postProcessSerializedMarkdown(editor.getMarkdown())).toBe(saved)
+      } finally {
+        editor.destroy()
+      }
+    }
+  )
 })

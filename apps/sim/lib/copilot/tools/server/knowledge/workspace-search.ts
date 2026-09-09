@@ -8,7 +8,6 @@ import {
   requireCopilotKnowledgeScope,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import {
@@ -16,6 +15,7 @@ import {
   searchWorkspaceKnowledge,
 } from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
+import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
@@ -29,27 +29,6 @@ const readInputSchema = z.object({
   offset: z.number().int().min(0).max(5000).default(0),
   limit: z.number().int().min(1).max(50).default(20),
 })
-
-function documentCitation(
-  scope: ResourceScope,
-  knowledgeBaseId: string,
-  documentId: string,
-  sourceUrl: string | null
-) {
-  const localUrl =
-    scope.kind === 'organization'
-      ? `${getBaseUrl()}/o/${encodeURIComponent(scope.organizationId)}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
-      : `${getBaseUrl()}/workspace/${encodeURIComponent(scope.workspaceId)}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
-  let citationUrl = localUrl
-  if (sourceUrl) {
-    try {
-      const parsed = new URL(sourceUrl)
-      if (parsed.protocol === 'https:' || parsed.protocol === 'http:')
-        citationUrl = parsed.toString()
-    } catch {}
-  }
-  return { citationId: `document:${documentId}`, citationUrl }
-}
 
 const CITATION_INSTRUCTION =
   'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.'
@@ -105,7 +84,13 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             content: item.content,
             chunkIndex: item.chunkIndex,
             similarity: item.similarity,
-            ...documentCitation(scope, item.knowledgeBaseId, item.documentId, item.sourceUrl),
+            ...createKnowledgeDocumentCitation({
+              scope,
+              knowledgeBaseId: item.knowledgeBaseId,
+              documentId: item.documentId,
+              sourceUrl: item.sourceUrl,
+              baseUrl: getBaseUrl(),
+            }),
           })),
         },
       }
@@ -151,7 +136,13 @@ export const readDocumentServerTool: BaseServerTool = {
         message: CITATION_INSTRUCTION,
         data: {
           ...result,
-          ...documentCitation(scope, result.knowledgeBaseId, result.documentId, result.sourceUrl),
+          ...createKnowledgeDocumentCitation({
+            scope,
+            knowledgeBaseId: result.knowledgeBaseId,
+            documentId: result.documentId,
+            sourceUrl: result.sourceUrl,
+            baseUrl: getBaseUrl(),
+          }),
         },
       }
     } catch (error) {

@@ -1,42 +1,14 @@
 import { cn } from '@sim/emcn'
 import { Check, ChevronDown, ChevronRight, Search } from '@sim/emcn/icons'
 import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
+import { LogsRunGraph } from '@/app/(landing)/components/shared/logs-run-graph'
+import {
+  COMPLETED_RUNS,
+  SUMMARY_STATS,
+} from '@/app/(landing)/components/shared/logs-run-graph/constants'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/logs/components/feature-graphics/run-trace-graphic.module.css'
 
-const STATS = [
-  { label: 'Success rate', value: '100%' },
-  { label: 'Median run', value: '21.8s' },
-  { label: 'Completed', value: '157' },
-  { label: 'Cost', value: '$17.27' },
-] as const
-
-const ACTIVITY = [
-  'h-[30%]',
-  'h-[50%]',
-  'h-[40%]',
-  'h-[60%]',
-  'h-[40%]',
-  'h-[70%]',
-  'h-[50%]',
-  'h-[60%]',
-  'h-[80%]',
-  'h-[50%]',
-  'h-[70%]',
-  'h-[60%]',
-  'h-[90%]',
-  'h-[60%]',
-  'h-[80%]',
-  'h-[70%]',
-  'h-full',
-  'h-[60%]',
-  'h-[80%]',
-  'h-[70%]',
-  'h-[90%]',
-  'h-[80%]',
-  'h-[60%]',
-  'h-[70%]',
-] as const
 const RUNS = [
   { name: 'Support ticket routing', time: 'Just now', duration: '1.86s', trigger: 'API' },
   { name: 'Enrich inbound lead', time: '2 min ago', duration: '24.2s', trigger: 'Webhook' },
@@ -47,10 +19,7 @@ const RUNS = [
 export function RunTraceGraphic() {
   return (
     <FeatureGraphicShell variant='portrait'>
-      <div
-        aria-hidden='true'
-        className={cn(styles.window, LANDING_STAGE_WINDOW_RADIUS, 'shadow-xs')}
-      >
+      <div className={cn(styles.window, LANDING_STAGE_WINDOW_RADIUS, 'shadow-xs')}>
         <div className={styles.toolbar}>
           <Search className='size-[14px] text-[var(--text-icon)]' />
           <span>Toolbar</span>
@@ -66,18 +35,14 @@ export function RunTraceGraphic() {
         </div>
         <div className={styles.overview}>
           <div className={styles.stats}>
-            {STATS.map((stat) => (
+            {SUMMARY_STATS.map((stat) => (
               <div key={stat.label} className={styles.stat}>
                 <span>{stat.label}</span>
                 <strong>{stat.value}</strong>
               </div>
             ))}
           </div>
-          <div className={styles.chart}>
-            {ACTIVITY.map((height, hour) => (
-              <span key={`hour-${hour}`} className={cn(styles.bar, height)} />
-            ))}
-          </div>
+          <LogsRunGraph layout='card' />
           <div className='flex justify-between text-[9px] text-[var(--text-muted)]'>
             <span>24 hours ago</span>
             <span>Now</span>
@@ -85,7 +50,7 @@ export function RunTraceGraphic() {
         </div>
         <div className={styles.runsHeading}>
           <span>Recent runs</span>
-          <span className='text-[var(--text-muted)]'>157 runs</span>
+          <span className='text-[var(--text-muted)]'>{COMPLETED_RUNS} runs</span>
         </div>
         <div className={styles.runs}>
           {RUNS.map((run, index) => (

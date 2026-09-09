@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
 
-import { GET as workspaceMetadata } from '@/app/.well-known/oauth-protected-resource/api/mcp/search/[workspaceId]/route'
+import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
 import { GET as organizationMetadata } from '@/app/.well-known/oauth-protected-resource/api/mcp/search/organizations/[organizationId]/route'
 
 afterAll(resetEnvFlagsMock)
@@ -25,18 +25,14 @@ describe('Search protected-resource metadata', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe('*')
   })
 
-  it('advertises the exact workspace resource', async () => {
-    setEnvFlags({ isAuthDisabled: false })
-    const response = await workspaceMetadata(new NextRequest('https://sim.test/'), {
-      params: Promise.resolve({ workspaceId: 'workspace-1' }),
-    })
-    expect((await response.json()).resource).toBe('https://sim.test/api/mcp/search/workspace-1')
+  it('uses the same organization resource for setup and discovery', () => {
+    expect(getSearchMcpUrl('org-1')).toBe('https://sim.test/api/mcp/search/organizations/org-1')
   })
 
   it('does not advertise disabled OAuth', async () => {
     setEnvFlags({ isAuthDisabled: true })
-    const response = await workspaceMetadata(new NextRequest('https://sim.test/'), {
-      params: Promise.resolve({ workspaceId: 'workspace-1' }),
+    const response = await organizationMetadata(new NextRequest('https://sim.test/'), {
+      params: Promise.resolve({ organizationId: 'org-1' }),
     })
     expect(response.status).toBe(404)
   })

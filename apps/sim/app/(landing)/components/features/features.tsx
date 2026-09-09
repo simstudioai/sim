@@ -61,6 +61,7 @@ const CORE_FEATURES = [
     href: '/logs',
     tone: 'light',
     visual: <RunTraceGraphic />,
+    interactiveVisual: true,
   },
 ] as const
 
@@ -81,12 +82,15 @@ export function Features() {
           <h2
             id='features-heading'
             className={cn(
-              'mb-16 max-w-[20ch] text-balance text-[var(--text-primary)] max-sm:mb-10 max-lg:mb-12',
+              'mb-16 max-w-[20ch] text-balance text-[var(--text-primary)] max-sm:mb-3 max-lg:mb-12',
               HOME_TYPE.h2
             )}
           >
             Everything AI agents need to do real work
           </h2>
+          <p className='mb-8 hidden text-[13px] text-[var(--text-secondary)] max-sm:block'>
+            Swipe to explore
+          </p>
 
           <FeaturesRail label='Core Sim features'>
             {CORE_FEATURES.map((feature) => (

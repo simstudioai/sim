@@ -262,12 +262,16 @@ describe('Combobox pagination', () => {
     expect(document.body.textContent).not.toContain('Search all options')
   })
 
-  it('explains when provider results remain beyond the safety limit', () => {
-    render(<Combobox options={OPTIONS} truncated />)
+  it('explains truncated results without assuming a provider limit', () => {
+    render(<Combobox options={OPTIONS} truncated searchable />)
 
     click(trigger())
 
-    expect(document.body.textContent).toContain('Showing the first 10,000 options')
+    expect(document.body.textContent).toContain('Showing partial results')
+
+    type(trigger('input[placeholder="Search..."]') as HTMLInputElement, 'missing')
+
+    expect(document.body.textContent).toContain('No matches in partial results')
   })
 })
 

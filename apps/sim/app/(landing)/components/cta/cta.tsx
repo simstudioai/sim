@@ -7,6 +7,8 @@ import {
   LANDING_CONTENT_WIDTH,
   LANDING_GUTTER,
 } from '@/app/(landing)/components/landing-layout'
+import ctaDark from '@/public/landing/cta-san-francisco-painted-dark.webp'
+import ctaLight from '@/public/landing/cta-san-francisco-painted-light.webp'
 
 /** One shared closing statement, with a deliberate line break between sentences. */
 const CTA_HEADLINE = ['Every agent your company runs.', 'All in one place.'] as const
@@ -14,6 +16,7 @@ const CTA_HEADLINE = ['Every agent your company runs.', 'All in one place.'] as 
 /**
  * Painted pre-footer CTA for every marketing page, mounted once by LandingShell.
  * Theme classes select the matching lazy-loaded painting without client state.
+ * An embedded preview fills the scene while the full-resolution image loads.
  * The sky mask keeps the copy clear and the lower edge fades into the footer.
  */
 export function Cta() {
@@ -50,17 +53,21 @@ export function Cta() {
         className='-mt-[clamp(96px,12.5vw,240px)] max-sm:-mt-6 pointer-events-none relative aspect-video w-full max-sm:aspect-[16/10]'
       >
         <Image
-          src='/landing/cta-san-francisco-painted-light.webp'
+          src={ctaLight}
           alt=''
           fill
+          placeholder='blur'
+          fetchPriority='high'
           quality={90}
           sizes='(max-width: 639px) 112vw, 100vw'
           className={cn('object-cover object-center dark:hidden', styles.plate)}
         />
         <Image
-          src='/landing/cta-san-francisco-painted-dark.webp'
+          src={ctaDark}
           alt=''
           fill
+          placeholder='blur'
+          fetchPriority='high'
           quality={90}
           sizes='(max-width: 639px) 112vw, 100vw'
           className={cn('hidden object-cover object-center dark:block', styles.plate)}

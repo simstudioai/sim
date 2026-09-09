@@ -2,7 +2,7 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
+import { contractUrl, requestJson } from '@/lib/api/client/request'
 import {
   type BulkChunkOperationData,
   type BulkDeleteKnowledgeItemsBody,
@@ -25,6 +25,7 @@ import {
   deleteKnowledgeChunkContract,
   deleteKnowledgeDocumentContract,
   deleteTagDefinitionContract,
+  exportKnowledgeBaseContract,
   getKnowledgeBaseContract,
   getKnowledgeDocumentContract,
   getTagUsageContract,
@@ -739,6 +740,25 @@ async function deleteKnowledgeBase({ knowledgeBaseId }: DeleteKnowledgeBaseParam
   await requestJson(deleteKnowledgeBaseContract, {
     params: { id: knowledgeBaseId },
   })
+}
+
+/**
+ * Starts a browser download of a knowledge base's bundle archive.
+ *
+ * An anchor navigation rather than a fetch: the archive is streamed and can run
+ * to gigabytes, and the browser saving it straight to disk is what keeps it out
+ * of page memory. The session cookie authenticates the same-origin request.
+ */
+export function downloadKnowledgeBaseExport(knowledgeBaseId: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = contractUrl(exportKnowledgeBaseContract, {
+    params: { id: knowledgeBaseId },
+    query: {},
+  })
+  anchor.download = ''
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
 }
 
 export function useDeleteKnowledgeBase() {
