@@ -157,6 +157,45 @@ describe('Knowledge Tools', () => {
     })
   })
 
+  describe('knowledgeCreateDocumentTool', () => {
+    describe('transformResponse', () => {
+      it('exposes the created document ID at both the top level and nested data path', async () => {
+        const result = await knowledgeCreateDocumentTool.transformResponse!(
+          createMockResponse({
+            data: {
+              documentsCreated: [{ documentId: 'doc-123', filename: 'document.txt' }],
+            },
+          })
+        )
+
+        expect(result.success).toBe(true)
+        expect(result.output.documentId).toBe('doc-123')
+        expect(result.output.data.documentId).toBe('doc-123')
+      })
+
+      it('uses the legacy document ID fallback for both output paths', async () => {
+        const result = await knowledgeCreateDocumentTool.transformResponse!(
+          createMockResponse({
+            documentsCreated: [{ id: 'legacy-doc-123', filename: 'document.txt' }],
+          })
+        )
+
+        expect(result.output.documentId).toBe('legacy-doc-123')
+        expect(result.output.data.documentId).toBe('legacy-doc-123')
+      })
+
+      it('preserves empty IDs when no documents are created', async () => {
+        const result = await knowledgeCreateDocumentTool.transformResponse!(
+          createMockResponse({ data: { documentsCreated: [] } })
+        )
+
+        expect(result.success).toBe(true)
+        expect(result.output.documentId).toBe('')
+        expect(result.output.data.documentId).toBe('')
+      })
+    })
+  })
+
   describe('knowledgeSearchTool', () => {
     describe('transformResponse', () => {
       it('should restructure cost information for logging', async () => {
