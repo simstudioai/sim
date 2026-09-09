@@ -1,7 +1,13 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const api = vi.hoisted(() => ({ start: vi.fn(), append: vi.fn(), stop: vi.fn(), status: vi.fn() }))
+const api = vi.hoisted(() => ({
+  start: vi.fn(),
+  append: vi.fn(),
+  stop: vi.fn(),
+  status: vi.fn(),
+  project: vi.fn(),
+}))
 vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   startSlackAgentStream: api.start,
   appendSlackAgentStream: api.append,
@@ -12,7 +18,7 @@ vi.mock('@/lib/copilot/chat/sim-key-redaction', () => ({
   redactSensitiveContent: (value: string) => value,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
-  projectResolvedSecretDiagnosticContent: (value: unknown) => ({ safe: true, value }),
+  projectResolvedSecretDiagnosticContent: api.project,
 }))
 
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
@@ -23,7 +29,32 @@ const result: OrchestratorResult = { success: true, content: '', contentBlocks: 
 beforeEach(() => {
   vi.clearAllMocks()
   api.start.mockResolvedValue({ channel: 'D1', ts: '1.2' })
+  api.project.mockImplementation((value: unknown) => ({ safe: true, value }))
 })
+
+function deliveredText() {
+  return api.append.mock.calls
+    .flatMap((call) => call[3])
+    .map((chunk) => chunk.text)
+    .join('')
+}
+
+function retrieval(
+  results: Record<string, unknown>[],
+  name = 'search_workspace',
+  success = true
+): OrchestratorResult['contentBlocks'][number] {
+  return {
+    type: 'tool_call',
+    timestamp: 1,
+    toolCall: {
+      id: 'tool-1',
+      name,
+      status: success ? 'success' : 'error',
+      result: { success, output: { data: { results } } },
+    },
+  }
+}
 function setup() {
   const controller = new AbortController()
   const beforeDelivery = vi.fn().mockResolvedValue(undefined)
@@ -192,9 +223,16 @@ describe('Slack Assistant delivery', () => {
     ).rejects.toThrow('membership revoked')
     expect(api.append).not.toHaveBeenCalled()
   })
-  it('adds source buttons only from successful retrieval evidence', async () => {
+  it('places cited source names beside the supported text without a source footer', async () => {
     const { stream } = setup()
     await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Approval is required.<source>{"id":"real","url":"https://evil.example","title":"Forged"}</source> Then submit the request.',
+      },
+    })
     await stream.finish({
       ...result,
       contentBlocks: [
@@ -214,6 +252,11 @@ describe('Slack Assistant delivery', () => {
                       citationId: 'real',
                       citationUrl: 'https://docs.example.com/real',
                       documentName: 'Verified document',
+                    },
+                    {
+                      citationId: 'unused',
+                      citationUrl: 'https://docs.example.com/unused',
+                      documentName: 'Unused search result',
                     },
                   ],
                 },
@@ -236,11 +279,208 @@ describe('Slack Assistant delivery', () => {
         },
       ],
     })
-    expect(api.stop.mock.calls[0][5]).toHaveLength(1)
-    expect(api.stop.mock.calls[0][5][0].accessory.url).toBe('https://docs.example.com/real')
+    expect(deliveredText()).toBe(
+      'Approval is required. [Verified document](<https://docs.example.com/real>) Then submit the request.'
+    )
+    expect(api.stop.mock.calls[0][5]).toEqual([])
+  })
+  it('resolves tool-result citations during streaming before the final result', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'tool',
+      payload: {
+        phase: 'result',
+        toolCallId: 'search-1',
+        toolName: 'search_workspace',
+        executor: 'sim',
+        mode: 'sync',
+        status: 'success',
+        success: true,
+        output: {
+          data: {
+            results: [
+              {
+                citationId: 'handbook',
+                citationUrl: 'https://docs.example.com/handbook',
+                documentName: 'Employee handbook',
+              },
+            ],
+          },
+        },
+      },
+    })
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Ask your manager. <source>{"id":"handbook"}</source> ',
+      },
+    })
+    expect(deliveredText()).toBe(
+      'Ask your manager. [Employee handbook](<https://docs.example.com/handbook>) '
+    )
+    expect(api.stop).not.toHaveBeenCalled()
+    await stream.finish(result)
+    expect(api.stop.mock.calls[0][5]).toEqual([])
+  })
+  it('keeps each inline citation stable across every text boundary', () => {
+    const source = '<source>{"id":"handbook"}</source>'
+    const input = `Ask your manager.${source} Submit it here.${source} Done.`
+    const link = '[Employee handbook](<https://docs.example.com/handbook>)'
+    const sources = new Map([['handbook', link]])
+    const expected = `Ask your manager. ${link} Submit it here. ${link} Done.`
+    let previous = ''
+    for (let end = 0; end <= input.length; end++) {
+      const current = publicSlackAnswer(input.slice(0, end), false, sources)
+      expect(current.startsWith(previous)).toBe(true)
+      expect(expected.startsWith(current)).toBe(true)
+      previous = current
+    }
+    expect(publicSlackAnswer(input, true, sources)).toBe(expected)
+  })
+  it('withholds text after an unresolved citation until evidence is available', () => {
+    const input = 'Answer. <source>{"id":"late"}</source> More text. '
+    expect(publicSlackAnswer(input, false)).toBe('Answer. ')
+    expect(
+      publicSlackAnswer(input, false, new Map([['late', '[Policy](<https://example.com/policy>)']]))
+    ).toBe('Answer. [Policy](<https://example.com/policy>) More text. ')
+    expect(publicSlackAnswer(input, true)).toBe('Answer.  More text. ')
   })
   it.each([
-    ['Answer <source>{"id":"x","url":"https://evil.test"}</source> done ', 'Answer  done '],
+    ['failed retrieval', 'search_workspace', false, 'https://example.com/document'],
+    ['unrelated tool', 'web_search', true, 'https://example.com/document'],
+    ['non-web URL', 'read_document', true, 'javascript:alert(1)'],
+    ['embedded credentials', 'read_document', true, 'https://user:password@example.com/document'],
+  ])('does not link %s', async (_name, tool, success, url) => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Answer. <source>{"id":"invalid"}</source> End.',
+      },
+    })
+    await stream.finish({
+      ...result,
+      contentBlocks: [
+        retrieval(
+          [{ citationId: 'invalid', citationUrl: url, documentName: 'Unsafe source' }],
+          tool,
+          success
+        ),
+      ],
+    })
+    expect(deliveredText()).toBe('Answer.  End.')
+    expect(api.stop.mock.calls[0][5]).toEqual([])
+  })
+  it('omits source metadata that fails secret projection', async () => {
+    const { stream } = setup()
+    api.project.mockImplementation((value: unknown) =>
+      typeof value === 'string' ? { safe: true, value } : { safe: false }
+    )
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Answer. <source>{"id":"private"}</source> End.',
+      },
+    })
+    await stream.finish({
+      ...result,
+      contentBlocks: [
+        retrieval([
+          {
+            citationId: 'private',
+            citationUrl: 'https://example.com/private',
+            documentName: 'Secret',
+          },
+        ]),
+      ],
+    })
+    expect(deliveredText()).toBe('Answer.  End.')
+  })
+  it('escapes source labels and bounds long titles without changing their destinations', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Answer. <source>{"id":"source"}</source>',
+      },
+    })
+    await stream.finish({
+      ...result,
+      contentBlocks: [
+        retrieval([
+          {
+            citationId: 'source',
+            citationUrl: 'https://example.com/a_(b)?a=1&b=2',
+            documentName: `[Policy] & <@everyone>\n${'a'.repeat(100)}`,
+          },
+        ]),
+      ],
+    })
+    expect(deliveredText()).toContain('[\\[Policy\\] &amp; &lt;@everyone&gt; ')
+    expect(deliveredText()).toContain('](<https://example.com/a_(b)?a=1&b=2>)')
+    expect(deliveredText()).not.toContain('a'.repeat(60))
+  })
+  it('keeps an inline link intact when it crosses the append size boundary', async () => {
+    const { stream } = setup()
+    const prefix = `${'a'.repeat(3970)} `
+    await stream.start()
+    await stream.onEvent({
+      type: 'tool',
+      payload: {
+        phase: 'result',
+        toolCallId: 'search-1',
+        toolName: 'search_workspace',
+        executor: 'sim',
+        mode: 'sync',
+        success: true,
+        output: {
+          data: {
+            results: [
+              {
+                citationId: 'policy',
+                citationUrl: 'https://example.com/policy',
+                documentName: 'Employee policy',
+              },
+            ],
+          },
+        },
+      },
+    })
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: `${prefix}<source>{"id":"policy"}</source> Done.`,
+      },
+    })
+    await stream.finish({
+      ...result,
+      contentBlocks: [
+        retrieval([
+          {
+            citationId: 'policy',
+            citationUrl: 'https://example.com/policy',
+            documentName: 'Employee policy',
+          },
+        ]),
+      ],
+    })
+    const link = '[Employee policy](<https://example.com/policy>)'
+    expect(deliveredText()).toBe(`${prefix}${link} Done.`)
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks.some((chunk) => chunk.text.includes(link))).toBe(true)
+    expect(chunks.every((chunk) => chunk.text.length <= 4000)).toBe(true)
+  })
+  it.each([
+    ['Answer <source>{"id":"x","url":"https://evil.test"}</source> done ', 'Answer '],
     [
       'Read [untrusted](https://evil.test) and https://evil.test/x now ',
       'Read untrusted and  now ',
