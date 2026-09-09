@@ -7,6 +7,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
 const {
+  mockSleep,
   mockCheckAttributedUsageLimits,
   mockCheckRateLimit,
   mockGetActivelyBannedUserIds,
@@ -14,6 +15,7 @@ const {
   mockResolveBillingAttribution,
   mockResolveSystemBillingAttribution,
 } = vi.hoisted(() => ({
+  mockSleep: vi.fn().mockResolvedValue(undefined),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
@@ -22,6 +24,9 @@ const {
   mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
+vi.mock('@sim/utils/helpers', () => ({
+  sleep: mockSleep,
+}))
 vi.mock('@/lib/auth/ban', () => ({
   getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))
@@ -248,6 +253,10 @@ describe('preprocessExecution logPreprocessingErrors option', () => {
 })
 
 describe('preprocessExecution suppressRetryableFailureLogs option', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   const baseOptions = {
     workflowId: 'workflow-1',
     userId: 'owner-1',
@@ -267,7 +276,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
   }
 
   it('skips the failure row for a retryable infrastructure failure', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
       Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
     )
     const loggingSession = makeLoggingSession()
@@ -308,8 +317,25 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     expect(loggingSession.safeStart).toHaveBeenCalled()
   })
 
+  it('retries the workflow fetch before surfacing a transient failure', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      loggingSession: makeLoggingSession() as any,
+    })
+
+    expect(workflowAuthzMockFns.mockGetActiveWorkflowRecord).toHaveBeenCalledTimes(3)
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: 'Internal error while fetching workflow', retryable: true },
+    })
+  })
+
   it('records retryable failures when the option is absent', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
       Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
     )
     const loggingSession = makeLoggingSession()

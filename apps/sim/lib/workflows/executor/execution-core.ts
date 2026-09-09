@@ -19,6 +19,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
@@ -381,7 +382,11 @@ export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const workspaceId = options.snapshot.metadata.workspaceId
-  const rows = workspaceId ? await getCustomBlockRowsForWorkspace(workspaceId) : []
+  const rows = workspaceId
+    ? await withDatabaseReadRetry(() => getCustomBlockRowsForWorkspace(workspaceId), {
+        label: 'getCustomBlockRowsForWorkspace',
+      })
+    : []
   return withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
 }
 
@@ -560,8 +565,11 @@ async function executeWorkflowCoreImpl(
     }
 
     const [workflowState, env] = await Promise.all([
-      loadWorkflowState(),
-      getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
+      withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
+      withDatabaseReadRetry(
+        () => getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
+        { label: 'getExecutionEnvironment' }
+      ),
     ])
 
     const { blocks, loops, parallels } = workflowState
@@ -847,12 +855,16 @@ async function executeWorkflowCoreImpl(
     // stage (below) and the block-outputs stage (threaded into the executor).
     // Stored rules are the source of truth; absence yields the disabled default
     // with one indexed lookup and no masking cost for non-PII organizations.
-    const [row] = await db
-      .select({ orgSettings: organization.dataRetentionSettings })
-      .from(workspace)
-      .leftJoin(organization, eq(organization.id, workspace.organizationId))
-      .where(eq(workspace.id, providedWorkspaceId))
-      .limit(1)
+    const [row] = await withDatabaseReadRetry(
+      () =>
+        db
+          .select({ orgSettings: organization.dataRetentionSettings })
+          .from(workspace)
+          .leftJoin(organization, eq(organization.id, workspace.organizationId))
+          .where(eq(workspace.id, providedWorkspaceId))
+          .limit(1),
+      { label: 'resolvePiiRedactionPolicy' }
+    )
     const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
       orgSettings: row?.orgSettings,
       workspaceId: providedWorkspaceId,
@@ -933,7 +945,10 @@ async function executeWorkflowCoreImpl(
         (block) => block.id === resolvedTriggerBlockId
       )
       if (entryBlock && isRunMetadataEnabled(entryBlock)) {
-        const runIdentity = await resolveStartBlockRunIdentity(metadata.principal)
+        const runIdentity = await withDatabaseReadRetry(
+          () => resolveStartBlockRunIdentity(metadata.principal),
+          { label: 'resolveStartBlockRunIdentity' }
+        )
         startRunMetadata = {
           ...runIdentity,
           workspaceId: providedWorkspaceId,

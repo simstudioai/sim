@@ -38,14 +38,20 @@ export function isTransientDatabaseReadError(error: unknown): boolean {
  * rebuild the query outside any transaction and must have no side effects or locks.
  * A failed connection cannot establish whether a write committed, so writes and
  * transactions must never use this helper.
+ *
+ * `label` names the read in the retry log line so callers that wrap several can tell which flapped.
  */
-export async function withDatabaseReadRetry<T>(read: () => Promise<T>): Promise<T> {
+export async function withDatabaseReadRetry<T>(
+  read: () => Promise<T>,
+  options: { label?: string } = {}
+): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await read()
     } catch (error) {
       if (attempt >= 3 || !isTransientDatabaseReadError(error)) throw error
       logger.warn('Retrying transient database read', {
+        label: options.label,
         attempt,
         code: getPostgresErrorCode(error),
       })
