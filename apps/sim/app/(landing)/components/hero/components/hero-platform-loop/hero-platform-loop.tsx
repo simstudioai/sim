@@ -39,8 +39,7 @@ const PREVIEW_PANE_MIN_WIDTH = 360
  * Native-scale product preview for the homepage. It composes the real Sim
  * sidebar geometry, chat controls, resource tab strip, and embedded workflow
  * presentation with isolated demo state, so visitors can use the preview
- * without a session or access to workspace data. Below the desktop breakpoint,
- * chat and resources share one pane; the resource header returns to chat.
+ * without a session or access to workspace data.
  */
 export function HeroPlatformLoop() {
   const previewContainerRef = useRef<HTMLDivElement>(null)
@@ -267,7 +266,6 @@ export function HeroPlatformLoop() {
       >
         <div
           ref={previewContainerRef}
-          data-preview-outline='frame'
           className='relative flex h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)] [--preview-resource-width:50%]'
         >
           <div className={cn('relative h-full min-w-0 flex-1', stageOpen && 'max-lg:hidden')}>
@@ -328,8 +326,6 @@ export function HeroPlatformLoop() {
 
           <div
             ref={resourcePaneRef}
-            data-preview-outline={stageOpen ? 'left' : undefined}
-            data-preview-collapsed={stageOpen ? undefined : ''}
             data-resource-open={stageOpen}
             inert={!stageOpen}
             aria-hidden={!stageOpen}

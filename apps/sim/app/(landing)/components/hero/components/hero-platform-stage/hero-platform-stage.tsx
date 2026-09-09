@@ -5,11 +5,9 @@ import { MobileHeroWorkflow } from '@/app/(landing)/components/hero/components/h
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 
 /**
- * Painted frame on the customer carousel's full content measure. The product
- * window keeps the masthead's inset on desktop; smaller screens use a compact
- * painted gutter so the interface retains its available space. One grayscale
- * painting keeps identical brushwork across themes, with a charcoal treatment
- * applied locally in dark mode.
+ * A focused workflow below 1024px; larger screens show the interactive platform
+ * in a painted frame. The window uses a compact gutter until the wide desktop
+ * layout, with a charcoal treatment applied to the painting in dark mode.
  */
 export function HeroPlatformStage() {
   return (
@@ -29,7 +27,6 @@ export function HeroPlatformStage() {
             src='/landing/hero-painted-4k.webp'
             alt=''
             fill
-            priority
             fetchPriority='high'
             quality={90}
             sizes='(max-width: 1727px) 100vw, 1648px'
@@ -41,7 +38,7 @@ export function HeroPlatformStage() {
           role='region'
           aria-label='Interactive Sim product preview'
           className={cn(
-            'relative aspect-[1280/735] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-xs transition-[border-color,box-shadow] duration-300 ease-out has-[[data-preview-entering]]:border-transparent has-[[data-preview-entering]]:shadow-none motion-reduce:transition-none max-sm:aspect-[4/3] max-sm:min-h-[264px] max-xl:min-h-[480px]',
+            'relative aspect-[1280/735] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-xs max-xl:min-h-[480px]',
             'w-full xl:mx-auto xl:w-[83.333%]'
           )}
         >

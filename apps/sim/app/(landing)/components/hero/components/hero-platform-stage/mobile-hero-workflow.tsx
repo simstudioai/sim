@@ -13,7 +13,7 @@ const BLOCKS = [
   { ...STAGE_BLOCKS[0], x: 5, y: 185, position: 'left-[5px] top-[185px]' },
   { ...STAGE_BLOCKS[1], x: 325, y: 75, position: 'left-[325px] top-[75px]' },
   { ...STAGE_BLOCKS[4], name: 'Share lead', x: 645, y: 165, position: 'left-[645px] top-[165px]' },
-]
+] as const
 
 /** A readable close-up of lead enrichment for screens too narrow for the full platform. */
 export function MobileHeroWorkflow() {
