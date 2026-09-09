@@ -214,7 +214,7 @@
     "next": "16.3.4",
     "next-mdx-remote": "^6.0.0",
     "next-themes": "^0.4.6",
-    "nodemailer": "9.0.1",
+    "nodemailer": "9.1.1",
     "nuqs": "2.8.9",
     "officeparser": "5.2.2",
     "openai": "7.0.0",
