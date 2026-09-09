@@ -124,14 +124,7 @@ describe('FileToolProcessor', () => {
       mockUploadExecutionFile.mockResolvedValue(storedFile)
 
       const result = await FileToolProcessor.processToolOutputs(
-        {
-          file: {
-            name: 'empty.txt',
-            mimeType: 'text/plain',
-            data,
-            url: 'https://example.com/file',
-          },
-        },
+        { file: { name: 'empty.txt', mimeType: 'text/plain', data } },
         toolConfig,
         executionContext
       )
@@ -159,6 +152,46 @@ describe('FileToolProcessor', () => {
     expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.alloc(0))
   })
 
+  it.each([Buffer.alloc(0), '', { type: 'Buffer', data: [] }])(
+    'prefers the url over empty inline data: %j',
+    async (data) => {
+      mockDownloadFileFromUrl.mockResolvedValue(Buffer.from('downloaded'))
+
+      await FileToolProcessor.processToolOutputs(
+        {
+          file: {
+            name: 'file.txt',
+            mimeType: 'text/plain',
+            data,
+            url: 'https://example.com/file',
+          },
+        },
+        toolConfig,
+        executionContext
+      )
+
+      expect(mockDownloadFileFromUrl).toHaveBeenCalledWith(
+        'https://example.com/file',
+        expect.objectContaining({ userId: 'user-1' })
+      )
+      expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.from('downloaded'))
+    }
+  )
+
+  it.each([
+    ['line-wrapped base64', 'SGVsbG8s\nIHdvcmxkIQ=='],
+    ['unpadded base64url', 'SGVsbG8sIHdvcmxkIQ'],
+    ['a base64 data URI', 'data:text/plain;base64,SGVsbG8sIHdvcmxkIQ=='],
+  ])('decodes %s', async (_label, data) => {
+    await FileToolProcessor.processToolOutputs(
+      { file: { name: 'hello.txt', mimeType: 'text/plain', data } },
+      toolConfig,
+      executionContext
+    )
+
+    expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.from('Hello, world!'))
+  })
+
   it('stores a successful zero-byte URL download', async () => {
     mockDownloadFileFromUrl.mockResolvedValue(Buffer.alloc(0))
 
@@ -171,7 +204,7 @@ describe('FileToolProcessor', () => {
     expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.alloc(0))
   })
 
-  it.each([undefined, null, '!!!', { type: 'Buffer', data: 'invalid' }])(
+  it.each([undefined, null, '!!!', 'a!b!c!AAAA', 'AAAAA', { type: 'Buffer', data: 'invalid' }])(
     'does not turn missing or malformed data into an empty file: %j',
     async (data) => {
       await expect(

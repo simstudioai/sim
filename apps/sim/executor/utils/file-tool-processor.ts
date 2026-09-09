@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isCanonicalBase64 } from '@/lib/api/contracts/primitives'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
@@ -14,6 +15,18 @@ const IMAGE_FILE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+}
+
+/**
+ * Normalize a tool-supplied base64 payload to canonical RFC 4648 form so it can be
+ * validated: strip a base64 `data:` URI prefix, drop the line wrapping MIME encoders
+ * emit, translate the base64url alphabet, and restore padding unpadded encoders omit.
+ */
+function normalizeBase64(value: string): string {
+  const payload = /^data:[^,]*;base64,/i.test(value) ? value.slice(value.indexOf(',') + 1) : value
+  const compact = payload.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/')
+  const remainder = compact.length % 4
+  return remainder === 0 ? compact : compact + '='.repeat(4 - remainder)
 }
 
 function assertFileSize(size: number, fileName: string): void {
@@ -170,21 +183,17 @@ export class FileToolProcessor {
           throw new Error(`Invalid serialized buffer format for ${data.name}`)
         }
       } else if (typeof data.data === 'string') {
-        let base64Data = data.data
-
-        if (base64Data.includes('-') || base64Data.includes('_')) {
-          base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
-        }
+        const base64Data = normalizeBase64(data.data)
 
         const paddingBytes = base64Data.endsWith('==') ? 2 : base64Data.endsWith('=') ? 1 : 0
         assertFileSize(Math.floor((base64Data.length * 3) / 4) - paddingBytes, data.name)
-        buffer = Buffer.from(base64Data, 'base64')
-        if (base64Data.length > 0 && buffer.length === 0) {
+        if (!isCanonicalBase64(base64Data)) {
           throw new Error(`File '${data.name}' has invalid base64 data`)
         }
+        buffer = Buffer.from(base64Data, 'base64')
       }
 
-      if (!buffer && data.url) {
+      if ((!buffer || buffer.length === 0) && data.url) {
         buffer = await downloadFileFromUrl(data.url, {
           maxBytes: MAX_FILE_SIZE,
           userId: context.userId,
