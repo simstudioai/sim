@@ -85,6 +85,7 @@ const documents = [
     characterCount: 40,
     tags: {},
     file: { kind: 'storage', key: 'kb/handbook.pdf' },
+    storedChunkCount: 2,
     hasChunks: true,
   },
 ]
@@ -186,6 +187,19 @@ describe('exportKnowledgeBase', () => {
     mocks.listDocuments.mockResolvedValueOnce([
       { ...documents[0], tags: { tag1: 'x'.repeat(10_001) } },
     ])
+
+    await expect(
+      exportKnowledgeBase.execute({
+        principal,
+        input: { knowledgeBaseId: 'knowledge-1', vectors: true },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /** The written manifest carries the streamed count, so the gate must check the stored one. */
+  it('refuses a document holding more chunks than the bundle format describes', async () => {
+    mocks.listDocuments.mockResolvedValueOnce([{ ...documents[0], storedChunkCount: 5_001 }])
 
     await expect(
       exportKnowledgeBase.execute({

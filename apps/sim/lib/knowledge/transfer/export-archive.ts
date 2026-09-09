@@ -39,7 +39,7 @@ async function openFileSource(source: ExportableFileSource): Promise<Readable | 
     return downloadFileStream({ key: source.key, context: 'knowledge-base' })
   }
   return decodeDataUriWithinLimit(
-    await readInlineFileUrl(source.documentId),
+    await readInlineFileUrl(source.knowledgeBaseId, source.documentId),
     MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
   ).buffer
 }
@@ -65,7 +65,9 @@ function toChunkLine(chunk: ExportableChunk, vectors: boolean): KnowledgeBundleC
  * entry at a time and emits `entry` exactly once per append, or `error` in its
  * place, which `once` turns into a rejection. A consumer that goes away
  * destroys the archive without either event, so `closed` aborts the wait and
- * the in-flight source is released instead of leaking.
+ * the in-flight source is released instead of leaking; an append is refused
+ * outright once it has fired, since a destroyed archive has no listener left
+ * to receive the error it would emit.
  */
 async function appendEntry(
   archive: ZipArchive,
@@ -73,6 +75,10 @@ async function appendEntry(
   name: string,
   closed: AbortSignal
 ): Promise<void> {
+  if (closed.aborted) {
+    if (source instanceof Readable) source.destroy()
+    closed.throwIfAborted()
+  }
   const consumed = once(archive, 'entry', { signal: closed })
   archive.append(source, { name })
   try {

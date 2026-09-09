@@ -42,6 +42,7 @@ function exportableDocument(overrides: Partial<ExportableDocument>): ExportableD
     characterCount: 40,
     tags: { tag1: 'Billing' },
     file: { kind: 'storage', key: 'kb/handbook.pdf' },
+    storedChunkCount: 2,
     hasChunks: true,
     ...overrides,
   }
@@ -78,7 +79,7 @@ function bundle(overrides: Partial<KnowledgeBaseExportBundle> = {}): KnowledgeBa
         id: INLINE_ID,
         filename: 'note.txt',
         mimeType: 'text/plain',
-        file: { kind: 'data-uri', documentId: INLINE_ID },
+        file: { kind: 'data-uri', knowledgeBaseId: 'kb-1', documentId: INLINE_ID },
         hasChunks: false,
       }),
       exportableDocument({ id: TEXT_ONLY_ID, filename: 'wiki page', file: null, hasChunks: true }),

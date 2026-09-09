@@ -72,7 +72,7 @@ export const exportKnowledgeBase = defineAuthorizedKnowledgeUseCase({
       },
       tags,
       documents: documents.map((document) =>
-        toManifestDocument(document, bundleEntryPaths(document), 0)
+        toManifestDocument(document, bundleEntryPaths(document), document.storedChunkCount)
       ),
     })
     return {

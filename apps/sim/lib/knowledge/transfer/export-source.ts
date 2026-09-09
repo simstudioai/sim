@@ -27,10 +27,16 @@ const CHUNK_PAGE_SIZE = { text: 500, vectors: 100 } as const
 /** Where a document's original bytes come from, when it has any. */
 export type ExportableFileSource =
   | { kind: 'storage'; key: string }
-  | { kind: 'data-uri'; documentId: string }
+  | { kind: 'data-uri'; knowledgeBaseId: string; documentId: string }
 
 export interface ExportableDocument extends ExportableDocumentRecord {
   file: ExportableFileSource | null
+  /**
+   * Chunks the document reports holding. The archive writes what its chunk
+   * stream actually produced, which can only be lower; this is what the bundle
+   * gate checks against the format's per-document ceiling before any byte streams.
+   */
+  storedChunkCount: number
   /** True when the document finished processing and holds chunks worth exporting. */
   hasChunks: boolean
 }
@@ -50,13 +56,12 @@ function exportableDocumentCondition(knowledgeBaseId: string) {
   )
 }
 
-function fileSourceFor(row: {
-  id: string
-  storageKey: string | null
-  hasInlineFile: boolean
-}): ExportableFileSource | null {
+function fileSourceFor(
+  knowledgeBaseId: string,
+  row: { id: string; storageKey: string | null; hasInlineFile: boolean }
+): ExportableFileSource | null {
   if (row.storageKey) return { kind: 'storage', key: row.storageKey }
-  if (row.hasInlineFile) return { kind: 'data-uri', documentId: row.id }
+  if (row.hasInlineFile) return { kind: 'data-uri', knowledgeBaseId, documentId: row.id }
   return null
 }
 
@@ -77,11 +82,14 @@ export async function listExportableTags(
  * reached: the column can hold megabytes per row, so the listing carries a flag
  * and the archive fetches one payload at a time.
  */
-export async function readInlineFileUrl(documentId: string): Promise<string> {
+export async function readInlineFileUrl(
+  knowledgeBaseId: string,
+  documentId: string
+): Promise<string> {
   const [row] = await db
     .select({ fileUrl: document.fileUrl })
     .from(document)
-    .where(eq(document.id, documentId))
+    .where(and(eq(document.knowledgeBaseId, knowledgeBaseId), eq(document.id, documentId)))
     .limit(1)
   if (!row) throw new OrchestrationError('not_found', 'Document not found')
   return row.fileUrl
@@ -140,7 +148,7 @@ export async function listExportableDocuments(
 
   const documents: ExportableDocument[] = []
   for (const row of rows) {
-    const file = fileSourceFor(row)
+    const file = fileSourceFor(knowledgeBaseId, row)
     const hasChunks = row.processingStatus === 'completed' && row.chunkCount > 0
     if (!file && !hasChunks) continue
     documents.push({
@@ -152,6 +160,7 @@ export async function listExportableDocuments(
       tokenCount: row.tokenCount,
       characterCount: row.characterCount,
       file,
+      storedChunkCount: row.chunkCount,
       hasChunks,
       tags: Object.fromEntries(ALL_TAG_SLOTS.map((slot) => [slot, row[slot]])),
     })

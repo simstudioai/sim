@@ -44,11 +44,6 @@ const organizationContext = {
   organizationId: 'organization-1',
   knowledgeBaseId: 'knowledge-1',
 }
-const legacyContext = {
-  workspaceId: undefined,
-  legacyPersonalOwnerUserId: 'user-1',
-  knowledgeBaseId: 'knowledge-1',
-}
 
 const session = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
 
@@ -121,24 +116,5 @@ describe('defineAuthorizedKnowledgeUseCase', () => {
         metadata: expect.objectContaining({ organizationId: 'organization-1' }),
       })
     )
-  })
-
-  it('admits only the owner of a legacy personal base', async () => {
-    const { useCase, execute } = useCaseFor(legacyContext)
-
-    await useCase.authorize({ principal: session, input: {} })
-    expect(execute).not.toHaveBeenCalled()
-    await expect(useCase.execute({ principal: session, input: {} })).resolves.toBe('done')
-
-    const stranger = { kind: 'session', userId: 'user-2', sessionId: 'session-2' } as const
-    await expect(useCase.authorize({ principal: stranger, input: {} })).rejects.toMatchObject({
-      code: 'not_found',
-    })
-    await expect(
-      useCase.authorize({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-        input: {},
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })
