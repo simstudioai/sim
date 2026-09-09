@@ -11,7 +11,7 @@ import type {
 } from '@/lib/execution/code-placeholders/types'
 
 const MAX_PLACEHOLDERS = 10_000
-const PLACEHOLDER_PATTERN = /\{\{([^}]+)\}\}/g
+const PLACEHOLDER_PATTERN = /\{\{([^{}]+)\}\}/g
 
 export class CodePlaceholderCompileError extends Error {
   readonly line?: number
