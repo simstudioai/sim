@@ -68,7 +68,6 @@ import {
 import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
 import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
-import { slackSearchMemberPrincipal } from '@/lib/knowledge/application/slack-search/member-principal'
 
 const principal = { kind: 'session' as const, userId: 'reader', sessionId: 'session' }
 const input = { workspaceId: 'workspace' }
@@ -372,72 +371,6 @@ describe('Search source summaries', () => {
 })
 
 describe('organization Search source summaries', () => {
-  function slackPrincipal() {
-    return slackSearchMemberPrincipal(
-      { installationId: 'i1', message: { eventId: 'Ev1' } },
-      'org-1',
-      'reader'
-    )
-  }
-  it('uses the Slack member’s ACL and includes their expired connection for Home', async () => {
-    const delegated = slackPrincipal()
-    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
-    queueTableRows(member, [{ role: 'member' }])
-    mocks.memberships.mockResolvedValue(new Map([['drive', 'needs_reauth']]))
-    seed([source('drive', 'google_drive', 'members')])
-    const result = await listSearchSources.execute({
-      principal: delegated,
-      input: { organizationId: 'org-1' },
-    })
-    expect(result.sources[0]).toMatchObject({
-      viewerMembership: 'needs_reauth',
-      connectionRequired: true,
-    })
-    expect(mocks.access).toHaveBeenCalledWith(delegated, { organizationId: 'org-1' })
-    expect(mocks.memberships).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'reader', organizationId: 'org-1' })
-    )
-  })
-  it('refuses Slack delegation into another organization', async () => {
-    mocks.context.mockResolvedValue({ organizationId: 'org-2' })
-    await expect(
-      listSearchSources.execute({ principal: slackPrincipal(), input: { organizationId: 'org-2' } })
-    ).rejects.toThrow('delegation')
-    expect(mocks.memberships).not.toHaveBeenCalled()
-  })
-  it('rechecks Slack membership and delegation expiry before listing sources', async () => {
-    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
-    queueTableRows(member, [])
-    await expect(
-      listSearchSources.execute({ principal: slackPrincipal(), input: { organizationId: 'org-1' } })
-    ).rejects.toThrow('Organization not found')
-    await expect(
-      listSearchSources.execute({
-        principal: { ...slackPrincipal(), expiresAt: new Date(0) },
-        input: { organizationId: 'org-1' },
-      })
-    ).rejects.toThrow('delegation')
-    expect(mocks.memberships).not.toHaveBeenCalled()
-  })
-  it('does not make the source list available to Copilot or Slack installation authority', async () => {
-    await expect(
-      listSearchSources.execute({
-        principal: {
-          kind: 'organization_delegated',
-          serviceId: 'copilot',
-          organizationId: 'org-1',
-          subjectUserId: 'reader',
-          delegationId: 'd1',
-          audience: 'sim:knowledge',
-          issuedAt: new Date(),
-          expiresAt: new Date(Date.now() + 60_000),
-          resourceScope: { chatId: 'chat1' },
-        },
-        input: { organizationId: 'org-1' },
-      })
-    ).rejects.toThrow('delegation')
-    expect(mocks.context).not.toHaveBeenCalled()
-  })
   it.each(['member', 'admin'])(
     'returns only the current %s viewer ACL counts without a workspace membership',
     async (role) => {

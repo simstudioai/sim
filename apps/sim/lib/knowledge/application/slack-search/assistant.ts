@@ -1,4 +1,7 @@
-import type { SlackInstallationPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  SlackInstallationPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -38,7 +41,6 @@ import {
   resolveSlackSearchMember,
   SlackSearchIdentityError,
 } from '@/lib/knowledge/application/slack-search/identity'
-import { slackSearchMemberPrincipal } from '@/lib/knowledge/application/slack-search/member-principal'
 import { sendSlackSearchOnboarding } from '@/lib/knowledge/application/slack-search/onboarding'
 import { recordSlackSearchOutcome } from '@/lib/knowledge/application/slack-search/repository'
 import { getSlackSearchSourceStatus } from '@/lib/knowledge/application/slack-search/source-status'
@@ -57,6 +59,26 @@ import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolve
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('SlackSearchAssistant')
+
+/** Creates narrowly scoped, short-lived authority for the current verified Slack sender. */
+export function slackSearchMemberPrincipal(
+  job: SlackSearchJob,
+  organizationId: string,
+  userId: string
+): OrganizationDelegatedPrincipal {
+  const issuedAt = new Date()
+  return {
+    kind: 'organization_delegated',
+    serviceId: 'slack-search',
+    organizationId,
+    subjectUserId: userId,
+    delegationId: `${job.installationId}:${job.message.eventId}`,
+    audience: 'sim:knowledge',
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + 60_000),
+    resourceScope: { installationId: job.installationId, eventId: job.message.eventId },
+  }
+}
 
 /** Runs the product's organization Assistant with its ordinary tools, chat lock, billing, and persistence. */
 export async function runSlackSearchAssistant(

@@ -1,14 +1,9 @@
 /** @vitest-environment node */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/connectors/registry', () => ({
-  getConnectorMeta: (id: string) => (id === 'google_drive' ? { name: 'Google Drive' } : undefined),
-}))
-
+import { describe, expect, it } from 'vitest'
 import {
   parseSlackSearchHomeEvent,
   renderSlackSearchHome,
-  slackSearchHomeSource,
+  slackSearchHomeViewKey,
 } from '@/lib/slack-search/home'
 
 const now = 1_800_000_000_000
@@ -20,34 +15,21 @@ const event = {
   event_time: now / 1000,
   event: { type: 'app_home_opened', tab: 'home', user: 'U1' },
 }
-const source = {
-  knowledgeBaseId: 'kb1',
-  connectorId: 'source1',
-  connectorType: 'google_drive',
-  sourceDescription: '1 folder selected',
-  accessMode: 'members' as const,
-  availability: 'available' as const,
-  enabled: true,
-  approved: true,
-  isSyncing: false,
-  lastSyncAt: null,
-  hasSyncError: false,
-  viewerDocumentCount: 1,
-  viewerFailedDocumentCount: 0,
-  viewerEmailVerified: true,
-  connectionRequired: true as const,
-  viewerMembership: 'connected' as const,
-}
 
 describe('Slack Home events', () => {
-  it('retains only the routing identity and concurrency hash', () => {
+  it('retains routing identity, the published marker, and concurrency hash without the old content', () => {
     expect(
       parseSlackSearchHomeEvent(
         {
           ...event,
           event: {
             ...event.event,
-            view: { type: 'home', hash: 'h1', blocks: ['old private data'] },
+            view: {
+              type: 'home',
+              hash: 'h1',
+              callback_id: 'view-key',
+              blocks: ['old private data'],
+            },
           },
         },
         now
@@ -58,7 +40,17 @@ describe('Slack Home events', () => {
       eventId: 'Ev1',
       userId: 'U1',
       viewHash: 'h1',
+      viewKey: 'view-key',
     })
+  })
+  it('accepts first visits and legacy views without a marker', () => {
+    expect(parseSlackSearchHomeEvent(event, now)?.viewKey).toBeUndefined()
+    expect(
+      parseSlackSearchHomeEvent(
+        { ...event, event: { ...event.event, view: { type: 'home', hash: 'h1' } } },
+        now
+      )
+    ).toMatchObject({ userId: 'U1', viewHash: 'h1' })
   })
   it.each(['messages', 'about', undefined])('ignores the %s tab', (tab) => {
     expect(parseSlackSearchHomeEvent({ ...event, event: { ...event.event, tab } }, now)).toBeNull()
@@ -74,102 +66,46 @@ describe('Slack Home events', () => {
   })
 })
 
-describe('personalized source statuses', () => {
-  it('shows connected and syncing sources, with reconnect taking precedence', () => {
-    expect(slackSearchHomeSource(source)?.status).toBe('Connected')
-    expect(slackSearchHomeSource({ ...source, isSyncing: true })?.status).toBe('Syncing')
-    expect(
-      slackSearchHomeSource({ ...source, viewerMembership: 'needs_reauth', isSyncing: true })
-        ?.status
-    ).toBe('Reconnect needed')
-  })
-  it.each(['invited', 'not_enrolled', 'revoked', 'unverified_email', null] as const)(
-    'does not list someone else’s connection for %s',
-    (viewerMembership) => {
-      expect(slackSearchHomeSource({ ...source, viewerMembership })).toBeNull()
-    }
-  )
-  it('includes available shared sources that do not require individual connections', () => {
-    expect(
-      slackSearchHomeSource({
-        ...source,
-        accessMode: 'admin',
-        connectionRequired: false,
-        viewerMembership: null,
-      })?.status
-    ).toBe('Connected')
-  })
-  it('omits disabled, unavailable, and unapproved sources', () => {
-    expect(slackSearchHomeSource({ ...source, enabled: false })).toBeNull()
-    expect(slackSearchHomeSource({ ...source, approved: false })).toBeNull()
-    expect(slackSearchHomeSource({ ...source, availability: 'unavailable' })).toBeNull()
-  })
-  it('does not mislabel a failed sync as expired authorization', () => {
-    expect(slackSearchHomeSource({ ...source, hasSyncError: true })).toMatchObject({
-      status: 'Connected',
-      syncError: true,
-    })
-  })
-})
-
-describe('Slack Home presentation', () => {
-  const sourcesUrl = 'https://sim.test/o/org1/integrations'
-  it('renders a single URL button and compact source statuses as plain text', () => {
-    const view = renderSlackSearchHome({
-      sourcesUrl,
-      sources: [slackSearchHomeSource(source)!],
-      hasMore: false,
-    })
-    expect(view).toMatchObject({ type: 'home' })
-    expect(JSON.stringify(view)).toContain('Google Drive — Connected')
-    const blocks = view.blocks as Record<string, unknown>[]
-    expect(blocks.filter((block) => block.type === 'actions')).toEqual([
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            action_id: 'sim_search.connect_sources',
-            text: { type: 'plain_text', text: 'Connect sources' },
-            style: 'primary',
-            url: sourcesUrl,
-          },
-        ],
-      },
+describe('persistent Home view', () => {
+  it('uses a stable opaque marker and invalidates it when the binding or origin changes', () => {
+    const key = slackSearchHomeViewKey('c1', 'v1', 'https://sim.test')
+    expect(key).toBe(slackSearchHomeViewKey('c1', 'v1', 'https://sim.test'))
+    for (const changed of [
+      slackSearchHomeViewKey('c2', 'v1', 'https://sim.test'),
+      slackSearchHomeViewKey('c1', 'v2', 'https://sim.test'),
+      slackSearchHomeViewKey('c1', 'v1', 'https://other.test'),
     ])
-    expect(JSON.stringify(view)).not.toContain('mrkdwn')
+      expect(changed).not.toBe(key)
+    expect(key).toMatch(/^sim_search\.connect_sources\.v1:[a-f0-9]{64}$/)
   })
-  it('never renders source details for an unmatched account', () => {
-    const view = renderSlackSearchHome({
-      sourcesUrl,
-      sources: [slackSearchHomeSource(source)!],
-      hasMore: false,
-      accountRequired: true,
+  it('publishes static copy and a stable URL button with no invitation or status data', () => {
+    const sourcesUrl = 'https://sim.test/o/org1/integrations'
+    const viewKey = slackSearchHomeViewKey('c1', 'v1', 'https://sim.test')
+    expect(renderSlackSearchHome({ sourcesUrl, viewKey })).toEqual({
+      type: 'home',
+      callback_id: viewKey,
+      blocks: [
+        { type: 'header', text: { type: 'plain_text', text: 'Connect your sources' } },
+        {
+          type: 'section',
+          text: {
+            type: 'plain_text',
+            text: 'Connect more accounts in Sim to expand what you can search.',
+          },
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              action_id: 'sim_search.connect_sources',
+              text: { type: 'plain_text', text: 'Connect sources' },
+              style: 'primary',
+              url: sourcesUrl,
+            },
+          ],
+        },
+      ],
     })
-    expect(JSON.stringify(view)).toContain('Sign in to Sim')
-    expect(JSON.stringify(view)).not.toContain('Google Drive')
-  })
-  it('caps provider content and source rows, including hostile labels', () => {
-    const view = renderSlackSearchHome({
-      sourcesUrl,
-      sources: Array.from({ length: 200 }, () => ({
-        name: '<!channel>',
-        description: 'x'.repeat(4000),
-        status: 'Connected',
-        syncError: false,
-      })),
-      hasMore: true,
-    })
-    expect((view.blocks as unknown[]).length).toBe(25)
-    expect(JSON.stringify(view)).not.toContain('x'.repeat(201))
-    expect(JSON.stringify(view)).toContain('More sources are available')
-  })
-  it('explains empty connections and bounded sparse lists honestly', () => {
-    expect(
-      JSON.stringify(renderSlackSearchHome({ sourcesUrl, sources: [], hasMore: false }))
-    ).toContain('No sources connected yet')
-    expect(
-      JSON.stringify(renderSlackSearchHome({ sourcesUrl, sources: [], hasMore: true }))
-    ).not.toContain('No sources connected yet')
   })
 })

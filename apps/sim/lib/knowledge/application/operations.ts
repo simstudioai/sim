@@ -1,4 +1,3 @@
-import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
   assertOperationCapability,
@@ -16,47 +15,19 @@ export type ScopedKnowledgeOperation<O extends WorkspaceOperation = WorkspaceOpe
   readonly organizationOperation: OrganizationOperation
 }
 
-interface KnowledgeOperationOptions<
-  Services extends readonly OrganizationDelegatedPrincipal['serviceId'][],
-> {
+interface KnowledgeOperationOptions {
   organizationDelegation?: 'deny'
-  organizationDelegatedServices?: Services
-}
-
-type DelegatingKnowledgeOperation<
-  O extends WorkspaceOperation,
-  Services extends readonly OrganizationDelegatedPrincipal['serviceId'][],
-> = ScopedKnowledgeOperation<O> & {
-  readonly organizationOperation: {
-    readonly delegatedServices?: readonly (
-      | Services[number]
-      | ('copilot' extends NonNullable<O['delegatedServices']>[number]
-          ? O['minimumRole'] extends 'read'
-            ? OrganizationDelegatedPrincipal['serviceId']
-            : never
-          : never)
-    )[]
-  }
 }
 
 /** Binds organization policy to the same semantic operation declared for workspace access. */
-function defineKnowledgeOperation<
-  const O extends WorkspaceOperation,
-  const Services extends readonly OrganizationDelegatedPrincipal['serviceId'][] = readonly [],
->(
+function defineKnowledgeOperation<const O extends WorkspaceOperation>(
   operation: O,
-  options?: KnowledgeOperationOptions<Services>
-): DelegatingKnowledgeOperation<O, Services> {
-  if (
-    options?.organizationDelegatedServices?.length &&
-    (operation.minimumRole !== 'read' || options.organizationDelegation === 'deny')
-  )
-    throw new Error(`Operation ${operation.id} cannot delegate organization writes`)
+  options?: KnowledgeOperationOptions
+): ScopedKnowledgeOperation<O> {
   const supportsOrganizationDelegation =
     options?.organizationDelegation !== 'deny' &&
     operation.minimumRole === 'read' &&
-    (operation.delegatedServices?.includes('copilot') ||
-      Boolean(options?.organizationDelegatedServices?.length))
+    operation.delegatedServices?.includes('copilot')
   const organizationOperation = defineOrganizationOperation({
     id: operation.id,
     capability: operation.capability,
@@ -73,15 +44,11 @@ function defineKnowledgeOperation<
           ],
           delegationAudience: 'sim:knowledge',
           delegatedServices:
-            options?.organizationDelegatedServices ??
-            (operation.id === 'knowledge.search' ? ['copilot', 'slack-search'] : ['copilot']),
+            operation.id === 'knowledge.search' ? ['copilot', 'slack-search'] : ['copilot'],
         } as const)
       : ({ principalKinds: ['session', 'personal_api_key', 'oauth_access_token'] } as const)),
   })
-  return Object.freeze({ ...operation, organizationOperation }) as DelegatingKnowledgeOperation<
-    O,
-    Services
-  >
+  return Object.freeze({ ...operation, organizationOperation })
 }
 
 const ALL_PRINCIPAL_POLICY = {
@@ -714,8 +681,7 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    }),
-    { organizationDelegatedServices: ['slack-search'] }
+    })
   ),
   readSearchSourceOverview: defineKnowledgeOperation(
     defineWorkspaceOperation({

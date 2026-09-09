@@ -4,27 +4,18 @@ import { getInlineJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { requestSlackApi } from '@/lib/internal/slack/client'
-import { getSlackSearchSender } from '@/lib/internal/slack/search-client'
-import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import {
   authorizeSlackSearchInstallation,
   requireSlackInstallationPrincipal,
 } from '@/lib/knowledge/application/slack-search/authorization'
-import {
-  resolveSlackSearchMember,
-  SlackSearchIdentityError,
-} from '@/lib/knowledge/application/slack-search/identity'
-import { slackSearchMemberPrincipal } from '@/lib/knowledge/application/slack-search/member-principal'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   renderSlackSearchHome,
   SLACK_SEARCH_HOME_MAX_AGE_MS,
-  SLACK_SEARCH_HOME_MAX_SOURCES,
   type SlackSearchHomeEvent,
   type SlackSearchHomeJob,
-  type SlackSearchHomeSource,
   slackSearchHomeJobSchema,
-  slackSearchHomeSource,
+  slackSearchHomeViewKey,
 } from '@/lib/slack-search/home'
 
 const operation = Object.freeze({
@@ -43,7 +34,7 @@ function requireHomeBinding(principal: SlackInstallationPrincipal, event: SlackS
     throw new OrchestrationError('forbidden', 'Slack Home event authority is no longer valid')
 }
 
-/** Persists a deduplicated, bounded app-process job so Slack can acknowledge Home opens promptly. */
+/** Current views acknowledge immediately; first visits and obsolete layouts queue one static publication. */
 export const receiveSlackSearchHome: OperationUseCase<
   typeof operation,
   SlackSearchHomeEvent,
@@ -53,6 +44,11 @@ export const receiveSlackSearchHome: OperationUseCase<
   async execute({ principal, input }) {
     requireSlackInstallationPrincipal(principal)
     requireHomeBinding(principal, input)
+    if (
+      input.viewKey ===
+      slackSearchHomeViewKey(principal.credentialId, principal.credentialVersion, getBaseUrl())
+    )
+      return
     const context = await authorizeSlackSearchInstallation(principal)
     if (!context || input.userId === context.installation.botUserId) return
     const job: SlackSearchHomeJob = {
@@ -88,7 +84,7 @@ export const receiveSlackSearchHome: OperationUseCase<
   },
 }
 
-/** Resolves the event's member, reads the product's authorized source list, and publishes only to that Slack user. */
+/** Publishes a static organization link with no member, account, or source lookup. Sim authorizes the click. */
 export const publishSlackSearchHome: OperationUseCase<
   typeof operation,
   { job: SlackSearchHomeJob; signal: AbortSignal },
@@ -102,82 +98,22 @@ export const publishSlackSearchHome: OperationUseCase<
     const context = await authorizeSlackSearchInstallation(principal, job)
     if (!context) return
     const { installation, secret } = context
-    const sender = await getSlackSearchSender(
-      secret.botToken,
-      job.event.userId,
-      installation.teamId,
-      signal
-    )
-    if (!sender) throw new SlackSearchIdentityError()
-    const sources: SlackSearchHomeSource[] = []
-    let userId: string | undefined
-    try {
-      userId = await resolveSlackSearchMember(
-        installation.organizationId,
-        installation.teamId,
-        job.event.userId,
-        sender.email
-      )
-    } catch (error) {
-      if (!(error instanceof SlackSearchIdentityError)) throw error
-    }
-    let hasMore = false
-    let memberPrincipal: ReturnType<typeof slackSearchMemberPrincipal> | undefined
-    if (userId) {
-      memberPrincipal = slackSearchMemberPrincipal(
-        { installationId: installation.id, message: { eventId: job.event.eventId } },
-        installation.organizationId,
-        userId
-      )
-      let cursor: string | undefined
-      /** Bound sparse pages as well as visible rows; the existing Sources page handles the remainder. */
-      for (let page = 0; page < 4; page++) {
-        signal.throwIfAborted()
-        const result = await listSearchSources.execute({
-          principal: memberPrincipal,
-          input: { organizationId: installation.organizationId, cursor },
-        })
-        const visible = result.sources.flatMap((source) => {
-          const row = slackSearchHomeSource(source)
-          return row ? [row] : []
-        })
-        const remaining = SLACK_SEARCH_HOME_MAX_SOURCES - sources.length
-        sources.push(...visible.slice(0, remaining))
-        hasMore = Boolean(result.nextCursor) || visible.length > remaining
-        if (!result.nextCursor || sources.length === SLACK_SEARCH_HOME_MAX_SOURCES) break
-        cursor = result.nextCursor
-      }
-    }
-    const current = await authorizeSlackSearchInstallation(principal, job)
-    if (!current) return
-    if (memberPrincipal) {
-      const currentUserId = await resolveSlackSearchMember(
-        installation.organizationId,
-        installation.teamId,
-        job.event.userId,
-        sender.email
-      )
-      if (currentUserId !== userId) throw new SlackSearchIdentityError('identity_conflict')
-      await listSearchSources.authorize({
-        principal: memberPrincipal,
-        input: { organizationId: installation.organizationId },
-      })
-    }
+    const baseUrl = getBaseUrl()
     signal.throwIfAborted()
     const response = await requestSlackApi({
-      accessToken: current.secret.botToken,
+      accessToken: secret.botToken,
       method: 'views.publish',
       body: {
         user_id: job.event.userId,
         ...(job.event.viewHash ? { hash: job.event.viewHash } : {}),
         view: renderSlackSearchHome({
-          sourcesUrl: new URL(
-            organizationRoutes(installation.organizationId).integrations,
-            getBaseUrl()
-          ).href,
-          sources,
-          hasMore,
-          accountRequired: !userId,
+          sourcesUrl: new URL(organizationRoutes(installation.organizationId).integrations, baseUrl)
+            .href,
+          viewKey: slackSearchHomeViewKey(
+            principal.credentialId,
+            principal.credentialVersion,
+            baseUrl
+          ),
         }),
       },
       signal,

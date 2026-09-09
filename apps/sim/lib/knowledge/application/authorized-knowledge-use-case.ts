@@ -21,10 +21,11 @@ import type { ScopedKnowledgeOperation } from '@/lib/knowledge/application/opera
 
 type KnowledgePrincipalForOperation<O extends ScopedKnowledgeOperation> =
   | PrincipalForOperation<O>
-  | Extract<
-      OrganizationDelegatedPrincipal,
-      { serviceId: NonNullable<O['organizationOperation']['delegatedServices']>[number] }
-    >
+  | ('copilot' extends NonNullable<O['delegatedServices']>[number]
+      ? O['minimumRole'] extends 'read'
+        ? OrganizationDelegatedPrincipal
+        : never
+      : never)
 
 function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
   principal: Principal,
