@@ -16,6 +16,29 @@ import {
 import { describe, expect, it } from 'vitest'
 
 describe('principal subject users', () => {
+  it('does not assign a human, billing owner, or workflow authority to a Slack installation', () => {
+    const principal = {
+      kind: 'slack_installation',
+      credentialId: 'credential',
+      credentialVersion: 'secret-version',
+      appId: 'app',
+      teamId: 'team',
+      eventId: 'event',
+      receivedAt: new Date(),
+    } as const
+    expect(resolvePrincipalSubject(principal)).toBeNull()
+    expect(resolvePrincipalAuditAttribution(principal)).toMatchObject({
+      actorId: null,
+      actorName: 'Slack Search',
+    })
+    expect(toPrincipalActor(principal)).not.toHaveProperty('credentialVersion')
+    expect(() =>
+      resolvePrincipalAttribution(principal, { workspaceBillingOwnerUserId: 'owner' })
+    ).toThrow(PrincipalSubjectUserRequiredError)
+    expect(() => parsePrincipal({ version: 1, principal })).toThrow(
+      'Unsupported serialized principal kind'
+    )
+  })
   it('resolves the human subject represented by user-backed principals', () => {
     expect(
       requirePrincipalSubjectUserId({

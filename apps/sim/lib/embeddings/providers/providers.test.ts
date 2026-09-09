@@ -39,6 +39,7 @@ describe('OpenAI adapter', () => {
     const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
     expect(request.apiUrl).toBe('https://api.openai.com/v1/embeddings')
     expect(request.headers.Authorization).toBe('Bearer sk-test')
+    expect(request.body).toMatchObject({ encoding_format: 'base64' })
     expect(request.body).not.toHaveProperty('dimensions')
   })
 
@@ -48,9 +49,9 @@ describe('OpenAI adapter', () => {
   })
 
   it('parses vectors and token usage', () => {
-    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document', dimensions: 2 })
     const json = {
-      data: [{ embedding: [1, 2] }, { embedding: [3, 4] }],
+      data: [{ embedding: 'AACAPwAAAEA=' }, { embedding: 'AABAQAAAgEA=' }],
       usage: { total_tokens: 7 },
     }
     expect(request.parse(json)).toEqual([

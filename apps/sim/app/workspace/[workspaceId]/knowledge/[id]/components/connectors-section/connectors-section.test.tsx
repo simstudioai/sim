@@ -191,7 +191,13 @@ vi.mock('@/connectors/registry', () => ({
       id: 'slack',
       name: 'Slack',
       configFields: [],
-      auth: { mode: 'oauth', provider: 'slack', requiredScopes: ['channels:read'] },
+      auth: {
+        mode: 'oauth',
+        provider: 'slack',
+        requiredScopes: ['channels:read'],
+        requiredScopesForConfig: (config: Record<string, unknown>) =>
+          config.includeDirectMessages ? ['channels:read', 'im:history'] : ['channels:read'],
+      },
       rehydrateOnFullSync: true,
     },
     confluence: {
@@ -590,6 +596,15 @@ describe('Connector credential reauthorization', () => {
     expect(findButton(container, 'Reconnect').disabled).toBe(true)
     act(() => findButton(container, 'Reconnect').click())
     expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it('checks the selected source permissions in the extracted recovery component', () => {
+    const credential = { id: 'credential-1', name: 'Workspace Slack', provider: 'slack-custom' }
+    oauthCredentialsState.current = [credential]
+    renderSection(
+      makeConnector({ status: 'active', sourceConfig: { includeDirectMessages: true } })
+    )
+    expect(missingScopesMock).toHaveBeenCalledWith(credential, ['channels:read', 'im:history'])
   })
 
   it('reauthorizes missing scopes on an otherwise active source', () => {

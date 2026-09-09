@@ -149,6 +149,14 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (item.id === 'connected-accounts') {
+        return Boolean(
+          hostContext.hostOrganizationId &&
+            isOrgAdminOrOwner &&
+            hostContext.features?.credentialGroups &&
+            !hostContext.features?.organizationSearch
+        )
+      }
       if (
         hostContext.hostOrganizationId &&
         ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) &&

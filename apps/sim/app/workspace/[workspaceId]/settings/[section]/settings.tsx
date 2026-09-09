@@ -29,6 +29,11 @@ const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').th
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
+const OrganizationConnectedAccounts = dynamic(() =>
+  import('@/ee/credential-groups/components/organization-connected-accounts').then(
+    (m) => m.OrganizationConnectedAccounts
+  )
+)
 const Sandboxes = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes').then(
     (m) => m.Sandboxes
@@ -160,6 +165,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'browser' && <Browser />}
       {effectiveSection === 'terminal' && <Terminal />}
       {effectiveSection === 'secrets' && <Secrets />}
+      {effectiveSection === 'connected-accounts' && organizationId && (
+        <OrganizationConnectedAccounts organizationId={organizationId} />
+      )}
       {effectiveSection === 'access-control' && organizationId && (
         <AccessControl
           organizationId={organizationId}

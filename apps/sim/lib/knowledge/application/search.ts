@@ -47,14 +47,17 @@ import {
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import {
+  type ActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReference,
+} from '@/lib/knowledge/service'
 import {
   type KnowledgeTagNameFilter,
   resolveKnowledgeTagFilters,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
-import type { KnowledgeBaseWithCounts, StructuredFilter } from '@/lib/knowledge/types'
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
@@ -105,13 +108,13 @@ export interface SearchKnowledgeInput {
   /** Trusted execution provenance sink; never sourced from an HTTP or model payload. */
   resultSecretRegistry?: ResolvedSecretTraceRegistry
   /** Trusted adapter identity for telemetry; never accepted from a model or HTTP body. */
-  surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api'
+  surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api' | 'slack'
   /** Cancellation from the trusted transport or executor, never a serialized request field. */
   signal?: AbortSignal
 }
 
 type KnowledgeSearchContext = KnowledgeResourceContext & {
-  knowledgeBases: KnowledgeBaseWithCounts[]
+  knowledgeBases: ActiveKnowledgeBaseReference[]
   /** What the caller may read across the searched bases; resolved from the principal, never from input. */
   access: KnowledgeAccessProvider
 }
@@ -186,7 +189,9 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
-  const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
+  const knowledgeBases = await Promise.all(
+    input.knowledgeBaseIds.map(getActiveKnowledgeBaseReference)
+  )
   const missingIds = input.knowledgeBaseIds.filter((_, index) => {
     const knowledgeBase = knowledgeBases[index]
     return !knowledgeBase || (!knowledgeBase.workspaceId && !knowledgeBase.organizationId)
@@ -223,7 +228,7 @@ async function resolveKnowledgeSearchContext(
     })
     return {
       ...context,
-      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+      knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
       access: createKnowledgeAccessProvider(principal, context),
     }
   }
@@ -235,7 +240,7 @@ async function resolveKnowledgeSearchContext(
   })
   return {
     ...workspaceContext,
-    knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+    knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
     access: createKnowledgeAccessProvider(principal, { workspaceId: canonicalWorkspaceId }),
   }
 }
@@ -688,7 +693,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       workspaceId: context.workspaceId,
       actorUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
       principalKind: principal.kind,
-      delegatedServiceId: principal.kind === 'delegated' ? principal.serviceId : undefined,
+      delegatedServiceId:
+        principal.kind === 'delegated' || principal.kind === 'organization_delegated'
+          ? principal.serviceId
+          : undefined,
       accessScopeKind: result.accessScopeKind,
       surface: input.surface,
     })

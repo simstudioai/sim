@@ -294,6 +294,22 @@ describe('vector scan settings', () => {
       )
     ).toBe(true)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+    expect(dbChainMockFns.limit).toHaveBeenCalledOnce()
+    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id', 'distance'])
+    const ranked = dbChainMockFns.from.mock.calls[1][0]
+    expect(dbChainMockFns.select.mock.calls[1][0].distance).toBe(ranked.distance)
+    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
+      schemaMock.embedding,
+      expect.objectContaining({
+        type: 'eq',
+        left: schemaMock.embedding.id,
+        right: ranked.id,
+      })
+    )
+    expect(dbChainMockFns.orderBy).toHaveBeenLastCalledWith(ranked.distance)
+    expect(dbChainMockFns.limit.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.select.mock.invocationCallOrder[1]
+    )
   })
 
   it('shares one local configuration across all KB vector legs and trims their sorted merge', async () => {
@@ -304,7 +320,7 @@ describe('vector scan settings', () => {
     expect(rows.map((row) => row.id)).toEqual(['row-4', 'row-3'])
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     expect(dbChainMockFns.execute).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(5)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(10)
     for (const kbId of knowledgeBaseIds)
       expect(
         dbChainMockFns.where.mock.calls.some(([condition]) =>
@@ -356,7 +372,7 @@ describe('vector scan settings', () => {
     queueTableRows(schemaMock.embedding, [{ id: 'fallback', distance: 0.1 }])
     expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['fallback'])
     expect(dbChainMockFns.execute).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
     await handleVectorOnlySearch(params)
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1)
@@ -376,9 +392,11 @@ describe('vector scan settings', () => {
 
   it('does not retry a query 42704 or classify it as unsupported scan settings', async () => {
     const failure = { code: '42704', message: 'Query object is missing' }
-    dbChainMockFns.limit.mockRejectedValueOnce(failure)
+    dbChainMockFns.orderBy
+      .mockImplementationOnce(dbChainMockFns.orderBy.getMockImplementation()!)
+      .mockRejectedValueOnce(failure)
     await expect(handleVectorOnlySearch(params)).rejects.toBe(failure)
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
     await handleVectorOnlySearch(params)
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
   })

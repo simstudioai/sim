@@ -97,6 +97,7 @@ import {
   sweepStuckDocuments,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { getConnectorRequiredScopes } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorConfig,
@@ -353,6 +354,7 @@ interface MemberTokenCache {
 
 function createMemberTokenCache(input: {
   run: MemberSyncRun
+  sourceConfig: Record<string, unknown>
   connectorConfig: Pick<ConnectorConfig, 'auth'>
   credentialIdByMemberId: Map<string, string>
 }): MemberTokenCache {
@@ -370,7 +372,7 @@ function createMemberTokenCache(input: {
         organizationId: input.run.organizationId,
         credentialId,
         expectedProviderId: auth.provider,
-        requiredScopes: auth.requiredScopes ?? [],
+        requiredScopes: getConnectorRequiredScopes(auth, input.sourceConfig),
         runId: input.run.runId,
       })
       input.run.result.credentialsAudited += 1
@@ -389,7 +391,7 @@ function createMemberTokenCache(input: {
         organizationId: input.run.organizationId,
         credentialId,
         expectedProviderId: auth.provider,
-        requiredScopes: auth.requiredScopes ?? [],
+        requiredScopes: getConnectorRequiredScopes(auth, input.sourceConfig),
         rejectedAccessToken,
         runId: input.run.runId,
       })
@@ -1863,7 +1865,12 @@ export async function executeMemberSync(
     }
 
     const credentialIdByMemberId = new Map<string, string>()
-    const tokens = createMemberTokenCache({ run, connectorConfig, credentialIdByMemberId })
+    const tokens = createMemberTokenCache({
+      run,
+      connectorConfig,
+      credentialIdByMemberId,
+      sourceConfig,
+    })
 
     while (Date.now() < run.deadlineAt) {
       const member = await claimNextMember(run)

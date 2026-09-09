@@ -63,6 +63,19 @@ describe('DatabaseJobQueue enqueue', () => {
     ).resolves.toBe('workflow:1')
   })
 
+  it('runs a Slack Search event only once when a later delivery loses the persisted claim', async () => {
+    const queue = new DatabaseJobQueue()
+    const start = vi.spyOn(queue, 'startJob').mockResolvedValueOnce(true).mockResolvedValue(false)
+    const completed = vi.spyOn(queue, 'completeJob').mockResolvedValue(undefined)
+    const runner = vi.fn().mockResolvedValue(undefined)
+    const options = { jobId: 'slack-search:i1:Ev1', maxAttempts: 1, runner }
+    await queue.enqueue('slack-search', { eventId: 'Ev1' }, options)
+    await vi.waitFor(() => expect(completed).toHaveBeenCalledOnce(), { interval: 1 })
+    await queue.enqueue('slack-search', { eventId: 'Ev1' }, options)
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2), { interval: 1 })
+    expect(runner).toHaveBeenCalledOnce()
+  })
+
   it('proves non-acceptance when verification succeeds without finding the job', async () => {
     dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(new Error('insert rejected'))
     dbChainMockFns.limit.mockResolvedValueOnce([])

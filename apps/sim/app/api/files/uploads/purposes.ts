@@ -235,6 +235,9 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
 
 async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
   switch (principal.kind) {
+    case 'slack_app':
+    case 'slack_installation':
+      throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
     case 'session':
     case 'personal_api_key':
     case 'oauth_access_token':

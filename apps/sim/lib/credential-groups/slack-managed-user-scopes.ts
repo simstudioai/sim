@@ -28,11 +28,19 @@ export const SLACK_MANAGED_USER_SCOPES = [
   'users:read.email',
 ] as const
 
-export const SLACK_SEARCH_USER_SCOPES = [
+export const SLACK_CHANNEL_READ_SCOPES = [
   'channels:history',
   'channels:read',
   'groups:history',
   'groups:read',
+] as const
+
+export const SLACK_DM_READ_SCOPES = ['im:history', 'im:read', 'mpim:history', 'mpim:read'] as const
+
+/** The shared organization app grants member access for channel and DM indexing. */
+export const SLACK_SEARCH_USER_SCOPES = [
+  ...SLACK_CHANNEL_READ_SCOPES,
+  ...SLACK_DM_READ_SCOPES,
   'users:read',
   'users:read.email',
 ] as const

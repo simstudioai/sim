@@ -48,7 +48,7 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: mocks.getKnowledgeBase,
+  getActiveKnowledgeBaseReference: mocks.getKnowledgeBase,
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({

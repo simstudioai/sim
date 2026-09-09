@@ -13,6 +13,7 @@ import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { directGrantOutboxHandlers } from '@/lib/invitations/direct-grant'
+import { slackSearchOutboxHandlers } from '@/lib/knowledge/application/slack-search/outbox'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
 import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
@@ -27,6 +28,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 800
 
 const handlers = {
+  ...slackSearchOutboxHandlers,
   ...adminInvitationOperationOutboxHandlers,
   ...adminMemberOperationOutboxHandlers,
   ...billingOutboxHandlers,
@@ -52,7 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const result = await processOutboxEvents(handlers, {
-      batchSize: 20,
+      batchSize: 500,
       maxRuntimeMs: 790_000,
       minRemainingMs: 95_000,
     })

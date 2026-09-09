@@ -94,6 +94,7 @@ export const organizationChatDelegationOperations = {
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
     delegationAudience: 'sim:knowledge',
+    delegatedServices: ['copilot'],
   }),
   billing: defineOrganizationOperation({
     id: 'organization.chats.admit',
@@ -101,12 +102,15 @@ export const organizationChatDelegationOperations = {
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
     delegationAudience: 'sim:copilot-billing',
+    delegatedServices: ['copilot'],
   }),
 } as const
 
 /** A trusted service may act only on the subject's persisted private organization chat. */
 export const authorizeOrganizationChatDelegation = {
   async execute({ principal }: { principal: OrganizationDelegatedPrincipal }) {
+    if (principal.serviceId !== 'copilot')
+      throw new OrchestrationError('forbidden', 'Invalid conversation delegation')
     const operation = Object.values(organizationChatDelegationOperations).find(
       (candidate) => candidate.delegationAudience === principal.audience
     )

@@ -1,6 +1,6 @@
 import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
@@ -79,6 +79,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
         .from(ssoProvider)
         .where(whereClause)
+        .orderBy(asc(ssoProvider.providerId))
 
       providers = results.map((provider) => {
         let oidcConfig = provider.oidcConfig

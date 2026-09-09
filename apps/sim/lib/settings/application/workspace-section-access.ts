@@ -12,6 +12,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
@@ -84,6 +85,14 @@ async function canOpenOrganizationSection(
   }
   if (!workspace.organizationId) {
     return input.section === 'billing' && workspace.billedAccountUserId === input.userId
+  }
+
+  if (organizationSection === 'connected-accounts') {
+    return authorizeOrganizationSettingsSection({
+      organizationId: workspace.organizationId,
+      userId: input.userId,
+      section: organizationSection,
+    })
   }
 
   const needsEnterprisePlan = organizationSection !== 'members' && organizationSection !== 'billing'

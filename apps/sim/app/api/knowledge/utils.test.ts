@@ -15,6 +15,7 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import * as apiKeysModule from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import * as workspacesUtilsModule from '@/lib/workspaces/utils'
@@ -22,6 +23,7 @@ import * as workspacesUtilsModule from '@/lib/workspaces/utils'
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
   ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  ProviderAdmissionTimeoutError: class ProviderAdmissionTimeoutError extends Error {},
   isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
   recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
   waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
@@ -124,10 +126,16 @@ function createTestEmbedding(value: number): number[] {
   return Array.from({ length: TEST_EMBEDDING_DIMENSION }, () => value)
 }
 
-function createEmbeddingResponse(values: number[]): Response {
+function createEmbeddingResponse(values: number[], encoding: 'base64' | 'float'): Response {
   return new Response(
     JSON.stringify({
-      data: values.map((value, index) => ({ embedding: createTestEmbedding(value), index })),
+      data: values.map((value, index) => ({
+        embedding:
+          encoding === 'base64'
+            ? Buffer.from(new Float32Array(createTestEmbedding(value)).buffer).toString('base64')
+            : createTestEmbedding(value),
+        index,
+      })),
       usage: { prompt_tokens: values.length, total_tokens: values.length },
     }),
     { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -135,7 +143,7 @@ function createEmbeddingResponse(values: number[]): Response {
 }
 
 function createEmbeddingFetchMock() {
-  return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3]))
+  return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3], 'base64'))
 }
 
 vi.stubGlobal('fetch', createEmbeddingFetchMock())
@@ -168,6 +176,10 @@ describe('Knowledge Utils', () => {
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
     }
+    /** Keep provider selection independent of credentials loaded from local environment files. */
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('OPENROUTER_API_KEY', '')
+    vi.stubEnv('AZURE_OPENAI_API_KEY', '')
     Object.assign(env, { ...defaultMockEnv, OPENAI_API_KEY: 'test-key' })
     retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
     applyBillingSpies()
@@ -281,7 +293,7 @@ describe('Knowledge Utils', () => {
       })
 
       const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
+      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1], 'float'))
 
       await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
 
@@ -305,7 +317,7 @@ describe('Knowledge Utils', () => {
       })
 
       const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
+      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1], 'base64'))
 
       await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
 
@@ -322,13 +334,7 @@ describe('Knowledge Utils', () => {
     })
 
     it('should throw error when no API configuration provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      // The env object lazily reads process.env, so a developer's local .env
-      // keys survive the deletion above — stub the direct key empty and fail
-      // the hosted rotation fallback for hermeticity on any machine.
-      vi.stubEnv('OPENAI_API_KEY', '')
-      const apiKeysModule = await import('@/lib/core/config/api-keys')
+      Object.keys(env).forEach((key) => delete (env as Record<string, unknown>)[key])
       const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
         throw new Error('No rotation keys configured')
       })
@@ -337,6 +343,8 @@ describe('Knowledge Utils', () => {
         await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
           'OPENAI_API_KEY is not configured'
         )
+        expect(rotationSpy).toHaveBeenCalledWith('openai')
+        expect(fetch).not.toHaveBeenCalled()
       } finally {
         rotationSpy.mockRestore()
         vi.unstubAllEnvs()

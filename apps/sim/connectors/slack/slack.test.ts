@@ -36,7 +36,14 @@ interface FixtureCall {
   params: URLSearchParams
 }
 interface ChannelFixture {
-  channel: typeof GENERAL
+  channel: {
+    id: string
+    name?: string
+    is_archived?: boolean
+    is_im?: boolean
+    is_mpim?: boolean
+    user?: string
+  }
   readers: string[]
   messages: Record<string, unknown>[]
   replies: Record<string, Record<string, unknown>[]>
@@ -76,6 +83,18 @@ function respond(call: FixtureCall): Record<string, unknown> {
         .filter(
           (entry) =>
             entry.readers.includes(token) &&
+            params
+              .get('types')
+              ?.split(',')
+              .includes(
+                entry.channel.is_im
+                  ? 'im'
+                  : entry.channel.is_mpim
+                    ? 'mpim'
+                    : entry.channel.id.startsWith('G')
+                      ? 'private_channel'
+                      : 'public_channel'
+              ) &&
             (params.get('exclude_archived') !== 'true' || !entry.channel.is_archived)
         )
         .map((entry) => entry.channel),
@@ -164,6 +183,50 @@ async function listAll(token: string, config: Record<string, unknown> = {}, run 
 }
 
 describe('Slack thread indexing through provider APIs', () => {
+  it('indexes personal and group DMs only when selected and only for their participants', async () => {
+    pageSize = 1
+    channels.push(
+      {
+        channel: { id: 'D0PRIVATE', is_im: true, user: 'U2' },
+        readers: ['alice'],
+        messages: [root('Private DM question')],
+        replies: { [ROOT]: [root('Private DM question'), reply('Private DM answer')] },
+      },
+      {
+        channel: { id: 'G0MPIM', name: 'mpdm-alice-bob', is_mpim: true },
+        readers: ['alice', 'bob'],
+        messages: [root('Group DM question')],
+        replies: { [ROOT]: [root('Group DM question')] },
+      }
+    )
+    expect(
+      (await listAll('alice')).documents.some(
+        (doc) => doc.externalId.includes('D0PRIVATE') || doc.externalId.includes('G0MPIM')
+      )
+    ).toBe(false)
+    const config = { includeChannels: false, includeDirectMessages: true }
+    const alice = await listAll('alice', config)
+    expect(alice.documents.map((doc) => doc.externalId)).toEqual([id('D0PRIVATE'), id('G0MPIM')])
+    expect((await listAll('bob', config)).documents.map((doc) => doc.externalId)).toEqual([
+      id('G0MPIM'),
+    ])
+    const dm = await slackConnector.getDocument('alice', config, id('D0PRIVATE'), alice.context)
+    expect(dm?.content).toContain('Private DM answer')
+    expect(dm?.title).toContain('Direct message')
+    expect(dm?.metadata?.conversationType).toBe('im')
+    expect(dm?.sourceUrl).toBe('https://acme.slack.com/archives/D0PRIVATE/p1700000100000100')
+    expect(await slackConnector.getDocument('bob', config, id('D0PRIVATE'))).toBeNull()
+    expect(await slackConnector.getDocument('alice', {}, id('D0PRIVATE'))).toBeNull()
+  })
+
+  it('fails DM indexing validation when the member has not granted its scopes', async () => {
+    failure = (call) =>
+      call.params.get('types')?.includes('im') ? { ok: false, error: 'missing_scope' } : undefined
+    expect(
+      await slackConnector.validateConfig?.('alice', { includeDirectMessages: true })
+    ).toMatchObject({ valid: false, error: expect.stringContaining('missing_scope') })
+  })
+
   it('lists and hydrates whole threads with exact message links and one stable id per root', async () => {
     pageSize = 1
     const { documents, context } = await listAll('alice', { channel: GENERAL.id, maxMessages: 0 })

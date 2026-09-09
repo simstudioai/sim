@@ -412,7 +412,11 @@ describe('organization provider management', () => {
   })
 
   it.each([
-    { name: 'missing bot', slackBotCredentialId: undefined, configurationStatus: 'ready' },
+    {
+      name: 'missing configuration',
+      slackBotCredentialId: undefined,
+      configurationStatus: 'not_configured',
+    },
     {
       name: 'outdated app',
       slackBotCredentialId: 'slack-bot',
@@ -453,37 +457,40 @@ describe('organization provider management', () => {
     expect(query.has('addConnector')).toBe(false)
   })
 
-  it('opens focused account management after the Slack app is ready', async () => {
-    mocks.access = { admin: false, members: true }
-    mocks.overview.mockReturnValue({
-      data: { providers: [{ ...provider, connectorType: 'slack' }] },
-    })
-    mocks.accounts.mockReturnValue({
-      data: {
-        credentialGroup: {
-          ...credentialGroup,
-          options: [
-            {
-              id: 'slack-option',
-              provider: 'slack',
-              status: 'active',
-              slackBotCredentialId: 'slack-bot',
-              configurationStatus: 'ready',
-            },
-          ],
-        },
-      },
-      isPending: false,
-    })
-    await render('slack', '?view=accounts')
-
-    expect(mocks.people).toHaveBeenCalledWith(
-      expect.objectContaining({
-        searchConnection: { optionId: 'slack-option', providerName: 'Slack' },
+  it.each([undefined, 'slack-bot'])(
+    'uses verified configuration for account management with bot credential %s',
+    async (slackBotCredentialId) => {
+      mocks.access = { admin: false, members: true }
+      mocks.overview.mockReturnValue({
+        data: { providers: [{ ...provider, connectorType: 'slack' }] },
       })
-    )
-    expect(container.textContent).not.toContain('Set up the Slack app to connect accounts.')
-  })
+      mocks.accounts.mockReturnValue({
+        data: {
+          credentialGroup: {
+            ...credentialGroup,
+            options: [
+              {
+                id: 'slack-option',
+                provider: 'slack',
+                status: 'active',
+                slackBotCredentialId,
+                configurationStatus: 'ready',
+              },
+            ],
+          },
+        },
+        isPending: false,
+      })
+      await render('slack', '?view=accounts')
+
+      expect(mocks.people).toHaveBeenCalledWith(
+        expect.objectContaining({
+          searchConnection: { optionId: 'slack-option', providerName: 'Slack' },
+        })
+      )
+      expect(container.textContent).not.toContain('Set up the Slack app to connect accounts.')
+    }
+  )
 
   it('does not load admin queries or render setup controls for nonadmins', async () => {
     mocks.admin = false

@@ -66,7 +66,9 @@ describe('organization Search page gates', () => {
 
   it('hides Integrations when Search is disabled', async () => {
     mocks.context.mockResolvedValue({ searchAccess: { memberScoped: false } })
-    await expect(OrganizationIntegrationsPage({ params })).rejects.toThrow('not-found')
+    await expect(
+      OrganizationIntegrationsPage({ params, searchParams: Promise.resolve({}) })
+    ).rejects.toThrow('not-found')
   })
 
   it('renders Home when the organization gate is enabled', async () => {

@@ -53,6 +53,7 @@ import {
   requireResourcePolicy,
   writeResourcePolicy,
 } from '@/lib/resource-policies/repository'
+import { getConnectorRequiredScopes } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
 
 const logger = createLogger('KnowledgeConnectorMemberAccess')
@@ -554,7 +555,12 @@ export function validateKnowledgeConnectorMembersBinding(input: {
     }
   }
   const adapter = getCredentialGroupProviderAdapter(option.provider)
-  if (!adapter.hasRequiredScopes(option.requiredScopes, connectorMeta.auth.requiredScopes ?? [])) {
+  if (
+    !adapter.hasRequiredScopes(
+      option.requiredScopes,
+      getConnectorRequiredScopes(connectorMeta.auth, input.sourceConfig)
+    )
+  ) {
     return {
       ok: false,
       message: `Credential option does not request every permission ${connectorMeta.name} needs to read the source`,

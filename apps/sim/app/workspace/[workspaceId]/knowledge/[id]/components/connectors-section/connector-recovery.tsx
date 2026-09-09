@@ -8,7 +8,7 @@ import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { getConnectorRequiredScopes, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
@@ -36,8 +36,9 @@ export function ConnectorRecovery({
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
+  const requiredScopes = connectorDef
+    ? getConnectorRequiredScopes(connectorDef.auth, connector.sourceConfig)
+    : []
   const {
     data: credentials,
     isFetching: credentialsLoading,

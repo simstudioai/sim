@@ -14,6 +14,7 @@ import {
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
+import { SlackSearchActions } from '@/app/o/[organizationId]/integrations/slack-search-actions'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -44,11 +45,15 @@ const TABS = [
   { id: 'mine', label: 'Mine' },
 ] as const
 
+interface OrganizationIntegrationsProps {
+  slackOnboarding?: { token: string; userId: string }
+}
+
 /**
  * Personal connections and approved source scopes available to the organization.
  * Administrators can open source management without leaving this journey.
  */
-export function OrganizationIntegrations() {
+export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegrationsProps = {}) {
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
   const { organization, searchAccess, viewer } = useOrganizationContext()
@@ -127,10 +132,13 @@ export function OrganizationIntegrations() {
       description='Connect your tools for Sim Search'
       tabs={TABS}
       action={
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-wrap items-center gap-2'>
           <ChipLink href={getAccountSettingsHref('connected-accounts')}>Your accounts</ChipLink>
           {viewer.isAdmin && (
             <ChipLink href={routes.settingsSection('integrations')}>Manage sources</ChipLink>
+          )}
+          {slackOnboarding && (
+            <SlackSearchActions organizationId={organization.id} {...slackOnboarding} />
           )}
         </div>
       }
@@ -206,7 +214,9 @@ export function OrganizationIntegrations() {
                       ? 'Connect a different site or content scope'
                       : canConnect
                         ? 'Connect your account to search this source'
-                        : 'An admin needs to finish source setup'
+                        : type === 'slack' && viewer.isAdmin
+                          ? 'Finish setting up Slack indexing to connect accounts'
+                          : 'An admin needs to finish source setup'
                   }
                   trailing={
                     canConnect ? (
@@ -217,6 +227,8 @@ export function OrganizationIntegrations() {
                       >
                         {hasSources ? 'Add source' : 'Connect account'}
                       </Chip>
+                    ) : type === 'slack' && viewer.isAdmin ? (
+                      <ChipLink href={routes.searchProvider('slack')}>Finish Slack setup</ChipLink>
                     ) : undefined
                   }
                 />

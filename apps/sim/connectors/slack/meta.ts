@@ -1,4 +1,5 @@
 import { SlackIcon } from '@/components/icons'
+import { slackIndexingScopes } from '@/connectors/slack/config'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const DEFAULT_MAX_MESSAGES = 1000
@@ -9,20 +10,15 @@ export const slackConnectorMeta: ConnectorMeta = {
   id: 'slack',
   name: 'Slack',
   description:
-    'Search Slack channel messages and complete threads, with links to the original messages. DMs are not included.',
-  version: '2.0.0',
+    'Search Slack channels, direct messages, and complete threads each connected member can access, with links to the originals.',
+  version: '2.1.0',
   icon: SlackIcon,
 
   auth: {
     mode: 'oauth',
     provider: 'slack',
-    requiredScopes: [
-      'channels:read',
-      'channels:history',
-      'groups:read',
-      'groups:history',
-      'users:read',
-    ],
+    requiredScopes: slackIndexingScopes({}),
+    requiredScopesForConfig: slackIndexingScopes,
   },
 
   /**
@@ -38,6 +34,28 @@ export const slackConnectorMeta: ConnectorMeta = {
   supportsSeparateContentCredential: true,
 
   configFields: [
+    {
+      id: 'includeChannels',
+      title: 'Channel Messages',
+      type: 'dropdown',
+      required: false,
+      options: [
+        { label: 'Include (default)', id: 'true' },
+        { label: 'Exclude', id: 'false' },
+      ],
+    },
+    {
+      id: 'includeDirectMessages',
+      title: 'Direct Messages',
+      type: 'dropdown',
+      required: false,
+      description:
+        'Includes one-to-one and group DMs accessible to the connected account. Requires im:read, im:history, mpim:read, and mpim:history on the member’s grant.',
+      options: [
+        { label: 'Exclude (default)', id: 'false' },
+        { label: 'Include', id: 'true' },
+      ],
+    },
     {
       id: 'channelSelector',
       title: 'Channels',

@@ -28,7 +28,7 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
-import { CodeIcon, McpIcon } from '@/components/icons'
+import { CodeIcon, McpIcon, SlackIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -53,6 +53,7 @@ export type OrganizationSettingsSection =
   | 'integrations'
   | 'connected-accounts'
   | 'search-mcp'
+  | 'search-slack'
   | 'members'
   | 'billing'
   | 'usage'
@@ -95,6 +96,7 @@ export interface SettingsNavigationItem<Section extends string = string> {
 }
 
 export type UnifiedSettingsSection =
+  | 'connected-accounts'
   | 'general'
   | 'desktop'
   | 'browser'
@@ -530,6 +532,13 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Connected accounts',
     icon: GridOffset,
+    unified: {
+      id: 'connected-accounts',
+      description: 'Manage accounts shared with your organization’s workflows.',
+      group: 'organization',
+      order: 1,
+      organizationSection: 'connected-accounts',
+    },
     planes: {
       account: {
         id: 'connected-accounts',
@@ -913,6 +922,7 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
     'data-drains': 'governance',
     integrations: 'sim-search',
     'search-mcp': 'sim-search',
+    'search-slack': 'sim-search',
   }
 
 export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] = (
@@ -943,6 +953,15 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
       label: 'Search MCP',
       description: 'Search your sources from other apps.',
       icon: Server,
+      group,
+    }
+  }
+  if (id === 'search-slack') {
+    return {
+      id,
+      label: 'Sim Search in Slack',
+      description: 'Let members search their sources by messaging a Slack bot.',
+      icon: SlackIcon,
       group,
     }
   }
@@ -1051,7 +1070,8 @@ export function isOrganizationSettingsSectionAvailable(
   if (section === 'members' || section === 'search-mcp') return true
   if (section === 'billing') return features.billingEnabled
   /* Sim Search itself is enterprise on the hosted product; self-hosted gates it by flag, not by section. */
-  if (section === 'integrations') return !features.hosted || features.hasEnterprisePlan
+  if (section === 'integrations' || section === 'search-slack')
+    return !features.hosted || features.hasEnterprisePlan
   if (features.hosted) return features.hasEnterprisePlan
   return features.selfHosted[section] ?? false
 }

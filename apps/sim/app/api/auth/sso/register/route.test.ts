@@ -216,6 +216,43 @@ describe('POST /api/auth/sso/register', () => {
     expect(conflictWhere?.[0]?.values).toContain('acme.com')
   })
 
+  it('refuses a second provider on a domain the organization already routes', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([
+      { domain: 'acme.com', userId: 'u1', organizationId: 'org1', providerId: 'acme-saml' },
+    ])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(409)
+    expect(json.code).toBe('SSO_DOMAIN_ALREADY_ROUTED')
+    expect(json.error).toContain('acme-saml')
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('turns a lost race on the domain index into the same 409 as the pre-check', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    mockRegisterSSOProvider.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint_name: 'sso_provider_org_domain_unique',
+      })
+    )
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(409)
+    expect(json.code).toBe('SSO_DOMAIN_ALREADY_ROUTED')
+    expect(json.error).toContain('acme.com')
+  })
+
+  it('lets the organization add a provider for a different verified domain', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1', domain: 'eng.acme.com' }))
+    expect(res.status).toBe(200)
+    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
+  })
+
   it('registers when the domain is unclaimed', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))

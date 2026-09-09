@@ -8,8 +8,6 @@ import {
   type ChipDropdownOption,
   ChipInput,
   ChipModalField,
-  Code,
-  CopyCodeButton,
   SecretInput,
   Wizard,
 } from '@sim/emcn'
@@ -18,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { SlackIcon } from '@/components/icons'
+import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -299,8 +298,8 @@ export function ConnectSlackBotModal({
           onMemberAccessChange={setMemberAccess}
         />
       </Wizard.Step>
-      <Wizard.Step title='Create the app in Slack'>
-        <StepCreate manifestJson={manifestJson} />
+      <Wizard.Step title={isReconnect ? 'Update the app in Slack' : 'Create the app in Slack'}>
+        <StepCreate manifestJson={manifestJson} reconnect={isReconnect} />
       </Wizard.Step>
       <Wizard.Step title='Paste your Signing Secret' canAdvance={signingSecret.trim().length > 0}>
         <StepSecret value={signingSecret} onChange={setSigningSecret} />
@@ -517,19 +516,16 @@ function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorP
 
 interface StepCreateProps {
   manifestJson: string
+  reconnect: boolean
 }
-function StepCreate({ manifestJson }: StepCreateProps) {
+function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
           <div>Copy your manifest:</div>
-          <div className='mt-2 overflow-hidden rounded-md border border-[var(--border-1)]'>
-            <div className='flex items-center justify-between border-[var(--border-1)] border-b bg-[var(--surface-4)] px-3 py-1'>
-              <span className='font-sans text-[var(--text-tertiary)] text-xs'>manifest.json</span>
-              <CopyCodeButton code={manifestJson} />
-            </div>
-            <Code.Viewer code={manifestJson} language='json' wrapText className='max-h-[180px]' />
+          <div className='mt-2'>
+            <SlackAppManifest manifest={manifestJson} />
           </div>
         </SubStep>
         <SubStep n={2}>
@@ -545,11 +541,23 @@ function StepCreate({ manifestJson }: StepCreateProps) {
           .
         </SubStep>
         <SubStep n={3}>
-          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-          workspace.
+          {reconnect ? (
+            'Open your existing app, then App Manifest.'
+          ) : (
+            <>
+              Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
+              workspace.
+            </>
+          )}
         </SubStep>
         <SubStep n={4}>
-          Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
+          {reconnect ? (
+            'Update the manifest and reinstall the app if Slack requests new permissions.'
+          ) : (
+            <>
+              Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
+            </>
+          )}
         </SubStep>
       </SubStepList>
     </div>
@@ -565,7 +573,7 @@ function StepSecret({ value, onChange }: SecretStepProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          In your new Slack app, open <strong>Basic Information</strong>.
+          In your Slack app, open <strong>Basic Information</strong>.
         </SubStep>
         <SubStep n={2}>
           Find <strong>Signing Secret</strong> and click <strong>Show</strong>, then copy it.

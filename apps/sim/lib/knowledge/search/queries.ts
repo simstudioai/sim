@@ -206,7 +206,7 @@ function isTagSlotKey(key: string): key is TagSlotKey {
 }
 
 /** Common fields selected for search results */
-const getSearchResultFields = (distanceExpr: any) => ({
+const getSearchResultFields = (distanceExpr: SQL<number> | SQL.Aliased<number>) => ({
   id: embedding.id,
   content: embedding.content,
   documentId: embedding.documentId,
@@ -486,21 +486,17 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
 
   const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
-  const distanceExpr = distance.as('distance')
   const vectorLeg = (executor: SearchExecutor, kbScope: SQL | undefined, limit: number) =>
-    executor
-      .select(getSearchResultFields(distanceExpr))
-      .from(embedding)
-      .innerJoin(document, eq(embedding.documentId, document.id))
-      .where(
-        and(
-          kbScope,
-          ...getVisibilityConditions(access, params.filters),
-          sql`${distance} < ${distanceThreshold}`
-        )
-      )
-      .orderBy(distance)
-      .limit(limit)
+    selectRankedVectorResults(
+      executor,
+      distance,
+      [
+        kbScope,
+        ...getVisibilityConditions(access, params.filters),
+        sql`${distance} < ${distanceThreshold}`,
+      ],
+      limit
+    )
 
   /**
    * A relaxed-order iterative scan may hand rows back slightly out of distance
@@ -522,6 +518,35 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
     vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
   )
   return rows.sort((a, b) => a.distance - b.distance)
+}
+
+/**
+ * Sort only chunk identities and distances before loading result content. Carrying
+ * full chunk rows through the vector sort can spill to disk. The bounded subquery
+ * keeps every visibility predicate before the limit; hydration joins the same
+ * statement snapshot by primary key, without another distance calculation.
+ */
+function selectRankedVectorResults(
+  executor: SearchExecutor,
+  distance: SQL<number>,
+  conditions: (SQL | undefined)[],
+  limit: number
+) {
+  const ranked = executor
+    .select({ id: embedding.id, distance: distance.as('distance') })
+    .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
+    .where(and(...conditions))
+    .orderBy(distance)
+    .limit(limit)
+    .as('ranked_embeddings')
+
+  return executor
+    .select(getSearchResultFields(ranked.distance))
+    .from(ranked)
+    .innerJoin(embedding, eq(embedding.id, ranked.id))
+    .innerJoin(document, eq(document.id, embedding.documentId))
+    .orderBy(ranked.distance)
 }
 
 export interface KeywordSearchParams {
@@ -719,20 +744,17 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
   const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
   const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
   const rows = await withVectorScanSettings((executor) =>
-    executor
-      .select(getSearchResultFields(distance.as('distance')))
-      .from(embedding)
-      .innerJoin(document, eq(embedding.documentId, document.id))
-      .where(
-        and(
-          inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-          ...getVisibilityConditions(access, params.filters),
-          ...tagFilterConditions,
-          sql`${distance} < ${distanceThreshold}`
-        )
-      )
-      .orderBy(distance)
-      .limit(topK)
+    selectRankedVectorResults(
+      executor,
+      distance,
+      [
+        inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+        ...getVisibilityConditions(access, params.filters),
+        ...tagFilterConditions,
+        sql`${distance} < ${distanceThreshold}`,
+      ],
+      topK
+    )
   )
   return rows.sort((a, b) => a.distance - b.distance)
 }
