@@ -224,19 +224,17 @@ vi.mock('@/ee/sso/hooks/sso', () => ({
   useSSOProviders: mockUseSSOProviders,
 }))
 
-/** The resource row is design-system chrome; here it is a labelled button carrying its text and trailing menu. */
+/** The resource row is design-system chrome; here it is a labelled button carrying its text. */
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row', () => ({
   RESOURCE_LIST_STACK: '',
   SettingsResourceRow: ({
     title,
     description,
-    trailing,
     clickLabel,
     onClick,
   }: {
     title: ReactNode
     description?: ReactNode
-    trailing?: ReactNode
     clickLabel?: string
     onClick?: () => void
   }) => (
@@ -245,21 +243,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row
         {title}
         {description}
       </button>
-      {trailing}
     </div>
-  ),
-}))
-
-/** The row menu is a dropdown; here each action is a plain button so the delete path is reachable. */
-vi.mock('@/app/workspace/[workspaceId]/settings/components/row-actions-menu', () => ({
-  RowActionsMenu: ({ actions }: { actions: Array<{ label: string; onSelect: () => void }> }) => (
-    <span>
-      {actions.map((action) => (
-        <button key={action.label} type='button' onClick={action.onSelect}>
-          {action.label}
-        </button>
-      ))}
-    </span>
   ),
 }))
 
@@ -765,11 +749,12 @@ describe('SSO provider list', () => {
     expect(findButton('Identity providers')).toBeUndefined()
   })
 
-  it('deletes a provider after confirmation', async () => {
+  it('deletes a provider from its details after confirmation', async () => {
     const mutateAsync = vi.fn().mockResolvedValue({ success: true })
     mockUseDeleteSSOProvider.mockReturnValue({ isPending: false, mutateAsync })
     renderSso('org-a')
 
+    openProvider('provider-a')
     act(() => findButton('Delete')?.click())
     expect(container.querySelector('[role="dialog"]')).toHaveTextContent('Delete identity provider')
 
@@ -781,7 +766,7 @@ describe('SSO provider list', () => {
     expect(mutateAsync).toHaveBeenCalledWith('provider-a')
   })
 
-  it('offers delete on the provider detail as well', () => {
+  it('offers delete on the provider detail', () => {
     renderSso('org-a')
     openProvider('provider-a')
 

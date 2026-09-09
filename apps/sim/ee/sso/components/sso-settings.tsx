@@ -125,7 +125,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             docsLink={DOCS_LINKS['sign-in']}
             onAdd={() => void setParams({ provider: null, createProvider: true })}
             onOpen={(providerId) => void setParams({ provider: providerId, createProvider: null })}
-            onDelete={setPendingDeleteId}
           />
         ) : (
           <SsoProviderSettings
