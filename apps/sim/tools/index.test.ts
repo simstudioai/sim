@@ -3973,13 +3973,21 @@ describe('Internal Route Trust', () => {
   })
 
   it('rejects oversized operation input before invoking the in-process handler', async () => {
+    const later = vi.fn()
     const mockTool = {
       id: 'test_oversized_operation_input',
       name: 'Test Oversized Operation Input',
       description: 'Rejects operation input above the shared tool admission limit',
       version: '1.0.0',
       params: { payload: { type: 'string', required: true } },
-      operation: { input: (params: { payload: string }) => params },
+      operation: {
+        input: (params: { payload: string }) => ({
+          payload: params.payload,
+          get later() {
+            return later()
+          },
+        }),
+      },
     }
     ;(tools as Record<string, unknown>).test_oversized_operation_input = mockTool
 
@@ -3995,6 +4003,7 @@ describe('Internal Route Trust', () => {
         error: expect.stringContaining('Request body size limit exceeded (10MB)'),
       })
       expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+      expect(later).not.toHaveBeenCalled()
     } finally {
       Reflect.deleteProperty(tools, 'test_oversized_operation_input')
     }
