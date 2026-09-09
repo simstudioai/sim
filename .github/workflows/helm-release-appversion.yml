@@ -1,0 +1,90 @@
+name: Helm appVersion
+
+# Pre-merge half of the appVersion gate. The post-merge half lives in the
+# publish job of helm.yml, which refuses to publish a chart whose appVersion
+# lags the latest release -- but it runs only on a push to main, so it can only
+# ever report the mistake after the release is already merged, with the chart
+# for that release left unpublished until someone bumps by hand.
+#
+# A release PR knows the version it is cutting before the merge: the main-branch
+# merge commit message is the PR title, and `vX.Y.Z:` in that message is exactly
+# what detect-version in ci.yml turns into the release tag. So on a release PR
+# the target is knowable up front and the check is an equality, not the
+# lags-behind comparison the publish job is stuck with.
+#
+# Deliberately its own workflow rather than a job in helm.yml: paths filters
+# apply per workflow, and helm.yml only runs when chart files change. A release
+# PR that forgets appVersion is very often a release PR that touches no chart
+# file at all, which is precisely the case that must not slip through.
+
+on:
+  pull_request:
+    # `edited` matters as much as `synchronize`: the version being cut lives in
+    # the PR title, so retitling a PR changes what this check asserts.
+    types: [opened, edited, reopened, synchronize]
+    branches: [main]
+
+concurrency:
+  group: helm-release-appversion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  appversion:
+    name: Chart appVersion matches the release
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Reads two files out of the merge commit; no history, no pushes.
+          persist-credentials: false
+
+      - name: appVersion names the release this PR cuts
+        env:
+          # Never interpolated into the script body: a PR title is attacker-controlled text.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          # Same shape detect-version (ci.yml) matches on the merge commit. A PR
+          # to main that is not a release -- a hotfix, a revert, a docs fix --
+          # cuts no tag, so there is nothing for appVersion to name.
+          if ! [[ "$PR_TITLE" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            echo "::notice::\"${PR_TITLE}\" is not a release title (vX.Y.Z: ...); nothing to check."
+            exit 0
+          fi
+          release="${BASH_REMATCH[1]}"
+
+          app_version=$(awk '/^appVersion:/ {print $2}' helm/sim/Chart.yaml | tr -d '"')
+          chart_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
+
+          if [ "$app_version" = "$release" ]; then
+            echo "::notice::Chart ${chart_version} ships appVersion ${app_version}, matching release ${release}."
+            exit 0
+          fi
+
+          # Equality, not "not behind". An appVersion ahead of the release being
+          # cut names an image tag that this merge will not create either, so
+          # the chart would install into ImagePullBackOff.
+          echo "::error::helm/sim/Chart.yaml appVersion is ${app_version}, but this PR cuts ${release}. The chart defaults its image tags to appVersion, and published chart versions are immutable, so a stale value freezes an old Sim into the chart for ${release} forever."
+          {
+            echo "### Chart appVersion does not match this release"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Release being cut | \`${release}\` |"
+            echo "| \`Chart.yaml\` appVersion | \`${app_version}\` |"
+            echo "| \`Chart.yaml\` version | \`${chart_version}\` |"
+            echo
+            echo "Fix it on this PR's head branch:"
+            echo
+            echo '```bash'
+            echo "# 1. appVersion: \"${release}\" and a SemVer bump to version: in helm/sim/Chart.yaml"
+            echo "# 2. the image inventory embeds appVersion, so regenerate it"
+            echo "bun run images:generate"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

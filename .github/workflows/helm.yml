@@ -265,6 +265,12 @@ jobs:
       # Compares against the latest GitHub release rather than a hardcoded value
       # so the check cannot go stale itself. Prereleases and drafts are excluded:
       # the `/releases/latest` endpoint already returns neither.
+      #
+      # This is the last line before an immutable push, not the first: it can
+      # only run once the release exists, so it reports a stale appVersion after
+      # the merge. `helm-release-appversion.yml` is the pre-merge half -- on a
+      # release PR the version being cut is in the title, so it can assert
+      # equality before anything is published.
       - name: appVersion does not lag the app release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
