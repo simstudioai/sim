@@ -21,8 +21,10 @@ interface TriggerRunCarrier {
  *
  * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
  */
-export function markInsideTriggerRun(): void {
+export function markInsideTriggerRun(deploymentVersion?: string): void {
   ;(globalThis as TriggerRunCarrier)[INSIDE_TRIGGER_RUN] = true
+  /** Plain trigger/batchTrigger calls must stay on this worker's deployment too. */
+  if (deploymentVersion) process.env.TRIGGER_VERSION = deploymentVersion
 }
 
 /**

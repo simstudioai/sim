@@ -24,6 +24,7 @@ describe('trigger runtime detection', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllEnvs()
     mockTaskContext.isInsideTask = false
     resetInsideTriggerRunForTests()
   })
@@ -46,6 +47,23 @@ describe('trigger runtime detection', () => {
     markInsideTriggerRun()
     markInsideTriggerRun()
     expect(isInsideTriggerRun()).toBe(true)
+  })
+
+  it('pins outgoing work to the executing deployment on repeated initialization', () => {
+    vi.stubEnv('TRIGGER_VERSION', 'older-version')
+    markInsideTriggerRun('20260909.44')
+    markInsideTriggerRun('20260909.44')
+    expect(process.env.TRIGGER_VERSION).toBe('20260909.44')
+    expect(isInsideTriggerRun()).toBe(true)
+  })
+
+  it('preserves local configuration without a deployment version', () => {
+    vi.stubEnv('TRIGGER_VERSION', undefined)
+    markInsideTriggerRun()
+    expect(process.env.TRIGGER_VERSION).toBeUndefined()
+    vi.stubEnv('TRIGGER_VERSION', 'local-override')
+    markInsideTriggerRun()
+    expect(process.env.TRIGGER_VERSION).toBe('local-override')
   })
 
   it('keeps the marker on globalThis so a duplicated bundle still sees it', () => {

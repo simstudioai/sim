@@ -131,6 +131,9 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
+ARG COMMIT_SHA=""
+ENV COMMIT_SHA=${COMMIT_SHA}
+
 # Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
