@@ -5,6 +5,7 @@
 import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
+import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 
 const {
   mockSleep,
@@ -275,6 +276,11 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     }
   }
 
+  /** Preprocessing only reaches `safeStart`/`safeCompleteWithError`, so the mock stands in for the full session. */
+  function asLoggingSession(session: ReturnType<typeof makeLoggingSession>): LoggingSession {
+    return session as unknown as LoggingSession
+  }
+
   it('skips the failure row for a retryable infrastructure failure', async () => {
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
       Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
@@ -284,7 +290,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     const result = await preprocessExecution({
       ...baseOptions,
       suppressRetryableFailureLogs: true,
-      loggingSession: loggingSession as any,
+      loggingSession: asLoggingSession(loggingSession),
     })
 
     expect(result).toMatchObject({
@@ -307,7 +313,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     const result = await preprocessExecution({
       ...baseOptions,
       suppressRetryableFailureLogs: true,
-      loggingSession: loggingSession as any,
+      loggingSession: asLoggingSession(loggingSession),
     })
 
     expect(result).toMatchObject({
@@ -324,7 +330,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
 
     const result = await preprocessExecution({
       ...baseOptions,
-      loggingSession: makeLoggingSession() as any,
+      loggingSession: asLoggingSession(makeLoggingSession()),
     })
 
     expect(workflowAuthzMockFns.mockGetActiveWorkflowRecord).toHaveBeenCalledTimes(3)
@@ -342,7 +348,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
 
     const result = await preprocessExecution({
       ...baseOptions,
-      loggingSession: loggingSession as any,
+      loggingSession: asLoggingSession(loggingSession),
     })
 
     expect(result).toMatchObject({
