@@ -105,6 +105,7 @@ describe('settings navigation boundaries', () => {
       'organization',
       'usage',
       'secrets',
+      'connected-accounts',
       'custom-tools',
       'mcp',
       'apikeys',
@@ -297,6 +298,7 @@ describe('settings navigation boundaries', () => {
       'access-control',
       'audit-logs',
       'billing',
+      'connected-accounts',
       'data-drains',
       'data-retention',
       'organization',
@@ -314,6 +316,7 @@ describe('settings navigation boundaries', () => {
     expect(UNIFIED_TO_ORGANIZATION_SECTION).toEqual({
       organization: 'members',
       billing: 'billing',
+      'connected-accounts': 'connected-accounts',
       'access-control': 'access-control',
       'audit-logs': 'audit-logs',
       sso: 'sso',

@@ -186,6 +186,21 @@ function expectWorkspaceLinks() {
 }
 
 describe('workspace SettingsSidebar organization rollout', () => {
+  it('hides Connected accounts when credential groups are disabled', () => {
+    hostContext.features = { ...hostContext.features!, credentialGroups: false }
+    renderSidebar()
+
+    expect(workspaceLink('connected-accounts')).toBeNull()
+    expectWorkspaceLinks()
+  })
+
+  it('does not offer organization accounts in a personal workspace', () => {
+    hostContext.hostOrganizationId = null
+    renderSidebar()
+
+    expect(workspaceLink('connected-accounts')).toBeNull()
+  })
+
   it.each([false, undefined])(
     'keeps organization settings in the workspace for an admin when rollout is %s',
     (enabled) => {
@@ -196,6 +211,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
       expect(workspaceLink('billing')).toHaveTextContent('Subscription')
       expect(workspaceLink('usage')).toHaveTextContent('Usage tracking')
       expect(workspaceLink('sso')).toHaveTextContent('Single sign-on')
+      expect(workspaceLink('connected-accounts')).toHaveTextContent('Connected accounts')
       expect(container.querySelector('a[href^="/o/"]')).toBeNull()
       expectWorkspaceLinks()
     }
@@ -204,6 +220,8 @@ describe('workspace SettingsSidebar organization rollout', () => {
   it('keeps existing settings when an older host context has no features object', () => {
     hostContext.features = undefined
     renderSidebar()
+
+    expect(workspaceLink('connected-accounts')).toBeNull()
 
     expect(workspaceLink('organization')).toHaveTextContent('Members')
     expect(workspaceLink('billing')).toHaveTextContent('Subscription')
@@ -221,7 +239,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
       expect(links).toHaveLength(1)
       expect(links[0]).toHaveAttribute('href', '/o/host-org/settings/members')
       expect(links[0]).toHaveTextContent('Organization')
-      for (const section of ['organization', 'billing', 'usage', 'sso']) {
+      for (const section of ['organization', 'billing', 'usage', 'sso', 'connected-accounts']) {
         expect(workspaceLink(section)).toBeNull()
       }
       expectWorkspaceLinks()
@@ -233,7 +251,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
     renderSidebar()
 
     expect(workspaceLink('organization')).toHaveTextContent('Members')
-    for (const section of ['billing', 'usage', 'sso']) {
+    for (const section of ['billing', 'usage', 'sso', 'connected-accounts']) {
       expect(workspaceLink(section)).toBeNull()
     }
     expect(container.querySelector('a[href^="/o/"]')).toBeNull()
@@ -259,7 +277,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
       renderSidebar()
 
       expect(container.querySelector('a[href^="/o/"]')).toBeNull()
-      for (const section of ['organization', 'billing', 'usage', 'sso']) {
+      for (const section of ['organization', 'billing', 'usage', 'sso', 'connected-accounts']) {
         expect(workspaceLink(section)).toBeNull()
       }
       expectWorkspaceLinks()
