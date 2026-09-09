@@ -3628,6 +3628,11 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
       if (description) {
         result.description = description
       }
+      const nullableOverride = findTopLevelMatch(
+        blankStringsAndComments(fieldContent) ?? '',
+        /\bnullable\s*:\s*(true|false)\b/
+      )
+      if (nullableOverride) result.nullable = nullableOverride[1] === 'true'
       return result
     }
   }

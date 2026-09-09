@@ -66,7 +66,7 @@ Fetch PR details including diff and files changed
 | `body` | string (nullable) | PR description |
 | `merged` | boolean | Whether PR is merged |
 | `mergeable` | boolean (nullable) | Whether PR is mergeable |
-| `merged_by` | object | GitHub user object |
+| `merged_by` | object (nullable) | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
@@ -673,7 +673,7 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | number | Review ID |
-| `user` | object | GitHub user object |
+| `user` | object (nullable) | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |

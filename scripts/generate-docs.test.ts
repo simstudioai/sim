@@ -83,6 +83,20 @@ describe('documentation tool metadata', () => {
     expect(markdown).toContain('| `count` | number |')
   })
 
+  it('renders nullable overrides on spread-based output definitions', async () => {
+    const [block] = extractAllBlockConfigs(
+      fs.readFileSync(path.resolve('apps/sim/blocks/blocks/github.ts'), 'utf-8')
+    )
+    const markdown = await generateMarkdownForBlock({
+      ...block,
+      tools: { access: ['github_create_pr_review_v2'] },
+    })
+    expect(markdown).toContain('| `user` | object (nullable) |')
+
+    const outputs = parsePropertiesContent('user: { ...USER_OUTPUT, nullable: false },', 'github')
+    expect(outputs.user).toMatchObject({ type: 'object', nullable: false })
+  })
+
   it('uses evaluated outputs for factory-defined tools', async () => {
     const approve = await getToolInfo('sailpoint_approve_access_request')
     const identity = await getToolInfo('sailpoint_get_identity')
