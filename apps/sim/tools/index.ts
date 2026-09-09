@@ -2688,7 +2688,13 @@ async function executeDeclaredInternalOperation({
   if (privateToolMetadataType) {
     headers.set(PRIVATE_TOOL_METADATA_REQUEST_HEADER, privateToolMetadataType)
   }
-  validateRequestBodySize(JSON.stringify(operationInput), requestId, toolId)
+  const { stringifyRequestWithinLimit } = await import('@/tools/request-body-size.server')
+  try {
+    stringifyRequestWithinLimit(operationInput, MAX_REQUEST_BODY_SIZE_BYTES)
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+    throw error
+  }
   const deadline = serializeExecutionDeadlineHeader(signal)
   if (deadline) headers.set(INTERNAL_EXECUTION_DEADLINE_HEADER, deadline)
   const billingAttribution = context.billingAttribution
