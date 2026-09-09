@@ -282,6 +282,7 @@ export function SlackManagedUsersModal({
       opened.location.href = result.authorizationUrl
       /** COOP can report a live OAuth popup as closed; only the deadline expires its state. */
       authorizationTimeout.current = window.setTimeout(() => {
+        if (popup.current !== opened) return
         authorizationTimeout.current = null
         opened.close()
         popup.current = null

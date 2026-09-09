@@ -187,7 +187,12 @@ apply. A wrong account or conflicting identity cannot see the original question
 or organization details on the return page.
 
 For an authorized member with no accessible indexed documents, the bot sends a
-**Connect sources** button without starting an Assistant run. The return page
+**Connect sources** button in an ephemeral message visible only to that Slack
+user, without starting an Assistant run. It is posted in the DM rather than
+an ephemeral thread reply, which Slack only displays for an already active
+thread. It disappears when the Slack session ends; private Sim history retains
+the setup notice. Failed delivery never falls back to a persistent Slack message.
+The return page
 opens the organization's existing Integrations page directly, using the same
 source list and connection dialogs as normal visits. Slack adds only indexing,
 retry, and thread-return actions to its header. Shared documents that the member can already search do not

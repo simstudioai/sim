@@ -242,6 +242,33 @@ describe('Slack member access selection', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('keeps a new authorization intact if an old deadline callback runs', async () => {
+    vi.useFakeTimers()
+    const timeouts = vi.spyOn(window, 'setTimeout')
+    await render()
+    await submit()
+    const oldDeadline = timeouts.mock.calls.find(([, delay]) => delay === 10 * 60 * 1_000)?.[0]
+    if (typeof oldDeadline !== 'function') throw new Error('Authorization deadline was not set')
+    await clickButton('Cancel')
+
+    const nextPopup = { location: { href: '' }, closed: false, close: vi.fn() }
+    vi.mocked(window.open).mockReturnValueOnce(nextPopup as unknown as Window)
+    mocks.start.mockResolvedValueOnce({
+      state: 'new-state',
+      authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+    })
+    await submit()
+    await act(async () => oldDeadline())
+
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(nextPopup.close).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Waiting for Slack...')
+    await completeAuthorization('new-state')
+    expect(toast.success).toHaveBeenCalledExactlyOnceWith('Slack configured')
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60 * 1_000))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('does not navigate or start a timeout when authorization startup finishes after cancel', async () => {
     vi.useFakeTimers()
     let finishStartup!: (value: { state: string; authorizationUrl: string }) => void
