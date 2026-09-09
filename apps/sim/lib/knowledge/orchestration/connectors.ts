@@ -650,6 +650,11 @@ export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperatio
   }
   /** Resolves the payer only when a source change will queue synchronization. */
   resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
+  /** Canonicalizes provider identities through the authorized application caller. */
+  prepareSourceConfig?: (
+    connector: KnowledgeConnectorRow,
+    sourceConfig: Record<string, unknown>
+  ) => Promise<Record<string, unknown>>
   /**
    * Validates a replacement `sourceConfig` against the live source. Supplied by
    * the caller because resolving the connector's token needs the requesting
@@ -793,7 +798,9 @@ export async function performUpdateKnowledgeConnector(
   let sourceConfigToStore = updates.sourceConfig
   if (updates.sourceConfig !== undefined) {
     const accessMode = existing.accessMode as ConnectorAccessMode
-    let nextSourceConfig = updates.sourceConfig
+    let nextSourceConfig = params.prepareSourceConfig
+      ? await params.prepareSourceConfig(existing, updates.sourceConfig)
+      : updates.sourceConfig
     if (aclIsDerived(accessMode)) {
       /** A derived-ACL mode has no listing cap; a save may refuse one, never store one. */
       const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
@@ -909,6 +916,8 @@ export async function performUpdateKnowledgeConnector(
       isNull(knowledgeConnector.deletedAt),
     ]
     updateConditions.push(eq(knowledgeConnector.status, existing.status))
+    if (sourceConfigToStore !== undefined)
+      updateConditions.push(eq(knowledgeConnector.updatedAt, existing.updatedAt))
     if (syncsPerMember) {
       updateConditions.push(eq(knowledgeConnector.memberSyncStatus, existing.memberSyncStatus))
     }

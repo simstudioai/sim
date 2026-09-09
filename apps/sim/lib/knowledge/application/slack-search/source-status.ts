@@ -4,8 +4,8 @@ import { and, eq, exists, isNull } from 'drizzle-orm'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
+import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 
 const operation = defineOrganizationOperation({
   id: 'knowledge.slack.sources.status',
@@ -25,31 +25,32 @@ export const getSlackSearchSourceStatus: OperationUseCase<
   operation,
   async execute({ principal, input }) {
     await authorizeOrganizationOperation(principal, operation, input)
-    const access = await createKnowledgeAccessProvider(principal, input).get()
-    const [visible] = await db
-      .select({ id: document.id })
-      .from(document)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
-      .where(
-        and(
-          eq(knowledgeBase.organizationId, input.organizationId),
-          eq(knowledgeBase.isSearchIndex, true),
-          isNull(knowledgeBase.deletedAt),
-          eq(document.processingStatus, 'completed'),
-          eq(document.enabled, true),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(access),
-          exists(
-            db
-              .select({ id: embedding.id })
-              .from(embedding)
-              .where(and(eq(embedding.documentId, document.id), eq(embedding.enabled, true)))
-          )
-        )
-      )
-      .limit(1)
-    return { hasSearchableDocuments: Boolean(visible) }
+    const access = createKnowledgeAccessProvider(principal, input)
+    const conditions = [
+      eq(knowledgeBase.organizationId, input.organizationId),
+      eq(knowledgeBase.isSearchIndex, true),
+      isNull(knowledgeBase.deletedAt),
+      eq(document.processingStatus, 'completed'),
+      eq(document.enabled, true),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+      exists(
+        db
+          .select({ id: embedding.id })
+          .from(embedding)
+          .where(and(eq(embedding.documentId, document.id), eq(embedding.enabled, true)))
+      ),
+    ]
+    for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+      const [visible] = await db
+        .select({ id: document.id })
+        .from(document)
+        .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
+        .where(and(...conditions, accessCondition))
+        .limit(1)
+      if (visible) return { hasSearchableDocuments: true }
+    }
+    return { hasSearchableDocuments: false }
   },
 }

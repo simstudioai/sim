@@ -506,6 +506,7 @@ describe('organization provider management', () => {
     mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
     await render('slack')
     await click('Set up Slack app')
+    await vi.waitFor(() => expect(mocks.updateUrl).toHaveBeenCalled())
     const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
     expect(query.get('connectedAccounts')).toBe('slack')
     expect(query.has('addConnector')).toBe(false)

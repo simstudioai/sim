@@ -3,8 +3,11 @@ import { document, embedding, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import {
+  knowledgeAccessCondition,
+  knowledgeMetadataCandidateAccessCondition,
+} from '@/lib/knowledge/access/predicate'
+import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
@@ -79,13 +82,18 @@ export interface DocumentMetadata {
  */
 export async function getDocumentMetadataByIds(
   documentIds: string[],
-  access: KnowledgeAccessScope
+  access: KnowledgeAccessScope,
+  accessProvider?: KnowledgeAccessProvider,
+  signal?: AbortSignal
 ): Promise<Record<string, DocumentMetadata>> {
   if (documentIds.length === 0) {
     return {}
   }
 
   const uniqueIds = [...new Set(documentIds)]
+  const authorizedAccess = accessProvider
+    ? await accessProvider.getForDocuments(uniqueIds, signal)
+    : access
   const documents = await db
     .select({
       id: document.id,
@@ -102,7 +110,7 @@ export async function getDocumentMetadataByIds(
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        knowledgeAccessCondition(access)
+        knowledgeAccessCondition(authorizedAccess)
       )
     )
 
@@ -168,6 +176,8 @@ export interface SearchParams {
   topK: number
   /** What the caller may read; every leg applies it. Required so no leg can be written without it. */
   access: KnowledgeAccessScope
+  accessProvider?: KnowledgeAccessProvider
+  signal?: AbortSignal
   structuredFilters?: StructuredFilter[]
   filters?: WorkspaceSearchFilters
   queryVector?: KnowledgeQueryVector
@@ -397,7 +407,11 @@ const FTS_CONFIG = 'english'
  * overlaps the caller's tokens. Every leg spreads this helper rather than
  * listing the predicates itself, so no leg can drift from the others.
  */
-function getVisibilityConditions(access: KnowledgeAccessScope, filters?: WorkspaceSearchFilters) {
+function getVisibilityConditions(
+  access: KnowledgeAccessScope,
+  filters?: WorkspaceSearchFilters,
+  accessCondition: SQL = knowledgeAccessCondition(access)
+) {
   return [
     eq(embedding.enabled, true),
     eq(document.enabled, true),
@@ -405,9 +419,126 @@ function getVisibilityConditions(access: KnowledgeAccessScope, filters?: Workspa
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
-    knowledgeAccessCondition(access),
+    accessCondition,
     ...workspaceSearchFilterConditions(filters),
   ]
+}
+
+interface SearchReadCandidate {
+  id: string
+  documentId: string
+  connectorId: string | null
+  installationSource: boolean
+}
+
+/** Only opaque identifiers leave candidate ranking; content stays behind the full read predicate. */
+const SEARCH_READ_CANDIDATE_FIELDS = {
+  id: embedding.id,
+  documentId: document.id,
+  connectorId: document.connectorId,
+  installationSource: sql<boolean>`EXISTS (
+    SELECT 1 FROM ${knowledgeConnector}
+    WHERE ${knowledgeConnector.id} = ${document.connectorId}
+      AND ${knowledgeConnector.connectorType} = 'github'
+      AND ${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId'
+  )`,
+}
+
+const LIVE_SEARCH_PAGE_SIZE = 200
+const LIVE_SEARCH_BUDGET_MS = 8000
+
+/**
+ * Verification follows ranked candidates, never the organization's source order. Denied
+ * repositories are excluded on refill, so many matches from one revoked source cannot
+ * consume every result slot. The existing vector tuple budget also bounds candidate work.
+ */
+async function selectAuthorizedSearchResults(input: {
+  accessProvider: KnowledgeAccessProvider
+  signal?: AbortSignal
+  topK: number
+  selectPage: (
+    limit: number,
+    offset: number,
+    excludedSources: readonly string[]
+  ) => Promise<SearchReadCandidate[]>
+  hydrate: (ids: string[], access: KnowledgeAccessScope) => Promise<SearchResult[]>
+}): Promise<SearchResult[]> {
+  const deadline = Date.now() + LIVE_SEARCH_BUDGET_MS
+  const pageSize = Math.min(LIVE_SEARCH_PAGE_SIZE, Math.max(input.topK, 20))
+  const results = new Map<string, SearchResult>()
+  const excludedSources = new Set<string>()
+  let scanned = 0
+  let offset = 0
+  while (
+    results.size < input.topK &&
+    scanned < Number(HNSW_MAX_SCAN_TUPLES) &&
+    Date.now() < deadline
+  ) {
+    input.signal?.throwIfAborted()
+    const candidates = await input.selectPage(pageSize, offset, [...excludedSources])
+    if (!candidates.length) break
+    scanned += candidates.length
+    const connectorIds = [
+      ...new Set(
+        candidates.flatMap((candidate) => (candidate.connectorId ? [candidate.connectorId] : []))
+      ),
+    ]
+    const access = await input.accessProvider.getForConnectors(connectorIds, input.signal)
+    input.signal?.throwIfAborted()
+    const grantedSources = new Set(
+      access.kind === 'user'
+        ? (access.githubInstallationGrants?.map((grant) => grant.connectorId) ?? [])
+        : []
+    )
+    const excludedBefore = excludedSources.size
+    for (const candidate of candidates) {
+      if (
+        candidate.installationSource &&
+        candidate.connectorId &&
+        !grantedSources.has(candidate.connectorId)
+      )
+        excludedSources.add(candidate.connectorId)
+    }
+    const hydrated = await input.hydrate(
+      candidates.map((candidate) => candidate.id),
+      access
+    )
+    const byId = new Map(hydrated.map((row) => [row.id, row]))
+    for (const candidate of candidates) {
+      const row = byId.get(candidate.id)
+      if (row) results.set(row.id, row)
+      if (results.size === input.topK) break
+    }
+    if (excludedSources.size > excludedBefore) offset = 0
+    else {
+      offset += candidates.length
+      if (candidates.length < pageSize) break
+    }
+  }
+  input.signal?.throwIfAborted()
+  return [...results.values()]
+}
+
+function excludeSearchSources(sourceIds: readonly string[]): SQL | undefined {
+  return sourceIds.length
+    ? sql`(${document.connectorId} IS NULL OR NOT (${inArray(document.connectorId, [...sourceIds])}))`
+    : undefined
+}
+
+function hydrateSearchCandidates(
+  ids: string[],
+  access: KnowledgeAccessScope,
+  distance: SQL<number> | SQL.Aliased<number>,
+  filters: WorkspaceSearchFilters | undefined,
+  conditions: (SQL | undefined)[]
+) {
+  return db
+    .select(getSearchResultFields(distance))
+    .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
+    .where(
+      and(inArray(embedding.id, ids), ...getVisibilityConditions(access, filters), ...conditions)
+    )
 }
 
 /** Candidates each hybrid leg retrieves before the fused list is trimmed to `topK`. */
@@ -439,6 +570,45 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
   const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
+
+  if (params.accessProvider && access.kind === 'user') {
+    const conditions = [
+      inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+      ...tagFilterConditions,
+    ]
+    return selectAuthorizedSearchResults({
+      accessProvider: params.accessProvider,
+      signal: params.signal,
+      topK,
+      selectPage: (limit, offset, excludedSources) =>
+        db
+          .select(SEARCH_READ_CANDIDATE_FIELDS)
+          .from(embedding)
+          .innerJoin(document, eq(embedding.documentId, document.id))
+          .where(
+            and(
+              ...conditions,
+              ...getVisibilityConditions(
+                access,
+                params.filters,
+                knowledgeMetadataCandidateAccessCondition(access)
+              ),
+              excludeSearchSources(excludedSources)
+            )
+          )
+          .orderBy(embedding.id)
+          .limit(limit)
+          .offset(offset),
+      hydrate: (ids, authorized) =>
+        hydrateSearchCandidates(
+          ids,
+          authorized,
+          sql<number>`0`.as('distance'),
+          params.filters,
+          conditions
+        ),
+    })
+  }
 
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
@@ -486,6 +656,11 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
 
   const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
+  if (params.accessProvider && access.kind === 'user') {
+    return selectLiveVectorResults(params, params.accessProvider, distance, [
+      sql`${distance} < ${distanceThreshold}`,
+    ])
+  }
   const vectorLeg = (executor: SearchExecutor, kbScope: SQL | undefined, limit: number) =>
     selectRankedVectorResults(
       executor,
@@ -518,6 +693,44 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
     vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
   )
   return rows.sort((a, b) => a.distance - b.distance)
+}
+
+/** The vector transaction ends after ranking, before any provider authorization request starts. */
+function selectLiveVectorResults(
+  params: SearchParams,
+  accessProvider: KnowledgeAccessProvider,
+  distance: SQL<number>,
+  filters: (SQL | undefined)[]
+): Promise<SearchResult[]> {
+  const conditions = [inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...filters]
+  return selectAuthorizedSearchResults({
+    accessProvider,
+    signal: params.signal,
+    topK: params.topK,
+    selectPage: (limit, offset, excludedSources) =>
+      withVectorScanSettings((executor) =>
+        executor
+          .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
+          .from(embedding)
+          .innerJoin(document, eq(embedding.documentId, document.id))
+          .where(
+            and(
+              ...conditions,
+              ...getVisibilityConditions(
+                params.access,
+                params.filters,
+                knowledgeMetadataCandidateAccessCondition(params.access)
+              ),
+              excludeSearchSources(excludedSources)
+            )
+          )
+          .orderBy(distance, embedding.id)
+          .limit(limit)
+          .offset(offset)
+      ),
+    hydrate: (ids, authorized) =>
+      hydrateSearchCandidates(ids, authorized, distance.as('distance'), params.filters, conditions),
+  })
 }
 
 /**
@@ -553,6 +766,8 @@ export interface KeywordSearchParams {
   knowledgeBaseIds: string[]
   topK: number
   access: KnowledgeAccessScope
+  accessProvider?: KnowledgeAccessProvider
+  signal?: AbortSignal
   query: string
   /** Query embedding, so keyword-only hits still carry a real cosine distance. */
   queryVector: KnowledgeQueryVector
@@ -570,11 +785,9 @@ export interface KeywordSearchParams {
  * leg there is no distance threshold — surfacing exact-token matches that are
  * semantically distant is the entire point of this leg.
  *
- * Candidate gathering mirrors the vector leg's `getQueryStrategy`: across many
- * knowledge bases a single global `LIMIT` lets whichever base ranks strongest
- * lexically consume every slot, so an exact-token hit in a smaller base would
- * never reach fusion. Both legs must draw candidates the same way, or rank
- * fusion is combining rankings taken over differently-shaped pools.
+ * Candidate gathering mirrors the vector leg: resolved scopes use the same
+ * per-base strategy, and live user scopes verify bounded pages from the same
+ * global ranking pool before hydrating content.
  *
  * Ranking and hydration are two steps on purpose. Projecting the cosine
  * distance in the ranking query makes Postgres detoast the chunk's vector and
@@ -596,6 +809,46 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
   const tagFilterConditions = structuredFilters?.length
     ? getStructuredTagFilters(structuredFilters, embedding)
     : []
+
+  if (params.accessProvider && access.kind === 'user') {
+    const conditions = [
+      inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+      sql`${embedding.contentTsv} @@ ${tsQuery}`,
+      ...tagFilterConditions,
+    ]
+    return selectAuthorizedSearchResults({
+      accessProvider: params.accessProvider,
+      signal: params.signal,
+      topK,
+      selectPage: (limit, offset, excludedSources) =>
+        db
+          .select({ ...SEARCH_READ_CANDIDATE_FIELDS, keywordRank: rankExpr.as('keyword_rank') })
+          .from(embedding)
+          .innerJoin(document, eq(embedding.documentId, document.id))
+          .where(
+            and(
+              ...conditions,
+              ...getVisibilityConditions(
+                access,
+                params.filters,
+                knowledgeMetadataCandidateAccessCondition(access)
+              ),
+              excludeSearchSources(excludedSources)
+            )
+          )
+          .orderBy(sql`${rankExpr} DESC`, embedding.id)
+          .limit(limit)
+          .offset(offset),
+      hydrate: (ids, authorized) =>
+        hydrateSearchCandidates(
+          ids,
+          authorized,
+          embeddingDistance(queryVector.dimensions, queryVector.vector).as('distance'),
+          params.filters,
+          conditions
+        ),
+    })
+  }
 
   const rankConditions = (kbScope: SQL | undefined) =>
     and(
@@ -743,6 +996,12 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
 
   const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
   const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
+  if (params.accessProvider && access.kind === 'user') {
+    return selectLiveVectorResults(params, params.accessProvider, distance, [
+      ...tagFilterConditions,
+      sql`${distance} < ${distanceThreshold}`,
+    ])
+  }
   const rows = await withVectorScanSettings((executor) =>
     selectRankedVectorResults(
       executor,
@@ -771,6 +1030,8 @@ export interface ExecuteKnowledgeSearchParams {
   topK: number
   /** What the caller may read; resolved from the principal by the use case, never from input. */
   access: KnowledgeAccessScope
+  accessProvider?: KnowledgeAccessProvider
+  signal?: AbortSignal
   searchMode: KnowledgeSearchMode
   /** Lets a recently modified document edge past a stale one of similar relevance; off by default. */
   boostRecency?: boolean
@@ -812,6 +1073,8 @@ export async function executeKnowledgeSearch(
       topK,
       structuredFilters,
       access,
+      accessProvider: params.accessProvider,
+      signal: params.signal,
       filters: params.filters,
     })
   }
@@ -836,6 +1099,8 @@ export async function executeKnowledgeSearch(
         queryVector,
         distanceThreshold,
         access,
+        accessProvider: params.accessProvider,
+        signal: params.signal,
         filters: params.filters,
       })
     : handleVectorOnlySearch({
@@ -844,6 +1109,8 @@ export async function executeKnowledgeSearch(
         queryVector,
         distanceThreshold,
         access,
+        accessProvider: params.accessProvider,
+        signal: params.signal,
         filters: params.filters,
       })
 
@@ -863,6 +1130,8 @@ export async function executeKnowledgeSearch(
     queryVector,
     structuredFilters,
     access,
+    accessProvider: params.accessProvider,
+    signal: params.signal,
     filters: params.filters,
   }).catch((error) => {
     logger.warn('Keyword search leg failed; falling back to vector-only results', {

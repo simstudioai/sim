@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEnterpriseSearchMigrationFixture } from '@/lib/knowledge/__integration__/migration-fixture'
+import type { GitHubInstallationReadGrant } from '@/lib/knowledge/access/types'
 
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
@@ -46,6 +47,15 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     )
     const [{ current_schema: schemaName }] = await client`SELECT current_schema()`
     await client.unsafe(approvalMigration.replaceAll('"public".', `"${schemaName}".`))
+    await client.unsafe(`
+      ALTER TABLE knowledge_connector ADD COLUMN credential_id text,
+        ADD COLUMN source_config json NOT NULL DEFAULT '{}',
+        ADD COLUMN credential_group_id text, ADD COLUMN credential_group_option_id text;
+      ALTER TABLE credential ADD COLUMN revoked_at timestamp, ADD COLUMN credential_group_option_id text;
+      ALTER TABLE credential_group ADD COLUMN options jsonb NOT NULL DEFAULT '[]';
+      ALTER TABLE credential_group_enrollment ADD COLUMN user_id text;
+      CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text);
+    `)
     expect(await readable(['ws'], 'before-migration')).toBe(true)
     await connection.unsafe("INSERT INTO document(id) VALUES ('old-writer-after-migration')")
     expect(await readable(['ws'], 'old-writer-after-migration')).toBe(true)
@@ -64,9 +74,15 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     )
   })
 
-  async function readable(tokens: string[], documentId: string, join = false): Promise<boolean> {
+  async function readable(
+    tokens: string[],
+    documentId: string,
+    join = false,
+    githubInstallationGrants?: GitHubInstallationReadGrant[],
+    userId = 'reader'
+  ): Promise<boolean> {
     const query = new PgDialect().sqlToQuery(
-      knowledgeAccessCondition({ kind: 'user', userId: 'reader', tokens })
+      knowledgeAccessCondition({ kind: 'user', userId, tokens, githubInstallationGrants })
     )
     const values = query.params.map((value: unknown) => {
       if (typeof value === 'string' || typeof value === 'number') return value
@@ -87,6 +103,105 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       [id, acl.join('\n'), JSON.stringify(requirements)]
     )
   }
+
+  it('requires live GitHub proof and rechecks exact source, reader, credential and organization at every content query', async () => {
+    const token = 's:github-repositories:-:alice'
+    await connection.unsafe(`
+      INSERT INTO organization(id) VALUES ('github-org');
+      INSERT INTO "user"(id,email,email_verified) VALUES ('reader','alice@example.com',true), ('bob','bob@example.com',true);
+      INSERT INTO member VALUES ('alice-membership','github-org','reader'), ('bob-membership','github-org','bob');
+      INSERT INTO knowledge_base(id,organization_id,name,is_search_index) VALUES ('github-index','github-org','Search',true);
+      INSERT INTO credential_group(id,organization_id,name,status,options)
+        VALUES ('github-group','github-org','GitHub','active','[{"id":"github-option","status":"active"}]');
+      INSERT INTO credential_group_enrollment(id,credential_group_id,email,status,user_id)
+        VALUES ('alice-enrollment','github-group','alice@example.com','completed','reader');
+      INSERT INTO credential(id,organization_id,type,provider_id,provider_subject_id,provider_tenant_id,encrypted_service_account_key)
+        VALUES ('github-installation','github-org','service_account','github-app-installation','42','90','encrypted');
+      INSERT INTO credential(id,organization_id,type,provider_id,provider_subject_id,authorization_app_id,
+        managed_oauth_status,granted_scopes,encrypted_oauth_token_set,granted_at,credential_group_enrollment_id,credential_group_option_id)
+        VALUES ('alice-github','github-org','managed_oauth','github-repositories','alice','github-app','active',
+          ARRAY[]::text[],'encrypted',now(),'alice-enrollment','github-option');
+      INSERT INTO knowledge_connector(id,knowledge_base_id,connector_type,access_mode,credential_id,source_config,credential_group_id,credential_group_option_id)
+        VALUES ('github-source','github-index','github','members','github-installation',
+          '{"repository":"company/private","githubRepositoryId":"123"}','github-group','github-option');
+      INSERT INTO knowledge_connector_member(id,organization_id,connector_id,subject_token,status,member_synced_through)
+        VALUES ('github-member','github-org','github-source','${token}','active',now());
+      INSERT INTO document(id,knowledge_base_id,connector_id,acl)
+        VALUES ('github-document','github-index','github-source',ARRAY['${token}']);
+      INSERT INTO knowledge_document_observation(document_id,member_id,last_seen_at)
+        VALUES ('github-document','github-member',now());
+      INSERT INTO embedding(id,document_id,content) VALUES ('github-chunk','github-document','private content');
+    `)
+    const grants = [
+      {
+        connectorId: 'github-source',
+        contentCredentialId: 'github-installation',
+        readerCredentialId: 'alice-github',
+        readerSubjectToken: token,
+        repositoryId: '123',
+      },
+    ]
+    for (const join of [false, true]) {
+      expect(await readable([token], 'github-document', join)).toBe(false)
+      expect(await readable([token], 'github-document', join, grants)).toBe(true)
+      expect(await readable([token], 'github-document', join, grants, 'bob')).toBe(false)
+      expect(
+        await readable([token], 'github-document', join, [{ ...grants[0], repositoryId: '456' }])
+      ).toBe(false)
+      expect(
+        await readable([token], 'github-document', join, [
+          { ...grants[0], contentCredentialId: 'other-installation' },
+        ])
+      ).toBe(false)
+    }
+    await connection.unsafe(
+      "UPDATE credential_group_enrollment SET status='revoked' WHERE id='alice-enrollment'"
+    )
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    await connection.unsafe(
+      "UPDATE credential_group_enrollment SET status='completed' WHERE id='alice-enrollment'"
+    )
+    await connection.unsafe(
+      "UPDATE credential_group_enrollment SET revoked_at=now() WHERE id='alice-enrollment'"
+    )
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    await connection.unsafe(
+      "UPDATE credential_group_enrollment SET revoked_at=NULL WHERE id='alice-enrollment'"
+    )
+    await connection.unsafe(
+      "UPDATE credential SET provider_subject_id='bob' WHERE id='alice-github'"
+    )
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    await connection.unsafe(
+      "UPDATE credential SET provider_subject_id='alice' WHERE id='alice-github'"
+    )
+    await connection.unsafe("UPDATE credential SET revoked_at=now() WHERE id='github-installation'")
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    await connection.unsafe("UPDATE credential SET revoked_at=NULL WHERE id='github-installation'")
+    await connection.unsafe(
+      "UPDATE credential SET provider_id='other-provider', type='oauth' WHERE id='github-installation'"
+    )
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    expect(await readable([token], 'github-document', true)).toBe(false)
+    await connection.unsafe(
+      "UPDATE credential SET provider_id='github-app-installation', type='service_account' WHERE id='github-installation'"
+    )
+    await connection.unsafe(
+      "UPDATE knowledge_connector SET access_mode='admin' WHERE id='github-source'"
+    )
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    await connection.unsafe(
+      "UPDATE knowledge_connector SET access_mode='members' WHERE id='github-source'"
+    )
+    await connection.unsafe("DELETE FROM member WHERE id='alice-membership'")
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    await connection.unsafe("INSERT INTO member VALUES ('alice-membership','github-org','reader')")
+    await connection.unsafe(
+      "UPDATE knowledge_connector SET credential_id=NULL WHERE id='github-source'"
+    )
+    expect(await readable([token], 'github-document', true, grants)).toBe(false)
+    expect(await readable([token], 'github-document', true)).toBe(false)
+  })
 
   it('revokes every source of one integration without changing ACLs or another organization', async () => {
     await connection.unsafe("INSERT INTO organization(id) VALUES ('approval-org'), ('other-org')")

@@ -357,7 +357,7 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
     return {
       usage: await getTagUsageStats(
         context.knowledgeBaseId,
-        await context.access.get(),
+        context.organizationId ? context.access : await context.access.get(),
         generateRequestId()
       ),
     }
@@ -373,7 +373,7 @@ export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
       usage: await getTagUsage(
         context.knowledgeBaseId,
         generateRequestId(),
-        await context.access.get()
+        context.organizationId ? context.access : await context.access.get()
       ),
     }
   },

@@ -41,6 +41,7 @@ vi.mock('@/lib/knowledge/access/scope', () => ({
 }))
 vi.mock('@/lib/knowledge/access/predicate', () => ({
   knowledgeAccessCondition: mocks.predicate,
+  knowledgeMetadataCandidateAccessCondition: mocks.predicate,
 }))
 vi.mock('@/connectors/registry', () => {
   const registry = {
@@ -113,7 +114,11 @@ beforeEach(() => {
   mocks.permission.mockResolvedValue('read')
   mocks.availability.mockResolvedValue({ sourceMirrored: true, memberScoped: true })
   mocks.memberships.mockResolvedValue(new Map())
-  mocks.access.mockReturnValue({ get: async () => access })
+  mocks.access.mockReturnValue({
+    get: async () => access,
+    getForConnectors: async () => access,
+    getForDocuments: async () => access,
+  })
   mocks.predicate.mockReturnValue(ACL)
 })
 
