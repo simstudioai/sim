@@ -229,6 +229,22 @@ describe('POST /api/auth/sso/register', () => {
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
+  it('turns a lost race on the domain index into the same 409 as the pre-check', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    mockRegisterSSOProvider.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint_name: 'sso_provider_org_domain_unique',
+      })
+    )
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(409)
+    expect(json.code).toBe('SSO_DOMAIN_ALREADY_ROUTED')
+    expect(json.error).toContain('acme.com')
+  })
+
   it('lets the organization add a provider for a different verified domain', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueProviders([])

@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
-import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -45,7 +44,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     ssoSettingsParsers,
     ssoSettingsUrlKeys
   )
-  const { data: session } = useSession()
   const { billingEnabled, features } = useDeploymentShape()
   const billing = useOrganizationBilling(organizationId)
   const providers = useSSOProviders({ organizationId })
@@ -79,10 +77,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       toast.error(getErrorMessage(error, 'Failed to delete identity provider'))
     }
   }
-  const canManageProvider =
-    billingEnabled ||
-    providerList.length === 0 ||
-    providerList.some((entry) => entry.userId === session?.user?.id)
 
   if (billingEnabled && billing.isLoading) {
     return <SettingsEmptyState variant='inline'>Loading sign-in settings...</SettingsEmptyState>
@@ -129,10 +123,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             isRetrying={providers.isFetching}
             onRetry={() => void providers.refetch()}
           />
-        ) : !canManageProvider ? (
-          <SettingsEmptyState variant='inline'>
-            Only the user who configured SSO can manage these settings.
-          </SettingsEmptyState>
         ) : signInView === 'list' ? (
           <SsoProviderList
             providers={providerList}

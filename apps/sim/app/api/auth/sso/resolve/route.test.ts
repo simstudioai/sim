@@ -31,7 +31,8 @@ describe('POST /api/auth/sso/resolve', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ providerId: 'acme-okta', providerType: 'oidc' })
     const [condition] = dbChainMockFns.where.mock.calls[0]
-    expect(condition?.values).toContain('acme.com')
+    expect(JSON.stringify(condition)).toContain('acme.com')
+    expect(JSON.stringify(condition)).toContain('domainVerified')
   })
 
   it('reports SAML providers as such', async () => {

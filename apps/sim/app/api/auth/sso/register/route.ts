@@ -1,6 +1,6 @@
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresConstraintName } from '@sim/utils/errors'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -81,6 +81,7 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
+  let requestedDomain: string | null = null
   try {
     if (!isSsoEnabled) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
@@ -130,6 +131,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const domain = normalizeSSODomain(body.domain)
+    requestedDomain = domain
     if (!domain) {
       return NextResponse.json(
         { error: 'Enter a valid domain, for example acme.com' },
@@ -827,6 +829,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: JSON.stringify(error),
     })
+
+    /**
+     * The one-provider-per-domain index is the authority when two registrations
+     * race past the read above; its violation is the same refusal, not a fault.
+     */
+    if (getPostgresConstraintName(error) === 'sso_provider_org_domain_unique') {
+      return NextResponse.json(
+        {
+          error: `${requestedDomain ?? 'This domain'} already signs in through another provider of this organization. Edit that provider, or use a different verified domain.`,
+          code: 'SSO_DOMAIN_ALREADY_ROUTED',
+        },
+        { status: 409 }
+      )
+    }
 
     // Surface Better Auth's own APIError (e.g. a 409 when identity fields change
     // while linked accounts exist, or a 404) with its status and message instead
