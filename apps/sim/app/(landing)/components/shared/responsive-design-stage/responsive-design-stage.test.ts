@@ -114,6 +114,43 @@ describe('calculateFitScale', () => {
 })
 
 describe('ResponsiveDesignStage', () => {
+  it.each([
+    { width: 280, height: 400, supportsZoom: true },
+    { width: 280, height: 400, supportsZoom: false },
+    { width: 350, height: 340, supportsZoom: true },
+    { width: 350, height: 340, supportsZoom: false },
+  ])(
+    'fits an uncapped $width × $height stage with zoom support: $supportsZoom',
+    ({ width, height, supportsZoom }) => {
+      vi.stubGlobal('CSS', { supports: vi.fn(() => supportsZoom) })
+      act(() => {
+        root.render(
+          createElement(
+            ResponsiveDesignStage,
+            { width, height, maxScale: Number.POSITIVE_INFINITY },
+            createElement('span', null, 'Preview')
+          )
+        )
+      })
+
+      const surface = container.firstElementChild?.firstElementChild
+      if (!(surface instanceof HTMLElement) || !resizeObserver) {
+        throw new Error('responsive stage did not mount')
+      }
+      const observer = resizeObserver
+
+      act(() => observer.deliver(width * 2, height * 1.5))
+      expect(surface.style.zoom).toBe(supportsZoom ? '1.5' : '1')
+      expect(surface.style.transform).toBe(supportsZoom ? '' : 'scale(1.5)')
+      expect(surface.style.opacity).toBe('1')
+
+      act(() => observer.deliver(width / 2, height * 2))
+      expect(surface.style.zoom).toBe(supportsZoom ? '0.5' : '1')
+      expect(surface.style.transform).toBe(supportsZoom ? '' : 'scale(0.5)')
+      expect(surface.style.opacity).toBe('1')
+    }
+  )
+
   it('hides an already visible surface until a measurable size returns', () => {
     act(() => {
       root.render(
