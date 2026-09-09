@@ -142,6 +142,10 @@
   },
   "overrides": [
     {
+      "includes": ["packages/deployment-config/src/integrations.json"],
+      "files": { "maxSize": 2097152 }
+    },
+    {
       "includes": ["apps/sim/app/_styles/tailwind.css"],
       "linter": { "enabled": false },
       "formatter": { "enabled": false }
