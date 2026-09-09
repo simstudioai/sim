@@ -123,7 +123,7 @@ export type SsoProviderView = z.output<typeof ssoProviderListEntrySchema>
 export const deleteSsoProviderContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/auth/sso/providers/[providerId]',
-  params: z.object({ providerId: z.string().min(1).max(128) }),
+  params: z.object({ providerId: z.string().min(1) }),
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true), providerId: z.string() }),

@@ -16,7 +16,7 @@ import { SsoProviderList } from '@/ee/sso/components/sso-provider-list'
 import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
 import { useDeleteSSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
-import { NEW_SSO_PROVIDER, ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
+import { ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const SETTINGS_TABS = [
@@ -40,10 +40,8 @@ export function SSO({ organizationId }: SSOProps) {
 }
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
-  const [{ tab: requestedTab, provider: requestedProvider }, setParams] = useQueryStates(
-    ssoSettingsParsers,
-    ssoSettingsUrlKeys
-  )
+  const [{ tab: requestedTab, provider: requestedProvider, createProvider }, setParams] =
+    useQueryStates(ssoSettingsParsers, ssoSettingsUrlKeys)
   const { billingEnabled, features } = useDeploymentShape()
   const billing = useOrganizationBilling(organizationId)
   const providers = useSSOProviders({ organizationId })
@@ -51,17 +49,14 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const tab = requestedTab === 'provisioning' && !provisioningAvailable ? 'sign-in' : requestedTab
   const providerList = providers.data?.providers ?? []
   const selectedProvider =
-    requestedProvider && requestedProvider !== NEW_SSO_PROVIDER
+    requestedProvider && !createProvider
       ? providerList.find((entry) => entry.providerId === requestedProvider)
       : undefined
   const signInView: 'create' | 'detail' | 'list' =
-    providerList.length === 0 || requestedProvider === NEW_SSO_PROVIDER
-      ? 'create'
-      : selectedProvider
-        ? 'detail'
-        : 'list'
+    providerList.length === 0 || createProvider ? 'create' : selectedProvider ? 'detail' : 'list'
   /** Opening pushed a history entry; closing must not push another. */
-  const showList = () => void setParams({ provider: null }, { history: 'replace' })
+  const showList = () =>
+    void setParams({ provider: null, createProvider: null }, { history: 'replace' })
   const deleteProvider = useDeleteSSOProvider()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const pendingDelete = providerList.find((entry) => entry.providerId === pendingDeleteId)
@@ -128,19 +123,19 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             providers={providerList}
             active={tab === 'sign-in'}
             docsLink={DOCS_LINKS['sign-in']}
-            onAdd={() => void setParams({ provider: NEW_SSO_PROVIDER })}
-            onOpen={(providerId) => void setParams({ provider: providerId })}
+            onAdd={() => void setParams({ provider: null, createProvider: true })}
+            onOpen={(providerId) => void setParams({ provider: providerId, createProvider: null })}
             onDelete={setPendingDeleteId}
           />
         ) : (
           <SsoProviderSettings
-            key={selectedProvider?.providerId ?? NEW_SSO_PROVIDER}
+            key={selectedProvider ? `provider:${selectedProvider.providerId}` : 'create'}
             organizationId={organizationId}
             existingProvider={selectedProvider}
             active={tab === 'sign-in'}
             onOpenDomains={() => void setParams({ tab: 'domains' })}
             onSaved={(providerId) =>
-              void setParams({ provider: providerId }, { history: 'replace' })
+              void setParams({ provider: providerId, createProvider: null }, { history: 'replace' })
             }
             onBack={providerList.length > 0 ? showList : undefined}
             onDelete={

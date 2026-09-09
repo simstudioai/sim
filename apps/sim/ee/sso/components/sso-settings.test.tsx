@@ -310,10 +310,10 @@ function startEditing(providerId = 'provider-a') {
 let container: HTMLDivElement
 let root: Root
 
-function renderSso(organizationId: string) {
+function renderSso(organizationId: string, searchParams = '') {
   act(() => {
     root.render(
-      <NuqsTestingAdapter>
+      <NuqsTestingAdapter searchParams={searchParams}>
         <SSO organizationId={organizationId} />
       </NuqsTestingAdapter>
     )
@@ -678,6 +678,40 @@ describe('SAML callback URLs', () => {
 })
 
 describe('SSO provider list', () => {
+  it.each(['', '?provider=new'])(
+    'opens and edits a provider named new with initial search params %s',
+    (searchParams) => {
+      mockUseSSOProviders.mockReturnValue({
+        data: { providers: [{ ...provider('org-a'), providerId: 'new' }] },
+        isLoading: false,
+      })
+      renderSso('org-a', searchParams)
+      if (!searchParams) openProvider('new')
+
+      expect(findButton('Edit')).toBeDefined()
+      expect(findButton('Save')).toBeUndefined()
+      act(() => findButton('Edit')?.click())
+      expect(container.querySelector('input[value="client-a"]')).not.toBeNull()
+    }
+  )
+
+  it('keeps creation separate from an existing provider named new', () => {
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [{ ...provider('org-a'), providerId: 'new' }] },
+      isLoading: false,
+    })
+    renderSso('org-a', '?provider=new&createProvider=true')
+
+    expect(findButton('Save')).toBeDefined()
+    expect(findButton('Edit')).toBeUndefined()
+    expect(container.querySelector('input[value="client-a"]')).toBeNull()
+
+    act(() => findButton('Identity providers')?.click())
+    expect(container.querySelector('[aria-label="Open new"]')).not.toBeNull()
+    openProvider('new')
+    expect(findButton('Edit')).toBeDefined()
+  })
+
   it('lists every provider with its protocol and domain, one row each', () => {
     mockUseSSOProviders.mockReturnValue({
       data: {

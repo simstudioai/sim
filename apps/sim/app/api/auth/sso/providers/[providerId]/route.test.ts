@@ -80,6 +80,20 @@ describe('DELETE /api/auth/sso/providers/[providerId]', () => {
     expect(allowed.status).toBe(200)
   })
 
+  it.each([129, 256])('deletes a provider with a %i-character ID', async (length) => {
+    const providerId = 'a'.repeat(length)
+    queueTableRows(schemaMock.ssoProvider, [
+      { id: 'row-1', organizationId: 'org1', userId: 'u1', domain: 'acme.com' },
+    ])
+    queueTableRows(schemaMock.member, [{ role: 'owner' }])
+
+    const res = await DELETE(request(), { params: Promise.resolve({ providerId }) })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ success: true, providerId })
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.ssoProvider)
+  })
+
   it('answers 404 when the row vanished between the check and the delete', async () => {
     queueTableRows(schemaMock.ssoProvider, [
       { id: 'row-1', organizationId: 'org1', userId: 'u1', domain: 'acme.com' },
