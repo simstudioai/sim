@@ -60,10 +60,93 @@ Every export of a `'use client'` module becomes a *client reference* on the serv
 ## The app/worker runtime boundary
 
 Server code runs in two runtimes with **different environments**. The app container loads the
-full env from `SIM_ENV_SECRET_ID` (Secrets Manager). Trigger.dev workers — which execute
-workflows, so every block handler and every tool call — get their env from the Trigger.dev
-dashboard; `trigger.config.ts` additionally syncs `DB_APP_NAME`, `TRIGGER_DEV_ENABLED`, and the
-`FUNCTION_EXECUTION_ENV` vars. The repo cannot see what the dashboard holds.
+full env from `SIM_ENV_SECRET_ID` (Secrets Manager). Trigger.dev workers execute application
+code directly and receive runtime configuration through Trigger.dev. At deployment,
+`trigger.config.ts` calls `scripts/trigger-env-sync.ts` through the existing `syncEnvVars`
+extension. It reads only the mapped combined secret's `AWSCURRENT` version, selects approved
+platform variables in memory, validates them, and returns explicitly classified secret/public
+entries. `DB_APP_NAME=sim-trigger` is fixed; the run `init` marker remains the source of runtime
+detection. Reserved `TRIGGER_*` variables, deployment credentials, arbitrary source keys, and
+customer credentials are never selected. Customer OAuth tokens and workspace/provider
+credentials remain in the application database, decrypted by the existing runtime code.
+
+```text
+ECS boot:        environment secret -> runtime-secrets loader -> app process
+Trigger deploy: environment secret -> worker policy/validation -> syncEnvVars -> Trigger runtime
+                                     + preserved Trigger-owned settings
+```
+
+### Worker synchronization ownership and rollout
+
+The mapping is deliberately closed: `preview` with branch `dev-sim` reads `/dev/sim/env-vars`,
+`staging` without a branch reads `/staging/sim/env-vars`, and `prod` without a branch reads
+`/production/sim/env-vars`. Unknown targets fail before AWS access; no preview-parent writes.
+The deployment entrypoint must supply `SIM_TRIGGER_ENV_SYNC_PROJECT_REF` (the approved project,
+checked against the callback project) and `SIM_TRIGGER_ENV_SYNC_REGION` (the source region).
+These deployment-only controls are not exported to workers. No `NODE_ENV` inference or ambient
+source-value fallback is permitted. An unconfigured deployment fails closed; coordinate this
+change with the separate deployment-orchestration work before merging/enabling it.
+
+`WORKER_CONFIGURATION` is the reviewable names/classification/consumer policy. Shared capability
+fields, OAuth application registrations, and platform LLM pools come from the existing registry.
+Additional groups document their worker consumer and requiredness. Required source settings
+include app/auth URLs, encryption/internal authentication, and explicit billing/enterprise flags
+(`false` is valid). Capability validators reject incomplete active providers. The source subset
+and effective worker configuration are checked so missing values cannot hide behind old values
+or silently switch storage/OCR backends. Optional absence is allowed; configured features must
+still be usable. Before enabling each target, its owner must approve a names-only source/target
+inventory, a supported capability baseline, and the ownership exceptions. Validation does not
+prove that a configured endpoint is reachable or a credential is authorized.
+
+Each target currently preserves the conservative `WORKER_OWNED` list: database URLs (including
+role/replica/sub-pool URLs), `SIM_DB_ROLE`, Redis URL/TLS server name, PII endpoint, and Grafana
+telemetry settings. The effective database must already be usable. These exceptions apply even
+when a source value exists; transfer ownership only through an explicitly reviewed policy change.
+The list is a preservation policy, not a claim about the contents of a live target. Staging/prod
+project references and deployment entrypoints still require live verification. Telemetry setup,
+DB clients, ECS hydration and worker initialization are unchanged.
+
+Omitted optional keys preserve existing Trigger values, with a names-only notice when the key
+was present in the callback's current environment. This is not deletion and does not transfer
+ownership. Removed/renamed variables require owner-reviewed retirement in Trigger, including
+preview inheritance checks so deleting an override cannot resurrect a parent value. Existing
+public variables needing secret classification must be reviewed: Trigger's secret classification
+is a creation-time property, so returning `isSecret` must not be treated as an in-place migration.
+
+Reuse the deployment identity's existing Trigger authentication and AWS default credential chain.
+Grant it `secretsmanager:GetSecretValue` on the exact environment secret ARN, and `kms:Decrypt`
+only for its customer-managed key when required. No worker Secrets Manager permission is needed.
+Runtime AWS credentials selected from the source are platform configuration; runner credentials
+are never copied from `process.env`. IAM definition location and staging/prod deploy wiring are
+external prerequisites owned by the separate investigation. This step belongs inside every
+existing Trigger deployment, after authentication and before the release is accepted. Do not
+use `--skip-sync-env-vars` or tolerate nonzero exits. Trigger 4.5.12 catches callback exceptions,
+so the adapter logs only controlled categories/names and exits the deploy process with code 1.
+CLI environment-import failures must also fail deployment. Never log source objects or SDK/parser
+errors, hydrate the deployer, write dotenv/manifests, or pass secrets as image/build arguments.
+
+Roll out preview/dev-sim, then staging, then production. Synchronization is deployment-time;
+rotation without deployment is outside this mechanism. Env import and code promotion are not
+atomic: even a later failed build can leave updated configuration. Running/checkpointed jobs
+and cached application clients are not guaranteed to adopt updates. Allow old credentials to
+remain valid until executions finish, or use a separately authorized drain procedure. Optional
+omission and code rollback do not restore prior values.
+
+One disposable non-production smoke test is sufficient after access and ownership approval:
+use a disposable Trigger project and an isolated non-production AWS account with fake platform
+configuration at `/dev/sim/env-vars`. Supply that project and region through the deployment
+controls, preseed fake Trigger-owned configuration, and invoke the existing deployment path for
+`preview/dev-sim`. Verify creation,
+update, unrelated-variable preservation and optional omission. Assert a fresh job sees expected
+values without printing them. Check build artifacts and logs for the fake marker, explicitly
+remove test variables (including inherited preview values), and delete the disposable secret
+and project. Do not point the smoke test at an environment's real combined secret. Do not add
+this live test to CI or use production credentials. Automatic deletion/rotation behavior is not
+implemented; any explicit deletion test must account for preview inheritance.
+
+References: [Trigger syncEnvVars](https://trigger.dev/docs/config/extensions/syncEnvVars),
+[Trigger environment variables](https://trigger.dev/docs/deploy-environment-variables),
+[AWS GetSecretValue](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html).
 
 So before replacing a worker's HTTP call to our own API with an in-process call, ask what env
 that work reads *on the app side*. Anything gated by a `require*Capability` helper is the sharp
