@@ -15,12 +15,19 @@
  * fallback, no global state pollution.
  */
 
-// Resolved pdfjs URL — computed once from main thread's module resolution
+// Resolved pdfjs URLs — computed once from main thread's module resolution
 
-let _pdfjsUrls: { library: string; worker: string } | null = null
+interface PdfjsUrls {
+  library: string
+  worker: string
+}
 
-function getPdfjsUrls(): { library: string; worker: string } | null {
-  if (_pdfjsUrls !== null) return _pdfjsUrls
+let _pdfjsUrls: PdfjsUrls | null = null
+let _pdfjsUrlsResolved = false
+
+function getPdfjsUrls(): PdfjsUrls | null {
+  if (_pdfjsUrlsResolved) return _pdfjsUrls
+  _pdfjsUrlsResolved = true
   try {
     const library = new URL('pdfjs-dist/build/pdf.min.mjs', import.meta.url).toString()
     const worker = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
@@ -30,7 +37,7 @@ function getPdfjsUrls(): { library: string; worker: string } | null {
       worker: new URL(worker, window.location.href).href,
     }
   } catch {
-    return null
+    _pdfjsUrls = null
   }
   return _pdfjsUrls
 }
@@ -47,8 +54,14 @@ function getPdfjsUrls(): { library: string; worker: string } | null {
  * Loading the matching worker module installs its WorkerMessageHandler in
  * this isolated global scope. PDF.js then uses its in-context worker fallback
  * without creating another worker or changing the host app's configuration.
+ *
+ * Never assign `GlobalWorkerOptions.workerSrc` here: pdfjs reads it through a
+ * getter that throws when falsy, and the read happens outside its own
+ * try/catch, so a falsy assignment makes every `getDocument` call fail.
+ *
+ * @internal Exported so tests can execute this source directly.
  */
-const WORKER_SRC = /* js */ `
+export const WORKER_SRC = /* js */ `
 let pdfjsLib = null;
 
 self.onmessage = async (e) => {
@@ -135,7 +148,7 @@ function renderInWorker(
   pdfData: Uint8Array,
   width: number,
   height: number,
-  pdfjsUrls: { library: string; worker: string }
+  pdfjsUrls: PdfjsUrls
 ): Promise<Blob | null> {
   return new Promise((resolve) => {
     const worker = getWorker()
