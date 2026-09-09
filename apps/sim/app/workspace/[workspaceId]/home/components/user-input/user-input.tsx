@@ -41,6 +41,7 @@ import type {
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
+import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -49,16 +50,6 @@ import type { ChatContext } from '@/stores/panel'
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
 const logger = createLogger('UserInput')
-
-/**
- * Whether the element is somewhere the user could be typing. Focusing the composer on mount
- * must not steal focus from another field, but may take it from a link or button — opening a
- * chat leaves the sidebar link focused, and the composer should win.
- */
-function isTextEntry(element: HTMLElement): boolean {
-  const tag = element.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || element.isContentEditable
-}
 
 interface UserInputProps {
   defaultValue?: string
@@ -168,6 +159,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const editorRef = useRef(editor)
   editorRef.current = editor
   const textareaRef = editor.textareaRef
+  useChatInputFocus({ textareaRef })
 
   /**
    * Attaches context chips pushed from elsewhere in the app (browser/terminal
@@ -548,16 +540,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     }
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
-
-  useEffect(() => {
-    const raf = window.requestAnimationFrame(() => {
-      if (!document.hasFocus()) return
-      const active = document.activeElement
-      if (active instanceof HTMLElement && isTextEntry(active)) return
-      textareaRef.current?.focus()
-    })
-    return () => window.cancelAnimationFrame(raf)
-  }, [textareaRef])
 
   /**
    * Menu rows are excluded alongside buttons: the mode switcher's items are

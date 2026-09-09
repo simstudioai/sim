@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
@@ -9,7 +10,16 @@ import type { OrganizationChat } from '@/app/o/[organizationId]/components/organ
 const hoverState = vi.hoisted(() => ({ isOpen: false }))
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
+  default: ({
+    href,
+    children,
+    prefetch: _prefetch,
+    ...props
+  }: {
+    href: string
+    children: React.ReactNode
+    prefetch?: boolean
+  }) => (
     <a href={href} {...props}>
       {children}
     </a>
@@ -36,6 +46,8 @@ const CHATS: OrganizationChat[] = Array.from({ length: 8 }, (_, index) => ({
 
 let container: HTMLDivElement
 let root: Root
+let queryClient: QueryClient
+let prefetchQuery: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -48,6 +60,8 @@ beforeEach(() => {
     }
   )
   hoverState.isOpen = false
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  prefetchQuery = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -56,22 +70,25 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
+  queryClient.clear()
   vi.unstubAllGlobals()
 })
 
 async function render(props: Partial<Parameters<typeof ChatsSection>[0]> = {}) {
   await act(async () => {
     root.render(
-      <ChatsSection
-        chats={CHATS}
-        isLoading={false}
-        isCollapsed={false}
-        pathname={null}
-        menuOpenHref={null}
-        onContextMenu={() => {}}
-        onMoreClick={() => {}}
-        {...props}
-      />
+      <QueryClientProvider client={queryClient}>
+        <ChatsSection
+          chats={CHATS}
+          isLoading={false}
+          isCollapsed={false}
+          pathname={null}
+          menuOpenHref={null}
+          onContextMenu={() => {}}
+          onMoreClick={() => {}}
+          {...props}
+        />
+      </QueryClientProvider>
     )
   })
 }
@@ -103,6 +120,28 @@ describe('ChatsSection', () => {
     await act(async () => button?.click())
 
     expect(onMoreClick).toHaveBeenCalledWith(expect.anything(), '/o/org-1/chat/chat-2')
+    expect(prefetchQuery).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'prefetches focused destination history with collapsed=%s',
+    async (isCollapsed) => {
+      hoverState.isOpen = isCollapsed
+      await render({ isCollapsed })
+      prefetchQuery.mockClear()
+      const link = document.body.querySelector<HTMLAnchorElement>('a[href="/o/org-1/chat/chat-3"]')!
+      await act(async () => link.focus())
+      expect(prefetchQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['mothership-chats', 'detail', 'chat-3'] })
+      )
+    }
+  )
+
+  it('does not prefetch the active conversation', async () => {
+    await render({ pathname: '/o/org-1/chat/chat-3' })
+    const link = container.querySelector<HTMLAnchorElement>('a[href="/o/org-1/chat/chat-3"]')!
+    await act(async () => link.focus())
+    expect(prefetchQuery).not.toHaveBeenCalled()
   })
 
   it('shows the empty state when there are no chats', async () => {
