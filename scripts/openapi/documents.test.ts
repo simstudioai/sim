@@ -108,7 +108,7 @@ async function routeApplicationOperation(routePath: string, method: string): Pro
 }
 
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 38],
+  ['apps/docs/openapi-v2-workflows.json', 58],
   ['apps/docs/openapi-v2-logs.json', 3],
   ['apps/docs/openapi-v2-files-audit.json', 29],
   ['apps/docs/openapi-v2-tables.json', 53],
@@ -310,7 +310,7 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(221)
+    expect(totalOperations).toBe(241)
   })
 
   it('documents mixed workflow execution and resume responses', () => {
@@ -323,6 +323,7 @@ describe('generated OpenAPI documents', () => {
     const executeQueuedContent = executeQueued.content as JsonObject
 
     expect((spec.tags as JsonObject[]).map((tag) => tag.name)).toEqual([
+      'Workspace Sync',
       'Workflows',
       'Workflow Runs',
     ])

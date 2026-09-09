@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readSync } from 'node:fs'
+import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, FlagSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
@@ -141,15 +141,18 @@ function coerceRowCap(raw: unknown, flagName: string): { type: 'rows'; max: numb
  * `Atomics.wait` is the only synchronous sleep available; without it the retry
  * spins a core for as long as the writer takes.
  */
-function readStdin(): string {
+export const MAX_JSON_ARGUMENT_BYTES = 10 * 1024 * 1024
+
+function readArgumentDescriptor(descriptor: number): string {
   const idle = new Int32Array(new SharedArrayBuffer(4))
   const buffer = Buffer.alloc(64 * 1024)
   const chunks: Buffer[] = []
+  let bytes = 0
 
   for (;;) {
     let read: number
     try {
-      read = readSync(0, buffer, 0, buffer.length, null)
+      read = readSync(descriptor, buffer, 0, buffer.length, null)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code === 'EAGAIN') {
@@ -161,6 +164,8 @@ function readStdin(): string {
       throw error
     }
     if (read === 0) break
+    bytes += read
+    if (bytes > MAX_JSON_ARGUMENT_BYTES) throw new SimApiError('JSON input exceeds 10 MiB', 0)
     chunks.push(Buffer.from(buffer.subarray(0, read)))
   }
 
@@ -199,6 +204,8 @@ function literalAtHint(error: unknown, path: string): string {
 }
 
 export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
+  if (Buffer.byteLength(raw, 'utf8') > MAX_JSON_ARGUMENT_BYTES)
+    throw new SimApiError(`--${flagName} exceeds the 10 MiB JSON input limit`, 0)
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
 
@@ -208,14 +215,21 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
       throw new SimApiError(`--${flagName} @- reads stdin, but nothing is piped in`, 0)
     }
     try {
-      return { text: readStdin(), from: ' (read from stdin)' }
+      return { text: readArgumentDescriptor(0), from: ' (read from stdin)' }
     } catch (error) {
       throw new SimApiError(`--${flagName} cannot read stdin: ${(error as Error).message}`, 0)
     }
   }
 
   try {
-    return { text: readFileSync(path, 'utf8'), from: ` (read from ${path})` }
+    const descriptor = openSync(path, 'r')
+    try {
+      if (fstatSync(descriptor).size > MAX_JSON_ARGUMENT_BYTES)
+        throw new SimApiError('JSON input exceeds 10 MiB', 0)
+      return { text: readArgumentDescriptor(descriptor), from: ` (read from ${path})` }
+    } finally {
+      closeSync(descriptor)
+    }
   } catch (error) {
     throw new SimApiError(
       `--${flagName} cannot read ${path}: ${(error as Error).message}${literalAtHint(error, path)}`,
@@ -478,6 +492,15 @@ function asQueryValue(value: unknown): QueryValue {
  * API contract declares it in, so a field that moved from query to body moves
  * here on the next regeneration.
  */
+function boundedRequest(request: BuiltRequest): BuiltRequest {
+  if (
+    request.body &&
+    Buffer.byteLength(JSON.stringify(request.body), 'utf8') > MAX_JSON_ARGUMENT_BYTES
+  )
+    throw new SimApiError('Aggregate JSON request body exceeds 10 MiB', 0)
+  return request
+}
+
 export function buildRequest(
   operation: V2OperationName,
   positional: string[],
@@ -662,7 +685,12 @@ export function buildRequest(
       ) {
         throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
       }
-      return { path, query, body: { ...body, [variant.property]: parsed }, ...headerSlot }
+      return boundedRequest({
+        path,
+        query,
+        body: { ...body, [variant.property]: parsed },
+        ...headerSlot,
+      })
     }
 
     const raw = flags.body
@@ -671,10 +699,15 @@ export function buildRequest(
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new SimApiError('--body must be a JSON object', 0)
     }
-    return { path, query, body: { ...body, ...(parsed as Record<string, unknown>) }, ...headerSlot }
+    return boundedRequest({
+      path,
+      query,
+      body: { ...body, ...(parsed as Record<string, unknown>) },
+      ...headerSlot,
+    })
   }
 
-  return {
+  return boundedRequest({
     path,
     query,
     /**
@@ -683,5 +716,5 @@ export function buildRequest(
      */
     body: spec.body ? body : undefined,
     ...headerSlot,
-  }
+  })
 }

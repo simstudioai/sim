@@ -107,14 +107,24 @@ export const selectorOptionSchema = z
     id: z
       .string()
       .min(1)
-      .max(16 * 1024),
+      .max(16 * 1024)
+      .describe('Provider resource identifier.'),
     label: z
       .string()
       .min(1)
-      .max(16 * 1024),
-    meta: z.record(z.string().min(1).max(128), safeOptionMetaValueSchema).optional(),
+      .max(16 * 1024)
+      .describe('Human-readable provider resource name.'),
+    meta: z
+      .record(z.string().min(1).max(128), safeOptionMetaValueSchema)
+      .optional()
+      .describe('Safe scalar metadata for presenting or configuring this choice.'),
   })
   .strict()
+  .meta({
+    id: 'SelectorOption',
+    title: 'SelectorOption',
+    description: 'The SelectorOption result.',
+  })
 
 export const executeSelectorResponseSchema = z.discriminatedUnion('kind', [
   z

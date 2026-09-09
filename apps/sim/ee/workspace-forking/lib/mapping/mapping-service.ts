@@ -3,6 +3,22 @@ import { workflow } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ForkMappableResourceType, ForkMappingEntry } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
+import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
+import {
+  type ForkReference,
+  type ForkRemapKind,
+  scanWorkflowReferences,
+} from '@/lib/workflows/references/remap-references'
+import {
+  CANDIDATE_LIMIT,
+  classifyCredentialResourceType,
+  type ForkResourceCandidate,
+  filterExistingForkTargets,
+  getCredentialProvidersByIds,
+  getWorkspaceEnvKeys,
+  listForkResourceCandidates,
+  loadForkResourceLabels,
+} from '@/lib/workflows/references/resources'
 import {
   listDeployedWorkflows,
   readDeployedState,
@@ -13,29 +29,14 @@ import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/
 import {
   buildForkResolver,
   deleteEdgeMappingsByChildResources,
+  type ForkMappingRow,
   type ForkResourceType,
   getEdgeMappingRows,
   nonCredentialForkKindToResourceType,
   resourceTypeToForkKind,
   upsertEdgeMappings,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
-import {
-  CANDIDATE_LIMIT,
-  classifyCredentialResourceType,
-  type ForkResourceCandidate,
-  filterExistingForkTargets,
-  getCredentialProvidersByIds,
-  getWorkspaceEnvKeys,
-  listForkResourceCandidates,
-  loadForkResourceLabels,
-} from '@/ee/workspace-forking/lib/mapping/resources'
 import { resolveForkExcludedTargetId } from '@/ee/workspace-forking/lib/promote/promote-plan'
-import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
-import {
-  type ForkReference,
-  type ForkRemapKind,
-  scanWorkflowReferences,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 
 interface ForkMappingViewParams {
   edge: ForkEdge
@@ -299,6 +300,50 @@ export interface ApplyForkMappingEntry {
   targetId: string | null
 }
 
+/** Applies the same canonical upsert rules in memory so previews never persist proposed mappings. */
+export function overlayForkMappingEntries(
+  rows: readonly ForkMappingRow[],
+  edge: ForkEdge,
+  sourceWorkspaceId: string,
+  entries: readonly ApplyForkMappingEntry[]
+): ForkMappingRow[] {
+  if (sourceWorkspaceId !== edge.parentWorkspaceId && sourceWorkspaceId !== edge.childWorkspaceId)
+    throw new ForkError('Mapping source must belong to the fork edge', 400)
+  const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
+  const sourceKeys = new Set<string>()
+  for (const entry of entries) {
+    const key = JSON.stringify([entry.resourceType, entry.sourceId])
+    if (sourceKeys.has(key)) throw new ForkError('Duplicate source mapping instruction', 400)
+    sourceKeys.add(key)
+  }
+  if (!sourceIsParent && findDuplicateTargetEntry([...entries]))
+    throw new ForkError('Each parent target can map from only one child source', 400)
+  let next = [...rows]
+  for (const entry of entries) {
+    next = next.filter(
+      (row) =>
+        row.resourceType !== entry.resourceType ||
+        (sourceIsParent ? row.parentResourceId : row.childResourceId) !== entry.sourceId
+    )
+  }
+  for (const entry of entries) {
+    if (!sourceIsParent && entry.targetId === null) continue
+    const parentResourceId = sourceIsParent ? entry.sourceId : entry.targetId!
+    const childResourceId = sourceIsParent ? entry.targetId : entry.sourceId
+    next = next.filter(
+      (row) => row.resourceType !== entry.resourceType || row.parentResourceId !== parentResourceId
+    )
+    next.push({
+      id: JSON.stringify([entry.resourceType, parentResourceId]),
+      childWorkspaceId: edge.childWorkspaceId,
+      resourceType: entry.resourceType,
+      parentResourceId,
+      childResourceId,
+    })
+  }
+  return next
+}
+
 /**
  * The first target two distinct sources are mapped to (same resourceType + targetId,
  * different sourceId), or null when every target is used by at most one source. Cleared
@@ -329,19 +374,21 @@ export function findDuplicateTargetEntry(
 }
 
 /**
- * Persist mapping edits for a direction. Pull maps a parent source to a child
- * target; push maps a child source to a parent target (clearing a push mapping
- * deletes the row).
+ * Persist source-to-target edits in canonical parent/child storage orientation.
+ * Direction is a caller-relative action and never determines edge orientation.
  */
 export async function applyForkMappingEntries(
   tx: DbOrTx,
   edge: ForkEdge,
   userId: string,
-  direction: 'push' | 'pull',
+  sourceWorkspaceId: string,
   entries: ApplyForkMappingEntry[]
 ): Promise<number> {
+  if (sourceWorkspaceId !== edge.parentWorkspaceId && sourceWorkspaceId !== edge.childWorkspaceId) {
+    throw new ForkError('Mapping source must belong to the fork edge', 400)
+  }
   if (entries.length === 0) return 0
-  if (direction === 'pull') {
+  if (sourceWorkspaceId === edge.parentWorkspaceId) {
     // Pull maps a parent source to a child target - one batched upsert.
     await upsertEdgeMappings(
       tx,
@@ -407,7 +454,8 @@ export async function applyForkMappingEntries(
 export async function validateForkMappingTargets(
   sourceWorkspaceId: string,
   targetWorkspaceId: string,
-  entries: ApplyForkMappingEntry[]
+  entries: ApplyForkMappingEntry[],
+  executor: DbOrTx = db
 ): Promise<void> {
   const withTarget = entries.filter((entry) => entry.targetId != null)
   if (withTarget.length === 0) return
@@ -440,15 +488,17 @@ export async function validateForkMappingTargets(
   )
 
   const [existingTargets, targetEnvKeys, sourceProviders, targetProviders] = await Promise.all([
-    filterExistingForkTargets(db, targetWorkspaceId, targetIdsByKind),
-    hasEnvVar ? getWorkspaceEnvKeys(db, targetWorkspaceId) : Promise.resolve(new Set<string>()),
+    filterExistingForkTargets(executor, targetWorkspaceId, targetIdsByKind),
+    hasEnvVar
+      ? getWorkspaceEnvKeys(executor, targetWorkspaceId)
+      : Promise.resolve(new Set<string>()),
     getCredentialProvidersByIds(
-      db,
+      executor,
       sourceWorkspaceId,
       credentialEntries.map((entry) => entry.sourceId)
     ),
     getCredentialProvidersByIds(
-      db,
+      executor,
       targetWorkspaceId,
       credentialEntries.map((entry) => entry.targetId as string)
     ),

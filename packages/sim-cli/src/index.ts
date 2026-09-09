@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import chalk from 'chalk'
+import { dump } from 'js-yaml'
 import { ProfileConfigError } from './config/index'
+import { clientFrom } from './context'
 import {
   formatApiErrorDetails,
   isRequestTimeout,
@@ -17,8 +19,9 @@ import { buildProgram } from './program'
  * friendly message would make it unreportable.
  */
 async function main() {
+  const program = buildProgram()
   try {
-    await buildProgram().parseAsync(process.argv)
+    await program.parseAsync(process.argv)
   } catch (error) {
     if (error instanceof ProfileConfigError) {
       console.error(chalk.red(`Error: ${sanitize(error.message)}`))
@@ -33,6 +36,23 @@ async function main() {
       process.exit(1)
     }
     if (error instanceof SimApiError) {
+      let output = program.opts().output
+      try {
+        output = clientFrom(program).profile.output
+      } catch {
+        /** Preserve the original error when configuration is invalid. */
+      }
+      if (output === 'json' || output === 'yaml') {
+        const payload = {
+          error: {
+            code: error.code ?? 'CLI_ERROR',
+            message: error.message,
+            ...(error.details === undefined ? {} : { details: error.details }),
+          },
+        }
+        process.stderr.write(output === 'json' ? `${JSON.stringify(payload)}\n` : dump(payload))
+        process.exit(error.exitCode)
+      }
       console.error(chalk.red(`Error: ${sanitize(error.message)}`))
       if (error.code) console.error(chalk.dim(`  code: ${sanitize(error.code)}`))
       if (error.details !== undefined) {
@@ -40,7 +60,7 @@ async function main() {
           console.error(chalk.dim(sanitize(line)))
         }
       }
-      process.exit(1)
+      process.exit(error.exitCode)
     }
     throw error
   }

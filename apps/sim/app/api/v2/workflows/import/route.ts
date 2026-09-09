@@ -15,16 +15,11 @@ export const POST = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkflowErrorPolicies.import,
   parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
-  mapInput: ({ body }) => ({
-    workspaceId: body.workspaceId,
-    folderPath: body.folderPath,
-    name: body.name,
-    description: body.description,
-    workflow: body.workflow,
-  }),
+  mapInput: ({ body }) => body,
   useCase: importWorkflow,
-  present: ({ workflow, folderPath }) => ({
+  present: ({ workflow, folderPath, operation }) => ({
     data: {
+      ...operation,
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,

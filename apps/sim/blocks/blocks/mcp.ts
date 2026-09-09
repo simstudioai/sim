@@ -39,6 +39,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
       id: 'tool',
       title: 'Tool',
       type: 'mcp-tool-selector',
+      selectorKey: 'mcp.tools',
       required: true,
       placeholder: 'Select a tool',
       description: 'Available tools from the selected MCP server',

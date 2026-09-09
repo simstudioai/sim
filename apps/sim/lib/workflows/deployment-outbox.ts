@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
+import { outboxEvent, workspaceOperationReceipt } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
@@ -9,6 +10,7 @@ import { env } from '@/lib/core/config/env'
 import {
   continueOutboxHandler,
   type DeferredOutboxHandlerResult,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxEventContext,
   type OutboxHandler,
@@ -63,6 +65,7 @@ import {
   deleteSchedulesForWorkflow,
 } from '@/lib/workflows/schedules'
 import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
+import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentOutbox')
@@ -113,6 +116,7 @@ interface DeploymentCleanupOperationFence extends DeploymentOperationGeneration 
 }
 
 export interface PrepareDeploymentV2Payload {
+  workspaceOperationId?: string
   protocolVersion: number
   operationId: string
   generation: number
@@ -335,6 +339,39 @@ async function prepareDeploymentOperation(
   context.signal.throwIfAborted()
   if (!operation || isTerminalNonActiveOperation(operation)) return
   assertPreparationPayloadMatchesOperation(payload, operation)
+
+  if (payload.workspaceOperationId) {
+    const [receipt] = await db
+      .select({ report: workspaceOperationReceipt.report })
+      .from(workspaceOperationReceipt)
+      .where(eq(workspaceOperationReceipt.id, payload.workspaceOperationId))
+      .limit(1)
+    const report = receipt?.report as WorkspaceOperationReport | undefined
+    if (!report || !report.deploymentOperationIds?.includes(payload.operationId))
+      throw new NonRetryableDeploymentError(
+        'Workspace sync receipt no longer admits this deployment'
+      )
+    if (report.copyProgress?.status === 'failed')
+      throw new NonRetryableDeploymentError(
+        'Selected workspace resources failed to copy',
+        'resource_copy_failed'
+      )
+    if (report.copyProgress?.status === 'pending') {
+      const [copy] = report.contentOutboxEventId
+        ? await db
+            .select({ status: outboxEvent.status })
+            .from(outboxEvent)
+            .where(eq(outboxEvent.id, report.contentOutboxEventId))
+            .limit(1)
+        : []
+      if (!copy || copy.status === 'dead_letter')
+        throw new NonRetryableDeploymentError(
+          'Workspace content copy could not complete',
+          'resource_copy_failed'
+        )
+      return deferOutboxHandler('Waiting for workspace resource copy', 1000, false)
+    }
+  }
 
   const [workflowRecord] = await db
     .select()
@@ -1414,6 +1451,14 @@ function parsePrepareDeploymentV2Payload(payload: unknown): PrepareDeploymentV2P
   const checkpoints = parseDeploymentPreparationCheckpoints(record.checkpoints)
 
   return {
+    ...(record.workspaceOperationId === undefined
+      ? {}
+      : {
+          workspaceOperationId: parseRequiredString(
+            record.workspaceOperationId,
+            'workspaceOperationId'
+          ),
+        }),
     protocolVersion,
     operationId,
     generation,

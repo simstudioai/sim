@@ -1,0 +1,24 @@
+{
+  "pages": [
+    "previewWorkflowImport",
+    "getWorkspaceForkAvailability",
+    "getWorkspaceForkLineage",
+    "listWorkspaceForkChildren",
+    "listWorkspaceForkResources",
+    "previewWorkspaceFork",
+    "forkWorkspace",
+    "getWorkspaceForkMappings",
+    "updateWorkspaceForkMappings",
+    "previewWorkspacePush",
+    "pushWorkspace",
+    "previewWorkspacePull",
+    "pullWorkspace",
+    "rollbackWorkspaceFork",
+    "unlinkWorkspaceFork",
+    "updateWorkspaceForkExclusions",
+    "listSelector",
+    "getSelector",
+    "getWorkspaceOperation",
+    "listWorkspaceOperations"
+  ]
+}

@@ -191,7 +191,7 @@ describe('workflow import and export application operations', () => {
     })
 
     expect(mocks.resolveWorkflow).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
-    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord)
+    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord, { includeReferences: undefined })
     expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
