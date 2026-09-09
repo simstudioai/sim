@@ -635,10 +635,11 @@ function assertCumulativeUsageLedgerBinding(
 }
 
 /**
- * PostgreSQL 17 bounds the holder's entire transaction, including time spent
- * waiting for the application between statements. A lock timeout alone only
- * bounds other callers waiting behind that holder. Keep the transaction below
- * the billing callback's five-second client deadline so retries can recover.
+ * PostgreSQL 17+ bounds the entire transaction below the callback's five-second
+ * deadline. Older supported servers instead bound each idle interval between
+ * statements, alongside the per-statement budget. Both policies release an idle
+ * lock holder without waiting for its application process to resume; only the
+ * newer policy also limits total elapsed transaction time.
  */
 const CUMULATIVE_FLUSH_TRANSACTION_TIMEOUT_MS = 4_000
 const CUMULATIVE_FLUSH_STATEMENT_TIMEOUT_MS = 3_500
@@ -658,8 +659,8 @@ type CumulativeUsageStage = 'pool' | 'configure' | 'lock' | 'read' | 'write' | '
  * An existing row must match the incoming actor, workspace, payer, and billing
  * period before either a duplicate no-op or a top-up is accepted.
  * The billing context is resolved BEFORE the transaction and the lock wait is
- * bounded by `lock_timeout`. A server-enforced `transaction_timeout` releases
- * the holder even when its application process stops making progress. The
+ * bounded by `lock_timeout`. A server-enforced transaction deadline, or idle
+ * transaction deadline on older PostgreSQL, releases a stalled holder. The
  * critical section uses one SELECT plus one INSERT/UPDATE on a single connection.
  *
  * Because every leg flushes its cumulative and this converges to the max,
@@ -706,7 +707,14 @@ export async function recordCumulativeUsage(
       enterStage('configure')
       await tx.execute(sql`
         select
-          set_config('transaction_timeout', ${`${CUMULATIVE_FLUSH_TRANSACTION_TIMEOUT_MS}ms`}, true),
+          set_config(
+            case when current_setting('transaction_timeout', true) is null
+              then 'idle_in_transaction_session_timeout'
+              else 'transaction_timeout'
+            end,
+            ${`${CUMULATIVE_FLUSH_TRANSACTION_TIMEOUT_MS}ms`},
+            true
+          ),
           set_config('statement_timeout', ${`${CUMULATIVE_FLUSH_STATEMENT_TIMEOUT_MS}ms`}, true),
           set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)
       `)

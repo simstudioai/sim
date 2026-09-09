@@ -439,6 +439,7 @@ describe('recordCumulativeUsage', () => {
       eventKey: 'update-cost:msg-1-billing',
     })
     expect(executedSqlContaining(tx, 'transaction_timeout')).toBe(true)
+    expect(executedSqlContaining(tx, 'idle_in_transaction_session_timeout')).toBe(true)
     expect(executedSqlContaining(tx, 'statement_timeout')).toBe(true)
     expect(executedSqlContaining(tx, 'lock_timeout')).toBe(true)
     expect(tx.execute.mock.calls[0][0]).toMatchObject({ values: ['4000ms', '3500ms', '3000ms'] })

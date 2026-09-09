@@ -32,12 +32,16 @@ including its implicit COMMIT/ROLLBACK, before they reach the connection or pool
 The guard is applied to all published ESM, CommonJS, and Cloudflare entry points.
 It does not change connection establishment, retries, or healthy transactions.
 
-This is required for cumulative billing's PostgreSQL 17 `transaction_timeout`:
-the database can release an idle lock holder without waiting for the application.
+This is required for cumulative billing's server-enforced holder deadline:
+PostgreSQL 17+ uses `transaction_timeout`; older supported servers use
+`idle_in_transaction_session_timeout` alongside the statement timeout. Both release
+a stalled idle holder; the older fallback limits each idle interval and statement,
+not the total elapsed transaction time.
 `apps/sim/lib/billing/core/usage-log.postgres.test.ts` tests real ESM/CommonJS driver
 closure and reconnection, rollback after billing INSERT/UPDATE, and exact retry
-accounting. CI runs it against PostgreSQL 17. Set `BILLING_USAGE_TEST_DATABASE_URL`
-to a disposable local PostgreSQL 17+ database to run it manually.
+accounting. CI runs it against PostgreSQL 17 and 16. Set
+`BILLING_USAGE_TEST_DATABASE_URL` to a disposable local PostgreSQL 15+ database to
+run it manually.
 
 Remove this patch when the pinned driver includes equivalent transaction-scope
 closure handling. Keep the reconnect regression tests when upgrading.

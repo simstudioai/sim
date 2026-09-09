@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * Uses a disposable schema in local PostgreSQL 17+. The paused callback models
+ * Uses a disposable schema in local PostgreSQL 15+. The paused callback models
  * a client that stops progressing after writing usage but before COMMIT; the
  * database must release its locks without waiting for that client to resume.
  */
@@ -65,6 +65,7 @@ interface PausedTransaction {
 }
 
 let nextPause: PausedTransaction | undefined
+let holderTimeoutSetting = 'transaction_timeout'
 
 function pauseNextTransaction(lockOnly = false): PausedTransaction {
   const pause = { reached: deferred(), release: deferred(), lockOnly }
@@ -107,9 +108,14 @@ afterAll(async () => {
 describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
   beforeAll(async () => {
     if (!connection || !database) throw new Error('PostgreSQL fixture is unavailable')
-    const [version] =
-      await connection`select current_setting('server_version_num')::integer as version`
-    expect(version.version).toBeGreaterThanOrEqual(170000)
+    const [version] = await connection`
+        select current_setting('server_version_num')::integer as version,
+          current_setting('transaction_timeout', true) is not null as has_transaction_timeout
+      `
+    expect(version.version).toBeGreaterThanOrEqual(150000)
+    holderTimeoutSetting = version.has_transaction_timeout
+      ? 'transaction_timeout'
+      : 'idle_in_transaction_session_timeout'
     await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
     await connection.unsafe(`
       CREATE TABLE usage_log (
@@ -132,7 +138,7 @@ describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
         if (pause) {
           if (pause.lockOnly) {
             /** Reproduce the old policy: lock_timeout does not expire an idle holder. */
-            await tx.execute(sql`select set_config('transaction_timeout', '0', true)`)
+            await tx.execute(sql`select set_config(${holderTimeoutSetting}, '0', true)`)
           }
           pause.reached.resolve()
           await pause.release.promise
@@ -164,7 +170,7 @@ describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
       const resumed = deferred()
       let resumedError: unknown
       const holder = pool.begin(async (tx) => {
-        await tx`select set_config('transaction_timeout', '150ms', true)`
+        await tx`select set_config(${holderTimeoutSetting}, '150ms', true)`
         await tx`select 1`
         await release.promise
         try {
