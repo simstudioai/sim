@@ -5,6 +5,7 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { projectLegacySlackV2Auth } from '@/lib/workflows/compatibility/slack-v2-auth'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getWorkflowDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -68,7 +69,10 @@ export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
     if (!isWorkflowState(state)) {
       throw new Error('Deployment version contains invalid workflow state')
     }
-    const presentedState = input.includeCredentialValues ? state : sanitizeVersionState(state)
+    const compatibleState = { ...state, blocks: projectLegacySlackV2Auth(state.blocks ?? {}) }
+    const presentedState = input.includeCredentialValues
+      ? compatibleState
+      : sanitizeVersionState(compatibleState)
     logger.info('Read workflow version', {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
