@@ -39,6 +39,16 @@ export interface UserAccessScope {
    * they belong to.
    */
   tokens: readonly string[]
+  /** Live user-token evidence, scoped to the installation source's immutable repository. */
+  githubInstallationGrants?: readonly GitHubInstallationReadGrant[]
+}
+
+export interface GitHubInstallationReadGrant {
+  connectorId: string
+  contentCredentialId: string
+  readerCredentialId: string
+  readerSubjectToken: string
+  repositoryId: string
 }
 
 /**

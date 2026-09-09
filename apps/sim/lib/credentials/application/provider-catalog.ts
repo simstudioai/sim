@@ -15,6 +15,7 @@ import {
   allowedOrganizationIntegrationTypes,
   principalUserId,
 } from '@/lib/integrations/principal-scope.server'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -115,6 +116,16 @@ function providerField(
 }
 
 function getServiceAccountDescriptor(providerId: string): ServiceAccountDescriptor {
+  if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+    return {
+      name: 'GitHub App installation',
+      description: 'Index repository content with a GitHub App installation.',
+      docsUrl: 'https://docs.sim.ai/search/github',
+      helpText:
+        'Connect an installation through your organization’s Search integrations. Each person connects their own GitHub account to establish access.',
+      fields: [],
+    }
+  }
   if (providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID) {
     return {
       name: 'Google service account',

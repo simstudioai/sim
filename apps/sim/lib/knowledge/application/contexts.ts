@@ -164,7 +164,10 @@ export async function resolveActiveKnowledgeBaseContext(
     ...workspaceContext,
     knowledgeBaseId: knowledgeBase.id,
     knowledgeBase,
-    access: createKnowledgeAccessProvider(principal, { workspaceId: knowledgeBase.workspaceId }),
+    access: createKnowledgeAccessProvider(principal, {
+      workspaceId: knowledgeBase.workspaceId,
+      knowledgeBaseIds: [knowledgeBase.id],
+    }),
   }
 }
 
@@ -185,7 +188,10 @@ export async function resolveActiveKnowledgeBaseInWorkspace(
     ...workspaceContext,
     knowledgeBaseId: knowledgeBase.id,
     knowledgeBase,
-    access: createKnowledgeAccessProvider(principal, { workspaceId: workspaceContext.workspaceId }),
+    access: createKnowledgeAccessProvider(principal, {
+      workspaceId: workspaceContext.workspaceId,
+      knowledgeBaseIds: [knowledgeBase.id],
+    }),
   }
 }
 
@@ -251,7 +257,10 @@ export async function resolveActiveKnowledgeResourceContext(
       ...owner,
       knowledgeBaseId: knowledgeBase.id,
       knowledgeBase,
-      access: createKnowledgeAccessProvider(principal, owner),
+      access: createKnowledgeAccessProvider(principal, {
+        ...owner,
+        knowledgeBaseIds: [knowledgeBase.id],
+      }),
     }
   }
   if (!knowledgeBase.workspaceId) {
@@ -263,7 +272,10 @@ export async function resolveActiveKnowledgeResourceContext(
     ...workspaceContext,
     knowledgeBaseId: knowledgeBase.id,
     knowledgeBase,
-    access: createKnowledgeAccessProvider(principal, { workspaceId: knowledgeBase.workspaceId }),
+    access: createKnowledgeAccessProvider(principal, {
+      workspaceId: knowledgeBase.workspaceId,
+      knowledgeBaseIds: [knowledgeBase.id],
+    }),
   }
 }
 

@@ -24,6 +24,10 @@ import {
   emailDomain,
 } from '@/lib/knowledge/access/external-groups'
 import {
+  type GitHubReaderCredential,
+  resolveGitHubInstallationReadGrants,
+} from '@/lib/knowledge/access/github-installation'
+import {
   groupToken,
   sortAccessTokens,
   subjectToken,
@@ -33,6 +37,7 @@ import {
   type KnowledgeAccessProvider,
   type KnowledgeAccessScope,
   ORGANIZATION_ACCESS_TOKENS,
+  type UserAccessScope,
   WORKSPACE_ACCESS_TOKENS,
   type WorkspaceAccessScope,
 } from '@/lib/knowledge/access/types'
@@ -79,7 +84,7 @@ async function loadExternalGroupTokens(
 ): Promise<string[]> {
   /**
    * A query of its own rather than a fourth join on the credential query in
-   * `loadUserAccessTokens`:
+   * `loadUserAccess`:
    * that one already fans out per managed credential, and joining groups onto
    * it would multiply the two — every credential row repeated for every group.
    * Two indexed reads cost less than one cross product.
@@ -120,6 +125,9 @@ export interface KnowledgeAccessScopeContext {
   /** Exactly one workspace or organization owner is required at resolution. */
   workspaceId?: string
   organizationId?: string
+  /** Canonical bases already selected by the application resolver, never caller assertions. */
+  knowledgeBaseIds?: readonly string[]
+  signal?: AbortSignal
 }
 
 /**
@@ -131,10 +139,10 @@ export interface KnowledgeAccessScopeContext {
  * really owns it. Nothing here is cached: revoking a credential or leaving a
  * group is visible on the next read.
  */
-async function loadUserAccessTokens(
+async function loadUserAccess(
   userId: string,
   context: KnowledgeAccessScopeContext
-): Promise<string[]> {
+): Promise<Pick<UserAccessScope, 'tokens' | 'githubInstallationGrants'>> {
   const { workspaceId, organizationId } = context
   const scope = resourceScopeFromOwner(context)
   const baseline = organizationId ? ORGANIZATION_ACCESS_TOKENS : WORKSPACE_ACCESS_TOKENS
@@ -150,10 +158,10 @@ async function loadUserAccessTokens(
       .from(member)
       .where(and(eq(member.organizationId, scope.organizationId), eq(member.userId, userId)))
       .limit(1)
-    if (!membership) return []
+    if (!membership) return { tokens: [] }
   } else {
     const workspaceAccess = await checkWorkspaceAccess(scope.workspaceId, userId)
-    if (!workspaceAccess.hasAccess) return []
+    if (!workspaceAccess.hasAccess) return { tokens: [] }
   }
   /**
    * An identity token only counts where permission-aware knowledge is on, so
@@ -164,13 +172,14 @@ async function loadUserAccessTokens(
    */
   const availability = await resolveKnowledgeAccessAvailability(context)
   if (!availability.memberScoped && !availability.sourceMirrored) {
-    return [...baseline]
+    return { tokens: [...baseline] }
   }
 
   const rows = await db
     .select({
       emailIsAmbiguous: emailHeldByAnotherAccount,
       email: foldedEmail(user.email),
+      credentialId: credential.id,
       providerId: credential.providerId,
       providerTenantId: credential.providerTenantId,
       providerSubjectId: credential.providerSubjectId,
@@ -218,14 +227,18 @@ async function loadUserAccessTokens(
       userId,
       workspaceId,
     })
-    return [...baseline]
+    return { tokens: [...baseline] }
   }
 
   const identityTokens = new Set<string>()
+  const githubReaders: GitHubReaderCredential[] = []
   for (const row of rows) {
     if (!availability.memberScoped || !row.providerSubjectId) continue
     try {
-      identityTokens.add(subjectToken(row))
+      const token = subjectToken(row)
+      identityTokens.add(token)
+      if (row.providerId === 'github-repositories' && row.credentialId)
+        githubReaders.push({ credentialId: row.credentialId, subjectToken: token })
     } catch (error) {
       logger.warn('Skipping malformed managed credential subject', {
         userId,
@@ -256,7 +269,19 @@ async function loadUserAccessTokens(
     }
   }
 
-  return sortAccessTokens(new Set([...baseline, ...identityTokens]))
+  return {
+    tokens: sortAccessTokens(new Set([...baseline, ...identityTokens])),
+    ...(githubReaders.length
+      ? {
+          githubInstallationGrants: await resolveGitHubInstallationReadGrants({
+            scope,
+            readers: githubReaders,
+            knowledgeBaseIds: context.knowledgeBaseIds,
+            signal: context.signal,
+          }),
+        }
+      : {}),
+  }
 }
 
 /**
@@ -286,7 +311,7 @@ export async function resolveKnowledgeAccessScope(
   return {
     kind: 'user',
     userId: subject.userId,
-    tokens: await loadUserAccessTokens(subject.userId, context),
+    ...(await loadUserAccess(subject.userId, context)),
   }
 }
 
@@ -300,7 +325,7 @@ export async function resolveUserKnowledgeAccessScope(
   userId: string,
   workspaceId: string | undefined
 ): Promise<KnowledgeAccessScope> {
-  return { kind: 'user', userId, tokens: await loadUserAccessTokens(userId, { workspaceId }) }
+  return { kind: 'user', userId, ...(await loadUserAccess(userId, { workspaceId })) }
 }
 
 /** Memoises {@link resolveKnowledgeAccessScope} for one operation; a failed lookup is retried on the next call. */

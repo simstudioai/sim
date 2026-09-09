@@ -363,6 +363,16 @@ export async function performUpdateKnowledgeConnectorAccess(
             credentialGroupId: target.binding.credentialGroupId,
             credentialGroupOptionId: target.binding.credentialGroupOptionId,
           })
+          /** A new repository identity cannot inherit observations collected before it was verified. */
+          if (
+            existing.connectorType === 'github' &&
+            target.binding.sourceConfig.githubRepositoryId !==
+              (existing.sourceConfig as Record<string, unknown>).githubRepositoryId
+          ) {
+            await tx
+              .delete(knowledgeConnectorMember)
+              .where(eq(knowledgeConnectorMember.connectorId, connectorId))
+          }
           const [row] = await tx
             .update(knowledgeConnector)
             .set({

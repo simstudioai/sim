@@ -6,9 +6,10 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAvailability, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
+const { mockAvailability, mockCheckWorkspaceAccess, mockGitHubReadGrants } = vi.hoisted(() => ({
   mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
   mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
+  mockGitHubReadGrants: vi.fn(async () => []),
 }))
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
@@ -16,6 +17,9 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
+}))
+vi.mock('@/lib/knowledge/access/github-installation', () => ({
+  resolveGitHubInstallationReadGrants: mockGitHubReadGrants,
 }))
 
 import {
@@ -452,6 +456,42 @@ describe('organization document ACL scope', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+  })
+  it('live-checks only the current member’s GitHub credentials within the canonical selected index', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    queueSubjects([
+      {
+        email: 'viewer@example.com',
+        credentialId: 'personal-github',
+        providerId: 'github-repositories',
+        providerSubjectId: '42',
+        providerTenantId: null,
+      },
+    ])
+    const scope = await resolveKnowledgeAccessScope(SESSION, {
+      ...organization,
+      knowledgeBaseIds: ['index-1'],
+    })
+    expect(mockGitHubReadGrants).toHaveBeenCalledWith({
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      readers: [{ credentialId: 'personal-github', subjectToken: 's:github-repositories:-:42' }],
+      knowledgeBaseIds: ['index-1'],
+      signal: undefined,
+    })
+    expect(scope).toMatchObject({ githubInstallationGrants: [] })
+  })
+  it('does not live-check retained provider credentials after organization removal', async () => {
+    queueTableRows(schemaMock.member, [])
+    queueSubjects([
+      {
+        credentialId: 'personal-github',
+        providerId: 'github-repositories',
+        providerSubjectId: '42',
+        providerTenantId: null,
+      },
+    ])
+    expect(await resolveKnowledgeAccessScope(SESSION, organization)).toMatchObject({ tokens: [] })
+    expect(mockGitHubReadGrants).not.toHaveBeenCalled()
   })
   it('uses current organization membership and org baseline without any workspace membership', async () => {
     queueTableRows(schemaMock.member, [{ id: 'membership-1' }])

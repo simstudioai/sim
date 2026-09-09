@@ -26,6 +26,7 @@ import {
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
+import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   type ConnectorAccessMode,
@@ -198,7 +199,20 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         'Search sources must support per-person access or source permissions'
       )
     }
-    const sourceConfig = connector.sourceConfig as Record<string, unknown>
+    const previousConfig = connector.sourceConfig as Record<string, unknown>
+    const sourceConfig = await prepareGitHubInstallationSource({
+      connectorType: connector.connectorType,
+      credentialId:
+        input.credentialId === undefined && input.accessMode === connector.accessMode
+          ? connector.credentialId
+          : input.credentialId,
+      organizationId: context.organizationId,
+      isSearchIndex: context.knowledgeBase.isSearchIndex === true,
+      accessMode: input.accessMode,
+      actingUserId,
+      sourceConfig: previousConfig,
+      previousConfig,
+    })
 
     let target: ConnectorAccessTarget
     if (input.accessMode === 'members') {

@@ -229,7 +229,11 @@ async function resolveKnowledgeSearchContext(
     return {
       ...context,
       knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
-      access: createKnowledgeAccessProvider(principal, context),
+      access: createKnowledgeAccessProvider(principal, {
+        ...context,
+        knowledgeBaseIds: knowledgeBases.map((base) => base!.id),
+        signal: input.signal,
+      }),
     }
   }
   if (!canonicalWorkspaceId) {
@@ -241,7 +245,11 @@ async function resolveKnowledgeSearchContext(
   return {
     ...workspaceContext,
     knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
-    access: createKnowledgeAccessProvider(principal, { workspaceId: canonicalWorkspaceId }),
+    access: createKnowledgeAccessProvider(principal, {
+      workspaceId: canonicalWorkspaceId,
+      knowledgeBaseIds: knowledgeBases.map((base) => base!.id),
+      signal: input.signal,
+    }),
   }
 }
 

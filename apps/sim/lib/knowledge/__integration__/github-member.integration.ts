@@ -3,7 +3,7 @@
  * connector registry, member sync, storage, chunking, and application authorization.
  * Provider replies and embeddings are deterministic; no live GitHub account is used.
  */
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, verify } from 'node:crypto'
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -11,12 +11,15 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  credentialMember,
   document,
   embedding,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
+  member,
+  organization,
   rateLimitBucket,
   resourcePolicy,
   user,
@@ -40,9 +43,13 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { resetStorageMethod } from '@/lib/core/storage'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
@@ -95,6 +102,8 @@ if (redisUrl) {
 
 /** Private repositories require the intersection of installation access and member access. */
 interface RepositoryFixture {
+  id: number
+  public: boolean
   installed: boolean
   readers: Set<string>
   defaultBranch: string
@@ -117,7 +126,22 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     id: env.GITHUB_APP_CLIENT_ID,
     secret: env.GITHUB_APP_CLIENT_SECRET,
     redis: env.REDIS_URL,
+    appId: env.GITHUB_APP_ID,
+    privateKey: env.GITHUB_APP_PRIVATE_KEY,
+    slug: env.GITHUB_APP_SLUG,
   }
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  let organizationSource = false
+  let installationSuspended = false
+  const installation = () => ({
+    id: 42,
+    app_id: 1,
+    client_id: 'github-fixture-client',
+    account: { id: 90, login: 'fixture', type: 'Organization' },
+    repository_selection: 'selected',
+    permissions: { contents: 'read', metadata: 'read' },
+    suspended_at: installationSuspended ? new Date().toISOString() : null,
+  })
   let oauthStateKey: string | undefined
   let oauthVerification: { codeVerifier: string; redirectUri: string } | undefined
   const tokenFor = (userId: string) => `ghu_fixture_${userId}`
@@ -137,6 +161,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
 
   function repository(name: string, readers = [ids.aliceId, ids.bobId]) {
     const value: RepositoryFixture = {
+      id: 9001 + repositories.size,
+      public: false,
       installed: true,
       readers: new Set(readers),
       defaultBranch: 'trunk',
@@ -194,18 +220,62 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         refresh_token_expires_in: 15897600,
       })
     }
-    if (url.origin !== 'https://api.github.com' || request.method !== 'GET')
+    if (url.origin !== 'https://api.github.com')
       throw new Error(`Unexpected outbound request: ${request.method} ${url.origin}${url.pathname}`)
+    const bearer = request.headers.get('authorization')?.slice(7) ?? ''
+    if (url.pathname.startsWith('/app/installations/') || url.pathname.endsWith('/installation')) {
+      const [header, payload, signature] = bearer.split('.')
+      expect(
+        verify(
+          'RSA-SHA256',
+          Buffer.from(`${header}.${payload}`),
+          publicKey,
+          Buffer.from(signature, 'base64url')
+        )
+      ).toBe(true)
+      expect(JSON.parse(Buffer.from(payload, 'base64url').toString()).iss).toBe(
+        'github-fixture-client'
+      )
+      requests.push({ userId: 'app', path: url.pathname })
+      if (url.pathname === '/app/installations/42/access_tokens') {
+        expect(request.method).toBe('POST')
+        const body = await request.json()
+        expect(body).toEqual({
+          permissions: { contents: 'read', metadata: 'read' },
+          repository_ids: [9001],
+        })
+        return Response.json({
+          token: 'ghs_fixture_installation',
+          expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+          permissions: body.permissions,
+          repositories: [{ id: 9001 }],
+        })
+      }
+      expect(request.method).toBe('GET')
+      if (
+        url.pathname === '/repos/fixture/shared/installation' &&
+        !repositories.get('shared')?.installed
+      )
+        return Response.json({ message: 'Not Found' }, { status: 404 })
+      expect(['/app/installations/42', '/repos/fixture/shared/installation']).toContain(
+        url.pathname
+      )
+      return Response.json(installation())
+    }
+    if (request.method !== 'GET') throw new Error(`Unexpected GitHub method: ${request.method}`)
+    const installationToken = bearer === 'ghs_fixture_installation'
     const member = enrolled.members.find((candidate) =>
       [tokenFor(candidate.userId), `${tokenFor(candidate.userId)}_refreshed`].some(
         (token) => request.headers.get('authorization') === `Bearer ${token}`
       )
     )
-    if (!member) throw new Error('GitHub request did not use an enrolled member token')
+    if (!member && !installationToken)
+      throw new Error('GitHub request did not use an enrolled member or installation token')
+    const actingId = installationToken ? 'installation' : member!.userId
     expect(request.headers.get('x-github-api-version')).toBe('2022-11-28')
-    requests.push({ userId: member.userId, path: `${url.pathname}${url.search}` })
+    requests.push({ userId: actingId, path: `${url.pathname}${url.search}` })
     if (url.pathname === '/user') {
-      expect(member.userId).toBe(ids.aliceId)
+      expect(actingId).toBe(ids.aliceId)
       return Response.json({
         id: 101,
         login: 'github-fixture-alice',
@@ -218,24 +288,40 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       expect(url.searchParams.get('page')).toBe('1')
       return Response.json([
         { email: 'personal@github-fixture.test', primary: true, verified: true },
-        { email: `${member.userId}@fixture.test`, primary: false, verified: true },
+        { email: `${actingId}@fixture.test`, primary: false, verified: true },
       ])
     }
     const match = url.pathname.match(/^\/repos\/fixture\/([^/]+)(.*)$/)
     if (!match) throw new Error(`Unexpected GitHub endpoint: ${url.pathname}`)
     const source = repositories.get(match[1])
     if (!source) throw new Error('Unexpected GitHub repository')
-    if (source.throttledReaders.has(member.userId))
+    if (source.throttledReaders.has(actingId))
       return Response.json(
         { message: 'You have exceeded a secondary rate limit.' },
         { status: 403 }
       )
-    if (!source.installed || !source.readers.has(member.userId))
+    if (
+      (installationToken && !source.installed) ||
+      (!installationToken && !source.public && (!source.installed || !source.readers.has(actingId)))
+    )
       return Response.json(
         { message: 'Resource not accessible by integration' },
         { status: source.deniedStatus }
       )
-    if (!match[2]) return Response.json({ private: true, default_branch: source.defaultBranch })
+    if (!match[2])
+      return Response.json({
+        id: source.id,
+        owner: { id: 90 },
+        full_name: `fixture/${match[1]}`,
+        private: !source.public,
+        default_branch: source.defaultBranch,
+      })
+    if (match[2].startsWith('/git/ref/heads/')) {
+      const ref = decodeURIComponent(match[2].slice('/git/ref/heads/'.length))
+      return ref === source.defaultBranch
+        ? Response.json({ ref: `refs/heads/${ref}`, object: { type: 'commit', sha: shaFor(ref) } })
+        : Response.json({ message: 'Not Found' }, { status: 404 })
+    }
     if (match[2].startsWith('/git/trees/')) {
       const ref = decodeURIComponent(match[2].slice('/git/trees/'.length))
       const treeSha = shaFor(JSON.stringify([[...source.files], [...source.symlinks]]))
@@ -264,7 +350,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       })
     }
     if (match[2].startsWith('/git/blobs/')) {
-      if (source.throttledBlobReaders.has(member.userId))
+      if (source.throttledBlobReaders.has(actingId))
         return Response.json(
           { message: 'You have exceeded a secondary rate limit.' },
           { status: 403 }
@@ -311,6 +397,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     repositories.clear()
     requests.length = 0
     refreshedUsers.clear()
+    organizationSource = false
+    installationSuspended = false
     oauthStateKey = undefined
     oauthVerification = undefined
     Object.assign(env, {
@@ -435,6 +523,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         )
       )
       await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
       vi.unstubAllGlobals()
     }
@@ -443,6 +532,9 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     Object.assign(env, {
       GITHUB_APP_CLIENT_ID: previousClient.id,
       GITHUB_APP_CLIENT_SECRET: previousClient.secret,
+      GITHUB_APP_ID: previousClient.appId,
+      GITHUB_APP_PRIVATE_KEY: previousClient.privateKey,
+      GITHUB_APP_SLUG: previousClient.slug,
     })
     await db.$client.end()
   })
@@ -497,7 +589,9 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     const result = await searchKnowledge.execute({
       principal,
       input: {
-        workspaceId: ids.workspaceId,
+        ...(organizationSource
+          ? { organizationId: ids.organizationId }
+          : { workspaceId: ids.workspaceId }),
         knowledgeBaseIds: [ids.knowledgeBaseId],
         query: 'Orion',
         searchMode: 'hybrid',
@@ -527,6 +621,120 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       )
     }
   }
+
+  it('indexes an organization installation once and denies live user, app, and org revocations before search or reads', async () => {
+    organizationSource = true
+    Object.assign(env, {
+      GITHUB_APP_ID: '1',
+      GITHUB_APP_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      GITHUB_APP_SLUG: 'github-fixture',
+    })
+    await db.insert(member).values([
+      { id: generateId(), organizationId: ids.organizationId, userId: ids.aliceId, role: 'owner' },
+      { id: generateId(), organizationId: ids.organizationId, userId: ids.bobId, role: 'member' },
+    ])
+    await db
+      .update(knowledgeBase)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+    await db
+      .update(credentialGroup)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(eq(credentialGroup.id, enrolled.groupId))
+    await db
+      .update(credential)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(
+        inArray(
+          credential.id,
+          enrolled.members.map((entry) => entry.credentialId)
+        )
+      )
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(eq(knowledgeConnectorMember.connectorId, enrolled.connectorId))
+    const installationCredentialId = generateId()
+    const { encrypted } = await encryptSecret(
+      JSON.stringify({
+        type: 'github_app_installation',
+        version: 1,
+        appId: '1',
+        appClientId: 'github-fixture-client',
+        installationId: '42',
+        accountId: '90',
+        accountType: 'Organization',
+        accountLogin: 'fixture',
+        repositorySelection: 'selected',
+      })
+    )
+    await db.insert(credential).values({
+      id: installationCredentialId,
+      organizationId: ids.organizationId,
+      type: 'service_account',
+      providerId: 'github-app-installation',
+      providerSubjectId: '42',
+      providerTenantId: '90',
+      encryptedServiceAccountKey: encrypted,
+      displayName: 'GitHub fixture installation',
+      createdBy: ids.aliceId,
+    })
+    await db.insert(credentialMember).values({
+      id: generateId(),
+      credentialId: installationCredentialId,
+      userId: ids.aliceId,
+      role: 'admin',
+      status: 'active',
+    })
+    await db
+      .update(knowledgeConnector)
+      .set({
+        credentialId: installationCredentialId,
+        sourceConfig: { repository: 'fixture/shared', githubRepositoryId: '9001', maxFiles: 0 },
+      })
+      .where(eq(knowledgeConnector.id, enrolled.connectorId))
+    billing = await resolveOrganizationBillingAttribution({
+      actorUserId: ids.aliceId,
+      organizationId: ids.organizationId,
+    })
+    const result = await sync()
+    expect(result.error).toBeUndefined()
+    expect(result.docsHydratedOnce).toBe(1)
+    const [indexed] = await rows()
+    expect(indexed).toBeDefined()
+    expect(
+      requests.filter((entry) => entry.path.includes('/git/blobs/')).map((entry) => entry.userId)
+    ).toEqual(['installation'])
+    expect(await search(actor(ids.aliceId))).toEqual([indexed.id])
+    expect(await search(actor(ids.bobId))).toEqual([indexed.id])
+    await assertAccess(actor(ids.bobId), indexed, true)
+    const source = repositories.get('shared')!
+    source.readers.delete(ids.bobId)
+    expect(await search(actor(ids.bobId))).toEqual([])
+    await assertAccess(actor(ids.bobId), indexed, false)
+    expect(await search(actor(ids.aliceId))).toEqual([indexed.id])
+    expect(
+      await db
+        .select()
+        .from(knowledgeDocumentObservation)
+        .where(eq(knowledgeDocumentObservation.documentId, indexed.id))
+    ).toHaveLength(2)
+    source.readers.add(ids.bobId)
+    source.public = true
+    source.installed = false
+    expect(await search(actor(ids.aliceId))).toEqual([])
+    await assertAccess(actor(ids.aliceId), indexed, false)
+    source.installed = true
+    installationSuspended = true
+    expect(await search(actor(ids.aliceId))).toEqual([])
+    installationSuspended = false
+    expect(await search(actor(ids.aliceId))).toEqual([indexed.id])
+    await db
+      .delete(member)
+      .where(and(eq(member.organizationId, ids.organizationId), eq(member.userId, ids.bobId)))
+    await expect(search(actor(ids.bobId))).rejects.toThrow()
+    await assertAccess(actor(ids.bobId), indexed, false)
+  })
 
   it.runIf(Boolean(redisUrl))(
     'completes a PKCE OAuth attempt through Redis and persists a searchable scopeless credential',
