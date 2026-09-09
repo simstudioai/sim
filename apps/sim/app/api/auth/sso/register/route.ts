@@ -193,7 +193,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           providerId: ssoProvider.providerId,
         })
         .from(ssoProvider)
-        .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
+        .where(sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${domain}`)
       if (claims.some((provider) => !isOwnedByCaller(provider))) {
         logger.warn('Rejected SSO registration for domain owned by another tenant', {
           domain,

@@ -134,6 +134,10 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
 }))
 
+vi.mock('@/app/workspace/[workspaceId]/components/credential-detail', () => ({
+  UnsavedChangesModal: () => null,
+}))
+
 /** Domain management has its own tests; this suite covers the provider form and tab navigation. */
 vi.mock('@/ee/sso/components/verified-domains-section', () => ({
   VerifiedDomainsSection: () => <div>Domain ownership settings</div>,
@@ -176,12 +180,19 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
   SettingsPanel: ({
     actions = [],
+    back,
     children,
   }: {
     actions?: Array<{ text: string; onSelect?: () => void; disabled?: boolean }>
+    back?: { text: string; onSelect: () => void }
     children?: ReactNode
   }) => (
     <div>
+      {back && (
+        <button type='button' onClick={back.onSelect}>
+          {back.text}
+        </button>
+      )}
       {actions.map((action) => (
         <button
           key={action.text}
@@ -197,8 +208,14 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () =
   ),
 }))
 
+/** The guard's own behavior is tested with its hook; here leaving is always allowed. */
 vi.mock('@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard', () => ({
-  useSettingsUnsavedGuard: vi.fn(),
+  useSettingsUnsavedGuard: () => ({
+    showUnsavedModal: false,
+    setShowUnsavedModal: vi.fn(),
+    guardBack: (onLeave: () => void) => onLeave(),
+    confirmDiscard: vi.fn(),
+  }),
 }))
 
 vi.mock('@/ee/sso/hooks/sso', () => ({
@@ -278,7 +295,7 @@ function findButton(text: string) {
   )
 }
 
-/** Opens a provider from the list; the sign-in tab lists providers before showing one. */
+/** The sign-in tab lists providers before showing one, so edits start here. */
 function openProvider(providerId: string) {
   act(() =>
     container.querySelector<HTMLButtonElement>(`[aria-label="Open ${providerId}"]`)?.click()
@@ -695,7 +712,7 @@ describe('SSO provider list', () => {
     expect(container).toHaveTextContent('Use a verified email domain for this connection.')
     expect(findButton('Save')).toBeDefined()
 
-    act(() => findButton('Cancel')?.click())
+    act(() => findButton('Identity providers')?.click())
     expect(container.querySelector('[aria-label="Open provider-a"]')).not.toBeNull()
   })
 
@@ -711,7 +728,7 @@ describe('SSO provider list', () => {
 
     expect(findButton('Save')).toBeDefined()
     expect(findButton('Add identity provider')).toBeUndefined()
-    expect(findButton('Cancel')).toBeUndefined()
+    expect(findButton('Identity providers')).toBeUndefined()
   })
 
   it('deletes a provider after confirmation', async () => {
@@ -736,6 +753,6 @@ describe('SSO provider list', () => {
 
     expect(findButton('Edit')).toBeDefined()
     expect(findButton('Delete')).toBeDefined()
-    expect(findButton('All providers')).toBeDefined()
+    expect(findButton('Identity providers')).toBeDefined()
   })
 })

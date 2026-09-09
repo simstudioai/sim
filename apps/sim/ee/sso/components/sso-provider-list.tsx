@@ -12,6 +12,7 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 interface SsoProviderListProps {
   providers: SsoProviderView[]
   active: boolean
+  docsLink: string
   onAdd: () => void
   onOpen: (providerId: string) => void
   onDelete: (providerId: string) => void
@@ -29,11 +30,13 @@ export function SsoProviderList({
   onAdd,
   onOpen,
   onDelete,
+  docsLink,
 }: SsoProviderListProps) {
   return (
     <>
       {active && (
         <SettingsPanel
+          docsLink={docsLink}
           actions={[{ text: 'Add identity provider', variant: 'primary', onSelect: onAdd }]}
         />
       )}
@@ -54,7 +57,6 @@ export function SsoProviderList({
                   <RowActionsMenu
                     label={`${providerId} actions`}
                     actions={[
-                      { label: 'Open', onSelect: () => onOpen(providerId) },
                       { label: 'Delete', onSelect: () => onDelete(providerId), destructive: true },
                     ]}
                   />

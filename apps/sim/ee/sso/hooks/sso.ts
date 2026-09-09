@@ -63,13 +63,17 @@ export function useConfigureSSO() {
         body: config as SsoRegistrationBody,
       }),
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
-
       const orgId = typeof variables.orgId === 'string' ? variables.orgId : undefined
-      if (orgId) {
-        queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
-        queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      }
+      /** Awaited, so the caller navigates against a list that already holds the change. */
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
+        ...(orgId
+          ? [
+              queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) }),
+              queryClient.invalidateQueries({ queryKey: organizationKeys.lists() }),
+            ]
+          : []),
+      ])
     },
   })
 }
@@ -81,8 +85,6 @@ export function useDeleteSSOProvider() {
   return useMutation({
     mutationFn: (providerId: string) =>
       requestJson(deleteSsoProviderContract, { params: { providerId } }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
   })
 }

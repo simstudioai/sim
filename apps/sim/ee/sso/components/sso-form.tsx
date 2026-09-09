@@ -5,6 +5,7 @@ import { Button, cn, Input, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { resolveSsoProviderContract } from '@/lib/api/contracts/auth'
 import { client } from '@/lib/auth/auth-client'
@@ -17,7 +18,7 @@ import { AuthFormMessage, AuthSubmitButton } from '@/app/(auth)/components'
 const logger = createLogger('SSOForm')
 const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
 const SSO_NO_PROVIDER_ERROR =
-  'No SSO provider is configured for this email domain. Ask your administrator, or sign in another way.'
+  'No SSO provider is configured for this email domain. Ask your administrator.'
 const SSO_ERROR_MESSAGES = {
   account_not_found: 'No account found. Please contact your administrator to set up SSO access.',
   sso_failed: 'SSO authentication failed. Please try again.',
@@ -139,19 +140,14 @@ function SSOFormContent({
     try {
       const safeCallbackUrl = callbackUrl
 
-      /**
-       * The provider is named explicitly. Letting the SSO plugin choose by
-       * domain is unordered and blind to domain verification, so an
-       * organization with several providers would be routed arbitrarily.
-       */
-      const resolved = await requestJson(resolveSsoProviderContract, {
-        body: { email: emailValue },
-      }).catch((error: unknown) => {
-        logger.warn('No SSO provider resolved for address', { error })
-        return null
-      })
-      if (!resolved) {
-        setFormError(SSO_NO_PROVIDER_ERROR)
+      /** Named explicitly; see `resolveSsoProviderContract` for why the domain lookup is not trusted. */
+      let resolved: { providerId: string }
+      try {
+        resolved = await requestJson(resolveSsoProviderContract, { body: { email: emailValue } })
+      } catch (error) {
+        const noProvider = isApiClientError(error) && error.status === 404
+        if (!noProvider) logger.error('SSO provider resolution failed', { error })
+        setFormError(noProvider ? SSO_NO_PROVIDER_ERROR : SSO_SIGN_IN_ERROR)
         return
       }
 

@@ -52,11 +52,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const provisioningAvailable = features.scim
   const tab = requestedTab === 'provisioning' && !provisioningAvailable ? 'sign-in' : requestedTab
   const providerList = providers.data?.providers ?? []
-  /**
-   * The sign-in tab is a list of providers, one per verified domain. An
-   * organization with none goes straight to the form; a `provider` param opens
-   * one of them, or the form for a new one.
-   */
   const selectedProvider =
     requestedProvider && requestedProvider !== NEW_SSO_PROVIDER
       ? providerList.find((entry) => entry.providerId === requestedProvider)
@@ -67,7 +62,8 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       : selectedProvider
         ? 'detail'
         : 'list'
-  const showList = () => void setParams({ provider: null })
+  /** Opening pushed a history entry; closing must not push another. */
+  const showList = () => void setParams({ provider: null }, { history: 'replace' })
   const deleteProvider = useDeleteSSOProvider()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const pendingDelete = providerList.find((entry) => entry.providerId === pendingDeleteId)
@@ -125,7 +121,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
       <div hidden={tab !== 'sign-in'}>
         {providers.isLoading ? (
-          <SettingsEmptyState variant='inline'>Loading identity provider...</SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>Loading identity providers...</SettingsEmptyState>
         ) : providers.data === undefined && providers.error ? (
           <SettingsQueryErrorState
             error={providers.error}
@@ -141,6 +137,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
           <SsoProviderList
             providers={providerList}
             active={tab === 'sign-in'}
+            docsLink={DOCS_LINKS['sign-in']}
             onAdd={() => void setParams({ provider: NEW_SSO_PROVIDER })}
             onOpen={(providerId) => void setParams({ provider: providerId })}
             onDelete={setPendingDeleteId}
@@ -152,7 +149,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             existingProvider={selectedProvider}
             active={tab === 'sign-in'}
             onOpenDomains={() => void setParams({ tab: 'domains' })}
-            onSaved={(providerId) => void setParams({ provider: providerId })}
+            onSaved={(providerId) =>
+              void setParams({ provider: providerId }, { history: 'replace' })
+            }
             onBack={providerList.length > 0 ? showList : undefined}
             onDelete={
               selectedProvider
@@ -168,8 +167,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
           title='Delete identity provider'
           text={[
             'Delete ',
-            { text: pendingDelete?.providerId ?? '', bold: true },
-            `? People at ${pendingDelete?.domain ?? 'its domain'} can no longer sign in through it. Their accounts and memberships stay.`,
+            { text: pendingDelete?.providerId ?? 'this provider', bold: true },
+            '? ',
+            {
+              text: `People at ${pendingDelete?.domain ?? 'its domain'} can no longer sign in through it.`,
+              error: true,
+            },
+            ' Their accounts and memberships stay.',
           ]}
           confirm={{
             label: 'Delete',

@@ -571,10 +571,15 @@ async function registerSSOProvider(): Promise<boolean> {
       logger.info('Updating existing provider...')
     }
 
+    /**
+     * Stored in the same canonical form the application writes, so sign-in
+     * resolution, the one-provider-per-domain guard, and the admission domain
+     * check all key on one value.
+     */
     const providerData: SSOProviderData = {
       id: generateId(),
       issuer: ssoConfig.issuer,
-      domain: ssoConfig.domain,
+      domain: normalizeSSODomain(ssoConfig.domain) ?? ssoConfig.domain,
       userId: adminUser.id,
       providerId: ssoConfig.providerId,
       organizationId: process.env.SSO_ORGANIZATION_ID || undefined,

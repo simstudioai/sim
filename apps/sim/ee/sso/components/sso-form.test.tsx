@@ -64,6 +64,7 @@ vi.mock('@/lib/core/config/env', () => ({
   isFalsy: (value: unknown) => value === undefined || value === 'false',
 }))
 
+import { ApiClientError } from '@/lib/api/client/errors'
 import SSOForm from '@/ee/sso/components/sso-form'
 
 function renderFirstFrame(search: string, registrationDisabled = false): string {
@@ -185,7 +186,9 @@ describe('SSOForm sign-in errors', () => {
   })
 
   it('explains when no provider serves the domain, without starting a sign-in', async () => {
-    mockRequestJson.mockRejectedValue(new Error('No identity provider is configured'))
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 404, message: 'No identity provider is configured', body: {} })
+    )
     renderInteractive('email=user%40nowhere.test')
 
     await submitForm()
@@ -194,6 +197,19 @@ describe('SSOForm sign-in errors', () => {
     expect(mockSsoSignIn).not.toHaveBeenCalled()
     const submitButton = container.querySelector<HTMLButtonElement>('button[type="submit"]')
     expect(submitButton?.disabled).toBe(false)
+  })
+
+  it('keeps the generic message when resolution fails for another reason', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 429, message: 'Too many requests', body: {} })
+    )
+    renderInteractive('email=user%40example.com')
+
+    await submitForm()
+
+    expect(container).toHaveTextContent('Unable to start SSO. Check your email and try again.')
+    expect(container).not.toHaveTextContent('No SSO provider is configured')
+    expect(mockSsoSignIn).not.toHaveBeenCalled()
   })
 
   it('shows a generic retryable error when Better Auth resolves with a 404', async () => {
