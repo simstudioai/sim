@@ -17,41 +17,46 @@
 
 // Resolved pdfjs URL — computed once from main thread's module resolution
 
-let _pdfjsUrl: string | null = null
+let _pdfjsUrls: { library: string; worker: string } | null = null
 
-function getPdfjsUrl(): string | null {
-  if (_pdfjsUrl !== null) return _pdfjsUrl
+function getPdfjsUrls(): { library: string; worker: string } | null {
+  if (_pdfjsUrls !== null) return _pdfjsUrls
   try {
-    // Resolve via the bundler/dev server so the URL is usable from a Worker
-    _pdfjsUrl = new URL('pdfjs-dist/build/pdf.min.mjs', import.meta.url).toString()
+    const library = new URL('pdfjs-dist/build/pdf.min.mjs', import.meta.url).toString()
+    const worker = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+    /** Bundlers can emit root-relative asset URLs, which cannot resolve inside a blob worker. */
+    _pdfjsUrls = {
+      library: new URL(library, window.location.href).href,
+      worker: new URL(worker, window.location.href).href,
+    }
   } catch {
-    _pdfjsUrl = ''
+    return null
   }
-  return _pdfjsUrl || null
+  return _pdfjsUrls
 }
 
 // Worker-based renderer (fully isolated from main thread pdfjs)
 
 /**
  * Inline source for the PDF render worker.
- * Receives: { id, pdfData, width, height, pdfjsUrl }
+ * Receives: { id, pdfData, width, height, pdfjsUrl, pdfjsWorkerUrl }
  * Posts back: { id, blob } or { id, error }
  *
  * The worker loads its OWN pdfjs instance via dynamic import, so its static
  * PagesMapper state is completely independent of the main thread.
- * pdfjs's own internal worker is disabled (workerPort = null, workerSrc = '')
- * so pdfjs runs single-threaded inside this worker — acceptable for tiny
- * 1-page EMF PDFs.
+ * Loading the matching worker module installs its WorkerMessageHandler in
+ * this isolated global scope. PDF.js then uses its in-context worker fallback
+ * without creating another worker or changing the host app's configuration.
  */
 const WORKER_SRC = /* js */ `
 let pdfjsLib = null;
 
 self.onmessage = async (e) => {
-  const { id, pdfData, width, height, pdfjsUrl } = e.data;
+  const { id, pdfData, width, height, pdfjsUrl, pdfjsWorkerUrl } = e.data;
   try {
     if (!pdfjsLib) {
+      await import(pdfjsWorkerUrl);
       pdfjsLib = await import(pdfjsUrl);
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
     }
 
     const doc = await pdfjsLib.getDocument({ data: pdfData }).promise;
@@ -88,7 +93,7 @@ const _pending = new Map<
   { resolve: (b: Blob | null) => void; reject: (e: Error) => void }
 >()
 
-function getWorker(_pdfjsUrl: string): Worker | null {
+function getWorker(): Worker | null {
   if (_workerFailed) return null
   if (_worker) return _worker
 
@@ -130,10 +135,10 @@ function renderInWorker(
   pdfData: Uint8Array,
   width: number,
   height: number,
-  pdfjsUrl: string
+  pdfjsUrls: { library: string; worker: string }
 ): Promise<Blob | null> {
   return new Promise((resolve) => {
-    const worker = getWorker(pdfjsUrl)
+    const worker = getWorker()
     if (!worker) {
       resolve(null)
       return
@@ -147,7 +152,17 @@ function renderInWorker(
 
     // Transfer the buffer to avoid copying
     const copy = pdfData.slice() // copy so caller retains original
-    worker.postMessage({ id, pdfData: copy, width, height, pdfjsUrl }, [copy.buffer])
+    worker.postMessage(
+      {
+        id,
+        pdfData: copy,
+        width,
+        height,
+        pdfjsUrl: pdfjsUrls.library,
+        pdfjsWorkerUrl: pdfjsUrls.worker,
+      },
+      [copy.buffer]
+    )
 
     // Timeout: if worker doesn't respond in 15s, give up
     setTimeout(() => {
@@ -175,14 +190,14 @@ export async function renderPdfToImage(
   width: number,
   height: number
 ): Promise<string | null> {
-  const pdfjsUrl = getPdfjsUrl()
+  const pdfjsUrls = getPdfjsUrls()
 
-  if (!pdfjsUrl || typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined') {
+  if (!pdfjsUrls || typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined') {
     return null
   }
 
   try {
-    const blob = await renderInWorker(pdfData, width, height, pdfjsUrl)
+    const blob = await renderInWorker(pdfData, width, height, pdfjsUrls)
     if (blob) return URL.createObjectURL(blob)
   } catch {
     // Worker failed — no fallback, return null
