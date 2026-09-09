@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import type { Author, ContentMeta } from '@/lib/content/schema'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { withFilteredNoindex } from '@/lib/landing/seo'
+import { LANDING_SOCIAL_IMAGE, withFilteredNoindex } from '@/lib/landing/seo'
+
+const PUBLISHER_LOGO_URL = `${SITE_URL}/brandbook/logo/small.png`
 
 /**
  * Identifies the content section a post/collection belongs to, so the
@@ -113,7 +115,7 @@ export function buildArticleJsonLd(post: ContentMeta) {
       url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
-        url: `${SITE_URL}/logo/primary/medium.png`,
+        url: PUBLISHER_LOGO_URL,
       },
     },
     mainEntityOfPage: {
@@ -215,9 +217,8 @@ export function buildIndexMetadata(
         type: 'website',
         images: [
           {
-            url: `${SITE_URL}/logo/primary/medium.png`,
-            width: 1200,
-            height: 630,
+            ...LANDING_SOCIAL_IMAGE,
+            url: `${SITE_URL}${LANDING_SOCIAL_IMAGE.url}`,
             alt: `Sim ${section.name}`,
           },
         ],
@@ -227,6 +228,10 @@ export function buildIndexMetadata(
         title: `${title} | Sim`,
         description,
         site: '@simdotai',
+        images: {
+          url: `${SITE_URL}${LANDING_SOCIAL_IMAGE.url}`,
+          alt: `Sim ${section.name}`,
+        },
       },
     },
     isFiltered
@@ -389,7 +394,7 @@ export function buildCollectionPageJsonLd(
       url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
-        url: `${SITE_URL}/logo/primary/medium.png`,
+        url: PUBLISHER_LOGO_URL,
       },
     },
     inLanguage: 'en-US',
