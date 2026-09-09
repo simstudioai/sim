@@ -7,12 +7,26 @@ import { authMockFns } from '@sim/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetOrganizationSurfaceContext, mockWorkspaceChrome, mockPrefetchUserProfile } =
-  vi.hoisted(() => ({
-    mockGetOrganizationSurfaceContext: vi.fn(),
-    mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
-    mockPrefetchUserProfile: vi.fn(async () => undefined),
-  }))
+const {
+  mockGetOrganizationSurfaceContext,
+  mockWorkspaceChrome,
+  mockPrefetchUserProfile,
+  mockUseSession,
+} = vi.hoisted(() => ({
+  mockGetOrganizationSurfaceContext: vi.fn(),
+  mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
+  mockPrefetchUserProfile: vi.fn(async () => undefined),
+  mockUseSession: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/auth-client', () => ({ useSession: mockUseSession }))
+vi.mock('@/hooks/queries/admin-users', () => ({
+  useStopImpersonating: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+vi.mock('@/stores', () => ({ clearUserData: vi.fn() }))
+vi.mock('@/lib/auth/stale-session-recovery', () => ({
+  recoverFromStaleSession: vi.fn(),
+}))
 
 vi.mock('@tanstack/react-query', () => ({
   HydrationBoundary: ({ children }: { children: ReactNode }) => children,
@@ -67,6 +81,7 @@ describe('OrganizationLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-1' } })
+    mockUseSession.mockReturnValue({ data: { user: { id: 'viewer-1' } }, isPending: false })
   })
 
   it('returns signed-out visitors to the organization entry after sign-in', async () => {
@@ -93,10 +108,56 @@ describe('OrganizationLayout', () => {
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
     expect(mockPrefetchUserProfile).toHaveBeenCalledWith({}, 'viewer-1')
     expect(html).toContain('Organization child')
+    expect(html).not.toContain('Stop impersonating')
     expect(mockWorkspaceChrome).toHaveBeenCalledWith(
       expect.objectContaining({ initialSidebarCollapsed: true }),
       undefined
     )
+  })
+
+  it('shows the shared impersonation banner above organization content', async () => {
+    const session = {
+      user: { id: 'viewer-1', name: 'QA Member', email: 'member@example.com' },
+      session: { impersonatedBy: 'platform-admin' },
+    }
+    mockGetSession.mockResolvedValue(session)
+    mockUseSession.mockReturnValue({ data: session, isPending: false })
+    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
+
+    const html = renderToStaticMarkup(
+      await OrganizationLayout({
+        children: <div>Organization child</div>,
+        params: Promise.resolve({ organizationId: 'org-1' }),
+      })
+    )
+
+    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
+    expect(html).toContain('Impersonating QA Member (member@example.com)')
+    expect(html).toContain('Stop impersonating')
+    expect(html.indexOf('Stop impersonating')).toBeLessThan(html.indexOf('Organization child'))
+  })
+
+  it('does not use the impersonating admin to enter an organization outside the rollout', async () => {
+    mockGetSession.mockResolvedValue({
+      user: { id: 'customer-member' },
+      session: { impersonatedBy: 'platform-admin' },
+    })
+    mockGetOrganizationSurfaceContext.mockResolvedValue({
+      ...SURFACE_CONTEXT,
+      searchAccess: { memberScoped: false, sourceMirrored: false },
+    })
+
+    await expect(
+      OrganizationLayout({
+        children: <div>Organization child</div>,
+        params: Promise.resolve({ organizationId: 'customer-org' }),
+      })
+    ).rejects.toThrow('redirect:/workspace?redirect=settings')
+    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith(
+      'customer-org',
+      'customer-member'
+    )
+    expect(mockWorkspaceChrome).not.toHaveBeenCalled()
   })
 
   it('renders an explicit denial for a non-member without the surface', async () => {
