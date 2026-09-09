@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 export type SlackStreamChunk =
   | { type: 'markdown_text'; text: string }
@@ -45,7 +46,10 @@ async function callSlackAgentApi(
     body: JSON.stringify(body),
     signal,
   })
-  const value = (await response.json()) as unknown
+  const value = await readResponseJsonWithLimit(response, {
+    maxBytes: 64 * 1024,
+    label: `Slack ${method}`,
+  })
   if (!isRecordLike(value)) {
     throw new Error(`Slack ${method} returned an invalid response`)
   }
@@ -143,12 +147,13 @@ export async function stopSlackAgentStream(
   channel: string,
   ts: string,
   sessionStatus: 'active' | 'processing' | 'suspended',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  blocks?: Record<string, unknown>[]
 ): Promise<void> {
   await callSlackAgentApi(
     'chat.stopStream',
     token,
-    { channel, ts, session_status: sessionStatus },
+    { channel, ts, session_status: sessionStatus, ...(blocks?.length ? { blocks } : {}) },
     signal
   )
 }

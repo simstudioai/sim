@@ -11,6 +11,7 @@ import {
 } from '@/lib/sim-search/connectors'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
+import { SlackSearchActions } from '@/app/o/[organizationId]/integrations/slack-search-actions'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -35,12 +36,16 @@ const TABS = [
   { id: 'mine', label: 'Mine' },
 ] as const
 
+interface OrganizationIntegrationsProps {
+  slackOnboarding?: { token: string; userId: string }
+}
+
 /**
  * The organization's sources as every member sees them — the same list and the
  * same actions whatever the viewer's role. Setting sources up and managing them
  * is an organization admin's job, done in the organization's settings.
  */
-export function OrganizationIntegrations() {
+export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegrationsProps = {}) {
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
   const { organization, searchAccess } = useOrganizationContext()
@@ -95,6 +100,11 @@ export function OrganizationIntegrations() {
       title='Integrations'
       description='Connect your tools for Sim Search'
       tabs={TABS}
+      action={
+        slackOnboarding && (
+          <SlackSearchActions organizationId={organization.id} {...slackOnboarding} />
+        )
+      }
     >
       <div className={RESOURCE_LIST_STACK}>
         {failedQuery ? (

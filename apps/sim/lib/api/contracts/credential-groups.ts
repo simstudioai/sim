@@ -278,8 +278,8 @@ export const startSlackCredentialGroupConfigurationBodySchema = z
       .regex(/^T[A-Z0-9]+$/, 'Enter the Slack workspace ID')
       .max(64)
       .optional(),
-    clientId: z.string().trim().min(1, 'Slack Client ID is required').max(256),
-    clientSecret: z.string().trim().min(1, 'Slack Client Secret is required').max(512),
+    clientId: z.string().trim().min(1, 'Slack Client ID is required').max(256).optional(),
+    clientSecret: z.string().trim().min(1, 'Slack Client Secret is required').max(512).optional(),
     requiredScopes: z.array(z.string().trim().min(1).max(255)).min(1).max(100).optional(),
   })
   .strict()

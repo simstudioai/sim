@@ -1,9 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { credential, slackSearchInstallation } from '@sim/db/schema'
-import { sha256Hex } from '@sim/security/hash'
+import { credential, slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   SlackSearchConfigurationError,
@@ -16,6 +15,7 @@ import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { loadSlackSearchCredential } from '@/lib/knowledge/application/slack-search/repository'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
+import { slackBotCredentialVersion } from '@/lib/slack-search/app-configuration'
 
 interface OrganizationInput {
   organizationId: string
@@ -55,8 +55,10 @@ export const listSlackSearchInstallations = defineAuthorizedKnowledgeUseCase({
           id: credential.id,
           displayName: credential.displayName,
           encryptedKey: credential.encryptedServiceAccountKey,
+          appRevision: slackApp.revision,
         })
         .from(credential)
+        .leftJoin(slackApp, eq(credential.slackAppId, slackApp.id))
         .where(
           and(
             eq(credential.organizationId, context.organizationId),
@@ -76,7 +78,10 @@ export const listSlackSearchInstallations = defineAuthorizedKnowledgeUseCase({
         const bot = bots.find((bot) => bot.id === installation.credentialId)
         return {
           ...installation,
-          needsValidation: !bot?.encryptedKey || sha256Hex(bot.encryptedKey) !== credentialVersion,
+          needsValidation:
+            !bot?.encryptedKey ||
+            slackBotCredentialVersion(bot.encryptedKey, bot.appRevision ?? undefined) !==
+              credentialVersion,
         }
       }),
       bots: bots.map(({ id, displayName }) => ({ id, displayName })),
@@ -108,6 +113,10 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
       }
     }
     return db.transaction(async (tx) => {
+      if (identity)
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-search:${identity.teamId}`}, 0))`
+        )
       const [current] = await tx
         .select()
         .from(credential)
@@ -125,10 +134,15 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
         current.providerId !== SLACK_CUSTOM_BOT_PROVIDER_ID
       )
         throw new OrchestrationError('not_found', 'Organization Slack bot not found')
+      const [app] = current.slackAppId
+        ? await tx.select().from(slackApp).where(eq(slackApp.id, current.slackAppId)).limit(1)
+        : []
+      if (current.slackAppId && !app) throw new Error('Slack app configuration is missing')
       if (
         secret &&
         (!current.encryptedServiceAccountKey ||
-          sha256Hex(current.encryptedServiceAccountKey) !== secret.version)
+          slackBotCredentialVersion(current.encryptedServiceAccountKey, app?.revision) !==
+            secret.version)
       )
         throw new OrchestrationError('conflict', 'The bot credential changed. Validate it again.')
       const [existing] = await tx
@@ -148,6 +162,24 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
           'conflict',
           'Reconnect the same Slack app and workspace, or remove this Search binding first'
         )
+      if (identity) {
+        const [active] = await tx
+          .select({ id: slackSearchInstallation.id })
+          .from(slackSearchInstallation)
+          .where(
+            and(
+              eq(slackSearchInstallation.teamId, identity.teamId),
+              eq(slackSearchInstallation.enabled, true),
+              existing ? ne(slackSearchInstallation.id, existing.id) : undefined
+            )
+          )
+          .limit(1)
+        if (active)
+          throw new OrchestrationError(
+            'conflict',
+            'This Slack workspace already has an active Search installation'
+          )
+      }
       const changes = {
         enabled: input.enabled,
         revision: generateId(),

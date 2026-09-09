@@ -9,6 +9,6 @@ export const slackSearchTask = task({
   id: 'slack-search',
   retry: { maxAttempts: 1 },
   queue: { concurrencyLimit: SLACK_SEARCH_CONCURRENCY },
-  maxDuration: SLACK_SEARCH_MAX_DURATION_SECONDS,
+  maxDuration: SLACK_SEARCH_MAX_DURATION_SECONDS + 30,
   run: (payload: unknown) => handleSlackSearchMessage(payload),
 })

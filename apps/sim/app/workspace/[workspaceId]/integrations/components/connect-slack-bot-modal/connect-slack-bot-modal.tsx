@@ -4,13 +4,10 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Chip,
-  ChipCopyInput,
   ChipDropdown,
   type ChipDropdownOption,
   ChipInput,
   ChipModalField,
-  Code,
-  CopyCodeButton,
   SecretInput,
   Wizard,
 } from '@sim/emcn'
@@ -19,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { SlackIcon } from '@/components/icons'
+import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -26,7 +24,6 @@ import {
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
-import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
 import {
   useCreateScopedCredential,
   useUpdateScopedCredential,
@@ -91,7 +88,6 @@ function getAgentDescriptionError(description: string): string | null {
 }
 
 interface ConnectSlackBotModalProps {
-  purpose?: 'workflow' | 'search'
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceId?: string
@@ -120,7 +116,6 @@ interface ConnectSlackBotModalProps {
  * signing secret + bot token are pasted.
  */
 export function ConnectSlackBotModal({
-  purpose = 'workflow',
   open,
   onOpenChange,
   workspaceId,
@@ -131,7 +126,7 @@ export function ConnectSlackBotModal({
   onCreated,
 }: ConnectSlackBotModalProps) {
   const scope = resourceScopeFromOwner({ workspaceId, organizationId })
-  const searchOnly = scope.kind === 'organization' || purpose === 'search'
+  const searchOnly = scope.kind === 'organization'
   const isReconnect = Boolean(reconnectCredentialId)
   const [step, setStep] = useState(0)
   const [credentialId, setCredentialId] = useState(() => reconnectCredentialId ?? generateId())
@@ -195,7 +190,6 @@ export function ConnectSlackBotModal({
         )
       : undefined
     const manifest = buildSlackManifest(capabilities, {
-      purpose,
       appName: appName.trim() || DEFAULT_APP_NAME,
       webhookUrl: requestUrl,
       description: appDescription,
@@ -218,7 +212,6 @@ export function ConnectSlackBotModal({
     requestUrl,
     memberAccess,
     searchOnly,
-    purpose,
   ])
 
   const capabilityIds = [...selected]
@@ -274,13 +267,11 @@ export function ConnectSlackBotModal({
       size='lg'
       icon={SlackIcon}
       title={
-        purpose === 'search'
-          ? 'Serve Search in Slack'
-          : searchOnly
-            ? 'Set up Slack for search'
-            : isReconnect
-              ? 'Reconnect a custom Slack bot'
-              : 'Create a custom Slack bot'
+        searchOnly
+          ? 'Set up Slack for search'
+          : isReconnect
+            ? 'Reconnect a custom Slack bot'
+            : 'Create a custom Slack bot'
       }
       doneLabel='Done'
     >
@@ -308,12 +299,7 @@ export function ConnectSlackBotModal({
         />
       </Wizard.Step>
       <Wizard.Step title={isReconnect ? 'Update the app in Slack' : 'Create the app in Slack'}>
-        <StepCreate
-          manifestJson={manifestJson}
-          reconnect={isReconnect}
-          purpose={purpose}
-          requestUrl={requestUrl}
-        />
+        <StepCreate manifestJson={manifestJson} reconnect={isReconnect} />
       </Wizard.Step>
       <Wizard.Step title='Paste your Signing Secret' canAdvance={signingSecret.trim().length > 0}>
         <StepSecret value={signingSecret} onChange={setSigningSecret} />
@@ -323,7 +309,6 @@ export function ConnectSlackBotModal({
       </Wizard.Step>
       <Wizard.Step title='All set'>
         <StepDone
-          servesSearch={purpose === 'search'}
           searchOnly={searchOnly}
           pending={isPending}
           created={created}
@@ -532,59 +517,15 @@ function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorP
 interface StepCreateProps {
   manifestJson: string
   reconnect: boolean
-  purpose: 'workflow' | 'search'
-  requestUrl: string | null
 }
-function StepCreate({ manifestJson, reconnect, purpose, requestUrl }: StepCreateProps) {
-  if (reconnect && purpose === 'search') {
-    return (
-      <div className='space-y-4'>
-        <SubStepList>
-          <SubStep n={1}>
-            Open your existing app on the{' '}
-            <a
-              href='https://api.slack.com/apps'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-[var(--brand-secondary)] underline underline-offset-2'
-            >
-              Slack Apps page
-            </a>
-            .
-          </SubStep>
-          <SubStep n={2}>
-            Under <strong>OAuth &amp; Permissions</strong>, add these bot scopes:{' '}
-            <code>{SLACK_SEARCH_SCOPES.join(', ')}</code>. Retain the app’s other scopes and events
-            for its existing integrations.
-          </SubStep>
-          <SubStep n={3}>
-            Under <strong>Event Subscriptions</strong>, subscribe to the bot event{' '}
-            <code>message.im</code> and use the Request URL below.
-          </SubStep>
-          <SubStep n={4}>
-            Under <strong>App Home</strong>, enable the Messages tab and allow users to send
-            messages. Enable <strong>Interactivity</strong> with the same Request URL.
-          </SubStep>
-          <SubStep n={5}>
-            Reinstall the app to grant its updated scopes, then continue to connect the signing
-            secret and bot token.
-          </SubStep>
-        </SubStepList>
-        {requestUrl && <ChipCopyInput value={requestUrl} copyLabel='Copy Slack Request URL' />}
-      </div>
-    )
-  }
+function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
           <div>Copy your manifest:</div>
-          <div className='mt-2 overflow-hidden rounded-md border border-[var(--border-1)]'>
-            <div className='flex items-center justify-between border-[var(--border-1)] border-b bg-[var(--surface-4)] px-3 py-1'>
-              <span className='font-sans text-[var(--text-tertiary)] text-xs'>manifest.json</span>
-              <CopyCodeButton code={manifestJson} />
-            </div>
-            <Code.Viewer code={manifestJson} language='json' wrapText className='max-h-[180px]' />
+          <div className='mt-2'>
+            <SlackAppManifest manifest={manifestJson} />
           </div>
         </SubStep>
         <SubStep n={2}>
@@ -682,14 +623,13 @@ function SecretField({ label, value, onChange, placeholder }: SecretFieldProps) 
 }
 
 interface StepDoneProps {
-  servesSearch: boolean
   searchOnly: boolean
   pending: boolean
   created: boolean
   error: string | null
   onRetry: () => void
 }
-function StepDone({ servesSearch, searchOnly, pending, created, error, onRetry }: StepDoneProps) {
+function StepDone({ searchOnly, pending, created, error, onRetry }: StepDoneProps) {
   if (pending) {
     return (
       <div className='flex flex-col items-center gap-3 py-10 text-center'>
@@ -714,11 +654,9 @@ function StepDone({ servesSearch, searchOnly, pending, created, error, onRetry }
             {searchOnly ? 'Slack app connected' : 'Bot connected'}
           </p>
           <p className='max-w-sm text-[var(--text-secondary)] text-sm leading-relaxed'>
-            {servesSearch
-              ? 'Return to Slack Search settings to check the connection status.'
-              : searchOnly
-                ? 'Click Done to verify member access.'
-                : "It's now selectable in Slack triggers and actions across this workspace. Click Done to finish."}
+            {searchOnly
+              ? 'Click Done to verify member access.'
+              : "It's now selectable in Slack triggers and actions across this workspace. Click Done to finish."}
           </p>
         </div>
       </div>

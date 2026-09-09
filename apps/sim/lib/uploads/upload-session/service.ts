@@ -422,6 +422,7 @@ export function createUploadSessionAuthBinding(
   options: { executorDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
+    case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
     case 'session':

@@ -10,7 +10,13 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 
 export class SlackSearchIdentityError extends Error {
-  constructor() {
+  constructor(
+    readonly reason:
+      | 'account_required'
+      | 'verify_email'
+      | 'membership_required'
+      | 'identity_conflict' = 'account_required'
+  ) {
     super(
       'Your Slack email must match one verified Sim account that belongs to this organization. Ask your administrator to check your account.'
     )
@@ -30,14 +36,16 @@ export async function resolveSlackSearchMember(
     .from(user)
     .where(sql`lower(btrim(${user.email})) = ${email}`)
     .limit(2)
-  if (users.length !== 1 || !users[0].emailVerified) throw new SlackSearchIdentityError()
+  if (users.length > 1) throw new SlackSearchIdentityError('identity_conflict')
+  if (users.length === 0) throw new SlackSearchIdentityError('account_required')
+  if (!users[0].emailVerified) throw new SlackSearchIdentityError('verify_email')
   const userId = users[0].id
   const [membership] = await db
     .select({ id: member.id })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
     .limit(1)
-  if (!membership) throw new SlackSearchIdentityError()
+  if (!membership) throw new SlackSearchIdentityError('membership_required')
   const conflicts = await db
     .select({ id: credential.id })
     .from(credential)
@@ -65,6 +73,6 @@ export async function resolveSlackSearchMember(
       )
     )
     .limit(1)
-  if (conflicts.length) throw new SlackSearchIdentityError()
+  if (conflicts.length) throw new SlackSearchIdentityError('identity_conflict')
   return userId
 }

@@ -15,6 +15,7 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { SlackIcon } from '@/components/icons'
+import { SlackSearchSetupWizard } from '@/components/integrations/slack-search-setup-wizard'
 import type { WorkspaceCredential } from '@/lib/api/contracts'
 import type { OrganizationCredential } from '@/lib/api/contracts/organization-credentials'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -26,6 +27,7 @@ import {
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { useSlackSearchInstallations } from '@/hooks/queries/slack-search'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
 const CHANNEL_NAME = 'slack-managed-users'
@@ -93,8 +95,12 @@ export function SlackManagedUsersModal({
   const [appSetupOpen, setAppSetupOpen] = useState(false)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [appId, setAppId] = useState('')
-  const [teamId, setTeamId] = useState('')
   const organizationSetup = scope.kind === 'organization'
+  const apps = useSlackSearchInstallations(open && organizationSetup ? organizationId : undefined)
+  const availableApps = apps.data?.installations ?? []
+  const selectedApp =
+    availableApps.find((app) => app.appId === appId) ??
+    (availableApps.length === 1 && !appId ? availableApps[0] : undefined)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [pending, setPending] = useState(false)
@@ -125,7 +131,9 @@ export function SlackManagedUsersModal({
       : 'search')
   const requiredScopes =
     scope.kind === 'organization'
-      ? [...SLACK_MANAGED_USER_SCOPES]
+      ? selectedApp
+        ? [...SLACK_SEARCH_USER_SCOPES]
+        : []
       : access === null
         ? currentScopes
         : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
@@ -137,11 +145,11 @@ export function SlackManagedUsersModal({
     popupWatcher.current = null
     expectedState.current = null
     expectedCredentialId.current = null
+    setAppSetupOpen(false)
     setSelectedCredentialId(null)
     setClientId('')
     setClientSecret('')
     setAppId('')
-    setTeamId('')
     setPending(false)
     setAccess(null)
     startAuthorization.reset()
@@ -236,8 +244,12 @@ export function SlackManagedUsersModal({
 
   const handleSubmit = async () => {
     if (pending || (!organizationSetup && !selectedBot)) return
-    if (organizationSetup && (!appId.trim() || !teamId.trim())) return
-    if (!clientId.trim() || !clientSecret.trim()) return
+    if (
+      organizationSetup
+        ? !selectedApp || !requiredScopes.length
+        : !clientId.trim() || !clientSecret.trim()
+    )
+      return
 
     const opened = window.open('about:blank', 'slack-managed-users', 'width=720,height=760')
     if (!opened) {
@@ -252,10 +264,12 @@ export function SlackManagedUsersModal({
         credentialGroupId,
         body: {
           ...(organizationSetup
-            ? { appId: appId.trim(), teamId: teamId.trim() }
-            : { slackBotCredentialId: selectedBot?.id }),
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim(),
+            ? { appId: selectedApp?.appId, teamId: selectedApp?.teamId }
+            : {
+                slackBotCredentialId: selectedBot?.id,
+                clientId: clientId.trim(),
+                clientSecret: clientSecret.trim(),
+              }),
           requiredScopes,
         },
       })
@@ -283,6 +297,8 @@ export function SlackManagedUsersModal({
   }
 
   const noBots = !organizationSetup && !isLoading && bots.length === 0
+  const needsApp = organizationSetup && apps.isSuccess && availableApps.length === 0
+  const title = organizationSetup ? 'Connect Slack accounts' : 'Set up Slack'
   const primaryLabel = isLoading
     ? 'Loading...'
     : pending
@@ -293,17 +309,17 @@ export function SlackManagedUsersModal({
     noBots ||
     (!organizationSetup && !selectedBot) ||
     pending ||
-    !clientId.trim() ||
-    !clientSecret.trim() ||
-    (organizationSetup && (!appId.trim() || !teamId.trim()))
+    (organizationSetup
+      ? apps.isPending || Boolean(apps.error) || !selectedApp || !requiredScopes.length
+      : !clientId.trim() || !clientSecret.trim())
 
   return (
     <>
       <ChipModal
-        open={open}
+        open={open && !appSetupOpen}
         onOpenChange={handleOpenChange}
         dismissDisabled={pending}
-        srTitle='Set up Slack'
+        srTitle={title}
         size='md'
       >
         <ChipModalHeader
@@ -311,51 +327,66 @@ export function SlackManagedUsersModal({
           onClose={() => handleOpenChange(false)}
           closeDisabled={pending}
         >
-          Set up Slack
+          {title}
         </ChipModalHeader>
         <ChipModalBody>
           {organizationSetup ? (
-            <>
-              <ChipModalField
-                type='input'
-                title='Slack App ID'
-                value={appId}
-                onChange={setAppId}
-                placeholder='A…'
-                required
-                disabled={pending}
-                hint='The app used for personal account authorization. Workspace bots are configured separately.'
-              />
-              <ChipModalField
-                type='input'
-                title='Slack workspace ID'
-                value={teamId}
-                onChange={setTeamId}
-                placeholder='T…'
-                required
-                disabled={pending}
-              />
-              <ChipModalField
-                type='input'
-                title='Client ID'
-                value={clientId}
-                onChange={setClientId}
-                required
-                disabled={pending}
-                autoComplete='off'
-              />
-              <ChipModalField
-                type='input'
-                inputType='password'
-                title='Client Secret'
-                value={clientSecret}
-                onChange={setClientSecret}
-                required
-                disabled={pending}
-                autoComplete='off'
-                hint='Use the personal user scopes required for workflow tools. Disable Slack token rotation for this app.'
-              />
-            </>
+            apps.isPending ? (
+              <ChipModalField type='custom' title='Sim Search app'>
+                <p role='status' className='text-[var(--text-secondary)] text-sm'>
+                  Checking the installed Slack app…
+                </p>
+              </ChipModalField>
+            ) : apps.error ? (
+              <ChipModalField type='custom' title='Sim Search app' error={apps.error.message}>
+                <Chip onClick={() => void apps.refetch()} disabled={apps.isFetching}>
+                  Retry
+                </Chip>
+              </ChipModalField>
+            ) : needsApp ? (
+              <ChipModalField type='custom' title='Install Sim Search first'>
+                <p className='text-[var(--text-secondary)] text-sm'>
+                  Install the Sim Search app in your Slack workspace to use the bot and connect
+                  Slack sources. Members can then authorize their own accounts for indexing.
+                </p>
+              </ChipModalField>
+            ) : (
+              <>
+                {availableApps.length > 1 ? (
+                  <ChipModalField
+                    type='dropdown'
+                    title='Sim Search app'
+                    value={selectedApp?.appId}
+                    onChange={setAppId}
+                    disabled={pending}
+                    options={availableApps.map((app) => ({
+                      value: app.appId,
+                      label: app.teamName,
+                      icon: SlackIcon,
+                    }))}
+                    placeholder='Select the Slack workspace'
+                    required
+                  />
+                ) : (
+                  <ChipModalField type='custom' title='Sim Search app'>
+                    <p className='text-[var(--text-body)] text-sm'>
+                      Installed in {selectedApp?.teamName}
+                    </p>
+                  </ChipModalField>
+                )}
+                <ChipModalField type='custom' title='Member accounts'>
+                  <p className='text-[var(--text-secondary)] text-sm'>
+                    Verify member authorization for the installed app. Each member can then connect
+                    their Slack account to index channels and DMs they can access.
+                  </p>
+                  {selectedApp && (
+                    <Chip onClick={() => setAppSetupOpen(true)} disabled={pending}>
+                      Manage Sim Search app
+                    </Chip>
+                  )}
+                </ChipModalField>
+              </>
+            )
           ) : isLoading ? (
             <div className='flex flex-col gap-[9px] px-2'>
               <Skeleton className='h-4 w-24 rounded' />
@@ -437,25 +468,44 @@ export function SlackManagedUsersModal({
         <ChipModalFooter
           onCancel={() => handleOpenChange(false)}
           cancelDisabled={pending}
-          {...(noBots
-            ? { defaultAction: 'dismiss' as const }
-            : {
+          {...(needsApp
+            ? {
                 primaryAction: {
-                  label: primaryLabel,
-                  onClick: () => void handleSubmit(),
-                  disabled: primaryDisabled,
+                  label: 'Install Sim Search',
+                  onClick: () => setAppSetupOpen(true),
                 },
-              })}
+              }
+            : noBots
+              ? { defaultAction: 'dismiss' as const }
+              : {
+                  primaryAction: {
+                    label: primaryLabel,
+                    onClick: () => void handleSubmit(),
+                    disabled: primaryDisabled,
+                  },
+                })}
         />
       </ChipModal>
-      {appSetupOpen && (
-        <ConnectSlackBotModal
-          open
-          onOpenChange={setAppSetupOpen}
-          {...resourceScopeFields(scope)}
-          onCreated={setSelectedCredentialId}
-        />
-      )}
+      {open &&
+        appSetupOpen &&
+        (scope.kind === 'organization' ? (
+          <SlackSearchSetupWizard
+            organizationId={scope.organizationId}
+            installationId={selectedApp?.id}
+            appId={selectedApp?.appId}
+            initialName={
+              apps.data?.bots.find((bot) => bot.id === selectedApp?.credentialId)?.displayName
+            }
+            onClose={() => setAppSetupOpen(false)}
+          />
+        ) : (
+          <ConnectSlackBotModal
+            open
+            onOpenChange={setAppSetupOpen}
+            workspaceId={scope.workspaceId}
+            onCreated={setSelectedCredentialId}
+          />
+        ))}
     </>
   )
 }

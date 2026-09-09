@@ -4,7 +4,6 @@ import {
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
   SLACK_MANAGED_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
-import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
 
 /**
  * Slack app capabilities that can be toggled on in the manifest generator.
@@ -225,7 +224,6 @@ export interface SlackSlashCommand {
 }
 
 export interface BuildManifestOptions {
-  purpose?: 'workflow' | 'search'
   appName: string
   webhookUrl: string | null
   /** Shown on the bot's Slack profile and as the agent description. */
@@ -309,37 +307,8 @@ export function buildSlackManifest(
     description,
     slashCommands = [],
     managedUserAuthorization,
-    purpose = 'workflow',
   }: BuildManifestOptions
 ): Record<string, unknown> {
-  if (purpose === 'search') {
-    const name = appName.trim() || 'Sim Search'
-    return {
-      display_information: {
-        name,
-        ...(description?.trim() ? { description: description.trim() } : {}),
-      },
-      features: {
-        bot_user: { display_name: name, always_online: true },
-        app_home: {
-          home_tab_enabled: false,
-          messages_tab_enabled: true,
-          messages_tab_read_only_enabled: false,
-        },
-      },
-      oauth_config: { scopes: { bot: [...SLACK_SEARCH_SCOPES] } },
-      settings: {
-        org_deploy_enabled: false,
-        socket_mode_enabled: false,
-        token_rotation_enabled: false,
-        event_subscriptions: {
-          request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER,
-          bot_events: ['message.im'],
-        },
-        interactivity: { is_enabled: true, request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER },
-      },
-    }
-  }
   const active = SLACK_CAPABILITIES.filter((c) => enabled.has(c.id))
   const requestUrl = webhookUrl ?? WEBHOOK_URL_PLACEHOLDER
   const normalizedSlashCommands = normalizeSlashCommands(slashCommands, requestUrl)

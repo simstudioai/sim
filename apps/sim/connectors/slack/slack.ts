@@ -10,6 +10,10 @@ import {
   isRateLimitError,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
+import {
+  slackConversationTypes as conversationTypes,
+  readSlackConversationSetting as readConversationSetting,
+} from '@/connectors/slack/config'
 import { DEFAULT_MAX_MESSAGES, slackConnectorMeta } from '@/connectors/slack/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -28,9 +32,8 @@ const MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 const MAX_CURSOR_BYTES = 256 * 1024
 const MAX_THREAD_PAGES = 200
 const MAX_USERNAME_CACHE_ENTRIES = 2000
-const CHANNEL_TYPES = 'public_channel,private_channel'
 const TIMESTAMP_PATTERN = /^\d{1,16}\.\d{1,6}$/
-const CHANNEL_ID_PATTERN = /^[CG][A-Z0-9]+$/
+const CHANNEL_ID_PATTERN = /^[CGD][A-Z0-9]+$/
 const TEAM_ID_PATTERN = /^T[A-Z0-9]+$/
 
 const SLACK_NOISE_SUBTYPES = new Set([
@@ -75,6 +78,9 @@ interface SlackChannel {
   id: string
   name: string
   is_archived?: boolean
+  is_im?: boolean
+  is_mpim?: boolean
+  user?: string
 }
 
 interface SlackListingCursor {
@@ -139,11 +145,28 @@ function readChannels(value: unknown): SlackChannel[] {
       !isPlainRecord(channel) ||
       typeof channel.id !== 'string' ||
       !CHANNEL_ID_PATTERN.test(channel.id) ||
-      typeof channel.name !== 'string'
+      (channel.is_im === true
+        ? typeof channel.user !== 'string' ||
+          !/^[UW][A-Z0-9]+$/.test(channel.user) ||
+          !channel.id.startsWith('D')
+        : typeof channel.name !== 'string' || channel.id.startsWith('D'))
     ) {
       throw new Error('Slack returned an invalid channel')
     }
-    return { id: channel.id, name: channel.name, is_archived: channel.is_archived === true }
+    return {
+      id: channel.id,
+      /** DM peer labels depend on the caller; indexed text must be identical for every participant. */
+      name:
+        channel.is_im === true
+          ? 'Direct message'
+          : channel.is_mpim === true
+            ? 'Group direct message'
+            : String(channel.name),
+      is_archived: channel.is_archived === true,
+      is_im: channel.is_im === true,
+      is_mpim: channel.is_mpim === true,
+      ...(channel.is_im === true ? { user: String(channel.user) } : {}),
+    }
   })
 }
 
@@ -233,10 +256,17 @@ function channelMatches(channel: SlackChannel, values: string[]): boolean {
 }
 
 function channelIncluded(channel: SlackChannel, sourceConfig: Record<string, unknown>): boolean {
+  const directMessage = channel.is_im || channel.is_mpim
+  if (
+    directMessage
+      ? !readConversationSetting(sourceConfig.includeDirectMessages, false)
+      : !readConversationSetting(sourceConfig.includeChannels, true)
+  )
+    return false
   const included = parseMultiValue(sourceConfig.channel)
   return (
     (includeArchived(sourceConfig) || !channel.is_archived) &&
-    (included.length === 0 || channelMatches(channel, included)) &&
+    (directMessage || included.length === 0 || channelMatches(channel, included)) &&
     !channelMatches(channel, parseMultiValue(sourceConfig.excludeChannels))
   )
 }
@@ -316,7 +346,7 @@ function documentId(teamId: string, channelId: string, ts: string): string {
 
 function messageTitle(channel: SlackChannel, message: SlackMessage): string {
   const text = extractMessageContent(message).replace(/\s+/g, ' ').trim()
-  return `#${channel.name}: ${truncate(text || 'Thread', 160)}`
+  return `${channel.is_im || channel.is_mpim ? '' : '#'}${channel.name}: ${truncate(text || 'Thread', 160)}`
 }
 
 async function resolveUserName(
@@ -487,7 +517,7 @@ async function listDocuments(
 
   if (state.channels.length === 0 && !state.channelsComplete) {
     const page = await slackApiGet('conversations.list', accessToken, {
-      types: CHANNEL_TYPES,
+      types: conversationTypes(sourceConfig),
       limit: String(PAGE_SIZE),
       exclude_archived: String(!archives),
       ...(state.channelCursor ? { cursor: state.channelCursor } : {}),
@@ -554,7 +584,13 @@ async function listDocuments(
       estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
       mimeType: 'text/plain',
       contentHash: `slack-listing:v4:${externalId}:${listingToken(syncContext)}`,
-      metadata: { channelName: channel.name, channelId: channel.id, rootTs: message.ts, teamId },
+      metadata: {
+        channelName: channel.name,
+        channelId: channel.id,
+        rootTs: message.ts,
+        teamId,
+        conversationType: channel.is_im ? 'im' : channel.is_mpim ? 'mpim' : 'channel',
+      },
     })
   }
   state.scanned += messages.length
@@ -582,7 +618,7 @@ async function getDocument(
   externalId: string,
   syncContext?: Record<string, unknown>
 ): Promise<ExternalDocument | null> {
-  const match = /^slack:v4:(T[A-Z0-9]+):([CG][A-Z0-9]+):(\d{1,16}\.\d{1,6})$/.exec(externalId)
+  const match = /^slack:v4:(T[A-Z0-9]+):([CGD][A-Z0-9]+):(\d{1,16}\.\d{1,6})$/.exec(externalId)
   /** Legacy channel documents are retired through the next successful listing reconciliation. */
   if (!match) return null
   const [, teamId, channelId, rootTs] = match
@@ -596,7 +632,12 @@ async function getDocument(
     const channel = readChannels([info.channel])[0]
     if (!channelIncluded(channel, sourceConfig)) return null
     const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
-    lines.pin(`Channel: #${channel.name}`, '')
+    lines.pin(
+      channel.is_im || channel.is_mpim
+        ? `Conversation: ${channel.name}`
+        : `Channel: #${channel.name}`,
+      ''
+    )
     let cursor: string | undefined
     let root: SlackMessage | undefined
     let lastActivity = rootTs
@@ -668,6 +709,7 @@ async function getDocument(
       metadata: {
         channelName: channel.name,
         channelId,
+        conversationType: channel.is_im ? 'im' : channel.is_mpim ? 'mpim' : 'channel',
         rootTs,
         teamId,
         messageCount: lines.count,
@@ -712,7 +754,7 @@ export const slackConnector: ConnectorConfig = {
         'conversations.list',
         accessToken,
         {
-          types: CHANNEL_TYPES,
+          types: conversationTypes(sourceConfig),
           limit: '1',
           exclude_archived: String(!includeArchived(sourceConfig)),
         },

@@ -3372,6 +3372,9 @@ export const copilotChats = pgTable(
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
+    /** Stable provider conversation identity; only trusted ingress can bind it to this private chat. */
+    externalConversationKey: text('external_conversation_key'),
+    externalConversationMetadata: jsonb('external_conversation_metadata'),
     previewYaml: text('preview_yaml'),
     /**
      * @deprecated Nothing reads or writes this any more — the plan artifact
@@ -3397,6 +3400,9 @@ export const copilotChats = pgTable(
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) <= 1`
     ),
     organizationIdIdx: index('copilot_chats_organization_id_idx').on(table.organizationId),
+    externalConversationUnique: uniqueIndex('copilot_chats_external_conversation_unique')
+      .on(table.externalConversationKey)
+      .where(sql`${table.externalConversationKey} IS NOT NULL`),
     organizationWorkflowCheck: check(
       'copilot_chats_organization_workflow_check',
       sql`${table.organizationId} IS NULL OR ${table.workflowId} IS NULL`
@@ -4633,6 +4639,7 @@ export const credential = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    slackAppId: text('slack_app_id').references((): AnyPgColumn => slackApp.id),
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
@@ -4870,7 +4877,31 @@ export const credentialGroup = pgTable(
   })
 )
 
-/** An opt-in Search binding. Slack app secrets remain in the connected credential. */
+/** App-wide configuration, shared by every installation of the same Slack app. */
+export const slackApp = pgTable(
+  'slack_app',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+    kind: text('kind').$type<'custom' | 'shared'>().notNull(),
+    clientId: text('client_id').notNull(),
+    encryptedClientSecret: text('encrypted_client_secret').notNull(),
+    encryptedSigningSecret: text('encrypted_signing_secret').notNull(),
+    revision: text('revision').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCheck: check(
+      'slack_app_owner_check',
+      sql`(${table.kind} = 'custom' AND ${table.organizationId} IS NOT NULL) OR (${table.kind} = 'shared' AND ${table.organizationId} IS NULL)`
+    ),
+  })
+)
+
+/** An opt-in organization Search binding with an installation-specific bot credential. */
 export const slackSearchInstallation = pgTable(
   'slack_search_installation',
   {
@@ -4882,6 +4913,7 @@ export const slackSearchInstallation = pgTable(
       .notNull()
       .references(() => credential.id, { onDelete: 'cascade' }),
     appId: text('app_id').notNull(),
+    slackAppId: text('slack_app_id').references(() => slackApp.id),
     teamId: text('team_id').notNull(),
     teamName: text('team_name').notNull(),
     botUserId: text('bot_user_id').notNull(),
@@ -4903,6 +4935,48 @@ export const slackSearchInstallation = pgTable(
       table.appId,
       table.teamId
     ),
+    activeTeamUnique: uniqueIndex('slack_search_installation_active_team_unique')
+      .on(table.teamId)
+      .where(sql`${table.enabled} = true`),
+  })
+)
+
+/** Durable, deduplicated turns; a running turn is never replayed after its lease expires. */
+export const slackSearchTurn = pgTable(
+  'slack_search_turn',
+  {
+    id: text('id').primaryKey(),
+    ordinal: integer('ordinal').generatedAlwaysAsIdentity(),
+    installationId: text('installation_id')
+      .notNull()
+      .references(() => slackSearchInstallation.id, { onDelete: 'cascade' }),
+    conversationKey: text('conversation_key').notNull(),
+    eventId: text('event_id').notNull(),
+    payload: jsonb('payload').$type<unknown>().notNull(),
+    status: text('status')
+      .$type<'pending' | 'running' | 'completed' | 'failed' | 'cancelled'>()
+      .notNull()
+      .default('pending'),
+    leaseId: text('lease_id'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    outcome: text('outcome'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    eventUnique: uniqueIndex('slack_search_turn_event_unique').on(
+      table.installationId,
+      table.eventId
+    ),
+    pendingIdx: index('slack_search_turn_pending_idx').on(
+      table.installationId,
+      table.status,
+      table.createdAt
+    ),
+    threadIdx: index('slack_search_turn_thread_idx').on(table.conversationKey, table.status),
+    activeThreadUnique: uniqueIndex('slack_search_turn_active_thread_unique')
+      .on(table.conversationKey)
+      .where(sql`${table.status} = 'running'`),
   })
 )
 

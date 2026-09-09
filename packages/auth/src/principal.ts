@@ -9,6 +9,15 @@ export type Principal =
   | CredentialGroupEnrollmentPrincipal
   | ScimConnectionPrincipal
   | SlackInstallationPrincipal
+  | SlackAppPrincipal
+
+/** Verified app-wide ingress authority; installation lookup grants no human access. */
+export interface SlackAppPrincipal {
+  kind: 'slack_app'
+  appId: string
+  appRevision: string
+  receivedAt: Date
+}
 
 /** Authority from a verified Slack request; it grants no human or workspace access. */
 export interface SlackInstallationPrincipal {
@@ -559,6 +568,7 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
 }
 
 export type PrincipalActor =
+  | Omit<SlackAppPrincipal, 'receivedAt'>
   | {
       kind: 'organization_delegated'
       serviceId: OrganizationDelegatedPrincipal['serviceId']
@@ -654,12 +664,15 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'credential_group_enrollment':
     case 'scim_connection':
     case 'slack_installation':
+    case 'slack_app':
       return null
   }
 }
 
 export function toPrincipalActor(principal: Principal): PrincipalActor {
   switch (principal.kind) {
+    case 'slack_app':
+      return { kind: principal.kind, appId: principal.appId, appRevision: principal.appRevision }
     case 'slack_installation':
       return {
         kind: principal.kind,
@@ -760,6 +773,8 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
       return { actor, actorId: null, actorName: 'SCIM provisioning' }
     case 'slack_installation':
       return { actor, actorId: null, actorName: 'Slack Search' }
+    case 'slack_app':
+      return { actor, actorId: null, actorName: 'Slack app' }
   }
 }
 
@@ -800,6 +815,7 @@ export function resolvePrincipalAttribution(
     case 'credential_group_enrollment':
     case 'scim_connection':
     case 'slack_installation':
+    case 'slack_app':
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }

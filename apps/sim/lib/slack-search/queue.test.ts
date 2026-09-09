@@ -8,40 +8,24 @@ vi.mock('@/lib/slack-search/handlers/search-message', () => ({
 }))
 
 import { enqueueSlackSearch } from '@/lib/slack-search/queue'
-import type { SlackSearchJob } from '@/lib/slack-search/types'
 
-const job: SlackSearchJob = {
-  installationId: 'i1',
-  revision: 'r1',
-  credentialId: 'c1',
-  credentialVersion: 'v1',
-  receivedAt: Date.now(),
-  message: {
-    appId: 'A1',
-    teamId: 'T1',
-    eventId: 'Ev1',
-    channelId: 'D1',
-    userId: 'U1',
-    query: 'query',
-    queryTooLong: false,
-  },
-}
+const job = { turnId: 'turn1', installationId: 'i1' }
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.enqueue.mockResolvedValue('id')
 })
 describe('Slack Search queue', () => {
-  it('uses one stable installation/event ID across Slack retries with no automatic replay', async () => {
+  it('retries dispatch with unique wake IDs and never retries execution', async () => {
     await enqueueSlackSearch(job)
-    await enqueueSlackSearch({ ...job, receivedAt: Date.now() + 1000 })
+    await enqueueSlackSearch(job)
     for (const args of mocks.enqueue.mock.calls) {
       expect(args).toEqual([
         'slack-search',
         expect.any(Object),
         expect.objectContaining({
-          jobId: 'slack-search:i1:Ev1',
+          jobId: expect.stringMatching(/^slack-search:turn1:/),
           maxAttempts: 1,
-          maxDurationSeconds: 60,
+          maxDurationSeconds: 210,
           concurrencyKey: 'i1',
           concurrencyLimit: 2,
         }),

@@ -108,7 +108,7 @@ export function assertOperationOAuthPolicy(
  */
 export type PrincipalKind = Exclude<
   Principal['kind'],
-  'credential_group_enrollment' | 'system' | 'scim_connection' | 'slack_installation'
+  'credential_group_enrollment' | 'system' | 'scim_connection' | 'slack_installation' | 'slack_app'
 >
 
 /**

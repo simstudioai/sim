@@ -89,9 +89,9 @@ export function OrganizationSlackAccountSetup() {
       onOpenChange={(next) => {
         if (!next) close()
       }}
-      srTitle='Set up Slack'
+      srTitle='Connect Slack accounts'
     >
-      <ChipModalHeader onClose={close}>Set up Slack</ChipModalHeader>
+      <ChipModalHeader onClose={close}>Connect Slack accounts</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField type='custom' title='Connected accounts'>
           {accounts.error || setupError ? (

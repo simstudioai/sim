@@ -12,31 +12,6 @@ import {
 
 const opts = { appName: 'Test Bot', webhookUrl: 'https://sim.test/api/webhooks/slack' }
 
-describe('DM Search manifest', () => {
-  it('requests only the bot scopes and event needed to serve Search', () => {
-    const manifest = buildSlackManifest(
-      new Set(SLACK_CAPABILITIES.map((capability) => capability.id)),
-      { ...opts, purpose: 'search' }
-    )
-    expect(manifest.oauth_config).toEqual({
-      scopes: { bot: ['chat:write', 'im:history', 'users:read', 'users:read.email'] },
-    })
-    expect(manifest.features).toEqual({
-      bot_user: { display_name: 'Test Bot', always_online: true },
-      app_home: {
-        home_tab_enabled: false,
-        messages_tab_enabled: true,
-        messages_tab_read_only_enabled: false,
-      },
-    })
-    expect(manifest.settings).toMatchObject({
-      event_subscriptions: { request_url: opts.webhookUrl, bot_events: ['message.im'] },
-      interactivity: { is_enabled: true, request_url: opts.webhookUrl },
-      org_deploy_enabled: false,
-    })
-  })
-})
-
 const REQUIRED_AGENT_SCOPES = [
   'assistant:write',
   'chat:write',

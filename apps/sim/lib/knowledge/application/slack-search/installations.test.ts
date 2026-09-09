@@ -69,7 +69,11 @@ beforeEach(() => {
   })
   mocks.verifyBot.mockResolvedValue(identity)
   mocks.available.mockResolvedValue(undefined)
-  mocks.txLimit.mockReset().mockResolvedValueOnce([credential]).mockResolvedValueOnce([])
+  mocks.txLimit
+    .mockReset()
+    .mockResolvedValue([])
+    .mockResolvedValueOnce([credential])
+    .mockResolvedValueOnce([])
   mocks.returning.mockResolvedValue([{ id: 'install1' }])
   const query = { from: vi.fn(), where: vi.fn(), limit: mocks.membership }
   query.from.mockReturnValue(query)
@@ -96,7 +100,7 @@ beforeEach(() => {
     method.mockReturnValue(txQuery)
   mocks.insert.mockReturnValue(txQuery)
   mocks.update.mockReturnValue(txQuery)
-  const tx = { select: () => txQuery, insert: mocks.insert, update: mocks.update }
+  const tx = { execute: vi.fn(), select: () => txQuery, insert: mocks.insert, update: mocks.update }
   vi.mocked(db.transaction).mockImplementation(async (callback) =>
     callback(tx as Parameters<Parameters<typeof db.transaction>[0]>[0])
   )

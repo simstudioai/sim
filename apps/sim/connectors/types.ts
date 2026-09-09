@@ -12,6 +12,8 @@ export type ConnectorAuthConfig =
       mode: 'oauth'
       provider: OAuthService
       requiredScopes?: string[]
+      /** Scope requirements for the selected source; omitted configurations use requiredScopes. */
+      requiredScopesForConfig?: (sourceConfig: Record<string, unknown>) => string[]
       /** Restricts permission-mirroring crawls when ordinary OAuth cannot grant directory access. */
       adminCredentialType?: 'service_account'
       /** Optional token authentication for workspace crawls; member access always uses OAuth. */

@@ -74,8 +74,8 @@ export interface StartSlackCredentialGroupConfigurationInput {
   slackBotCredentialId?: string
   appId?: string
   teamId?: string
-  clientId: string
-  clientSecret: string
+  clientId?: string
+  clientSecret?: string
   requiredScopes?: string[]
 }
 
@@ -168,6 +168,7 @@ export const completeSlackCredentialGroupConfiguration: OperationUseCase<
       attempt.slackBotCredentialUpdatedAt !== pending.slackBotCredentialUpdatedAt ||
       attempt.expectedAppId !== pending.expectedAppId ||
       attempt.expectedTeamId !== pending.expectedTeamId ||
+      attempt.appRevision !== pending.appRevision ||
       attempt.clientId !== pending.clientId ||
       attempt.redirectUri !== pending.redirectUri ||
       credentialGroupScopePolicyVersion(attempt.requiredScopes) !==

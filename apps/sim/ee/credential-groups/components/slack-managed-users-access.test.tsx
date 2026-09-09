@@ -10,6 +10,10 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn<(input: { id: string }) => Promise<void>>(),
   update: vi.fn(),
   onOpenChange: vi.fn(),
+  apps: vi.fn(),
+  refetchApps: vi.fn(),
+  manifest: vi.fn(),
+  install: vi.fn(),
 }))
 vi.mock('@/hooks/queries/credential-groups', () => ({
   useStartSlackCredentialGroupConfiguration: () => ({
@@ -21,6 +25,12 @@ vi.mock('@/hooks/queries/credential-groups', () => ({
 vi.mock('@/hooks/queries/scoped-credentials', () => ({
   useCreateScopedCredential: () => ({ mutateAsync: mocks.create, isPending: false }),
   useUpdateScopedCredential: () => ({ mutateAsync: mocks.update, isPending: false }),
+}))
+
+vi.mock('@/hooks/queries/slack-search', () => ({
+  useSlackSearchInstallations: mocks.apps,
+  useSlackSearchManifest: mocks.manifest,
+  useStartSlackSearchOAuth: () => ({ mutate: mocks.install, isPending: false, reset: vi.fn() }),
 }))
 
 import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
@@ -54,6 +64,18 @@ describe('Slack member access selection', () => {
     vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.create.mockResolvedValue(undefined)
+    mocks.apps.mockReturnValue({
+      isSuccess: true,
+      isPending: false,
+      data: { installations: [], bots: [] },
+      error: null,
+      refetch: mocks.refetchApps,
+    })
+    mocks.manifest.mockReturnValue({
+      isPending: false,
+      data: { manifest: '{}', existingApp: null, createAppUrl: 'https://api.slack.com/apps' },
+      error: null,
+    })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     mocks.start.mockResolvedValue({
       state: 'state',
@@ -139,7 +161,7 @@ describe('Slack member access selection', () => {
   function appSetupDialog(organization = false) {
     return Array.from(document.querySelectorAll('[role="dialog"]')).find((dialog) =>
       dialog.textContent?.includes(
-        organization ? 'Set up Slack for search' : 'Create a custom Slack bot'
+        organization ? 'Set up Sim Search in Slack' : 'Create a custom Slack bot'
       )
     )
   }
@@ -167,13 +189,47 @@ describe('Slack member access selection', () => {
     expect(window.open).not.toHaveBeenCalled()
   })
 
-  it('keeps organization personal-account configuration separate from workspace bots', async () => {
+  it('requires the Sim Search app and opens the same wizard before member authorization', async () => {
     await render(undefined, [], 'org-1')
-    expect(document.body.textContent).toContain('Slack App ID')
-    expect(document.body.textContent).toContain('Slack workspace ID')
-    expect(document.body.textContent).not.toContain('Set up Slack app')
-    expect(document.body.textContent).not.toContain('Signing secret')
+    expect(document.body.textContent).toContain('Install Sim Search first')
+    expect(document.body.textContent).not.toContain('Verify and add')
+    expect(document.querySelector('input')).toBeNull()
+
+    await clickButton('Install Sim Search')
+    const dialog = appSetupDialog(true)
+    expect(dialog).toBeDefined()
+    expect(dialog?.textContent).toContain('Step 1 of 4')
+    expect(dialog?.textContent).toContain('App manifest')
+    expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Sim Search')
+    expect(mocks.start).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()
+
+    await clickButton('Close', dialog)
+    expect(document.body.textContent).toContain('Install Sim Search first')
+    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('waits for the installed app lookup instead of offering a duplicate installation', async () => {
+    mocks.apps.mockReturnValue({ isPending: true, isSuccess: false, data: undefined, error: null })
+    await render(undefined, [], 'org-1')
+    expect(document.body.textContent).toContain('Checking the installed Slack app')
+    expect(document.body.textContent).not.toContain('Install Sim Search first')
+    expect(document.querySelector('input')).toBeNull()
+    expect(mocks.start).not.toHaveBeenCalled()
+  })
+
+  it('surfaces failed app lookups without offering a new app', async () => {
+    mocks.apps.mockReturnValue({
+      isPending: false,
+      isSuccess: false,
+      error: new Error('Could not load Slack app'),
+      refetch: mocks.refetchApps,
+    })
+    await render(undefined, [], 'org-1')
+    expect(document.body.textContent).toContain('Could not load Slack app')
+    expect(document.body.textContent).not.toContain('Install Sim Search first')
+    await clickButton('Retry')
+    expect(mocks.refetchApps).toHaveBeenCalledOnce()
     expect(mocks.start).not.toHaveBeenCalled()
   })
 
@@ -239,25 +295,34 @@ describe('Slack member access selection', () => {
     )
   })
 
-  it('org setup uses the personal app identity and workflow scopes', async () => {
-    await render(SLACK_MANAGED_USER_SCOPES, [bot], 'org-1')
-    expect(document.body.textContent).not.toContain('Workflow tools')
-    expect(document.body.textContent).not.toContain('Search documents')
-    await fill('A…', 'A_APP')
-    await fill('T…', 'T_TEAM')
-    const inputs = document.querySelectorAll<HTMLInputElement>('input')
-    for (const [index, value] of [
-      [2, 'fixture-client'],
-      [3, 'fixture-secret'],
-    ] as const) {
-      await act(async () => {
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
-          inputs[index],
-          value
-        )
-        inputs[index].dispatchEvent(new Event('input', { bubbles: true }))
-      })
-    }
+  it('reuses the installed organization app without asking for another client secret', async () => {
+    mocks.apps.mockReturnValue({
+      isSuccess: true,
+      isPending: false,
+      data: {
+        installations: [
+          {
+            id: 'installation-1',
+            appId: 'A_APP',
+            teamId: 'T_TEAM',
+            teamName: 'sim',
+            credentialId: bot.id,
+          },
+        ],
+        bots: [bot],
+      },
+      error: null,
+    })
+    await render(undefined, [], 'org-1')
+    expect(document.body.textContent).toContain('Installed in sim')
+    expect(document.body.textContent).not.toContain('Client ID')
+    expect(document.body.textContent).not.toContain('Client Secret')
+    expect(document.body.textContent).not.toContain('Install Sim Search first')
+    await clickButton('Manage Sim Search app')
+    const dialog = appSetupDialog(true)
+    expect(dialog?.textContent).toContain('Reconnect Slack Search')
+    expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Search bot')
+    await clickButton('Close', dialog)
     await clickButton('Verify and add')
     expect(mocks.start).toHaveBeenCalledExactlyOnceWith({
       organizationId: 'org-1',
@@ -265,9 +330,7 @@ describe('Slack member access selection', () => {
       body: {
         appId: 'A_APP',
         teamId: 'T_TEAM',
-        clientId: 'fixture-client',
-        clientSecret: 'fixture-secret',
-        requiredScopes: [...SLACK_MANAGED_USER_SCOPES],
+        requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
       },
     })
   })

@@ -5,6 +5,7 @@ import { parseSlackSearchMessage } from '@/lib/slack-search/types'
 const now = 1_800_000_000_000
 const event = {
   type: 'message',
+  ts: '1800000000.123456',
   channel_type: 'im',
   channel: 'D123',
   user: 'W123',
@@ -20,6 +21,36 @@ const envelope = {
 }
 
 describe('Slack Search message dispatch', () => {
+  it.each(['C123', 'G123'])(
+    'accepts explicit mentions in %s and retains their source thread',
+    (channel) => {
+      expect(
+        parseSlackSearchMessage(
+          {
+            ...envelope,
+            event: {
+              ...event,
+              type: 'app_mention',
+              channel,
+              channel_type: undefined,
+              thread_ts: '12.34',
+            },
+          },
+          now
+        )
+      ).toMatchObject({
+        channelId: channel,
+        threadTs: undefined,
+        origin: { channelId: channel, threadTs: '12.34', messageTs: event.ts },
+      })
+      expect(
+        parseSlackSearchMessage(
+          { ...envelope, event: { ...event, type: 'message', channel, channel_type: 'channel' } },
+          now
+        )
+      ).toBeNull()
+    }
+  )
   it('normalizes a human DM and preserves an existing thread', () => {
     expect(
       parseSlackSearchMessage({ ...envelope, event: { ...event, thread_ts: '12.34' } }, now)
@@ -31,6 +62,7 @@ describe('Slack Search message dispatch', () => {
       userId: 'W123',
       query: 'release notes',
       queryTooLong: false,
+      messageTs: '1800000000.123456',
       threadTs: '12.34',
     })
   })

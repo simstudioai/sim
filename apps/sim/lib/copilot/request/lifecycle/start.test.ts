@@ -414,14 +414,17 @@ describe('requestChatTitle billing protocol', () => {
   })
 
   it('freezes and forwards a dedicated attributed identity before title work', async () => {
+    const signal = new AbortController().signal
     const title = await requestChatTitle({
       message: 'explain billing',
       model: 'claude-opus-4.8',
       userId: 'user-1',
       workspaceId: 'workspace-1',
       billingAttribution: BILLING_ATTRIBUTION,
+      signal,
     })
 
+    expect(fetchGo.mock.calls[0]?.[1]?.signal).toBe(signal)
     expect(title).toBe('Billing Protocol')
     const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
     const billingRequestId = headers['x-sim-billing-request-id']

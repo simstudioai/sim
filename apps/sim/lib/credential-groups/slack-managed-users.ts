@@ -1,6 +1,12 @@
 import { Buffer } from 'node:buffer'
 import { db } from '@sim/db'
-import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
+import {
+  credential,
+  credentialGroup,
+  credentialGroupEnrollment,
+  slackApp,
+  slackSearchInstallation,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -48,6 +54,7 @@ interface SlackCustomBotSecret {
 }
 
 interface StoredSlackManagedUsersAttempt {
+  appRevision?: string
   version: typeof SLACK_MANAGED_USERS_ATTEMPT_VERSION
   workspaceId?: string
   organizationId?: string
@@ -66,6 +73,7 @@ interface StoredSlackManagedUsersAttempt {
 }
 
 export interface SlackManagedUsersAttempt {
+  appRevision?: string
   workspaceId?: string
   organizationId?: string
   userId: string
@@ -144,6 +152,7 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
     typeof candidate.userId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.credentialGroupUpdatedAt === 'number' &&
+    (candidate.appRevision === undefined || typeof candidate.appRevision === 'string') &&
     (candidate.organizationId !== undefined
       ? candidate.slackBotCredentialId === undefined &&
         candidate.slackBotCredentialUpdatedAt === undefined
@@ -445,8 +454,8 @@ export async function createSlackManagedUsersAttempt(params: {
   slackBotCredentialId?: string
   appId?: string
   teamId?: string
-  clientId: string
-  clientSecret: string
+  clientId?: string
+  clientSecret?: string
   requiredScopes?: string[]
 }): Promise<{ state: string; authorizationUrl: string }> {
   const scope = resourceScopeFromOwner(params)
@@ -466,24 +475,50 @@ export async function createSlackManagedUsersAttempt(params: {
     .limit(1)
   if (!group) throw new SlackManagedUsersError('Credential Group not found.', 'invalid_response')
   const existingOption = group.options?.find((option) => option.provider === 'slack')
-  const requiredScopes = resolveSlackManagedUserScopes(
+  let requiredScopes = resolveSlackManagedUserScopes(
     params.requiredScopes ??
       existingOption?.requiredScopes ??
       (existingOption ? undefined : SLACK_SEARCH_USER_SCOPES)
   )
   let bot: Awaited<ReturnType<typeof getSlackCustomBotCredential>> = null
   let identity: { appId: string; teamId: string }
+  let clientId = params.clientId
+  let clientSecret = params.clientSecret
+  let appRevision: string | undefined
   if (scope.kind === 'organization') {
-    if (
-      params.slackBotCredentialId ||
-      !params.appId?.match(/^A[A-Z0-9]+$/) ||
-      !params.teamId?.match(/^T[A-Z0-9]+$/)
-    )
+    if (params.slackBotCredentialId || !params.appId || params.clientId || params.clientSecret)
       throw new SlackManagedUsersError(
-        'Organization Slack setup requires an App ID and workspace ID.',
+        'Select the organization’s Slack app. Configure its credentials in Slack app setup.',
         'invalid_response'
       )
-    identity = { appId: params.appId, teamId: params.teamId }
+    const [configured] = await db
+      .select({ app: slackApp, teamId: slackSearchInstallation.teamId })
+      .from(slackApp)
+      .innerJoin(
+        slackSearchInstallation,
+        and(
+          eq(slackSearchInstallation.slackAppId, slackApp.id),
+          eq(slackSearchInstallation.organizationId, scope.organizationId)
+        )
+      )
+      .where(
+        and(
+          eq(slackApp.id, params.appId),
+          eq(slackApp.organizationId, scope.organizationId),
+          eq(slackApp.kind, 'custom')
+        )
+      )
+      .limit(1)
+    if (!configured || (params.teamId && params.teamId !== configured.teamId))
+      throw new SlackManagedUsersError(
+        'Set up this organization’s Slack app first.',
+        'invalid_response'
+      )
+    identity = { appId: configured.app.id, teamId: configured.teamId }
+    clientId = configured.app.clientId
+    clientSecret = (await decryptSecret(configured.app.encryptedClientSecret)).decrypted
+    appRevision = configured.app.revision
+    requiredScopes = [...SLACK_SEARCH_USER_SCOPES]
   } else {
     if (!params.slackBotCredentialId)
       throw new SlackManagedUsersError('Select a custom Slack bot.', 'invalid_response')
@@ -499,10 +534,12 @@ export async function createSlackManagedUsersAttempt(params: {
         'invalid_response'
       )
   }
+  if (!clientId || !clientSecret)
+    throw new SlackManagedUsersError('Slack client credentials are required.', 'invalid_client')
   const redis = requireRedis()
   const state = generateId()
   const redirectUri = getSlackManagedUsersRedirectUri()
-  const encryptedClientSecret = await encryptSecret(params.clientSecret)
+  const encryptedClientSecret = await encryptSecret(clientSecret)
   const attempt: StoredSlackManagedUsersAttempt = {
     version: SLACK_MANAGED_USERS_ATTEMPT_VERSION,
     ...resourceScopeFields(scope),
@@ -514,7 +551,8 @@ export async function createSlackManagedUsersAttempt(params: {
       : {}),
     expectedAppId: identity.appId,
     expectedTeamId: identity.teamId,
-    clientId: params.clientId,
+    clientId,
+    ...(appRevision ? { appRevision } : {}),
     encryptedClientSecret: encryptedClientSecret.encrypted,
     requiredScopes,
     redirectUri,
@@ -530,7 +568,7 @@ export async function createSlackManagedUsersAttempt(params: {
   if (stored !== 'OK') throw new Error('Slack managed-user state collision')
 
   const authorizationUrl = new URL('https://slack.com/oauth/v2/authorize')
-  authorizationUrl.searchParams.set('client_id', params.clientId)
+  authorizationUrl.searchParams.set('client_id', clientId)
   authorizationUrl.searchParams.set('user_scope', requiredScopes.join(','))
   authorizationUrl.searchParams.set('redirect_uri', redirectUri)
   authorizationUrl.searchParams.set('state', state)
@@ -577,6 +615,7 @@ async function parseSlackManagedUsersAttempt(
     expectedAppId: parsed.expectedAppId,
     expectedTeamId: parsed.expectedTeamId,
     clientId: parsed.clientId,
+    ...(parsed.appRevision ? { appRevision: parsed.appRevision } : {}),
     clientSecret: clientSecret.decrypted,
     redirectUri: parsed.redirectUri,
     requiredScopes: parsed.requiredScopes,
@@ -642,6 +681,30 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
   const scopeVersion = credentialGroupScopePolicyVersion(params.attempt.requiredScopes)
 
   return db.transaction(async (tx) => {
+    if (params.attempt.organizationId) {
+      const [app] = await tx
+        .select()
+        .from(slackApp)
+        .where(
+          and(
+            eq(slackApp.id, params.attempt.expectedAppId),
+            eq(slackApp.organizationId, params.attempt.organizationId),
+            eq(slackApp.kind, 'custom')
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (
+        !app ||
+        !params.attempt.appRevision ||
+        app.revision !== params.attempt.appRevision ||
+        app.clientId !== params.attempt.clientId
+      )
+        throw new SlackManagedUsersError(
+          'The Slack app changed during authorization. Start again.',
+          'invalid_state'
+        )
+    }
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-managed-users:${params.attempt.credentialGroupId}`}, 0))`
     )
@@ -717,9 +780,13 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
     const encryptedConfiguration = await encryptCredentialGroupProviderConfiguration({
       ...currentConfiguration,
       slack: {
-        slackBotCredentialId: params.attempt.slackBotCredentialId,
-        clientId: params.attempt.clientId,
-        clientSecret: params.attempt.clientSecret,
+        ...(params.attempt.organizationId
+          ? { source: 'slack_app' as const }
+          : {
+              slackBotCredentialId: params.attempt.slackBotCredentialId,
+              clientId: params.attempt.clientId,
+              clientSecret: params.attempt.clientSecret,
+            }),
         appId: grant.appId,
         teamId: grant.teamId,
         scopes: [...new Set(grant.scopes)],

@@ -48,6 +48,7 @@ import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
+import { getConnectorRequiredScopes } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type {
   ConnectorData,
@@ -342,7 +343,7 @@ function ConnectorCard({
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
   const requiredScopes =
     connectorDef?.auth.mode === 'oauth'
-      ? (connectorDef.auth.requiredScopes ?? EMPTY_REQUIRED_SCOPES)
+      ? getConnectorRequiredScopes(connectorDef.auth, connector.sourceConfig)
       : EMPTY_REQUIRED_SCOPES
 
   const {

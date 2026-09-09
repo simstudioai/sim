@@ -102,6 +102,33 @@ const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
 } as const
 
 export const knowledgeOperations = {
+  prepareSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.prepare',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  startSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.oauth.start',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  completeSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.oauth.complete',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   listSlackInstallations: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.slack.list',

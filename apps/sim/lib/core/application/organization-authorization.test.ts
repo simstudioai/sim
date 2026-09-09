@@ -59,10 +59,11 @@ beforeEach(() => {
 
 describe('organization operation authorization', () => {
   it('admits Slack delegation only when the operation explicitly allows that service', async () => {
+    const issuedAt = new Date()
     const slack: OrganizationDelegatedPrincipal = {
       ...delegated,
-      issuedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
+      issuedAt,
+      expiresAt: new Date(issuedAt.getTime() + 60_000),
       serviceId: 'slack-search',
       resourceScope: { installationId: 'installation', eventId: 'event' },
     }

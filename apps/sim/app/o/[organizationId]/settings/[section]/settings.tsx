@@ -25,7 +25,9 @@ const OrganizationConnectedAccounts = dynamic(() =>
   )
 )
 const OrganizationSearchSlack = dynamic(() =>
-  import('@/app/o/[organizationId]/settings/components/organization-search-slack').then((m) => m.OrganizationSearchSlack)
+  import('@/app/o/[organizationId]/settings/components/organization-search-slack').then(
+    (m) => m.OrganizationSearchSlack
+  )
 )
 
 const TeamManagement = dynamic(() =>

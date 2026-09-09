@@ -16,6 +16,9 @@ describe('knowledge operation registry', () => {
   it('defines unique stable semantic operation IDs', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
     expect(ids).toEqual([
+      'knowledge.slack.prepare',
+      'knowledge.slack.oauth.start',
+      'knowledge.slack.oauth.complete',
       'knowledge.slack.list',
       'knowledge.slack.configure',
       'knowledge.slack.remove',
