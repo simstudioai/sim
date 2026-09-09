@@ -107,7 +107,7 @@ function formatDisplayTextInternal(
   }
 
   const nodes: ReactNode[] = []
-  const regex = /<[^<>]+>|\{\{[^}]+\}\}/g
+  const regex = /<[^<>]+>|\{\{[^{}]+\}\}/g
   let lastIndex = 0
   let key = 0
 
