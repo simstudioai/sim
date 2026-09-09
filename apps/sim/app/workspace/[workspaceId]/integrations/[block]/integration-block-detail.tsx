@@ -112,14 +112,17 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     serviceIcon: serviceAccountService?.serviceIcon,
   })
   /**
-   * Unknown availability offers the connect control rather than withholding it,
-   * matching `oauthAvailable` above. The deployment answer arrives with the
-   * permission config, and on an integration whose only path is a stored
-   * service account a pessimistic default renders a disabled "Unavailable"
-   * verdict for the whole load — a false negative, not a neutral placeholder.
+   * Unknown availability offers the connect control only when the stored
+   * service account is the integration's *only* path, mirroring the optimistic
+   * default `oauthAvailable` already applies to the OAuth one. There, a
+   * pessimistic default renders a disabled "Unavailable" verdict for the whole
+   * permission-config load; here it would instead widen the header control from
+   * a chip to a dropdown and back as the config lands, so an integration that
+   * also offers OAuth keeps waiting for the real answer.
    */
-  const serviceAccountDeploymentAvailable =
-    availability === undefined || availability.state === 'ready' || availability.state === 'limited'
+  const serviceAccountDeploymentAvailable = availability
+    ? availability.state === 'ready' || availability.state === 'limited'
+    : !oauthService
   const hasServiceAccount =
     serviceAccountDeploymentAvailable &&
     Boolean(serviceAccountTarget) &&
@@ -258,7 +261,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           onOpenChange={setServiceAccountOpen}
           workspaceId={workspaceId}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
-          atlassianProduct={oauthService?.providerId === 'confluence' ? 'confluence' : 'jira'}
+          atlassianProduct={
+            serviceAccountService?.providerId === 'confluence' ? 'confluence' : 'jira'
+          }
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
         />

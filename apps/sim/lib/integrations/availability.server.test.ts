@@ -13,6 +13,7 @@ import {
 import {
   getIntegrationTypesForOAuthServiceId,
   type IntegrationAvailability,
+  isDeploymentGatedIntegrationType,
   isOAuthServiceAllowedByIntegrationTypes,
   resolveIntegrationAvailability,
   resolveIntegrationAvailabilityStateForVisibility,
@@ -31,6 +32,19 @@ import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 
 const integrations = integrationsJson.integrations as readonly Integration[]
 
+/**
+ * Integrations whose only credential is a stored service account, each paired
+ * with the block type the catalog gates it by. The two differ for Claude
+ * Platform (`claude-platform` / `managed_agent`), so a parameterization keyed
+ * on the service id alone silently omits it.
+ */
+const STORED_CREDENTIAL_INTEGRATIONS = [
+  { serviceId: 'netsuite', blockType: 'netsuite' },
+  { serviceId: 'snowflake', blockType: 'snowflake' },
+  { serviceId: 'harmonic', blockType: 'harmonic' },
+  { serviceId: 'claude-platform', blockType: 'managed_agent' },
+]
+
 function availabilityFor(
   type: string,
   values: Parameters<typeof resolveIntegrationAvailability>[0] = {}
@@ -41,17 +55,24 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
-  it.each(['netsuite', 'snowflake', 'harmonic'])(
-    'makes %s stored credentials available without configuring an OAuth client',
-    (serviceId) => {
-      expect(availabilityFor(serviceId)).toMatchObject({
+  it.each(STORED_CREDENTIAL_INTEGRATIONS)(
+    'makes $serviceId stored credentials available without configuring an OAuth client',
+    ({ serviceId, blockType }) => {
+      expect(availabilityFor(blockType)).toMatchObject({
         state: 'ready',
         oauthAvailable: false,
         serviceAccountAvailable: true,
         missingFields: [],
       })
-      expect(getIntegrationTypesForOAuthServiceId(serviceId)).toEqual([serviceId])
-      expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set([serviceId]))).toBe(true)
+      expect(getIntegrationTypesForOAuthServiceId(serviceId)).toEqual([blockType])
+      /**
+       * Joining the deployment-gated set cannot hide these blocks: `isBlockAllowed`
+       * drops a gated type only at `unavailable`/`misconfigured`, and the `ready`
+       * asserted above holds for every deployment because none of these services
+       * carries a `deploymentRequirement`.
+       */
+      expect(isDeploymentGatedIntegrationType(blockType)).toBe(true)
+      expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set([blockType]))).toBe(true)
       expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set(['jira']))).toBe(false)
       expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[serviceId]?.providerId).toBe(
         `${serviceId}-service-account`

@@ -19,12 +19,23 @@ import {
 } from './generate-docs'
 
 describe('integration credential relationships', () => {
-  const serviceAccountServiceIds = new Set(['netsuite', 'snowflake', 'harmonic', 'jira'])
-  it.each(['netsuite', 'snowflake', 'harmonic'])(
-    'projects %s stored credentials without changing its auth marker',
-    (serviceId) => {
+  const serviceAccountServiceIds = new Set([
+    'netsuite',
+    'snowflake',
+    'harmonic',
+    'claude-platform',
+    'jira',
+  ])
+  it.each([
+    { serviceId: 'netsuite', blockFile: 'netsuite' },
+    { serviceId: 'snowflake', blockFile: 'snowflake' },
+    { serviceId: 'harmonic', blockFile: 'harmonic' },
+    { serviceId: 'claude-platform', blockFile: 'managed_agent' },
+  ])(
+    'projects $serviceId stored credentials without changing its auth marker',
+    ({ serviceId, blockFile }) => {
       const source = fs.readFileSync(
-        path.join(__dirname, `../apps/sim/blocks/blocks/${serviceId}.ts`),
+        path.join(__dirname, `../apps/sim/blocks/blocks/${blockFile}.ts`),
         'utf8'
       )
       expect(extractIntegrationCredentialServices(source, serviceAccountServiceIds)).toEqual({

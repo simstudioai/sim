@@ -71,9 +71,19 @@ describe('integration credential visibility', () => {
     ])
   })
 
-  it.each(['netsuite', 'snowflake', 'harmonic'])(
-    'applies allowlists and block visibility to %s stored credentials',
-    (serviceId) => {
+  /**
+   * `blockType` is the id the allowlist and the kill switch are keyed by, and it
+   * differs from the service id for Claude Platform — the real catalog decides
+   * that mapping here, since `getIntegrationTypesForOAuthServiceId` is not mocked.
+   */
+  it.each([
+    { serviceId: 'netsuite', blockType: 'netsuite' },
+    { serviceId: 'snowflake', blockType: 'snowflake' },
+    { serviceId: 'harmonic', blockType: 'harmonic' },
+    { serviceId: 'claude-platform', blockType: 'managed_agent' },
+  ])(
+    'applies allowlists and block visibility to $serviceId stored credentials',
+    ({ serviceId, blockType }) => {
       const providerId = `${serviceId}-service-account`
       const service: OAuthServiceMetadata = {
         serviceId,
@@ -85,28 +95,28 @@ describe('integration credential visibility', () => {
         authType: 'service_account',
       }
       getIntegrationAvailabilityMock.mockReturnValue([
-        availability(serviceId, 'ready', { oauthAvailable: false, serviceAccountAvailable: true }),
+        availability(blockType, 'ready', { oauthAvailable: false, serviceAccountAvailable: true }),
       ])
       const visible = (allowed: string[], hidden = false) =>
         createIntegrationCredentialVisibility({
           allowedIntegrationTypes: new Set(allowed),
           blockVisibility: hidden
-            ? { revealed: new Set(), disabled: new Set([serviceId]), previewTagged: new Set() }
+            ? { revealed: new Set(), disabled: new Set([blockType]), previewTagged: new Set() }
             : null,
           oauthServices: [service],
         })
       expect(
-        visible([serviceId]).isCredentialVisible({ providerId, type: 'service_account' })
+        visible([blockType]).isCredentialVisible({ providerId, type: 'service_account' })
       ).toBe(true)
       expect(visible(['jira']).isCredentialVisible({ providerId, type: 'service_account' })).toBe(
         false
       )
       expect(
-        visible([serviceId], true).isCredentialVisible({ providerId, type: 'service_account' })
+        visible([blockType], true).isCredentialVisible({ providerId, type: 'service_account' })
       ).toBe(false)
       getBlockMock.mockImplementation((type: string) => ({ type, preview: true }))
       expect(
-        visible([serviceId]).isCredentialVisible({ providerId, type: 'service_account' })
+        visible([blockType]).isCredentialVisible({ providerId, type: 'service_account' })
       ).toBe(false)
     }
   )

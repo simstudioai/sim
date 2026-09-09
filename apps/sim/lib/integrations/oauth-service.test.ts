@@ -137,7 +137,7 @@ describe('resolveOAuthServiceForSlug', () => {
 })
 
 describe('resolveServiceAccountIntegration', () => {
-  it.each(['netsuite', 'snowflake', 'harmonic'])(
+  it.each(['netsuite', 'snowflake', 'harmonic', 'claude-platform'])(
     'resolves %s without offering OAuth',
     (serviceId) => {
       const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
@@ -150,6 +150,30 @@ describe('resolveServiceAccountIntegration', () => {
       expect(resolveServiceAccountIntegration(serviceId)?.slug).toBe(integration.slug)
     }
   )
+
+  /**
+   * The match carries its own icon because the connect control cannot recover
+   * one for these four: `resolveOAuthServiceForSlug` answers `null` for a
+   * non-OAuth catalog entry, and a missing icon makes
+   * `useServiceAccountConnectTarget` return `null` — rendering nothing at all
+   * rather than a broken chip, which is why the gap was invisible.
+   */
+  it('carries a service icon on every service-account match', () => {
+    const matches = INTEGRATIONS.map((entry) => ({
+      slug: entry.slug,
+      match: resolveServiceAccountIntegration(entry.slug),
+    })).filter(({ match }) => match)
+    expect(matches.length).toBeGreaterThan(0)
+    for (const { slug, match } of matches) {
+      expect(typeof match?.serviceIcon, slug).toBe('function')
+    }
+    for (const serviceId of ['netsuite', 'snowflake', 'harmonic', 'claude-platform']) {
+      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
+      expect(resolveServiceAccountIntegration(integration.slug)?.serviceIcon, serviceId).toBe(
+        resolveServiceAccountServiceForIntegration(integration)?.serviceIcon
+      )
+    }
+  })
 
   it('only offers the OAuth fallback when the canonical service supports stored accounts', () => {
     const jira = INTEGRATIONS.find((entry) => entry.slug === 'jira')!
