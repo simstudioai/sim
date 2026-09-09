@@ -192,6 +192,16 @@ describe('FileToolProcessor', () => {
     expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.from('Hello, world!'))
   })
 
+  it('stores an empty base64 data URI as a zero-byte file', async () => {
+    await FileToolProcessor.processToolOutputs(
+      { file: { name: 'empty.txt', mimeType: 'text/plain', data: 'data:text/plain;base64,' } },
+      toolConfig,
+      executionContext
+    )
+
+    expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.alloc(0))
+  })
+
   it('stores a successful zero-byte URL download', async () => {
     mockDownloadFileFromUrl.mockResolvedValue(Buffer.alloc(0))
 
@@ -204,18 +214,23 @@ describe('FileToolProcessor', () => {
     expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.alloc(0))
   })
 
-  it.each([undefined, null, '!!!', 'a!b!c!AAAA', 'AAAAA', { type: 'Buffer', data: 'invalid' }])(
-    'does not turn missing or malformed data into an empty file: %j',
-    async (data) => {
-      await expect(
-        FileToolProcessor.processToolOutputs(
-          { file: { name: 'invalid.txt', mimeType: 'text/plain', data } },
-          toolConfig,
-          executionContext
-        )
-      ).rejects.toThrow("Failed to process file output 'file'")
+  it.each([
+    undefined,
+    null,
+    '!!!',
+    'a!b!c!AAAA',
+    'AAAAA',
+    '  \n\t ',
+    { type: 'Buffer', data: 'invalid' },
+  ])('does not turn missing or malformed data into an empty file: %j', async (data) => {
+    await expect(
+      FileToolProcessor.processToolOutputs(
+        { file: { name: 'invalid.txt', mimeType: 'text/plain', data } },
+        toolConfig,
+        executionContext
+      )
+    ).rejects.toThrow("Failed to process file output 'file'")
 
-      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
-    }
-  )
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
 })

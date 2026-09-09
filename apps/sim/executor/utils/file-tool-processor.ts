@@ -18,12 +18,20 @@ const IMAGE_FILE_EXTENSIONS: Record<string, string> = {
 }
 
 /**
- * Normalize a tool-supplied base64 payload to canonical RFC 4648 form so it can be
- * validated: strip a base64 `data:` URI prefix, drop the line wrapping MIME encoders
- * emit, translate the base64url alphabet, and restore padding unpadded encoders omit.
+ * Strip a base64 `data:` URI prefix, leaving the encoded payload. An empty payload is
+ * a legitimate zero-byte file; a payload that only looks empty after normalization is
+ * not, so callers compare against what this returns rather than the raw value.
  */
-function normalizeBase64(value: string): string {
-  const payload = /^data:[^,]*;base64,/i.test(value) ? value.slice(value.indexOf(',') + 1) : value
+function stripBase64DataUri(value: string): string {
+  return /^data:[^,]*;base64,/i.test(value) ? value.slice(value.indexOf(',') + 1) : value
+}
+
+/**
+ * Normalize a base64 payload to canonical RFC 4648 form so it can be validated: drop
+ * the line wrapping MIME encoders emit, translate the base64url alphabet, and restore
+ * the padding unpadded encoders omit.
+ */
+function normalizeBase64(payload: string): string {
   const compact = payload.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/')
   const remainder = compact.length % 4
   return remainder === 0 ? compact : compact + '='.repeat(4 - remainder)
@@ -183,11 +191,12 @@ export class FileToolProcessor {
           throw new Error(`Invalid serialized buffer format for ${data.name}`)
         }
       } else if (typeof data.data === 'string') {
-        const base64Data = normalizeBase64(data.data)
+        const payload = stripBase64DataUri(data.data)
+        const base64Data = normalizeBase64(payload)
 
         const paddingBytes = base64Data.endsWith('==') ? 2 : base64Data.endsWith('=') ? 1 : 0
         assertFileSize(Math.floor((base64Data.length * 3) / 4) - paddingBytes, data.name)
-        if (!isCanonicalBase64(base64Data)) {
+        if (!isCanonicalBase64(base64Data) || (payload.length > 0 && base64Data.length === 0)) {
           throw new Error(`File '${data.name}' has invalid base64 data`)
         }
         buffer = Buffer.from(base64Data, 'base64')
