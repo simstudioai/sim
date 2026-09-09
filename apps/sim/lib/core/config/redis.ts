@@ -406,6 +406,20 @@ export async function acquireLock(
     const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
     return result === 'OK'
   } catch (error) {
+    /**
+     * Read the connection state before the reclaim below, which awaits and so
+     * would report the state it left behind rather than the one that failed.
+     * A lock acquire is often a run's first Redis call, so it is where an
+     * unusable connection surfaces — as an `Error: Command timed out` carrying
+     * only ioredis timer frames, no app frame, and no way to tell a handshake
+     * still in flight from a socket that died silently. `status` separates
+     * them, which is what makes the next occurrence self-diagnosing.
+     */
+    logger.error('Redis lock acquire failed', {
+      lockKey,
+      error: toError(error).message,
+      redis: describeRedisConnection(),
+    })
     // Best effort, and the same compare-and-delete `releaseLock` runs on the
     // success path: it deletes only while `value` still owns the key. If Redis
     // is still unreachable the TTL stays the backstop, which is the behavior
