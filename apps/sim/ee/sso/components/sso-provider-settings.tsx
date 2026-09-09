@@ -16,7 +16,7 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
-import { ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -25,6 +25,7 @@ import type { SettingsAction } from '@/components/settings/settings-header'
 import type { SsoProviderView, SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -195,6 +196,12 @@ interface SsoProviderSettingsProps {
   existingProvider?: SsoProviderView
   active: boolean
   onOpenDomains: () => void
+  /** Called with the provider id once a create or update is saved. */
+  onSaved?: (providerId: string) => void
+  /** Returns to the provider list; offered on the detail view and on a fresh create form. */
+  onBack?: () => void
+  /** Offered on the detail view; the caller owns the confirmation. */
+  onDelete?: () => void
 }
 
 export function SsoProviderSettings({
@@ -202,6 +209,9 @@ export function SsoProviderSettings({
   existingProvider,
   active,
   onOpenDomains,
+  onSaved,
+  onBack,
+  onDelete,
 }: SsoProviderSettingsProps) {
   const existingJitProvisioningEnabled = existingProvider?.jitProvisioningEnabled ?? true
   const configureSSOMutation = useConfigureSSO()
@@ -231,7 +241,7 @@ export function SsoProviderSettings({
     (k) => formData[k] !== originalFormData[k]
   )
 
-  useSettingsUnsavedGuard({ isDirty: hasChanges })
+  const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
 
   const validateProviderId = (value: string): string[] => {
     if (!value || !value.trim()) return ['Provider ID is required.']
@@ -391,7 +401,8 @@ export function SsoProviderSettings({
       await configureSSOMutation.mutateAsync(requestBody)
 
       logger.info('SSO provider configured', { providerId: formData.providerId })
-      toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
+      toast.success(isEditing ? 'Identity provider updated' : 'Identity provider added')
+      onSaved?.(formData.providerId)
       setFormData(DEFAULT_FORM_DATA)
       setOriginalFormData(DEFAULT_FORM_DATA)
       setShowErrors(false)
@@ -516,6 +527,12 @@ export function SsoProviderSettings({
   }
 
   if (existingProvider && !isEditing) {
+    const detailActions: SettingsAction[] = [
+      { text: 'Edit', variant: 'primary', onSelect: handleEdit },
+      ...(onDelete
+        ? [{ text: 'Delete', variant: 'destructive', onSelect: onDelete } satisfies SettingsAction]
+        : []),
+    ]
     const providerCallbackUrl =
       (existingProvider.providerType === 'saml' &&
         readProviderConfigString(existingProvider.samlConfig, 'callbackUrl')) ||
@@ -523,9 +540,16 @@ export function SsoProviderSettings({
 
     return (
       <div className='flex flex-col gap-7'>
-        {active && (
-          <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]} />
-        )}
+        {active &&
+          (onBack ? (
+            <SettingsPanel
+              back={{ text: 'Identity providers', icon: ArrowLeft, onSelect: onBack }}
+              title={existingProvider.providerId ?? 'Identity provider'}
+              actions={detailActions}
+            />
+          ) : (
+            <SettingsPanel actions={detailActions} />
+          ))}
 
         <SettingsSection label='Identity provider'>
           <div className='flex flex-col gap-4.5'>
@@ -581,547 +605,569 @@ export function SsoProviderSettings({
     )
   }
 
+  const formActions: SettingsAction[] = [
+    ...(isEditing && !hasChanges
+      ? [
+          {
+            text: 'Cancel',
+            onSelect: handleDiscard,
+            disabled: configureSSOMutation.isPending,
+          } satisfies SettingsAction,
+        ]
+      : []),
+    ...saveDiscardActions({
+      dirty: hasChanges,
+      saving: configureSSOMutation.isPending,
+      /** Never disabled on validation errors: showErrors is only set by handleSubmit, so disabling Save left a greyed button and no message. */
+      saveLabel: isEditing ? 'Update' : 'Save',
+      savingLabel: isEditing ? 'Updating...' : 'Saving...',
+      onSave: () => void handleSubmit(),
+      onDiscard: handleDiscard,
+    }),
+  ]
+
   return (
-    <form onSubmit={handleSubmit} autoComplete='off' className='flex flex-col gap-7'>
-      <input
-        type='text'
-        name='fakeusernameremembered'
-        autoComplete='username'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='password'
-        name='fakepasswordremembered'
-        autoComplete='current-password'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='email'
-        name='fakeemailremembered'
-        autoComplete='email'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input type='text' name='hidden' className='hidden' autoComplete='off' />
-
-      {active && (
-        <SettingsPanel
-          actions={[
-            ...(isEditing && !hasChanges
-              ? [
-                  {
-                    text: 'Cancel',
-                    onSelect: handleDiscard,
-                    disabled: configureSSOMutation.isPending,
-                  } satisfies SettingsAction,
-                ]
-              : []),
-            ...saveDiscardActions({
-              dirty: hasChanges,
-              saving: configureSSOMutation.isPending,
-              /** Never disabled on validation errors: showErrors is only set by handleSubmit, so disabling Save left a greyed button and no message. */
-              saveLabel: isEditing ? 'Update' : 'Save',
-              savingLabel: isEditing ? 'Updating...' : 'Saving...',
-              onSave: () => void handleSubmit(),
-              onDiscard: handleDiscard,
-            }),
-          ]}
+    <>
+      <form onSubmit={handleSubmit} autoComplete='off' className='flex flex-col gap-7'>
+        <input
+          type='text'
+          name='fakeusernameremembered'
+          autoComplete='username'
+          className='-left-[9999px] pointer-events-none absolute opacity-0'
+          tabIndex={-1}
+          readOnly
         />
-      )}
+        <input
+          type='password'
+          name='fakepasswordremembered'
+          autoComplete='current-password'
+          className='-left-[9999px] pointer-events-none absolute opacity-0'
+          tabIndex={-1}
+          readOnly
+        />
+        <input
+          type='email'
+          name='fakeemailremembered'
+          autoComplete='email'
+          className='-left-[9999px] pointer-events-none absolute opacity-0'
+          tabIndex={-1}
+          readOnly
+        />
+        <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
-      {!existingProvider && (
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          <p className='text-[var(--text-muted)] text-caption'>
-            Use a verified email domain for this connection.
-          </p>
-          <Chip onClick={onOpenDomains}>Manage domains</Chip>
-        </div>
-      )}
-
-      <SettingsSection label='Identity provider'>
-        <div className='flex flex-col gap-4.5'>
-          <SettingRow
-            label='Provider type'
-            labelTooltip='Choose the protocol configured in your identity provider.'
-          >
-            <ChipSelect
-              aria-label='Provider type'
-              align='start'
-              value={formData.providerType}
-              onChange={(value: string) =>
-                handleInputChange('providerType', value as 'oidc' | 'saml')
-              }
-              options={[
-                { label: 'OIDC', value: 'oidc' },
-                { label: 'SAML', value: 'saml' },
-              ]}
-              placeholder='Select provider type'
+        {active &&
+          (onBack ? (
+            <SettingsPanel
+              back={{
+                text: 'Identity providers',
+                icon: ArrowLeft,
+                onSelect: () => guard.guardBack(onBack),
+              }}
+              title={existingProvider?.providerId ?? 'New identity provider'}
+              actions={formActions}
             />
-          </SettingRow>
+          ) : (
+            <SettingsPanel actions={formActions} />
+          ))}
 
-          <SettingRow
-            label='Provider ID'
-            htmlFor='sso-provider-id'
-            error={
-              showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
-            }
-          >
-            {isEditing ? (
+        {!existingProvider && (
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <p className='text-[var(--text-muted)] text-caption'>
+              Use a verified email domain for this connection.
+            </p>
+            <Chip onClick={onOpenDomains}>Manage domains</Chip>
+          </div>
+        )}
+
+        <SettingsSection label='Identity provider'>
+          <div className='flex flex-col gap-4.5'>
+            <SettingRow
+              label='Provider type'
+              labelTooltip='Choose the protocol configured in your identity provider.'
+            >
+              <ChipSelect
+                aria-label='Provider type'
+                align='start'
+                value={formData.providerType}
+                onChange={(value: string) =>
+                  handleInputChange('providerType', value as 'oidc' | 'saml')
+                }
+                options={[
+                  { label: 'OIDC', value: 'oidc' },
+                  { label: 'SAML', value: 'saml' },
+                ]}
+                placeholder='Select provider type'
+              />
+            </SettingRow>
+
+            <SettingRow
+              label='Provider ID'
+              htmlFor='sso-provider-id'
+              error={
+                showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
+              }
+            >
+              {isEditing ? (
+                <>
+                  <ChipCopyInput
+                    id='sso-provider-id'
+                    value={formData.providerId}
+                    copyLabel='Copy provider ID'
+                  />
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    Cannot be changed after saving.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <ChipCombobox
+                    inputProps={{ id: 'sso-provider-id', 'aria-label': 'Provider ID' }}
+                    value={formData.providerId}
+                    onChange={(value: string) => handleInputChange('providerId', value)}
+                    options={PROVIDER_ID_SUGGESTIONS}
+                    placeholder='Select or enter a provider ID'
+                    editable
+                  />
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    Unique across Sim, e.g. acme-entra. Cannot be changed later.
+                  </p>
+                </>
+              )}
+            </SettingRow>
+
+            <SettingRow
+              label='Issuer URL'
+              htmlFor='sso-issuer'
+              error={
+                showErrors && errors.issuerUrl.length > 0 ? errors.issuerUrl.join(' ') : undefined
+              }
+            >
+              <ChipInput
+                id='sso-issuer'
+                type='url'
+                placeholder='https://your-identity-provider.com'
+                value={formData.issuerUrl}
+                name='sso_issuer_endpoint'
+                autoComplete='off'
+                autoCapitalize='none'
+                spellCheck={false}
+                readOnly
+                onFocus={(e) => e.target.removeAttribute('readOnly')}
+                onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
+                error={showErrors && errors.issuerUrl.length > 0}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label='Domain'
+              labelTooltip='The verified email domain your members use to sign in.'
+              htmlFor='sso-domain'
+              error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
+            >
+              <ChipInput
+                id='sso-domain'
+                type='text'
+                placeholder='company.com'
+                value={formData.domain}
+                name='sso_identity_domain'
+                autoComplete='off'
+                autoCapitalize='none'
+                spellCheck={false}
+                readOnly
+                onFocus={(e) => e.target.removeAttribute('readOnly')}
+                onChange={(e) => handleInputChange('domain', e.target.value)}
+                error={showErrors && errors.domain.length > 0}
+              />
+            </SettingRow>
+
+            {formData.providerType === 'oidc' ? (
               <>
-                <ChipCopyInput
-                  id='sso-provider-id'
-                  value={formData.providerId}
-                  copyLabel='Copy provider ID'
-                />
-                <p className='text-[var(--text-muted)] text-caption'>
-                  Cannot be changed after saving.
-                </p>
+                <SettingRow
+                  label='Client ID'
+                  htmlFor='sso-client-id'
+                  error={
+                    showErrors && errors.clientId.length > 0 ? errors.clientId.join(' ') : undefined
+                  }
+                >
+                  <ChipInput
+                    id='sso-client-id'
+                    type='text'
+                    placeholder='Enter Client ID'
+                    value={formData.clientId}
+                    name='sso_client_identifier'
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readOnly')}
+                    onChange={(e) => handleInputChange('clientId', e.target.value)}
+                    error={showErrors && errors.clientId.length > 0}
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  label='Client secret'
+                  htmlFor={CLIENT_SECRET_FIELD_ID}
+                  description={
+                    isReplacingClientSecret ? 'Replaces the saved secret when you save.' : undefined
+                  }
+                  error={
+                    showErrors && errors.clientSecret.length > 0
+                      ? errors.clientSecret.join(' ')
+                      : undefined
+                  }
+                >
+                  <ClientSecretField
+                    hasStoredSecret={hasStoredClientSecret}
+                    storedHint={storedClientSecretHint}
+                    isReplacing={isReplacingClientSecret}
+                    onReplace={() => setIsReplacingClientSecret(true)}
+                    onCancelReplace={handleKeepSavedSecret}
+                    value={formData.clientSecret}
+                    onChange={(next) => handleInputChange('clientSecret', next)}
+                    hasError={showErrors && errors.clientSecret.length > 0}
+                  />
+                </SettingRow>
+
+                <div className='flex flex-col gap-2'>
+                  <Chip
+                    onClick={() => setShowAdvanced((value) => !value)}
+                    rightIcon={ChevronDown}
+                    aria-expanded={showAdvanced}
+                    aria-controls='sso-advanced'
+                    className='w-fit'
+                  >
+                    Advanced options
+                  </Chip>
+
+                  <Expandable expanded={showAdvanced}>
+                    <ExpandableContent id='sso-advanced'>
+                      <div className='flex flex-col gap-4.5 pt-2'>
+                        <SettingRow
+                          label='Scopes'
+                          htmlFor='sso-scopes'
+                          error={
+                            showErrors && errors.scopes.length > 0
+                              ? errors.scopes.join(' ')
+                              : undefined
+                          }
+                        >
+                          <ChipInput
+                            id='sso-scopes'
+                            type='text'
+                            placeholder='openid,profile,email'
+                            value={formData.scopes}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('scopes', e.target.value)}
+                            error={showErrors && errors.scopes.length > 0}
+                          />
+                          <p className='text-[var(--text-muted)] text-caption'>
+                            Comma-separated list of OIDC scopes to request
+                          </p>
+                        </SettingRow>
+                        <SettingRow
+                          label='Authorization endpoint'
+                          htmlFor='sso-authorization'
+                          optional
+                        >
+                          <ChipInput
+                            id='sso-authorization'
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.authorizationEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) =>
+                              handleInputChange('authorizationEndpoint', e.target.value)
+                            }
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='Token endpoint' htmlFor='sso-token' optional>
+                          <ChipInput
+                            id='sso-token'
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.tokenEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('tokenEndpoint', e.target.value)}
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='JWKS endpoint' htmlFor='sso-jwks' optional>
+                          <ChipInput
+                            id='sso-jwks'
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.jwksEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('jwksEndpoint', e.target.value)}
+                          />
+                          <p className='text-[var(--text-muted)] text-caption'>
+                            Sim reads these from the issuer's discovery document. Set them only if
+                            your provider does not publish one.
+                          </p>
+                        </SettingRow>
+                      </div>
+                    </ExpandableContent>
+                  </Expandable>
+                </div>
               </>
             ) : (
               <>
-                <ChipCombobox
-                  inputProps={{ id: 'sso-provider-id', 'aria-label': 'Provider ID' }}
-                  value={formData.providerId}
-                  onChange={(value: string) => handleInputChange('providerId', value)}
-                  options={PROVIDER_ID_SUGGESTIONS}
-                  placeholder='Select or enter a provider ID'
-                  editable
-                />
-                <p className='text-[var(--text-muted)] text-caption'>
-                  Unique across Sim, e.g. acme-entra. Cannot be changed later.
-                </p>
+                <SettingRow
+                  label='Entry point URL'
+                  htmlFor='sso-entry-point'
+                  error={
+                    showErrors && errors.entryPoint.length > 0
+                      ? errors.entryPoint.join(' ')
+                      : undefined
+                  }
+                >
+                  <ChipInput
+                    id='sso-entry-point'
+                    type='url'
+                    placeholder='https://idp.example.com/sso/saml'
+                    value={formData.entryPoint}
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    onChange={(e) => handleInputChange('entryPoint', e.target.value)}
+                    error={showErrors && errors.entryPoint.length > 0}
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  label='Identity provider certificate'
+                  htmlFor='sso-cert'
+                  error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
+                >
+                  <ChipTextarea
+                    id='sso-cert'
+                    placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
+                    value={formData.cert}
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    onChange={(e) => handleInputChange('cert', e.target.value)}
+                    className='min-h-20'
+                    error={showErrors && errors.cert.length > 0}
+                    rows={3}
+                  />
+                </SettingRow>
+
+                <div className='flex flex-col gap-2'>
+                  <Chip
+                    onClick={() => setShowAdvanced((value) => !value)}
+                    rightIcon={ChevronDown}
+                    aria-expanded={showAdvanced}
+                    aria-controls='sso-advanced'
+                    className='w-fit'
+                  >
+                    Advanced options
+                  </Chip>
+
+                  <Expandable expanded={showAdvanced}>
+                    <ExpandableContent id='sso-advanced'>
+                      <div className='flex flex-col gap-4.5 pt-2'>
+                        <SettingRow label='Audience (Entity ID)' htmlFor='sso-audience' optional>
+                          <ChipInput
+                            id='sso-audience'
+                            type='text'
+                            placeholder='Enter Audience'
+                            value={formData.audience}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('audience', e.target.value)}
+                          />
+                        </SettingRow>
+
+                        <SettingRow
+                          label='Callback URL override'
+                          htmlFor='sso-callback-override'
+                          optional
+                        >
+                          <ChipInput
+                            id='sso-callback-override'
+                            type='url'
+                            placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
+                            value={formData.callbackUrl}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
+                          />
+                        </SettingRow>
+
+                        <div className='flex items-center justify-between gap-4'>
+                          <Label htmlFor='sso-signed-assertions'>
+                            Require signed SAML assertions
+                          </Label>
+                          <Switch
+                            id='sso-signed-assertions'
+                            checked={formData.wantAssertionsSigned}
+                            onCheckedChange={(checked) =>
+                              handleInputChange('wantAssertionsSigned', checked)
+                            }
+                          />
+                        </div>
+
+                        <SettingRow label='NameID format' optional>
+                          <ChipSelect
+                            aria-label='NameID format'
+                            align='start'
+                            value={formData.identifierFormat}
+                            onChange={(value: string) =>
+                              handleInputChange('identifierFormat', value)
+                            }
+                            options={[...SAML_NAMEID_FORMATS]}
+                            placeholder='Provider default'
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='IdP metadata XML' htmlFor='sso-metadata' optional>
+                          <ChipTextarea
+                            id='sso-metadata'
+                            placeholder='Paste IDP metadata XML here'
+                            value={formData.idpMetadata}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
+                            className='min-h-15'
+                            rows={2}
+                          />
+                        </SettingRow>
+                      </div>
+                    </ExpandableContent>
+                  </Expandable>
+                </div>
               </>
             )}
-          </SettingRow>
 
-          <SettingRow
-            label='Issuer URL'
-            htmlFor='sso-issuer'
-            error={
-              showErrors && errors.issuerUrl.length > 0 ? errors.issuerUrl.join(' ') : undefined
-            }
-          >
-            <ChipInput
-              id='sso-issuer'
-              type='url'
-              placeholder='https://your-identity-provider.com'
-              value={formData.issuerUrl}
-              name='sso_issuer_endpoint'
-              autoComplete='off'
-              autoCapitalize='none'
-              spellCheck={false}
-              readOnly
-              onFocus={(e) => e.target.removeAttribute('readOnly')}
-              onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
-              error={showErrors && errors.issuerUrl.length > 0}
-            />
-          </SettingRow>
-
-          <SettingRow
-            label='Domain'
-            labelTooltip='The verified email domain your members use to sign in.'
-            htmlFor='sso-domain'
-            error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
-          >
-            <ChipInput
-              id='sso-domain'
-              type='text'
-              placeholder='company.com'
-              value={formData.domain}
-              name='sso_identity_domain'
-              autoComplete='off'
-              autoCapitalize='none'
-              spellCheck={false}
-              readOnly
-              onFocus={(e) => e.target.removeAttribute('readOnly')}
-              onChange={(e) => handleInputChange('domain', e.target.value)}
-              error={showErrors && errors.domain.length > 0}
-            />
-          </SettingRow>
-
-          {formData.providerType === 'oidc' ? (
-            <>
-              <SettingRow
-                label='Client ID'
-                htmlFor='sso-client-id'
-                error={
-                  showErrors && errors.clientId.length > 0 ? errors.clientId.join(' ') : undefined
-                }
-              >
-                <ChipInput
-                  id='sso-client-id'
-                  type='text'
-                  placeholder='Enter Client ID'
-                  value={formData.clientId}
-                  name='sso_client_identifier'
-                  autoComplete='off'
-                  autoCapitalize='none'
-                  spellCheck={false}
-                  readOnly
-                  onFocus={(e) => e.target.removeAttribute('readOnly')}
-                  onChange={(e) => handleInputChange('clientId', e.target.value)}
-                  error={showErrors && errors.clientId.length > 0}
-                />
-              </SettingRow>
-
-              <SettingRow
-                label='Client secret'
-                htmlFor={CLIENT_SECRET_FIELD_ID}
-                description={
-                  isReplacingClientSecret ? 'Replaces the saved secret when you save.' : undefined
-                }
-                error={
-                  showErrors && errors.clientSecret.length > 0
-                    ? errors.clientSecret.join(' ')
-                    : undefined
-                }
-              >
-                <ClientSecretField
-                  hasStoredSecret={hasStoredClientSecret}
-                  storedHint={storedClientSecretHint}
-                  isReplacing={isReplacingClientSecret}
-                  onReplace={() => setIsReplacingClientSecret(true)}
-                  onCancelReplace={handleKeepSavedSecret}
-                  value={formData.clientSecret}
-                  onChange={(next) => handleInputChange('clientSecret', next)}
-                  hasError={showErrors && errors.clientSecret.length > 0}
-                />
-              </SettingRow>
-
-              <div className='flex flex-col gap-2'>
-                <Chip
-                  onClick={() => setShowAdvanced((value) => !value)}
-                  rightIcon={ChevronDown}
-                  aria-expanded={showAdvanced}
-                  aria-controls='sso-advanced'
-                  className='w-fit'
-                >
-                  Advanced options
-                </Chip>
-
-                <Expandable expanded={showAdvanced}>
-                  <ExpandableContent id='sso-advanced'>
-                    <div className='flex flex-col gap-4.5 pt-2'>
-                      <SettingRow
-                        label='Scopes'
-                        htmlFor='sso-scopes'
-                        error={
-                          showErrors && errors.scopes.length > 0
-                            ? errors.scopes.join(' ')
-                            : undefined
-                        }
-                      >
-                        <ChipInput
-                          id='sso-scopes'
-                          type='text'
-                          placeholder='openid,profile,email'
-                          value={formData.scopes}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('scopes', e.target.value)}
-                          error={showErrors && errors.scopes.length > 0}
-                        />
-                        <p className='text-[var(--text-muted)] text-caption'>
-                          Comma-separated list of OIDC scopes to request
-                        </p>
-                      </SettingRow>
-                      <SettingRow
-                        label='Authorization endpoint'
-                        htmlFor='sso-authorization'
-                        optional
-                      >
-                        <ChipInput
-                          id='sso-authorization'
-                          type='url'
-                          placeholder='Discovered from the issuer'
-                          value={formData.authorizationEndpoint}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) =>
-                            handleInputChange('authorizationEndpoint', e.target.value)
-                          }
-                        />
-                      </SettingRow>
-
-                      <SettingRow label='Token endpoint' htmlFor='sso-token' optional>
-                        <ChipInput
-                          id='sso-token'
-                          type='url'
-                          placeholder='Discovered from the issuer'
-                          value={formData.tokenEndpoint}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('tokenEndpoint', e.target.value)}
-                        />
-                      </SettingRow>
-
-                      <SettingRow label='JWKS endpoint' htmlFor='sso-jwks' optional>
-                        <ChipInput
-                          id='sso-jwks'
-                          type='url'
-                          placeholder='Discovered from the issuer'
-                          value={formData.jwksEndpoint}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('jwksEndpoint', e.target.value)}
-                        />
-                        <p className='text-[var(--text-muted)] text-caption'>
-                          Sim reads these from the issuer's discovery document. Set them only if
-                          your provider does not publish one.
-                        </p>
-                      </SettingRow>
-                    </div>
-                  </ExpandableContent>
-                </Expandable>
-              </div>
-            </>
-          ) : (
-            <>
-              <SettingRow
-                label='Entry point URL'
-                htmlFor='sso-entry-point'
-                error={
-                  showErrors && errors.entryPoint.length > 0
-                    ? errors.entryPoint.join(' ')
-                    : undefined
-                }
-              >
-                <ChipInput
-                  id='sso-entry-point'
-                  type='url'
-                  placeholder='https://idp.example.com/sso/saml'
-                  value={formData.entryPoint}
-                  autoComplete='off'
-                  autoCapitalize='none'
-                  spellCheck={false}
-                  onChange={(e) => handleInputChange('entryPoint', e.target.value)}
-                  error={showErrors && errors.entryPoint.length > 0}
-                />
-              </SettingRow>
-
-              <SettingRow
-                label='Identity provider certificate'
-                htmlFor='sso-cert'
-                error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
-              >
-                <ChipTextarea
-                  id='sso-cert'
-                  placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
-                  value={formData.cert}
-                  autoComplete='off'
-                  autoCapitalize='none'
-                  spellCheck={false}
-                  onChange={(e) => handleInputChange('cert', e.target.value)}
-                  className='min-h-20'
-                  error={showErrors && errors.cert.length > 0}
-                  rows={3}
-                />
-              </SettingRow>
-
-              <div className='flex flex-col gap-2'>
-                <Chip
-                  onClick={() => setShowAdvanced((value) => !value)}
-                  rightIcon={ChevronDown}
-                  aria-expanded={showAdvanced}
-                  aria-controls='sso-advanced'
-                  className='w-fit'
-                >
-                  Advanced options
-                </Chip>
-
-                <Expandable expanded={showAdvanced}>
-                  <ExpandableContent id='sso-advanced'>
-                    <div className='flex flex-col gap-4.5 pt-2'>
-                      <SettingRow label='Audience (Entity ID)' htmlFor='sso-audience' optional>
-                        <ChipInput
-                          id='sso-audience'
-                          type='text'
-                          placeholder='Enter Audience'
-                          value={formData.audience}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('audience', e.target.value)}
-                        />
-                      </SettingRow>
-
-                      <SettingRow
-                        label='Callback URL override'
-                        htmlFor='sso-callback-override'
-                        optional
-                      >
-                        <ChipInput
-                          id='sso-callback-override'
-                          type='url'
-                          placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
-                          value={formData.callbackUrl}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                        />
-                      </SettingRow>
-
-                      <div className='flex items-center justify-between gap-4'>
-                        <Label htmlFor='sso-signed-assertions'>
-                          Require signed SAML assertions
-                        </Label>
-                        <Switch
-                          id='sso-signed-assertions'
-                          checked={formData.wantAssertionsSigned}
-                          onCheckedChange={(checked) =>
-                            handleInputChange('wantAssertionsSigned', checked)
-                          }
-                        />
-                      </div>
-
-                      <SettingRow label='NameID format' optional>
-                        <ChipSelect
-                          aria-label='NameID format'
-                          align='start'
-                          value={formData.identifierFormat}
-                          onChange={(value: string) => handleInputChange('identifierFormat', value)}
-                          options={[...SAML_NAMEID_FORMATS]}
-                          placeholder='Provider default'
-                        />
-                      </SettingRow>
-
-                      <SettingRow label='IdP metadata XML' htmlFor='sso-metadata' optional>
-                        <ChipTextarea
-                          id='sso-metadata'
-                          placeholder='Paste IDP metadata XML here'
-                          value={formData.idpMetadata}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                          className='min-h-15'
-                          rows={2}
-                        />
-                      </SettingRow>
-                    </div>
-                  </ExpandableContent>
-                </Expandable>
-              </div>
-            </>
-          )}
-
-          <SettingRow
-            label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}
-            htmlFor='sso-callback-url'
-          >
-            <ChipCopyInput
-              id='sso-callback-url'
-              value={callbackUrl}
-              copyLabel='Copy callback URL'
-            />
-            <p className='text-[var(--text-muted)] text-caption'>
-              Configure this in your identity provider
-            </p>
-          </SettingRow>
-
-          {/** Sim publishes no SP metadata document; these are the values it would carry. */}
-          {isSaml && (
-            <SettingRow label='SP Entity ID' htmlFor='sso-entity-id'>
-              <ChipCopyInput id='sso-entity-id' value={getBaseUrl()} copyLabel='Copy entity ID' />
+            <SettingRow
+              label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}
+              htmlFor='sso-callback-url'
+            >
+              <ChipCopyInput
+                id='sso-callback-url'
+                value={callbackUrl}
+                copyLabel='Copy callback URL'
+              />
               <p className='text-[var(--text-muted)] text-caption'>
-                Use this as Sim's entity ID in your identity provider.
+                Configure this in your identity provider
               </p>
             </SettingRow>
-          )}
 
-          <div className='flex flex-col gap-2'>
-            <Chip
-              onClick={() => setShowMapping((value) => !value)}
-              rightIcon={ChevronDown}
-              aria-expanded={showMapping}
-              aria-controls='sso-mapping'
-              className='w-fit'
-            >
-              Attribute mapping
-            </Chip>
+            {/** Sim publishes no SP metadata document; these are the values it would carry. */}
+            {isSaml && (
+              <SettingRow label='SP Entity ID' htmlFor='sso-entity-id'>
+                <ChipCopyInput id='sso-entity-id' value={getBaseUrl()} copyLabel='Copy entity ID' />
+                <p className='text-[var(--text-muted)] text-caption'>
+                  Use this as Sim's entity ID in your identity provider.
+                </p>
+              </SettingRow>
+            )}
 
-            <Expandable expanded={showMapping}>
-              <ExpandableContent id='sso-mapping'>
-                <div className='flex flex-col gap-4.5 pt-2'>
-                  <SettingRow label='Email attribute' htmlFor='sso-email-attribute' optional>
-                    <ChipInput
-                      id='sso-email-attribute'
-                      type='text'
-                      placeholder={mappingDefaults.email}
-                      value={formData.mapEmail}
-                      autoComplete='off'
-                      autoCapitalize='none'
-                      spellCheck={false}
-                      onChange={(e) => handleInputChange('mapEmail', e.target.value)}
-                    />
-                  </SettingRow>
+            <div className='flex flex-col gap-2'>
+              <Chip
+                onClick={() => setShowMapping((value) => !value)}
+                rightIcon={ChevronDown}
+                aria-expanded={showMapping}
+                aria-controls='sso-mapping'
+                className='w-fit'
+              >
+                Attribute mapping
+              </Chip>
 
-                  <SettingRow label='Name attribute' htmlFor='sso-name-attribute' optional>
-                    <ChipInput
-                      id='sso-name-attribute'
-                      type='text'
-                      placeholder={mappingDefaults.name}
-                      value={formData.mapName}
-                      autoComplete='off'
-                      autoCapitalize='none'
-                      spellCheck={false}
-                      onChange={(e) => handleInputChange('mapName', e.target.value)}
-                    />
-                  </SettingRow>
+              <Expandable expanded={showMapping}>
+                <ExpandableContent id='sso-mapping'>
+                  <div className='flex flex-col gap-4.5 pt-2'>
+                    <SettingRow label='Email attribute' htmlFor='sso-email-attribute' optional>
+                      <ChipInput
+                        id='sso-email-attribute'
+                        type='text'
+                        placeholder={mappingDefaults.email}
+                        value={formData.mapEmail}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        onChange={(e) => handleInputChange('mapEmail', e.target.value)}
+                      />
+                    </SettingRow>
 
-                  <SettingRow label='User ID attribute' htmlFor='sso-id-attribute' optional>
-                    <ChipInput
-                      id='sso-id-attribute'
-                      type='text'
-                      placeholder={mappingDefaults.id}
-                      value={formData.mapId}
-                      autoComplete='off'
-                      autoCapitalize='none'
-                      spellCheck={false}
-                      onChange={(e) => handleInputChange('mapId', e.target.value)}
-                    />
-                    <p className='text-[var(--text-muted)] text-caption'>
-                      Must be stable and unique per user — changing it later re-links accounts.
-                    </p>
-                  </SettingRow>
-                </div>
-              </ExpandableContent>
-            </Expandable>
+                    <SettingRow label='Name attribute' htmlFor='sso-name-attribute' optional>
+                      <ChipInput
+                        id='sso-name-attribute'
+                        type='text'
+                        placeholder={mappingDefaults.name}
+                        value={formData.mapName}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        onChange={(e) => handleInputChange('mapName', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='User ID attribute' htmlFor='sso-id-attribute' optional>
+                      <ChipInput
+                        id='sso-id-attribute'
+                        type='text'
+                        placeholder={mappingDefaults.id}
+                        value={formData.mapId}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        onChange={(e) => handleInputChange('mapId', e.target.value)}
+                      />
+                      <p className='text-[var(--text-muted)] text-caption'>
+                        Must be stable and unique per user — changing it later re-links accounts.
+                      </p>
+                    </SettingRow>
+                  </div>
+                </ExpandableContent>
+              </Expandable>
+            </div>
           </div>
-        </div>
-      </SettingsSection>
+        </SettingsSection>
 
-      <SettingsSection label='First sign-in'>
-        <SettingRow
-          label='On first SSO sign-in'
-          labelTooltip='An active SCIM connection can disable automatic membership in Provisioning rules. See Docs for offboarding behavior.'
-        >
-          <ChipSwitch
-            value={formData.jitProvisioningEnabled ? 'automatic' : 'invite-only'}
-            onChange={(value) => handleInputChange('jitProvisioningEnabled', value === 'automatic')}
-            aria-label='SSO member provisioning mode'
-            options={[
-              { value: 'automatic', label: 'Automatic' },
-              { value: 'invite-only', label: 'Invite only' },
-            ]}
-          />
-          <p className='text-[var(--text-muted)] text-caption'>
-            {formData.jitProvisioningEnabled
-              ? 'New users join as Members and use a seat. Grant workspace access separately.'
-              : 'Invite or provision new members before they sign in. Existing members keep their access.'}
-          </p>
-        </SettingRow>
-      </SettingsSection>
-    </form>
+        <SettingsSection label='First sign-in'>
+          <SettingRow
+            label='On first SSO sign-in'
+            labelTooltip='An active SCIM connection can disable automatic membership in Provisioning rules. See Docs for offboarding behavior.'
+          >
+            <ChipSwitch
+              value={formData.jitProvisioningEnabled ? 'automatic' : 'invite-only'}
+              onChange={(value) =>
+                handleInputChange('jitProvisioningEnabled', value === 'automatic')
+              }
+              aria-label='SSO member provisioning mode'
+              options={[
+                { value: 'automatic', label: 'Automatic' },
+                { value: 'invite-only', label: 'Invite only' },
+              ]}
+            />
+            <p className='text-[var(--text-muted)] text-caption'>
+              {formData.jitProvisioningEnabled
+                ? 'New users join as Members and use a seat. Grant workspace access separately.'
+                : 'Invite or provision new members before they sign in. Existing members keep their access.'}
+            </p>
+          </SettingRow>
+        </SettingsSection>
+      </form>
+      <UnsavedChangesModal
+        open={guard.showUnsavedModal}
+        onOpenChange={guard.setShowUnsavedModal}
+        onDiscard={guard.confirmDiscard}
+      />
+    </>
   )
 }

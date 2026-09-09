@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  deleteSsoProviderContract,
   listSsoProvidersContract,
   type SsoRegistrationBody,
   ssoRegistrationContract,
@@ -62,13 +63,28 @@ export function useConfigureSSO() {
         body: config as SsoRegistrationBody,
       }),
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
-
       const orgId = typeof variables.orgId === 'string' ? variables.orgId : undefined
-      if (orgId) {
-        queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
-        queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      }
+      /** Awaited, so the caller navigates against a list that already holds the change. */
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
+        ...(orgId
+          ? [
+              queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) }),
+              queryClient.invalidateQueries({ queryKey: organizationKeys.lists() }),
+            ]
+          : []),
+      ])
     },
+  })
+}
+
+/** Removes one identity provider; accounts it admitted are untouched. */
+export function useDeleteSSOProvider() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (providerId: string) =>
+      requestJson(deleteSsoProviderContract, { params: { providerId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
   })
 }

@@ -51,7 +51,7 @@ describe.runIf(Boolean(databaseUrl))('embedding width migration in PostgreSQL', 
       )
     )
     correctiveMigration = await readFile(
-      new URL('./migrations/0334_embedding_width_nullable.sql', import.meta.url),
+      new URL('./migrations/0335_embedding_width_nullable.sql', import.meta.url),
       'utf8'
     )
   })

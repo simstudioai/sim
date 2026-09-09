@@ -6,10 +6,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSsoSignIn, mockUseSearchParams } = vi.hoisted(() => ({
+const { mockSsoSignIn, mockUseSearchParams, mockRequestJson } = vi.hoisted(() => ({
   mockSsoSignIn: vi.fn(),
   mockUseSearchParams: vi.fn(),
+  mockRequestJson: vi.fn(),
 }))
+
+vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -61,6 +64,7 @@ vi.mock('@/lib/core/config/env', () => ({
   isFalsy: (value: unknown) => value === undefined || value === 'false',
 }))
 
+import { ApiClientError } from '@/lib/api/client/errors'
 import SSOForm from '@/ee/sso/components/sso-form'
 
 function renderFirstFrame(search: string, registrationDisabled = false): string {
@@ -139,6 +143,8 @@ describe('SSOForm sign-in errors', () => {
   beforeEach(() => {
     mockSsoSignIn.mockReset()
     mockUseSearchParams.mockReset()
+    mockRequestJson.mockReset()
+    mockRequestJson.mockResolvedValue({ providerId: 'example-okta', providerType: 'oidc' })
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -162,6 +168,48 @@ describe('SSOForm sign-in errors', () => {
     )
     expect(container.querySelector('#email')).not.toHaveAttribute('aria-invalid')
     expect(container.querySelector('#email')).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('names the resolved provider instead of leaving the choice to the domain lookup', async () => {
+    mockSsoSignIn.mockResolvedValue({ data: { url: 'https://idp.example.com' }, error: null })
+    renderInteractive('email=user%40example.com')
+
+    await submitForm()
+
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/auth/sso/resolve' }),
+      { body: { email: 'user@example.com' } }
+    )
+    expect(mockSsoSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'user@example.com', providerId: 'example-okta' })
+    )
+  })
+
+  it('explains when no provider serves the domain, without starting a sign-in', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 404, message: 'No identity provider is configured', body: {} })
+    )
+    renderInteractive('email=user%40nowhere.test')
+
+    await submitForm()
+
+    expect(container).toHaveTextContent('No SSO provider is configured for this email domain')
+    expect(mockSsoSignIn).not.toHaveBeenCalled()
+    const submitButton = container.querySelector<HTMLButtonElement>('button[type="submit"]')
+    expect(submitButton?.disabled).toBe(false)
+  })
+
+  it('keeps the generic message when resolution fails for another reason', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 429, message: 'Too many requests', body: {} })
+    )
+    renderInteractive('email=user%40example.com')
+
+    await submitForm()
+
+    expect(container).toHaveTextContent('Unable to start SSO. Check your email and try again.')
+    expect(container).not.toHaveTextContent('No SSO provider is configured')
+    expect(mockSsoSignIn).not.toHaveBeenCalled()
   })
 
   it('shows a generic retryable error when Better Auth resolves with a 404', async () => {
