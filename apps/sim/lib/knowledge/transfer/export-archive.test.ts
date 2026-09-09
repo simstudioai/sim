@@ -2,15 +2,21 @@
  * @vitest-environment node
  */
 import { Readable } from 'node:stream'
+import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   downloadFileStream: vi.fn(),
+  readInlineFileUrl: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFileStream: mocks.downloadFileStream,
+}))
+
+vi.mock('@/lib/knowledge/transfer/export-source', () => ({
+  readInlineFileUrl: mocks.readInlineFileUrl,
 }))
 
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
@@ -72,10 +78,7 @@ function bundle(overrides: Partial<KnowledgeBaseExportBundle> = {}): KnowledgeBa
         id: INLINE_ID,
         filename: 'note.txt',
         mimeType: 'text/plain',
-        file: {
-          kind: 'data-uri',
-          fileUrl: `data:text/plain;base64,${Buffer.from('hi').toString('base64')}`,
-        },
+        file: { kind: 'data-uri', documentId: INLINE_ID },
         hasChunks: false,
       }),
       exportableDocument({ id: TEXT_ONLY_ID, filename: 'wiki page', file: null, hasChunks: true }),
@@ -98,6 +101,9 @@ describe('buildKnowledgeBundleArchive', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.downloadFileStream.mockImplementation(async () => Readable.from([Buffer.from('pdf')]))
+    mocks.readInlineFileUrl.mockResolvedValue(
+      `data:text/plain;base64,${Buffer.from('hi').toString('base64')}`
+    )
   })
 
   it('writes files, chunk lines, and a manifest that validates against the bundle schema', async () => {
@@ -189,6 +195,20 @@ describe('buildKnowledgeBundleArchive', () => {
       'entry:chunks/doc-b.ndjson',
       'entry:manifest.json',
     ])
+  })
+
+  /** A browser that abandons the download must not leave the append loop or its blob stream hanging. */
+  it('releases the in-flight source and stops appending when the consumer goes away', async () => {
+    const blob = new Readable({ read() {} })
+    mocks.downloadFileStream.mockResolvedValue(blob)
+    const archive = buildKnowledgeBundleArchive(bundle())
+    await sleep(1)
+    expect(mocks.downloadFileStream).toHaveBeenCalledTimes(1)
+
+    archive.destroy()
+    await sleep(1)
+    expect(blob.destroyed).toBe(true)
+    expect(mocks.readInlineFileUrl).not.toHaveBeenCalled()
   })
 })
 

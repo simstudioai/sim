@@ -220,13 +220,14 @@ export function bundleEntryPaths(
 }
 
 /**
- * Refuses an export whose stored values the bundle format cannot describe,
- * before any byte streams: the manifest is written last, so a value the import
- * side would reject must surface as a clear error rather than a truncated archive.
+ * Validates an export's stored values against the bundle format before any byte
+ * streams, and returns them in their wire shape. The manifest is written last,
+ * so a value the import side would reject must surface as a clear error rather
+ * than a truncated archive.
  */
-export function assertDescribableByBundle(manifest: unknown): void {
+export function parseDescribableBundle(manifest: unknown): KnowledgeBundleManifest {
   const result = knowledgeBundleManifestSchema.safeParse(manifest)
-  if (result.success) return
+  if (result.success) return result.data
   const [issue] = result.error.issues
   throw new OrchestrationError(
     'conflict',

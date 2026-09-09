@@ -6,10 +6,10 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { KNOWLEDGE_BUNDLE_VERSION } from '@/lib/knowledge/constants'
 import { toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import {
-  assertDescribableByBundle,
   bundleEntryPaths,
   type KnowledgeBundleManifest,
   type KnowledgeBundleTag,
+  parseDescribableBundle,
   toManifestDocument,
 } from '@/lib/knowledge/transfer/bundle'
 import {
@@ -57,32 +57,32 @@ export const exportKnowledgeBase = defineAuthorizedKnowledgeUseCase({
       listExportableTags(knowledgeBase.id),
       listExportableDocuments(knowledgeBase.id),
     ])
-    const bundle: KnowledgeBaseExportBundle = {
-      knowledgeBase: {
-        name: knowledgeBase.name,
-        description: knowledgeBase.description,
-        chunkingConfig: knowledgeBase.chunkingConfig,
-      },
+    const manifest = parseDescribableBundle({
+      version: KNOWLEDGE_BUNDLE_VERSION,
+      exportedAt: new Date().toISOString(),
       embedding: {
         model: knowledgeBase.embeddingModel,
         dimension,
         vectorsIncluded: input.vectors,
       },
-      tags,
-      documents,
-      chunks: (documentId) => iterateDocumentChunks(documentId, input.vectors ? dimension : null),
-    }
-    assertDescribableByBundle({
-      version: KNOWLEDGE_BUNDLE_VERSION,
-      exportedAt: new Date().toISOString(),
-      embedding: bundle.embedding,
-      knowledgeBase: bundle.knowledgeBase,
+      knowledgeBase: {
+        name: knowledgeBase.name,
+        description: knowledgeBase.description,
+        chunkingConfig: knowledgeBase.chunkingConfig,
+      },
       tags,
       documents: documents.map((document) =>
         toManifestDocument(document, bundleEntryPaths(document), 0)
       ),
     })
-    return bundle
+    return {
+      knowledgeBase: manifest.knowledgeBase,
+      embedding: manifest.embedding,
+      tags: manifest.tags,
+      documents,
+      chunks: (documentId) =>
+        iterateDocumentChunks(knowledgeBase.id, documentId, input.vectors ? dimension : null),
+    }
   },
   projectAudit: ({ context, input, result }) => ({
     action: AuditAction.KNOWLEDGE_BASE_EXPORTED,

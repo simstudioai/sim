@@ -7,11 +7,9 @@ import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { ALL_TAG_SLOTS, MAX_KNOWLEDGE_BUNDLE_DOCUMENTS } from '@/lib/knowledge/constants'
 import { getTagDefinitions } from '@/lib/knowledge/tags/service'
-import {
-  type ExportableDocumentRecord,
-  type KnowledgeBundleChunkLine,
-  type KnowledgeBundleTag,
-  knowledgeBundleTagSchema,
+import type {
+  ExportableDocumentRecord,
+  KnowledgeBundleChunkLine,
 } from '@/lib/knowledge/transfer/bundle'
 import { embeddingVectorColumn } from '@/lib/knowledge/vector-columns'
 
@@ -29,7 +27,7 @@ const CHUNK_PAGE_SIZE = { text: 500, vectors: 100 } as const
 /** Where a document's original bytes come from, when it has any. */
 export type ExportableFileSource =
   | { kind: 'storage'; key: string }
-  | { kind: 'data-uri'; fileUrl: string }
+  | { kind: 'data-uri'; documentId: string }
 
 export interface ExportableDocument extends ExportableDocumentRecord {
   file: ExportableFileSource | null
@@ -53,29 +51,40 @@ function exportableDocumentCondition(knowledgeBaseId: string) {
 }
 
 function fileSourceFor(row: {
+  id: string
   storageKey: string | null
-  fileUrl: string
+  hasInlineFile: boolean
 }): ExportableFileSource | null {
   if (row.storageKey) return { kind: 'storage', key: row.storageKey }
-  if (row.fileUrl.startsWith('data:')) return { kind: 'data-uri', fileUrl: row.fileUrl }
+  if (row.hasInlineFile) return { kind: 'data-uri', documentId: row.id }
   return null
 }
 
-/**
- * The base's tag definitions in slot order, validated against the bundle's tag
- * schema: the stored `tagSlot` column type only names the text slots and
- * `fieldType` is free text, so validation is what proves the rows form an
- * importable manifest.
- */
-export async function listExportableTags(knowledgeBaseId: string): Promise<KnowledgeBundleTag[]> {
+/** The base's tag definitions in slot order, as stored; the bundle gate validates them. */
+export async function listExportableTags(
+  knowledgeBaseId: string
+): Promise<Array<{ slot: string; displayName: string; fieldType: string }>> {
   const definitions = await getTagDefinitions(knowledgeBaseId)
-  return knowledgeBundleTagSchema.array().parse(
-    definitions.map(({ tagSlot, displayName, fieldType }) => ({
-      slot: tagSlot,
-      displayName,
-      fieldType,
-    }))
-  )
+  return definitions.map(({ tagSlot, displayName, fieldType }) => ({
+    slot: tagSlot,
+    displayName,
+    fieldType,
+  }))
+}
+
+/**
+ * A document's inline `data:` payload, read only when its archive entry is
+ * reached: the column can hold megabytes per row, so the listing carries a flag
+ * and the archive fetches one payload at a time.
+ */
+export async function readInlineFileUrl(documentId: string): Promise<string> {
+  const [row] = await db
+    .select({ fileUrl: document.fileUrl })
+    .from(document)
+    .where(eq(document.id, documentId))
+    .limit(1)
+  if (!row) throw new OrchestrationError('not_found', 'Document not found')
+  return row.fileUrl
 }
 
 /**
@@ -95,7 +104,7 @@ export async function listExportableDocuments(
       fileSize: document.fileSize,
       enabled: document.enabled,
       storageKey: document.storageKey,
-      fileUrl: document.fileUrl,
+      hasInlineFile: sql<boolean>`${document.fileUrl} LIKE 'data:%'`,
       processingStatus: document.processingStatus,
       chunkCount: document.chunkCount,
       tokenCount: document.tokenCount,
@@ -157,6 +166,7 @@ export async function listExportableDocuments(
  * alone is the keyset and each page is one index range scan.
  */
 export async function* iterateDocumentChunks(
+  knowledgeBaseId: string,
   documentId: string,
   dimensions: KbEmbeddingDimensions | null
 ): AsyncGenerator<ExportableChunk> {
@@ -176,6 +186,7 @@ export async function* iterateDocumentChunks(
       .from(embedding)
       .where(
         and(
+          eq(embedding.knowledgeBaseId, knowledgeBaseId),
           eq(embedding.documentId, documentId),
           after === null ? undefined : gt(embedding.chunkIndex, after)
         )

@@ -16,7 +16,11 @@ import {
   safeBundleLeafName,
   toManifestDocument,
 } from '@/lib/knowledge/transfer/bundle'
-import type { ExportableChunk, ExportableFileSource } from '@/lib/knowledge/transfer/export-source'
+import {
+  type ExportableChunk,
+  type ExportableFileSource,
+  readInlineFileUrl,
+} from '@/lib/knowledge/transfer/export-source'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -34,7 +38,10 @@ async function openFileSource(source: ExportableFileSource): Promise<Readable | 
   if (source.kind === 'storage') {
     return downloadFileStream({ key: source.key, context: 'knowledge-base' })
   }
-  return decodeDataUriWithinLimit(source.fileUrl, MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE).buffer
+  return decodeDataUriWithinLimit(
+    await readInlineFileUrl(source.documentId),
+    MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
+  ).buffer
 }
 
 /**
@@ -56,16 +63,24 @@ function toChunkLine(chunk: ExportableChunk, vectors: boolean): KnowledgeBundleC
  * event keeps exactly one source open and lets the manifest go last with the
  * counts the chunk streams actually produced. Archiver drains its queue one
  * entry at a time and emits `entry` exactly once per append, or `error` in its
- * place, which `once` turns into a rejection.
+ * place, which `once` turns into a rejection. A consumer that goes away
+ * destroys the archive without either event, so `closed` aborts the wait and
+ * the in-flight source is released instead of leaking.
  */
 async function appendEntry(
   archive: ZipArchive,
   source: Readable | Buffer | string,
-  name: string
+  name: string,
+  closed: AbortSignal
 ): Promise<void> {
-  const consumed = once(archive, 'entry')
+  const consumed = once(archive, 'entry', { signal: closed })
   archive.append(source, { name })
-  await consumed
+  try {
+    await consumed
+  } catch (error) {
+    if (source instanceof Readable) source.destroy()
+    throw error
+  }
 }
 
 /** Appends a document's chunks as NDJSON and returns how many lines were written. */
@@ -73,7 +88,8 @@ async function appendChunkEntry(
   archive: ZipArchive,
   chunks: AsyncIterable<ExportableChunk>,
   vectors: boolean,
-  name: string
+  name: string,
+  closed: AbortSignal
 ): Promise<number> {
   let written = 0
   const lines = Readable.from(
@@ -85,26 +101,28 @@ async function appendChunkEntry(
     })(),
     { objectMode: false }
   )
-  await appendEntry(archive, lines, name)
+  await appendEntry(archive, lines, name, closed)
   return written
 }
 
 async function appendBundleEntries(
   archive: ZipArchive,
-  bundle: KnowledgeBaseExportBundle
+  bundle: KnowledgeBaseExportBundle,
+  closed: AbortSignal
 ): Promise<void> {
   const documents: KnowledgeBundleDocument[] = []
   for (const document of bundle.documents) {
     const entries = bundleEntryPaths(document)
     if (document.file && entries.file) {
-      await appendEntry(archive, await openFileSource(document.file), entries.file)
+      await appendEntry(archive, await openFileSource(document.file), entries.file, closed)
     }
     const chunkCount = entries.chunks
       ? await appendChunkEntry(
           archive,
           bundle.chunks(document.id),
           bundle.embedding.vectorsIncluded,
-          entries.chunks
+          entries.chunks,
+          closed
         )
       : 0
     documents.push(toManifestDocument(document, entries, chunkCount))
@@ -118,7 +136,12 @@ async function appendBundleEntries(
     tags: bundle.tags,
     documents,
   }
-  await appendEntry(archive, JSON.stringify(manifest, null, 2), KNOWLEDGE_BUNDLE_MANIFEST_ENTRY)
+  await appendEntry(
+    archive,
+    JSON.stringify(manifest, null, 2),
+    KNOWLEDGE_BUNDLE_MANIFEST_ENTRY,
+    closed
+  )
   await archive.finalize()
 }
 
@@ -135,7 +158,10 @@ export function buildKnowledgeBundleArchive(bundle: KnowledgeBaseExportBundle): 
   archive.on('warning', (error: Error) => {
     logger.warn('Archive warning while streaming knowledge base bundle', { error })
   })
-  appendBundleEntries(archive, bundle).catch((error: unknown) => {
+  const closed = new AbortController()
+  archive.once('close', () => closed.abort())
+  appendBundleEntries(archive, bundle, closed.signal).catch((error: unknown) => {
+    if (closed.signal.aborted) return
     logger.error('Failed to build knowledge base bundle archive', { error })
     archive.destroy(toError(error))
   })

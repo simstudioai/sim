@@ -135,14 +135,14 @@ describe('exportKnowledgeBase', () => {
       input: { knowledgeBaseId: 'knowledge-1', vectors: true },
     })
     withVectors.chunks('doc-1')
-    expect(mocks.iterateChunks).toHaveBeenLastCalledWith('doc-1', 1536)
+    expect(mocks.iterateChunks).toHaveBeenLastCalledWith('knowledge-1', 'doc-1', 1536)
 
     const textOnly = await exportKnowledgeBase.execute({
       principal,
       input: { knowledgeBaseId: 'knowledge-1', vectors: false },
     })
     textOnly.chunks('doc-1')
-    expect(mocks.iterateChunks).toHaveBeenLastCalledWith('doc-1', null)
+    expect(mocks.iterateChunks).toHaveBeenLastCalledWith('knowledge-1', 'doc-1', null)
     expect(textOnly.embedding.vectorsIncluded).toBe(false)
   })
 
@@ -194,6 +194,19 @@ describe('exportKnowledgeBase', () => {
       })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses a stored tag definition the bundle format cannot describe', async () => {
+    mocks.listTags.mockResolvedValueOnce([
+      { slot: 'tag1', displayName: 'Product', fieldType: 'mystery' },
+    ])
+
+    await expect(
+      exportKnowledgeBase.execute({
+        principal,
+        input: { knowledgeBaseId: 'knowledge-1', vectors: true },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
   })
 
   it('propagates an oversized base without recording audit', async () => {
