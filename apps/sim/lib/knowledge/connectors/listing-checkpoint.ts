@@ -74,9 +74,11 @@ export function beginListingCheckpoint(input: {
 }
 
 /**
- * Persists one provider page only after its documents and observations land.
- * A crash replays at most that page; EOF is durable so reconciliation can resume
- * independently. Runtime caches and access tokens never enter the checkpoint.
+ * Pins an optional current-page replay cursor before processing, without advancing
+ * the listed count or marking completion. Advances the cursor and persists EOF only
+ * after the page's documents and observations land. A crash replays at most that page;
+ * durable EOF lets reconciliation resume independently. Runtime caches and access
+ * tokens never enter the checkpoint.
  */
 export async function runResumableListing(input: {
   connectorConfig: Pick<ConnectorConfig, 'listDocuments' | 'isListingCursorInvalidError'>

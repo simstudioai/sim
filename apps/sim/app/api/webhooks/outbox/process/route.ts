@@ -10,10 +10,12 @@ import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provi
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
+import { DeadlineExceededError } from '@/lib/core/utils/deadline'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { directGrantOutboxHandlers } from '@/lib/invitations/direct-grant'
 import { slackSearchOutboxHandlers } from '@/lib/knowledge/application/slack-search/outbox'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
@@ -66,8 +68,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       if (Date.now() - startedAt < 770_000) {
         recoveredDocuments = await recoverKnowledgeDocumentProcessing()
       }
-    } catch {
-      logger.error('Stored document recovery failed', { requestId })
+    } catch (error) {
+      logger.error('Stored document recovery failed', {
+        requestId,
+        error: getConnectorFailureDiagnostic(error) ?? {
+          category: error instanceof DeadlineExceededError ? 'deadline' : 'internal',
+          message:
+            error instanceof DeadlineExceededError
+              ? error.message
+              : 'Unexpected stored-document recovery failure',
+        },
+      })
     }
 
     // Reap fork background-work rows stuck `processing` past their TTL (worker crash /

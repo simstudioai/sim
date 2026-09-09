@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { withinDeadline } from '@/lib/core/utils/deadline'
+import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 
 afterEach(() => vi.useRealTimers())
 
@@ -17,13 +17,21 @@ describe('bounded asynchronous operations', () => {
       signal.throwIfAborted()
       mutate()
     }, Date.now() + 100)
-    const rejection = expect(operation).rejects.toThrow('Operation deadline expired')
+    const rejection = expect(operation).rejects.toBeInstanceOf(DeadlineExceededError)
     await vi.advanceTimersByTimeAsync(100)
     await rejection
     resolve()
     await vi.advanceTimersByTimeAsync(1)
     expect(mutate).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('rejects an expired deadline before starting dependency work', async () => {
+    const dependency = vi.fn()
+    await expect(withinDeadline(dependency, Date.now() - 1)).rejects.toBeInstanceOf(
+      DeadlineExceededError
+    )
+    expect(dependency).not.toHaveBeenCalled()
   })
 
   it('clears its timer after successful completion and propagates caller cancellation', async () => {
