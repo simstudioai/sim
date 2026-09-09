@@ -488,6 +488,50 @@ describe('redactSensitiveValues', () => {
 })
 
 describe('redactApiKeys', () => {
+  describe('HTTP headers', () => {
+    it.each(['aUtHoRiZaTiOn', 'Proxy-Authorization', 'X-Api-Key', 'Cookie', 'Set-Cookie'])(
+      'redacts %s in header maps and table rows without mutating the input',
+      (name) => {
+        const row = { id: 'header-row', cells: { Key: name, Value: 'synthetic-header-value' } }
+        const input = {
+          request: { headers: [row, { cells: { Key: 'Accept', Value: 'application/json' } }] },
+          responses: [
+            { headers: { [name]: 'synthetic-header-value', 'Content-Type': 'text/plain' } },
+          ],
+        }
+        const original = structuredClone(input)
+
+        const result = redactApiKeys(input)
+
+        expect(result.request.headers).toEqual([
+          { id: 'header-row', cells: { Key: name, Value: '[REDACTED]' } },
+          { cells: { Key: 'Accept', Value: 'application/json' } },
+        ])
+        expect(result.responses[0].headers).toEqual({
+          [name]: '[REDACTED]',
+          'Content-Type': 'text/plain',
+        })
+        expect(input).toEqual(original)
+        expect(redactApiKeys(result)).toEqual(result)
+      }
+    )
+
+    it('does not treat unrelated tables or cookie fields as HTTP headers', () => {
+      const input = {
+        rows: [{ cells: { Key: 'Authorization', Value: 'ordinary-table-value' } }],
+        Cookie: 'ordinary-field-value',
+        headers: [
+          null,
+          {},
+          { cells: { Key: 'Authorization' } },
+          { cells: { Key: 1, Value: 'ok' } },
+        ],
+      }
+
+      expect(redactApiKeys(input)).toEqual(input)
+    })
+  })
+
   describe('object redaction', () => {
     it.concurrent('should redact sensitive keys in flat objects', () => {
       const obj = {
