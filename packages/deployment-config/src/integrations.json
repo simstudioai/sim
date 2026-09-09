@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-08",
+  "updatedAt": "2026-09-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -14929,6 +14929,73 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "email-marketing"]
+    },
+    {
+      "type": "mailtrap",
+      "slug": "mailtrap",
+      "name": "Mailtrap",
+      "description": "Send emails and manage contacts with Mailtrap.",
+      "longDescription": "Integrate Mailtrap into your workflow. Send emails through the transactional, bulk, or sandbox stream, manage contacts and contact lists, and search the email logs. The log filters cover the common cases with fixed operators; negation, event, open/click count, and IP or domain filters are not exposed. Requires a Mailtrap API token.",
+      "bgColor": "#1A2E44",
+      "iconName": "MailtrapIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mailtrap",
+      "operations": [
+        {
+          "name": "Send Email",
+          "description": "Send an email through Mailtrap using the transactional, bulk, or sandbox (testing) stream. Supports plain text, HTML, and stored template bodies."
+        },
+        {
+          "name": "Create Contact",
+          "description": "Create a new contact in Mailtrap with optional custom fields and list membership"
+        },
+        {
+          "name": "Get Contact",
+          "description": "Retrieve a Mailtrap contact by its UUID or email address"
+        },
+        {
+          "name": "Update Contact",
+          "description": "Update a Mailtrap contact by UUID or email. Can change fields, list membership, and subscription state; creates the contact when it does not exist yet."
+        },
+        {
+          "name": "Delete Contact",
+          "description": "Delete a Mailtrap contact by its UUID or email address"
+        },
+        {
+          "name": "List Contact Lists",
+          "description": "List every contact list in the Mailtrap account, optionally filtered by name prefix"
+        },
+        {
+          "name": "Create Contact List",
+          "description": "Create a new contact list in the Mailtrap account"
+        },
+        {
+          "name": "Get Contact List",
+          "description": "Retrieve a single Mailtrap contact list by its id"
+        },
+        {
+          "name": "Update Contact List",
+          "description": "Rename an existing Mailtrap contact list"
+        },
+        {
+          "name": "Delete Contact List",
+          "description": "Delete a Mailtrap contact list by its id"
+        },
+        {
+          "name": "List Email Logs",
+          "description": "List sent messages from the Mailtrap email logs, filtered by date range, recipient, sender, subject, status, category, or stream. Results are ordered by sent time, newest first, and paginated with a cursor. Advanced filters (negation, event, open/click counts, IP, domain) are not exposed."
+        },
+        {
+          "name": "Get Email Log",
+          "description": "Retrieve a single sent message from the Mailtrap email logs by its message UUID, including the delivery/open/click event timeline and a temporary raw .eml download URL."
+        }
+      ],
+      "operationCount": 12,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "email",
+      "tags": ["email-marketing", "messaging"]
     },
     {
       "type": "manageengine_sdp",

@@ -1,0 +1,348 @@
+---
+title: Mailtrap
+description: Send emails and manage contacts with Mailtrap.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailtrap"
+  color="#1A2E44"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailtrap](https://mailtrap.io) is an email delivery platform for developers. It sends transactional and bulk email over an HTTP API or SMTP, and provides an Email Sandbox that captures messages during development and CI instead of delivering them.
+
+This integration covers the sending, email logs, and contacts parts of the Mailtrap API. Messages are routed through the transactional, bulk, or sandbox stream, delivery can be inspected through the email logs, and contacts and contact lists can be created and maintained for marketing sends.
+
+Key capabilities exposed through Sim:
+
+- **Email sending:** Deliver plain text, HTML, or stored-template emails through the transactional or bulk stream, with categories, custom variables, and custom headers.
+- **Sandbox testing:** Send to a testing inbox so the message is captured and never actually delivered — useful for QA and CI pipelines.
+- **Email logs:** List sent messages filtered by date range, recipient, status, category, or stream, and pull one message with its full open/click/bounce event timeline.
+- **Contact management:** Create, read, update, and delete contacts, including custom field values and list membership.
+- **Contact lists:** List, create, rename, and delete the lists that group contacts for marketing.
+
+By integrating Mailtrap into Sim, your agents can send transactional and campaign email and keep contact data in sync as part of automated workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Mailtrap into your workflow. Send emails through the transactional, bulk, or sandbox stream, manage contacts and contact lists, and search the email logs. The log filters cover the common cases with fixed operators; negation, event, open/click count, and IP or domain filters are not exposed. Requires a Mailtrap API token.
+
+
+
+## Actions
+
+### Mailtrap Send Email
+
+Send an email through Mailtrap using the transactional, bulk, or sandbox (testing) stream. Supports plain text, HTML, and stored template bodies.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with sending permissions for the selected stream |
+| `stream` | string | No | Sending stream: "transactional" \(default\), "bulk", or "sandbox" |
+| `sandboxId` | string | No | Sandbox id. Required when stream is "sandbox" |
+| `from` | string | Yes | Sender address, either "sender@example.com" or "Sender Name &lt;sender@example.com&gt;". Must belong to a verified sending domain |
+| `to` | string | No | Recipient address\(es\), up to 1000. Comma-separated, each either "user@example.com" or "Name &lt;user@example.com&gt;". At least one recipient across to, cc, or bcc is required |
+| `cc` | string | No | CC address\(es\), up to 1000. Comma-separated, each "user@example.com" or "Name &lt;user@example.com&gt;" |
+| `bcc` | string | No | BCC address\(es\), up to 1000. Comma-separated, each "user@example.com" or "Name &lt;user@example.com&gt;" |
+| `replyTo` | string | No | Reply-To address, either "user@example.com" or "Name &lt;user@example.com&gt;" |
+| `subject` | string | Yes | Email subject line \(non-empty\). When a template is used, this overrides the template subject |
+| `text` | string | No | Plain text body |
+| `html` | string | No | HTML body |
+| `category` | string | No | Category label used for grouping and analytics in Mailtrap \(max 255 characters\) |
+| `customVariables` | json | No | Object of string key-value pairs attached to the message as custom variables |
+| `emailHeaders` | json | No | Object of additional SMTP headers to attach to the message |
+| `templateUuid` | string | No | UUID of a Mailtrap email template to render instead of text/html |
+| `templateVariables` | json | No | Object of variables passed to the selected template |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Mailtrap accepted the message |
+| `messageIds` | array | Message ids assigned by Mailtrap, one per recipient |
+
+### Mailtrap Create Contact
+
+Create a new contact in Mailtrap with optional custom fields and list membership
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `email` | string | Yes | Email address of the contact |
+| `fields` | json | No | Object of contact field values keyed by merge tag \(e.g. \{"first_name": "John"\}\) |
+| `listIds` | string | No | Comma-separated contact list ids to add the contact to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The created contact |
+|   ↳ `id` | string | Contact id \(UUID\) |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `fields` | json | Contact field values keyed by merge tag |
+|   ↳ `listIds` | array | Ids of the lists the contact belongs to |
+|   ↳ `status` | string | Subscription status: subscribed or unsubscribed |
+|   ↳ `createdAt` | number | Creation time in epoch milliseconds |
+|   ↳ `updatedAt` | number | Last update time in epoch milliseconds |
+
+### Mailtrap Get Contact
+
+Retrieve a Mailtrap contact by its UUID or email address
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `contactIdentifier` | string | Yes | Contact UUID or email address |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The requested contact |
+|   ↳ `id` | string | Contact id \(UUID\) |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `fields` | json | Contact field values keyed by merge tag |
+|   ↳ `listIds` | array | Ids of the lists the contact belongs to |
+|   ↳ `status` | string | Subscription status: subscribed or unsubscribed |
+|   ↳ `createdAt` | number | Creation time in epoch milliseconds |
+|   ↳ `updatedAt` | number | Last update time in epoch milliseconds |
+
+### Mailtrap Update Contact
+
+Update a Mailtrap contact by UUID or email. Can change fields, list membership, and subscription state; creates the contact when it does not exist yet.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `contactIdentifier` | string | Yes | Contact UUID or email address to update |
+| `email` | string | Yes | Email address of the contact \(required by the API, may equal the identifier\) |
+| `fields` | json | No | Object of contact field values keyed by merge tag |
+| `listIdsIncluded` | string | No | Comma-separated contact list ids to add the contact to |
+| `listIdsExcluded` | string | No | Comma-separated contact list ids to remove the contact from |
+| `unsubscribed` | boolean | No | Set to true to unsubscribe the contact, false to resubscribe |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | "created" when the contact did not exist, otherwise "updated" |
+| `contact` | object | The contact after the update |
+|   ↳ `id` | string | Contact id \(UUID\) |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `fields` | json | Contact field values keyed by merge tag |
+|   ↳ `listIds` | array | Ids of the lists the contact belongs to |
+|   ↳ `status` | string | Subscription status: subscribed or unsubscribed |
+|   ↳ `createdAt` | number | Creation time in epoch milliseconds |
+|   ↳ `updatedAt` | number | Last update time in epoch milliseconds |
+
+### Mailtrap Delete Contact
+
+Delete a Mailtrap contact by its UUID or email address
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `contactIdentifier` | string | Yes | Contact UUID or email address to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request succeeded |
+| `deleted` | boolean | Whether the contact was deleted |
+
+### Mailtrap List Contact Lists
+
+List every contact list in the Mailtrap account, optionally filtered by name prefix
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `search` | string | No | Case-insensitive name prefix to filter the lists by |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Contact lists in the account |
+|   ↳ `id` | number | Contact list id |
+|   ↳ `name` | string | Contact list name |
+
+### Mailtrap Create Contact List
+
+Create a new contact list in the Mailtrap account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `name` | string | Yes | Name of the contact list \(max 255 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | The created contact list |
+|   ↳ `id` | number | Contact list id |
+|   ↳ `name` | string | Contact list name |
+
+### Mailtrap Get Contact List
+
+Retrieve a single Mailtrap contact list by its id
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `listId` | string | Yes | Id of the contact list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | The requested contact list |
+|   ↳ `id` | number | Contact list id |
+|   ↳ `name` | string | Contact list name |
+
+### Mailtrap Update Contact List
+
+Rename an existing Mailtrap contact list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `listId` | string | Yes | Id of the contact list to update |
+| `name` | string | Yes | New name for the contact list \(max 255 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | The contact list after the update |
+|   ↳ `id` | number | Contact list id |
+|   ↳ `name` | string | Contact list name |
+
+### Mailtrap Delete Contact List
+
+Delete a Mailtrap contact list by its id
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with contacts access |
+| `listId` | string | Yes | Id of the contact list to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request succeeded |
+| `deleted` | boolean | Whether the contact list was deleted |
+
+### Mailtrap List Email Logs
+
+List sent messages from the Mailtrap email logs, filtered by date range, recipient, sender, subject, status, category, or stream. Results are ordered by sent time, newest first, and paginated with a cursor. Advanced filters (negation, event, open/click counts, IP, domain) are not exposed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with access to the sending domains |
+| `sentAfter` | string | No | Start of the sent-at range, ISO 8601 \(e.g. "2025-01-01T00:00:00Z"\) |
+| `sentBefore` | string | No | End of the sent-at range, ISO 8601 |
+| `to` | string | No | Filter by recipient address, case-insensitive exact match \(ci_equal operator\) |
+| `fromAddress` | string | No | Filter by sender address, case-insensitive exact match \(ci_equal operator\) |
+| `subject` | string | No | Filter by subject. The match operator is set by subjectMatch \(defaults to case-insensitive substring\). Ignored when subjectMatch is "empty". |
+| `subjectMatch` | string | No | How to match subject: "contain" \(case-insensitive substring, default\), "equal" \(case-insensitive exact\), or "empty" \(messages with no subject\). |
+| `status` | string | No | Filter by delivery status, exact match. Accepts a comma-separated list to match any of: "delivered", "not_delivered", "enqueued", "opted_out" |
+| `category` | string | No | Filter by category, exact match. Accepts a comma-separated list |
+| `sendingStream` | string | No | Filter by stream, exact match: "transactional" or "bulk". Accepts a comma-separated list |
+| `searchAfter` | string | No | Pagination cursor \(the nextPageCursor from a previous call\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Matching messages, newest first |
+|   ↳ `messageId` | string | Message UUID |
+|   ↳ `status` | string | delivered, not_delivered, enqueued, opted_out |
+|   ↳ `subject` | string | Subject line |
+|   ↳ `from` | string | Sender address |
+|   ↳ `to` | string | Recipient address |
+|   ↳ `sentAt` | string | Send time \(ISO 8601\) |
+|   ↳ `clientIp` | string | Client IP the send came from |
+|   ↳ `category` | string | Category label |
+|   ↳ `customVariables` | json | Custom variables attached to the message |
+|   ↳ `sendingStream` | string | transactional or bulk |
+|   ↳ `domainId` | number | Sending domain id |
+|   ↳ `templateId` | number | Template id, if a template was used |
+|   ↳ `templateVariables` | json | Template variables |
+|   ↳ `opensCount` | number | Number of opens |
+|   ↳ `clicksCount` | number | Number of clicks |
+|   ↳ `rfcMessageId` | string | RFC 5322 Message-ID header |
+|   ↳ `inReplyTo` | string | RFC 5322 In-Reply-To header |
+|   ↳ `references` | array | RFC 5322 References header values |
+|   ↳ `threadId` | string | Inbound thread id, if any |
+| `totalCount` | number | Total messages matching the filters, before paging |
+| `nextPageCursor` | string | Cursor for the next page, or null when there are no more results |
+
+### Mailtrap Get Email Log
+
+Retrieve a single sent message from the Mailtrap email logs by its message UUID, including the delivery/open/click event timeline and a temporary raw .eml download URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Yes | Mailtrap API token with access to the sending domain |
+| `messageId` | string | Yes | Message UUID \(the messageId from a send or from list email logs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | The requested message |
+|   ↳ `messageId` | string | Message UUID |
+|   ↳ `status` | string | delivered, not_delivered, enqueued, opted_out |
+|   ↳ `subject` | string | Subject line |
+|   ↳ `from` | string | Sender address |
+|   ↳ `to` | string | Recipient address |
+|   ↳ `sentAt` | string | Send time \(ISO 8601\) |
+|   ↳ `clientIp` | string | Client IP the send came from |
+|   ↳ `category` | string | Category label |
+|   ↳ `customVariables` | json | Custom variables attached to the message |
+|   ↳ `sendingStream` | string | transactional or bulk |
+|   ↳ `domainId` | number | Sending domain id |
+|   ↳ `templateId` | number | Template id, if a template was used |
+|   ↳ `templateVariables` | json | Template variables |
+|   ↳ `opensCount` | number | Number of opens |
+|   ↳ `clicksCount` | number | Number of clicks |
+|   ↳ `rfcMessageId` | string | RFC 5322 Message-ID header |
+|   ↳ `inReplyTo` | string | RFC 5322 In-Reply-To header |
+|   ↳ `references` | array | RFC 5322 References header values |
+|   ↳ `threadId` | string | Inbound thread id, if any |
+|   ↳ `rawMessageUrl` | string | Temporary signed URL to download the raw .eml |
+|   ↳ `events` | json | Event timeline. Each entry has event_type, created_at, and a type-specific details object |
+
+
