@@ -8,7 +8,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0.
+Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0, and an organization can use more than one identity provider at a time, one per verified domain.
 
 ---
 
@@ -36,7 +36,9 @@ Go to **Settings → Organization → Single sign-on**. The page has three tabs:
 | **Domains** | DNS verification shared by SSO and SCIM |
 | **Provisioning** | SCIM connection, tokens, rules, group mappings, and activity |
 
-Use **Domains** to verify ownership, then return to **Sign-in** to configure your provider. Switching tabs preserves an unsaved sign-in draft while you stay on this page; use **Save** or **Update** to commit it. The selected tab is included in the URL, so it can be bookmarked or shared. On self-hosted deployments, Provisioning appears when SCIM is enabled.
+Use **Domains** to verify ownership, then return to **Sign-in** to configure your provider. Switching tabs preserves an unsaved sign-in draft while you stay on this page; use **Save** or **Update** to commit it. The selected tab and provider are included in the URL, so they can be bookmarked or shared. On self-hosted deployments, Provisioning appears when SCIM is enabled.
+
+An organization can run several identity providers at once, each serving a different verified domain: Okta for `eng.acme.com` and Microsoft Entra ID for `acme.com`, for example. **Sign-in** lists them; select **Add identity provider** for another, or a row to view, edit, or delete one. Sim routes each sign-in by the email domain, so a domain routes to exactly one provider.
 
 ### 2. Choose a protocol
 
@@ -99,7 +101,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 ## Editing and advanced configuration
 
-For a saved connection, open **Sign-in** and select **Edit**. The Provider ID remains fixed. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
+For a saved connection, open **Sign-in**, select the provider, and select **Edit**. The Provider ID remains fixed. **Delete** removes that sign-in path only: accounts and memberships it admitted stay, and people at its domain sign in another way until a provider serves the domain again. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
 
 **Advanced options** contains OIDC scopes and optional authorization, token, and JWKS endpoint overrides. For SAML, it contains Audience, Callback URL override, signed-assertion requirements, NameID format, and optional IdP metadata XML. **Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
 
@@ -285,7 +287,7 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 
 1. User goes to `sim.ai` and clicks **Sign in with SSO**
 2. They enter their work email (e.g. `alice@company.com`)
-3. Sim redirects them to your identity provider
+3. Sim looks up the provider that serves `company.com` and redirects them to it
 4. After authenticating, they are returned to Sim
 5. If **First sign-in** is **Automatic**, Sim adds them to the organization as a Member, growing a Team seat count or validating available fixed-seat capacity
 6. They land in an accessible workspace, or see a clear no-access state until an admin grants workspace access
@@ -311,7 +313,11 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "What is the Domain field used for?",
-    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to a registered SSO provider and redirects them there."
+    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to the provider that serves it and redirects them there. Each verified domain routes to one provider, and an organization can serve different domains with different providers."
+  },
+  {
+    question: "Can we use more than one identity provider?",
+    answer: "Yes. Add one provider per verified domain: for example Okta for eng.acme.com and Microsoft Entra ID for acme.com. Sign-in routes by email domain, so a single domain cannot be split across two providers. SCIM provisioning stays organization-wide and works alongside any number of providers."
   },
   {
     question: "Do I need to provide OIDC endpoints manually?",
@@ -343,7 +349,7 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "How do I update or replace an existing SSO configuration?",
-    answer: "Open Settings → Organization → Single sign-on → Sign-in and select Edit. Change the fields and select Update. The Provider ID cannot be changed; replacing it requires deleting the provider and creating a new one."
+    answer: "Open Settings → Organization → Single sign-on → Sign-in, select the provider, and select Edit. Change the fields and select Update. The Provider ID cannot be changed; replacing it means deleting the provider and adding a new one."
   }
 ]} />
 
