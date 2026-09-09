@@ -1,4 +1,5 @@
 name: CI
+# Temporary stacked-PR trigger validation; this branch will not be merged.
 
 # Runner provider toggle, read from the CI_PROVIDER repo variable:
 #
