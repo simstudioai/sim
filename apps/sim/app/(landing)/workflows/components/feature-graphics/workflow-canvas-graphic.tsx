@@ -1,5 +1,6 @@
 import { ChipTag, cn } from '@sim/emcn'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/workflows/components/feature-graphics/workflow-canvas-graphic.module.css'
 
@@ -65,11 +66,14 @@ const EDGE_DRAW_CLASSES = [styles.edgeDraw0, styles.edgeDraw1, styles.edgeDraw2]
 export function WorkflowCanvasGraphic() {
   return (
     <FeatureGraphicShell variant='portrait'>
-      <div
-        aria-hidden='true'
-        className='absolute inset-0 flex items-center justify-center p-3 [container-type:size]'
-      >
-        <div className='relative h-[400px] w-[280px] shrink-0 [scale:min(tan(atan2(100cqw,280px)),tan(atan2(100cqh,400px)))]'>
+      <div aria-hidden='true' className='absolute inset-3'>
+        <ResponsiveDesignStage
+          width={LAYOUT.width}
+          height={LAYOUT.height}
+          maxScale={Number.POSITIVE_INFINITY}
+          className='h-full w-full'
+          contentClassName='relative'
+        >
           <svg
             className='absolute inset-0'
             fill='none'
@@ -139,7 +143,7 @@ export function WorkflowCanvasGraphic() {
               </span>
             </div>
           ))}
-        </div>
+        </ResponsiveDesignStage>
       </div>
     </FeatureGraphicShell>
   )

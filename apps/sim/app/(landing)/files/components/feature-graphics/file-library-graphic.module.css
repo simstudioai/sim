@@ -44,9 +44,9 @@
 
 .folderButton {
   position: relative;
-  min-width: 0;
-  min-height: 0;
-  container-type: size;
+  display: block;
+  width: 100%;
+  height: 100%;
   cursor: pointer;
   touch-action: manipulation;
   border-radius: 12px;
@@ -60,11 +60,10 @@
   width: 321px;
   height: 270px;
   left: 50%;
-  bottom: 12px;
+  bottom: 0;
   margin-left: -160.5px;
   perspective: 800px;
   transform-origin: bottom center;
-  scale: min(tan(atan2(100cqw, 350px)), tan(atan2(100cqh, 340px)));
 }
 .folderBack {
   position: absolute;

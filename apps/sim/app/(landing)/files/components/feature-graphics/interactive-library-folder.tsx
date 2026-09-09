@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { motion, useReducedMotion } from 'framer-motion'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import styles from '@/app/(landing)/files/components/feature-graphics/file-library-graphic.module.css'
 
 /**
@@ -72,53 +73,68 @@ export function InteractiveLibraryFolder({
     : { type: 'spring' as const, stiffness: 120, damping: 14 }
 
   return (
-    <button
-      type='button'
-      className={cn(styles.folderButton, className)}
-      aria-label={`${name}, ${count}`}
-      aria-pressed={open}
-      onPointerEnter={(event) => {
-        if (event.pointerType !== 'touch') setHovered(true)
-      }}
-      onPointerLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      onClick={() => setOpen((value) => !value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') setOpen(false)
-      }}
-    >
-      <span aria-hidden='true' className={styles.folderScene}>
-        <span className={styles.folderBack} />
-        {CARDS.map((card, index) => (
-          <motion.span
-            key={card.x}
-            className={styles.folderPaper}
-            animate={{
-              x: open ? card.openX : card.x,
-              y: open ? card.openY : hovered ? card.hoverY : card.y,
-              rotate: open ? card.openRotate : hovered ? card.hoverRotate : card.rotate,
-            }}
-            transition={{ ...transition, delay: reducedMotion ? 0 : (2 - index) * 0.05 }}
-          >
-            <span className={styles.paperTitle} />
-            <span className={styles.paperLines} />
-          </motion.span>
-        ))}
-        <motion.span
-          className={styles.folderFlap}
-          animate={{ rotateX: open ? -55 : hovered ? -45 : -15 }}
-          transition={transition}
+    <div className={cn('relative min-h-0 min-w-0', className)}>
+      <ResponsiveDesignStage
+        width={350}
+        height={340}
+        maxScale={Number.POSITIVE_INFINITY}
+        className='-translate-y-3 absolute inset-0 items-end overflow-visible [contain:none]'
+        contentClassName='origin-bottom'
+      >
+        <button
+          type='button'
+          className={styles.folderButton}
+          aria-label={`${name}, ${count}`}
+          aria-pressed={open}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'touch') setHovered(true)
+          }}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setHovered(true)}
+          onBlur={() => setHovered(false)}
+          onClick={() => setOpen((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setOpen(false)
+          }}
         >
-          <svg className='absolute inset-0 size-full' viewBox='0 0 321 241' fill='none'>
-            <path d={FLAP_PATH} fill='var(--surface-3)' stroke='var(--border)' strokeWidth='2' />
-          </svg>
-          <span className={styles.folderLabel}>
-            <span>{name}</span>
-            <span>{count}</span>
+          <span aria-hidden='true' className={styles.folderScene}>
+            <span className={styles.folderBack} />
+            {CARDS.map((card, index) => (
+              <motion.span
+                key={card.x}
+                className={styles.folderPaper}
+                animate={{
+                  x: open ? card.openX : card.x,
+                  y: open ? card.openY : hovered ? card.hoverY : card.y,
+                  rotate: open ? card.openRotate : hovered ? card.hoverRotate : card.rotate,
+                }}
+                transition={{ ...transition, delay: reducedMotion ? 0 : (2 - index) * 0.05 }}
+              >
+                <span className={styles.paperTitle} />
+                <span className={styles.paperLines} />
+              </motion.span>
+            ))}
+            <motion.span
+              className={styles.folderFlap}
+              animate={{ rotateX: open ? -55 : hovered ? -45 : -15 }}
+              transition={transition}
+            >
+              <svg className='absolute inset-0 size-full' viewBox='0 0 321 241' fill='none'>
+                <path
+                  d={FLAP_PATH}
+                  fill='var(--surface-3)'
+                  stroke='var(--border)'
+                  strokeWidth='2'
+                />
+              </svg>
+              <span className={styles.folderLabel}>
+                <span>{name}</span>
+                <span>{count}</span>
+              </span>
+            </motion.span>
           </span>
-        </motion.span>
-      </span>
-    </button>
+        </button>
+      </ResponsiveDesignStage>
+    </div>
   )
 }
