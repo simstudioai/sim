@@ -299,6 +299,7 @@ export function useConnectorSettingsForm({
     if (didCanonicalModesChange(canonicalModes, persistedCanonicalModes)) return true
     const resolved = resolveSourceConfig()
     for (const [key, value] of Object.entries(resolved)) {
+      if (hiddenCapFieldIds.has(key)) continue
       if (!valuesEqual(connector.sourceConfig[key], value)) return true
     }
     return false
@@ -309,6 +310,7 @@ export function useConnectorSettingsForm({
     connector.sourceConfig,
     canonicalModes,
     persistedCanonicalModes,
+    hiddenCapFieldIds,
   ])
 
   const handleSave = useCallback(() => {
@@ -324,6 +326,7 @@ export function useConnectorSettingsForm({
     const resolved = resolveSourceConfig()
     const changedEntries: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(resolved)) {
+      if (hiddenCapFieldIds.has(key)) continue
       if (!valuesEqual(connector.sourceConfig[key], value)) changedEntries[key] = value
     }
 
@@ -364,6 +367,7 @@ export function useConnectorSettingsForm({
     resolveSourceConfig,
     canonicalModes,
     persistedCanonicalModes,
+    hiddenCapFieldIds,
     onSaved,
     updateConnector,
     knowledgeBaseId,

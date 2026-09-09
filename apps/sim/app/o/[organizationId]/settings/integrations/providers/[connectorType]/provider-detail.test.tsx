@@ -232,6 +232,11 @@ describe('organization provider management', () => {
       expect(container.textContent).toContain('Loading integration')
       expect(container.textContent).not.toContain('Activate this integration')
       expect(mocks.people).not.toHaveBeenCalled()
+      expect(
+        container.querySelector(
+          `input[placeholder="${params ? 'Search people...' : 'Search sources...'}"]`
+        )
+      ).toBeEnabled()
     }
   )
 
@@ -243,17 +248,21 @@ describe('organization provider management', () => {
       error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
       refetch,
     })
-    await render('google_drive', '?view=accounts')
+    await render('google_drive', '?view=accounts&credential-group-people=alex')
     expect(container.textContent).toContain('Access denied')
     expect(mocks.people).not.toHaveBeenCalled()
+    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
+    expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
     await click('Try again')
     expect(refetch).toHaveBeenCalledOnce()
   })
 
   it('offers activation from the accounts tab when an existing provider is deactivated', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [{ ...provider, approved: false }] } })
-    await render('google_drive', '?view=accounts')
+    await render('google_drive', '?view=accounts&credential-group-people=alex')
     expect(mocks.people).not.toHaveBeenCalled()
+    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
+    expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
     await click('Activate')
     expect(mocks.activate).toHaveBeenCalledWith({
       organizationId: 'org-one',
@@ -274,6 +283,46 @@ describe('organization provider management', () => {
       connectorType: 'google_drive',
       approved: true,
     })
+  })
+
+  it.each([
+    ['loading', 'Loading accounts…'],
+    ['error', 'Accounts unavailable'],
+    ['missing group', 'Add a source to set up account connections.'],
+    ['missing provider option', 'Add a source to set up account connections.'],
+  ])('preserves Accounts search while %s', async (state, message) => {
+    const refetch = vi.fn()
+    mocks.accounts.mockReturnValue(
+      state === 'loading'
+        ? { isPending: true }
+        : state === 'error'
+          ? { isError: true, error: new Error(message), refetch }
+          : {
+              data: {
+                credentialGroup:
+                  state === 'missing group' ? null : { ...credentialGroup, options: [] },
+              },
+              isPending: false,
+            }
+    )
+    await render('google_drive', '?view=accounts&credential-group-people=alex&search=handbook')
+
+    expect(container.textContent).toContain(message)
+    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
+    expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
+    expect(container.querySelector('input[placeholder="Search sources..."]')).toBeNull()
+    expect(mocks.people).not.toHaveBeenCalled()
+    if (state === 'error') {
+      await click('Try again')
+      expect(refetch).toHaveBeenCalledOnce()
+    }
+
+    await click('Sources')
+    expect(container.querySelector('input[placeholder="Search sources..."]')).toHaveValue(
+      'handbook'
+    )
+    await click('Accounts')
+    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
   })
 
   it('preserves source navigation and retries connection availability failures', async () => {
@@ -353,6 +402,80 @@ describe('organization provider management', () => {
     const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
     expect(query.get('connectedAccounts')).toBe('slack')
     expect(query.has('addConnector')).toBe(false)
+  })
+
+  it.each([
+    { name: 'missing bot', slackBotCredentialId: undefined, configurationStatus: 'ready' },
+    {
+      name: 'outdated app',
+      slackBotCredentialId: 'slack-bot',
+      configurationStatus: 'needs_update',
+    },
+  ])('offers Slack Accounts recovery for an active option with $name', async (option) => {
+    mocks.access = { admin: false, members: true }
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...provider, connectorType: 'slack' }] },
+    })
+    mocks.accounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          ...credentialGroup,
+          options: [
+            {
+              id: 'slack-option',
+              provider: 'slack',
+              status: 'active',
+              slackBotCredentialId: option.slackBotCredentialId,
+              configurationStatus: option.configurationStatus,
+            },
+          ],
+        },
+      },
+      isPending: false,
+    })
+    await render('slack', '?view=accounts&credential-group-people=alex')
+
+    expect(mocks.people).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Set up the Slack app to connect accounts.')
+    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
+    await click('Set up Slack app')
+    const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
+    expect(query.get('connectedAccounts')).toBe('slack')
+    expect(query.get('view')).toBe('accounts')
+    expect(query.get('credential-group-people')).toBe('alex')
+    expect(query.has('addConnector')).toBe(false)
+  })
+
+  it('opens focused account management after the Slack app is ready', async () => {
+    mocks.access = { admin: false, members: true }
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...provider, connectorType: 'slack' }] },
+    })
+    mocks.accounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          ...credentialGroup,
+          options: [
+            {
+              id: 'slack-option',
+              provider: 'slack',
+              status: 'active',
+              slackBotCredentialId: 'slack-bot',
+              configurationStatus: 'ready',
+            },
+          ],
+        },
+      },
+      isPending: false,
+    })
+    await render('slack', '?view=accounts')
+
+    expect(mocks.people).toHaveBeenCalledWith(
+      expect.objectContaining({
+        searchConnection: { optionId: 'slack-option', providerName: 'Slack' },
+      })
+    )
+    expect(container.textContent).not.toContain('Set up the Slack app to connect accounts.')
   })
 
   it('does not load admin queries or render setup controls for nonadmins', async () => {

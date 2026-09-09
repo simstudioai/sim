@@ -108,6 +108,7 @@ async function selectPersonAction(label: string) {
   )
   if (!action) throw new Error(`Missing ${label} action`)
   await act(async () => action.click())
+  return action
 }
 
 async function openConfirmation(label: string) {
@@ -115,13 +116,16 @@ async function openConfirmation(label: string) {
   else await act(async () => button(container, label).click())
 }
 
-async function renderPeople() {
+async function renderPeople(searchConnection?: { optionId: string; providerName: string }) {
   await act(async () =>
     root.render(
       <NuqsTestingAdapter hasMemory>
         <SettingsHeaderProvider>
           <SettingsHeaderShell>
-            <OrganizationAccountPeople organizationId='organization-1' />
+            <OrganizationAccountPeople
+              organizationId='organization-1'
+              searchConnection={searchConnection}
+            />
           </SettingsHeaderShell>
         </SettingsHeaderProvider>
       </NuqsTestingAdapter>
@@ -144,6 +148,7 @@ it('keeps the compact People rows and resends from the actions menu', async () =
   expect(container.textContent).toContain('2 accounts connected')
   expect(container.textContent).not.toContain('Copy new link')
   expect(container.textContent).not.toContain('gmail: active')
+  expect(container.textContent).not.toContain('People (1)')
   await selectPersonAction('Resend')
   expect(mocks.resend).toHaveBeenCalledExactlyOnceWith(
     { organizationId: 'organization-1', enrollmentId: 'enrollment-1' },
@@ -308,7 +313,64 @@ it('offers requests from an empty configured pool', async () => {
   await renderPeople()
 
   expect(container.textContent).toContain('No people invited yet')
+  expect(container.textContent).not.toContain('People (0)')
+  expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
   expect(button(container, 'Request connections')).toBeEnabled()
+})
+
+it('loads more people below the ungrouped rows', async () => {
+  const fetchNextPage = vi.fn()
+  mocks.people.mockReturnValue({
+    ...mocks.people(),
+    hasNextPage: true,
+    isFetchingNextPage: false,
+    fetchNextPage,
+  })
+  await renderPeople()
+
+  expect(container.textContent).toContain('person@example.com')
+  expect(container.textContent).not.toContain('People (1+)')
+  const personActions = container.querySelector('[aria-label="person@example.com actions"]')
+  const loadMore = button(container, 'Load more')
+  expect(personActions).not.toBeNull()
+  expect(personActions!.compareDocumentPosition(loadMore) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING
+  )
+  expect(loadMore).toBeEnabled()
+  await act(async () => loadMore.click())
+  expect(fetchNextPage).toHaveBeenCalledOnce()
+})
+
+it.each([
+  { view: 'all people', searchConnection: undefined },
+  {
+    view: 'provider accounts',
+    searchConnection: { optionId: 'gmail-option', providerName: 'Gmail' },
+  },
+])('disables resending revoked invitations in $view', async ({ searchConnection }) => {
+  mocks.people.mockReturnValue({
+    data: {
+      pages: [
+        {
+          enrollments: [
+            {
+              id: 'enrollment-1',
+              email: 'person@example.com',
+              status: 'revoked',
+              connections: [],
+              mcpConnections: [],
+            },
+          ],
+        },
+      ],
+    },
+  })
+  await renderPeople(searchConnection)
+
+  expect(button(container, 'Request connections')).toBeEnabled()
+  const resend = await selectPersonAction('Resend')
+  expect(resend).toHaveAttribute('aria-disabled', 'true')
+  expect(mocks.resend).not.toHaveBeenCalled()
 })
 
 it('hides cached people after a first-page authorization failure and offers a retry', async () => {
@@ -440,7 +502,6 @@ it.each([
       optionId: 'gmail-option',
     })
     expect(container.textContent).toContain('Gmail')
-    expect(container.textContent).toContain('Organization account contributors')
     expect(container.textContent).toContain(label)
     expect(container.textContent).not.toContain('No people invited')
   }

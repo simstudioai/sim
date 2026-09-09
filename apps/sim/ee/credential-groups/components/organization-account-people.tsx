@@ -72,11 +72,8 @@ export function OrganizationAccountPeople({
         setupFallback
       ) : (
         <>
-          {searchConnection && (
-            <p className='text-[var(--text-muted)] text-small'>
-              Organization account contributors and their {searchConnection.providerName} connection
-              status.
-            </p>
+          {people.isPending && (
+            <SettingsEmptyState variant='inline'>Loading people…</SettingsEmptyState>
           )}
           {people.error && !people.isFetchNextPageError && (
             <SettingsQueryErrorState

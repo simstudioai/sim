@@ -80,19 +80,19 @@ describe('shared connector settings form', () => {
   let onSaved: ReturnType<typeof vi.fn>
   let baseline: ConnectorData
 
-  function Probe({ row }: { row: ConnectorData }) {
+  function Probe({ row, isSearchIndex = true }: { row: ConnectorData; isSearchIndex?: boolean }) {
     form = useConnectorSettingsForm({
       scope: { kind: 'organization', organizationId: 'org-1' },
       knowledgeBaseId: 'kb-search',
-      isSearchIndex: true,
+      isSearchIndex,
       connector: row,
       onSaved,
     })
     return null
   }
 
-  function render(row = baseline, key = 'baseline') {
-    act(() => root.render(<Probe key={key} row={row} />))
+  function render(row = baseline, key = 'baseline', isSearchIndex = true) {
+    act(() => root.render(<Probe key={key} row={row} isSearchIndex={isSearchIndex} />))
   }
 
   beforeEach(() => {
@@ -132,6 +132,71 @@ describe('shared connector settings form', () => {
     expect(form.canSave).toBe(false)
     act(() => form.fieldsProps.onFieldChange('folderId', ['folder-2']))
     expect(form.dirty).toBe(true)
+  })
+
+  it('keeps a new member Gmail source clean and preserves its derived listing cap on save', () => {
+    const sourceConfig = {
+      label: ['INBOX'],
+      dateRange: '7d',
+      query: 'subject:SIM-SEARCH-QA',
+      _canonicalModes: { label: 'advanced' },
+      maxThreads: 0,
+    }
+    render(connector({ connectorType: 'gmail', sourceConfig }), 'gmail-members')
+
+    const capField = form.fieldsProps.connectorConfig?.configFields.find(
+      (field) => field.id === 'maxThreads'
+    )!
+    expect(capField).toBeDefined()
+    expect(form.fieldsProps.isFieldVisible(capField)).toBe(false)
+    expect(form.dirty).toBe(false)
+    expect(form.canSave).toBe(false)
+
+    act(() => form.fieldsProps.onFieldChange('query', 'subject:updated'))
+    expect(form.dirty).toBe(true)
+    expect(form.canSave).toBe(true)
+    act(() => form.save())
+    expect(mocks.update).toHaveBeenCalledWith(
+      {
+        knowledgeBaseId: 'kb-search',
+        connectorId: baseline.id,
+        updates: { sourceConfig: { ...sourceConfig, query: 'subject:updated' } },
+      },
+      expect.any(Object)
+    )
+  })
+
+  it('keeps general knowledge-base listing caps editable and includes their changes on save', () => {
+    const sourceConfig = {
+      label: ['INBOX'],
+      _canonicalModes: { label: 'basic' },
+      maxThreads: '100',
+    }
+    render(
+      connector({ connectorType: 'gmail', accessMode: 'workspace', sourceConfig }),
+      'gmail-workspace',
+      false
+    )
+
+    const capField = form.fieldsProps.connectorConfig?.configFields.find(
+      (field) => field.id === 'maxThreads'
+    )!
+    expect(capField).toBeDefined()
+    expect(form.fieldsProps.isFieldVisible(capField)).toBe(true)
+    expect(form.dirty).toBe(false)
+
+    act(() => form.fieldsProps.onFieldChange('maxThreads', '200'))
+    expect(form.dirty).toBe(true)
+    expect(form.canSave).toBe(true)
+    act(() => form.save())
+    expect(mocks.update).toHaveBeenCalledWith(
+      {
+        knowledgeBaseId: 'kb-search',
+        connectorId: baseline.id,
+        updates: { sourceConfig: { ...sourceConfig, maxThreads: '200' } },
+      },
+      expect.any(Object)
+    )
   })
 
   it('guards access drafts separately from a settings save', () => {
