@@ -22,6 +22,7 @@ import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { resolveCurrencyCode } from '@/lib/table/currency'
+import { ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
@@ -332,7 +333,7 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
         required={column.required}
         hint={hint}
         mono
-        value={formatValueForInput(value, column.type, timeZone)}
+        value={formatValueForInput(value, column.type)}
         onChange={onChange}
         placeholder='{"key": "value"}'
         rows={4}
@@ -340,16 +341,19 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (definition.editor === 'date') {
-    const parts = dateValueToLocalParts(formatValueForInput(value, column.type, timeZone))
+  if (definition.editor === 'date' || definition.editor === 'utc-date') {
+    const isUtc = definition.editor === 'utc-date'
+    const pickerTimeZone = isUtc ? 'UTC' : timeZone
+    const storedValue = formatValueForInput(value, column.type)
+    const parts = isUtc ? ttlValueToPickerParts(storedValue) : dateValueToLocalParts(storedValue)
     const valueFromParts = (day: string, time: string | null) =>
-      column.type === 'ttl' && time ? `${day}T${time}` : localPartsToDateValue(day, time, timeZone)
+      isUtc ? ttlValueFromPicker(day, time) : localPartsToDateValue(day, time, timeZone)
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
           <ChipDatePicker
             value={parts.day ?? undefined}
-            today={todayLocalCalendarDate(timeZone)}
+            today={todayLocalCalendarDate(pickerTimeZone)}
             onChange={(day) => onChange(valueFromParts(day, parts.time))}
             placeholder='Select date'
             className='flex-1'
@@ -357,11 +361,12 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
           <ChipTimePicker
             value={parts.time?.slice(0, 5)}
             onChange={(time) =>
-              onChange(valueFromParts(parts.day ?? todayLocalCalendarDate(timeZone), time))
+              onChange(valueFromParts(parts.day ?? todayLocalCalendarDate(pickerTimeZone), time))
             }
-            placeholder='Add time'
+            placeholder={isUtc ? 'UTC time' : 'Add time'}
             className='w-[110px]'
           />
+          {isUtc && <span className='text-[var(--text-tertiary)] text-small'>UTC</span>}
         </div>
       </ChipModalField>
     )
@@ -387,7 +392,7 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
       inputType={
         definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
       }
-      value={formatValueForInput(value, column.type, timeZone)}
+      value={formatValueForInput(value, column.type)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}
     />

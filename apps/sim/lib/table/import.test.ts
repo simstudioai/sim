@@ -173,25 +173,24 @@ describe('import', () => {
       expect(coerceValue('not-a-date', 'date')).toBe('not-a-date')
     })
 
-    it('coerces TTL imports to epoch seconds and rejects invalid input', () => {
-      expect(coerceValue('2023-11-14T22:13:20Z', 'ttl')).toBe(1_700_000_000)
-      expect(coerceValue('1700000000', 'ttl')).toBe(1_700_000_000)
-      expect(coerceValue('2023-11-14 17:13:20', 'ttl', { timezone: 'America/New_York' })).toBe(
-        1_700_000_000
-      )
-      expect(coerceValue('not-a-date', 'ttl')).toBeNull()
-    })
-
-    it('applies the timezone supplied to each TTL import independently', () => {
-      const input = '2026-06-15 09:00:30'
-
-      expect(coerceValue(input, 'ttl', { timezone: 'America/New_York' })).toBe(
-        Date.parse('2026-06-15T13:00:30Z') / 1000
-      )
-      expect(coerceValue(input, 'ttl', { timezone: 'Asia/Kathmandu' })).toBe(
-        Date.parse('2026-06-15T03:15:30Z') / 1000
-      )
-      expect(coerceValue('2023-11-14T22:13:20.001Z', 'ttl')).toBe(1_700_000_001)
+    it('normalizes explicit TTL instants regardless of the import timezone', () => {
+      const input = '2026-06-15T09:00:30Z'
+      for (const timezone of ['UTC', 'America/New_York', 'Asia/Kathmandu']) {
+        expect(coerceValue(input, 'ttl', { timezone })).toBe(input)
+        expect(coerceValue('2026-06-15T02:00:30-07:00', 'ttl', { timezone })).toBe(input)
+        expect(coerceValue('2026-06-15T09:00:30.123456Z', 'ttl', { timezone })).toBe(
+          '2026-06-15T09:00:30.123456Z'
+        )
+        for (const invalid of [
+          '1700000000',
+          '2026-06-15 09:00:30',
+          '2026-06-15T09:00:30+24:00',
+          '2026-06-15T09:00:30.0000001Z',
+          'not-a-date',
+        ]) {
+          expect(coerceValue(invalid, 'ttl', { timezone })).toBeNull()
+        }
+      }
     })
   })
 

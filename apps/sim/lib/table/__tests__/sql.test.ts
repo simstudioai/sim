@@ -1327,3 +1327,58 @@ describe('error messages name the caller-facing column, not the storage id', () 
     expect(() => buildPredicateClause(p, TABLE, [num])).not.toThrow()
   })
 })
+
+describe('UTC expiration SQL', () => {
+  const column: ColumnDefinition = { name: 'expires_at', type: 'ttl' }
+  const instant = '2026-09-07T14:30:00Z'
+
+  it('casts expiration ranges and sorting as timestamps', () => {
+    const range = renderSql(
+      buildPredicateClause({ field: 'expires_at', op: 'lte', value: instant }, 'user_table_rows', [
+        column,
+      ])
+    )
+    expect(range).toContain("(user_table_rows.data->>'expires_at')::timestamptz")
+    expect(range).toContain(instant)
+    expect(
+      renderSql(buildSortClause({ expires_at: 'asc' }, 'user_table_rows', [column]))
+    ).toContain('::timestamptz ASC')
+  })
+
+  it('preserves exact UTC strings for equality and membership', () => {
+    expect(
+      renderSql(fieldPredicate('user_table_rows', 'expires_at', 'eq', instant, column))
+    ).toContain(instant)
+    expect(
+      renderSql(fieldPredicate('user_table_rows', 'expires_at', 'in', [instant], column))
+    ).toContain(instant)
+  })
+
+  it.each(['eq', 'ne', 'in', 'nin'] as const)(
+    'matches equivalent offset and fractional representations for %s',
+    (op) => {
+      const input = '2026-09-07T07:30:00.000-07:00'
+      const value = op === 'in' || op === 'nin' ? [input] : input
+      const query = renderSql(fieldPredicate('user_table_rows', 'expires_at', op, value, column))
+      expect(query).toContain(instant)
+      expect(query).not.toContain(input)
+    }
+  )
+
+  it.each(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin'] as const)(
+    'refuses ambiguous or invalid %s operands before querying',
+    (op) => {
+      for (const invalid of [
+        1_700_000_000,
+        '2026-09-07',
+        '2026-09-07T14:30:00',
+        '2026-02-30T14:30:00Z',
+      ]) {
+        const value = op === 'in' || op === 'nin' ? [invalid] : invalid
+        expect(() => fieldPredicate('user_table_rows', 'expires_at', op, value, column)).toThrow(
+          'Z or an explicit UTC offset'
+        )
+      }
+    }
+  )
+})

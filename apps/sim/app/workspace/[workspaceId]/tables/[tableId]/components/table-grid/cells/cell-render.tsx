@@ -54,8 +54,6 @@ interface ResolveCellRenderInput {
   /** Current workspace id — a URL pointing to a resource in this workspace
    *  renders as a tagged-resource chip rather than a plain external link. */
   currentWorkspaceId?: string
-  /** Effective viewer timezone for instant-like column presentations. */
-  timeZone?: string
   /** Invalid or unavailable preferences render time-based values without conversion. */
   timezoneStatus?: TimezoneState['status']
 }
@@ -67,7 +65,6 @@ export function resolveCellRender({
   waitingOnLabels,
   isEnrichmentOutput,
   currentWorkspaceId,
-  timeZone,
   timezoneStatus,
 }: ResolveCellRenderInput): CellRenderKind {
   const isNull = value === null || value === undefined
@@ -149,7 +146,7 @@ export function resolveCellRender({
     if (timezoneStatus !== undefined && timezoneStatus !== 'ready') {
       return { kind: 'date', text: stringifyValue(value), raw: true }
     }
-    return { kind: 'date', text: definition.formatForInput(value, column, { timezone: timeZone }) }
+    return { kind: 'date', text: definition.formatForInput(value, column) }
   }
   if (column.type === 'string') {
     const text = stringifyValue(value)

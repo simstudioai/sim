@@ -216,6 +216,8 @@ interface CalendarSingleProps extends CalendarBaseProps {
    * `YYYY-MM-DD` days.
    */
   showTime?: boolean
+  /** Label beside the time picker when `showTime` is enabled. Defaults to `Time`. */
+  timeLabel?: string
   /**
    * Today's calendar day (`YYYY-MM-DD`) in the caller's effective timezone;
    * drives the Today button and today ring. Defaults to the runtime's local
@@ -350,6 +352,7 @@ function SingleCalendarView({
   value,
   onChange,
   showTime = false,
+  timeLabel = 'Time',
   today: todayValue,
   className,
 }: CalendarSingleProps) {
@@ -424,7 +427,7 @@ function SingleCalendarView({
 
       {showTime && (
         <div className='mt-1 flex items-center gap-2'>
-          <span className='shrink-0 text-[var(--text-muted)] text-caption'>Time</span>
+          <span className='shrink-0 text-[var(--text-muted)] text-caption'>{timeLabel}</span>
           <ChipTimePicker value={timeOfDay?.slice(0, 5)} onChange={handleTimeChange} fullWidth />
         </div>
       )}

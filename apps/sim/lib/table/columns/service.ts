@@ -27,7 +27,6 @@ import {
   columnTypeOf,
   isValueCompatible,
   TYPE_SPECIFIC_COLUMN_KEYS,
-  valueForTypeConversion,
 } from '@/lib/table/column-types'
 import {
   migrationFrom,
@@ -763,24 +762,17 @@ export function applyPendingRename(
  * (`countEmptyCells` does not treat `''` as empty).
  *
  * Everything else goes through the target's `coerce`, which frequently
- * *transforms* the value — an epoch becomes an ISO date, `$1,234.56` becomes
- * `1234.56`. Without writing the transformed value back the cell keeps its old
- * bytes under the new type, and since filters and sorts apply the type's
- * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
- * `::timestamptz` fail on EVERY query against that column.
+ * transforms the value — `$1,234.56` becomes `1234.56`. Without writing the
+ * transformed value back, the cell keeps its old bytes under the new type,
+ * and the type's `jsonbCast` can fail on every filter or sort.
  */
 export function retypeCellRewrite(
   value: unknown,
-  target: ColumnDefinition,
-  source?: ColumnDefinition
+  target: ColumnDefinition
 ): { value: JsonValue } | null {
   if (value === null || value === undefined) return null
 
-  const effective = source
-    ? valueForTypeConversion(value as JsonValue, source, target)
-    : (value as JsonValue)
-
-  if (effective === null) return { value: null }
+  const effective = value as JsonValue
 
   if (!isValueCompatibleWithColumn(effective, target)) {
     // Incompatible non-blanks never reach here: the compatibility scan already
@@ -926,7 +918,6 @@ export async function updateColumnType(
       const isSelectType = data.newType === 'select'
       const targetOptions = data.options ?? column.options ?? []
       const targetMultiple = data.multiple ?? column.multiple
-      const sourceNormalizesConversion = columnTypeOf(column).valueForConversion !== undefined
       // Leaving `select` behind: stored cells hold option ids, which mean nothing
       // once the column is text/number/etc. Check compatibility against the option
       // NAME — that's what the cell will actually become (migrated below).
@@ -992,7 +983,7 @@ export async function updateColumnType(
 
           const effective = convertingAwayFromSelect
             ? selectValueForConversion(column, value)
-            : valueForTypeConversion(value as JsonValue, column, convertedColumn)
+            : value
 
           if (!isValueCompatibleWithColumn(effective, convertedColumn)) {
             if (effective === null || effective === '') {
@@ -1043,7 +1034,7 @@ export async function updateColumnType(
         resolved: new Map<string, JsonValue>(),
       }
       await migrationFrom(column.type)?.(migrationContext)
-      if (!isSelectType || sourceNormalizesConversion) {
+      if (!isSelectType) {
         let rewriteAfterId: string | undefined
         while (true) {
           const rows = await readColumnRetypePage(
@@ -1057,7 +1048,7 @@ export async function updateColumnType(
           if (rows.length === 0) break
           const coercedByRowId = new Map<string, JsonValue>()
           for (const row of rows) {
-            const rewrite = retypeCellRewrite(row.value, convertedColumn, column)
+            const rewrite = retypeCellRewrite(row.value, convertedColumn)
             if (rewrite) coercedByRowId.set(row.id, rewrite.value)
           }
           await writeBackCoercedCells(
