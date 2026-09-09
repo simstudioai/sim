@@ -28,12 +28,9 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import {
-  searchSourceKeys,
-  useSearchSourceOverview,
-  useSearchSources,
-} from '@/hooks/queries/kb/connectors'
+import { useSearchSourceOverview, useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'

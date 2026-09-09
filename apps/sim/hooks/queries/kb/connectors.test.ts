@@ -3,6 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const mocks = vi.hoisted(() => ({
   requestJson: vi.fn(),
@@ -51,7 +52,6 @@ import {
   connectorKeys,
   isConnectorSyncingOrPending,
   memberConnectorKeys,
-  searchSourceKeys,
   useConnectorDetail,
   useConnectorDocuments,
   useConnectorList,

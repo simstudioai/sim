@@ -25,11 +25,8 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import {
-  searchSourceKeys,
-  useSearchSources,
-  useWorkspaceMemberConnectors,
-} from '@/hooks/queries/kb/connectors'
+import { useSearchSources, useWorkspaceMemberConnectors } from '@/hooks/queries/kb/connectors'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'

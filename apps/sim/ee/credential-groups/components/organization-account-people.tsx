@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import type { SettingsBackAction } from '@/components/settings/settings-header'
+import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -29,7 +29,13 @@ import { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-acc
 interface OrganizationAccountPeopleProps {
   organizationId: string
   searchConnection?: { optionId: string; providerName: string }
-  panel?: { back: SettingsBackAction; title: string; description?: string; docsLink?: string }
+  panel?: {
+    back: SettingsBackAction
+    title: string
+    description?: string
+    docsLink?: string
+    actions?: SettingsAction[]
+  }
   enabled?: boolean
   setupFallback?: ReactNode
 }
@@ -66,6 +72,7 @@ export function OrganizationAccountPeople({
           disabled: pending || awaitingSetup,
           onSelect: () => setInviteOpen(true),
         },
+        ...(panel?.actions ?? []),
       ]}
     >
       {awaitingSetup ? (

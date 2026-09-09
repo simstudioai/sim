@@ -19,6 +19,7 @@ import {
   connectedAccountsParam,
   organizationProviderTabParam,
 } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { OrganizationSlackAccountRemoval } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-removal'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
@@ -59,6 +60,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
   const [deactivating, setDeactivating] = useState(false)
+  const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
   const scope = { kind: 'organization', organizationId: organization.id } as const
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const personal = Boolean(meta && canConnectPersonally(meta) && searchAccess.memberScoped)
@@ -72,7 +74,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const availability = usePermissionConfig()
   const approval = useUpdateSearchIntegration()
   const accounts = useOrganizationAccounts(
-    viewer.isAdmin && personal && (showAccounts || connectorType === 'slack')
+    viewer.isAdmin && (connectorType === 'slack' || (personal && showAccounts))
       ? organization.id
       : undefined
   )
@@ -123,6 +125,20 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const option = accounts.data?.credentialGroup?.options.find(
     (item) => item.provider === credentialProvider && item.status === 'active'
   )
+  const group = accounts.data?.credentialGroup
+  const removalActions: SettingsAction[] =
+    connectorType === 'slack' &&
+    !accounts.isError &&
+    group?.options.some((item) => item.provider === 'slack')
+      ? [
+          {
+            text: 'Remove account setup',
+            textTone: 'error',
+            disabled: accounts.isFetching,
+            onSelect: () => setRemovingSlackAccounts(true),
+          },
+        ]
+      : []
   const needsSlackSetup =
     connectorType === 'slack' &&
     (option?.provider !== 'slack' || option.configurationStatus !== 'ready')
@@ -170,6 +186,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
           onSelect: activate,
         },
       ]
+  actions.push(...removalActions)
   if (overview.isError)
     return (
       <SettingsPanel {...panel}>
@@ -297,7 +314,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
             <OrganizationAccountPeople
               organizationId={organization.id}
               searchConnection={{ optionId: option.id, providerName: meta.name }}
-              panel={panel}
+              panel={{ ...panel, actions: removalActions }}
             />
           ) : (
             <SettingsPanel {...panel} actions={actions}>
@@ -335,6 +352,14 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
         mirroredAccessAvailable={searchAccess.sourceMirrored}
       />
       <OrganizationSlackAccountSetup />
+      {removingSlackAccounts && group && (
+        <OrganizationSlackAccountRemoval
+          organizationId={organization.id}
+          group={group}
+          onClose={() => setRemovingSlackAccounts(false)}
+          onRemoved={() => setRemovingSlackAccounts(false)}
+        />
+      )}
       <ChipConfirmModal
         open={deactivating}
         onOpenChange={(open) => {

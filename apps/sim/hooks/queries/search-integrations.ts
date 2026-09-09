@@ -7,9 +7,9 @@ import {
   updateSearchIntegrationContract,
 } from '@/lib/api/contracts/knowledge/search-integrations'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
-import { searchSourceKeys } from '@/hooks/queries/kb/connectors'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const SEARCH_INTEGRATIONS_STALE_TIME = 30_000
 

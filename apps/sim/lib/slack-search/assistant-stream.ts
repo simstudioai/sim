@@ -1,6 +1,10 @@
 import { toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import { collectRetrievalCitationEvidence } from '@/lib/copilot/chat/citation-evidence'
+import {
+  collectRetrievalCitationEvidence,
+  parseCitationRecord,
+  type RetrievalCitationBlock,
+} from '@/lib/copilot/chat/citation-evidence'
 import { redactSensitiveContent } from '@/lib/copilot/chat/sim-key-redaction'
 import type { StreamEvent } from '@/lib/copilot/request/session/contract'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
@@ -14,10 +18,14 @@ import {
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-/** Withholds incomplete inline markup so split citation tags and URLs never leak into a stream. */
-export function publicSlackAnswer(text: string, complete: boolean): string {
+/** Resolves inline citations while withholding incomplete tags and unverified destinations. */
+export function publicSlackAnswer(
+  text: string,
+  complete: boolean,
+  sources: ReadonlyMap<string, string> = new Map()
+): string {
   let value = text.replace(
-    /<(source|options|question|thinking|usage_upgrade|credential|workspace_resource)>[\s\S]*?(?:<\/\1>|$)/g,
+    /<(options|question|thinking|usage_upgrade|credential|workspace_resource)>[\s\S]*?(?:<\/\1>|$)/g,
     ''
   )
   if (!complete) {
@@ -28,6 +36,22 @@ export function publicSlackAnswer(text: string, complete: boolean): string {
     if (linkStart > value.lastIndexOf(')')) end = Math.min(end, linkStart)
     value = value.slice(0, end)
   }
+  let answer = ''
+  let offset = 0
+  for (const match of value.matchAll(/<source>([\s\S]*?)(<\/source>|$)/g)) {
+    answer += publicSlackText(value.slice(offset, match.index))
+    const source = match[2] ? parseCitationRecord(match[1]) : null
+    const id = typeof source?.id === 'string' ? source.id : undefined
+    /** A result may arrive after its citation; keep subsequent text pending until it resolves. */
+    if (!complete && (!match[2] || (id !== undefined && !sources.has(id)))) return answer
+    const link = id === undefined ? undefined : sources.get(id)
+    if (link) answer += `${answer && !/\s$/.test(answer) ? ' ' : ''}${link}`
+    offset = match.index + match[0].length
+  }
+  return answer + publicSlackText(value.slice(offset))
+}
+
+function publicSlackText(value: string): string {
   return value
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]*>/g, '')
@@ -35,6 +59,25 @@ export function publicSlackAnswer(text: string, complete: boolean): string {
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
+}
+
+function sourceLink(source: Record<string, unknown>): string {
+  if (typeof source.url !== 'string' || source.url.length > 3000) return ''
+  const url = new URL(source.url)
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.href.length > 3000
+  )
+    return ''
+  const title = typeof source.title === 'string' ? source.title.replace(/\s+/g, ' ').trim() : ''
+  const label = truncate(title || 'Source', 60)
+    .replace(/[\\`*_[\]~!]/g, '\\$&')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+  return `[${label}](<${url.href.replaceAll('>', '%3E')}>)`
 }
 
 interface AssistantStreamOptions {
@@ -62,6 +105,7 @@ export class SlackSearchAssistantStream {
   private closed = false
   private closeAttempted = false
   private separateNextText = false
+  private evidence = new Map<string, Record<string, unknown>>()
   constructor(private readonly options: AssistantStreamOptions) {}
 
   private async deliver(action: () => Promise<void>) {
@@ -98,6 +142,18 @@ export class SlackSearchAssistantStream {
 
   async onEvent(event: StreamEvent) {
     if (this.failure) throw this.failure
+    if (event.type === 'tool' && 'phase' in event.payload && event.payload.phase === 'result') {
+      const { toolName, success, status, output } = event.payload
+      this.collectSources([
+        {
+          toolCall: {
+            name: toolName,
+            status: status ?? (success ? 'success' : 'error'),
+            result: { success, output },
+          },
+        },
+      ])
+    }
     if (event.type === 'tool' && !event.scope) this.separateNextText = true
     if (event.type !== 'text' || event.payload.channel !== 'assistant' || event.scope) return
     if (this.separateNextText && this.text) this.text += '\n\n'
@@ -105,6 +161,12 @@ export class SlackSearchAssistantStream {
     this.text += event.payload.text
     if (this.text.length > 128_000) throw new Error('Slack answer exceeds the supported size')
     if (Date.now() - this.lastSentAt >= 750) await this.flush(false)
+  }
+
+  private collectSources(blocks: readonly RetrievalCitationBlock[]) {
+    for (const [id, source] of collectRetrievalCitationEvidence(blocks)) {
+      if (!this.evidence.has(id)) this.evidence.set(id, source)
+    }
   }
 
   private async flush(complete: boolean) {
@@ -115,11 +177,31 @@ export class SlackSearchAssistantStream {
     const projection = projectResolvedSecretDiagnosticContent(this.text, registry, 512_000)
     if (!projection.safe || typeof projection.value !== 'string')
       throw new Error('Answer could not be safely projected')
-    const text = publicSlackAnswer(redactSensitiveContent(projection.value), complete)
+    const sources = new Map<string, string>()
+    for (const [id, source] of this.evidence) {
+      const projected = projectResolvedSecretDiagnosticContent(source, registry)
+      sources.set(
+        id,
+        projected.safe && JSON.stringify(projected.value) === JSON.stringify(source)
+          ? sourceLink(source)
+          : ''
+      )
+    }
+    const text = publicSlackAnswer(redactSensitiveContent(projection.value), complete, sources)
     if (!text.startsWith(this.sent)) throw new Error('The safe answer changed after delivery')
     let pending = text.slice(this.sent.length)
     while (pending.length) {
-      const chunk = pending.slice(0, 4000)
+      let end = Math.min(4000, pending.length)
+      /** Keep each verified link in one append so Slack never briefly displays a partial URL. */
+      for (const match of pending.matchAll(/\[(?:\\.|[^[\]\\])*\]\(<[^>]*>\)/g)) {
+        if (match.index >= end) break
+        if (match.index + match[0].length > end) {
+          end = match.index
+          break
+        }
+      }
+      if (end === 0) throw new Error('Slack citation exceeds the supported chunk size')
+      const chunk = pending.slice(0, end)
       await this.deliver(async () => {
         if (!this.stream || this.closed) throw new Error('Slack stream is not active')
         await appendSlackAgentStream(
@@ -138,32 +220,9 @@ export class SlackSearchAssistantStream {
 
   async finish(result: OrchestratorResult) {
     if (this.failure) throw this.failure
+    this.collectSources(result.contentBlocks)
     await this.flush(true)
-    const evidence = collectRetrievalCitationEvidence(result.contentBlocks)
-    const blocks: Record<string, unknown>[] = []
-    const seen = new Set<string>()
-    for (const source of evidence.values()) {
-      if (typeof source.url !== 'string' || seen.has(source.url) || source.url.length > 3000)
-        continue
-      const projection = projectResolvedSecretDiagnosticContent(source, this.options.registry)
-      if (!projection.safe || JSON.stringify(projection.value) !== JSON.stringify(source)) continue
-      seen.add(source.url)
-      blocks.push({
-        type: 'section',
-        text: {
-          type: 'plain_text',
-          text: truncate(typeof source.title === 'string' ? source.title : 'Source', 150),
-        },
-        accessory: {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Open source' },
-          url: source.url,
-          action_id: `slack_search_source_${blocks.length}`,
-        },
-      })
-      if (blocks.length === 5) break
-    }
-    await this.close(blocks)
+    await this.close([])
   }
 
   /** A confirmed Assistant failure closes the established stream without exposing backend errors. */
