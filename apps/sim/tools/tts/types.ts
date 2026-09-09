@@ -9,6 +9,7 @@ export type TtsProvider =
   | 'google'
   | 'azure'
   | 'playht'
+  | 'gandr'
 
 // OpenAI TTS Types
 export interface OpenAiTtsParams {
@@ -51,6 +52,14 @@ export interface ElevenLabsTtsUnifiedParams {
   similarityBoost?: number // 0.0 to 1.0
   style?: number // 0.0 to 1.0
   useSpeakerBoost?: boolean
+  apiKey: string
+}
+
+// Gandr TTS Types
+export interface GandrTtsParams {
+  text: string // up to 2000 characters per request
+  voice?: 'gandr-mia' | 'gandr-ava' | 'gandr-jenny' | 'gandr-dane' | 'gandr-leo' | 'gandr-lewis'
+  responseFormat?: 'mp3' | 'wav' | 'pcm'
   apiKey: string
 }
 
