@@ -62,6 +62,12 @@ export function createMockRedis() {
     removeListener: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
       listeners.get(event)?.delete(listener)
     }),
+    /** Listeners belong to a client, so a caller reusing this instance as a new
+     *  client clears them the way a real one starts empty. */
+    removeAllListeners: vi.fn((event?: string) => {
+      if (event === undefined) listeners.clear()
+      else listeners.delete(event)
+    }),
     /** Drives the lifecycle events a real client emits (`connect`, `ready`, `error`). */
     emit: vi.fn((event: string, ...args: unknown[]) => {
       const registered = listeners.get(event)
@@ -93,8 +99,13 @@ export type MockRedis = ReturnType<typeof createMockRedis>
 
 /**
  * Clears all Redis mock calls.
+ *
+ * Also drops registered listeners: spy history and the listener registry are
+ * separate state, and handlers left behind would be invoked by a later `emit`
+ * on behalf of a client the test under way never created.
  */
 export function clearRedisMocks(redis: MockRedis) {
+  redis.removeAllListeners()
   Object.values(redis).forEach((value) => {
     if (typeof value === 'function' && 'mockClear' in value) {
       value.mockClear()

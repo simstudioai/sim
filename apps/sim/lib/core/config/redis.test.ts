@@ -18,13 +18,16 @@ const { mockEnv, MockRedisConstructor, mockLogger } = vi.hoisted(() => ({
 }))
 
 const mockRedisInstance = createMockRedis()
-MockRedisConstructor.mockImplementation(
-  class {
-    constructor() {
-      Object.assign(this, mockRedisInstance)
-    }
-  }
-)
+/** One mock instance stands in for every client the module constructs, so its
+ *  listener registry has to be emptied per construction — a real client starts
+ *  with none, and keeping them would let an `emit` reach handlers registered by
+ *  a client that no longer exists. */
+function newMockClient(this: object) {
+  mockRedisInstance.removeAllListeners()
+  Object.assign(this, mockRedisInstance)
+}
+
+MockRedisConstructor.mockImplementation(newMockClient)
 
 vi.unmock('@/lib/core/config/redis')
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
@@ -60,13 +63,7 @@ describe('redis config', () => {
     mockRedisInstance.status = 'ready'
     mockEnv.REDIS_URL = 'redis://localhost:6379'
     mockEnv.REDIS_TLS_SERVERNAME = undefined
-    MockRedisConstructor.mockImplementation(
-      class {
-        constructor() {
-          Object.assign(this, mockRedisInstance)
-        }
-      }
-    )
+    MockRedisConstructor.mockImplementation(newMockClient)
   })
 
   afterEach(() => {
