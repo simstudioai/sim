@@ -24,23 +24,26 @@ function ComparisonFixture({ revision }: ComparisonFixtureProps) {
   }, [])
 
   return (
-    <div ref={layoutRef}>
-      <output>{activeId}</output>
-      <div ref={tableRef} data-comparison-table>
-        <header ref={headerRef} />
-        <div key={revision}>
-          <div data-comparison-section-header />
-          {COMPARISON_SECTIONS.map((section) => (
-            <div key={section.id}>
-              <div data-comparison-category-cell={section.id}>
-                <div data-comparison-category-label={section.id} />
+    <main>
+      <div data-comparison-page-divider />
+      <div ref={layoutRef} data-comparison-layout>
+        <output>{activeId}</output>
+        <div ref={tableRef} data-comparison-table>
+          <header ref={headerRef} />
+          <div key={revision}>
+            <div data-comparison-section-header />
+            {COMPARISON_SECTIONS.map((section) => (
+              <div key={section.id}>
+                <div data-comparison-category-cell={section.id}>
+                  <div data-comparison-category-label={section.id} />
+                </div>
+                <div id={section.id} />
               </div>
-              <div id={section.id} />
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -49,6 +52,8 @@ let root: Root
 let sectionGap: number
 let onResize: () => void
 let initialLayout: { headerHeight?: string; sectionSpan?: string }
+let navbar: HTMLElement
+let navbarHeight: number
 
 function scrollTo(top: number) {
   act(() => {
@@ -72,11 +77,16 @@ beforeEach(() => {
     }
   )
   sectionGap = 1000
+  navbarHeight = 93.1875
+  navbar = document.createElement('header')
+  navbar.setAttribute('data-landing-header', '')
+  document.body.append(navbar)
   host = document.createElement('div')
   host.style.overflowY = 'auto'
   document.body.append(host)
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
     if (!this.isConnected) return new DOMRect()
+    if (this.hasAttribute('data-landing-header')) return new DOMRect(0, 0, 1000, navbarHeight)
     if (this.tagName === 'HEADER') return new DOMRect(0, 100, 1000, 128)
     if (this.dataset.comparisonCategoryLabel) return new DOMRect(0, 100, 200, 128)
     if (this.hasAttribute('data-comparison-table')) {
@@ -101,14 +111,29 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  navbar.remove()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
 describe('useComparisonNavigation', () => {
-  it('measures section bounds before the first paint', () => {
-    expect(initialLayout).toEqual({ headerHeight: '128px', sectionSpan: '1000px' })
+  it('keeps the page divider and chart aligned to the measured navbar height after resizing', () => {
+    const layout = host.querySelector<HTMLElement>('[data-comparison-layout]')!
+    const divider = host.querySelector<HTMLElement>('[data-comparison-page-divider]')!
+
+    expect(layout.style.getPropertyValue('--comparison-navbar-height')).toBe('93.1875px')
+    expect(divider.style.getPropertyValue('--comparison-navbar-height')).toBe('93.1875px')
+
+    navbarHeight = 108.5
+    act(() => onResize())
+
+    expect(layout.style.getPropertyValue('--comparison-navbar-height')).toBe('108.5px')
+    expect(divider.style.getPropertyValue('--comparison-navbar-height')).toBe('108.5px')
+  })
+
+  it('measures a full header-height overlap before the first paint', () => {
+    expect(initialLayout).toEqual({ headerHeight: '128px', sectionSpan: '1128px' })
   })
 
   it('leaves all layout styles unchanged during scrolling in either direction', () => {
@@ -139,7 +164,7 @@ describe('useComparisonNavigation', () => {
     const support = host.querySelector<HTMLElement>(
       '[data-comparison-category-cell="comparison-support"]'
     )!
-    expect(platform.style.getPropertyValue('--comparison-category-span')).toBe('1200.5px')
+    expect(platform.style.getPropertyValue('--comparison-category-span')).toBe('1328.5px')
     expect(support.style.getPropertyValue('--comparison-category-span')).toBe('500px')
   })
 
@@ -172,7 +197,7 @@ describe('useComparisonNavigation', () => {
       host
         .querySelector<HTMLElement>('[data-comparison-category-cell="comparison-platform"]')
         ?.style.getPropertyValue('--comparison-category-span')
-    ).toBe('1000px')
+    ).toBe('1128px')
 
     scrollTo(0)
     expect(host.querySelector('output')?.textContent).toBe('comparison-platform')

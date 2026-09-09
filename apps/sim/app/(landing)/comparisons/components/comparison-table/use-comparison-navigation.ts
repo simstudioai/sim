@@ -16,6 +16,9 @@ export function useComparisonNavigation(content: ReactNode) {
     const table = tableRef.current
     const columnHeader = headerRef.current
     const navbar = document.querySelector('[data-landing-header]')
+    const pageDivider = layout
+      ?.closest('main')
+      ?.querySelector<HTMLElement>('[data-comparison-page-divider]')
 
     if (!layout || !table || !columnHeader) return
 
@@ -51,15 +54,12 @@ export function useComparisonNavigation(content: ReactNode) {
     }
 
     const updateOffsets = () => {
-      layout.style.setProperty(
-        '--comparison-header-height',
-        `${columnHeader.getBoundingClientRect().height}px`
-      )
+      const headerHeight = columnHeader.getBoundingClientRect().height
+      layout.style.setProperty('--comparison-header-height', `${headerHeight}px`)
       if (navbar) {
-        layout.style.setProperty(
-          '--comparison-navbar-height',
-          `${navbar.getBoundingClientRect().height}px`
-        )
+        const navbarHeight = `${navbar.getBoundingClientRect().height}px`
+        layout.style.setProperty('--comparison-navbar-height', navbarHeight)
+        pageDivider?.style.setProperty('--comparison-navbar-height', navbarHeight)
       }
       if (sectionHeader) {
         layout.style.setProperty(
@@ -77,7 +77,10 @@ export function useComparisonNavigation(content: ReactNode) {
 
       cells.forEach(({ cell, rect }, index) => {
         if (!rect.height) return
-        const bottom = cells[index + 1]?.rect.top ?? tableBottom
+        const nextCell = cells[index + 1]
+        const bottom = nextCell
+          ? Math.min(nextCell.rect.top + headerHeight, tableBottom)
+          : tableBottom
         cell.style.setProperty('--comparison-category-span', `${bottom - rect.top}px`)
       })
       updateActiveSection()
