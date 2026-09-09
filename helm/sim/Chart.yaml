@@ -10,9 +10,9 @@ icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/log
 sources:
   - https://github.com/simstudioai/sim
 maintainers:
-  - name: Sim Team
+  - name: simstudioai
     email: help@sim.ai
-    url: https://sim.ai
+    url: https://github.com/simstudioai
 keywords:
   - ai
   - workflow

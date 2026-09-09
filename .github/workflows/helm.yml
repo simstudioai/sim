@@ -39,6 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # ct diffs the chart against the target branch to check the version
+          # increment, so a shallow clone would have nothing to compare.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Helm
@@ -64,8 +67,41 @@ jobs:
       - name: Image inventory is current
         run: bun run images:check
 
-      - name: Helm lint
-        run: helm lint helm/sim --values helm/sim/ci/default-values.yaml
+      # `ct lint` is the CNCF chart linter (helm/chart-testing) that the large
+      # charts standardize on. It subsumes `helm lint` and adds what a bare
+      # helm lint does not check: yamllint over Chart.yaml and every values
+      # file, a yamale schema validation of Chart.yaml, maintainer-account
+      # validation, and the chart version increment. It also picks up
+      # `helm/sim/ci/*-values.yaml` on its own -- that directory name is ct's
+      # convention, which is why no --values flag is passed here.
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
+
+      # Two modes, because ct couples change detection to the version check.
+      #
+      # On a PR: --chart-dirs (this chart lives at helm/sim, not ct's default
+      # `charts/`) plus --target-branch, so ct diffs the chart against the base
+      # and fails it with "Needs a version bump!" when chart content moved and
+      # `version:` did not. This is what replaced the hand-rolled gate.
+      #
+      # On a push: --charts, which lints unconditionally. Change detection has
+      # nothing to diff once the branch is merged, so without it a push run
+      # would report "No chart changes detected" and lint nothing at all.
+      # --charts also DISABLES the version check -- that is ct's behavior, not
+      # an oversight, and it is why it cannot be the flag used on PRs.
+      - name: Chart lint (ct)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          args=(--validate-maintainers=true)
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            args+=(--chart-dirs helm --target-branch "$BASE_REF")
+          else
+            args+=(--charts helm/sim)
+          fi
+          ct lint "${args[@]}"
 
       - name: Helm unit tests
         run: |
@@ -121,39 +157,6 @@ jobs:
               --set copilot.server.env.OPENAI_API_KEY_1=ci-dummy-openai-key \
               --set externalDatabase.password=ci-dummy-password > /dev/null
           done
-
-  version-bump:
-    name: Chart version bumped
-    if: github.event_name == 'pull_request'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          # The version gate only reads history and fetches a public branch, so
-          # it never needs the token left behind in .git/config.
-          persist-credentials: false
-      - name: Require a Chart.yaml version bump when chart content changes
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          base="origin/${BASE_REF}"
-          git fetch origin "${BASE_REF}"
-          merge_base=$(git merge-base "$base" HEAD)
-          changed=$(git diff --name-only "$merge_base" HEAD)
-          if echo "$changed" | grep -q '^helm/sim/'; then
-            base_version=$(git show "$merge_base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
-            head_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
-            echo "base=$base_version head=$head_version"
-            if [ "$base_version" = "$head_version" ]; then
-              echo "::error::helm/sim/** changed but Chart.yaml version did not (still $head_version). Bump it per SemVer."
-              exit 1
-            fi
-          else
-            echo "No chart changes; skipping."
-          fi
 
   install:
     name: Install on kind and run helm test

@@ -5,10 +5,10 @@ global:
   # Use registry for all images, not just simstudioai/* images
   useRegistryForAllImages: false
   imagePullSecrets: []
-  
+
   # Common labels applied to all resources
   commonLabels: {}
-  
+
   # Storage class for persistent volumes
   storageClass: ""
 
@@ -108,7 +108,7 @@ app:
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
-    INTERNAL_API_SECRET: "" # REQUIRED - set via --set flag or external secret manager, used for internal service-to-service authentication
+    INTERNAL_API_SECRET: ""  # REQUIRED - set via --set flag or external secret manager, used for internal service-to-service authentication
 
     # Optional: Scheduled Jobs Authentication
     # Generate using: openssl rand -hex 32
@@ -120,7 +120,7 @@ app:
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
     REDIS_URL: ""           # OPTIONAL - external Redis connection string. Overrides the bundled Redis (see the `redis:` section) and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
-    
+
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
     # Resend → AWS SES → SMTP → Azure Communication Services → Gmail.
@@ -436,7 +436,7 @@ app:
     type: ClusterIP
     port: 3000
     targetPort: 3000
-  
+
   # Health checks
   # startupProbe shields a slow Next.js cold start (large bundle, 4Gi memory limits) from
   # liveness restarts. Once it succeeds, liveness + readiness take over. Total cold-start
@@ -498,7 +498,7 @@ realtime:
     requests:
       memory: "512Mi"
       cpu: "250m"
-  
+
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
 
@@ -514,7 +514,7 @@ realtime:
   securityContext:
     runAsNonRoot: true
     runAsUser: 1001
-  
+
   # Environment variables — Secret-bound. See `envDefaults` below for chart-shipped defaults.
   env:
     # Application URLs — must mirror the public origin used by the main app.
@@ -540,13 +540,13 @@ realtime:
     BETTER_AUTH_URL: "http://localhost:3000"
     ALLOWED_ORIGINS: "http://localhost:3000"
     NODE_ENV: "production"
-  
+
   # Service configuration
   service:
     type: ClusterIP
     port: 3002
     targetPort: 3002
-  
+
   # Health checks
   # Startup probe absorbs cold-start time. Total budget: 30 * 5s = 150s.
   startupProbe:
@@ -630,7 +630,7 @@ redis:
 migrations:
   # Enable/disable the migrations init container
   enabled: true
-  
+
   # Image configuration
   image:
     repository: simstudioai/migrations
@@ -638,7 +638,7 @@ migrations:
     tag: ""
     digest: ""
     pullPolicy: IfNotPresent
-  
+
   # Resource limits and requests
   resources:
     limits:
@@ -646,11 +646,11 @@ migrations:
     requests:
       memory: "512Mi"
       cpu: "100m"
-  
+
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-  
+
   # Container security context
   securityContext:
     runAsNonRoot: true
@@ -660,13 +660,13 @@ migrations:
 postgresql:
   # Enable/disable internal PostgreSQL deployment
   enabled: true
-  
+
   # Image configuration
   image:
     repository: pgvector/pgvector
     tag: pg17
     pullPolicy: IfNotPresent
-  
+
   # Authentication configuration
   auth:
     username: postgres
@@ -679,10 +679,10 @@ postgresql:
       name: ""           # Name of existing Kubernetes secret. Must contain the
                          # password under the key POSTGRES_PASSWORD — key
                          # remapping is not supported.
-  
+
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-  
+
   # Resource limits and requests
   resources:
     limits:
@@ -690,7 +690,7 @@ postgresql:
     requests:
       memory: "1Gi"
       cpu: "500m"
-  
+
   # Pod security context
   # PostgreSQL image's `postgres` user is uid/gid 999.
   podSecurityContext:
@@ -740,20 +740,20 @@ postgresql:
     # additionalDnsNames:
     #   - postgres.example.com
     #   - db.example.com
-  
+
   # PostgreSQL configuration
   config:
     maxConnections: 1000
     sharedBuffers: "1280MB"
     maxWalSize: "4GB"
     minWalSize: "80MB"
-  
+
   # Service configuration
   service:
     type: ClusterIP
     port: 5432
     targetPort: 5432
-  
+
   # Health checks
   # startupProbe shields liveness from slow first-boot scenarios (pgvector
   # extension init, WAL replay after a crash on a large data dir). Gives
@@ -839,18 +839,18 @@ ollama:
     strategy: "time-slicing"
     # Number of time-slicing replicas (only used when strategy is "time-slicing")
     timeSlicingReplicas: 5
-  
+
   # Node selector for GPU workloads (adjust labels based on your cluster configuration)
   nodeSelector:
     accelerator: nvidia
-  
+
   # Tolerations for GPU nodes (adjust based on your cluster's GPU node taints)
   tolerations:
     - key: "sku"
       operator: "Equal"
       value: "gpu"
       effect: "NoSchedule"
-  
+
   # Resource limits and requests
   resources:
     limits:
@@ -859,7 +859,7 @@ ollama:
     requests:
       memory: "4Gi"
       cpu: "1000m"
-  
+
   # Pod security context
   # The upstream ollama/ollama image is built to run as root and writes models to
   # /root/.ollama by default. To meet Pod Security Standards "restricted", we run
@@ -888,7 +888,7 @@ ollama:
     # Point it at a path under the writable PVC mount instead.
     HOME: "/tmp"
     OLLAMA_MODELS: "/data/models"
-  
+
   # Persistence configuration
   persistence:
     enabled: true
@@ -896,13 +896,13 @@ ollama:
     size: 100Gi
     accessModes:
       - ReadWriteOnce
-  
+
   # Service configuration
   service:
     type: ClusterIP
     port: 11434
     targetPort: 11434
-  
+
   # Health checks
   startupProbe:
     httpGet:
@@ -912,7 +912,7 @@ ollama:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 10
-  
+
   livenessProbe:
     httpGet:
       path: /
@@ -921,7 +921,7 @@ ollama:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 5
-  
+
   readinessProbe:
     httpGet:
       path: /
@@ -1099,10 +1099,10 @@ ingressInternal:
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
-  
+
   # Annotations to add to the service account
   annotations: {}
-  
+
   # The name of the service account to use
   name: ""
 
@@ -1324,7 +1324,7 @@ tolerations: []
 cronjobs:
   # Enable/disable all cron jobs
   enabled: true
-  
+
   # Individual job configurations
   jobs:
     scheduleExecution:
@@ -1335,7 +1335,7 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-      
+
     gmailWebhookPoll:
       enabled: true
       name: gmail-webhook-poll
@@ -1344,7 +1344,7 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-      
+
     outlookWebhookPoll:
       enabled: true
       name: outlook-webhook-poll
@@ -1574,7 +1574,7 @@ cronjobs:
     repository: curlimages/curl
     tag: 8.5.0
     pullPolicy: IfNotPresent
-    
+
   resources:
     limits:
       memory: "128Mi"
@@ -1582,15 +1582,15 @@ cronjobs:
     requests:
       memory: "64Mi"
       cpu: "50m"
-      
+
   restartPolicy: OnFailure
   activeDeadlineSeconds: 300
   startingDeadlineSeconds: 60
-  
+
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-  
+
   # Container security context
   securityContext:
     runAsNonRoot: true
@@ -1600,16 +1600,16 @@ cronjobs:
 telemetry:
   # Enable/disable telemetry collection
   enabled: false
-  
+
   # OpenTelemetry Collector image
   image:
     repository: otel/opentelemetry-collector-contrib
     tag: 0.91.0
     pullPolicy: IfNotPresent
-  
+
   # Number of collector replicas
   replicaCount: 1
-  
+
   # Resource limits and requests
   resources:
     limits:
@@ -1618,20 +1618,20 @@ telemetry:
     requests:
       memory: "256Mi"
       cpu: "100m"
-  
+
   # Node selector for telemetry pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-  
+
   # Tolerations for telemetry workloads
   tolerations: []
-  
+
   # Affinity for telemetry workloads
   affinity: {}
-  
+
   # Service configuration
   service:
     type: ClusterIP
-  
+
   # Jaeger tracing backend
   jaeger:
     enabled: false
@@ -1640,13 +1640,13 @@ telemetry:
     endpoint: "jaeger-collector:4317"
     tls:
       enabled: false
-  
+
   # Prometheus metrics backend
   prometheus:
     enabled: false
     endpoint: "http://prometheus-server/api/v1/write"
     auth: ""
-  
+
   # Generic OTLP backend
   otlp:
     enabled: false
@@ -1667,7 +1667,7 @@ telemetry:
 copilot:
   # Enable/disable the copilot service
   enabled: false
-  
+
   # Server deployment configuration
   server:
     # Image configuration
@@ -1680,7 +1680,7 @@ copilot:
 
     # Number of replicas
     replicaCount: 1
-    
+
     # Resource limits and requests
     resources:
       limits:
@@ -1689,21 +1689,21 @@ copilot:
       requests:
         memory: "1Gi"
         cpu: "500m"
-    
+
     # Node selector for pod scheduling
     # Leave empty to run on same infrastructure as main Sim platform
     # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
     nodeSelector: {}
-    
+
     # Pod security context
     podSecurityContext:
       fsGroup: 1001
-    
+
     # Container security context
     securityContext:
       runAsNonRoot: true
       runAsUser: 1001
-    
+
     # Environment variables that go through the chart-managed Secret (or ExternalSecret
     # when externalSecrets.enabled=true). Every non-empty key here must have a matching
     # externalSecrets.remoteRefs.copilot entry under ESO — reserve this block for values
@@ -1748,13 +1748,13 @@ copilot:
       create: true
       name: ""
       annotations: {}
-    
+
     # Service configuration
     service:
       type: ClusterIP
       port: 8080
       targetPort: 8080
-    
+
     # Health checks
     # Startup probe absorbs cold-start time. Total budget: 30 * 5s = 150s.
     startupProbe:
@@ -1799,18 +1799,18 @@ copilot:
       repository: postgres
       tag: 17-alpine
       pullPolicy: IfNotPresent
-    
+
     # Authentication configuration
     auth:
       username: copilot
       password: ""  # REQUIRED - set via --set flag or external secret manager
       database: copilot
-    
+
     # Node selector for database pod scheduling
     # Leave empty to run on same infrastructure as main Sim platform
     # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
     nodeSelector: {}
-    
+
     # Resource limits and requests
     resources:
       limits:
@@ -1819,7 +1819,7 @@ copilot:
       requests:
         memory: "512Mi"
         cpu: "250m"
-    
+
     # Pod security context
     # PostgreSQL image's `postgres` user is uid/gid 999.
     podSecurityContext:
@@ -1875,19 +1875,19 @@ copilot:
       periodSeconds: 3
       timeoutSeconds: 5
       failureThreshold: 10
-  
+
   # External database configuration (use when connecting to a managed database)
   database:
     existingSecretName: ""
     secretKey: DATABASE_URL
     url: ""
-  
+
   # Migration job configuration (Copilot migrations run as a Helm-hook Job,
   # unlike the app migrations which run as an init container)
   migrations:
     # Enable/disable the Copilot migrations Job
     enabled: true
-    
+
     # Image configuration (same as server)
     image:
       repository: simstudioai/copilot
@@ -1904,16 +1904,16 @@ copilot:
       requests:
         memory: "256Mi"
         cpu: "100m"
-    
+
     # Pod security context
     podSecurityContext:
       fsGroup: 1001
-    
+
     # Container security context
     securityContext:
       runAsNonRoot: true
       runAsUser: 1001
-    
+
     # Job configuration
     backoffLimit: 3
     restartPolicy: OnFailure
