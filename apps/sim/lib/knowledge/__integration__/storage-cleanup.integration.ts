@@ -30,7 +30,7 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createSingleDocument, hardDeleteDocuments } from '@/lib/knowledge/documents/service'
+import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import {
   cleanupKnowledgeStorage,
   enqueueKnowledgeStorageCleanup,
@@ -245,59 +245,42 @@ describe('knowledge backing storage cleanup in PostgreSQL', () => {
     }
   })
 
-  it('cleans a legacy personal KB document using its canonical user-owned binding', async () => {
-    const fixture = await seed()
-    await db
-      .update(knowledgeBase)
-      .set({ workspaceId: null })
-      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
-    await db
-      .update(workspaceFiles)
-      .set({ workspaceId: null })
-      .where(eq(workspaceFiles.id, fixture.binding.id))
-    expect(await hardDeleteDocuments([fixture.docId], 'personal-cleanup')).toBe(1)
-    const event = await cleanupEvent(fixture.docId)
-    expect(event.payload).toMatchObject({
-      userId: fixture.aliceId,
-      workspaceId: null,
-      organizationId: null,
-    })
-    expect(await processOutboxEventById(event.id, handlers)).toBe('completed')
-    expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toEqual([])
-    await expect(access(fixture.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(
-      createSingleDocument(
-        {
-          filename: 'expired.txt',
-          fileUrl: fixture.fileUrl,
-          fileSize: 25,
-          mimeType: 'text/plain',
+  it.each([false, true])(
+    'handles already-queued personal cleanup after KB ownership repair (owner changed: %s)',
+    async (ownerChanged) => {
+      const fixture = await seed()
+      await db.delete(document).where(eq(document.id, fixture.docId))
+      await db
+        .update(workspaceFiles)
+        .set({ workspaceId: null, userId: ownerChanged ? fixture.bobId : fixture.aliceId })
+        .where(eq(workspaceFiles.id, fixture.binding.id))
+      const eventId = `knowledge-storage-cleanup:${generateId()}`
+      events.push(eventId)
+      await db.insert(outboxEvent).values({
+        id: eventId,
+        eventType: KNOWLEDGE_STORAGE_CLEANUP_EVENT,
+        payload: {
+          version: 1,
+          documentId: fixture.docId,
+          fileId: fixture.binding.id,
+          key: fixture.key,
+          contentUpdatedAt: fixture.binding.contentUpdatedAt.toISOString(),
+          userId: fixture.aliceId,
+          workspaceId: null,
+          organizationId: null,
         },
-        fixture.knowledgeBaseId,
-        'personal-expired-upload',
-        fixture.aliceId
-      )
-    ).rejects.toThrow('not owned')
-  })
+      })
 
-  it('rolls back personal document deletion when the file belongs to a different user', async () => {
-    const fixture = await seed()
-    await db
-      .update(knowledgeBase)
-      .set({ workspaceId: null })
-      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
-    await db
-      .update(workspaceFiles)
-      .set({ workspaceId: null, userId: fixture.bobId })
-      .where(eq(workspaceFiles.id, fixture.binding.id))
-    await expect(hardDeleteDocuments([fixture.docId], 'personal-mismatch')).rejects.toThrow(
-      'ownership binding'
-    )
-    expect(
-      await db.select({ id: document.id }).from(document).where(eq(document.id, fixture.docId))
-    ).toHaveLength(1)
-    await expect(access(fixture.filePath)).resolves.toBeUndefined()
-  })
+      expect(await processOutboxEventById(eventId, handlers)).toBe('completed')
+      if (ownerChanged) {
+        expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toHaveLength(1)
+        await expect(access(fixture.filePath)).resolves.toBeUndefined()
+      } else {
+        expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toEqual([])
+        await expect(access(fixture.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+    }
+  )
 
   it('allows a create-only re-upload to register a new version after cleanup tombstones its old binding', async () => {
     const fixture = await seed()

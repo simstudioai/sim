@@ -20,12 +20,6 @@ export interface KnowledgeAuthorizationContext
   organizationId?: undefined
 }
 
-export interface LegacyPersonalKnowledgeAuthorizationContext extends KnowledgeResourceIdentifiers {
-  workspaceId: undefined
-  organizationId?: undefined
-  legacyPersonalOwnerUserId: string
-}
-
 export interface KnowledgeOrganizationAuthorizationContext extends KnowledgeResourceIdentifiers {
   organizationId: string
   workspaceId: undefined
@@ -34,7 +28,6 @@ export interface KnowledgeOrganizationAuthorizationContext extends KnowledgeReso
 export type KnowledgeResourceAuthorizationContext =
   | KnowledgeAuthorizationContext
   | KnowledgeOrganizationAuthorizationContext
-  | LegacyPersonalKnowledgeAuthorizationContext
 
 export type KnowledgeAuthorizationOptions = Omit<
   WorkspaceAuthorizationOptions<KnowledgeAuthorizationContext>,

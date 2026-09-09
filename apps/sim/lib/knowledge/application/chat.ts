@@ -1,10 +1,11 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { and, eq, isNull, notExists } from 'drizzle-orm'
 import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
@@ -124,6 +125,7 @@ export const organizationSearchChat: OperationUseCase<
     const messageId = generateId()
     const controller = new AbortController()
     let running = false
+    let persisted = false
     let explicitAbort: Promise<void> | undefined
     const abort = () => {
       controller.abort(new DOMException('Search chat cancelled', 'AbortError'))
@@ -196,6 +198,7 @@ export const organizationSearchChat: OperationUseCase<
       let conversation: Pick<OrganizationSearchChatResult, 'chatId' | 'conversationUrl'> = {}
       try {
         await persistCopilotChatTurn(chatId, [userMessage, assistantMessage])
+        persisted = true
         conversation = {
           chatId,
           conversationUrl: `${getBaseUrl()}/o/${encodeURIComponent(organizationId)}/chat/${encodeURIComponent(chatId)}`,
@@ -211,6 +214,42 @@ export const organizationSearchChat: OperationUseCase<
       clearTimeout(timeout)
       input.signal?.removeEventListener('abort', abort)
       await explicitAbort
+      if (!persisted) {
+        /** Retain run diagnostics, but keep an unsuccessful empty conversation out of history. */
+        try {
+          await db.transaction(async (tx) => {
+            const ownedChat = and(
+              eq(copilotChats.id, chatId),
+              eq(copilotChats.userId, userId),
+              eq(copilotChats.organizationId, organizationId),
+              isNull(copilotChats.deletedAt)
+            )
+            /** Serialize with transcript persistence before taking the no-messages snapshot. */
+            const [locked] = await tx
+              .select({ id: copilotChats.id })
+              .from(copilotChats)
+              .where(ownedChat)
+              .for('update')
+            if (!locked) return
+            await tx
+              .update(copilotChats)
+              .set({ deletedAt: new Date() })
+              .where(
+                and(
+                  ownedChat,
+                  notExists(
+                    tx
+                      .select({ id: copilotMessages.id })
+                      .from(copilotMessages)
+                      .where(eq(copilotMessages.chatId, chatId))
+                  )
+                )
+              )
+          })
+        } catch (error) {
+          logger.warn('Unable to remove empty Search conversation from history', { chatId, error })
+        }
+      }
     }
   },
 }

@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
 import type { OrchestratorResult, ToolCallSummary } from '@/lib/copilot/request/types'
@@ -80,6 +80,7 @@ beforeEach(() => {
   resetDbChainMock()
   dbChainMockFns.limit.mockResolvedValue([{ role: 'member' }])
   dbChainMockFns.returning.mockResolvedValue([{ id: 'private-chat' }])
+  dbChainMockFns.for.mockResolvedValue([{ id: 'private-chat' }])
   mocks.config.mockResolvedValue(null)
   mocks.available.mockResolvedValue(undefined)
   mocks.billing.mockResolvedValue({
@@ -154,6 +155,7 @@ describe('organization Search Assistant chat', () => {
     ])
     expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
     expect(mocks.available).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it.each<Principal>([
@@ -174,6 +176,7 @@ describe('organization Search Assistant chat', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mocks.billing).not.toHaveBeenCalled()
     expect(mocks.lifecycle).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('does not create a conversation for a nonmember', async () => {
@@ -241,6 +244,7 @@ describe('organization Search Assistant chat', () => {
     await expect(execute()).rejects.toThrow('Organization not found')
     expect(mocks.lifecycle).toHaveBeenCalledOnce()
     expect(mocks.persist).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('rechecks OAuth restrictions after the run', async () => {
@@ -250,6 +254,7 @@ describe('organization Search Assistant chat', () => {
     })
     await expect(execute()).rejects.toThrow('OAuth app access')
     expect(mocks.persist).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('withholds the answer when Search is disabled during execution', async () => {
@@ -258,6 +263,7 @@ describe('organization Search Assistant chat', () => {
       .mockRejectedValueOnce(new OrchestrationError('forbidden', 'Search is not enabled'))
     await expect(execute()).rejects.toThrow('Search is not enabled')
     expect(mocks.persist).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -268,6 +274,7 @@ describe('organization Search Assistant chat', () => {
     mocks.lifecycle.mockResolvedValue(createResult(overrides))
     await expect(execute()).rejects.toThrow(/assistant/i)
     expect(mocks.persist).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('fails closed when retrieval makes provenance incomplete', async () => {
@@ -283,6 +290,65 @@ describe('organization Search Assistant chat', () => {
   it('returns the answer without a broken conversation link when persistence fails', async () => {
     mocks.persist.mockRejectedValue(new Error('database unavailable'))
     await expect(execute()).resolves.toEqual({ content: createResult().content, citations: [] })
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+  })
+
+  it('only archives its own newly created conversation when it has no persisted messages', async () => {
+    mocks.lifecycle.mockRejectedValue(new Error('model unavailable'))
+    await expect(execute()).rejects.toThrow('model unavailable')
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.update.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.copilotChats)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
+    expect(dbChainMockFns.where).toHaveBeenLastCalledWith({
+      type: 'and',
+      conditions: [
+        {
+          type: 'and',
+          conditions: [
+            { type: 'eq', left: schemaMock.copilotChats.id, right: 'private-chat' },
+            { type: 'eq', left: schemaMock.copilotChats.userId, right: 'member-1' },
+            { type: 'eq', left: schemaMock.copilotChats.organizationId, right: 'org-1' },
+            { type: 'isNull', column: schemaMock.copilotChats.deletedAt },
+          ],
+        },
+        expect.objectContaining({ type: 'notExists' }),
+      ],
+    })
+    expect(dbChainMockFns.from).toHaveBeenCalledWith(schemaMock.copilotMessages)
+    expect(dbChainMockFns.where).toHaveBeenCalledWith({
+      type: 'eq',
+      left: schemaMock.copilotMessages.chatId,
+      right: 'private-chat',
+    })
+  })
+
+  it('preserves a completed transcript if cancellation arrives during persistence', async () => {
+    const controller = new AbortController()
+    mocks.persist.mockImplementation(async () => controller.abort())
+    await expect(execute({ signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(mocks.persist).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('preserves the original failure when cleanup cannot reach the database', async () => {
+    mocks.lifecycle.mockRejectedValue(new Error('model unavailable'))
+    dbChainMockFns.update.mockImplementationOnce(() => {
+      throw new Error('database unavailable')
+    })
+    await expect(execute()).rejects.toThrow('model unavailable')
+  })
+
+  it('does not change a chat that no longer matches the owned live row lock', async () => {
+    mocks.lifecycle.mockRejectedValue(new Error('model unavailable'))
+    dbChainMockFns.for.mockResolvedValueOnce([])
+    await expect(execute()).rejects.toThrow('model unavailable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('does not start or bill work for an already-cancelled request', async () => {
@@ -323,6 +389,7 @@ describe('organization Search Assistant chat', () => {
     })
     expect(mocks.explicitAbort).toHaveBeenCalledOnce()
     expect(mocks.persist).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('caps execution time and removes the timeout after completion', async () => {
@@ -342,6 +409,7 @@ describe('organization Search Assistant chat', () => {
     await refusal
     expect(mocks.explicitAbort).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 })
 

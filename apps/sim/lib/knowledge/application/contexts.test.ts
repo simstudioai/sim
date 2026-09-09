@@ -103,66 +103,36 @@ describe('knowledge application contexts', () => {
     ).rejects.toBe(failure)
   })
 
-  it('resolves a legacy personal knowledge base only through the resource context', async () => {
+  it('conceals an unscoped knowledge base even from its creator', async () => {
     mocks.getKnowledgeBase.mockResolvedValueOnce({
-      id: 'legacy-knowledge',
-      userId: 'owner-1',
+      id: 'unscoped-knowledge',
+      userId: principal.userId,
       workspaceId: null,
+      organizationId: null,
     })
 
     await expect(
-      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'legacy-knowledge' }, principal)
-    ).resolves.toMatchObject({
-      knowledgeBaseId: 'legacy-knowledge',
-      workspaceId: undefined,
-      legacyPersonalOwnerUserId: 'owner-1',
-    })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('does not let a workspace assertion address a legacy personal knowledge base', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      id: 'legacy-knowledge',
-      userId: 'owner-1',
-      workspaceId: null,
-    })
-
-    await expect(
-      resolveActiveKnowledgeResourceContext(
-        {
-          knowledgeBaseId: 'legacy-knowledge',
-          assertedWorkspaceId: 'workspace-1',
-        },
-        principal
-      )
+      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'unscoped-knowledge' }, principal)
     ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.createAccessProvider).not.toHaveBeenCalled()
   })
 
-  it('keeps legacy personal ownership on canonical child contexts', async () => {
-    mocks.getDocumentById.mockResolvedValueOnce({
-      id: 'legacy-document',
-      knowledgeBaseId: 'legacy-knowledge',
-    })
+  it('does not load child documents from an unscoped knowledge base', async () => {
     mocks.getKnowledgeBase.mockResolvedValueOnce({
-      id: 'legacy-knowledge',
-      userId: 'owner-1',
+      id: 'unscoped-knowledge',
+      userId: principal.userId,
       workspaceId: null,
+      organizationId: null,
     })
 
     await expect(
       resolveCanonicalActiveKnowledgeDocumentContext(
-        {
-          knowledgeBaseId: 'legacy-knowledge',
-          documentId: 'legacy-document',
-        },
+        { knowledgeBaseId: 'unscoped-knowledge', documentId: 'document-1' },
         principal
       )
-    ).resolves.toMatchObject({
-      documentId: 'legacy-document',
-      knowledgeBaseId: 'legacy-knowledge',
-      workspaceId: undefined,
-      legacyPersonalOwnerUserId: 'owner-1',
-    })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.getDocumentById).not.toHaveBeenCalled()
   })
 
   describe('canonical child resources', () => {

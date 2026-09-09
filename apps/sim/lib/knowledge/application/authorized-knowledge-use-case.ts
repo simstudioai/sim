@@ -16,9 +16,7 @@ import {
   type KnowledgeAuthorizationContext,
   type KnowledgeResourceAuthorizationContext,
   knowledgeDelegationPolicy,
-  type LegacyPersonalKnowledgeAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
-import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import type { ScopedKnowledgeOperation } from '@/lib/knowledge/application/operations'
 
 type KnowledgePrincipalForOperation<O extends ScopedKnowledgeOperation> =
@@ -76,12 +74,6 @@ interface AuthorizedKnowledgeUseCaseDefinition<
     args: AuthorizedKnowledgeUseCaseResultContext<O, I, C, R>
   ): WorkspaceUseCaseAuditEntry | WorkspaceUseCaseAuditEntry[]
   afterSuccess?(args: AuthorizedKnowledgeUseCaseResultContext<O, I, C, R>): void | Promise<void>
-}
-
-function isLegacyPersonalKnowledgeContext(
-  context: KnowledgeResourceAuthorizationContext
-): context is LegacyPersonalKnowledgeAuthorizationContext {
-  return context.workspaceId === undefined && context.organizationId === undefined
 }
 
 function assertWorkspaceKnowledgeContext<C extends KnowledgeResourceAuthorizationContext>(
@@ -171,33 +163,6 @@ export function defineAuthorizedKnowledgeUseCase<
       }
       if (principal.kind === 'organization_delegated')
         throw new OrchestrationError('not_found', 'Knowledge base not found')
-      if (isLegacyPersonalKnowledgeContext(context)) {
-        if (
-          principal.kind === 'workspace_api_key' ||
-          resolveKnowledgeAttributedUserId(principal, context) !== context.legacyPersonalOwnerUserId
-        ) {
-          throw new OrchestrationError('not_found', 'Knowledge base not found')
-        }
-        const executionContext = { principal, input, context, request }
-        const result = await definition.execute(executionContext)
-        const resultContext = { ...executionContext, result }
-        const projectedAudit = definition.projectAudit?.(resultContext)
-        if (projectedAudit !== undefined) {
-          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-          if (auditEntries.length > 0) {
-            recordProjectedUseCaseAuditEntries(
-              definition.operation,
-              context.workspaceId,
-              principal,
-              request,
-              auditEntries
-            )
-          }
-        }
-        await definition.afterSuccess?.(resultContext)
-        return result
-      }
-
       assertWorkspaceKnowledgeContext(context)
       return workspaceUseCase.execute({
         principal,

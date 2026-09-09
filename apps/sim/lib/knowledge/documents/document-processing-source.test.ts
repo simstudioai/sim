@@ -14,7 +14,7 @@ import {
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckActorUsageLimits,
+  mockCheckAttributedUsageLimits,
   mockBatchTrigger,
   mockGenerateEmbeddings,
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
@@ -23,7 +23,7 @@ const {
   mockProcessDocument,
   mockTrigger,
 } = vi.hoisted(() => ({
-  mockCheckActorUsageLimits: vi.fn(),
+  mockCheckAttributedUsageLimits: vi.fn(),
   mockBatchTrigger: vi.fn(),
   mockGenerateEmbeddings: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
@@ -35,10 +35,6 @@ const {
 
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: { batchTrigger: mockBatchTrigger, trigger: mockTrigger },
-}))
-
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: mockCheckActorUsageLimits,
 }))
 
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
@@ -69,6 +65,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataByKeys: mockGetFileMetadataByKeys,
 }))
 
+import * as billingAttribution from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import {
   markInsideTriggerRun,
@@ -95,6 +92,9 @@ import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
+  vi.spyOn(billingAttribution, 'checkAttributedUsageLimits').mockImplementation(
+    mockCheckAttributedUsageLimits
+  )
   mockEmbeddingCapacity.mockReset().mockResolvedValue(undefined)
   vi.spyOn(embeddingClient, 'assertKnowledgeEmbeddingCapacity').mockImplementation(
     mockEmbeddingCapacity
@@ -106,7 +106,7 @@ const PERSISTED_URL = `/api/files/serve/${encodeURIComponent(PERSISTED_KEY)}?con
 const CONTENT_UPDATED_AT = new Date('2026-08-05T12:00:00.000Z')
 
 const PERSISTED_CONTEXT = {
-  workspaceId: null,
+  workspaceId: 'workspace-1',
   knowledgeBaseUserId: 'knowledge-owner',
   chunkingConfig: null,
   embeddingModel: 'text-embedding-3-small',
@@ -135,6 +135,20 @@ const PERSISTED_CONTEXT = {
   boolean1: null,
   boolean2: null,
   boolean3: null,
+}
+
+const BILLING_ATTRIBUTION: billingAttribution.BillingAttributionSnapshot = {
+  actorUserId: 'uploader-1',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'user', id: 'workspace-owner' },
+  billingPeriod: {
+    start: '2026-08-01T00:00:00.000Z',
+    end: '2026-09-01T00:00:00.000Z',
+    source: 'default',
+  },
+  payerSubscription: null,
 }
 
 const PERSISTED_PROVENANCE_ROW = {
@@ -194,7 +208,7 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [SOURCE_BINDING] : []
     )
@@ -218,12 +232,18 @@ describe('knowledge document processing source', () => {
   ])('avoids source download and OCR on $name', async ({ failure }) => {
     mockEmbeddingCapacity.mockRejectedValueOnce(failure)
     await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: PERSISTED_CONTEXT.filename,
-        fileUrl: PERSISTED_CONTEXT.fileUrl,
-        fileSize: PERSISTED_CONTEXT.fileSize,
-        mimeType: PERSISTED_CONTEXT.mimeType,
-      })
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: PERSISTED_CONTEXT.filename,
+          fileUrl: PERSISTED_CONTEXT.fileUrl,
+          fileSize: PERSISTED_CONTEXT.fileSize,
+          mimeType: PERSISTED_CONTEXT.mimeType,
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     ).rejects.toBe(failure)
     expect(mockEmbeddingCapacity).toHaveBeenCalledWith({
       model: PERSISTED_CONTEXT.embeddingModel,
@@ -236,12 +256,18 @@ describe('knowledge document processing source', () => {
   })
 
   it('uses the persisted document source instead of stale queued source fields', async () => {
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'stale.pdf',
-      fileUrl: 'https://example.com/stale.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'stale.pdf',
+        fileUrl: 'https://example.com/stale.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
       [PERSISTED_KEY],
@@ -265,7 +291,7 @@ describe('knowledge document processing source', () => {
         signal: expect.any(AbortSignal),
         processingDeadlineAt: expect.any(Number),
       },
-      null,
+      PERSISTED_CONTEXT.workspaceId,
       undefined,
       undefined
     )
@@ -279,7 +305,7 @@ describe('knowledge document processing source', () => {
       'document-1',
       PERSISTED_CONTEXT,
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       undefined,
       {
         chargedAtDispatch: false,
@@ -297,12 +323,18 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: PERSISTED_CONTEXT.filename,
-      fileUrl: PERSISTED_CONTEXT.fileUrl,
-      fileSize: PERSISTED_CONTEXT.fileSize,
-      mimeType: PERSISTED_CONTEXT.mimeType,
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: PERSISTED_CONTEXT.filename,
+        fileUrl: PERSISTED_CONTEXT.fileUrl,
+        fileSize: PERSISTED_CONTEXT.fileSize,
+        mimeType: PERSISTED_CONTEXT.mimeType,
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     expect(mockProcessDocument).toHaveBeenCalledWith(
       PERSISTED_CONTEXT.fileUrl,
@@ -317,7 +349,7 @@ describe('knowledge document processing source', () => {
         signal: expect.any(AbortSignal),
         processingDeadlineAt: expect.any(Number),
       },
-      null,
+      PERSISTED_CONTEXT.workspaceId,
       undefined,
       undefined
     )
@@ -327,12 +359,18 @@ describe('knowledge document processing source', () => {
     mockGetFileMetadataByKeys.mockResolvedValue([])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(new Map())
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'stale.pdf',
-      fileUrl: 'https://example.com/stale.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'stale.pdf',
+        fileUrl: 'https://example.com/stale.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     expect(mockProcessDocument).toHaveBeenCalledWith(
       PERSISTED_CONTEXT.fileUrl,
@@ -347,7 +385,7 @@ describe('knowledge document processing source', () => {
         signal: expect.any(AbortSignal),
         processingDeadlineAt: expect.any(Number),
       },
-      null,
+      PERSISTED_CONTEXT.workspaceId,
       undefined,
       undefined
     )
@@ -362,12 +400,18 @@ describe('knowledge document processing source', () => {
     )
 
     await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: 'stale.pdf',
-        fileUrl: 'https://example.com/stale.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      })
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'stale.pdf',
+          fileUrl: 'https://example.com/stale.pdf',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     ).rejects.toThrow('Knowledge document secret provenance is unavailable')
 
     expect(mockProcessDocument).not.toHaveBeenCalled()
@@ -382,12 +426,18 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([{ id: 'document-1' }])
     dbChainMockFns.returning.mockReset().mockResolvedValue([{ id: 'document-1' }])
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'stale.pdf',
-      fileUrl: 'https://example.com/stale.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'stale.pdf',
+        fileUrl: 'https://example.com/stale.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     expect(mockProcessDocument).toHaveBeenCalled()
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
@@ -415,7 +465,7 @@ describe('processDocumentAsync write guards', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
-    mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockProcessDocument.mockResolvedValue({
       chunks: [],
       metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0 },
@@ -451,12 +501,18 @@ describe('processDocumentAsync write guards', () => {
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
     )
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'a.pdf',
-      fileUrl: 'https://example.com/a.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     /**
      * Unguarded, a late or duplicate dispatch flipped `completed` back to
@@ -488,7 +544,7 @@ describe('processDocumentAsync write guards', () => {
           mimeType: 'text/plain',
         },
         {},
-        undefined,
+        BILLING_ATTRIBUTION,
         'request-1',
         { chargedAtDispatch: true, onClaimed }
       )
@@ -520,7 +576,7 @@ describe('processDocumentAsync write guards', () => {
         mimeType: 'text/plain',
       },
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       'request-1',
       { chargedAtDispatch: true, processingQueuedAt }
     )
@@ -564,7 +620,7 @@ describe('processDocumentAsync write guards', () => {
         mimeType: 'text/plain',
       },
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       'request-1',
       { chargedAtDispatch: false }
     )
@@ -606,7 +662,7 @@ describe('processDocumentAsync write guards', () => {
         mimeType: 'text/plain',
       },
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       'request-1',
       {
         chargedAtDispatch: true,
@@ -654,12 +710,18 @@ describe('processDocumentAsync write guards', () => {
     // The guarded claim matched no rows: another pass owns this document.
     dbChainMockFns.returning.mockReset().mockResolvedValue([])
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'a.pdf',
-      fileUrl: 'https://example.com/a.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     expect(mockProcessDocument).not.toHaveBeenCalled()
   })
@@ -668,12 +730,18 @@ describe('processDocumentAsync write guards', () => {
     // No context row: the document or its knowledge base is gone.
     dbChainMockFns.limit.mockResolvedValue([])
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'a.pdf',
-      fileUrl: 'https://example.com/a.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     const where = guardForStatusWrite('failed')
     for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
@@ -696,12 +764,18 @@ describe('processDocumentAsync write guards', () => {
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
     )
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'a.pdf',
-      fileUrl: 'https://example.com/a.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
 
     /**
      * Without the reset a document that failed four times and then succeeded
@@ -717,7 +791,7 @@ describe('processDocumentAsync write guards', () => {
 
   it('records a mutable usage-limit failure and refunds a charged dispatch attempt', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([PERSISTED_CONTEXT])
-    mockCheckActorUsageLimits.mockResolvedValue({
+    mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       message: 'Usage limit exceeded. Upgrade to continue.',
     })
@@ -733,7 +807,7 @@ describe('processDocumentAsync write guards', () => {
           mimeType: 'text/plain',
         },
         {},
-        undefined,
+        BILLING_ATTRIBUTION,
         undefined,
         {
           chargedAtDispatch: true,
@@ -780,12 +854,18 @@ describe('processDocumentAsync write guards', () => {
     })
 
     await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: 'large.txt',
-        fileUrl: 'https://example.com/large.txt',
-        fileSize: 57,
-        mimeType: 'text/plain',
-      })
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'large.txt',
+          fileUrl: 'https://example.com/large.txt',
+          fileSize: 57,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     ).rejects.toMatchObject({
       name: 'PermanentDocumentProcessingError',
       code: 'document_complexity_limit',
@@ -811,12 +891,18 @@ describe('processDocumentAsync write guards', () => {
     )
 
     await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: 'protected.xlsx',
-        fileUrl: 'https://example.com/protected.xlsx',
-        fileSize: 1,
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'protected.xlsx',
+          fileUrl: 'https://example.com/protected.xlsx',
+          fileSize: 1,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     ).rejects.toMatchObject({
       code: 'encrypted_file',
     })
@@ -843,12 +929,18 @@ describe('processDocumentAsync write guards', () => {
     mockProcessDocument.mockRejectedValue(new Error('Storage request timed out'))
 
     await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: 'report.docx',
-        fileUrl: 'https://example.com/report.docx',
-        fileSize: 1,
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      })
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'report.docx',
+          fileUrl: 'https://example.com/report.docx',
+          fileSize: 1,
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     ).rejects.toThrow('Storage request timed out')
 
     const failure = dbChainMockFns.set.mock.calls.find(
@@ -876,12 +968,18 @@ describe('processDocumentAsync write guards', () => {
     )
 
     await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: 'report.docx',
-        fileUrl: 'https://example.com/report.docx',
-        fileSize: 1,
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      })
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'report.docx',
+          fileUrl: 'https://example.com/report.docx',
+          fileSize: 1,
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     ).rejects.toMatchObject({ status: 401, isBYOK: true })
 
     const failure = dbChainMockFns.set.mock.calls.find(
@@ -909,7 +1007,7 @@ describe('processDocumentAsync write guards', () => {
           'document-1',
           PERSISTED_CONTEXT,
           {},
-          undefined,
+          BILLING_ATTRIBUTION,
           'pass-1',
           {
             chargedAtDispatch,
@@ -962,7 +1060,7 @@ describe('processDocumentAsync write guards', () => {
         'document-1',
         PERSISTED_CONTEXT,
         {},
-        undefined,
+        BILLING_ATTRIBUTION,
         'pass-1',
         {
           chargedAtDispatch: false,
@@ -994,7 +1092,7 @@ describe('processDocumentAsync write guards', () => {
         'document-1',
         PERSISTED_CONTEXT,
         {},
-        undefined,
+        BILLING_ATTRIBUTION,
         'pass-1',
         {
           chargedAtDispatch: false,
@@ -1015,7 +1113,7 @@ describe('processDocumentAsync write guards', () => {
       'document-1',
       PERSISTED_CONTEXT,
       {},
-      undefined,
+      BILLING_ATTRIBUTION,
       'obsolete-pass',
       {
         chargedAtDispatch: false,
@@ -1058,7 +1156,7 @@ describe('processDocumentAsync write guards', () => {
             mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           },
           {},
-          undefined,
+          BILLING_ATTRIBUTION,
           undefined,
           {
             chargedAtDispatch,
@@ -1106,11 +1204,11 @@ describe('in-process quota continuation dispatch', () => {
     Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: undefined })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     dbChainMockFns.limit
-      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: null }])
+      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -1142,7 +1240,13 @@ describe('in-process quota continuation dispatch', () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_000)
 
     await expect(
-      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     expect(mockTrigger).not.toHaveBeenCalled()
@@ -1189,7 +1293,7 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        undefined,
+        BILLING_ATTRIBUTION,
         undefined,
         context
       )
@@ -1204,7 +1308,13 @@ describe('in-process quota continuation dispatch', () => {
       new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 600_000 })
     )
     await expect(
-      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
     ).resolves.toMatchObject({ accepted: 1, failed: 0 })
     expect(mockTrigger).not.toHaveBeenCalled()
     const event = dbChainMockFns.values.mock.calls.find(
@@ -1300,7 +1410,7 @@ describe('in-process quota continuation dispatch', () => {
             mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           },
           {},
-          undefined,
+          BILLING_ATTRIBUTION,
           'request-1',
           {
             chargedAtDispatch: false,
@@ -1354,7 +1464,7 @@ describe('in-process quota continuation dispatch', () => {
         'document-1',
         queuedDocument,
         {},
-        undefined,
+        BILLING_ATTRIBUTION,
         'request-1',
         {
           chargedAtDispatch: false,
@@ -1379,7 +1489,13 @@ describe('in-process quota continuation dispatch', () => {
     mockBatchTrigger.mockRejectedValue(new Error('batch unavailable'))
 
     await expect(
-      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
@@ -1398,7 +1514,13 @@ describe('in-process quota continuation dispatch', () => {
     mockTrigger.mockRejectedValue(new Error('continuation unavailable'))
 
     await expect(
-      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     const failure = dbChainMockFns.set.mock.calls.find(

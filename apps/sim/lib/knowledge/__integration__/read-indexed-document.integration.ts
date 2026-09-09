@@ -195,7 +195,7 @@ describe('indexed document references', () => {
   it('requires the canonical organization index for both URL and ID reads', async () => {
     await db
       .update(knowledgeBase)
-      .set({ isSearchIndex: false })
+      .set({ deletedAt: new Date() })
       .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     try {
       await expect(read(alice)).rejects.toThrow('Document not found')
@@ -205,7 +205,7 @@ describe('indexed document references', () => {
     } finally {
       await db
         .update(knowledgeBase)
-        .set({ isSearchIndex: true })
+        .set({ deletedAt: null })
         .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     }
   })

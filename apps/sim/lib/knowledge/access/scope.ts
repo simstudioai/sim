@@ -117,7 +117,7 @@ async function loadExternalGroupTokens(
 }
 
 export interface KnowledgeAccessScopeContext {
-  /** Undefined only for a legacy personal knowledge base, which cannot own connectors. */
+  /** Exactly one workspace or organization owner is required at resolution. */
   workspaceId?: string
   organizationId?: string
 }
@@ -136,7 +136,6 @@ async function loadUserAccessTokens(
   context: KnowledgeAccessScopeContext
 ): Promise<string[]> {
   const { workspaceId, organizationId } = context
-  if (!workspaceId && !organizationId) return [...WORKSPACE_ACCESS_TOKENS]
   const scope = resourceScopeFromOwner(context)
   const baseline = organizationId ? ORGANIZATION_ACCESS_TOKENS : WORKSPACE_ACCESS_TOKENS
 
@@ -277,6 +276,7 @@ export async function resolveKnowledgeAccessScope(
       'Credential Group enrollments cannot read knowledge documents'
     )
   }
+  resourceScopeFromOwner(context)
   const subject = resolvePrincipalSubject(principal)
   if (subject?.kind !== 'sim_user') {
     if (context.organizationId)
