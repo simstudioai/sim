@@ -54,7 +54,6 @@ vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-show
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchSources: mocks.sources,
   useSearchSourceOverview: mocks.overview,
-  searchSourceKeys: { list: (scope: unknown) => ['sources', scope] },
 }))
 vi.mock('@/hooks/use-member-enrollment', () => ({
   CONNECTABLE_MEMBERSHIPS: new Set(['invited', 'not_enrolled', 'needs_reauth']),

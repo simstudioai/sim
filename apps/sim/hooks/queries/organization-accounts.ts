@@ -38,6 +38,8 @@ import {
   updateOrganizationAccountsContract,
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
+import { slackSearchKeys } from '@/hooks/queries/slack-search'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 
@@ -143,6 +145,12 @@ export function useUpdateOrganizationAccounts() {
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
+        queryClient.invalidateQueries({
+          queryKey: slackSearchKeys.organizationManifests(organizationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: searchSourceKeys.organizationOverview(organizationId),
+        }),
       ]),
   })
 }

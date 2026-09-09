@@ -40,7 +40,6 @@ vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacePermissionsQuery: () => ({ data: { viewer: { isAdmin: mocks.canAdmin } } }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
-  searchSourceKeys: { list: (id: string) => ['search-sources', id] },
   useSearchSources: (id: string, options: { search: string }) => {
     mocks.sourceQuery(id, options)
     return {
