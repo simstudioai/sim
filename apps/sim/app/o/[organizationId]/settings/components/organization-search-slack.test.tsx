@@ -104,11 +104,14 @@ async function action(label: string) {
 }
 
 describe('Slack Search settings and shared wizard', () => {
-  it('starts with one setup action and the prefilled manifest, with no name or token form', async () => {
+  it('starts with one setup action and a Slack app link, with no manifest preview or form', async () => {
     await render()
     expect(container.querySelectorAll('button')).toHaveLength(1)
     await click('Set up')
-    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('App manifest')
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('App manifest')
+    expect(document.querySelector('a[href="https://api.slack.com/apps"]')).toHaveTextContent(
+      'Create app in Slack'
+    )
     expect(document.querySelectorAll('input')).toHaveLength(0)
     expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Sim Search')
     expect(mocks.install).not.toHaveBeenCalled()

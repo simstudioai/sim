@@ -11,7 +11,7 @@ separate agent framework is involved.
 1. The wizard generates the **Sim Search** app manifest with the default
    description, “Ask questions about your organization’s knowledge and get
    answers with sources.” Create the app in your Slack workspace using the
-   prepared link or copyable JSON preview.
+   **Create app in Slack** button. The app configuration is prefilled in Slack.
 2. Copy **Client ID**, **Client Secret**, and **Signing Secret** from Slack’s
    **Basic Information** page into the wizard.
 3. Choose **Install in Slack** and complete Slack OAuth. The bot token comes from
@@ -29,8 +29,12 @@ their individual accounts through the existing source connection flow.
 Every installation uses one code-defined app configuration. The wizard has no
 feature switches and stores no per-app capabilities. The bot grants
 `assistant:write`, `chat:write`, `im:history`, `im:write`, `app_mentions:read`,
-`users:read`, and `users:read.email`. Agent View is enabled, with `message.im`,
-`app_mention`, and `agent_session_stopped` subscriptions.
+`users:read`, and `users:read.email`. Agent View is enabled, with `app_home_opened`,
+`message.im`, `app_mention`, and `agent_session_stopped` subscriptions. Opening the
+app is acknowledged without starting a search; a message starts the conversation.
+Existing apps need the `app_home_opened` bot event added in Slack's Event
+Subscriptions. If Slack reports changed permission scopes, complete the wizard's
+OAuth installation again to grant them.
 
 The same app supplies separate member OAuth grants for channel and DM indexing:
 `users:read`, `users:read.email`, and the read/history scopes for channels,

@@ -12,7 +12,6 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
-import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -101,32 +100,22 @@ export function SlackSearchSetupWizard({
           </p>
         )}
         {step === 'manifest' && prepare.data && (
-          <>
-            <ChipModalField
-              type='custom'
-              title={installationId ? 'Update your Slack app' : 'Create your Slack app'}
+          <ChipModalField
+            type='custom'
+            title={installationId ? 'Update your Slack app' : 'Create your Slack app'}
+          >
+            <ChipLink
+              href={
+                configuredAppId
+                  ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
+                  : prepare.data.createAppUrl
+              }
+              target='_blank'
+              rel='noopener noreferrer'
             >
-              <ChipLink
-                href={
-                  configuredAppId
-                    ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
-                    : prepare.data.createAppUrl
-                }
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                {configuredAppId ? 'Open Slack app settings' : 'Create app in Slack'}
-              </ChipLink>
-              <p className='text-[var(--text-secondary)] text-caption'>
-                {configuredAppId
-                  ? 'Open App Manifest in your existing app and apply the updated configuration.'
-                  : 'Choose your Slack workspace, review the prepared manifest, then create the app.'}
-              </p>
-            </ChipModalField>
-            <ChipModalField type='custom' title='App manifest'>
-              <SlackAppManifest manifest={prepare.data.manifest} />
-            </ChipModalField>
-          </>
+              {configuredAppId ? 'Open Slack app settings' : 'Create app in Slack'}
+            </ChipLink>
+          </ChipModalField>
         )}
         {step === 'credentials' && (
           <>
