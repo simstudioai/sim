@@ -48,6 +48,7 @@ export function NavMenuLogoMarquee() {
                     height={logo.height}
                     width={Math.round(logo.height * logo.aspect)}
                     loading='lazy'
+                    draggable={false}
                     className={MUTED_MARK}
                   />
                 </li>
