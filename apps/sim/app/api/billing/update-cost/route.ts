@@ -312,6 +312,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
      * Every accepted callback has a stable key, so the maximum cumulative cost
      * converges on one ledger event without underbilling or double-billing.
      */
+    const usageStartedAt = Date.now()
     const result = await recordCumulativeUsage({
       userId,
       workspaceId: resolvedWorkspaceId,
@@ -330,6 +331,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       billedDelta: result.delta,
       newTotal: result.total,
       billed: result.billed,
+      durationMs: Date.now() - usageStartedAt,
     })
 
     // Reconcile the payer's ledger-backed threshold after every cumulative

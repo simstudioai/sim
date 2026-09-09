@@ -12,6 +12,7 @@ import {
   LANDING_GUTTER,
   LANDING_STAGE_RADIUS,
 } from '@/app/(landing)/components/landing-layout'
+import { useLazyMount } from '@/app/(landing)/hooks/use-lazy-mount'
 
 const WHEEL_GESTURE_GAP_MS = 200
 const WHEEL_THRESHOLD_PX = 50
@@ -58,6 +59,7 @@ const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
 export function FeaturedCustomer() {
   const railRef = useRef<HTMLDivElement>(null)
   const touchStartRef = useRef<{ id: number; x: number; y: number } | null>(null)
+  const { ref: mediaRegionRef, inView: preloadVideos } = useLazyMount('0px')
   const [activeIndex, setActiveIndex] = useState(0)
   const [previewedIndex, setPreviewedIndex] = useState<number | null>(null)
   const activeStory = CUSTOMER_STORIES[activeIndex]
@@ -143,7 +145,7 @@ export function FeaturedCustomer() {
       aria-roledescription='carousel'
       className='w-full overflow-hidden'
     >
-      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+      <div ref={mediaRegionRef} className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
         <div className='mb-4 flex items-center justify-end gap-2 xl:pr-24'>
           <FeaturedCustomerNavigationButton
             direction='previous'
@@ -210,6 +212,7 @@ export function FeaturedCustomer() {
                     story={story}
                     active={isActive}
                     emphasized={isActive || isPreviewed}
+                    preload={preloadVideos}
                   />
                   {!isActive && (
                     <button

@@ -2329,8 +2329,15 @@
     {
       "idx": 333,
       "version": "7",
-      "when": 1788972735749,
-      "tag": "0333_embedding_width_nullable",
+      "when": 1788973930563,
+      "tag": "0333_outbox_ready_type_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 334,
+      "version": "7",
+      "when": 1788977636666,
+      "tag": "0334_embedding_width_nullable",
       "breakpoints": true
     }
   ]
