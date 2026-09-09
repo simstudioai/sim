@@ -17,6 +17,12 @@ export const searchSetupParam = {
   parser: parseAsStringLiteral(['', ...SEARCH_SETUP_SOURCES]),
 } as const
 
+/** An explicit member-source action survives OAuth; ordinary organization setup is central. */
+export const searchSetupAccessParam = {
+  key: 'source-access',
+  parser: parseAsStringLiteral(['members']),
+} as const
+
 /** Null closes the source management panel. */
 export const managedSourceParam = {
   key: 'manage-source',

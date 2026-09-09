@@ -96,7 +96,7 @@ describe('organization settings navigation first paint', () => {
 
     expect(container).toHaveTextContent('Audit logs')
     expect(container).toHaveTextContent('Data retention')
-    expect(container).toHaveTextContent('Integrations')
+    expect(container).toHaveTextContent('Sources')
     expect(mockRequestJson).toHaveBeenCalledTimes(1)
     expect(mockRequestJson.mock.calls[0][0].path).toBe('/api/organizations/[id]/billing-summary')
   })

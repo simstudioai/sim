@@ -7,25 +7,25 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search brings your connected sources into one place. An organization admin adds a source and chooses what to include. Teammates then [connect their accounts](/search/connect-your-account) when the source requires it. Each person searches with their own access.
+Search brings your connected sources into one place. An organization admin adds an integration and configures its sources. Teammates then [connect their accounts](/search/connect-your-account) when required. Each person searches with their own access.
 
 ## Add your first source
 
 <Steps>
 <Step>
 
-### Choose a source
+### Add an integration
 
-As an organization admin, open **Settings → Integrations → Providers**. Approve the provider for Sim Search, then select **Set up** beside it. Use its **Setup guide** for the provider's prerequisites.
+As an organization admin, open **Settings → Sources → Add integration** and choose a provider. Sim opens that integration's page. If the integration is already listed, open it instead.
 
-Approval lets members connect; it does not connect an account or start indexing. Slack also requires an admin to configure the organization's Slack app first.
+Adding an integration approves it for Search; it does not connect an account or start indexing. Slack also requires **Set up Slack app** before adding sources.
 
 </Step>
 <Step>
 
 ### Configure it once
 
-Choose the folders, repositories, calendars, spaces, or channels to include. Start with the defaults unless you need to narrow the scope. **Document details** contains optional metadata.
+On the integration page, select **Add source**. Follow its **Setup guide** to connect the indexing account or choose the folders, repositories, calendars, spaces, or channels to include. **More options** contains secondary filters and **Metadata tags**.
 
 Select **Connect & Sync** for an administrator connection, or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
 
@@ -34,14 +34,12 @@ Select **Connect & Sync** for an administrator connection, or **Add source** for
 
 ### Connect and search
 
-In **Integrations**, select **Connect account** if prompted—even if you created the source. Complete authorization in the new tab, then return to the source list. Open **Search** in the organization sidebar to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
+Open **Integrations** in the main sidebar and select **Connect account** if prompted—even if you created the source. Complete authorization in the new tab. Open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
 
 </Step>
 </Steps>
 
-<Image src="/static/search/add-source.jpg" alt="Sim Search source catalog with Set up actions" width={1280} height={720} />
-
-*Workspace Search is shown here. Organization sources are managed in Settings → Integrations.*
+<Image src="/static/search/add-source.jpg" alt="Organization Sources settings with the Add integration action" width={738} height={720} />
 
 Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue.
 
@@ -55,7 +53,9 @@ Most sources use member accounts. Google Drive and Confluence also support a cen
 | **Service account** (Drive) / **Admin or service account** (Confluence) | Connects an account that can read the content and the source's permissions or directory. | Join the organization with a matching verified identity. Confluence also requires each person to connect their account. |
 | **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
 
-Some member sources offer **Sync documents with**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. **Browse with** only helps an admin pick source options—it does not enroll that account for Search.
+Adding a Google Drive or Confluence source from the admin page starts central setup. For personal connections, use **Integrations → Connect account** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab.
+
+Some member sources offer **More options → Sync documents with**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
 
 <Callout type="info">
   An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules. It also does not automatically discover every employee's data: the indexing account must be able to read the configured content.
@@ -78,7 +78,31 @@ Some member sources offer **Sync documents with**. **Connected members** uses me
 
 Invite people through the organization's **Settings → Members**, or use your organization's [SSO provisioning](/platform/enterprise/sso). Share the organization's **Home** or **Integrations** URL. People need their own Sim account and organization membership; they do not need access to a workspace. Connecting an external account alone does not grant organization membership.
 
-Organization admins manage source configuration and sync status through **Manage** under **Settings → Integrations → Providers**. Other members connect or reconnect their own accounts. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
+To request a particular account connection, open **Settings → Sources → [integration] → Accounts → Request connections**. This tab is available for providers that support personal connections. If setup is missing, complete the source or Slack app setup shown there first. The list shows organization account contributors and their connection status for that provider.
+
+These requests are separate from organization invitations. They let recipients contribute an external account; they do not grant Sim organization membership or Search access. **People** on the Sources settings page shows account contributors across providers. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
+
+**Revoke all account access** withdraws every account that person contributed to the organization, including other providers. It does not remove their organization membership.
+
+<Image src="/static/search/request-connections.jpg" alt="Request Gmail connections with an Emails field and Send requests action" width={520} height={290} />
+
+## Manage sources and documents
+
+Open **Settings → Sources → [integration]**, then select a source. Providers with personal connections have **Sources** and **Accounts** tabs; providers such as GitLab open directly to the source list. Multiple sources can have different folder, repository, space, or project scopes.
+
+<Image src="/static/search/integration-provider.jpg" alt="Integration detail with Sources and Accounts tabs and a nested source list" width={738} height={390} />
+
+| Source tab | What you can do |
+| --- | --- |
+| **Documents** | Find indexed documents, inspect processing status, retry failed indexing, or exclude and restore documents. |
+| **Settings** | Edit the source's scope, filters, and supported connection settings. Save your changes before leaving. |
+| **Sync history** | Review recent sync runs and errors. |
+
+Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. **Deactivate** on the integration page makes its content unavailable in Search, Assistant, and MCP while preserving its sources and connected accounts; **Activate** enables it again.
+
+<Image src="/static/search/source-settings.jpg" alt="Gmail source Settings tab with label, date range, and search filters" width={1022} height={680} />
+
+<Image src="/static/search/source-sync-history.jpg" alt="Source Sync history with no connected accounts or synced members" width={1022} height={430} />
 
 ## Search, Assistant, and MCP
 
@@ -109,6 +133,16 @@ Workspace Search remains separate. Workspace admins add sources through **Search
 3. Ask a teammate with different source access to repeat the search. Documents restricted to you should not appear for them.
 4. Change or remove a test document's access in the source and check again after the next completed content and permission refresh.
 
-Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query. Admins can inspect errors and progress under **Manage**.
+Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query.
+
+## If indexing needs attention
+
+A completed sync means the source was checked; some documents may still be indexing. In the main **Integrations** page, each source row shows how many documents you can search and whether indexing failed for any documents you can access.
+
+As an admin, open **Settings → Sources → [integration] → Sources → [source]**. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+
+<Image src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
+
+Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
 
 These guides cover permission-aware Search sources. For a general knowledge base used by workflows, see [Knowledge-base connectors](/knowledgebase/connectors); its workspace access settings are a separate choice.

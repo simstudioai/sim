@@ -186,6 +186,21 @@ export const knowledgeOperations = {
     })
   ),
   /**
+   * Streams a whole knowledge base out as one archive. A read-role principal
+   * may export because nothing leaves that the reader could not already page
+   * through, but the bulk shape is what `knowledge.export` lets a group withhold.
+   */
+  export: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.export',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.export',
+      principalKinds: HTTP_PRINCIPAL_KINDS,
+    })
+  ),
+  /**
    * The only operation that brings a knowledge base into existence, so it is the
    * only one `knowledge.create` governs — a group may be allowed to query,
    * populate and organize the bases it already has without opening new ones.
@@ -668,10 +683,37 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  readSearchSourceOverview: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.overview',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readSearchSourceProgress: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.progress',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   listSearchIntegrations: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.list',
       minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readOrganizationSearchOverview: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.integrations.overview',
+      minimumRole: 'admin',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],

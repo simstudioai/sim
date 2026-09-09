@@ -6,7 +6,6 @@ export const DEFAULT_MAX_THREADS = 500
 export const gmailConnectorMeta: ConnectorMeta = {
   search: true,
   searchDocsUrl: 'https://docs.sim.ai/search/gmail',
-  memberSetupHint: 'Each teammate connects their Gmail account. Only they can search their email.',
   id: 'gmail',
   name: 'Gmail',
   description: 'Sync email threads from Gmail',
@@ -50,6 +49,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
       title: 'Date Range',
       type: 'dropdown',
       required: false,
+      placeholder: 'All time (default)',
       options: [
         { label: 'Last 7 days', id: '7d' },
         { label: 'Last 30 days', id: '30d' },
@@ -61,9 +61,11 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'excludePromotions',
+      setupGroup: 'options',
       title: 'Exclude Promotions',
       type: 'dropdown',
       required: false,
+      placeholder: 'Yes (default)',
       options: [
         { label: 'Yes (recommended)', id: 'true' },
         { label: 'No', id: 'false' },
@@ -71,9 +73,11 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'excludeSocial',
+      setupGroup: 'options',
       title: 'Exclude Social',
       type: 'dropdown',
       required: false,
+      placeholder: 'Yes (default)',
       options: [
         { label: 'Yes (recommended)', id: 'true' },
         { label: 'No', id: 'false' },
@@ -81,14 +85,16 @@ export const gmailConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'query',
+      setupGroup: 'options',
       title: 'Search Filter',
       type: 'short-input',
       placeholder: 'e.g. from:boss@company.com subject:report has:attachment',
       required: false,
-      description: 'Additional Gmail search filter. Uses the same syntax as the Gmail search bar.',
+      description: 'Additional Gmail API search filter.',
     },
     {
       id: 'maxThreads',
+      setupGroup: 'options',
       title: 'Max Threads',
       type: 'short-input',
       required: false,

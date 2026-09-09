@@ -494,6 +494,13 @@ export const PERMISSION_GROUP_FIELDS = {
     category: 'Credentials & Access',
     hint: "Prevent OAuth apps from accessing this group's workspaces. The organization's default group also governs authorizing apps and refreshing their access.",
   }),
+  disableKnowledgeBaseExport: booleanRestriction('capability', {
+    scope: 'workspace',
+    id: 'disable-knowledge-base-export',
+    label: 'Knowledge Base Export',
+    category: 'Knowledge Base',
+    hint: 'Prevent downloading a whole knowledge base as an archive.',
+  }),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS

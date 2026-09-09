@@ -53,6 +53,11 @@ function safeEntryPath(segments: string[]): string {
     .join('/')
 }
 
+/** One archive-safe leaf name for `name`, with its directory and illegal characters dropped. */
+export function safeZipLeafName(name: string): string {
+  return safeEntryPath([toLeafName(name)])
+}
+
 /**
  * Append a numeric suffix to the file name of an entry path, leaving the directory
  * portion intact (`docs/report.pdf` -> `docs/report (1).pdf`).

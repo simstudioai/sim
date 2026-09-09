@@ -24,12 +24,15 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     connectorId: params.connectorId,
+    filter: query.filter,
+    search: query.search,
     includeExcluded: query.includeExcluded,
+    failedOnly: query.failedOnly,
     limit: query.limit,
     offset: query.offset,
   }),
   useCase: listKnowledgeConnectorDocuments,
-  present: ({ documents, counts }) => ({
+  present: ({ documents, counts, hasMore }) => ({
     success: true as const,
     data: {
       documents: documents.map((document) => ({
@@ -38,6 +41,7 @@ export const GET = defineInternalJsonRoute({
         uploadedAt: document.uploadedAt.toISOString(),
       })),
       counts,
+      hasMore,
     },
   }),
 })

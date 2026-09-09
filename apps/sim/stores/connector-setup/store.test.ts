@@ -48,6 +48,17 @@ describe('connector setup drafts', () => {
     expect(store.getDraft('source-11')).toBeDefined()
   })
 
+  it('preserves selected display names across an OAuth draft rehydration', async () => {
+    const saved: ConnectorSetupDraft = {
+      ...draft(),
+      sourceConfig: { channelSelector: ['channel-1'] },
+      selectionLabels: { channel: [{ id: 'channel-1', label: 'Engineering' }] },
+    }
+    useConnectorSetupStore.getState().saveDraft('user:org:index:slack', saved)
+    await useConnectorSetupStore.persist.rehydrate()
+    expect(useConnectorSetupStore.getState().getDraft('user:org:index:slack')).toEqual(saved)
+  })
+
   it('clears just the canceled setup and clears persisted drafts on reset', async () => {
     const store = useConnectorSetupStore.getState()
     store.saveDraft('one', draft())

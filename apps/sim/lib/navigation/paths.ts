@@ -38,6 +38,10 @@ export function organizationRoutes(organizationId: string) {
     integrations: `${root}/integrations`,
     skills: `${root}/skills`,
     settings: `${root}/settings`,
+    searchProvider: (connectorType: string) =>
+      `${root}/settings/integrations/providers/${encodeURIComponent(connectorType)}`,
+    searchSource: (connectorId: string) =>
+      `${root}/settings/integrations/sources/${encodeURIComponent(connectorId)}`,
     settingsSection: (section: string) => `${root}/settings/${section}`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
   } as const

@@ -91,7 +91,7 @@ afterEach(async () => {
 describe('connection method selection', () => {
   it('offers supported methods to admins without changing their contract values', async () => {
     await render()
-    expect(container.textContent).toContain('Connection method')
+    expect(container.textContent).toContain('Sync using')
     expect(radio('Member accounts')).toHaveAttribute('aria-checked', 'true')
     expect(container.querySelectorAll('[role="radio"]')).toHaveLength(2)
     await act(async () => radio('Admin or service account').click())
@@ -102,27 +102,12 @@ describe('connection method selection', () => {
     await render({ connectorConfig: gitlabConnectorMeta, value: { accessMode: 'admin' } })
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
     expect(container.textContent).toContain('Admin or service account')
-    expect(container.textContent).toContain(
-      'Each person sees only documents they can open in GitLab.'
-    )
-  })
-
-  it('explains the Confluence identity connection even with central syncing', async () => {
-    await render({ value: { accessMode: 'admin' }, allowMembers: false })
-    expect(container.querySelector('[role="radiogroup"]')).toBeNull()
-    expect(container.textContent).toContain(
-      'Teammates still connect their Confluence accounts to confirm their identity.'
-    )
-    expect(container.textContent).toContain(
-      'Each person sees only documents they can open in Confluence.'
-    )
   })
 
   it('shows ordinary members a summary without editable or disabled choices', async () => {
     await render({ canAdmin: false, footer: <button type='button'>Apply changes</button> })
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
     expect(container.textContent).toContain('Member accounts')
-    expect(container.textContent).toContain('Each teammate connects their Confluence account.')
     expect(container.querySelector('button')).toBeNull()
     expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
   })
@@ -187,10 +172,13 @@ describe('Slack setup continuity', () => {
       connectorConfig: slackConnectorMeta,
       allowAdmin: false,
       searchSetupSource: 'slack',
+      slackSetupOnly: true,
       onSetupNavigate: onNavigate,
       footer: <button type='button'>Apply changes</button>,
     })
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
+    expect(container.textContent).toContain('Slack app')
+    expect(container.textContent).not.toContain('Member accounts')
     const link = container.querySelector('a')
     const target = new URL(link?.getAttribute('href') ?? '', 'http://localhost')
     expect(target.pathname).toBe('/workspace/workspace-1/settings/credential-groups')

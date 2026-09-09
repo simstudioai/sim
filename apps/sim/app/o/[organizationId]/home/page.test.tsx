@@ -99,9 +99,11 @@ describe('organization Search page gates', () => {
     expect(mocks.context).not.toHaveBeenCalled()
   })
 
-  it('keeps the organization entry in organization settings when Search is disabled', async () => {
+  it('returns the organization entry to workspace settings when Search is disabled', async () => {
     mocks.context.mockResolvedValue({ searchAccess: { memberScoped: false } })
-    await expect(OrganizationPage({ params })).rejects.toThrow('redirect:/o/org-1/settings/members')
+    await expect(OrganizationPage({ params })).rejects.toThrow(
+      'redirect:/workspace?redirect=settings'
+    )
     expect(mocks.context).toHaveBeenCalledWith('org-1', 'viewer')
   })
 

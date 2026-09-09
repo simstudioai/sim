@@ -6,6 +6,7 @@ import {
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
   requiredFieldSchema,
   workspaceIdSchema,
@@ -236,6 +237,20 @@ export const getKnowledgeBaseContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(knowledgeBaseDataSchema),
   },
+})
+
+export const exportKnowledgeBaseQuerySchema = z.object({
+  vectors: booleanQueryFlagSchema.optional().default(true),
+})
+
+export type ExportKnowledgeBaseQuery = z.input<typeof exportKnowledgeBaseQuerySchema>
+
+export const exportKnowledgeBaseContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/[id]/export',
+  params: knowledgeBaseParamsSchema,
+  query: exportKnowledgeBaseQuerySchema,
+  response: { mode: 'binary' },
 })
 
 export const updateKnowledgeBaseContract = defineRouteContract({

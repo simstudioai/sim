@@ -16,6 +16,7 @@ import { useInviteOrganizationAccountPeople } from '@/hooks/queries/organization
 
 interface OrganizationAccountInviteModalProps {
   organizationId: string
+  searchConnection?: { optionId: string; providerName: string }
   onClose: () => void
 }
 
@@ -26,6 +27,7 @@ function validateEmail(email: string): string | null {
 
 export function OrganizationAccountInviteModal({
   organizationId,
+  searchConnection,
   onClose,
 }: OrganizationAccountInviteModalProps) {
   const invite = useInviteOrganizationAccountPeople()
@@ -55,6 +57,7 @@ export function OrganizationAccountInviteModal({
       const result = await invite.mutateAsync({
         organizationId,
         emails,
+        ...(searchConnection ? { optionId: searchConnection.optionId } : {}),
       })
       const failures = result.results.filter((item) => !item.success)
       if (failures.length === 0) {
@@ -82,11 +85,17 @@ export function OrganizationAccountInviteModal({
     <ChipModal
       open
       onOpenChange={handleOpenChange}
-      srTitle='Request account connections'
+      srTitle={
+        searchConnection
+          ? `Request ${searchConnection.providerName} connections`
+          : 'Request account connections'
+      }
       dismissDisabled={invite.isPending}
     >
       <ChipModalHeader onClose={() => handleOpenChange(false)}>
-        Request account connections
+        {searchConnection
+          ? `Request ${searchConnection.providerName} connections`
+          : 'Request account connections'}
       </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
@@ -96,7 +105,6 @@ export function OrganizationAccountInviteModal({
           onChange={handleEmailsChange}
           validate={validateEmail}
           placeholder='Enter emails'
-          hint='Each person receives a link to connect their accounts. They sign in to Sim with the verified invitation email and do not need organization membership.'
           disabled={invite.isPending}
         />
         <ChipModalError>

@@ -4,6 +4,7 @@ import {
   Chip,
   ChipModal,
   ChipModalBody,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   OverflowText,
@@ -14,6 +15,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
+import { InvitationDisclosure } from '@/app/invite/components/invitation-disclosure'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useAcceptMyInvitation,
   useDeclineMyInvitation,
@@ -59,7 +65,8 @@ interface ViewInvitationsModalProps {
  * the joined workspace; declining keeps it open for the remaining rows.
  */
 export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModalProps) {
-  const { data: invitations } = useMyPendingInvitations(open)
+  const invitationsQuery = useMyPendingInvitations(open)
+  const invitations = invitationsQuery.data ?? []
   const acceptInvitation = useAcceptMyInvitation()
   const declineInvitation = useDeclineMyInvitation()
   const router = useRouter()
@@ -67,6 +74,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
   const isBusy = acceptInvitation.isPending || declineInvitation.isPending
 
   const handleAccept = async (inv: MyInvitation) => {
+    if (isBusy || (inv.membershipIntent === 'internal' && !inv.joinPreview)) return
     try {
       const result = await acceptInvitation.mutateAsync({
         invitationId: inv.id,
@@ -102,39 +110,65 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Pending invitations'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>Invitations</ChipModalHeader>
       <ChipModalBody>
-        {!invitations || invitations.length === 0 ? (
-          <p className='px-2 text-[var(--text-muted)] text-sm'>No pending invitations.</p>
+        {invitationsQuery.isError ? (
+          <SettingsQueryErrorState
+            error={invitationsQuery.error}
+            fallback='Could not load invitations'
+            isRetrying={invitationsQuery.isFetching}
+            onRetry={() => void invitationsQuery.refetch()}
+            variant='inline'
+          />
+        ) : invitationsQuery.isPending ? (
+          <SettingsEmptyState variant='inline'>Loading invitations…</SettingsEmptyState>
+        ) : invitations.length === 0 ? (
+          <SettingsEmptyState variant='inline'>No pending invitations.</SettingsEmptyState>
         ) : (
-          invitations.map((inv) => (
-            <div key={inv.id} className='flex items-center gap-2 px-2'>
-              <div className='min-w-0 flex-1'>
-                <OverflowText
-                  label={invitationLabel(inv)}
-                  className='block text-[var(--text-body)] text-sm'
-                />
-                <OverflowText
-                  label={invitationSubLabel(inv)}
-                  className='block text-[var(--text-muted)] text-caption'
-                />
+          invitations.map((inv) => {
+            const isDisclosureMissing = inv.membershipIntent === 'internal' && !inv.joinPreview
+            return (
+              <div key={inv.id} className='space-y-3'>
+                <div className='flex items-center gap-2 px-2'>
+                  <div className='min-w-0 flex-1'>
+                    <OverflowText
+                      label={invitationLabel(inv)}
+                      className='block text-[var(--text-body)] text-sm'
+                    />
+                    <OverflowText
+                      label={invitationSubLabel(inv)}
+                      className='block text-[var(--text-muted)] text-caption'
+                    />
+                  </div>
+                </div>
+                <ChipModalField type='custom' title='Before you join'>
+                  <InvitationDisclosure invitation={inv} joinPreview={inv.joinPreview} />
+                  {isDisclosureMissing && (
+                    <Chip
+                      disabled={isBusy || invitationsQuery.isFetching}
+                      onClick={() => void invitationsQuery.refetch()}
+                    >
+                      Refresh invitation
+                    </Chip>
+                  )}
+                </ChipModalField>
+                <div className='flex justify-end gap-2 px-2'>
+                  <Chip
+                    disabled={isBusy}
+                    onClick={() => void handleDecline(inv)}
+                    aria-label={`Decline invitation to ${invitationLabel(inv)}`}
+                  >
+                    Decline
+                  </Chip>
+                  <Chip
+                    variant='primary'
+                    disabled={isBusy || isDisclosureMissing}
+                    onClick={() => void handleAccept(inv)}
+                  >
+                    Accept
+                  </Chip>
+                </div>
               </div>
-              <Chip
-                variant='primary'
-                disabled={isBusy}
-                onClick={() => void handleAccept(inv)}
-                className='shrink-0'
-              >
-                Accept
-              </Chip>
-              <Chip
-                disabled={isBusy}
-                onClick={() => void handleDecline(inv)}
-                aria-label={`Decline invitation to ${invitationLabel(inv)}`}
-                className='shrink-0'
-              >
-                Decline
-              </Chip>
-            </div>
-          ))
+            )
+          })
         )}
       </ChipModalBody>
       <ChipModalFooter

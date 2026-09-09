@@ -6,11 +6,13 @@ import { Plus, Search as SearchIcon } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
+import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
 import {
@@ -29,6 +31,7 @@ import {
   useWorkspaceMemberConnectors,
 } from '@/hooks/queries/kb/connectors'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
@@ -42,12 +45,13 @@ export function Search() {
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const { data: permissions } = useWorkspacePermissionsQuery(workspaceId)
   const canAdmin = permissions?.viewer?.isAdmin ?? false
-  const sources = useSearchSources(workspaceId)
   const shared = useWorkspaceMemberConnectors(workspaceId, { enabled: memberAccessAvailable })
   const [searchTerm, setSearchTermParam] = useQueryState(connectorSearchParam.key, {
     ...connectorSearchParam.parser,
     ...connectorSearchUrlKeys,
   })
+  const sourceSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const sources = useSearchSources(workspaceId, { search: sourceSearch })
   const [, setSelectedType] = useQueryState(
     searchSetupParam.key,
     searchSetupParam.parser.withOptions({ history: 'replace' })
@@ -77,8 +81,7 @@ export function Search() {
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const matches = (type: string, description: string) =>
     `${connectorDisplayName(type)} ${description}`.toLowerCase().includes(normalizedSearch)
-  const visibleSources =
-    sources.data?.filter((source) => matches(source.connectorType, source.sourceDescription)) ?? []
+  const visibleSources = sources.data ?? []
   const sharedConnectors = memberAccessAvailable
     ? (shared.data?.filter(
         (source) =>
@@ -120,7 +123,7 @@ export function Search() {
             onChange={(event) => setSearchTerm(event.target.value)}
           />
           <IntegrationSection label='Sources' layout='list'>
-            {sources.isError ? (
+            {sources.isError && !sources.isFetchNextPageError ? (
               <SettingsQueryErrorState
                 error={sources.error}
                 fallback='Could not load sources'
@@ -149,7 +152,7 @@ export function Search() {
                   onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
                 />
               ))
-            ) : (
+            ) : !sources.hasNextPage ? (
               <SettingsEmptyState variant='inline'>
                 {normalizedSearch
                   ? 'No matching sources.'
@@ -157,6 +160,9 @@ export function Search() {
                     ? 'Add a source to start indexing documents for Search.'
                     : 'Your workspace hasn’t added any sources yet. Ask a workspace admin to get started.'}
               </SettingsEmptyState>
+            ) : null}
+            {(!sources.isError || sources.isFetchNextPageError) && (
+              <SearchSourcePagination {...sources} />
             )}
           </IntegrationSection>
           {memberAccessAvailable &&

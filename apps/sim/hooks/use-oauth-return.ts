@@ -6,6 +6,7 @@ import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { createSerializer, parseAsString } from 'nuqs/server'
 import { requestJson } from '@/lib/api/client/request'
 import { listWorkspaceCredentialsContract } from '@/lib/api/contracts'
 import { listOrganizationCredentialsContract } from '@/lib/api/contracts/organization-credentials'
@@ -25,8 +26,10 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
+import { searchSetupAccessParam } from '@/app/workspace/[workspaceId]/search/search-params'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import {
   organizationCredentialKeys,
@@ -37,6 +40,10 @@ import { SETTINGS_RETURN_URL_KEY } from '@/hooks/use-settings-navigation'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
+const serializeConnectorReturn = createSerializer({
+  [ADD_CONNECTOR_SEARCH_PARAM]: parseAsString,
+  [searchSetupAccessParam.key]: searchSetupAccessParam.parser,
+})
 
 export interface OAuthResultMessage {
   kind: 'success' | 'error'
@@ -149,6 +156,7 @@ interface OAuthCredentialUpdate {
   credentialId?: string
   knowledgeBaseId?: string
   connectorType?: string
+  connectorId?: string
   requestedAt?: number
 }
 
@@ -172,6 +180,7 @@ function dispatchCredentialUpdate(
     detail.credentialId = result.credentialId
     detail.knowledgeBaseId = ctx.knowledgeBaseId
     detail.connectorType = ctx.connectorType
+    detail.connectorId = ctx.connectorId
     detail.requestedAt = ctx.requestedAt
   }
   window.dispatchEvent(
@@ -313,7 +322,9 @@ export function useOAuthReturnRouter() {
           buildKnowledgeBaseOAuthReturnUrl(
             resourceScopeFromOwner(ctx),
             ctx.knowledgeBaseId,
-            ctx.connectorType
+            ctx.connectorType,
+            ctx.connectorId,
+            ctx.sourceAccess
           )
         )
       }
@@ -346,7 +357,9 @@ export function useOAuthReturnRouter() {
         buildKnowledgeBaseOAuthReturnUrl(
           resourceScopeFromOwner(ctx),
           ctx.knowledgeBaseId,
-          ctx.connectorType
+          ctx.connectorType,
+          ctx.connectorId,
+          ctx.sourceAccess
         )
       )
       return
@@ -357,16 +370,24 @@ export function useOAuthReturnRouter() {
 export function buildKnowledgeBaseOAuthReturnUrl(
   owner: string | ResourceScope,
   knowledgeBaseId: string,
-  connectorType?: string
+  connectorType?: string,
+  connectorId?: string,
+  sourceAccess?: Extract<OAuthReturnContext, { origin: 'kb-connectors' }>['sourceAccess']
 ): string {
   const scope =
     typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+  if (scope.kind === 'organization' && connectorId) {
+    return `${organizationRoutes(scope.organizationId).searchSource(connectorId)}?view=settings`
+  }
   const kbUrl =
     scope.kind === 'organization'
       ? organizationSearchSetupPath(scope.organizationId)
       : `/workspace/${scope.workspaceId}/knowledge/${knowledgeBaseId}`
   return connectorType
-    ? `${kbUrl}?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(connectorType)}`
+    ? serializeConnectorReturn(kbUrl, {
+        [ADD_CONNECTOR_SEARCH_PARAM]: connectorType,
+        [searchSetupAccessParam.key]: scope.kind === 'organization' ? sourceAccess : undefined,
+      })
     : kbUrl
 }
 
@@ -404,7 +425,8 @@ export function useOAuthReturnForKBConnectors(
   knowledgeBaseId: string | undefined,
   onConnected?: (credentialId: string) => void,
   connectorType?: string,
-  explicitScope?: ResourceScope
+  explicitScope?: ResourceScope,
+  connectorId?: string
 ) {
   const params = useParams()
   const workspaceId = explicitScope
@@ -426,6 +448,7 @@ export function useOAuthReturnForKBConnectors(
         !detail?.credentialId ||
         detail.knowledgeBaseId !== knowledgeBaseId ||
         detail.connectorType !== connectorType ||
+        (connectorId && detail.connectorId !== connectorId) ||
         detail.workspaceId !== workspaceId ||
         detail.organizationId !== organizationId ||
         detail.requestedAt === undefined ||
@@ -445,6 +468,7 @@ export function useOAuthReturnForKBConnectors(
         ctx.knowledgeBaseId === knowledgeBaseId &&
         ctx.workspaceId === workspaceId &&
         ctx.organizationId === organizationId &&
+        (!connectorId || ctx.connectorId === connectorId) &&
         (!connectorType || ctx.connectorType === connectorType)
       ) {
         consumeOAuthReturnContext()
@@ -466,7 +490,7 @@ export function useOAuthReturnForKBConnectors(
     return () => {
       window.removeEventListener(OAUTH_CREDENTIAL_UPDATED_EVENT, handleCredentialUpdate)
     }
-  }, [knowledgeBaseId, onConnected, connectorType, workspaceId, organizationId])
+  }, [knowledgeBaseId, onConnected, connectorType, workspaceId, organizationId, connectorId])
 }
 
 /**

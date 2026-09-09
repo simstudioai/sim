@@ -19,6 +19,7 @@ interface SearchSourceRowProps {
   waiting: boolean
   isPending: boolean
   onConnect: () => void
+  manageHref?: string
   /** Opens management for the source; only a surface that offers management passes it. */
   onManage?: () => void
 }
@@ -33,6 +34,7 @@ export function SearchSourceRow({
   waiting,
   isPending,
   onConnect,
+  manageHref,
   onManage,
 }: SearchSourceRowProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
@@ -41,6 +43,7 @@ export function SearchSourceRow({
   const membership = source.viewerMembership
   const usable = available && source.availability === 'available'
   const supported = meta?.search === true
+  const managementHref = canAdmin ? manageHref : undefined
   const connectable =
     usable &&
     supported &&
@@ -71,6 +74,8 @@ export function SearchSourceRow({
       source.viewerDocumentCount > 0
         ? `Sync needs attention · ${count}`
         : 'Sync needs admin attention'
+  else if (source.viewerFailedDocumentCount > 0)
+    status = `${source.viewerFailedDocumentCount} document${source.viewerFailedDocumentCount === 1 ? '' : 's'} couldn't be indexed${source.viewerDocumentCount > 0 ? ` · ${count}` : ''}`
   else if (source.isSyncing)
     status = source.viewerDocumentCount > 0 ? `Indexing · ${count}` : 'Indexing'
   else if (source.viewerDocumentCount > 0) status = count
@@ -84,6 +89,9 @@ export function SearchSourceRow({
       }
       title={name}
       description={[source.sourceDescription, status].filter(Boolean).join(' · ')}
+      href={managementHref}
+      clickLabel={managementHref ? `Open ${source.sourceDescription || name}` : undefined}
+      navigable={Boolean(managementHref)}
       trailing={
         !supported && scope.kind === 'workspace' ? (
           <ChipLink href={`/workspace/${scope.workspaceId}/knowledge/${source.knowledgeBaseId}`}>
@@ -91,6 +99,9 @@ export function SearchSourceRow({
           </ChipLink>
         ) : (
           <div className='flex items-center gap-2'>
+            {usable && supported && !source.viewerEmailVerified && (
+              <ChipLink href='/verify'>Verify email</ChipLink>
+            )}
             {connectable && (
               <Chip variant='primary' disabled={isPending} onClick={onConnect}>
                 {waiting
@@ -101,6 +112,7 @@ export function SearchSourceRow({
               </Chip>
             )}
             {canAdmin &&
+              !managementHref &&
               onManage &&
               (connectable ? (
                 <RowActionsMenu

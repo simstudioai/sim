@@ -159,11 +159,17 @@ describe('credential group OAuth callback', () => {
     mocks.consumeAttempt.mockResolvedValue(null)
 
     const replayedResponse = await GET(request('state=state-1&code=code-1'), context)
-    expect(replayedResponse.status).toBe(400)
+    expect(replayedResponse.status).toBe(303)
+    expect(replayedResponse.headers.get('location')).toBe(
+      '/credential-groups/complete?oauth=expired'
+    )
 
     mocks.consumeAttempt.mockResolvedValue({ ...attempt, provider: 'gmail' })
     const mismatchedResponse = await GET(request('state=state-2&code=code-2'), context)
-    expect(mismatchedResponse.status).toBe(400)
+    expect(mismatchedResponse.status).toBe(303)
+    expect(mismatchedResponse.headers.get('location')).toBe(
+      '/credential-groups/complete?oauth=expired'
+    )
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
 
@@ -253,10 +259,8 @@ describe('credential group OAuth callback', () => {
   it('reports a state protocol change as an explicit restart without exchanging a code', async () => {
     mocks.consumeAttempt.mockRejectedValue(new CredentialGroupOAuthStateVersionError())
     const response = await GET(request('state=state-1&code=code-1'), context)
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error: expect.stringContaining('Reopen your invitation and connect again'),
-    })
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/credential-groups/complete?oauth=expired')
     expect(mocks.authenticate).not.toHaveBeenCalled()
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })

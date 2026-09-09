@@ -87,6 +87,7 @@ import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import {
+  downloadKnowledgeBaseExport,
   useBulkDeleteKnowledgeBases,
   useBulkMoveKnowledgeBases,
   useDeleteKnowledgeBase,
@@ -877,6 +878,11 @@ export function Knowledge() {
     }
   }, [])
 
+  const handleExport = useCallback(() => {
+    const kb = activeKnowledgeBaseRef.current
+    if (kb) downloadKnowledgeBaseExport(kb.id)
+  }, [])
+
   const handleEdit = useCallback(() => {
     setIsEditModalOpen(true)
   }, [])
@@ -1539,6 +1545,7 @@ export function Knowledge() {
           onOpenInNewTab={handleOpenInNewTab}
           onViewTags={handleViewTags}
           onCopyId={handleCopyId}
+          onExport={permissionConfig.disableKnowledgeBaseExport ? undefined : handleExport}
           onTogglePin={handleToggleBasePin}
           pinned={pinnedBaseIds.has(activeKnowledgeBase.id)}
           onEdit={handleEdit}

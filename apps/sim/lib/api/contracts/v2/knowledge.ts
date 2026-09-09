@@ -772,6 +772,28 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
   },
 })
 
+export const v2ExportKnowledgeBaseQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    vectors: booleanQueryFlagSchema
+      .optional()
+      .default(true)
+      .describe(
+        'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.'
+      ),
+  })
+  .strict()
+
+export type V2ExportKnowledgeBaseQuery = z.input<typeof v2ExportKnowledgeBaseQuerySchema>
+
+export const v2ExportKnowledgeBaseContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/export',
+  params: v2KnowledgeBaseParamsSchema,
+  query: v2ExportKnowledgeBaseQuerySchema,
+  response: { mode: 'binary' },
+})
+
 /**
  * PATCH, not PUT: every mutable field is optional and a `superRefine` requires
  * at least one, so this is a partial update rather than a replacement.

@@ -41,7 +41,22 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
   resolveSettingsSection: vi.fn((section: string) => {
     const aliases: Record<string, string> = { subscription: 'billing' }
     const id = aliases[section] ?? section
-    return ['general', 'billing', 'secrets'].includes(id) ? { id, meta: { title: id } } : null
+    return [
+      'general',
+      'billing',
+      'secrets',
+      'organization',
+      'usage',
+      'access-control',
+      'audit-logs',
+      'sso',
+      'sessions',
+      'data-retention',
+      'data-drains',
+      'whitelabeling',
+    ].includes(id)
+      ? { id, meta: { title: id } }
+      : null
   }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/settings/[section]/prefetch', () => ({
@@ -51,6 +66,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/[section]/settings', () => ({
   SettingsPage: vi.fn(() => null),
 }))
 
+import { UNIFIED_TO_ORGANIZATION_SECTION } from '@/components/settings/navigation'
 import WorkspaceSettingsSectionPage from '@/app/workspace/[workspaceId]/settings/[section]/page'
 
 function pageProps(section: string) {
@@ -79,7 +95,10 @@ describe('WorkspaceSettingsSectionPage', () => {
   })
 
   it('preserves legacy organization settings query state on the canonical org destination', async () => {
-    mockGetHostContext.mockResolvedValue({ hostOrganizationId: 'org-target' })
+    mockGetHostContext.mockResolvedValue({
+      hostOrganizationId: 'org-target',
+      features: { organizationSearch: true },
+    })
     await expect(
       WorkspaceSettingsSectionPage({
         ...pageProps('subscription'),
@@ -90,6 +109,53 @@ describe('WorkspaceSettingsSectionPage', () => {
     )
     expect(mockSectionPrefetch).not.toHaveBeenCalled()
   })
+
+  it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
+    'keeps %s in the workspace outside the organization rollout',
+    async (section) => {
+      mockGetHostContext.mockResolvedValue({
+        hostOrganizationId: 'org-target',
+        features: { organizationSearch: false, knowledgeMemberAccess: true },
+      })
+
+      const element = await WorkspaceSettingsSectionPage(pageProps(section))
+
+      expect(element).toBeTruthy()
+      expect(mockRedirect).not.toHaveBeenCalled()
+      expect(mockAuthorizeSection).toHaveBeenCalledWith({
+        workspaceId: 'workspace-b',
+        userId: 'viewer-a',
+        section,
+      })
+    }
+  )
+
+  it.each([undefined, { credentialGroups: true, knowledgeMemberAccess: true }])(
+    'keeps settings in the workspace when older host context omits the org rollout',
+    async (features) => {
+      mockGetHostContext.mockResolvedValue({ hostOrganizationId: 'org-target', features })
+
+      await WorkspaceSettingsSectionPage(pageProps('billing'))
+
+      expect(mockRedirect).not.toHaveBeenCalled()
+      expect(mockSectionPrefetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
+    'routes %s to organization %s only within the organization rollout',
+    async (section, organizationSection) => {
+      mockGetHostContext.mockResolvedValue({
+        hostOrganizationId: 'org-target',
+        features: { organizationSearch: true, knowledgeMemberAccess: false },
+      })
+
+      await expect(WorkspaceSettingsSectionPage(pageProps(section))).rejects.toThrow(
+        `NEXT_REDIRECT:/o/org-target/settings/${organizationSection}`
+      )
+      expect(mockSectionPrefetch).not.toHaveBeenCalled()
+    }
+  )
 
   it('conceals inaccessible workspaces and platform-only sections', async () => {
     mockAuthorizeSection.mockResolvedValue({ allowed: false, disposition: 'not-found' })

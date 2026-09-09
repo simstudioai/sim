@@ -2,7 +2,7 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -15,9 +15,9 @@ import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
- * any workspace. Membership in the routed organization is the whole gate — a
- * non-member gets an explicit denial rather than a redirect, so a stale link
- * never bounces someone into a different organization.
+ * any workspace. Requires membership and the organization's Search rollout.
+ * Non-members get an explicit denial; members outside the rollout retain
+ * workspace settings, including when following a saved organization link.
  */
 export default async function OrganizationLayout({
   children,
@@ -49,6 +49,7 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
+  if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
 
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 

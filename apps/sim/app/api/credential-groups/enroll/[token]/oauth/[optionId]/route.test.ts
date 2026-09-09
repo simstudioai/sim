@@ -69,19 +69,22 @@ describe('credential group OAuth start route', () => {
     })
   })
 
-  it('forwards only the closed Search return context to the authorized operation', async () => {
-    await GET(request('?returnTo=search'), context)
-    expect(mocks.startOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: { invitationToken: 'invitation-token', optionId: 'option-1', returnTo: 'search' },
-      })
-    )
-    mocks.startOAuth.mockClear()
-    const response = await GET(request('?returnTo=https://external.test'), context)
-    expect(response.status).toBe(400)
-    expect(mocks.startOAuth).not.toHaveBeenCalled()
-  })
+  it.each(['search', 'accounts'] as const)(
+    'forwards only a closed return context to the authorized operation: %s',
+    async (returnTo) => {
+      await GET(request(`?returnTo=${returnTo}`), context)
+      expect(mocks.startOAuth).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal,
+          input: { invitationToken: 'invitation-token', optionId: 'option-1', returnTo },
+        })
+      )
+      mocks.startOAuth.mockClear()
+      const response = await GET(request('?returnTo=https://external.test'), context)
+      expect(response.status).toBe(400)
+      expect(mocks.startOAuth).not.toHaveBeenCalled()
+    }
+  )
 
   it.each(['ip', 'enrollment', 'unavailable', 'configuration'])(
     'preserves exact Search focus after %s failure',

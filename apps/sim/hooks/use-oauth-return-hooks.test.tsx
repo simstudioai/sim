@@ -14,12 +14,14 @@ const mocks = vi.hoisted(() => ({
   requireWorkspaceCredentialListResponse: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  replace: vi.fn(),
+  params: { workspaceId: 'workspace-1' } as { workspaceId?: string; organizationId?: string },
 }))
 
 vi.mock('@sim/emcn', () => ({ toast: { success: mocks.success, error: mocks.error } }))
 vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  useRouter: vi.fn(),
+  useParams: () => mocks.params,
+  useRouter: () => ({ replace: mocks.replace }),
 }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
 vi.mock('@/lib/desktop', () => ({
@@ -34,13 +36,20 @@ vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
 }))
 
 import {
+  listOrganizationCredentialsContract,
+  listOrganizationOAuthCredentialsContract,
+} from '@/lib/api/contracts/organization-credentials'
+import {
   type OAuthReturnContext,
   readOAuthReturnContext,
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
+import { oauthCredentialKeys, useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import {
   useDesktopOAuthConnectListener,
   useOAuthReturnForKBConnectors,
+  useOAuthReturnRouter,
 } from '@/hooks/use-oauth-return'
 
 const UPDATED_EVENT = 'oauth-credentials-updated'
@@ -58,7 +67,7 @@ const NEW_CREDENTIAL = {
   accountId: 'account-new',
 }
 
-function context(): OAuthReturnContext {
+function context(): Extract<OAuthReturnContext, { origin: 'kb-connectors' }> {
   return {
     origin: 'kb-connectors',
     workspaceId: 'workspace-1',
@@ -88,6 +97,19 @@ function Probe({
   return null
 }
 
+function RouterProbe() {
+  useOAuthReturnRouter()
+  return null
+}
+
+function SourceSettingsProbe({ connectorId }: { connectorId: string }) {
+  const scope = { kind: 'organization' as const, organizationId: 'org-1' }
+  const credentials = useOAuthCredentials('google-drive', { organizationId: scope.organizationId })
+  useCredentialRefreshTriggers(credentials.refetch, 'google-drive', scope)
+  useOAuthReturnForKBConnectors('kb-search', undefined, 'google_drive', scope, connectorId)
+  return <output>{credentials.data?.map((credential) => credential.name).join(', ')}</output>
+}
+
 let root: Root
 let container: HTMLDivElement
 let queryClient: QueryClient
@@ -106,6 +128,7 @@ async function render(props: ProbeProps) {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.desktop = false
+  mocks.params = { workspaceId: 'workspace-1' }
   completeDesktop = undefined
   mocks.onOAuthConnectComplete.mockImplementation(
     (callback: (result: DesktopOAuthConnectResult) => void) => {
@@ -134,6 +157,182 @@ afterEach(async () => {
   queryClient.clear()
   container.remove()
   sessionStorage.clear()
+})
+
+describe('organization source OAuth return routing', () => {
+  async function renderRouter() {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <RouterProbe />
+        </QueryClientProvider>
+      )
+    })
+  }
+
+  it.each(['confluence', 'google_drive', 'github', 'jira', 'gmail', 'google_calendar', 'slack'])(
+    'preserves the %s member-source form on successful and canceled OAuth returns',
+    async (connectorType) => {
+      mocks.params = { organizationId: 'org-1' }
+      for (const canceled of [false, true]) {
+        const pending: OAuthReturnContext = {
+          ...context(),
+          workspaceId: undefined,
+          organizationId: 'org-1',
+          connectorType,
+          sourceAccess: 'members',
+        }
+        writeOAuthReturnContext(pending)
+        window.history.replaceState(
+          null,
+          '',
+          `/o/org-1/settings/integrations${canceled ? '?error=access_denied' : ''}`
+        )
+        await renderRouter()
+        expect(mocks.replace).toHaveBeenLastCalledWith(
+          `/o/org-1/settings/integrations?addConnector=${connectorType}&source-access=members`
+        )
+        expect(readOAuthReturnContext()).toEqual(canceled ? null : pending)
+        await act(async () => root.render(null))
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'returns to source settings after OAuth with canceled=%s',
+    async (canceled) => {
+      mocks.params = { organizationId: 'org-1' }
+      const pending: OAuthReturnContext = {
+        ...context(),
+        workspaceId: undefined,
+        organizationId: 'org-1',
+        connectorId: 'connector-1',
+      }
+      writeOAuthReturnContext(pending)
+      window.history.replaceState(
+        null,
+        '',
+        `/o/org-1/settings/integrations${canceled ? '?error=access_denied' : ''}`
+      )
+
+      await renderRouter()
+
+      expect(mocks.replace).toHaveBeenCalledExactlyOnceWith(
+        '/o/org-1/settings/integrations/sources/connector-1?view=settings'
+      )
+      expect(readOAuthReturnContext()).toEqual(canceled ? null : pending)
+      expect(mocks.requestJson).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps new-source OAuth returns on the existing setup form', async () => {
+    mocks.params = { organizationId: 'org-1' }
+    writeOAuthReturnContext({
+      ...context(),
+      workspaceId: undefined,
+      organizationId: 'org-1',
+    })
+
+    await renderRouter()
+
+    expect(mocks.replace).toHaveBeenCalledExactlyOnceWith(
+      '/o/org-1/settings/integrations?addConnector=google_drive'
+    )
+  })
+
+  it('does not route a pending source return through a different organization', async () => {
+    mocks.params = { organizationId: 'org-other' }
+    const pending: OAuthReturnContext = {
+      ...context(),
+      workspaceId: undefined,
+      organizationId: 'org-1',
+      connectorId: 'connector-1',
+    }
+    writeOAuthReturnContext(pending)
+
+    await renderRouter()
+
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(readOAuthReturnContext()).toEqual(pending)
+  })
+})
+
+describe('existing source settings OAuth return', () => {
+  async function renderSettings(connectorId: string) {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SourceSettingsProbe connectorId={connectorId} />
+        </QueryClientProvider>
+      )
+    })
+  }
+
+  beforeEach(() => {
+    queryClient.setQueryData(oauthCredentialKeys.list('google-drive', '', '', 'org-1'), [
+      { id: 'credential-existing', name: 'Cached account' },
+    ])
+    mocks.requestJson.mockImplementation(async (contract: unknown) => {
+      if (contract === listOrganizationOAuthCredentialsContract) {
+        return { credentials: [{ id: 'credential-existing', name: 'Updated account' }] }
+      }
+      if (contract === listOrganizationCredentialsContract) {
+        return {
+          credentials: [
+            {
+              id: 'service-account',
+              displayName: 'Service account',
+              providerId: 'google-service-account',
+            },
+          ],
+        }
+      }
+      throw new Error('Unexpected account request')
+    })
+  })
+
+  it('consumes a matching source return and refreshes fresh cached account options', async () => {
+    writeOAuthReturnContext({
+      ...context(),
+      workspaceId: undefined,
+      organizationId: 'org-1',
+      connectorId: 'connector-1',
+      reconnect: true,
+    })
+
+    await renderSettings('connector-1')
+
+    expect(readOAuthReturnContext()).toBeNull()
+    expect(mocks.requestJson).toHaveBeenCalledTimes(2)
+    expect(mocks.requestJson).toHaveBeenCalledWith(
+      listOrganizationCredentialsContract,
+      expect.objectContaining({
+        query: {
+          organizationId: 'org-1',
+          providerId: 'google-service-account',
+          type: 'service_account',
+        },
+      })
+    )
+    await vi.waitFor(() => expect(container.textContent).toBe('Updated account, Service account'))
+  })
+
+  it('preserves an OAuth return for another source of the same provider', async () => {
+    const pending: OAuthReturnContext = {
+      ...context(),
+      workspaceId: undefined,
+      organizationId: 'org-1',
+      connectorId: 'connector-1',
+      reconnect: true,
+    }
+    writeOAuthReturnContext(pending)
+
+    await renderSettings('connector-other')
+
+    expect(readOAuthReturnContext()).toEqual(pending)
+    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(container.textContent).toBe('Cached account')
+  })
 })
 
 describe('KB OAuth return account selection', () => {

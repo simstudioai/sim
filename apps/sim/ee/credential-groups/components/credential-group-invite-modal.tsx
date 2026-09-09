@@ -101,7 +101,6 @@ export function CredentialGroupInviteModal({
           onChange={handleEmailsChange}
           validate={validateEmail}
           placeholder='Enter emails'
-          hint='Each person receives a link to connect their accounts. They can connect and leave without joining Sim. To give someone access to Search in Sim, invite them from Teammates.'
           disabled={invite.isPending}
         />
         <ChipModalError>

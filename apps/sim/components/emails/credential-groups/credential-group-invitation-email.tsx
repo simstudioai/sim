@@ -10,6 +10,7 @@ interface CredentialGroupInvitationEmailProps {
   workspaceName: string
   credentialGroupName: string
   invitationLink: string
+  searchProviderName?: string
 }
 
 export function CredentialGroupInvitationEmail({
@@ -18,6 +19,7 @@ export function CredentialGroupInvitationEmail({
   workspaceName,
   credentialGroupName,
   invitationLink,
+  searchProviderName,
 }: CredentialGroupInvitationEmailProps) {
   const brand = getBrandConfig()
 
@@ -41,12 +43,28 @@ export function CredentialGroupInvitationEmail({
             <strong>{recipientEmail}</strong> has been invited
           </>
         )}{' '}
-        to connect accounts for <strong>{credentialGroupName}</strong> in the{' '}
-        <strong>{workspaceName}</strong> workspace on {brand.name}.
+        {searchProviderName ? (
+          <>
+            to connect your {searchProviderName} account for Search in{' '}
+            <strong>{workspaceName}</strong>.
+          </>
+        ) : (
+          <>
+            to connect accounts for <strong>{credentialGroupName}</strong> in the{' '}
+            <strong>{workspaceName}</strong> workspace on {brand.name}.
+          </>
+        )}
       </Text>
+      {searchProviderName && (
+        <Text style={baseStyles.paragraph}>
+          This requests an account connection. It does not add you as an organization member.
+        </Text>
+      )}
 
       <Link href={invitationLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Connect Accounts</Text>
+        <Text style={baseStyles.button}>
+          {searchProviderName ? `Connect ${searchProviderName}` : 'Connect Accounts'}
+        </Text>
       </Link>
 
       <div style={baseStyles.divider} />

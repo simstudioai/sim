@@ -192,12 +192,10 @@ export async function requestJson<C extends AnyApiRouteContract>(
     throw new Error(`Contract ${contract.method} ${contract.path} does not declare a JSON response`)
   }
 
-  const parsedParams = parseOptionalSchema(contract.params, input.params)
-  const parsedQuery = parseOptionalSchema(contract.query, input.query)
   const parsedBody = parseOptionalSchema(contract.body, input.body)
   const parsedHeaders = parseOptionalSchema(contract.headers, input.headers)
 
-  const url = appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
+  const url = contractUrl(contract, input)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
 
   const response = await fetch(url, {
@@ -236,17 +234,30 @@ export async function requestJson<C extends AnyApiRouteContract>(
   }
 }
 
+/**
+ * The URL a contract resolves to for `input`, validated the same way a request
+ * would be. For a download the browser should stream itself — an anchor
+ * navigation rather than a fetch that buffers the body — so the caller needs
+ * the address, not the response.
+ */
+export function contractUrl<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>
+): string {
+  const parsedParams = parseOptionalSchema(contract.params, input.params)
+  const parsedQuery = parseOptionalSchema(contract.query, input.query)
+  return appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
+}
+
 export async function requestRaw<C extends AnyApiRouteContract>(
   contract: C,
   input: ApiClientRequest<C>,
   options: ApiRawRequestOptions = {}
 ): Promise<Response> {
-  const parsedParams = parseOptionalSchema(contract.params, input.params)
-  const parsedQuery = parseOptionalSchema(contract.query, input.query)
   const parsedBody = parseOptionalSchema(contract.body, input.body)
   const parsedHeaders = parseOptionalSchema(contract.headers, input.headers)
 
-  const url = appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
+  const url = contractUrl(contract, input)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
   const headers = {
     ...buildHeaders(parsedHeaders, hasBody),

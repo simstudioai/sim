@@ -563,7 +563,7 @@ export const slackCredentialGroupConfigurationCallbackContract = defineRouteCont
 })
 
 export const startCredentialGroupOAuthQuerySchema = z.object({
-  returnTo: z.literal('search').optional(),
+  returnTo: z.enum(['search', 'accounts']).optional(),
 })
 export type StartCredentialGroupOAuthQuery = z.output<typeof startCredentialGroupOAuthQuerySchema>
 

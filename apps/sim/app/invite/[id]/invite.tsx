@@ -12,12 +12,13 @@ import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { InvitationDisclosure, InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
+import { clearUserData } from '@/stores'
 
 const logger = createLogger('InviteById')
 
@@ -315,6 +316,7 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
+  const isDisclosureMissing = invitation?.membershipIntent === 'internal' && !joinPreview
   const isLoading = Boolean(session?.user) && (!isTokenResolved || invitationQuery.isPending)
 
   const fetchError = invitationQuery.error
@@ -331,7 +333,7 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   const error = actionError ?? fetchError ?? (invitationQuery.data ? null : urlError)
 
   const handleAcceptInvitation = async () => {
-    if (!session?.user || !invitation) return
+    if (!session?.user || !invitation || isDisclosureMissing || isAccepting) return
     setIsAccepting(true)
 
     try {
@@ -442,8 +444,19 @@ export default function Invite({ registrationDisabled }: InviteProps) {
               {
                 label: 'Sign in with a different account',
                 onClick: async () => {
-                  await client.signOut()
-                  router.push(inviteAuthLink('/login', callbackUrl))
+                  const loginUrl = inviteAuthLink('/login', callbackUrl)
+                  let canNavigateInApp = false
+                  try {
+                    const [, inMemoryResetSucceeded] = await Promise.all([
+                      client.signOut(),
+                      clearUserData(),
+                    ])
+                    canNavigateInApp = inMemoryResetSucceeded
+                  } catch (error) {
+                    logger.error('Error signing out:', { error })
+                  }
+                  if (canNavigateInApp) router.push(loginUrl)
+                  else window.location.assign(loginUrl)
                 },
               },
               { label: 'Return to Home', onClick: returnHome },
@@ -555,14 +568,26 @@ export default function Invite({ registrationDisabled }: InviteProps) {
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
         description={`You've been invited to join ${displayName}.`}
+        details={
+          invitation && <InvitationDisclosure invitation={invitation} joinPreview={joinPreview} />
+        }
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {
             label: 'Accept Invitation',
             onClick: handleAcceptInvitation,
-            disabled: isAccepting,
+            disabled: isAccepting || isDisclosureMissing,
             loading: isAccepting,
           },
+          ...(isDisclosureMissing
+            ? [
+                {
+                  label: 'Refresh invitation',
+                  onClick: () => void invitationQuery.refetch(),
+                  disabled: invitationQuery.isFetching,
+                },
+              ]
+            : []),
           { label: 'Return to Home', onClick: returnHome },
         ]}
       />

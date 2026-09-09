@@ -102,6 +102,7 @@ export const auditMock = {
     KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated',
     KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
     KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
+    KNOWLEDGE_BASE_EXPORTED: 'knowledge_base.exported',
     MCP_SERVER_ADDED: 'mcp_server.added',
     MCP_SERVER_UPDATED: 'mcp_server.updated',
     MCP_SERVER_REMOVED: 'mcp_server.removed',

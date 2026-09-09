@@ -92,7 +92,9 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'contentType',
+      setupGroup: 'options',
       title: 'Content Type',
+      placeholder: 'Pages only',
       type: 'dropdown',
       required: false,
       options: [
@@ -103,6 +105,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'labelFilter',
+      setupGroup: 'options',
       title: 'Filter by Label',
       type: 'short-input',
       required: false,
@@ -110,6 +113,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxPages',
+      setupGroup: 'options',
       title: 'Max Pages',
       type: 'short-input',
       required: false,

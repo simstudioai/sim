@@ -148,7 +148,10 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
       userId: principal.userId,
     })
     const url = new URL(invitationLink)
-    if (account.optionId) url.searchParams.set('optionId', account.optionId)
+    if (account.optionId) {
+      url.searchParams.set('optionId', account.optionId)
+      url.searchParams.set('returnTo', 'accounts')
+    }
     return { invitationLink: url.toString() }
   },
 })

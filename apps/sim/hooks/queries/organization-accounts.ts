@@ -1,6 +1,13 @@
 'use client'
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  isServer,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type AddOrganizationAccountMcpProviderBody,
@@ -18,7 +25,9 @@ import {
   inviteOrganizationAccountPeopleContract,
   listOrganizationAccountPeopleContract,
   listPersonalOrganizationAccountsContract,
+  type OrganizationAccountPeopleQuery,
   type RemoveOrganizationAccountMcpProviderParams,
+  type ResendOrganizationAccountInvitationQuery,
   reconnectPersonalOrganizationAccountContract,
   removeOrganizationAccountMcpProviderContract,
   resendOrganizationAccountInvitationContract,
@@ -40,6 +49,11 @@ export const organizationAccountsKeys = {
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
   access: (id?: string) => [...organizationAccountsKeys.detail(id), 'access'] as const,
   people: (id?: string) => [...organizationAccountsKeys.detail(id), 'people'] as const,
+  peopleList: (id: string, search?: string, optionId?: string) =>
+    [
+      ...organizationAccountsKeys.people(id),
+      { search: search ?? '', optionId: optionId ?? '' },
+    ] as const,
   databricks: (id?: string) => [...organizationAccountsKeys.detail(id), 'databricks'] as const,
   details: () => [...organizationAccountsKeys.all, 'detail'] as const,
   detail: (organizationId?: string) =>
@@ -188,15 +202,37 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
       ]),
   })
 }
-export function useOrganizationAccountPeople(organizationId: string) {
+export function useOrganizationAccountPeople(
+  organizationId: string,
+  search?: OrganizationAccountPeopleQuery['search'],
+  options?: { enabled?: boolean; optionId?: OrganizationAccountPeopleQuery['optionId'] }
+) {
+  const normalizedSearch = search?.trim() || undefined
   return useInfiniteQuery({
-    queryKey: organizationAccountsKeys.people(organizationId),
+    queryKey: organizationAccountsKeys.peopleList(
+      organizationId,
+      normalizedSearch,
+      options?.optionId
+    ),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
+    retry: (failureCount, error) =>
+      !isServer &&
+      failureCount < 1 &&
+      (!isApiClientError(error) ||
+        error.status === 408 ||
+        error.status === 429 ||
+        error.status >= 500),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
       requestJson(listOrganizationAccountPeopleContract, {
         params: { id: organizationId },
-        query: { limit: 50, cursor: pageParam },
+        query: {
+          limit: 50,
+          cursor: pageParam,
+          search: normalizedSearch,
+          ...(options?.optionId ? { optionId: options.optionId } : {}),
+        },
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
@@ -223,12 +259,14 @@ export function useResendOrganizationAccountInvitation() {
     mutationFn: ({
       organizationId,
       enrollmentId,
+      ...query
     }: {
       organizationId: string
       enrollmentId: string
-    }) =>
+    } & ResendOrganizationAccountInvitationQuery) =>
       requestJson(resendOrganizationAccountInvitationContract, {
         params: { id: organizationId, enrollmentId },
+        query,
       }),
     onSuccess: (_, { organizationId }) =>
       queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),

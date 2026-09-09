@@ -18,6 +18,7 @@ import {
   OverflowText,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
+import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
@@ -44,8 +45,8 @@ import {
   ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
+import type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
 import {
-  BROWSE_WITH_HINT,
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -82,9 +83,10 @@ interface AddConnectorModalProps {
   isSearchIndex?: boolean
   initialConnectorType?: string | null
   initialAccessMode?: ConnectorAccessSelection['accessMode']
-  membersOnly?: boolean
+  /** The entry point has already chosen how this source connects. */
+  lockedAccessMode?: 'members' | 'admin'
   initialSyncIntervalMinutes?: number
-  onCreated?: (connectorType: string) => void
+  onCreated?: (connectorType: string, connector: ConnectorData) => void
   setupDraftKey?: string
 }
 
@@ -98,7 +100,7 @@ export function AddConnectorModal({
   isSearchIndex = false,
   initialConnectorType,
   initialAccessMode = 'workspace',
-  membersOnly = false,
+  lockedAccessMode,
   initialSyncIntervalMinutes = 1440,
   onCreated,
   setupDraftKey,
@@ -129,7 +131,8 @@ export function AddConnectorModal({
   )
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
     accessMode:
-      (membersOnly ? 'members' : draft?.accessMode) ??
+      lockedAccessMode ??
+      draft?.accessMode ??
       (isSearchIndex && initialAccessMode === 'workspace'
         ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
           ? 'admin'
@@ -241,6 +244,8 @@ export function AddConnectorModal({
   const {
     data: rawCredentials = [],
     isLoading: credentialsLoading,
+    isFetching: credentialsFetching,
+    error: credentialsError,
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
     enabled: Boolean(connectorConfig) && !isApiKeyMode,
@@ -267,6 +272,7 @@ export function AddConnectorModal({
   const {
     sourceConfig,
     setSourceConfig,
+    selectionLabels,
     canonicalModes,
     setCanonicalModes,
     canonicalGroups,
@@ -280,6 +286,7 @@ export function AddConnectorModal({
     accessMode: access.accessMode,
     initialSourceConfig: draft?.sourceConfig,
     initialCanonicalModes: draft?.canonicalModes,
+    initialSelectionLabels: draft?.selectionLabels,
   })
 
   const indexingCredentialId = isApiKeyMode
@@ -298,7 +305,6 @@ export function AddConnectorModal({
 
   const showCredentialPicker =
     !isMembersMode ||
-    connectorConfig?.supportsSeparateContentCredential ||
     connectorConfig?.configFields.some(
       (field) => field.type === 'selector' && isFieldVisible(field)
     )
@@ -307,6 +313,7 @@ export function AddConnectorModal({
     if (!setupDraftKey) return
     useConnectorSetupStore.getState().saveDraft(setupDraftKey, {
       sourceConfig,
+      selectionLabels,
       canonicalModes,
       accessMode: access.accessMode,
       credentialId: effectiveCredentialId,
@@ -315,6 +322,83 @@ export function AddConnectorModal({
       savedAt: Date.now(),
     })
   }
+
+  const connectOAuth = () => {
+    saveSetup()
+    setShowOAuthModal(true)
+  }
+
+  const isOptionalSetupField = (field: ConnectorConfigField) =>
+    isSearchIndex &&
+    field.setupGroup === 'options' &&
+    Boolean(connectorConfig && !isConnectorFieldRequired(field, connectorConfig, access.accessMode))
+  const hasOptionalSetupFields = connectorConfig?.configFields.some(
+    (field) =>
+      isOptionalSetupField(field) && isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)
+  )
+  const configFieldsProps: Omit<ConnectorConfigFieldsProps, 'isFieldVisible'> | null =
+    connectorConfig
+      ? {
+          scope,
+          accessMode: access.accessMode,
+          connectorConfig,
+          sourceConfig,
+          selectionLabels,
+          credentialId: effectiveCredentialId,
+          canonicalGroups,
+          canonicalModes,
+          onFieldChange: handleFieldChange,
+          onToggleCanonicalMode: toggleCanonicalMode,
+          disabled: isCreating,
+        }
+      : null
+
+  const contentCredentialField =
+    isMembersMode && connectorConfig?.supportsSeparateContentCredential ? (
+      <>
+        <ConnectorContentCredentialField
+          credentialId={contentCredentialId}
+          onChange={setContentCredentialId}
+          options={[
+            ...credentials.map((credential) => ({
+              value: credential.id,
+              label: credential.name || credential.provider,
+            })),
+            ...(canConnectOAuth
+              ? [
+                  {
+                    value: '__connect_new__',
+                    label: `Connect ${connectorConfig.name} account`,
+                    icon: Plus,
+                    onSelect: connectOAuth,
+                  },
+                ]
+              : []),
+            ...(canConnectServiceAccount
+              ? [
+                  {
+                    value: '__service_account__',
+                    label: serviceAccountTarget.label,
+                    icon: Plus,
+                    onSelect: () => setShowServiceAccountModal(true),
+                  },
+                ]
+              : []),
+          ]}
+          isLoading={credentialsLoading}
+          disabled={isCreating}
+        />
+        {!showCredentialPicker && credentialsError && rawCredentials.length === 0 && (
+          <SettingsQueryErrorState
+            error={credentialsError}
+            fallback='Could not load accounts'
+            isRetrying={credentialsFetching}
+            onRetry={() => void refetchCredentials()}
+            variant='inline'
+          />
+        )}
+      </>
+    ) : null
 
   const closeSetup = (nextOpen: boolean) => {
     if (!nextOpen && setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
@@ -416,9 +500,9 @@ export function AddConnectorModal({
         syncIntervalMinutes: syncInterval,
       },
       {
-        onSuccess: () => {
+        onSuccess: (connector) => {
           closeSetup(false)
-          onCreated?.(selectedType)
+          onCreated?.(selectedType, connector)
         },
         onError: (err) => {
           setError(err.message)
@@ -451,7 +535,7 @@ export function AddConnectorModal({
         <ChipModalHeader onClose={() => closeSetup(false)}>
           {step === 'configure' ? (
             <span className='flex items-center gap-2'>
-              {!membersOnly && (
+              {!lockedAccessMode && (
                 <Chip
                   leftIcon={ArrowLeft}
                   aria-label='Choose another source'
@@ -475,7 +559,7 @@ export function AddConnectorModal({
               ? 'max-h-[520px] pb-0'
               : slackSetupRequired
                 ? undefined
-                : 'h-[80vh] max-h-[560px]'
+                : 'max-h-[560px]'
           }
         >
           {step === 'select-type' ? (
@@ -519,7 +603,7 @@ export function AddConnectorModal({
                   />
                 </ChipModalField>
               )}
-              {!membersOnly &&
+              {(!lockedAccessMode || slackSetupRequired) &&
                 (memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
                   <ConnectorAccessField
                     scope={scope}
@@ -534,6 +618,7 @@ export function AddConnectorModal({
                     searchSetupSource={
                       isSearchIndex && selectedType === 'slack' ? 'slack' : undefined
                     }
+                    slackSetupOnly={Boolean(lockedAccessMode) && slackSetupRequired}
                     onSetupNavigate={saveSetup}
                   />
                 )}
@@ -574,95 +659,89 @@ export function AddConnectorModal({
                       type='custom'
                       title={
                         isMembersMode
-                          ? 'Browse with'
-                          : canConnectOAuth
-                            ? 'Account'
-                            : 'Service account'
+                          ? 'Account for browsing'
+                          : isSearchIndex
+                            ? 'Indexing account'
+                            : canConnectOAuth
+                              ? 'Account'
+                              : 'Service account'
                       }
-                      hint={isMembersMode ? BROWSE_WITH_HINT : undefined}
                     >
-                      <ChipCombobox
-                        options={[
-                          ...credentials.map(
-                            (cred): ComboboxOption => ({
-                              label: cred.name || cred.provider,
-                              value: cred.id,
-                              icon: withBrandIcon(connectorConfig.icon),
-                            })
-                          ),
-                          ...(canConnectOAuth
-                            ? [
-                                {
-                                  label:
-                                    credentials.length > 0
-                                      ? `Connect another ${connectorConfig.name} account`
-                                      : `Connect ${connectorConfig.name} account`,
-                                  value: '__connect_new__',
-                                  icon: Plus,
-                                  onSelect: () => {
-                                    saveSetup()
-                                    setShowOAuthModal(true)
+                      {credentialsError && rawCredentials.length === 0 ? (
+                        <SettingsQueryErrorState
+                          error={credentialsError}
+                          fallback='Could not load accounts'
+                          isRetrying={credentialsFetching}
+                          onRetry={() => void refetchCredentials()}
+                          variant='inline'
+                        />
+                      ) : (
+                        <ChipCombobox
+                          options={[
+                            ...credentials.map(
+                              (cred): ComboboxOption => ({
+                                label: cred.name || cred.provider,
+                                value: cred.id,
+                                icon: withBrandIcon(connectorConfig.icon),
+                              })
+                            ),
+                            ...(canConnectOAuth
+                              ? [
+                                  {
+                                    label:
+                                      credentials.length > 0
+                                        ? `Connect another ${connectorConfig.name} account`
+                                        : `Connect ${connectorConfig.name} account`,
+                                    value: '__connect_new__',
+                                    icon: Plus,
+                                    onSelect: connectOAuth,
                                   },
-                                },
-                              ]
-                            : []),
-                          ...(canConnectServiceAccount
-                            ? [
-                                {
-                                  label: serviceAccountTarget.label,
-                                  value: '__service_account__',
-                                  icon: Plus,
-                                  onSelect: () => setShowServiceAccountModal(true),
-                                },
-                              ]
-                            : []),
-                        ]}
-                        value={effectiveCredentialId ?? undefined}
-                        onChange={(value) => setSelectedCredentialId(value)}
-                        onOpenChange={(isOpen) => {
-                          if (isOpen) void refetchCredentials()
-                        }}
-                        placeholder={
-                          canConnectOAuth
-                            ? `Select ${connectorConfig.name} account`
-                            : 'Select a service account'
-                        }
-                        isLoading={credentialsLoading || isIntegrationAvailabilityLoading}
-                        disabled={!isIntegrationAvailabilityReady}
-                      />
+                                ]
+                              : []),
+                            ...(canConnectServiceAccount
+                              ? [
+                                  {
+                                    label: serviceAccountTarget.label,
+                                    value: '__service_account__',
+                                    icon: Plus,
+                                    onSelect: () => setShowServiceAccountModal(true),
+                                  },
+                                ]
+                              : []),
+                          ]}
+                          value={effectiveCredentialId ?? undefined}
+                          onChange={(value) => setSelectedCredentialId(value)}
+                          onOpenChange={(isOpen) => {
+                            if (isOpen) void refetchCredentials()
+                          }}
+                          placeholder={
+                            canConnectOAuth
+                              ? `Select ${connectorConfig.name} account`
+                              : 'Select a service account'
+                          }
+                          isLoading={credentialsLoading || isIntegrationAvailabilityLoading}
+                          disabled={isCreating || !isIntegrationAvailabilityReady}
+                        />
+                      )}
                     </ChipModalField>
                   ) : null}
 
-                  {isMembersMode && connectorConfig.supportsSeparateContentCredential && (
-                    <ConnectorContentCredentialField
-                      credentialId={contentCredentialId}
-                      onChange={setContentCredentialId}
-                      options={credentials.map((credential) => ({
-                        value: credential.id,
-                        label: credential.name || credential.provider,
-                      }))}
-                      isLoading={credentialsLoading}
-                      disabled={isCreating}
+                  {!isSearchIndex && contentCredentialField}
+
+                  {configFieldsProps && (
+                    <ConnectorConfigFields
+                      {...configFieldsProps}
+                      isFieldVisible={(field) =>
+                        isFieldVisible(field) &&
+                        !hiddenCapFieldIds.has(field.id) &&
+                        !isOptionalSetupField(field)
+                      }
                     />
                   )}
 
-                  <ConnectorConfigFields
-                    scope={scope}
-                    accessMode={access.accessMode}
-                    connectorConfig={connectorConfig}
-                    sourceConfig={sourceConfig}
-                    credentialId={effectiveCredentialId}
-                    canonicalGroups={canonicalGroups}
-                    canonicalModes={canonicalModes}
-                    isFieldVisible={(field) =>
-                      isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)
-                    }
-                    onFieldChange={handleFieldChange}
-                    onToggleCanonicalMode={toggleCanonicalMode}
-                    disabled={isCreating}
-                  />
-
-                  {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
+                  {(hasOptionalSetupFields ||
+                    contentCredentialField ||
+                    Boolean(connectorConfig.tagDefinitions?.length)) && (
                     <>
                       <div className='px-2'>
                         <Chip
@@ -671,48 +750,57 @@ export function AddConnectorModal({
                           aria-expanded={showMetadata}
                           onClick={() => setShowMetadata((visible) => !visible)}
                         >
-                          Document details (optional)
+                          {isSearchIndex ? 'More options' : 'Document details (optional)'}
                         </Chip>
                       </div>
                       {showMetadata && (
-                        <ChipModalField
-                          type='custom'
-                          title='Metadata tags'
-                          hint='All document details below are included by default. Deselect any you do not need.'
-                        >
-                          <div className='flex flex-col gap-2'>
-                            {connectorConfig.tagDefinitions.map((tagDef) => (
-                              <label
-                                key={tagDef.id}
-                                htmlFor={`${metadataId}-${tagDef.id}`}
-                                className='flex cursor-pointer items-center gap-2 text-small'
-                              >
-                                <Checkbox
-                                  id={`${metadataId}-${tagDef.id}`}
-                                  checked={!disabledTagIds.has(tagDef.id)}
-                                  onCheckedChange={(checked) => {
-                                    setDisabledTagIds((prev) => {
-                                      const next = new Set(prev)
-                                      if (checked) {
-                                        next.delete(tagDef.id)
-                                      } else {
-                                        next.add(tagDef.id)
-                                      }
-                                      return next
-                                    })
-                                  }}
-                                />
-                                <OverflowText
-                                  label={tagDef.displayName}
-                                  className='flex-1 text-[var(--text-body)]'
-                                />
-                                <span className='shrink-0 text-[var(--text-muted)] text-xs'>
-                                  ({tagDef.fieldType})
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </ChipModalField>
+                        <>
+                          {isSearchIndex && contentCredentialField}
+                          {configFieldsProps && hasOptionalSetupFields && (
+                            <ConnectorConfigFields
+                              {...configFieldsProps}
+                              isFieldVisible={(field) =>
+                                isFieldVisible(field) &&
+                                !hiddenCapFieldIds.has(field.id) &&
+                                isOptionalSetupField(field)
+                              }
+                            />
+                          )}
+                          {Boolean(connectorConfig.tagDefinitions?.length) && (
+                            <ChipModalField type='custom' title='Metadata tags'>
+                              <div className='flex flex-col gap-2'>
+                                {connectorConfig.tagDefinitions?.map((tagDef) => (
+                                  <label
+                                    key={tagDef.id}
+                                    htmlFor={`${metadataId}-${tagDef.id}`}
+                                    className='flex cursor-pointer items-center gap-2 text-small'
+                                  >
+                                    <Checkbox
+                                      id={`${metadataId}-${tagDef.id}`}
+                                      disabled={isCreating}
+                                      checked={!disabledTagIds.has(tagDef.id)}
+                                      onCheckedChange={(checked) => {
+                                        setDisabledTagIds((prev) => {
+                                          const next = new Set(prev)
+                                          if (checked) {
+                                            next.delete(tagDef.id)
+                                          } else {
+                                            next.add(tagDef.id)
+                                          }
+                                          return next
+                                        })
+                                      }}
+                                    />
+                                    <OverflowText
+                                      label={tagDef.displayName}
+                                      className='flex-1 text-[var(--text-body)]'
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                            </ChipModalField>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -745,7 +833,15 @@ export function AddConnectorModal({
                     </ChipModalField>
                   )}
 
-                  <ChipModalError>{error}</ChipModalError>
+                  <ChipModalError>
+                    {error ??
+                      (lockedAccessMode &&
+                      isIntegrationAvailabilityReady &&
+                      !integrationAvailabilityError &&
+                      !(lockedAccessMode === 'admin' ? allowAdmin : allowMembers)
+                        ? `This connection method is not available in this ${scope.kind}.`
+                        : null)}
+                  </ChipModalError>
                 </>
               )}
             </>
@@ -812,6 +908,7 @@ export function AddConnectorModal({
             {...owner}
             knowledgeBaseId={knowledgeBaseId}
             connectorType={selectedType ?? undefined}
+            sourceAccess={lockedAccessMode === 'members' ? 'members' : undefined}
           />
         )}
     </>

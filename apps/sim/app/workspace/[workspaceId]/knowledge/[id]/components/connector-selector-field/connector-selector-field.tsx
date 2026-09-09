@@ -7,6 +7,7 @@ import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
+import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type {
@@ -25,11 +26,12 @@ interface ConnectorSelectorFieldProps {
   scope?: ResourceScope
   field: ConnectorConfigField & { selectorKey: SelectorKey }
   value: ConfigFieldValue
-  onChange: (value: ConfigFieldValue) => void
+  onChange: (value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => void
   credentialId: string | null
   sourceConfig: ConfigFieldMap
   configFields: ConnectorConfigField[]
   canonicalModes: Record<string, 'basic' | 'advanced'>
+  selectedLabels?: SourceSelectionLabel[]
   disabled?: boolean
 }
 
@@ -42,6 +44,7 @@ export function ConnectorSelectorField({
   sourceConfig,
   configFields,
   canonicalModes,
+  selectedLabels,
   disabled,
 }: ConnectorSelectorFieldProps) {
   const params = useParams<{ workspaceId?: string; organizationId?: string }>()
@@ -151,8 +154,21 @@ export function ConnectorSelectorField({
       seen.add(option.id)
       extras.push({ label: option.label, value: option.id })
     }
+    for (const option of selectedLabels ?? []) {
+      if (seen.has(option.id) || !selectedIds.includes(option.id)) continue
+      seen.add(option.id)
+      extras.push({ label: option.label, value: option.id, hidden: true })
+    }
     return extras.length > 0 ? [...extras, ...base] : base
-  }, [options, selectedOptions, searchedOption])
+  }, [options, selectedOptions, searchedOption, selectedLabels, selectedIds])
+
+  const handleChange = (nextValue: ConfigFieldValue) => {
+    const ids = new Set(Array.isArray(nextValue) ? nextValue : nextValue ? [nextValue] : [])
+    const selected = comboboxOptions
+      .filter((option) => ids.has(option.value))
+      .map((option) => ({ id: option.value, label: option.label }))
+    onChange(nextValue, selected)
+  }
 
   if (isMulti) {
     const multiValues = Array.isArray(value) ? value : value ? [value] : []
@@ -161,7 +177,7 @@ export function ConnectorSelectorField({
         multiSelect
         options={comboboxOptions}
         multiSelectValues={multiValues}
-        onMultiSelectChange={onChange}
+        onMultiSelectChange={handleChange}
         searchable
         onSearchChange={setSearchTerm}
         searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
@@ -189,7 +205,7 @@ export function ConnectorSelectorField({
     <ChipCombobox
       options={comboboxOptions}
       value={singleValue || undefined}
-      onChange={onChange}
+      onChange={handleChange}
       searchable
       onSearchChange={setSearchTerm}
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}

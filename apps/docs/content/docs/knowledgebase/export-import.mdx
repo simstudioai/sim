@@ -1,0 +1,63 @@
+---
+title: Export
+description: Download a knowledge base as one archive of its documents, chunks, tags, and settings.
+---
+
+An **export** is a single archive that holds a knowledge base: every document, the chunks Sim split it into, the tag definitions and values, and the chunking settings. Use it to keep a copy of a base outside Sim.
+
+To export, right-click a base in the knowledge base list and choose **Export**, or open the base and click the **Export** button in the header. The download is named `<base name>.simkb.zip`.
+
+## What the archive contains
+
+```text
+<base name>.simkb.zip
+├── manifest.json
+├── files/
+│   └── <documentId>/<filename>
+└── chunks/
+    └── <documentId>.ndjson
+```
+
+- **`manifest.json`** describes the export (format version 1): the base name, description, and chunking config; the embedding model and dimension and whether vectors are included; the tag definitions; and a document list with each document's filename, MIME type, size, enabled flag, tag values, entry paths, and chunk, token, and character counts.
+- **`files/`** holds each document's original file, when it has one.
+- **`chunks/`** holds one NDJSON file per document, with one JSON line per chunk: its index, content, token count, start and end offsets, enabled flag, and the vector when vectors are included.
+
+The export includes every document a workspace member can read, its file and its chunk text. Documents synced from a [connector](/knowledgebase/connectors) export as plain documents: their text and, where Sim stored it, their file.
+
+## What stays behind
+
+An export never includes:
+
+- Access-control lists
+- Connector links and credentials
+- Who uploaded each document
+- Internal storage keys
+
+Organization-wide search indexes cannot be exported.
+
+## Vectors
+
+Vectors are embeddings, the numbers a model produces so search can compare chunks. They are included by default. Each chunk's vector is stored as base64-encoded float32 values in its NDJSON line.
+
+Vectors are only valid for a deployment that uses the same embedding model and dimension. The manifest records both for the base you exported. To skip vectors, set `vectors=false` on the API or pass `--no-vectors` to the CLI.
+
+## Limits and governance
+
+A base with more than 2,000 documents cannot be exported. The request returns `413`.
+
+Organization admins can withhold export through the permission group setting **Knowledge Base Export** (enterprise). Every export records an audit event.
+
+## API
+
+```http
+GET /api/v2/knowledge/{knowledgeBaseId}/export?workspaceId={workspaceId}&vectors=true
+```
+
+The response is the archive. See the [API reference](/api-reference/getting-started) for authentication.
+
+## CLI
+
+```bash
+sim knowledge export <knowledgeBaseId> --output-file kb.zip
+sim knowledge export <knowledgeBaseId> --output-file kb.zip --no-vectors
+```

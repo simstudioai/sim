@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 GitHub Search indexes text files from a repository on `github.com`. An organization admin chooses the repository, then each person connects their GitHub account. Installing the GitHub App alone does not connect your teammates.
 
-Admin setup uses your organization's **Settings → Integrations** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Before you start
 
@@ -102,14 +102,16 @@ In the App's sidebar, choose **Install App**, select the target account, and gra
 
 ### Open GitHub setup
 
-As a Sim organization admin, open **Settings → Integrations → Providers**, approve **GitHub**, then select **Set up**.
+As a Sim organization admin, open **Settings → Sources → Add integration** and choose **GitHub**. On its **Sources** tab, select **Add source**. If GitHub is already listed, open it directly.
 
 </Step>
 <Step>
 
 ### Choose what to index
 
-Enter the repository and keep **Sync documents with → Connected members** for the usual setup.
+Enter **Repository** as `owner/repo`. Open **More options** only if you need a different branch, path or extension filters, metadata tags, or a dedicated indexing account. **Sync documents with** defaults to **Connected members**.
+
+<Image src="/static/search/github-setup.jpg" alt="GitHub source setup with a required Repository field and More options" width={520} height={254} />
 
 | Field | What to enter |
 |---|---|
@@ -118,7 +120,7 @@ Enter the repository and keep **Sync documents with → Connected members** for 
 | Path Filter | Optional prefix such as `docs/`. |
 | File Extensions | Optional comma-separated list, such as `.md, .txt, .mdx`. |
 
-**Document details** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Add source** to save the source.
+**Metadata tags** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Add source** to save the source.
 
 You can instead select an existing account under **Sync documents with** to supply file contents centrally. Teammates still connect their own accounts to establish which files they may find.
 
@@ -127,9 +129,11 @@ You can instead select an existing account under **Sync documents with** to supp
 
 ### Connect your account
 
-On the GitHub source row, select **Connect account** and authorize the App. Teammates repeat this step after joining the Sim organization. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
+Open **Integrations** in the main sidebar, select **Connect account** on the GitHub source, and authorize the App. Teammates repeat this step after joining the Sim organization. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
 
-With **Connected members**, indexing begins after someone connects. A dedicated indexing account can start syncing immediately; each teammate still connects before searching. Admins can open **Manage** on the source to inspect sync progress and errors.
+With **Connected members**, indexing begins after someone connects. A dedicated indexing account can start syncing immediately; each teammate still connects before searching. Open **Settings → Sources → GitHub → Sources → [source]** to inspect **Documents**, edit **Settings**, or review **Sync history**.
+
+Use **GitHub → Accounts → Request connections** to send provider-specific connection requests. These requests do not grant organization membership. For another repository, add another source; members can also use **Add another GitHub source** in the main Integrations page.
 
 </Step>
 </Steps>

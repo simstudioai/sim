@@ -42,15 +42,7 @@ export function ConnectorContentCredentialField({
   disabled,
 }: ConnectorContentCredentialFieldProps) {
   return (
-    <ChipModalField
-      type='custom'
-      title='Sync documents with'
-      hint={
-        credentialId
-          ? 'Sync documents from this account. Members connect their own accounts to confirm which documents they can access.'
-          : 'Sync documents from connected members. Each person sees only documents they can open in the source.'
-      }
-    >
+    <ChipModalField type='custom' title='Sync documents with'>
       <ChipCombobox
         value={credentialId ?? '__connected_members__'}
         options={[{ value: '__connected_members__', label: 'Connected members' }, ...options]}
@@ -80,24 +72,8 @@ interface ConnectorAccessFieldProps {
   /** Rendered under the selection, for a caller that applies the change with its own control. */
   footer?: ReactNode
   searchSetupSource?: 'slack'
+  slackSetupOnly?: boolean
   onSetupNavigate?: () => void
-}
-
-function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): string {
-  const sourceName = connectorConfig.name
-  if (mode === 'members') {
-    return (
-      connectorConfig.memberSetupHint ??
-      `Each teammate connects their ${sourceName} account. They see only documents they can open there.`
-    )
-  }
-  if (mode === 'admin') {
-    const identityHint = connectorConfig.requiresMemberIdentity
-      ? ` Teammates still connect their ${sourceName} accounts to confirm their identity.`
-      : ''
-    return `${connectorConfig.adminSetupHint ?? 'An admin or service account syncs documents and permissions.'}${identityHint} Each person sees only documents they can open in ${sourceName}.`
-  }
-  return 'Everyone in this workspace can search these documents.'
 }
 
 /** Chooses how a source connects while preserving its document permissions. */
@@ -114,6 +90,7 @@ export function ConnectorAccessField({
   allowWorkspace = true,
   footer,
   searchSetupSource,
+  slackSetupOnly = false,
   onSetupNavigate,
 }: ConnectorAccessFieldProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
@@ -161,16 +138,18 @@ export function ConnectorAccessField({
   return (
     <ChipModalField
       type='custom'
-      title='Connection method'
+      title={slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
         canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
-          : accessHint(value.accessMode, connectorConfig)
+          : value.accessMode === 'workspace'
+            ? 'Everyone in this workspace can search these documents.'
+            : undefined
       }
     >
       <div className='flex flex-col gap-2'>
-        {showModeSelector ? (
+        {slackSetupOnly ? null : showModeSelector ? (
           <ButtonGroup
             value={value.accessMode}
             disabled={disabled}
@@ -236,15 +215,8 @@ export function SlackMemberSetup({
       ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
       : `/workspace/${scope.workspaceId}/settings/credential-groups`
   return (
-    <div className='flex flex-col items-start gap-2'>
-      <p className='text-[var(--text-muted)] text-caption leading-snug'>
-        Set up your Slack app to continue.
-      </p>
-      <div className='flex flex-wrap items-center gap-2'>
-        <ChipLink href={href} onClick={onNavigate}>
-          Set up Slack
-        </ChipLink>
-      </div>
-    </div>
+    <ChipLink href={href} onClick={onNavigate}>
+      Set up Slack
+    </ChipLink>
   )
 }

@@ -8,7 +8,7 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useApiKeys } from '@/hooks/queries/api-keys'
-import { useSearchSources } from '@/hooks/queries/kb/connectors'
+import { useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
 
 type StepId = 'connect-integration' | 'connect-sim-search'
 
@@ -72,7 +72,7 @@ export function GetStarted() {
   const { organization, viewer } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const { data: sources } = useSearchSources(scope)
+  const { data: overview } = useSearchSourceOverview(scope)
   const { data: apiKeys } = useApiKeys('', 'personal')
 
   const hrefs: Record<StepId, string> = {
@@ -82,10 +82,7 @@ export function GetStarted() {
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
-    'connect-integration':
-      sources?.some(
-        (source) => source.viewerMembership === 'connected' || !source.connectionRequired
-      ) ?? false,
+    'connect-integration': overview?.hasSearchableDocuments === true,
     'connect-sim-search': (apiKeys?.personalKeys.length ?? 0) > 0,
   }
 

@@ -5,6 +5,7 @@
     "connectors",
     "tags",
     "debugging-retrieval",
-    "chunking-strategies"
+    "chunking-strategies",
+    "export-import"
   ]
 }

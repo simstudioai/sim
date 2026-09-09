@@ -188,6 +188,7 @@ The commands you will use most often are:
 | Upload or download files | `sim files upload ./report.pdf`, `sim files get <fileId>` |
 | Search knowledge bases | `sim knowledge search --query "refund policy" --kb <knowledgeBaseId>` |
 | Upload a knowledge document | `sim knowledge documents upload <knowledgeBaseId> ./handbook.pdf` |
+| Export a knowledge base | `sim knowledge export <knowledgeBaseId> -o ./kb.simkb.zip` |
 | Manage integration credentials | `sim credentials --help` |
 | Manage workspace secrets | `sim secrets list`, `sim secrets set <name>` |
 

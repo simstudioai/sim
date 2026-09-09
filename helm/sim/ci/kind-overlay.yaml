@@ -1,6 +1,10 @@
-# CI-only overlay for the kind install test: shrink resource requests so the
-# default configuration schedules on a small CI runner. Layered on top of
-# ci/default-values.yaml. Dummy sizing — never use in a deployment.
+# CI-only OVERLAY for the kind install test. The name deliberately avoids the
+# `ci/*-values.yaml` suffix: `ct lint` treats every file matching that glob as a
+# standalone values set, and this one is a partial layered on default-values.yaml.
+#
+# Shrinks resource requests so the default configuration schedules on a small CI
+# runner. Layered on top of ci/default-values.yaml. Dummy sizing — never use in
+# a deployment.
 
 # Pin every first-party image to the published :latest rather than letting the
 # tag default to Chart.AppVersion. appVersion names the release the chart ships

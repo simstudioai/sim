@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { credential } from '@sim/db/schema'
-import { and, desc, eq, or } from 'drizzle-orm'
+import { account, credential } from '@sim/db/schema'
+import { and, desc, eq, getTableColumns, or } from 'drizzle-orm'
 import type {
   CreateOrganizationCredentialBody,
   CreateOrganizationCredentialDraftBody,
@@ -79,7 +79,7 @@ export const organizationCredentialOperations = {
 export const listOrganizationCredentials: OperationUseCase<
   typeof organizationCredentialOperations.list,
   OrganizationCredentialsQuery,
-  { credentials: CredentialRow[] }
+  { credentials: (CredentialRow & { scopes: string[] })[] }
 > = {
   operation: organizationCredentialOperations.list,
   async execute({ principal, input }) {
@@ -90,8 +90,9 @@ export const listOrganizationCredentials: OperationUseCase<
     )
     const catalog = await listCredentialProviderCatalog(principal, input)
     const rows = await db
-      .select()
+      .select({ ...getTableColumns(credential), accountScope: account.scope })
       .from(credential)
+      .leftJoin(account, eq(credential.accountId, account.id))
       .where(
         and(
           resourceScopeCondition(credential, {
@@ -109,16 +110,21 @@ export const listOrganizationCredentials: OperationUseCase<
       .orderBy(desc(credential.createdAt))
       .limit(1000)
     return {
-      credentials: rows.filter((row) => {
-        if (!row.providerId) return false
-        return catalog.some(
-          (entry) =>
-            entry.available &&
-            (entry.type === 'service_account'
-              ? entry.providerId === row.providerId
-              : entry.authorizationOptions.some((option) => option.providerId === row.providerId))
-        )
-      }),
+      credentials: rows
+        .filter((row) => {
+          if (!row.providerId) return false
+          return catalog.some(
+            (entry) =>
+              entry.available &&
+              (entry.type === 'service_account'
+                ? entry.providerId === row.providerId
+                : entry.authorizationOptions.some((option) => option.providerId === row.providerId))
+          )
+        })
+        .map(({ accountScope, ...row }) => ({
+          ...row,
+          scopes: row.type === 'oauth' ? (accountScope?.split(/[\s,]+/).filter(Boolean) ?? []) : [],
+        })),
     }
   },
 }
