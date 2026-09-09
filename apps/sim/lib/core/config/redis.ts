@@ -153,8 +153,17 @@ function describeRedisUrl(
  *
  * Derives only non-sensitive facts from REDIS_URL — never the URL itself, which
  * carries the AUTH token.
+ *
+ * Pass the client whose command is being diagnosed when it may not be the one
+ * `state` still holds. A command can outlive its client — the PING health check
+ * drops `state.client` after consecutive failures, which is the same unhealthy
+ * stretch in which that command is timing out — and reading the global then
+ * describes the replacement, reporting `no-client` or a fresh `connecting` for a
+ * failure that belongs to the connection before it.
  */
-export function describeRedisConnection(): RedisConnectionDiagnostics {
+export function describeRedisConnection(
+  client: Redis | null = state.client
+): RedisConnectionDiagnostics {
   let url: string | null = null
   try {
     url = getConfiguredRedisUrl()
@@ -162,13 +171,13 @@ export function describeRedisConnection(): RedisConnectionDiagnostics {
     url = null
   }
 
-  const client = state.client
-
   // Ages describe the client currently held. A discarded client leaves its
   // timestamps behind until the next `getRedisClient()` rebuilds them, and
-  // reporting those against `no-client` would date a connection that no longer
-  // exists. The counters below are deliberately cumulative for the process.
-  const ageOf = (at: number | null) => (client === null ? null : elapsedSince(at))
+  // reporting those against `no-client` — or against a client that has since
+  // been replaced — would date a connection these timestamps never measured.
+  // The counters below are deliberately cumulative for the process.
+  const timestampsDescribeClient = client !== null && client === state.client
+  const ageOf = (at: number | null) => (timestampsDescribeClient ? elapsedSince(at) : null)
 
   return {
     status: client?.status ?? 'no-client',
@@ -406,6 +415,20 @@ export async function acquireLock(
     const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
     return result === 'OK'
   } catch (error) {
+    /**
+     * Read the connection state before the reclaim below, which awaits and so
+     * would report the state it left behind rather than the one that failed.
+     * A lock acquire is often a run's first Redis call, so it is where an
+     * unusable connection surfaces — as an `Error: Command timed out` carrying
+     * only ioredis timer frames, no app frame, and no way to tell a handshake
+     * still in flight from a socket that died silently. `status` separates
+     * them, which is what makes the next occurrence self-diagnosing.
+     */
+    logger.error('Redis lock acquire failed', {
+      lockKey,
+      error: toError(error).message,
+      redis: describeRedisConnection(redis),
+    })
     // Best effort, and the same compare-and-delete `releaseLock` runs on the
     // success path: it deletes only while `value` still owns the key. If Redis
     // is still unreachable the TTL stays the backstop, which is the behavior

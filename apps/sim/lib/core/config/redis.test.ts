@@ -1,12 +1,20 @@
 import { createMockRedis } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv, MockRedisConstructor } = vi.hoisted(() => ({
+const { mockEnv, MockRedisConstructor, mockLogger } = vi.hoisted(() => ({
   mockEnv: {
     REDIS_URL: 'redis://localhost:6379' as string | undefined,
     REDIS_TLS_SERVERNAME: undefined as string | undefined,
   },
   MockRedisConstructor: vi.fn(),
+  mockLogger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+  },
 }))
 
 const mockRedisInstance = createMockRedis()
@@ -20,6 +28,15 @@ MockRedisConstructor.mockImplementation(
 
 vi.unmock('@/lib/core/config/redis')
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
+/** Overrides the global mock, whose `createLogger` returns a fresh spy per call,
+ *  so assertions can reach the instance this module captured at import. */
+vi.mock('@sim/logger', () => ({
+  createLogger: () => mockLogger,
+  logger: mockLogger,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
+  setRequestTraceId: () => {},
+}))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,
 }))
@@ -382,6 +399,76 @@ describe('redis config', () => {
 
       expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
       expect(mockRedisInstance.set).not.toHaveBeenCalled()
+    })
+
+    it('pairs the failure with connection state so the cause is not left to timing', async () => {
+      // The bare rejection carries only ioredis timer frames, so without this
+      // there is nothing to separate a handshake still in flight from a socket
+      // that died silently.
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
+
+      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('Command timed out')
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis lock acquire failed',
+        expect.objectContaining({
+          lockKey,
+          error: 'Command timed out',
+          redis: expect.objectContaining({ status: 'connecting' }),
+        })
+      )
+    })
+
+    it('reads connection state before the reclaim, which resolves against a live socket', async () => {
+      // The reclaim awaits, so a connection that completes inside that window
+      // would leave a diagnostic read after it reporting `ready` — hiding the
+      // very handshake that failed.
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
+      // Mutates the constructed client, not the shared instance it was copied from.
+      mockRedisInstance.eval.mockImplementationOnce(async () => {
+        Object.assign(getRedisClient() ?? {}, { status: 'ready' })
+        return 1
+      })
+
+      await expect(
+        acquireLock(lockKey, value, ttlSeconds, { reclaimOnFailure: true })
+      ).rejects.toThrow('Command timed out')
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis lock acquire failed',
+        expect.objectContaining({ redis: expect.objectContaining({ status: 'connecting' }) })
+      )
+    })
+
+    it('describes the client that ran the command, not one that replaced it mid-flight', async () => {
+      // The PING check drops `state.client` after consecutive failures — the same
+      // unhealthy stretch in which the command is timing out. Reading the global
+      // then would report the replacement and misclassify the very failure this
+      // diagnostic exists to explain.
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.set.mockImplementationOnce(async () => {
+        resetForTesting()
+        throw new Error('Command timed out')
+      })
+
+      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('Command timed out')
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis lock acquire failed',
+        expect.objectContaining({
+          // Timestamps belong to whatever `state` holds now, so they are withheld
+          // rather than dated against a connection they never measured.
+          redis: expect.objectContaining({ status: 'connecting', clientAgeMs: null }),
+        })
+      )
+    })
+
+    it('stays quiet on the taken and contended paths, which poll routes run constantly', async () => {
+      mockRedisInstance.set.mockResolvedValueOnce('OK')
+      await acquireLock(lockKey, value, ttlSeconds)
+      mockRedisInstance.set.mockResolvedValueOnce(null)
+      await acquireLock(lockKey, value, ttlSeconds)
+
+      expect(mockLogger.error).not.toHaveBeenCalled()
     })
   })
 
