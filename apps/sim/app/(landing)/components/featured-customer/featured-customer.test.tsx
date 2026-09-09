@@ -306,3 +306,119 @@ describe('FeaturedCustomer', () => {
     })
   })
 })
+
+describe('FeaturedCustomer touch navigation', () => {
+  let host: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+  let rail: HTMLElement
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    act(() => root.render(<FeaturedCustomer />))
+    rail = host.querySelector('[data-customer-carousel-rail="true"]') as HTMLElement
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+  })
+
+  function touch(
+    type: string,
+    x: number,
+    y: number,
+    identifier = 1,
+    remainingTouches = type === 'touchstart' ? 1 : 0,
+    target: Element = rail
+  ) {
+    const point = { identifier, clientX: x, clientY: y }
+    const event = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperties(event, {
+      touches: { value: Array.from({ length: remainingTouches }, () => point) },
+      changedTouches: { value: [point] },
+    })
+    act(() => target.dispatchEvent(event))
+    return event
+  }
+
+  function currentStory() {
+    return host.querySelector('[aria-current="true"]')?.getAttribute('aria-label')
+  }
+
+  it('swipes both ways, stops at each end, and preserves video playback state', () => {
+    const videos = host.querySelectorAll('video')
+    videos[0].currentTime = 12
+    touch('touchstart', 100, 200)
+    touch('touchend', 250, 205)
+    expect(currentStory()).toBe('1 of 2: Rivian')
+
+    touch('touchstart', 250, 200)
+    const end = touch('touchend', 100, 205)
+    expect(currentStory()).toBe('2 of 2: eXp Realty')
+    expect(end.defaultPrevented).toBe(true)
+    expect(vi.mocked(videos[0].pause).mock.contexts).toContain(videos[0])
+    expect(vi.mocked(videos[1].play).mock.contexts).toContain(videos[1])
+
+    touch('touchstart', 250, 200)
+    touch('touchend', 100, 205)
+    expect(currentStory()).toBe('2 of 2: eXp Realty')
+
+    touch('touchstart', 100, 200)
+    touch('touchend', 250, 205)
+    expect(currentStory()).toBe('1 of 2: Rivian')
+    expect(host.querySelector('video')).toBe(videos[0])
+    expect(videos[0].currentTime).toBe(12)
+  })
+
+  it.each<[string, number, number]>([
+    ['tap', 250, 200],
+    ['short drag', 225, 205],
+    ['vertical scroll', 240, 50],
+    ['mostly vertical diagonal', 160, 50],
+  ])('leaves a %s gesture to the browser', (_gesture, x, y) => {
+    touch('touchstart', 250, 200)
+    const end = touch('touchend', x, y)
+    expect(currentStory()).toBe('1 of 2: Rivian')
+    expect(end.defaultPrevented).toBe(false)
+  })
+
+  it('ignores cancelled and unrelated touches', () => {
+    touch('touchstart', 250, 200)
+    touch('touchcancel', 150, 200)
+    expect(touch('touchend', 100, 200).defaultPrevented).toBe(false)
+    touch('touchstart', 250, 200)
+    expect(touch('touchend', 100, 200, 2).defaultPrevented).toBe(false)
+    expect(currentStory()).toBe('1 of 2: Rivian')
+  })
+
+  it('does not turn a pinch into a swipe and accepts the next single touch', () => {
+    touch('touchstart', 250, 200)
+    touch('touchstart', 200, 200, 2, 2)
+    expect(touch('touchend', 100, 200, 2, 1).defaultPrevented).toBe(false)
+    expect(touch('touchend', 100, 200).defaultPrevented).toBe(false)
+    expect(currentStory()).toBe('1 of 2: Rivian')
+
+    touch('touchstart', 250, 200)
+    touch('touchend', 100, 200)
+    expect(currentStory()).toBe('2 of 2: eXp Realty')
+  })
+
+  it('preserves preview taps and consumes a swipe starting on the preview button', () => {
+    const preview = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Open eXp Realty customer story"]'
+    )!
+    touch('touchstart', 250, 200, 1, 1, preview)
+    expect(touch('touchend', 250, 200, 1, 0, preview).defaultPrevented).toBe(false)
+    act(() => preview.click())
+    expect(currentStory()).toBe('2 of 2: eXp Realty')
+
+    const previousPreview = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Open Rivian customer story"]'
+    )!
+    touch('touchstart', 100, 200, 1, 1, previousPreview)
+    expect(touch('touchend', 250, 200, 1, 0, previousPreview).defaultPrevented).toBe(true)
+    expect(currentStory()).toBe('1 of 2: Rivian')
+  })
+})
