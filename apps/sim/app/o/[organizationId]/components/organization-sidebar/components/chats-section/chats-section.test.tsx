@@ -8,6 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 
 const hoverState = vi.hoisted(() => ({ isOpen: false }))
+const mockRequestJson = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
 vi.mock('next/link', () => ({
   default: ({
@@ -25,7 +28,7 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }))
-vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/hooks', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu', () => ({
   useHoverMenu: () => ({
     isOpen: hoverState.isOpen,
     open: vi.fn(),
@@ -37,6 +40,7 @@ vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/hooks', () => ({
 }))
 
 import { ChatsSection } from '@/app/o/[organizationId]/components/organization-sidebar/components/chats-section/chats-section'
+import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 const CHATS: OrganizationChat[] = Array.from({ length: 8 }, (_, index) => ({
   id: `chat-${index + 1}`,
@@ -59,6 +63,8 @@ beforeEach(() => {
       disconnect() {}
     }
   )
+  vi.clearAllMocks()
+  mockRequestJson.mockResolvedValue({ success: true })
   hoverState.isOpen = false
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   prefetchQuery = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue()
@@ -83,9 +89,7 @@ async function render(props: Partial<Parameters<typeof ChatsSection>[0]> = {}) {
           isLoading={false}
           isCollapsed={false}
           pathname={null}
-          menuOpenHref={null}
-          onContextMenu={() => {}}
-          onMoreClick={() => {}}
+          organizationId='org-1'
           {...props}
         />
       </QueryClientProvider>
@@ -94,11 +98,19 @@ async function render(props: Partial<Parameters<typeof ChatsSection>[0]> = {}) {
 }
 
 describe('ChatsSection', () => {
-  it('lists every chat with no paging control', async () => {
+  it('shows five chats with the workspace-style See more and See less controls', async () => {
     await render()
-
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(5)
+    const more = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'See more'
+    )!
+    await act(async () => more.click())
     expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(8)
-    expect(container.textContent).not.toContain('See more')
+    const less = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'See less'
+    )!
+    await act(async () => less.click())
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(5)
   })
 
   it('marks the chat on the current route active', async () => {
@@ -110,17 +122,138 @@ describe('ChatsSection', () => {
     expect(other?.className).not.toContain('surface-active')
   })
 
-  it('reports the row href when its options button is pressed', async () => {
-    const onMoreClick = vi.fn()
-    await render({ onMoreClick })
-
-    const button = container.querySelector<HTMLButtonElement>(
-      'a[href="/o/org-1/chat/chat-2"] button[aria-label="Chat options"]'
+  it('keeps a bookmarked chat visible when collapsing expanded history', async () => {
+    await render({ pathname: CHATS[5].href })
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(6)
+    expect(container.querySelector(`a[href="${CHATS[5].href}"]`)?.className).toContain(
+      'surface-active'
     )
-    await act(async () => button?.click())
+    const more = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'See more'
+    )!
+    await act(async () => more.click())
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(8)
+    const less = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'See less'
+    )!
+    await act(async () => less.click())
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(6)
+    expect(container.querySelector(`a[href="${CHATS[5].href}"]`)).not.toBeNull()
+  })
 
-    expect(onMoreClick).toHaveBeenCalledWith(expect.anything(), '/o/org-1/chat/chat-2')
-    expect(prefetchQuery).not.toHaveBeenCalled()
+  it('derives the visible range from the route without retaining automatic expansion', async () => {
+    await render({ pathname: CHATS[7].href })
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(8)
+    expect(container.textContent).not.toContain('See more')
+    expect(container.textContent).not.toContain('See less')
+
+    await render({ pathname: null })
+    expect(container.querySelectorAll('a[href^="/o/org-1/chat/"]')).toHaveLength(5)
+    expect(container.textContent).toContain('See more')
+  })
+
+  it.each([false, true])('renames via the options menu with collapsed=%s', async (isCollapsed) => {
+    hoverState.isOpen = isCollapsed
+    await render({ isCollapsed })
+    const button =
+      document.body.querySelector<HTMLButtonElement>(
+        'a[href="/o/org-1/chat/chat-2"] button[aria-label="Chat options"]'
+      ) ?? document.body.querySelector<HTMLButtonElement>('[aria-label="Chat options"]')!
+    await act(async () => button.click())
+    const rename = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent === 'Rename')!
+    expect(rename).toBeDefined()
+    await act(async () => rename.click())
+    const input = document.body.querySelector<HTMLInputElement>('input[aria-label^="Rename chat"]')!
+    expect(input).not.toBeNull()
+    expect(input.value).toMatch(/^Chat /)
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'Planning'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'PATCH' }),
+      expect.objectContaining({ body: { title: 'Planning' } })
+    )
+    expect(document.body.querySelector('input[aria-label^="Rename chat"]')).toBeNull()
+  })
+
+  it('rolls back only the organization list when rename fails', async () => {
+    const pending = Promise.withResolvers<{ success: boolean }>()
+    mockRequestJson.mockReturnValueOnce(pending.promise)
+    const key = mothershipChatKeys.organizationList('org-1')
+    queryClient.setQueryData(key, [{ id: 'chat-1', name: 'Chat 1' }])
+    const workspaceKey = mothershipChatKeys.list('workspace-1')
+    queryClient.setQueryData(workspaceKey, [{ id: 'workspace-chat', name: 'Workspace chat' }])
+    await render()
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Chat options"]')!.click()
+    )
+    const action = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent === 'Rename')!
+    await act(async () => action.click())
+    const input = document.body.querySelector<HTMLInputElement>('input[aria-label^="Rename chat"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'Pending title'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(queryClient.getQueryData(key)).toEqual([{ id: 'chat-1', name: 'Pending title' }])
+    await act(async () => pending.reject(new Error('Rename rejected')))
+    expect(queryClient.getQueryData(key)).toEqual([{ id: 'chat-1', name: 'Chat 1' }])
+    expect(queryClient.getQueryData(workspaceKey)).toEqual([
+      { id: 'workspace-chat', name: 'Workspace chat' },
+    ])
+    expect(input.value).toBe('Chat 1')
+    expect(input.disabled).toBe(false)
+  })
+
+  it('cancels rename on Escape without a mutation', async () => {
+    await render()
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Chat options"]')!.click()
+    )
+    const rename = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent === 'Rename')!
+    await act(async () => rename.click())
+    const input = document.body.querySelector<HTMLInputElement>('input[aria-label^="Rename chat"]')!
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    )
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    expect(document.body.querySelector('input[aria-label^="Rename chat"]')).toBeNull()
+  })
+
+  it.each([
+    ['Pin', { pinned: true }],
+    ['Mark as unread', { isUnread: true }],
+  ])('offers %s for organization chats', async (label, body) => {
+    await render()
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Chat options"]')!.click()
+    )
+    const action = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent === label)!
+    await act(async () => action.click())
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.objectContaining({ method: 'PATCH' }), {
+      params: { chatId: 'chat-1' },
+      body,
+    })
   })
 
   it.each([false, true])(

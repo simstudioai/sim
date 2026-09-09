@@ -29,20 +29,21 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
   const menuRef = useRef<HTMLDivElement>(null)
   const dismissPreventedRef = useRef(false)
 
+  const openMenuAt = useCallback((nextPosition: ContextMenuPosition) => {
+    setPosition(nextPosition)
+    setIsOpen(true)
+  }, [])
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
 
-      const x = e.clientX
-      const y = e.clientY
-
-      setPosition({ x, y })
-      setIsOpen(true)
+      openMenuAt({ x: e.clientX, y: e.clientY })
 
       onContextMenu?.(e)
     },
-    [onContextMenu]
+    [onContextMenu, openMenuAt]
   )
 
   const closeMenu = useCallback(() => {
@@ -84,6 +85,7 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     position,
     menuRef,
     handleContextMenu,
+    openMenuAt,
     closeMenu,
     preventDismiss,
   }
