@@ -21,8 +21,9 @@ const EMPTY_STRING_TYPES = new Set([
 ])
 
 function acceptsEmptyString(type: string, config?: SubBlockConfig): boolean {
+  if (config?.multiSelect) return false
   if (EMPTY_STRING_TYPES.has(type) || type.endsWith('-selector')) return true
-  if (type !== 'dropdown' || config?.multiSelect) return false
+  if (type !== 'dropdown') return false
 
   const options = typeof config?.options === 'function' ? config.options() : config?.options
   return options?.some((option) => option.id === '') ?? false

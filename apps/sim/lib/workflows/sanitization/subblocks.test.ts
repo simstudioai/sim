@@ -12,6 +12,7 @@ vi.mock('@/blocks/registry-maps', async () => {
   const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
   return partialBlockRegistry(
     await import('@/blocks/blocks/condition'),
+    await import('@/blocks/blocks/file'),
     await import('@/blocks/blocks/pagerduty'),
     await import('@/blocks/blocks/function')
   )
@@ -118,6 +119,30 @@ describe('sanitizeMalformedSubBlocks', () => {
   })
 
   describe('regular blocks (config is the schema)', () => {
+    it('repairs scalar blanks for multi-select fields while preserving their empty arrays', () => {
+      const block = {
+        id: 'block-1',
+        type: 'file_v5',
+        subBlocks: {
+          folderSelection: { id: 'folderSelection', type: 'folder-selector', value: '' },
+        },
+      }
+      const options = { convertEmptyStringToNull: true }
+
+      expect(sanitizeMalformedSubBlocks(block, options).subBlocks.folderSelection.value).toBeNull()
+      expect(
+        sanitizeMalformedSubBlocks(
+          {
+            ...block,
+            subBlocks: {
+              folderSelection: { ...block.subBlocks.folderSelection, value: [] },
+            },
+          },
+          options
+        ).subBlocks.folderSelection.value
+      ).toEqual([])
+    })
+
     it('preserves declared empty dropdown choices and cleared selectors without suppressing dropdown defaults', () => {
       const { subBlocks } = sanitizeMalformedSubBlocks(
         {
