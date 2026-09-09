@@ -1751,41 +1751,50 @@ export async function updateRow(
   let persistedUpdatedAt: Date
   try {
     persistedUpdatedAt = await db.transaction(async (trx) => {
+      const mutate = async () => {
+        const condition = and(
+          eq(userTableRows.id, data.rowId),
+          eq(userTableRows.tableId, data.tableId),
+          eq(userTableRows.workspaceId, data.workspaceId)
+        )
+        const projection = { id: userTableRows.id, updatedAt: userTableRows.updatedAt }
+        /**
+         * Execution metadata has its own sidecar clock. Lock the content row for
+         * existence and cancellation atomicity without invalidating its provenance.
+         */
+        const [updatedRow] =
+          patchedColumnIds.size > 0
+            ? await trx
+                .update(userTableRows)
+                .set({ data: persistedData, updatedAt: now })
+                .where(condition)
+                .returning(projection)
+            : await trx.select(projection).from(userTableRows).where(condition).for('update')
+        if (!updatedRow) throw new TableRowNotFoundError()
+
+        const result = await writeExecutionsPatch(
+          trx,
+          data.tableId,
+          data.rowId,
+          effectiveExecutionsPatch,
+          guard
+        )
+        if (result === 'guard-rejected') {
+          throw new GuardRejected()
+        }
+        return {
+          value: updatedRow.updatedAt,
+          affectedRowIds: [updatedRow.id],
+        }
+      }
+
+      if (patchedColumnIds.size === 0) return (await mutate()).value
+
       return await mutateTableRowsWithSecretProvenance(trx, {
         rows: [{ rowId: data.rowId, provenance: data.secretProvenance }],
         rowState: 'existing',
         mode: 'merge',
-        mutate: async () => {
-          const updatedRows = await trx
-            .update(userTableRows)
-            .set({ data: persistedData, updatedAt: now })
-            .where(
-              and(
-                eq(userTableRows.id, data.rowId),
-                eq(userTableRows.tableId, data.tableId),
-                eq(userTableRows.workspaceId, data.workspaceId)
-              )
-            )
-            .returning({ id: userTableRows.id, updatedAt: userTableRows.updatedAt })
-          const [updatedRow] = updatedRows
-          if (!updatedRow) throw new TableRowNotFoundError()
-
-          const result = await writeExecutionsPatch(
-            trx,
-            data.tableId,
-            data.rowId,
-            effectiveExecutionsPatch,
-            guard
-          )
-          if (result === 'guard-rejected') {
-            // Roll back the data update too — the worker isn't authoritative.
-            throw new GuardRejected()
-          }
-          return {
-            value: updatedRow.updatedAt,
-            affectedRowIds: [updatedRow.id],
-          }
-        },
+        mutate,
       })
     })
   } catch (err) {
@@ -1803,6 +1812,8 @@ export async function updateRow(
     createdAt: existingRow.createdAt,
     updatedAt: persistedUpdatedAt,
   }
+
+  if (patchedColumnIds.size === 0) return updatedRow
 
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
   void fireTableTrigger(
