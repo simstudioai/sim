@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   deleteFile: vi.fn(),
   deleteMetadata: vi.fn(),
   enqueueCleanup: vi.fn(async () => {
-    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
   dispatch: vi.fn(),
