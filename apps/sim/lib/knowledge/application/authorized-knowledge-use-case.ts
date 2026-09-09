@@ -1,7 +1,7 @@
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import {
+  type AuthorizingUseCase,
   defineAuthorizedWorkspaceUseCase,
-  type OperationUseCase,
   type PrincipalForOperation,
   recordProjectedUseCaseAuditEntries,
   requireAllowedWorkspacePrincipal,
@@ -89,7 +89,7 @@ export function defineAuthorizedKnowledgeUseCase<
   I,
   C extends KnowledgeResourceAuthorizationContext,
   R,
->(definition: AuthorizedKnowledgeUseCaseDefinition<O, I, C, R>): OperationUseCase<O, I, R> {
+>(definition: AuthorizedKnowledgeUseCaseDefinition<O, I, C, R>): AuthorizingUseCase<O, I, R> {
   type WorkspaceContext = C & KnowledgeAuthorizationContext
   type WorkspaceInput = { originalInput: I; context: WorkspaceContext }
   const projectAudit = definition.projectAudit
@@ -147,7 +147,11 @@ export function defineAuthorizedKnowledgeUseCase<
     principal: Principal
     input: I
   }): Promise<
-    | { scope: 'organization'; principal: KnowledgePrincipalForOperation<O>; context: C }
+    | {
+        scope: 'organization'
+        principal: KnowledgePrincipalForOperation<O>
+        context: C & { organizationId: string }
+      }
     | {
         scope: 'workspace'
         principal: KnowledgePrincipalForOperation<O>
@@ -162,7 +166,11 @@ export function defineAuthorizedKnowledgeUseCase<
         definition.operation.organizationOperation,
         context
       )
-      return { scope: 'organization', principal, context }
+      return {
+        scope: 'organization',
+        principal,
+        context: context as C & { organizationId: string },
+      }
     }
     if (principal.kind === 'organization_delegated')
       throw new OrchestrationError('not_found', 'Knowledge base not found')
@@ -170,15 +178,22 @@ export function defineAuthorizedKnowledgeUseCase<
     return { scope: 'workspace', principal, context }
   }
 
-  function recordAudit(resultContext: AuthorizedKnowledgeUseCaseResultContext<O, I, C, R>): void {
+  /**
+   * Records an organization base's audit. A workspace base never reaches here —
+   * {@link defineAuthorizedWorkspaceUseCase} records its own — so the entries
+   * carry the organization rather than a workspace id.
+   */
+  function recordOrganizationAudit(
+    resultContext: AuthorizedKnowledgeUseCaseResultContext<O, I, C, R>,
+    organizationId: string
+  ): void {
     const projectedAudit = definition.projectAudit?.(resultContext)
     if (projectedAudit === undefined) return
     const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
     if (auditEntries.length === 0) return
-    const organizationId = resultContext.context.organizationId ?? undefined
     recordProjectedUseCaseAuditEntries(
       definition.operation,
-      organizationId ? undefined : resultContext.context.workspaceId,
+      undefined,
       resultContext.principal,
       resultContext.request,
       auditEntries,
@@ -214,7 +229,7 @@ export function defineAuthorizedKnowledgeUseCase<
       }
       const result = await definition.execute(executionContext)
       const resultContext = { ...executionContext, result }
-      recordAudit(resultContext)
+      recordOrganizationAudit(resultContext, resolved.context.organizationId)
       await definition.afterSuccess?.(resultContext)
       return result
     },

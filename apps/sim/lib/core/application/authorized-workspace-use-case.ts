@@ -123,15 +123,11 @@ export function recordProjectedUseCaseAuditEntries(
 }
 
 /**
- * A workspace use case always answers `authorize`, so a caller that must run
- * the funnel without executing (a `HEAD`, or a wrapping domain builder) can
- * rely on it without a runtime guard.
+ * A use case that always answers `authorize`, so a caller that must run the
+ * funnel without executing — a `HEAD` on a route declaring `headSafe: false`,
+ * or a wrapping domain builder — can rely on it without a runtime guard.
  */
-export type AuthorizedWorkspaceUseCase<O extends WorkspaceOperation, I, R> = OperationUseCase<
-  O,
-  I,
-  R
-> &
+export type AuthorizingUseCase<O extends ApplicationOperation, I, R> = OperationUseCase<O, I, R> &
   Required<Pick<OperationUseCase<O, I, R>, 'authorize'>>
 
 export function defineAuthorizedWorkspaceUseCase<
@@ -139,9 +135,7 @@ export function defineAuthorizedWorkspaceUseCase<
   I,
   C extends WorkspaceAuthorizationContext,
   R,
->(
-  definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>
-): AuthorizedWorkspaceUseCase<O, I, R> {
+>(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): AuthorizingUseCase<O, I, R> {
   const resourceAuthorization = (() => {
     const { authorizeResource, operation } = definition
     const resourcePolicy = ('resourcePolicy' in operation ? operation.resourcePolicy : undefined) as

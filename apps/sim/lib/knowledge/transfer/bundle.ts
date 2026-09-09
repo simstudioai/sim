@@ -1,23 +1,3 @@
-import { z } from 'zod'
-import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { KB_EMBEDDING_STORAGE_DIMENSIONS } from '@/lib/embeddings/catalog'
-import {
-  ALL_TAG_SLOTS,
-  type AllTagSlot,
-  isValidSlotForFieldType,
-  KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
-  KNOWLEDGE_BUNDLE_VERSION,
-  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
-  MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH,
-  MAX_KNOWLEDGE_BUNDLE_DOCUMENTS,
-  SUPPORTED_FIELD_TYPES,
-} from '@/lib/knowledge/constants'
-import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
-import type { ExportableDocument } from '@/lib/knowledge/transfer/export-source'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
-
 /**
  * The knowledge-base bundle: one zip holding a knowledge base's configuration,
  * tag definitions, original files, chunk text, and optionally chunk vectors.
@@ -41,11 +21,30 @@ import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
  * exists, and {@link MAX_BUNDLE_TEXT_LENGTH} bounds the rest.
  */
 
+import { z } from 'zod'
+import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { KB_EMBEDDING_STORAGE_DIMENSIONS } from '@/lib/embeddings/catalog'
+import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  isValidSlotForFieldType,
+  KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+  KNOWLEDGE_BUNDLE_VERSION,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH,
+  MAX_KNOWLEDGE_BUNDLE_DOCUMENTS,
+  SUPPORTED_FIELD_TYPES,
+} from '@/lib/knowledge/constants'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
+
 export const KNOWLEDGE_BUNDLE_MANIFEST_ENTRY = 'manifest.json'
 
 const BUNDLE_DOCUMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
-/** Longest leaf name written under `files/`, keeping every entry path short. */
+/** Longest leaf name a bundle uses, for an entry path or the download name. */
 const MAX_BUNDLE_LEAF_NAME_LENGTH = 200
 
 /** Ceiling for names, MIME types, and the embedding model id, which no stored column bounds. */
@@ -210,12 +209,15 @@ export function fileEntryPath(documentId: string, filename: string): string {
 }
 
 /** Where an exportable document's entries sit inside the bundle, or `null` for entries it does not carry. */
-export function bundleEntryPaths(
-  document: Pick<ExportableDocument, 'id' | 'filename' | 'file' | 'hasChunks'>
-): KnowledgeBundleEntryPaths {
+export function bundleEntryPaths(document: {
+  id: string
+  filename: string
+  file: unknown | null
+  storedChunkCount: number
+}): KnowledgeBundleEntryPaths {
   return {
     file: document.file ? fileEntryPath(document.id, document.filename) : null,
-    chunks: document.hasChunks ? chunksEntryPath(document.id) : null,
+    chunks: document.storedChunkCount > 0 ? chunksEntryPath(document.id) : null,
   }
 }
 

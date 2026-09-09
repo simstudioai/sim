@@ -52,7 +52,6 @@ interface KnowledgeBaseContextMenuProps {
 
 /**
  * Context menu component for knowledge base cards.
- * Displays open in new tab, view tags, export, edit, and delete options.
  */
 export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   isOpen,

@@ -1,3 +1,11 @@
+/**
+ * Read side of a knowledge-base export. Chunk reads page by keyset so a large
+ * document never materializes at once, and the document listing carries
+ * {@link knowledgeAccessCondition} for the plain workspace scope: a bundle
+ * drops access-control lists, so only what every workspace member can already
+ * read may leave. Everything downstream reads by the ids that listing returned.
+ */
+
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
@@ -5,7 +13,11 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KbEmbeddingDimensions } from '@/lib/embeddings/catalog'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
-import { ALL_TAG_SLOTS, MAX_KNOWLEDGE_BUNDLE_DOCUMENTS } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH,
+  MAX_KNOWLEDGE_BUNDLE_DOCUMENTS,
+} from '@/lib/knowledge/constants'
 import { getTagDefinitions } from '@/lib/knowledge/tags/service'
 import type {
   ExportableDocumentRecord,
@@ -14,14 +26,12 @@ import type {
 import { embeddingVectorColumn } from '@/lib/knowledge/vector-columns'
 
 /**
- * Read side of a knowledge-base export. Chunk reads page by keyset so a large
- * document never materializes at once, and every document read carries
- * {@link knowledgeAccessCondition} for the plain workspace scope: a bundle
- * drops access-control lists, so only what every workspace member can already
- * read may leave.
+ * Chunk rows per page, sized for chunks of ordinary width. A vector page
+ * carries the widest column pgvector holds, so it pages far smaller than a
+ * text-only one. Content is bounded by
+ * {@link MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH} rather than by these counts,
+ * so a base of unusually wide chunks pages heavier than the numbers suggest.
  */
-
-/** Chunk rows per page. A 3072-wide vector page is ~15 MB on the wire, so vector reads page smaller. */
 const CHUNK_PAGE_SIZE = { text: 500, vectors: 100 } as const
 
 /** Where a document's original bytes come from, when it has any. */
@@ -32,13 +42,12 @@ export type ExportableFileSource =
 export interface ExportableDocument extends ExportableDocumentRecord {
   file: ExportableFileSource | null
   /**
-   * Chunks the document reports holding. The archive writes what its chunk
-   * stream actually produced, which can only be lower; this is what the bundle
-   * gate checks against the format's per-document ceiling before any byte streams.
+   * Chunks this document contributes, from its denormalized counter, and zero
+   * unless processing finished. The bundle gate checks it against the format's
+   * per-document ceiling before any byte streams; the archive writes what its
+   * chunk stream actually produced, which the archive bounds again.
    */
   storedChunkCount: number
-  /** True when the document finished processing and holds chunks worth exporting. */
-  hasChunks: boolean
 }
 
 /** A chunk as stored, before its vector is encoded for the wire. */
@@ -112,7 +121,7 @@ export async function listExportableDocuments(
       fileSize: document.fileSize,
       enabled: document.enabled,
       storageKey: document.storageKey,
-      hasInlineFile: sql<boolean>`${document.fileUrl} LIKE 'data:%'`,
+      hasInlineFile: sql<boolean>`left(${document.fileUrl}, 5) = 'data:'`,
       processingStatus: document.processingStatus,
       chunkCount: document.chunkCount,
       tokenCount: document.tokenCount,
@@ -149,8 +158,8 @@ export async function listExportableDocuments(
   const documents: ExportableDocument[] = []
   for (const row of rows) {
     const file = fileSourceFor(knowledgeBaseId, row)
-    const hasChunks = row.processingStatus === 'completed' && row.chunkCount > 0
-    if (!file && !hasChunks) continue
+    const storedChunkCount = row.processingStatus === 'completed' ? row.chunkCount : 0
+    if (!file && storedChunkCount === 0) continue
     documents.push({
       id: row.id,
       filename: row.filename,
@@ -160,8 +169,7 @@ export async function listExportableDocuments(
       tokenCount: row.tokenCount,
       characterCount: row.characterCount,
       file,
-      storedChunkCount: row.chunkCount,
-      hasChunks,
+      storedChunkCount,
       tags: Object.fromEntries(ALL_TAG_SLOTS.map((slot) => [slot, row[slot]])),
     })
   }

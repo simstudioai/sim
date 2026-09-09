@@ -86,7 +86,6 @@ const documents = [
     tags: {},
     file: { kind: 'storage', key: 'kb/handbook.pdf' },
     storedChunkCount: 2,
-    hasChunks: true,
   },
 ]
 

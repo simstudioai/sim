@@ -20,6 +20,7 @@ vi.mock('@/lib/knowledge/transfer/export-source', () => ({
 }))
 
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
 import { decodeVectorBase64, knowledgeBundleManifestSchema } from '@/lib/knowledge/transfer/bundle'
 import {
   buildKnowledgeBundleArchive,
@@ -43,7 +44,6 @@ function exportableDocument(overrides: Partial<ExportableDocument>): ExportableD
     tags: { tag1: 'Billing' },
     file: { kind: 'storage', key: 'kb/handbook.pdf' },
     storedChunkCount: 2,
-    hasChunks: true,
     ...overrides,
   }
 }
@@ -80,9 +80,9 @@ function bundle(overrides: Partial<KnowledgeBaseExportBundle> = {}): KnowledgeBa
         filename: 'note.txt',
         mimeType: 'text/plain',
         file: { kind: 'data-uri', knowledgeBaseId: 'kb-1', documentId: INLINE_ID },
-        hasChunks: false,
+        storedChunkCount: 0,
       }),
-      exportableDocument({ id: TEXT_ONLY_ID, filename: 'wiki page', file: null, hasChunks: true }),
+      exportableDocument({ id: TEXT_ONLY_ID, filename: 'wiki page', file: null }),
     ],
     chunks: (documentId) =>
       documentId === STORED_ID
@@ -196,6 +196,25 @@ describe('buildKnowledgeBundleArchive', () => {
       'entry:chunks/doc-b.ndjson',
       'entry:manifest.json',
     ])
+  })
+
+  /**
+   * `document.chunkCount` is denormalized, so the pre-flight gate can approve a
+   * document that has since grown past what a bundle describes. The archive is
+   * the last place that can refuse it.
+   */
+  it('refuses a document whose chunk stream exceeds what the format describes', async () => {
+    const overLimit = (async function* () {
+      for (let index = 0; index <= MAX_DOCUMENT_CHUNKS; index += 1) yield chunk(index, null)
+    })()
+    const archive = buildKnowledgeBundleArchive(
+      bundle({
+        documents: [exportableDocument({ id: TEXT_ONLY_ID, file: null })],
+        chunks: () => overLimit,
+      })
+    )
+
+    await expect(readArchive(archive)).rejects.toThrow(`more than ${MAX_DOCUMENT_CHUNKS} chunks`)
   })
 
   /** A browser that abandons the download must not leave the append loop or its blob stream hanging. */

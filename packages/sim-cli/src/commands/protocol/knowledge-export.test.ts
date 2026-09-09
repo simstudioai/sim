@@ -232,6 +232,15 @@ describe('attachmentFileName', () => {
 
   it('keeps only the base name and ignores a missing or empty header', () => {
     expect(attachmentFileName('attachment; filename="../../etc/passwd"')).toBe('passwd')
+    /** The server mangles non-ASCII in the quoted form, so the encoded one wins. */
+    expect(
+      attachmentFileName(
+        `attachment; filename="Suporte t_cnico.simkb.zip"; filename*=UTF-8''${encodeURIComponent('Suporte técnico.simkb.zip')}`
+      )
+    ).toBe('Suporte técnico.simkb.zip')
+    expect(attachmentFileName('attachment; filename="ok.zip"; filename*=UTF-8\'\'%E0%A4%A')).toBe(
+      'ok.zip'
+    )
     expect(attachmentFileName('attachment; filename=".."')).toBeNull()
     expect(attachmentFileName('attachment')).toBeNull()
     expect(attachmentFileName(null)).toBeNull()

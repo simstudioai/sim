@@ -3,16 +3,18 @@ import { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { ZipArchive } from 'archiver'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
 import { KNOWLEDGE_BUNDLE_VERSION } from '@/lib/knowledge/constants'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
 import {
   bundleEntryPaths,
   encodeVectorBase64,
   KNOWLEDGE_BUNDLE_MANIFEST_ENTRY,
   type KnowledgeBundleChunkLine,
   type KnowledgeBundleDocument,
-  type KnowledgeBundleManifest,
+  parseDescribableBundle,
   safeBundleLeafName,
   toManifestDocument,
 } from '@/lib/knowledge/transfer/bundle'
@@ -89,7 +91,17 @@ async function appendEntry(
   }
 }
 
-/** Appends a document's chunks as NDJSON and returns how many lines were written. */
+/**
+ * Appends a document's chunks as NDJSON and returns how many lines were written.
+ *
+ * The stream is bounded by the same per-document ceiling the bundle format
+ * declares: `document.chunkCount` is denormalized, so a document re-chunked
+ * while the export runs can hold more rows than its counter claimed and the
+ * pre-flight gate approved. The stream stops at the ceiling and the failure is
+ * raised afterwards rather than thrown into the generator, because a source
+ * that rejects mid-pipe surfaces as an unhandled stream error instead of
+ * reaching the caller.
+ */
 async function appendChunkEntry(
   archive: ZipArchive,
   chunks: AsyncIterable<ExportableChunk>,
@@ -98,9 +110,14 @@ async function appendChunkEntry(
   closed: AbortSignal
 ): Promise<number> {
   let written = 0
+  let exceeded = false
   const lines = Readable.from(
     (async function* () {
       for await (const chunk of chunks) {
+        if (written >= MAX_DOCUMENT_CHUNKS) {
+          exceeded = true
+          return
+        }
         yield `${JSON.stringify(toChunkLine(chunk, vectors))}\n`
         written += 1
       }
@@ -108,6 +125,12 @@ async function appendChunkEntry(
     { objectMode: false }
   )
   await appendEntry(archive, lines, name, closed)
+  if (exceeded) {
+    throw new OrchestrationError(
+      'conflict',
+      `A document holds more than ${MAX_DOCUMENT_CHUNKS} chunks, the most a bundle describes`
+    )
+  }
   return written
 }
 
@@ -134,14 +157,20 @@ async function appendBundleEntries(
     documents.push(toManifestDocument(document, entries, chunkCount))
   }
 
-  const manifest: KnowledgeBundleManifest = {
+  /**
+   * The written manifest, not a manifest shaped like it: the counts here come
+   * from what each chunk stream produced, so this is the only validation that
+   * covers the artifact a reader receives. A throw destroys the archive, and a
+   * truncated download is detectable where an invalid manifest is not.
+   */
+  const manifest = parseDescribableBundle({
     version: KNOWLEDGE_BUNDLE_VERSION,
     exportedAt: new Date().toISOString(),
     embedding: bundle.embedding,
     knowledgeBase: bundle.knowledgeBase,
     tags: bundle.tags,
     documents,
-  }
+  })
   await appendEntry(
     archive,
     JSON.stringify(manifest, null, 2),
@@ -167,7 +196,13 @@ export function buildKnowledgeBundleArchive(bundle: KnowledgeBaseExportBundle): 
   const closed = new AbortController()
   archive.once('close', () => closed.abort())
   appendBundleEntries(archive, bundle, closed.signal).catch((error: unknown) => {
-    if (closed.signal.aborted) return
+    /**
+     * Archiver emits `close` when it fails as well as when the consumer walks
+     * away, so the signal alone cannot tell the two apart. Only the abort's own
+     * error means nobody is listening; anything else is a failure the consumer
+     * must still see, and swallowing it would hand them a silently truncated archive.
+     */
+    if (toError(error).name === 'AbortError') return
     logger.error('Failed to build knowledge base bundle archive', { error })
     archive.destroy(toError(error))
   })

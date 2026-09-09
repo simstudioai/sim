@@ -193,14 +193,8 @@ export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 45 * 60 * 1000
 export const KNOWLEDGE_BUNDLE_VERSION = 1
 /** Documents one export bundle may carry, so every produced bundle stays importable. */
 export const MAX_KNOWLEDGE_BUNDLE_DOCUMENTS = 2_000
-/** Upper bound for one uploaded bundle archive. */
-export const MAX_KNOWLEDGE_BUNDLE_BYTES = 2 * 1024 ** 3
-/** Upper bound for the manifest entry of one bundle. */
-export const MAX_KNOWLEDGE_BUNDLE_MANIFEST_BYTES = 8 * 1024 ** 2
 /**
  * Characters one exported chunk may hold. Wider than the manual-chunk API cap
  * because the processor's largest chunking config emits chunks past 10k.
  */
 export const MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH = 100_000
-/** Bytes one chunk line may span: the content above plus a base64 3072-wide vector. */
-export const MAX_KNOWLEDGE_BUNDLE_CHUNK_LINE_BYTES = 512 * 1024

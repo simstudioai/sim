@@ -13,18 +13,32 @@ interface KnowledgeExportOptions {
 }
 
 /**
- * The file name a `Content-Disposition: attachment; filename="..."` header
- * carries, or `null` when the header names none.
+ * The file name a `Content-Disposition: attachment` header carries, or `null`
+ * when it names none.
  *
- * Only the quoted form is read: the export route always emits it, with a name
- * the server has already stripped of quotes, slashes, and control characters.
- * Only the base name is kept so a directory in the header can never decide
- * where the archive lands on the caller's disk.
+ * The RFC 5987 `filename*` form is read first, because the server only emits it
+ * when the real name is not printable ASCII — and in exactly that case the
+ * quoted form beside it has had every such character replaced, so reading the
+ * quoted form alone would save a knowledge base named "Suporte técnico" as
+ * `Suporte t_cnico`. Only the base name is kept, so a directory in the header
+ * can never decide where the archive lands on the caller's disk.
  */
 export function attachmentFileName(contentDisposition: string | null): string | null {
-  const match = contentDisposition ? /filename="([^"]*)"/.exec(contentDisposition) : null
-  if (!match) return null
-  const base = basename(match[1].trim())
+  if (!contentDisposition) return null
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)?.[1]
+  if (encoded) {
+    try {
+      return safeBaseName(decodeURIComponent(encoded))
+    } catch {
+      /** A malformed escape is not a name; fall through to the quoted form. */
+    }
+  }
+  const quoted = /filename="([^"]*)"/.exec(contentDisposition)?.[1]
+  return quoted === undefined ? null : safeBaseName(quoted)
+}
+
+function safeBaseName(name: string): string | null {
+  const base = basename(name.trim())
   return base && base !== '.' && base !== '..' ? base : null
 }
 
