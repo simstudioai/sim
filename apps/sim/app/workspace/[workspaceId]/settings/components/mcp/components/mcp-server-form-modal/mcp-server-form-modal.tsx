@@ -67,7 +67,7 @@ export interface McpServerFormModalProps {
   domainPolicyError?: string
 }
 
-const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
+const ENV_VAR_PATTERN = /\{\{[^{}]+\}\}/
 
 function hasEnvVarInHostname(url: string): boolean {
   const globalPattern = new RegExp(ENV_VAR_PATTERN.source, 'g')

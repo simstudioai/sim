@@ -1,6 +1,16 @@
 import { REFERENCE } from '@/executor/constants'
 
 /**
+ * Body of an `{{ENV_VAR}}` reference. Excludes both braces for the same reason
+ * `createReferencePattern` excludes both angle brackets: a class that admits its
+ * own opening delimiter lets every offset in a run of `{` restart a full
+ * backtracking scan, which is quadratic in the length of the run. Env var names
+ * are `PATTERNS.ENV_VAR_NAME` (`[A-Za-z_][A-Za-z0-9_]*`), so no representable
+ * name is excluded by this.
+ */
+const ENV_VAR_BODY = '[^{}]+'
+
+/**
  * Creates a regex pattern for matching variable references.
  * Uses [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" matches separately).
  */
@@ -15,7 +25,7 @@ export function createReferencePattern(): RegExp {
  * Creates a regex pattern for matching environment variables {{variable}}
  */
 export function createEnvVarPattern(): RegExp {
-  return new RegExp(`\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}`, 'g')
+  return new RegExp(`\\${REFERENCE.ENV_VAR_START}(${ENV_VAR_BODY})\\${REFERENCE.ENV_VAR_END}`, 'g')
 }
 
 export interface EnvVarResolveOptions {
@@ -66,7 +76,7 @@ export function resolveEnvVarReferences(
   if (typeof value === 'string') {
     if (resolveExactMatch) {
       const exactMatchPattern = new RegExp(
-        `^\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}$`
+        `^\\${REFERENCE.ENV_VAR_START}(${ENV_VAR_BODY})\\${REFERENCE.ENV_VAR_END}$`
       )
       const exactMatch = exactMatchPattern.exec(value)
       if (exactMatch) {
@@ -140,7 +150,7 @@ export function createWorkflowVariablePattern(): RegExp {
 export function createCombinedPattern(): RegExp {
   return new RegExp(
     `${REFERENCE.START}[^${REFERENCE.START}${REFERENCE.END}]+${REFERENCE.END}|` +
-      `\\${REFERENCE.ENV_VAR_START}[^}]+\\${REFERENCE.ENV_VAR_END}`,
+      `\\${REFERENCE.ENV_VAR_START}${ENV_VAR_BODY}\\${REFERENCE.ENV_VAR_END}`,
     'g'
   )
 }
