@@ -39,12 +39,18 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # ct diffs the chart against the PR base to decide whether the version
+          # was bumped, so a shallow clone would leave it nothing to compare.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
           version: v3.16.4
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -64,8 +70,33 @@ jobs:
       - name: Image inventory is current
         run: bun run images:check
 
-      - name: Helm lint
-        run: helm lint helm/sim --values helm/sim/ci/default-values.yaml
+      # ct is the CNCF chart linter (ingress-nginx, prometheus-community and
+      # external-secrets all gate on it). Beyond `helm lint` it runs yamllint over
+      # Chart.yaml and every values file, validates Chart.yaml against a schema,
+      # and — the reason the hand-rolled version-bump job is gone — enforces that
+      # the chart version increases whenever chart content changes.
+      #
+      # `--chart-dirs helm --target-branch` is load-bearing. Passing `--charts`
+      # instead silently DISABLES the version-increment check ("Version increment
+      # checking disabled.") and still exits 0, which would leave a gate that
+      # never fails. On a push there is no base to diff, so `--charts` is correct
+      # there and the version check simply does not apply.
+      #
+      # Maintainer validation is off because it resolves `maintainers[].name`
+      # against real forge accounts, and ours is the display name "Sim Team".
+      # Turning it on means changing what Artifact Hub shows.
+      - name: Chart lint (ct)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          args=(--validate-maintainers=false)
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            args+=(--chart-dirs helm --target-branch "${BASE_REF}")
+          else
+            args+=(--charts helm/sim)
+          fi
+          ct lint "${args[@]}"
 
       - name: Helm unit tests
         run: |
@@ -122,39 +153,6 @@ jobs:
               --set externalDatabase.password=ci-dummy-password > /dev/null
           done
 
-  version-bump:
-    name: Chart version bumped
-    if: github.event_name == 'pull_request'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          # The version gate only reads history and fetches a public branch, so
-          # it never needs the token left behind in .git/config.
-          persist-credentials: false
-      - name: Require a Chart.yaml version bump when chart content changes
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          base="origin/${BASE_REF}"
-          git fetch origin "${BASE_REF}"
-          merge_base=$(git merge-base "$base" HEAD)
-          changed=$(git diff --name-only "$merge_base" HEAD)
-          if echo "$changed" | grep -q '^helm/sim/'; then
-            base_version=$(git show "$merge_base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
-            head_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
-            echo "base=$base_version head=$head_version"
-            if [ "$base_version" = "$head_version" ]; then
-              echo "::error::helm/sim/** changed but Chart.yaml version did not (still $head_version). Bump it per SemVer."
-              exit 1
-            fi
-          else
-            echo "No chart changes; skipping."
-          fi
-
   install:
     name: Install on kind and run helm test
     needs: chart
@@ -180,7 +178,7 @@ jobs:
           helm install sim helm/sim \
             --namespace sim --create-namespace \
             --values helm/sim/ci/default-values.yaml \
-            --values helm/sim/ci/kind-values.yaml \
+            --values helm/sim/ci/kind-overlay.yaml \
             --wait --timeout 15m
 
       - name: Diagnostics on failure
@@ -259,7 +257,7 @@ jobs:
       # (detect-version in ci.yml), so appVersion legitimately names a release
       # that does not exist yet while that release is still being built. Failing
       # on any mismatch would race that workflow and block the very publish the
-      # bump was for. `helm/sim/ci/kind-values.yaml` documents the same
+      # bump was for. `helm/sim/ci/kind-overlay.yaml` documents the same
       # circularity, and it is why appVersion went unbumped for so long.
       #
       # Compares against the latest GitHub release rather than a hardcoded value
