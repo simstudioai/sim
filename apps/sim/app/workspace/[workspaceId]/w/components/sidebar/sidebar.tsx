@@ -1042,9 +1042,15 @@ export const Sidebar = memo(function Sidebar() {
     () =>
       permissionConfig.hideIntegrationsTab
         ? []
-        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
+        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType, catalogMode) => {
             const availability = integrationAvailability.get(blockType.toLowerCase())
-            if (!availability) return CONNECT_MODE.oauth
+            /**
+             * Availability is unknown while it loads and after a failed fetch,
+             * so keep the catalog's own flow rather than assuming OAuth — that
+             * assumption sends a service-account-only integration to a page with
+             * no OAuth modal to open, costing the search result its one click.
+             */
+            if (!availability) return catalogMode
             if (availability.oauthAvailable) return CONNECT_MODE.oauth
             /**
              * Anything still connectable once OAuth is out is the stored
