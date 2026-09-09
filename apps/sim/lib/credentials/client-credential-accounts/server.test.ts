@@ -3,7 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import { CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/server'
+import {
+  getClientCredentialAccountMinter,
+  parseClientCredentialAccountSecretBlob,
+} from '@/lib/credentials/client-credential-accounts/server'
 
 const MALFORMED = 'Stored client-credential service-account secret is malformed'
 
@@ -19,6 +22,10 @@ function blob(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('parseClientCredentialAccountSecretBlob', () => {
+  it('registers the Oracle EPM minter in the generic client-credential pipeline', () => {
+    expect(getClientCredentialAccountMinter('oracle-epm-service-account')).toBeTypeOf('function')
+  })
+
   it('returns the parsed blob when it matches the expected provider', () => {
     const parsed = parseClientCredentialAccountSecretBlob(blob(), 'zoom-service-account')
     expect(parsed.clientId).toBe('cid')
@@ -114,6 +121,24 @@ describe('parseClientCredentialAccountSecretBlob', () => {
           privateKey: '-----BEGIN PRIVATE KEY-----',
         }),
         'netsuite-service-account'
+      )
+    ).toThrow(MALFORMED)
+  })
+
+  it('requires the complete Oracle EPM integration-user blob', () => {
+    const oracleBlob = blob({
+      providerId: 'oracle-epm-service-account',
+      orgId: 'https://epm.example.com/gateway',
+      clientId: 'integration.user@example.com',
+      clientSecret: 'password',
+    })
+    expect(
+      parseClientCredentialAccountSecretBlob(oracleBlob, 'oracle-epm-service-account')
+    ).toMatchObject({ orgId: 'https://epm.example.com/gateway' })
+    expect(() =>
+      parseClientCredentialAccountSecretBlob(
+        blob({ providerId: 'oracle-epm-service-account', clientSecret: '' }),
+        'oracle-epm-service-account'
       )
     ).toThrow(MALFORMED)
   })
