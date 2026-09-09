@@ -1,6 +1,12 @@
 import { TypeTtl } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
-import { isTtlTimestamp, normalizeTtlTimestamp, TTL_FORMAT_ERROR } from '@/lib/table/ttl-values'
+import {
+  isTtlTimestamp,
+  normalizeTtlTimestamp,
+  TTL_FORMAT_ERROR,
+  TTL_TIMESTAMP_PATTERN,
+  ttlInstantForComparison,
+} from '@/lib/table/ttl-values'
 
 export const ttlColumnType: ColumnTypeDefinition = {
   id: 'ttl',
@@ -8,12 +14,13 @@ export const ttlColumnType: ColumnTypeDefinition = {
   maxPerTable: 1,
   icon: TypeTtl,
   jsonbCast: 'timestamptz',
+  timestampPattern: TTL_TIMESTAMP_PATTERN,
   storesOpaqueIds: false,
   supportsUnique: true,
-  sampleValue: '2024-01-31T00:00:00Z',
+  sampleValue: '2024-01-31T00:00:00-00:00',
   ownedMetadata: [],
   workflowInputType: 'string',
-  editor: 'utc-date',
+  editor: 'offset-date',
   expandable: false,
   typeaheadPattern: /\d/,
   parseErrorMessage: TTL_FORMAT_ERROR,
@@ -21,6 +28,10 @@ export const ttlColumnType: ColumnTypeDefinition = {
   coerce(value) {
     const normalized = normalizeTtlTimestamp(value)
     return normalized === null ? { ok: false } : { ok: true, value: normalized }
+  },
+
+  valueForEquality(value) {
+    return ttlInstantForComparison(value) ?? value
   },
 
   validateCell(value, column) {
@@ -32,10 +43,10 @@ export const ttlColumnType: ColumnTypeDefinition = {
   },
 
   formatForDisplay(value) {
-    return String(value ?? '')
+    return normalizeTtlTimestamp(value) ?? String(value ?? '')
   },
 
   formatForInput(value) {
-    return String(value ?? '')
+    return normalizeTtlTimestamp(value) ?? String(value ?? '')
   },
 }

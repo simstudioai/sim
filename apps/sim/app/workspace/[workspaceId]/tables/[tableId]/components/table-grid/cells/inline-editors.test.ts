@@ -14,7 +14,14 @@ import { cleanCellValue } from '@/app/workspace/[workspaceId]/tables/[tableId]/u
 
 const { mockToastError, mockUseTimezoneState, mockCalendar } = vi.hoisted(() => ({
   mockToastError: vi.fn(),
-  mockCalendar: vi.fn((_props: { onChange: (value: string) => void }) => null),
+  mockCalendar: vi.fn(
+    (_props: {
+      onChange: (value: string) => void
+      value?: string
+      timeLabel?: string
+      today?: string
+    }) => null
+  ),
   mockUseTimezoneState: vi.fn(),
 }))
 
@@ -61,14 +68,14 @@ describe('dateEditorRawValue', () => {
     expect(cleanCellValue(repeatedRaw, ttlColumn, timezone)).toBeNull()
 
     const fractionalRaw = dateEditorRawValue('2023-11-14t22:13:20.001Z', ttlColumn, timezone)
-    expect(cleanCellValue(fractionalRaw, ttlColumn, timezone)).toBe('2023-11-14T22:13:20.001Z')
+    expect(cleanCellValue(fractionalRaw, ttlColumn, timezone)).toBe('2023-11-14T22:13:20.001-00:00')
   })
 
   it.each([
-    ['2026-11-01T01:30', '2026-11-01T01:30:00Z'],
-    ['2026-03-08T02:30:45', '2026-03-08T02:30:45Z'],
-    ['2026-09-07', '2026-09-07T00:00:00Z'],
-  ])('saves literal UTC picker selection %s', (picked, expected) => {
+    ['2026-11-01T01:30', '2026-11-01T01:30:00-00:00'],
+    ['2026-03-08T02:30:45', '2026-03-08T02:30:45-00:00'],
+    ['2026-09-07', '2026-09-07T00:00:00-00:00'],
+  ])('saves new picker selections with a zero offset %s', (picked, expected) => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -96,13 +103,42 @@ describe('dateEditorRawValue', () => {
     container.remove()
   })
 
+  it.each(['-07:00', '-08:00', '+05:45', '-00:00', '+00:00'])(
+    'retains %s when changing the date and time in the picker',
+    (offset) => {
+      const container = document.createElement('div')
+      document.body.appendChild(container)
+      const root = createRoot(container)
+      const onSave = vi.fn()
+      act(() =>
+        root.render(
+          createElement(InlineEditor, {
+            column: column('ttl'),
+            value: `2026-09-07T07:30:00.123456${offset}`,
+            onSave,
+            onCancel: vi.fn(),
+          })
+        )
+      )
+      const picker = mockCalendar.mock.calls.at(-1)![0]
+      expect(picker.timeLabel).toBe(`Time (${offset})`)
+      act(() => picker.onChange('2026-11-01T01:30:45'))
+      const input = container.querySelector('input') as HTMLInputElement
+      expect(input.value).toBe(`2026-11-01T01:30:45${offset}`)
+      act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+      expect(onSave).toHaveBeenCalledWith(`2026-11-01T01:30:45${offset}`, 'enter')
+      act(() => root.unmount())
+      container.remove()
+    }
+  )
+
   it('keeps ordinary date drafts on their existing display parser', () => {
     expect(dateEditorRawValue('11/01/2026 1:30:00 AM', column('date'), 'America/New_York')).toBe(
       '2026-11-01T01:30:00-04:00'
     )
   })
 
-  it('accepts a typed offset timestamp and saves the same instant in UTC', () => {
+  it('preserves a typed offset timestamp and its microseconds', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -120,18 +156,18 @@ describe('dateEditorRawValue', () => {
     const input = container.querySelector('input') as HTMLInputElement
     act(() => changeInput(input, '2026-09-07T07:30:00.123456-07:00'))
     act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
-    expect(onSave).toHaveBeenCalledWith('2026-09-07T14:30:00.123456Z', 'enter')
+    expect(onSave).toHaveBeenCalledWith('2026-09-07T07:30:00.123456-07:00', 'enter')
     expect(mockToastError).not.toHaveBeenCalled()
     act(() => root.unmount())
     container.remove()
   })
 
-  it('keeps an open TTL edit in UTC when the timezone setting changes', () => {
+  it('keeps an open TTL edit in its supplied offset when the timezone setting changes', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
     const onSave = vi.fn()
-    const value = '2026-06-15T13:00:30Z'
+    const value = '2026-06-15T06:00:30-07:00'
     const props = {
       value,
       column: column('ttl'),
@@ -148,18 +184,18 @@ describe('dateEditorRawValue', () => {
     act(() => root.render(createElement(InlineEditor, props)))
 
     const input = container.querySelector('input') as HTMLInputElement
-    expect(input?.value).toBe('2026-06-15T13:00:30Z')
+    expect(input?.value).toBe('2026-06-15T06:00:30-07:00')
     act(() => changeInput(input, '2026-09-01T09:00:00Z'))
     act(() => {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     })
 
-    expect(onSave).toHaveBeenCalledWith('2026-09-01T09:00:00Z', 'enter')
+    expect(onSave).toHaveBeenCalledWith('2026-09-01T09:00:00-00:00', 'enter')
     act(() => root.unmount())
     container.remove()
   })
 
-  it('creates a UTC TTL draft while timezone settings are loading', () => {
+  it('converts a legacy Z value to a zero-offset draft while timezone settings are loading', () => {
     mockUseTimezoneState.mockReturnValue({
       timezone: 'Asia/Tokyo',
       status: 'loading',
@@ -177,7 +213,7 @@ describe('dateEditorRawValue', () => {
 
     act(() => root.render(createElement(InlineEditor, props)))
 
-    expect(container.querySelector('input')?.value).toBe('2026-06-15T13:00:30Z')
+    expect(container.querySelector('input')?.value).toBe('2026-06-15T13:00:30-00:00')
     expect(container.querySelector('[role="status"]')).toBeNull()
 
     mockUseTimezoneState.mockReturnValue({
@@ -191,7 +227,7 @@ describe('dateEditorRawValue', () => {
     act(() => changeInput(input, '2026-09-01T09:00:00Z'))
     act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
 
-    expect(onSave).toHaveBeenCalledWith('2026-09-01T09:00:00Z', 'enter')
+    expect(onSave).toHaveBeenCalledWith('2026-09-01T09:00:00-00:00', 'enter')
     act(() => root.unmount())
     container.remove()
   })
@@ -263,19 +299,19 @@ describe('dateEditorRawValue', () => {
     {
       caseName: 'a historical sub-minute offset',
       timezone: 'Africa/Monrovia',
-      value: '1970-01-01T00:44:30Z',
+      value: '1970-01-01T00:44:30-00:00',
     },
     {
       caseName: 'microsecond precision',
       timezone: 'America/Los_Angeles',
-      value: '2026-09-07T14:30:00.123456Z',
+      value: '2026-09-07T07:30:00.123456-07:00',
     },
     {
       caseName: 'the far-future representable boundary',
       timezone: 'Asia/Tokyo',
-      value: '9999-12-31T23:59:59Z',
+      value: '9999-12-31T23:59:59+00:00',
     },
-  ])('preserves the exact UTC string for $caseName when untouched', ({ timezone, value }) => {
+  ])('preserves the exact offset string for $caseName when untouched', ({ timezone, value }) => {
     mockUseTimezoneState.mockReturnValue({ timezone, status: 'ready' })
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -314,7 +350,7 @@ describe('dateEditorRawValue', () => {
     act(() =>
       root.render(
         createElement(InlineEditor, {
-          value: '1970-01-01T00:44:30Z',
+          value: '1970-01-01T00:44:30-00:00',
           column: column('ttl'),
           onSave: vi.fn(),
           onCancel,
@@ -322,7 +358,7 @@ describe('dateEditorRawValue', () => {
       )
     )
 
-    expect(container.querySelector('input')?.value).toBe('1970-01-01T00:44:30Z')
+    expect(container.querySelector('input')?.value).toBe('1970-01-01T00:44:30-00:00')
     expect(onCancel).not.toHaveBeenCalled()
     expect(mockToastError).not.toHaveBeenCalled()
     act(() => root.unmount())

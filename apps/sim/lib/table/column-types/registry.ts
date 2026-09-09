@@ -76,6 +76,11 @@ export function columnTypeOf(column: Pick<ColumnDefinition, 'type'>): ColumnType
   return COLUMN_TYPE_REGISTRY[column.type] ?? stringColumnType
 }
 
+/** Compares equivalent values without changing their stored representation. */
+export function columnValueForEquality(value: JsonValue, column: ColumnDefinition): JsonValue {
+  return columnTypeOf(column).valueForEquality?.(value) ?? value
+}
+
 /** The definition for a type id, or `string`'s when the id is unknown. */
 export function columnTypeById(type: string | undefined): ColumnTypeDefinition {
   return (isColumnType(type) && COLUMN_TYPE_REGISTRY[type]) || stringColumnType

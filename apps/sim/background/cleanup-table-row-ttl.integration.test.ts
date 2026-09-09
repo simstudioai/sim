@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,8 +27,15 @@ vi.mock('@/lib/table/ttl-availability', () => ({ isTableRowTtlEnabled: enabled }
 vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: signalChanged }))
 vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: fireTrigger }))
 
+import { db } from '@sim/db'
+import { updateColumnConstraints } from '@/lib/table/columns/service'
 import { getDeleteSnapshotBatchSize } from '@/lib/table/constants'
+import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
+import { getTableById } from '@/lib/table/service'
+import { fieldPredicate } from '@/lib/table/sql'
 import { normalizeTtlTimestamp } from '@/lib/table/ttl-values'
+import type { TableSchema } from '@/lib/table/types'
+import { checkBatchUniqueConstraintsDb, coerceRowToSchema } from '@/lib/table/validation'
 import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
 
 const url = process.env.TABLE_TTL_TEST_DATABASE_URL
@@ -454,11 +462,114 @@ describe.skipIf(!url)('Expiration with real PostgreSQL transactions', () => {
     expect(await rowCount(table)).toBe(0)
   }, 30000)
 
+  it('matches equivalent instants for equality and membership without casting malformed stored values', async () => {
+    const table = await createTable()
+    const values = [
+      '2090-09-07T07:30:00.000001-07:00',
+      '2090-09-07T20:15:00.000001+05:45',
+      '2090-09-07T14:30:00.000001Z',
+      '2090-09-07T14:30:00.000001-00:00',
+      '2090-09-07T14:30:00.000002-00:00',
+      null,
+      '',
+      '2090-02-30T00:00:00Z',
+      'not-a-date',
+    ]
+    for (const value of values) {
+      await control`INSERT INTO user_table_rows (id, table_id, workspace_id, data)
+        VALUES (${generateId()}, ${table}, ${workspaceId}, ${control.json({ expires: value })})`
+    }
+    const column = { id: 'expires', name: 'expires_at', type: 'ttl' as const }
+    for (const op of ['eq', 'ne', 'in', 'nin'] as const) {
+      const instant = '2090-09-07T14:30:00.000001+00:00'
+      const value = op === 'in' || op === 'nin' ? [instant] : instant
+      const predicate = fieldPredicate('user_table_rows', 'expires', op, value, column)
+      const rows = await db.execute(sql`SELECT count(*)::int AS count FROM user_table_rows
+        WHERE table_id = ${table} AND ${predicate}`)
+      expect(rows[0].count).toBe(op === 'eq' || op === 'in' ? 4 : 5)
+    }
+    const nullPredicate = fieldPredicate('user_table_rows', 'expires', 'eq', null, column)
+    const rows = await db.execute(
+      sql`SELECT count(*)::int AS count FROM user_table_rows WHERE table_id = ${table} AND ${nullPredicate}`
+    )
+    expect(rows[0].count).toBe(1)
+  })
+
+  it('preserves offsets in storage while enforcing uniqueness by the exact instant', async () => {
+    const table = await createTable()
+    const uniqueSchema: TableSchema = {
+      columns: [{ id: 'expires', name: 'expires_at', type: 'ttl', unique: true }],
+    }
+    const first = { expires: '2090-09-07T07:30:00.000001-07:00' }
+    const equivalent = { expires: '2090-09-07T14:30:00.000001Z' }
+    const nextMicrosecond = { expires: '2090-09-07T20:15:00.000002+05:45' }
+    for (const row of [first, equivalent, nextMicrosecond]) {
+      expect(coerceRowToSchema(row, uniqueSchema, 'reject').valid).toBe(true)
+    }
+    expect(first.expires).toBe('2090-09-07T07:30:00.000001-07:00')
+    expect(equivalent.expires).toBe('2090-09-07T14:30:00.000001-00:00')
+    expect(nextMicrosecond.expires).toBe('2090-09-07T20:15:00.000002+05:45')
+    const withinBatch = await checkBatchUniqueConstraintsDb(
+      table,
+      [first, equivalent, nextMicrosecond],
+      uniqueSchema
+    )
+    expect(withinBatch.errors.map(({ row }) => row)).toEqual([1])
+    await seedRows(table, 1, first.expires)
+    const againstStored = await checkBatchUniqueConstraintsDb(
+      table,
+      [equivalent, nextMicrosecond],
+      uniqueSchema
+    )
+    expect(againstStored.errors.map(({ row }) => row)).toEqual([0])
+    const definition = await getTableById(table)
+    expect(definition).not.toBeNull()
+    await expect(
+      db.transaction((tx) =>
+        replaceTableRowsWithTx(
+          tx,
+          {
+            tableId: table,
+            workspaceId,
+            rows: [first, equivalent],
+            secretProvenance: undefined,
+          },
+          { ...definition!, schema: uniqueSchema },
+          'offset-qa'
+        )
+      )
+    ).rejects.toThrow('must be unique')
+    expect(await rowCount(table)).toBe(1)
+    await control`INSERT INTO user_table_rows (id, table_id, workspace_id, data, position)
+      VALUES (${generateId()}, ${table}, ${workspaceId}, ${control.json(equivalent)}, 2)`
+    await expect(
+      updateColumnConstraints({ tableId: table, columnName: 'expires', unique: true }, 'offset-qa')
+    ).rejects.toThrow('duplicate')
+    await control`UPDATE user_table_rows SET data = ${control.json(nextMicrosecond)} WHERE table_id = ${table} AND position = 2`
+    const constrained = await updateColumnConstraints(
+      { tableId: table, columnName: 'expires', unique: true },
+      'offset-qa'
+    )
+    expect(constrained.schema.columns[0].unique).toBe(true)
+    const stored =
+      await control`SELECT data->>'expires' AS value FROM user_table_rows WHERE table_id = ${table} ORDER BY position`
+    expect(stored.map(({ value }) => value)).toEqual([first.expires, nextMicrosecond.expires])
+  })
+
   it('agrees with PostgreSQL for deterministic offset, leap-year, and precision samples', async () => {
     const samples: string[] = []
     for (const year of ['0001', '0099', '1900', '2000', '2024', '2026', '9998']) {
       for (const day of ['01-01', '02-28', '03-01', '12-31']) {
-        for (const offset of ['Z', '+00:00', '-07:00', '+05:45', '+15:59', '-15:59']) {
+        for (const offset of [
+          'Z',
+          '-00:00',
+          '+00:00',
+          '-07:00',
+          '-08:00',
+          '+05:45',
+          '+15:59',
+          '-15:59',
+        ]) {
           for (const fraction of ['', '.000001', '.123400', '.999999']) {
             const value = `${year}-${day}T12:34:56${fraction}${offset}`
             if (normalizeTtlTimestamp(value) !== null) samples.push(value)

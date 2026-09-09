@@ -17,7 +17,7 @@ import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
-import { ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
+import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
@@ -121,12 +121,12 @@ function ReadyInlineDateEditor({
   const editTimeZoneRef = useRef(initialTimeZone)
   const timeZone = editTimeZoneRef.current
 
-  const isUtc = columnTypeOf(column).editor === 'utc-date'
+  const isOffsetDate = columnTypeOf(column).editor === 'offset-date'
   const storedValue = formatValueForInput(value, column.type)
   const initialDraft =
     initialCharacter !== undefined
       ? initialCharacter
-      : isUtc
+      : isOffsetDate
         ? storedValue
         : storageToDisplay(storedValue, { seconds: true })
   const [draft, setDraft] = useState(initialDraft)
@@ -136,10 +136,9 @@ function ReadyInlineDateEditor({
   const draftRef = useRef(draft)
   draftRef.current = draft
 
-  /** Expiration pickers use UTC; Date pickers preserve the stored wall time. */
-  const draftParts = isUtc
-    ? ttlValueToPickerParts(draft)
-    : dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
+  const offsetParts = isOffsetDate ? ttlValueToPickerParts(draft) : null
+  const draftParts =
+    offsetParts ?? dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
   const pickerValue = draftParts.day
     ? draftParts.time
       ? `${draftParts.day}T${draftParts.time}`
@@ -239,12 +238,12 @@ function ReadyInlineDateEditor({
   const handlePickerChange = (picked: string) => {
     clearTimeout(blurTimeoutRef.current)
     if (isCalendarDateString(picked)) {
-      doSave('enter', isUtc ? ttlValueFromPicker(picked, null) : picked)
+      doSave('enter', offsetParts ? ttlValueFromPicker(picked, null, offsetParts.offset) : picked)
       return
     }
-    if (isUtc) {
+    if (offsetParts) {
       const [day, time] = picked.split('T')
-      setDraft(ttlValueFromPicker(day, time ?? null))
+      setDraft(ttlValueFromPicker(day, time ?? null, offsetParts.offset))
       setInvalid(false)
       inputRef.current?.focus()
       return
@@ -275,7 +274,7 @@ function ReadyInlineDateEditor({
         }}
         onKeyDown={handleKeyDown}
         onBlur={scheduleBlurSave}
-        placeholder={isUtc ? 'YYYY-MM-DDTHH:mm:ss±HH:mm' : 'mm/dd/yyyy'}
+        placeholder={isOffsetDate ? 'YYYY-MM-DDTHH:mm:ss±HH:mm' : 'mm/dd/yyyy'}
         className={cn(
           'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden',
           invalid && 'text-[var(--text-error)]'
@@ -295,8 +294,10 @@ function ReadyInlineDateEditor({
             value={pickerValue}
             onChange={handlePickerChange}
             showTime
-            timeLabel={isUtc ? 'Time (UTC)' : undefined}
-            today={todayLocalCalendarDate(timeZone)}
+            timeLabel={offsetParts ? `Time (${offsetParts.offset})` : undefined}
+            today={
+              offsetParts ? todayAtTtlOffset(offsetParts.offset) : todayLocalCalendarDate(timeZone)
+            }
           />
         </PopoverContent>
       </Popover>
@@ -495,7 +496,7 @@ export function InlineEditor(props: InlineEditorProps) {
   switch (columnTypeOf(props.column).editor) {
     case 'date':
       return <InlineDateEditor {...props} />
-    case 'utc-date':
+    case 'offset-date':
       return <ReadyInlineDateEditor {...props} initialTimeZone='UTC' />
     case 'select':
       return <InlineSelectEditor {...props} />

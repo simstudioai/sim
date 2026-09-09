@@ -199,8 +199,8 @@ describe('formatValueForInput', () => {
     const column = { name: 'expires_at', type: 'ttl' } as const
     const input = '2026-06-15T09:00:30Z'
     for (const timezone of ['UTC', 'America/New_York', 'Asia/Kathmandu', 'Mars/Olympus']) {
-      expect(formatValueForInput(input, 'ttl')).toBe(input)
-      expect(cleanCellValue(input, column, timezone)).toBe(input)
+      expect(formatValueForInput(input, 'ttl')).toBe('2026-06-15T09:00:30-00:00')
+      expect(cleanCellValue(input, column, timezone)).toBe('2026-06-15T09:00:30-00:00')
       expect(cleanCellValue('2026-06-15 09:00:30', column, timezone)).toBeNull()
       expect(cleanCellValue(1_700_000_000, column, timezone)).toBeNull()
     }

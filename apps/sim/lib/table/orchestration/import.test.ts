@@ -337,7 +337,7 @@ describe('performTableCsvImport', () => {
         rejectedSamples: [],
       })
       expect(mockImportAppendRows.mock.calls[0][2]).toEqual([
-        { col_expires_at: '2023-11-14T22:13:20Z' },
+        { col_expires_at: '2023-11-14T22:13:20-00:00' },
         { col_expires_at: null },
       ])
     })

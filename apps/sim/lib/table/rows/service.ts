@@ -24,7 +24,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf } from '@/lib/table/column-types'
+import { columnTypeOf, columnValueForEquality } from '@/lib/table/column-types'
 import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
@@ -531,7 +531,8 @@ export async function replaceTableRowsWithTx(
         const value = row[colId]
         if (value === null || value === undefined) continue
         // Case-sensitive, consistent with the unique-constraint check leaf.
-        const normalized = typeof value === 'string' ? value : JSON.stringify(value)
+        const comparable = columnValueForEquality(value, col)
+        const normalized = typeof comparable === 'string' ? comparable : JSON.stringify(comparable)
         const map = seen.get(colId)!
         if (map.has(normalized)) {
           throw new OrchestrationError(
