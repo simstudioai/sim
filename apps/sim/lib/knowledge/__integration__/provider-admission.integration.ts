@@ -106,7 +106,11 @@ describe.each(['PostgreSQL', 'Redis'] as const)('%s provider admission', (backen
       })
     })
 
-    it('reserves both dimensions atomically under concurrent workers', async () => {
+    it.each([
+      { state: 'new', spentRequests: 0, spentTokens: 0, admitted: 8, remainingTokens: 20 },
+      { state: 'existing', spentRequests: 2, spentTokens: 20, admitted: 6, remainingTokens: 20 },
+      { state: 'partial', spentRequests: 0, spentTokens: 20, admitted: 8, remainingTokens: 0 },
+    ])('reserves $state buckets atomically despite reversed caller order', async (fixture) => {
       const requests = {
         key: `${key}:requests`,
         cost: 1,
@@ -121,14 +125,28 @@ describe.each(['PostgreSQL', 'Redis'] as const)('%s provider admission', (backen
         cooldownKeys: [`${key}:cooldown`, `${key}:quota`],
         deadlineAt: now.getTime() + 10_000,
       }
+      if (fixture.spentRequests > 0) {
+        await first.consumeTokens(requests.key, fixture.spentRequests, requests.config)
+        await first.setCooldownUntil(`${key}:quota`, now)
+      }
+      if (fixture.spentTokens > 0) {
+        await first.consumeTokens(tokens.key, fixture.spentTokens, tokens.config)
+        await first.setCooldownUntil(`${key}:cooldown`, now)
+      }
       const results = await Promise.all(
         Array.from({ length: 40 }, (_, index) =>
-          (index % 2 ? first : second).consumeTokensAtomically([requests, tokens], options)
+          (index % 2 ? first : second).consumeTokensAtomically(
+            index % 2 ? [requests, tokens] : [tokens, requests],
+            {
+              ...options,
+              cooldownKeys: index % 2 ? options.cooldownKeys : [...options.cooldownKeys].reverse(),
+            }
+          )
         )
       )
-      expect(results.filter((result) => result.allowed)).toHaveLength(8)
+      expect(results.filter((result) => result.allowed)).toHaveLength(fixture.admitted)
       expect(await first.getTokenStatus(tokens.key, tokens.config)).toMatchObject({
-        tokensAvailable: 20,
+        tokensAvailable: fixture.remainingTokens,
       })
       expect(await second.getTokenStatus(requests.key, requests.config)).toMatchObject({
         tokensAvailable: 0,
@@ -138,7 +156,7 @@ describe.each(['PostgreSQL', 'Redis'] as const)('%s provider admission', (backen
         allowed: true,
       })
       expect(await first.getTokenStatus(tokens.key, tokens.config)).toMatchObject({
-        tokensAvailable: 20,
+        tokensAvailable: fixture.remainingTokens,
       })
     })
 

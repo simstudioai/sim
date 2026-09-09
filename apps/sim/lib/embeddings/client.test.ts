@@ -61,24 +61,32 @@ function jsonResponse(body: unknown, status = 200, responseHeaders?: HeadersInit
   })
 }
 
-function rawJsonResponse(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    statusText: String(status),
-    headers: new Headers({ 'content-type': 'application/json' }),
-  })
-}
-
 function sizedVector(values: number[], dimensions: number): number[] {
   return [...values, ...Array(Math.max(0, dimensions - values.length)).fill(0)].slice(0, dimensions)
 }
 
-function openAIBody(vectors: number[][], totalTokens = 5, dimensions: number | null = 1536) {
+function openAICompatibleBody(
+  vectors: number[][],
+  totalTokens = 5,
+  dimensions: number | null = 1536
+) {
   return {
     data: vectors.map((embedding) => ({
       embedding: dimensions === null ? embedding : sizedVector(embedding, dimensions),
     })),
     usage: { total_tokens: totalTokens },
+  }
+}
+
+function openAIBody(vectors: number[][], totalTokens = 5, dimensions: number | null = 1536) {
+  const body = openAICompatibleBody(vectors, totalTokens, dimensions)
+  return {
+    ...body,
+    data: body.data.map(({ embedding }) => {
+      const bytes = Buffer.alloc(embedding.length * 4)
+      embedding.forEach((value, index) => bytes.writeFloatLE(value, index * 4))
+      return { embedding: bytes.toString('base64') }
+    }),
   }
 }
 
@@ -495,19 +503,19 @@ describe('embed', () => {
       name: 'an empty vector',
       inputs: ['alpha'],
       body: openAIBody([[]], 1, null),
-      message: 'vector 0 is empty or not an array',
+      message: 'the vector payload could not be parsed',
     },
     {
       name: 'a vector with the wrong catalog dimension',
       inputs: ['alpha'],
       body: openAIBody([[1, 2]], 1, null),
-      message: 'vector 0 has 2 unexpected dimensions; expected 1536',
+      message: 'the vector payload could not be parsed',
     },
     {
-      name: 'a vector with a nonnumeric coordinate',
+      name: 'a numeric array instead of base64',
       inputs: ['alpha'],
-      body: { data: [{ embedding: [1, 'invalid'] }], usage: { total_tokens: 1 } },
-      message: 'vector 0 contains a non-numeric or non-finite coordinate',
+      body: openAICompatibleBody([[1]], 1),
+      message: 'the vector payload could not be parsed',
     },
     {
       name: 'an unparseable vector envelope',
@@ -528,9 +536,7 @@ describe('embed', () => {
   })
 
   it('rejects a valid-JSON success body containing a non-finite coordinate', async () => {
-    fetchMock.mockResolvedValue(
-      rawJsonResponse('{"data":[{"embedding":[1e999]}],"usage":{"total_tokens":1}}')
-    )
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[Number.POSITIVE_INFINITY]], 1)))
 
     await expect(
       embed(['alpha'], { model: 'text-embedding-3-small', apiKey: 'sk-test' })
@@ -612,7 +618,7 @@ describe('embed', () => {
   })
 
   it('uses OpenRouter as an explicit transport for an OpenAI catalog model', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, 1024)))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]], 5, 1024)))
 
     await embed(['hello'], {
       model: 'text-embedding-3-large',
@@ -773,7 +779,7 @@ describe('embedOpenRouter', () => {
       const body = JSON.parse((init as RequestInit).body as string)
       const inputs = body.input as string[]
       return jsonResponse(
-        openAIBody(
+        openAICompatibleBody(
           inputs.map((input) => (input === 'alpha' ? [1, 2, 3] : [4, 5, 6])),
           inputs[0] === 'alpha' ? 3 : 4,
           null
@@ -812,7 +818,7 @@ describe('embedOpenRouter', () => {
   })
 
   it('fails when OpenRouter returns the wrong number of vectors', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, null)))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]], 5, null)))
 
     await expect(
       embedOpenRouter(['alpha', 'beta'], {
@@ -827,8 +833,8 @@ describe('embedOpenRouter', () => {
 
   it('fails when OpenRouter returns inconsistent vector dimensions', async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(openAIBody([[1, 2]], 1, null)))
-      .mockResolvedValueOnce(jsonResponse(openAIBody([[3, 4], [5]], 2, null)))
+      .mockResolvedValueOnce(jsonResponse(openAICompatibleBody([[1, 2]], 1, null)))
+      .mockResolvedValueOnce(jsonResponse(openAICompatibleBody([[3, 4], [5]], 2, null)))
 
     await expect(
       embedOpenRouter(['alpha', 'beta', 'gamma'], {
@@ -841,7 +847,7 @@ describe('embedOpenRouter', () => {
   })
 
   it('fails when OpenRouter violates an explicitly requested dimension', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, null)))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]], 5, null)))
 
     await expect(
       embedOpenRouter(['alpha'], {
@@ -862,7 +868,7 @@ describe('embedOpenRouter', () => {
       const batch = body.input as string[]
       const embedding = batch.length === 1 ? [2, 3, 4] : [1, 3]
       return jsonResponse(
-        openAIBody(
+        openAICompatibleBody(
           batch.map(() => embedding),
           batch.length,
           null
@@ -901,7 +907,7 @@ describe('embedOpenRouter', () => {
   })
 
   it('truncates inputs to the selected model context length', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, null)))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]], 5, null)))
 
     await embedOpenRouter(['alpha beta gamma'], {
       model: 'openrouter/thenlper/gte-base',
@@ -921,7 +927,7 @@ describe('embedOpenRouter', () => {
       const body = JSON.parse((init as RequestInit).body as string)
       const inputs = body.input as string[]
       return jsonResponse(
-        openAIBody(
+        openAICompatibleBody(
           inputs.map((input) => [Number(input.slice(1))]),
           inputs.length,
           null
@@ -955,7 +961,7 @@ describe('embedOpenRouter', () => {
       const body = JSON.parse((init as RequestInit).body as string)
       const batch = body.input as string[]
       return jsonResponse(
-        openAIBody(
+        openAICompatibleBody(
           batch.map((input) => sizedVector([Number(input.slice(1))], dimensions)),
           batch.length,
           null
@@ -983,7 +989,9 @@ describe('embedOpenRouter', () => {
 
   it('rejects an oversized dynamic aggregate after discovery and before fan-out', async () => {
     const dimensions = 32_768
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([sizedVector([1], dimensions)], 1, null)))
+    fetchMock.mockResolvedValue(
+      jsonResponse(openAICompatibleBody([sizedVector([1], dimensions)], 1, null))
+    )
 
     await expect(
       embedOpenRouter(
@@ -1040,7 +1048,7 @@ describe('knowledge embedding transport fallback', () => {
 
   it('uses OpenRouter when it is the only configured self-hosted transport', async () => {
     setEnv({ OPENROUTER_API_KEY: 'or-test' })
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 3)))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]], 3)))
 
     const result = await embedKnowledgeForDeployment(['hello'], options, false)
 
@@ -1092,7 +1100,7 @@ describe('knowledge embedding transport fallback', () => {
       OPENAI_API_KEY: 'openai-test',
       OPENROUTER_API_KEY: 'or-test',
     })
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]])))
 
     const result = await embedKnowledgeForDeployment(['hello'], options, false)
 
@@ -1183,7 +1191,7 @@ describe('knowledge embedding transport fallback', () => {
     fetchMock.mockImplementation(async (url) =>
       url === 'https://api.openai.com/v1/embeddings'
         ? jsonResponse({ data: [], usage: { total_tokens: 1 } })
-        : jsonResponse(openAIBody([[7, 8]], 2))
+        : jsonResponse(openAICompatibleBody([[7, 8]], 2))
     )
 
     const result = await embedKnowledgeForDeployment(['hello'], options, false)
@@ -1200,7 +1208,7 @@ describe('knowledge embedding transport fallback', () => {
     fetchMock.mockImplementation(async (url) =>
       url === 'https://api.openai.com/v1/embeddings'
         ? jsonResponse({ error: { type: 'insufficient_quota', code: 'insufficient_quota' } }, 429)
-        : jsonResponse(openAIBody([[7, 8]], 2))
+        : jsonResponse(openAICompatibleBody([[7, 8]], 2))
     )
 
     const result = await embedKnowledgeForDeployment(['hello'], options, false)
@@ -1220,7 +1228,7 @@ describe('knowledge embedding transport fallback', () => {
     fetchMock.mockImplementation(async (url) =>
       url === 'https://api.openai.com/v1/embeddings'
         ? jsonResponse({ error: 'unavailable' }, 503)
-        : jsonResponse(openAIBody([[7, 8]], 2))
+        : jsonResponse(openAICompatibleBody([[7, 8]], 2))
     )
 
     const pending = embedKnowledgeForDeployment(['secret'], { ...options, projectInputs }, false)
@@ -1249,7 +1257,11 @@ describe('knowledge embedding transport fallback', () => {
       if (url === 'https://api.openai.com/v1/embeddings' && input.startsWith('second')) {
         return jsonResponse({ error: 'unavailable' }, 503)
       }
-      return jsonResponse(openAIBody([[input.startsWith('first') ? 1 : 2]], 3))
+      return jsonResponse(
+        url === 'https://api.openai.com/v1/embeddings'
+          ? openAIBody([[1]], 3)
+          : openAICompatibleBody([[2]], 3)
+      )
     })
 
     const pending = embedKnowledgeForDeployment(
@@ -1321,7 +1333,7 @@ describe('knowledge embedding transport fallback', () => {
             json: async () => ({ error: 'rate limited' }),
             text: async () => 'rate limited',
           } as Response)
-        : jsonResponse(openAIBody([[9, 9]], 2))
+        : jsonResponse(openAICompatibleBody([[9, 9]], 2))
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -1662,7 +1674,7 @@ describe('knowledge embedding capacity preflight', () => {
     ])
     expect(fetchMock).not.toHaveBeenCalled()
 
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAICompatibleBody([[1, 2]])))
     await embedKnowledgeForDeployment(['text'], options, false)
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(fetchMock.mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/embeddings')
