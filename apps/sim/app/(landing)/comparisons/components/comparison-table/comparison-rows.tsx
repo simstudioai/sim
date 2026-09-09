@@ -13,7 +13,7 @@ interface ComparisonRowsProps {
  * Desktop anchors advance half a pixel so native scroll rounding fully settles fractional rows.
  */
 export function ComparisonRows({ sim, competitor }: ComparisonRowsProps) {
-  return COMPARISON_SECTIONS.map((section) => {
+  return COMPARISON_SECTIONS.map((section, sectionIndex) => {
     const simFacts = getFactGroup(sim, section.group)
     const competitorFacts = getFactGroup(competitor, section.group)
     const intro = competitor.sectionIntros?.[section.group]
@@ -25,6 +25,12 @@ export function ComparisonRows({ sim, competitor }: ComparisonRowsProps) {
         aria-labelledby={`${section.id}-heading`}
         className='contents'
       >
+        {sectionIndex > 0 && (
+          <div
+            aria-hidden='true'
+            className='lg:-ml-[var(--comparison-page-gutter)] col-span-full h-[var(--comparison-row-height)] bg-[var(--comparison-column-bg)] lg:border-[var(--border)] lg:border-t'
+          />
+        )}
         <div
           role='row'
           data-comparison-section-header

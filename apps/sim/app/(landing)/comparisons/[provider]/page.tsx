@@ -250,7 +250,7 @@ export default async function ComparisonProviderPage({
               faqs={faqs.map((faq) => ({
                 ...faq,
                 answerContent: (
-                  <p className='text-[14px] text-[var(--text-body)] leading-[1.75]'>
+                  <p className='text-[14px] text-[var(--text-body)] leading-[1.75] lg:w-1/2'>
                     <CitedContent sources={faq.sources} label={faq.question}>
                       {faq.answer}
                     </CitedContent>
