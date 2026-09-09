@@ -1,0 +1,194 @@
+# Render Blueprint for Sim — see docker-compose.prod.yml for the reference
+# topology this mirrors (app + realtime + cron, sharing one Postgres schema,
+# plus Redis for pub/sub). Deploy via the Render dashboard: New > Blueprint,
+# point it at this repo, and Render will parse this file.
+#
+# MANUAL STEPS AFTER FIRST SYNC (not expressible in this file):
+#   1. pgvector: connect to sim-db and run `CREATE EXTENSION IF NOT EXISTS vector;`
+#   2. Fill in every `sync: false` env var below in the Render dashboard
+#      (R2 credentials, public URLs, etc.) — Blueprint intentionally never
+#      stores secret values in the repo.
+#   3. sim-app, sim-realtime, and sim-cron all read BETTER_AUTH_SECRET /
+#      INTERNAL_API_SECRET / CRON_SECRET from the `sim-shared-secrets` group
+#      below so the three services agree — do not override them per-service.
+#   4. Once sim-app and sim-realtime have real onrender.com (or custom-domain)
+#      URLs, update NEXT_PUBLIC_APP_URL / BETTER_AUTH_URL / SOCKET_SERVER_URL /
+#      NEXT_PUBLIC_SOCKET_URL to match — Render can't self-reference a
+#      service's own public URL at blueprint-sync time.
+#   5. sim-migrations runs db.Dockerfile's `bun run db:migrate` on every
+#      deploy of that service. It's declared as a private service here as the
+#      closest Blueprint-native fit to the compose file's one-shot
+#      `migrations` container; verify in the dashboard after first deploy
+#      that it behaves the way you want (a dedicated Render "Job" triggered
+#      via the Render CLI/API is the more precise fit if this needs to be a
+#      true one-off run per deploy rather than a persistent service).
+
+envVarGroups:
+  - name: sim-shared-secrets
+    envVars:
+      # Must be identical across sim-app and sim-realtime.
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # Must be identical across sim-app and sim-realtime.
+      - key: INTERNAL_API_SECRET
+        generateValue: true
+      # sim-app only, but kept here so it's generated once, in one place.
+      # Cannot be changed later without losing stored credentials.
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      # Must be identical across sim-app and sim-cron.
+      - key: CRON_SECRET
+        generateValue: true
+
+  - name: sim-r2-storage
+    envVars:
+      - key: STORAGE_PROVIDER
+        value: s3
+      # R2 has no regions — the S3 SDK still requires a value.
+      - key: AWS_REGION
+        value: auto
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        sync: false
+      # e.g. https://<account_id>.r2.cloudflarestorage.com
+      - key: S3_ENDPOINT
+        sync: false
+      # R2 uses virtual-hosted–style addressing like AWS S3 (default false).
+      - key: S3_FORCE_PATH_STYLE
+        value: 'false'
+
+databases:
+  - name: sim-db
+    databaseName: simstudio
+    # Legacy 'standard' plan is no longer offered for new databases — Render
+    # replaced Starter/Standard/Pro with Basic/Pro/Accelerated tiers named by
+    # RAM. basic-4gb is the closest new-tier match to the old 'standard' size;
+    # resize up (pro-*) or down (basic-1gb/basic-256mb) as load requires.
+    plan: basic-4gb
+    postgresMajorVersion: '17'
+    region: oregon
+
+services:
+  - type: keyvalue
+    name: sim-redis
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: sim-app
+    runtime: docker
+    dockerfilePath: ./docker/app.Dockerfile
+    dockerContext: .
+    plan: pro # 4GB — bump to pro-plus (8GB) if the build/runtime needs the
+    # full headroom NODE_OPTIONS=--max-old-space-size=8192 asks for.
+    region: oregon
+    healthCheckPath: /
+    envVars:
+      - fromGroup: sim-shared-secrets
+      - fromGroup: sim-r2-storage
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sim-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sim-redis
+          property: connectionString
+      # Set to this service's own public URL after first deploy.
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: TRUSTED_ORIGINS
+        sync: false
+      - key: AUTH_TRUSTED_PROXIES
+        sync: false
+      - key: API_ENCRYPTION_KEY
+        sync: false
+      - key: COPILOT_API_KEY
+        sync: false
+      - key: MSHIP_SYSPROMPT_OVERRIDE
+        sync: false
+      - key: NEXT_PUBLIC_CHAT_DISABLED
+        sync: false
+      - key: SIM_AGENT_API_URL
+        sync: false
+      # Internal (server-side) address of sim-realtime.
+      - key: SOCKET_SERVER_URL
+        fromService:
+          type: web
+          name: sim-realtime
+          property: hostport
+      # Public (browser-facing) address of sim-realtime — set after first
+      # deploy once sim-realtime has a real URL, e.g. wss://sim-realtime.onrender.com
+      - key: NEXT_PUBLIC_SOCKET_URL
+        sync: false
+      - key: ADMISSION_GATE_MAX_INFLIGHT
+        value: '500'
+
+  - type: web
+    name: sim-realtime
+    runtime: docker
+    dockerfilePath: ./docker/realtime.Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: sim-shared-secrets
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sim-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sim-redis
+          property: connectionString
+      # Must match sim-app's NEXT_PUBLIC_APP_URL / BETTER_AUTH_URL.
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: BETTER_AUTH_URL
+        sync: false
+
+  - type: worker
+    name: sim-cron
+    runtime: docker
+    dockerfilePath: ./docker/cron.Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    envVars:
+      - fromGroup: sim-shared-secrets
+      - key: TZ
+        value: UTC
+      # Internal address of sim-app — the cron container polls this over HTTP.
+      - key: SIM_URL
+        fromService:
+          type: web
+          name: sim-app
+          property: hostport
+
+  - type: pserv
+    name: sim-migrations
+    runtime: docker
+    dockerfilePath: ./docker/db.Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    dockerCommand: bun run db:migrate
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sim-db
+          property: connectionString
