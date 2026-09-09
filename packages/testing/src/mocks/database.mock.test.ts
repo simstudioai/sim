@@ -89,6 +89,49 @@ describe('database mock', () => {
     ).resolves.toEqual([{ id: 'joined' }])
   })
 
+  it('aliases a bounded subquery without consuming rows before the outer query', async () => {
+    queueTableRows(workflowTable, [{ id: 'selected' }])
+    const ranked = db
+      .select({ id: workflowTable.id })
+      .from(workflowTable)
+      .where({})
+      .orderBy(workflowTable.id)
+      .limit(1)
+      .as('ranked')
+
+    expect(ranked.id).toEqual({
+      type: 'subquery-column',
+      table: 'ranked',
+      name: 'id',
+      field: workflowTable.id,
+    })
+    await expect(
+      db.select().from(ranked).innerJoin(workflowTable, {}).orderBy(ranked.id)
+    ).resolves.toEqual([{ id: 'selected' }])
+    await expect(db.select().from(workflowTable)).resolves.toEqual([])
+  })
+
+  it('keeps independently composed subquery fields and row queues separate', async () => {
+    const workflows = db.select({ name: workflowTable.name }).from(workflowTable).as('workflows')
+    const members = db
+      .selectDistinctOn([memberTable.id], { userId: memberTable.userId })
+      .from(memberTable)
+      .where({})
+      .as('members')
+    expect(Object.keys(workflows)).toEqual(['name'])
+    expect(Object.keys(members)).toEqual(['userId'])
+    expect(workflows.name.table).toBe('workflows')
+    expect(members.userId.table).toBe('members')
+    queueTableRows(workflows, [{ name: 'first' }])
+    queueTableRows(members, [{ userId: 'second' }])
+    await expect(db.select().from(members).orderBy(members.userId)).resolves.toEqual([
+      { userId: 'second' },
+    ])
+    await expect(db.select().from(workflows).orderBy(workflows.name)).resolves.toEqual([
+      { name: 'first' },
+    ])
+  })
+
   it('prefers the from-table queue over a join-table queue', async () => {
     queueTableRows(workflowTable, [{ id: 'from-row' }])
     queueTableRows(memberTable, [{ id: 'join-row' }])

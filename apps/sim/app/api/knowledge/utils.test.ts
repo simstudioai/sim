@@ -23,6 +23,7 @@ import * as workspacesUtilsModule from '@/lib/workspaces/utils'
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
   ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  ProviderAdmissionTimeoutError: class ProviderAdmissionTimeoutError extends Error {},
   isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
   recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
   waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
@@ -125,10 +126,16 @@ function createTestEmbedding(value: number): number[] {
   return Array.from({ length: TEST_EMBEDDING_DIMENSION }, () => value)
 }
 
-function createEmbeddingResponse(values: number[]): Response {
+function createEmbeddingResponse(values: number[], encoding: 'base64' | 'float'): Response {
   return new Response(
     JSON.stringify({
-      data: values.map((value, index) => ({ embedding: createTestEmbedding(value), index })),
+      data: values.map((value, index) => ({
+        embedding:
+          encoding === 'base64'
+            ? Buffer.from(new Float32Array(createTestEmbedding(value)).buffer).toString('base64')
+            : createTestEmbedding(value),
+        index,
+      })),
       usage: { prompt_tokens: values.length, total_tokens: values.length },
     }),
     { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -136,7 +143,7 @@ function createEmbeddingResponse(values: number[]): Response {
 }
 
 function createEmbeddingFetchMock() {
-  return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3]))
+  return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3], 'base64'))
 }
 
 vi.stubGlobal('fetch', createEmbeddingFetchMock())
@@ -286,7 +293,7 @@ describe('Knowledge Utils', () => {
       })
 
       const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
+      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1], 'float'))
 
       await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
 
@@ -310,7 +317,7 @@ describe('Knowledge Utils', () => {
       })
 
       const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
+      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1], 'base64'))
 
       await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
 

@@ -21,6 +21,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
   ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  ProviderAdmissionTimeoutError: class ProviderAdmissionTimeoutError extends Error {},
   isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
   recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
   waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
@@ -105,18 +106,23 @@ function makeResult(id: string, distance = 0.1): SearchResult {
   }
 }
 
-const TEST_EMBEDDING = [0.1, 0.2, 0.3, ...Array.from({ length: 1533 }, () => 0)]
+const TEST_EMBEDDING = [0.1, 0.2, 0.3, ...Array.from({ length: 1533 }, () => 0)].map(Math.fround)
 
 function mockNextEmbeddingResponse(): void {
-  vi.mocked(fetch).mockResolvedValueOnce(
-    new Response(
+  vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+    const request = JSON.parse(String(init?.body))
+    const embedding =
+      request.encoding_format === 'base64'
+        ? Buffer.from(new Float32Array(TEST_EMBEDDING).buffer).toString('base64')
+        : TEST_EMBEDDING
+    return new Response(
       JSON.stringify({
-        data: [{ embedding: TEST_EMBEDDING, index: 0 }],
+        data: [{ embedding, index: 0 }],
         usage: { prompt_tokens: 1, total_tokens: 1 },
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
-  )
+  })
 }
 
 describe('Knowledge Search Utils', () => {
@@ -220,7 +226,8 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((row) => row.id)).toEqual(['first', 'second'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
       expect(dbChainMockFns.select.mock.calls[0][0]).toHaveProperty('distance')
       expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
     })
@@ -541,7 +548,8 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id)).toEqual(['vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
@@ -565,7 +573,7 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(4)
     })
 
     it('falls back to vector results when the keyword leg fails', async () => {
@@ -830,7 +838,7 @@ describe('Knowledge Search Utils', () => {
           body: JSON.stringify({
             input: ['test query'],
             model: 'text-embedding-3-small',
-            encoding_format: 'float',
+            encoding_format: 'base64',
             dimensions: 1536,
           }),
         })
@@ -860,7 +868,7 @@ describe('Knowledge Search Utils', () => {
           body: JSON.stringify({
             input: ['prefix {{TOKEN}} suffix'],
             model: 'text-embedding-3-small',
-            encoding_format: 'float',
+            encoding_format: 'base64',
             dimensions: 1536,
           }),
         })

@@ -47,14 +47,17 @@ import {
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import {
+  type ActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReference,
+} from '@/lib/knowledge/service'
 import {
   type KnowledgeTagNameFilter,
   resolveKnowledgeTagFilters,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
-import type { KnowledgeBaseWithCounts, StructuredFilter } from '@/lib/knowledge/types'
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
@@ -111,7 +114,7 @@ export interface SearchKnowledgeInput {
 }
 
 type KnowledgeSearchContext = KnowledgeResourceContext & {
-  knowledgeBases: KnowledgeBaseWithCounts[]
+  knowledgeBases: ActiveKnowledgeBaseReference[]
   /** What the caller may read across the searched bases; resolved from the principal, never from input. */
   access: KnowledgeAccessProvider
 }
@@ -186,7 +189,9 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
-  const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
+  const knowledgeBases = await Promise.all(
+    input.knowledgeBaseIds.map(getActiveKnowledgeBaseReference)
+  )
   const missingIds = input.knowledgeBaseIds.filter((_, index) => {
     const knowledgeBase = knowledgeBases[index]
     return !knowledgeBase || (!knowledgeBase.workspaceId && !knowledgeBase.organizationId)
@@ -223,7 +228,7 @@ async function resolveKnowledgeSearchContext(
     })
     return {
       ...context,
-      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+      knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
       access: createKnowledgeAccessProvider(principal, context),
     }
   }
@@ -235,7 +240,7 @@ async function resolveKnowledgeSearchContext(
   })
   return {
     ...workspaceContext,
-    knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+    knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
     access: createKnowledgeAccessProvider(principal, { workspaceId: canonicalWorkspaceId }),
   }
 }

@@ -47,6 +47,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mocks.resolveBilling,
   resolveSystemBillingAttribution: mocks.resolveBilling,
+  resolveOrganizationBillingAttribution: mocks.resolveBilling,
   checkAttributedUsageLimits: mocks.checkUsage,
 }))
 
@@ -71,7 +72,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: mocks.getKnowledgeBase,
+  getActiveKnowledgeBaseReference: mocks.getKnowledgeBase,
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -119,6 +120,7 @@ const knowledgeBase = {
 describe('knowledge search application use case', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.rerank.mockReset()
     resetDbChainMock()
     mocks.requireOrganizationSearch.mockResolvedValue(undefined)
     mocks.resolveOrganization.mockResolvedValue({
@@ -183,6 +185,68 @@ describe('knowledge search application use case', () => {
     })
     expect(result.results).toEqual([])
     expect(result.totalResults).toBe(0)
+  })
+
+  describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {
+    beforeEach(() => {
+      if (scope === 'organization') {
+        mocks.getKnowledgeBase.mockResolvedValue({
+          ...knowledgeBase,
+          workspaceId: null,
+          organizationId: 'org-canonical',
+          isSearchIndex: true,
+        })
+        queueTableRows(member, [{ role: 'member' }])
+      }
+    })
+
+    const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+    const input = { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10 }
+
+    it.each([undefined, false])(
+      'preserves retrieval without reranking when enabled is %s',
+      async (rerankerEnabled) => {
+        const result = await searchKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            ...(rerankerEnabled === undefined ? {} : { rerankerEnabled }),
+          },
+        })
+
+        expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 10 }))
+        expect(mocks.rerank).not.toHaveBeenCalled()
+        expect(mocks.importProvenance).not.toHaveBeenCalled()
+        expect(result.rerankerStatus).toBe('not_requested')
+        expect(result.cost?.rerankerSearchUnits).toBeUndefined()
+        expect(result.results[0]).toMatchObject({ embeddingId: 'embedding-1', content: 'answer' })
+      }
+    )
+
+    it('preserves the existing explicit reranking option', async () => {
+      mocks.rerank.mockResolvedValueOnce({
+        results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.9 }],
+        isBYOK: false,
+      })
+
+      const result = await searchKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-pro',
+          rerankerInputCount: 20,
+        },
+      })
+
+      expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }))
+      expect(mocks.rerank).toHaveBeenCalledWith(
+        'answer',
+        [{ id: 'embedding-1', text: 'answer' }],
+        expect.objectContaining({ model: 'rerank-v4.0-pro', topN: 10 })
+      )
+      expect(result.rerankerStatus).toBe('applied')
+    })
   })
 
   it('gates organization search using the persisted owner even when the request omits it', async () => {

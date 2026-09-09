@@ -227,6 +227,7 @@ const offset = chainSpy()
 const orderBy = chainSpy()
 const groupBy = chainSpy()
 const having = chainSpy()
+const asAlias = chainSpy()
 const forClause = chainSpy()
 const innerJoin = chainSpy()
 const leftJoin = chainSpy()
@@ -266,6 +267,17 @@ const chainRowsSupplier = (tables: unknown[]): RowsSupplier => {
 
 const noRows: RowsSupplier = () => null
 
+type SelectedFields = Record<string, unknown>
+
+/** Exposes selected fields as distinct, qualified columns without executing the subquery. */
+const subqueryFields = (fields: SelectedFields, alias: string) =>
+  Object.fromEntries(
+    Object.entries(fields).map(([name, field]) => [
+      name,
+      { type: 'subquery-column', table: alias, name, field },
+    ])
+  )
+
 /** An awaitable chain step that resolves `getRows()` only when actually awaited. */
 const lazyRowsThenable = (getRows: RowsSupplier): any => ({
   then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
@@ -279,41 +291,49 @@ const lazyRowsThenable = (getRows: RowsSupplier): any => ({
 // `.limit()` returns a builder that is awaitable and also exposes `.offset()`
 // for keyset/OFFSET paging (`.limit(n).offset(m)`) and `.for()` for drizzle's
 // `.limit(1).for('update')` row-lock form.
-const limitBuilder = (getRows: RowsSupplier) => {
+const limitBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}) => {
   const thenable = lazyRowsThenable(getRows)
   thenable.offset = spyOrDefault(offset, () => lazyRowsThenable(getRows))
-  thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows))
+  thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows, fields))
+  thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   return thenable
 }
 
-const terminalBuilder = (getRows: RowsSupplier): any => {
+const terminalBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}): any => {
   const thenable = lazyRowsThenable(getRows)
-  thenable.limit = spyOrDefault(limit, () => limitBuilder(getRows))
-  thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows))
+  thenable.limit = spyOrDefault(limit, () => limitBuilder(getRows, fields))
+  thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   thenable.returning = returning
   thenable.groupBy = spyOrDefault(groupBy, () => {
-    const builder = terminalBuilder(getRows)
-    builder.having = spyOrDefault(having, () => terminalBuilder(getRows))
+    const builder = terminalBuilder(getRows, fields)
+    builder.having = spyOrDefault(having, () => terminalBuilder(getRows, fields))
     return builder
   })
-  thenable.for = spyOrDefault(forClause, () => terminalBuilder(getRows))
+  thenable.for = spyOrDefault(forClause, () => terminalBuilder(getRows, fields))
   return thenable
 }
 
 // The from/join builder is itself a thenable so `await db.select().from(t)`
 // (no where clause) also resolves table-routed rows; the chain's single lazy
 // supplier means it never double-consumes no matter which step is awaited.
-const joinBuilder = (tables: unknown[]): any => {
+const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   const getRows = chainRowsSupplier(tables)
   const builder = lazyRowsThenable(getRows)
-  builder.where = spyOrDefault(where, () => terminalBuilder(getRows))
-  builder.innerJoin = spyOrDefault(innerJoin, (table: unknown) => joinBuilder([...tables, table]))
-  builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) => joinBuilder([...tables, table]))
+  builder.where = spyOrDefault(where, () => terminalBuilder(getRows, fields))
+  builder.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  builder.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
+  builder.innerJoin = spyOrDefault(innerJoin, (table: unknown) =>
+    joinBuilder([...tables, table], fields)
+  )
+  builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) =>
+    joinBuilder([...tables, table], fields)
+  )
   return builder
 }
 
-const selectBuilder = () => ({
-  from: spyOrDefault(from, (table: unknown) => joinBuilder([table])),
+const selectBuilder = (fields: SelectedFields = {}) => ({
+  from: spyOrDefault(from, (table: unknown) => joinBuilder([table], fields)),
 })
 
 // Mutation chains route nothing: their where() resolves the plain default so a
@@ -336,6 +356,7 @@ export const dbChainMockFns = {
   leftJoin,
   groupBy,
   having,
+  as: asAlias,
   execute,
   for: forClause,
   insert,
@@ -387,7 +408,7 @@ export function resetDbChainMock(): void {
 const dbInstance = {
   select: spyOrDefault(select, selectBuilder),
   selectDistinct: spyOrDefault(selectDistinct, selectBuilder),
-  selectDistinctOn: spyOrDefault(selectDistinctOn, selectBuilder),
+  selectDistinctOn: spyOrDefault(selectDistinctOn, (_on, fields) => selectBuilder(fields)),
   insert: spyOrDefault(insert, () => ({ values })),
   update: spyOrDefault(update, () => ({ set: spyOrDefault(set, mutationWhere) })),
   delete: spyOrDefault(del, mutationWhere),
