@@ -14,6 +14,8 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
+import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
+import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
@@ -22,7 +24,10 @@ import {
   createTurnModel,
   reduceEvent,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
-import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
+import {
+  contentBlocksToModel,
+  modelToContentBlocks,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
 import {
   assistantMessageHasVisibleExecutingTool,
@@ -100,6 +105,103 @@ function toolEnvelope(
     },
   } as PersistedStreamEventEnvelope
 }
+
+describe('async agent display names', () => {
+  const agentId = 'review-report-validatio-1'
+  const displayName = 'Review report validation'
+  const launch: ContentBlock = {
+    type: 'tool_call',
+    timestamp: 1,
+    toolCall: {
+      id: 'launch',
+      name: 'workflow',
+      status: 'success',
+      result: {
+        success: true,
+        output: { async: true, status: 'launched', agentId, name: displayName },
+      },
+    },
+  }
+  const wait: ContentBlock = {
+    type: 'tool_call',
+    timestamp: 2,
+    toolCall: {
+      id: 'wait',
+      name: 'wait_agents',
+      status: 'executing',
+      params: { agent_ids: [agentId, 'other-agent-2'] },
+      displayTitle: 'Waiting for Review Report Validatio + 1',
+    },
+  }
+  const waitTitle = (blocks: ContentBlock[]) =>
+    parseBlocks(blocks)
+      .flatMap((segment) => (segment.type === 'agent_group' ? segment.items : []))
+      .find((item) => item.type === 'tool' && item.data.id === 'wait')
+
+  it.each([false, true])(
+    'resolves launch names in live and reloaded traces (spans: %s)',
+    (spans) => {
+      const blocks = [
+        launch,
+        ...(spans ? [subagentStart('research', 'research-span', 'main')] : []),
+        wait,
+      ]
+      const original = structuredClone(blocks)
+      expect(waitTitle([wait])).toMatchObject({
+        data: { displayTitle: wait.toolCall?.displayTitle },
+      })
+      const expected = { data: { displayTitle: 'Waiting for Review report validation + 1' } }
+      expect(waitTitle(blocks)).toMatchObject(expected)
+      expect(waitTitle(modelToContentBlocks(contentBlocksToModel(blocks)))).toMatchObject(expected)
+      const saved: PersistedMessage = {
+        id: 'message',
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(0).toISOString(),
+        contentBlocks: blocks
+          .filter((block) => block.toolCall)
+          .map((block) => ({
+            type: 'tool',
+            phase: 'call',
+            toolCall: {
+              id: block.toolCall!.id,
+              name: block.toolCall!.name,
+              state: block.toolCall!.status,
+              params: block.toolCall!.params,
+              result: block.toolCall!.result,
+              display: { title: block.toolCall!.displayTitle },
+            },
+            ...(spans ? { spanId: 'main' } : {}),
+          })),
+      }
+      expect(
+        waitTitle(toDisplayMessage(stripToolResultOutput(saved)).contentBlocks ?? [])
+      ).toMatchObject(expected)
+      expect(blocks).toEqual(original)
+      expect(waitTitle([wait])).toMatchObject({
+        data: { displayTitle: wait.toolCall?.displayTitle },
+      })
+    }
+  )
+
+  it('ignores unrelated, failed, malformed and unnamed launch results', () => {
+    for (const patch of [
+      { name: 'call_integration_tool' },
+      { result: { success: false, output: launch.toolCall?.result?.output } },
+      { result: { success: true, output: { async: true, agentId, name: displayName } } },
+      {
+        result: { success: true, output: { async: true, status: 'launched', agentId, name: ' ' } },
+      },
+      { result: { success: true, output: null } },
+    ]) {
+      const invalid = structuredClone(launch)
+      Object.assign(invalid.toolCall!, patch)
+      expect(waitTitle([invalid, wait])).toMatchObject({
+        data: { displayTitle: wait.toolCall?.displayTitle },
+      })
+    }
+  })
+})
 
 describe('getOrchestratorMessageText', () => {
   it('copies only orchestrator text from span-based messages', () => {

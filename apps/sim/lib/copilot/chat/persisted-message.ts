@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { compactAsyncAgentLaunch } from '@/lib/copilot/chat/async-agent-display'
 import { compactRetrievalCitations } from '@/lib/copilot/chat/retrieval-citations'
 import {
   mergeAndRedactPersistedBlocks,
@@ -132,9 +133,9 @@ export interface PersistedMessage {
 }
 
 /**
- * Drop persisted tool outputs, keeping `success` and `error`. The one narrow
- * UI-state exceptions are bounded retrieval citations and a browser takeover's user-authored instruction, which
- * restores its answered question recap after reload. Other outputs are never
+ * Drop persisted tool outputs, keeping `success` and `error`. Narrow UI-state
+ * exceptions retain bounded retrieval citations, async agent launch names, and
+ * a browser takeover's user-authored instruction for display after reload. Other outputs are never
  * rendered or replayed to the model (the upstream service owns conversation
  * memory), so storing them only bloats
  * `copilot_messages.content` — a single `get_workflow_logs`/`run_workflow`
@@ -154,6 +155,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
     const citations = result.success ? compactRetrievalCitations(toolCall.name, output) : undefined
+    const agentLaunch = result.success ? compactAsyncAgentLaunch(toolCall.name, output) : undefined
     const userInstruction =
       toolCall.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && isPlainRecord(output)
         ? output.userInstruction
@@ -171,6 +173,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const strippedResult: { success: boolean; output?: unknown; error?: string } = {
       success: result.success,
       ...(citations ? { output: citations } : {}),
+      ...(agentLaunch ? { output: agentLaunch } : {}),
       ...(normalizedInstruction ? { output: { userInstruction: normalizedInstruction } } : {}),
     }
     if (result.error !== undefined) strippedResult.error = result.error
