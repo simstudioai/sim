@@ -806,6 +806,7 @@
   ],
   "patchedDependencies": {
     "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch",
+    "postgres@3.4.9": "patches/postgres@3.4.9.patch",
   },
   "overrides": {
     "@hono/node-server": "1.19.15",

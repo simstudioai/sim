@@ -429,7 +429,7 @@ describe('recordCumulativeUsage', () => {
     })
   })
 
-  it('bounds the advisory-lock wait and locks on the 64-bit event-key hash', async () => {
+  it('bounds the holder lifetime and lock wait before acquiring the event-key lock', async () => {
     const { tx } = setupTx({ id: 'row-1', cost: '0.3474447' })
     await recordCumulativeUsage({
       userId: 'user-1',
@@ -438,7 +438,10 @@ describe('recordCumulativeUsage', () => {
       cost: 0.4662453,
       eventKey: 'update-cost:msg-1-billing',
     })
+    expect(executedSqlContaining(tx, 'transaction_timeout')).toBe(true)
+    expect(executedSqlContaining(tx, 'statement_timeout')).toBe(true)
     expect(executedSqlContaining(tx, 'lock_timeout')).toBe(true)
+    expect(tx.execute.mock.calls[0][0]).toMatchObject({ values: ['4000ms', '3500ms', '3000ms'] })
     expect(executedSqlContaining(tx, 'pg_advisory_xact_lock')).toBe(true)
     expect(executedSqlContaining(tx, 'hashtextextended')).toBe(true)
   })

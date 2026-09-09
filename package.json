@@ -186,6 +186,7 @@
     "sharp"
   ],
   "patchedDependencies": {
-    "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch"
+    "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch",
+    "postgres@3.4.9": "patches/postgres@3.4.9.patch"
   }
 }
