@@ -57,19 +57,6 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.chart {
-  height: 28px;
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  margin: 10px 0 5px;
-}
-.bar {
-  flex: 1;
-  min-width: 0;
-  border-radius: 2px;
-  background: var(--text-secondary);
-}
 .runsHeading {
   display: flex;
   align-items: center;
@@ -157,10 +144,6 @@
   .stat strong {
     font-size: 13px;
   }
-  .chart {
-    height: 24px;
-    margin-top: 6px;
-  }
   .runsHeading {
     padding-block: 6px;
   }
@@ -220,9 +203,6 @@
   }
   .overview {
     padding-block: 6px;
-  }
-  .chart {
-    height: 20px;
   }
   .runsHeading {
     padding-block: 4px;
