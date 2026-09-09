@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
-import { getAccountSettingsHref } from '@/components/settings/navigation'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -129,15 +128,16 @@ export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegr
       description='Connect your tools for Sim Search'
       tabs={TABS}
       action={
-        <div className='flex flex-wrap items-center gap-2'>
-          <ChipLink href={getAccountSettingsHref('connected-accounts')}>Your accounts</ChipLink>
-          {viewer.isAdmin && (
-            <ChipLink href={routes.settingsSection('integrations')}>Manage sources</ChipLink>
-          )}
-          {slackOnboarding && (
-            <SlackSearchActions organizationId={organization.id} {...slackOnboarding} />
-          )}
-        </div>
+        (viewer.isAdmin || slackOnboarding) && (
+          <div className='flex flex-wrap items-center gap-2 empty:hidden'>
+            {viewer.isAdmin && (
+              <ChipLink href={routes.settingsSection('integrations')}>Manage sources</ChipLink>
+            )}
+            {slackOnboarding && (
+              <SlackSearchActions organizationId={organization.id} {...slackOnboarding} />
+            )}
+          </div>
+        )
       }
     >
       <div className={RESOURCE_LIST_STACK}>

@@ -166,7 +166,7 @@ describe('organization integrations role and source paths', () => {
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
   })
 
-  it('keeps Slack return actions alongside the standard account and source actions', async () => {
+  it('keeps Slack return actions alongside source management', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
@@ -177,7 +177,7 @@ describe('organization integrations role and source paths', () => {
         <OrganizationIntegrations slackOnboarding={{ token: 'slack-return', userId: 'member' }} />
       )
     )
-    expect(document.body.textContent).toContain('Your accounts')
+    expect(document.body.textContent).not.toContain('Your accounts')
     expect(document.body.textContent).toContain('Manage sources')
     expect(buttons('slack-return')).toHaveLength(1)
   })
@@ -353,7 +353,7 @@ describe('organization integrations role and source paths', () => {
     expect(
       document.querySelector('a[href="/o/organization-a/settings/integrations"]')
     ).toHaveTextContent('Manage sources')
-    expect(document.querySelector('a[href="/account/settings/connected-accounts"]')).not.toBeNull()
+    expect(document.querySelector('a[href="/account/settings/connected-accounts"]')).toBeNull()
     expect(buttons('Add source')).toHaveLength(0)
     expect(buttons('Manage')).toHaveLength(0)
     expect(document.querySelector('[aria-label$="source actions"]')).toBeNull()
