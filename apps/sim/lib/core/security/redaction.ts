@@ -449,6 +449,28 @@ export function isLargeDataKey(key: string): boolean {
   return LARGE_DATA_KEYS.has(key)
 }
 
+/** Redacts supported HTTP header representations without changing the source values. */
+function redactHeaders(headers: unknown): unknown {
+  const redacted = redactApiKeys(headers)
+  const isSensitiveHeader = (name: string) =>
+    isSensitiveKey(name) || /^(?:set-)?cookie$/i.test(name)
+
+  if (Array.isArray(redacted)) {
+    for (const row of redacted) {
+      const cells = row?.cells
+      if (cells && typeof cells.Key === 'string' && isSensitiveHeader(cells.Key)) {
+        if (Object.hasOwn(cells, 'Value')) cells.Value = REDACTED_MARKER
+      }
+    }
+  } else if (redacted && typeof redacted === 'object') {
+    for (const name of Object.keys(redacted)) {
+      if (isSensitiveHeader(name)) redacted[name] = REDACTED_MARKER
+    }
+  }
+
+  return redacted
+}
+
 export function redactApiKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj
@@ -482,6 +504,8 @@ export function redactApiKeys(obj: any): any {
       result[key] = REDACTED_MARKER
     } else if (isLargeDataKey(key) && typeof value === 'string') {
       result[key] = TRUNCATED_MARKER
+    } else if (key.toLowerCase() === 'headers') {
+      result[key] = redactHeaders(value)
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactApiKeys(value)
     } else {

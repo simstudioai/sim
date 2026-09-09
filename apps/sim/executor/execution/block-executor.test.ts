@@ -94,6 +94,53 @@ describe('BlockExecutor', () => {
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
+  it.each([false, true])(
+    'redacts header diagnostics while preserving execution values (stringified: %s)',
+    async (stringified) => {
+      const headers = [
+        { cells: { Key: 'aUtHoRiZaTiOn', Value: 'synthetic-header-value' } },
+        { cells: { Key: 'Accept', Value: 'application/json' } },
+      ]
+      const block = createBlock()
+      block.metadata = { id: BlockType.API, name: 'API' }
+      block.config.params = { headers: stringified ? JSON.stringify(headers) : headers }
+      const originalBlock = structuredClone(block)
+      const workflow: SerializedWorkflow = {
+        version: '1',
+        blocks: [block],
+        connections: [],
+        loops: {},
+        parallels: {},
+      }
+      const state = new ExecutionState()
+      const resolver = new VariableResolver(workflow, {}, state)
+      const onBlockComplete = vi.fn(async () => {})
+      const handler: BlockHandler = {
+        canHandle: () => true,
+        execute: async (_ctx, _block, inputs) => {
+          expect(inputs.headers).toEqual(block.config.params.headers)
+          return { headers }
+        },
+      }
+      const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
+      const ctx = createContext(state)
+
+      await executor.execute(ctx, createNode(block), block)
+      await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+      const displayInput = {
+        headers: [
+          { cells: { Key: 'aUtHoRiZaTiOn', Value: '[REDACTED]' } },
+          { cells: { Key: 'Accept', Value: 'application/json' } },
+        ],
+      }
+      expect(ctx.blockLogs[0]?.input).toEqual(displayInput)
+      expect(onBlockComplete.mock.calls[0]?.[3]?.input).toEqual(displayInput)
+      expect(state.getBlockOutput(block.id)).toEqual({ headers })
+      expect(block).toEqual(originalBlock)
+    }
+  )
+
   it('persists function output arrays as manifests in execution state', async () => {
     const block = createBlock()
     const workflow: SerializedWorkflow = {
