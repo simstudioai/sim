@@ -9,11 +9,13 @@
  * checks flag policy, stale-snapshot reporting, and write-event attribution without a database.
  */
 import { userTableRows } from '@sim/db/schema'
+import { loggingSessionMock } from '@sim/testing'
 import { eq, sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
+import { createWorkflowCellProgressWriter } from '@/lib/table/cell-write'
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   getTableSnapshotModelMountSafety,
@@ -22,13 +24,18 @@ import {
   updateTableRowsWithDerivedSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
+import type { ExecutionCallbacks } from '@/executor/execution/types'
 
-const { database, mockIsEnforced, mockReport, mockError } = vi.hoisted(() => ({
-  database: { current: undefined as PostgresJsDatabase | undefined },
-  mockIsEnforced: vi.fn(() => false),
-  mockReport: vi.fn(),
-  mockError: vi.fn(),
-}))
+const { database, mockIsEnforced, mockReport, mockError, mockExecuteWorkflowCore } = vi.hoisted(
+  () => ({
+    database: { current: undefined as PostgresJsDatabase | undefined },
+    mockIsEnforced: vi.fn(() => false),
+    mockReport: vi.fn(),
+    mockError: vi.fn(),
+    mockExecuteWorkflowCore: vi.fn(),
+  })
+)
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
@@ -41,7 +48,19 @@ vi.mock('@sim/db', () => ({
   },
 }))
 vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn() }),
+  createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
+}))
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn(async () => ({ decrypted: 'secret-value' })),
+}))
+vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/workflows/executor/execution-core', () => ({
+  executeWorkflowCore: mockExecuteWorkflowCore,
+}))
+vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
+  handlePostExecutionPauseState: vi.fn(),
 }))
 vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
   isDurableSecretProvenanceEnforced: mockIsEnforced,
@@ -169,6 +188,137 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   afterAll(async () => {
     await connection?.end()
   })
+
+  it.each(['exact', 'unknown', 'legacy'] as const)(
+    'persists executor callback provenance across a retried partial write over a %s row',
+    async (baseStatus) => {
+      if (!connection || !database.current) throw new Error('PostgreSQL fixture unavailable')
+      await insertRow({
+        version: baseStatus === 'legacy' ? null : 1,
+        ...(baseStatus === 'legacy' ? {} : { status: baseStatus }),
+      })
+      const onWriteError = vi.fn()
+      let rejectFirstWrite = true
+      const writer = createWorkflowCellProgressWriter({
+        group: {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [
+            { blockId: 'secret', path: 'output.value', columnName: 'derived' },
+            { blockId: 'public', path: 'value', columnName: 'public' },
+          ],
+        },
+        onWriteError,
+        writeProgress: async ({ dataPatch, secretProvenance }) => {
+          if (!dataPatch || !secretProvenance || !database.current)
+            throw new Error('Missing progress data')
+          if (rejectFirstWrite) {
+            rejectFirstWrite = false
+            throw new Error('Retryable write failure')
+          }
+          await database.current.transaction(async (tx) => {
+            await mutateTableRowsWithSecretProvenance(tx as DbTransaction, {
+              rows: [{ rowId: 'row-1', provenance: secretProvenance }],
+              rowState: 'existing',
+              mode: 'merge',
+              mutate: async () => {
+                await tx.execute(
+                  sql`UPDATE user_table_rows SET data = data || ${JSON.stringify(dataPatch)}::jsonb WHERE id = 'row-1'`
+                )
+                return { value: undefined, affectedRowIds: ['row-1'] }
+              },
+            })
+          })
+          return 'wrote'
+        },
+      })
+      mockExecuteWorkflowCore.mockImplementationOnce(
+        async ({ callbacks }: { callbacks: ExecutionCallbacks }) => {
+          for (const blockId of ['secret', 'public']) {
+            await callbacks.onBlockComplete?.(blockId, blockId, 'function', {
+              output:
+                blockId === 'secret'
+                  ? { output: { value: 'secret-value' } }
+                  : { value: 'public-value' },
+              resolvedSecretTraceProvenance: {
+                version: 1,
+                complete: true,
+                entries:
+                  blockId === 'secret'
+                    ? [{ encryptedValue: 'encrypted-secret', name: 'SECRET' }]
+                    : [],
+                scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+              },
+              executionTime: 1,
+              executionOrder: 0,
+              startedAt: updatedAt.toISOString(),
+              endedAt: updatedAt.toISOString(),
+            })
+            await writer.waitForPendingWrites()
+          }
+          return {
+            success: true,
+            output: {},
+            logs: [],
+            status: 'completed',
+            metadata: { duration: 1 },
+          }
+        }
+      )
+      await executeWorkflow(
+        { id: 'workflow-1', userId: 'user-1', workspaceId: 'workspace-1' },
+        'request-1',
+        {},
+        'user-1',
+        {
+          enabled: true,
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          billingAttribution: {
+            actorUserId: 'user-1',
+            workspaceId: 'workspace-1',
+            organizationId: null,
+            billedAccountUserId: 'user-1',
+            billingEntity: { type: 'user', id: 'user-1' },
+            billingPeriod: { start: '2026-01-01T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z' },
+            payerSubscription: null,
+          },
+          onBlockComplete: writer.onBlockComplete,
+        }
+      )
+      await writer.finish()
+      expect(onWriteError).toHaveBeenCalledOnce()
+      const rows = await connection`
+        SELECT r.data, r.secret_provenance_version AS version, p.status, p.entries,
+          p.content_updated_at = r.updated_at AS current
+        FROM user_table_rows r JOIN user_table_row_secret_provenance p ON p.row_id = r.id WHERE r.id = 'row-1'
+      `
+      expect(rows).toEqual([
+        {
+          data: {
+            retained: 'value',
+            removed: 'other',
+            derived: 'secret-value',
+            public: 'public-value',
+          },
+          version: 1,
+          status: baseStatus === 'unknown' ? 'unknown' : 'exact',
+          entries:
+            baseStatus === 'unknown'
+              ? []
+              : [
+                  {
+                    columnId: 'derived',
+                    encryptedValue: 'encrypted-secret',
+                    name: 'SECRET',
+                    sourceUserId: 'user-1',
+                    sourceWorkspaceId: 'workspace-1',
+                  },
+                ],
+          current: true,
+        },
+      ])
+    }
+  )
 
   it.each([
     { name: 'missing sidecar', fixture: {}, unrecorded: true },

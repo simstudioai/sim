@@ -3,7 +3,7 @@ import { tableRowExecutions, userTableRows, workflowExecutionLogs } from '@sim/d
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
@@ -20,7 +20,6 @@ import {
   markTableJobRunning,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
-import { pluckByPath } from '@/lib/table/pluck'
 import { createTableRowSecretProvenanceFromRegistry } from '@/lib/table/rows/secret-provenance'
 import { batchUpdateRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -231,7 +230,7 @@ async function processBackfillPage(opts: {
       if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
       const functionalOutput = getFunctionalBlockOutput(log.data, out.blockId)
       if (functionalOutput === undefined) continue
-      const picked = pluckByPath(functionalOutput, out.path)
+      const picked = getValueAtPath(functionalOutput, out.path)
       if (picked === undefined) continue
       dataPatch[out.columnName] = picked as RowData[string]
       mutated = true

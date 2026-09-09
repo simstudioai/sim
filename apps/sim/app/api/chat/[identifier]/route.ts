@@ -414,7 +414,8 @@ export const POST = withRouteHandler(
                 isSecureMode: true,
                 workflowTriggerType: 'chat',
                 onStream,
-                onBlockComplete,
+                onBlockComplete: (blockId, data) =>
+                  onBlockComplete(blockId, data.output, data.outputBlockId),
                 skipLoggingComplete: true,
                 abortSignal,
                 executionMode: 'stream',

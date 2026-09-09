@@ -5,6 +5,8 @@ import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionCallbacks } from '@/executor/execution/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
   captureServerEventMock,
@@ -55,6 +57,15 @@ vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: handlePostExecutionPauseStateMock,
 }))
 
+vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn(async (value: string) => {
+    if (value !== 'encrypted-secret') throw new Error('Invalid ciphertext')
+    return { decrypted: 'secret-value' }
+  }),
+}))
+
+import { createWorkflowCellProgressWriter } from '@/lib/table/cell-write'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { hasExecutionResult } from '@/executor/utils/errors'
 
@@ -234,6 +245,72 @@ describe('executeWorkflow', () => {
       expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
     )
   })
+
+  it.each([
+    ['secret-bearing', { complete: true, entries: [{ encryptedValue: 'encrypted-secret' }] }, true],
+    ['exact-empty', { complete: true, entries: [] }, true],
+    ['incomplete', { complete: false, entries: [] }, false],
+    ['undecryptable', { complete: true, entries: [{ encryptedValue: 'invalid' }] }, false],
+    ['legacy', undefined, false],
+  ] as const)(
+    'preserves %s provenance through the executor callback into table cells',
+    async (_kind, source, complete) => {
+      const provenance: ResolvedSecretTraceProvenanceV1 | undefined = source && {
+        version: 1,
+        complete: source.complete,
+        entries: [...source.entries],
+        scope: { userId: 'actor-1', workspaceId: 'workspace-1' },
+      }
+      const writeProgress = vi.fn().mockResolvedValue('wrote')
+      const writer = createWorkflowCellProgressWriter({
+        group: {
+          id: 'group-1',
+          workflowId: workflow.id,
+          outputs: [{ blockId: 'block-1', path: 'output.value', columnName: 'column-1' }],
+        },
+        writeProgress,
+        onWriteError: (error) => {
+          throw error
+        },
+      })
+      executeWorkflowCoreMock.mockImplementationOnce(
+        async ({ callbacks }: { callbacks: ExecutionCallbacks }) => {
+          await callbacks.onBlockComplete?.('block-1', 'Block', 'function', {
+            output: { output: { value: 'secret-value' } },
+            resolvedSecretTraceProvenance: provenance,
+            executionTime: 1,
+            startedAt: '2026-01-01T00:00:00Z',
+            endedAt: '2026-01-01T00:00:01Z',
+            executionOrder: 0,
+          })
+          return {
+            success: true,
+            output: {},
+            logs: [],
+            status: 'completed',
+            metadata: { duration: 1 },
+          }
+        }
+      )
+
+      await executeWorkflow(workflow, 'request-1', {}, 'actor-1', {
+        enabled: true,
+        principal,
+        billingAttribution,
+        onBlockComplete: writer.onBlockComplete,
+      })
+      await writer.finish()
+
+      expect(writer.getEventOutputs()).toEqual({ 'column-1': 'secret-value' })
+      expect(writer.getPendingDataPatch()).toEqual({})
+      expect(writeProgress).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dataPatch: { 'column-1': 'secret-value' },
+          secretProvenance: { complete, columns: complete ? { 'column-1': provenance } : {} },
+        })
+      )
+    }
+  )
 
   it('forwards a trusted immutable workflow state to the execution snapshot', async () => {
     const workflowStateOverride = {

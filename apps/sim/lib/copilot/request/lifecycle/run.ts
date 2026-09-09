@@ -36,6 +36,10 @@ import {
   runStreamLoop,
   StreamEndedWithoutTerminalError,
 } from '@/lib/copilot/request/go/stream'
+import {
+  createProviderToolCallIdentity,
+  restoreProviderToolCallId,
+} from '@/lib/copilot/request/go/tool-call-identity'
 import { recordDegraded } from '@/lib/copilot/request/metrics'
 import { AbortReason } from '@/lib/copilot/request/session/abort-reason'
 import {
@@ -373,6 +377,10 @@ export async function runCopilotLifecycle(
     executionId: resolvedExecutionId,
     runId: resolvedRunId,
     messageId: payloadMsgId,
+    providerToolCallIdentity:
+      goRoute === '/api/tools/resume'
+        ? undefined
+        : createProviderToolCallIdentity(resolvedRunId ?? generateId()),
     toolPermissions: await resolveToolPermissions(lifecycleOptions),
     ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
   })
@@ -653,6 +661,7 @@ function buildResumeToolResult(
   checkpointId: string | undefined
 ): ResumeToolResult {
   const tool = context.toolCalls.get(toolCallId)
+  const providerToolCallId = restoreProviderToolCallId(toolCallId, context.providerToolCallIdentity)
   if (!tool || !tool.result) {
     recordDegraded(CopilotDegradedReason.MissingToolResult)
     logger.error('Missing tool result for pending tool call; synthesizing a failure', {
@@ -664,14 +673,14 @@ function buildResumeToolResult(
       hasPendingPromise: context.pendingToolPromises.has(toolCallId),
     })
     return {
-      callId: toolCallId,
+      callId: providerToolCallId,
       name: tool?.name || '',
       data: { error: `no result was returned for tool call ${toolCallId}` },
       success: false,
     }
   }
   return {
-    callId: toolCallId,
+    callId: providerToolCallId,
     name: tool.name || '',
     data: getToolCallTerminalData(tool),
     success: requireToolCallStateResult(tool).success,
@@ -1202,11 +1211,7 @@ async function runCheckpointLoop(
                   waitBudgetMs: watchdog.waitBudgetMs,
                 }
               )
-              await forceFailHungToolCall(
-                toolCallId,
-                context,
-                'Tool execution hung on the Sim executor and was abandoned so the conversation could continue.'
-              )
+              await forceFailHungToolCall(toolCallId, context, execContext)
               if (context.pendingToolPromises.get(toolCallId) === watchdog.promise) {
                 context.pendingToolPromises.delete(toolCallId)
               }

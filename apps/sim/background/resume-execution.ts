@@ -14,6 +14,7 @@ import {
   getTimeoutErrorMessage,
 } from '@/lib/core/execution-limits'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
+import type { WorkflowCellProgressWriter } from '@/lib/table/cell-write'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowExecutionMetadata } from '@/lib/table/types'
 import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-result'
@@ -247,7 +248,7 @@ function throwIfResumeAttemptTimedOut(
 }
 
 type CellWriters = {
-  cellOnBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  cellOnBlockComplete: WorkflowCellProgressWriter['onBlockComplete']
   writeCellTerminal: (
     status: 'completed' | 'error' | 'cancelled' | 'paused',
     error: string | null

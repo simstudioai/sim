@@ -604,7 +604,8 @@ export async function executeWorkflowService(
               useDraftState,
               runFromBlock,
               onStream,
-              onBlockComplete,
+              onBlockComplete: (blockId, data) =>
+                onBlockComplete(blockId, data.output, data.outputBlockId),
               skipLoggingComplete: true,
               includeFileBase64,
               base64MaxBytes,

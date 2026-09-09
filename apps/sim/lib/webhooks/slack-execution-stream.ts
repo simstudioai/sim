@@ -1,10 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
-import { pluckByPath } from '@/lib/table/pluck'
 import {
   appendSlackAgentStream,
   formatSlackApiFailure,
@@ -457,7 +456,7 @@ export class SlackExecutionStreamController {
       )
       if (!Object.hasOwn(display, 'output')) return
       const values = selected.flatMap((selection) => {
-        const value = pluckByPath(display.output, selection.path)
+        const value = getValueAtPath(display.output, selection.path)
         return value === undefined ? [] : [{ path: selection.path, value }]
       })
       if (values.length === 0) return

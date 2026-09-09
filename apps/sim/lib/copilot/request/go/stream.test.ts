@@ -86,6 +86,11 @@ import {
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
 } from '@/lib/copilot/request/go/stream'
+import {
+  createProviderToolCallIdentity,
+  PROVIDER_TOOL_CALL_IDENTITY_LIMITS,
+  scopeProviderToolCallId,
+} from '@/lib/copilot/request/go/tool-call-identity'
 import { AbortReason, createEvent, hasAbortMarker } from '@/lib/copilot/request/session'
 import { RequestTraceV1Outcome, TraceCollector } from '@/lib/copilot/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
@@ -180,6 +185,112 @@ describe('copilot go stream helpers', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('terminates the stream on an exhausted identity budget before forwarding later events', async () => {
+    const identity = createProviderToolCallIdentity('exhausted-identity-run')
+    identity.retainedBytes = PROVIDER_TOOL_CALL_IDENTITY_LIMITS.maxRetainedBytes
+    const context = createStreamingContext()
+    context.providerToolCallIdentity = identity
+    const onEvent = vi.fn()
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        createEvent({
+          streamId: 'identity-budget-stream',
+          cursor: '1',
+          requestId: 'identity-budget-request',
+          seq: 1,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'new-call-over-budget',
+            toolName: 'glob',
+            executor: 'client',
+            mode: 'async',
+            arguments: { path: 'files' },
+          },
+        }),
+        createEvent({
+          streamId: 'identity-budget-stream',
+          cursor: '2',
+          requestId: 'identity-budget-request',
+          seq: 2,
+          type: 'complete',
+          payload: { status: 'complete' },
+        }),
+      ])
+    )
+
+    await expect(
+      runStreamLoop('https://example.com/api/mothership', {}, context, turnScopedExecContext(), {
+        timeout: 1000,
+        onEvent,
+      })
+    ).rejects.toThrow('Provider tool call identity budget exceeded')
+    expect(onEvent).not.toHaveBeenCalled()
+    expect(context.completionStatus).toBeUndefined()
+    expect(context.errors).toContain('Provider tool call identity budget exceeded')
+  })
+
+  it('namespaces repeated provider IDs before forwarding and checkpoint handling', async () => {
+    for (const runId of ['stream-identity-run-1', 'stream-identity-run-2']) {
+      const identity = createProviderToolCallIdentity(runId)
+      const context = createStreamingContext()
+      context.providerToolCallIdentity = identity
+      const onEvent = vi.fn()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        createSseResponse([
+          createEvent({
+            streamId: 'identity-stream',
+            cursor: '1',
+            requestId: 'identity-request',
+            seq: 1,
+            type: 'tool',
+            payload: {
+              phase: 'call',
+              toolCallId: 'shared-provider-call',
+              toolName: 'glob',
+              executor: 'client',
+              mode: 'async',
+              arguments: { path: 'files', toolCallId: 'unchanged-user-argument' },
+            },
+          }),
+          createEvent({
+            streamId: 'identity-stream',
+            cursor: '2',
+            requestId: 'identity-request',
+            seq: 2,
+            type: 'run',
+            payload: {
+              kind: 'checkpoint_pause',
+              checkpointId: 'identity-checkpoint',
+              executionId: 'identity-execution',
+              runId: 'provider-run',
+              pendingToolCallIds: ['shared-provider-call'],
+            },
+          }),
+        ])
+      )
+      await runStreamLoop(
+        'https://example.com/api/mothership',
+        {},
+        context,
+        turnScopedExecContext(),
+        { timeout: 1000, onEvent, onBeforeDispatch: (event) => event.type === 'tool' }
+      )
+
+      const canonicalId = scopeProviderToolCallId('shared-provider-call', identity)
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'tool',
+          payload: expect.objectContaining({
+            toolCallId: canonicalId,
+            arguments: { path: 'files', toolCallId: 'unchanged-user-argument' },
+          }),
+        })
+      )
+      expect(context.awaitingAsyncContinuation?.pendingToolCallIds).toEqual([canonicalId])
+    }
   })
 
   it('decodes complete escapes and stops at incomplete unicode escapes', () => {
