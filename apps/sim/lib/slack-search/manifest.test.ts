@@ -38,6 +38,7 @@ describe('Search app manifest', () => {
     )
     expect(manifest.settings.event_subscriptions.bot_events).not.toContain('message.channels')
     expect(manifest.features.app_home.messages_tab_read_only_enabled).toBe(false)
+    expect(manifest.features.app_home.home_tab_enabled).toBe(true)
     expect(manifest.oauth_config.redirect_urls).toHaveLength(3)
     expect(
       manifest.oauth_config.redirect_urls.every((url) => new URL(url).origin === 'https://sim.test')

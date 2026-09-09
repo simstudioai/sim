@@ -7,11 +7,15 @@ import { describe, expect, it } from 'vitest'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 describe('knowledge operation registry', () => {
-  it('limits Slack member delegation to the existing search operation', () => {
+  it('limits Slack member delegation to search and the personalized source list', () => {
     const allowed = Object.values(knowledgeOperations).filter((operation) =>
       operation.organizationOperation.delegatedServices?.includes('slack-search')
     )
-    expect(allowed).toEqual([knowledgeOperations.search])
+    expect(allowed).toEqual([knowledgeOperations.search, knowledgeOperations.listSearchSources])
+    expect(knowledgeOperations.listSearchSources.organizationOperation.delegatedServices).toEqual([
+      'slack-search',
+    ])
+    expect(knowledgeOperations.listSearchSources.principalKinds).toEqual(['session'])
   })
   it('defines unique stable semantic operation IDs', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
@@ -144,12 +148,13 @@ describe('knowledge operation registry', () => {
     }
   })
 
-  it('permits organization delegation only for Copilot reads', () => {
+  it('permits organization delegation only for explicitly delegated reads', () => {
     for (const operation of Object.values(knowledgeOperations)) {
       if (!operation.organizationOperation.principalKinds.includes('organization_delegated'))
         continue
       expect(operation.minimumRole).toBe('read')
-      expect(operation.delegatedServices).toContain('copilot')
+      if (operation !== knowledgeOperations.listSearchSources)
+        expect(operation.delegatedServices).toContain('copilot')
       expect(operation.organizationOperation.delegationAudience).toBe('sim:knowledge')
     }
     expect(knowledgeOperations.search.organizationOperation.principalKinds).toContain(

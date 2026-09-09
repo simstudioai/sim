@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
 import { and, desc, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
@@ -37,12 +38,13 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ListSearchSourcesInput }) =>
     resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context }) {
+    const userId = requirePrincipalSubjectUserId(principal)
     const search = input.search?.trim().toLowerCase() ?? ''
     const connectorType = input.connectorType?.trim()
     const cursorScope = cursorScopeKey(cursorRoute(listSearchSourcesContract), {
       workspaceId: context.workspaceId,
       organizationId: context.organizationId,
-      userId: principal.userId,
+      userId,
       search,
       connectorType: connectorType ?? '',
       mine: input.mine === true,
@@ -109,7 +111,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     const [availability, memberships, viewers, access, approvals] = await Promise.all([
       resolveKnowledgeAccessAvailability(context),
       resolveViewerConnectorMemberships({
-        userId: principal.userId,
+        userId,
         workspaceId: context.workspaceId,
         organizationId: context.organizationId,
         connectors: scanned,
@@ -117,7 +119,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
       db
         .select({ emailVerified: user.emailVerified })
         .from(user)
-        .where(eq(user.id, principal.userId))
+        .where(eq(user.id, userId))
         .limit(1),
       createKnowledgeAccessProvider(principal, context).get(),
       context.organizationId ? listOrganizationSearchApprovals(context.organizationId) : null,
