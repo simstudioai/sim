@@ -421,4 +421,74 @@ describe('FeaturedCustomer touch navigation', () => {
     expect(touch('touchend', 250, 200, 1, 0, previousPreview).defaultPrevented).toBe(true)
     expect(currentStory()).toBe('1 of 2: Rivian')
   })
+
+  describe('wheel navigation', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      Object.defineProperty(rail, 'clientWidth', { value: 390 })
+    })
+
+    function wheel(options: WheelEventInit) {
+      const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...options })
+      act(() => rail.dispatchEvent(event))
+      return event
+    }
+
+    it('accumulates horizontal movement and navigates only once until the gesture ends', () => {
+      wheel({ deltaX: 20, deltaY: 2 })
+      expect(currentStory()).toBe('1 of 2: Rivian')
+      act(() => vi.advanceTimersByTime(20))
+      expect(wheel({ deltaX: 35, deltaY: 3 }).defaultPrevented).toBe(true)
+      expect(currentStory()).toBe('2 of 2: eXp Realty')
+
+      for (let index = 0; index < 5; index += 1) {
+        act(() => vi.advanceTimersByTime(100))
+        wheel({ deltaX: -80 })
+        expect(currentStory()).toBe('2 of 2: eXp Realty')
+      }
+
+      act(() => vi.advanceTimersByTime(250))
+      wheel({ deltaX: -80 })
+      expect(currentStory()).toBe('1 of 2: Rivian')
+      act(() => vi.advanceTimersByTime(250))
+      wheel({ deltaX: -80 })
+      expect(currentStory()).toBe('1 of 2: Rivian')
+    })
+
+    it.each([
+      { deltaY: 80, shiftKey: true },
+      { deltaX: 80, shiftKey: true },
+      { deltaY: 4, deltaMode: 1, shiftKey: true },
+      { deltaY: 1, deltaMode: 2, shiftKey: true },
+    ])('supports horizontal and Shift+wheel deltas: %j', (options) => {
+      expect(wheel(options).defaultPrevented).toBe(true)
+      expect(currentStory()).toBe('2 of 2: eXp Realty')
+    })
+
+    it.each([
+      { deltaY: 120 },
+      { deltaX: 20, deltaY: 120 },
+      { deltaX: 120, ctrlKey: true },
+      { deltaY: 120, ctrlKey: true, shiftKey: true },
+      { deltaX: 120, metaKey: true },
+    ])('preserves browser scrolling and zoom: %j', (options) => {
+      expect(wheel(options).defaultPrevented).toBe(false)
+      expect(currentStory()).toBe('1 of 2: Rivian')
+    })
+
+    it('discards incomplete movement after an idle gap or vertical scrolling', () => {
+      wheel({ deltaX: 30 })
+      act(() => vi.advanceTimersByTime(250))
+      wheel({ deltaX: 30 })
+      expect(currentStory()).toBe('1 of 2: Rivian')
+      wheel({ deltaY: 100 })
+      wheel({ deltaX: 30 })
+      expect(currentStory()).toBe('1 of 2: Rivian')
+    })
+
+    it('removes the wheel listener when the carousel unmounts', () => {
+      act(() => root.render(null))
+      expect(wheel({ deltaX: 120 }).defaultPrevented).toBe(false)
+    })
+  })
 })

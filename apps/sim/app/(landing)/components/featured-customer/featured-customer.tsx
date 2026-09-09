@@ -1,6 +1,6 @@
 'use client'
 
-import { type TouchEvent, useRef, useState } from 'react'
+import { type TouchEvent, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import {
   FeaturedCustomerCard,
@@ -12,6 +12,9 @@ import {
   LANDING_GUTTER,
   LANDING_STAGE_RADIUS,
 } from '@/app/(landing)/components/landing-layout'
+
+const WHEEL_GESTURE_GAP_MS = 200
+const WHEEL_THRESHOLD_PX = 50
 
 const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
   {
@@ -53,6 +56,7 @@ const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
  * between stories, with the arrow that has nowhere to go disabled.
  */
 export function FeaturedCustomer() {
+  const railRef = useRef<HTMLDivElement>(null)
   const touchStartRef = useRef<{ id: number; x: number; y: number } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [previewedIndex, setPreviewedIndex] = useState<number | null>(null)
@@ -60,6 +64,50 @@ export function FeaturedCustomer() {
   const previousStory = activeIndex > 0 ? CUSTOMER_STORIES[activeIndex - 1] : null
   const nextStory =
     activeIndex < CUSTOMER_STORIES.length - 1 ? CUSTOMER_STORIES[activeIndex + 1] : null
+
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail) return
+
+    let distance = 0
+    let lastEventAt = 0
+    let advanced = false
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) return
+
+      const now = performance.now()
+      if (now - lastEventAt > WHEEL_GESTURE_GAP_MS) {
+        distance = 0
+        advanced = false
+      }
+      lastEventAt = now
+
+      const deltaX = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX
+      const deltaY = event.shiftKey ? 0 : event.deltaY
+      if (deltaX === 0 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+        distance = 0
+        return
+      }
+
+      event.preventDefault()
+      if (advanced) return
+
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rail.clientWidth : 1
+      distance += deltaX * unit
+      if (Math.abs(distance) < WHEEL_THRESHOLD_PX) return
+
+      advanced = true
+      const direction = distance > 0 ? 1 : -1
+      setPreviewedIndex(null)
+      setActiveIndex((index) =>
+        Math.max(0, Math.min(CUSTOMER_STORIES.length - 1, index + direction))
+      )
+    }
+
+    rail.addEventListener('wheel', handleWheel, { passive: false })
+    return () => rail.removeEventListener('wheel', handleWheel)
+  }, [])
 
   function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
     const touch = event.touches[0]
@@ -116,6 +164,7 @@ export function FeaturedCustomer() {
         </div>
 
         <div
+          ref={railRef}
           data-customer-carousel-rail='true'
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
