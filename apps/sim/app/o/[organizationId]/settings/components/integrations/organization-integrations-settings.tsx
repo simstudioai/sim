@@ -27,11 +27,11 @@ export function OrganizationIntegrationsSettings() {
     <div className='flex flex-col gap-6'>
       <div>
         <ChipSwitch
-          aria-label='Integration settings'
+          aria-label='Source settings'
           value={tab}
           onChange={(value) => void setTab(value)}
           options={[
-            { value: 'providers', label: 'Integrations' },
+            { value: 'providers', label: 'Sources' },
             { value: 'people', label: 'People' },
           ]}
         />
@@ -58,7 +58,7 @@ export function OrganizationIntegrationsSettings() {
                 <SettingsEmptyState variant='inline'>
                   Add a source that uses member accounts before requesting connections.
                 </SettingsEmptyState>
-                <Chip onClick={() => void setTab('providers')}>View integrations</Chip>
+                <Chip onClick={() => void setTab('providers')}>View sources</Chip>
               </div>
             ) : undefined
           }

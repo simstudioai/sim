@@ -90,7 +90,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const provider = overview.data?.providers.find((item) => item.connectorType === connectorType)
   const approved = provider?.approved === true
   const back = {
-    text: 'Integrations',
+    text: 'Sources',
     icon: ArrowLeft,
     onSelect: () =>
       router.push(organizationRoutes(organization.id).settingsSection('integrations')),
@@ -157,7 +157,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
           : []),
         {
           text: 'Deactivate',
-          disabled: pending,
+          disabled: approval.isPending,
           onSelect: () => {
             approval.reset()
             setDeactivating(true)

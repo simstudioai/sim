@@ -66,7 +66,7 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
   const index = useSearchIndex(scope, { enabled: viewer.isAdmin })
   const knowledgeBaseId = viewer.isAdmin ? (index.data?.knowledgeBaseId ?? undefined) : undefined
   const detail = useConnectorDetail(knowledgeBaseId, connectorId)
-  const back = { text: 'Integrations', icon: ArrowLeft, onSelect: () => router.push(backHref) }
+  const back = { text: 'Sources', icon: ArrowLeft, onSelect: () => router.push(backHref) }
 
   if (!viewer.isAdmin)
     return (

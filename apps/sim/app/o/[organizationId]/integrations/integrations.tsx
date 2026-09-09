@@ -6,10 +6,12 @@ import { getAccountSettingsHref } from '@/components/settings/navigation'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
+  connectorDisplayName,
   getConnectorAccessAvailability,
   SEARCH_CONNECTORS,
   SEARCH_SOURCE_TYPES,
 } from '@/lib/sim-search/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -31,6 +33,7 @@ import {
   useSearchSources,
 } from '@/hooks/queries/kb/connectors'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -52,7 +55,8 @@ export function OrganizationIntegrations() {
   const routes = organizationRoutes(organization.id)
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const { tab, search } = useOrganizationPageFilters()
-  const sources = useSearchSources(scope, { search, mine: tab === 'mine' })
+  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const sources = useSearchSources(scope, { search: sourceSearch, mine: tab === 'mine' })
   const overview = useSearchSourceOverview(scope)
   const integrations = useSearchIntegrations(organization.id)
   const availability = usePermissionConfig()
@@ -93,6 +97,21 @@ export function OrganizationIntegrations() {
             )) &&
           meta.name.toLowerCase().includes(query)
       )
+  const integrationRows = [
+    ...sourceChoices.map(([type, meta]) => ({
+      kind: 'provider' as const,
+      type,
+      meta,
+      name: meta.name,
+    })),
+    ...visibleSources.map((source) => ({
+      kind: 'source' as const,
+      source,
+      name: connectorDisplayName(source.connectorType),
+    })),
+  ].sort(
+    (a, b) => a.name.localeCompare(b.name) || (a.kind === b.kind ? 0 : a.kind === 'source' ? -1 : 1)
+  )
   const failedQuery =
     sources.isError && !sources.isFetchNextPageError
       ? sources
@@ -111,7 +130,7 @@ export function OrganizationIntegrations() {
         <div className='flex items-center gap-2'>
           <ChipLink href={getAccountSettingsHref('connected-accounts')}>Your accounts</ChipLink>
           {viewer.isAdmin && (
-            <ChipLink href={routes.settingsSection('integrations')}>Manage integrations</ChipLink>
+            <ChipLink href={routes.settingsSection('integrations')}>Manage sources</ChipLink>
           )}
         </div>
       }
@@ -140,7 +159,28 @@ export function OrganizationIntegrations() {
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visibleSources.length > 0 || sourceChoices.length > 0 || sources.hasNextPage ? (
           <>
-            {sourceChoices.map(([type, meta]) => {
+            {integrationRows.map((row) => {
+              if (row.kind === 'source') {
+                const { source } = row
+                return (
+                  <SearchSourceRow
+                    key={source.connectorId}
+                    source={source}
+                    scope={scope}
+                    canAdmin={false}
+                    available={
+                      source.accessMode === 'members'
+                        ? searchAccess.memberScoped
+                        : searchAccess.sourceMirrored &&
+                          (!source.connectionRequired || searchAccess.memberScoped)
+                    }
+                    waiting={enrollment.isAwaiting(source.connectorId)}
+                    isPending={enrollment.isPending}
+                    onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
+                  />
+                )
+              }
+              const { type, meta } = row
               const connector = SEARCH_CONNECTORS.find((item) => item.type === type)
               const access = getConnectorAccessAvailability(
                 meta,
@@ -165,8 +205,8 @@ export function OrganizationIntegrations() {
                     hasSources
                       ? 'Connect a different site or content scope'
                       : canConnect
-                        ? 'Approved · Connect your account to search this source'
-                        : 'Approved · An admin needs to finish source setup'
+                        ? 'Connect your account to search this source'
+                        : 'An admin needs to finish source setup'
                   }
                   trailing={
                     canConnect ? (
@@ -182,24 +222,6 @@ export function OrganizationIntegrations() {
                 />
               )
             })}
-            {visibleSources.map((source) => (
-              <SearchSourceRow
-                key={source.connectorId}
-                source={source}
-                scope={scope}
-                canAdmin={viewer.isAdmin}
-                manageHref={viewer.isAdmin ? routes.searchSource(source.connectorId) : undefined}
-                available={
-                  source.accessMode === 'members'
-                    ? searchAccess.memberScoped
-                    : searchAccess.sourceMirrored &&
-                      (!source.connectionRequired || searchAccess.memberScoped)
-                }
-                waiting={enrollment.isAwaiting(source.connectorId)}
-                isPending={enrollment.isPending}
-                onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-              />
-            ))}
             <SearchSourcePagination {...sources} />
           </>
         ) : (
@@ -209,7 +231,7 @@ export function OrganizationIntegrations() {
               : mineOnly
                 ? 'You haven’t connected any sources yet.'
                 : viewer.isAdmin
-                  ? 'Your organization hasn’t added any sources yet. Open Manage integrations to get started.'
+                  ? 'Your organization hasn’t added any sources yet. Open Manage sources to get started.'
                   : 'Your organization hasn’t added any sources yet. Ask an organization admin to get started.'}
           </SettingsEmptyState>
         )}

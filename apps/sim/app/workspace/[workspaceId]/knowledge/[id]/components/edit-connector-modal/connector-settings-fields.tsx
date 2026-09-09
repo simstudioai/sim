@@ -153,7 +153,7 @@ export function ConnectorSettingsFields({
     : undefined
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      requiresServiceAccount &&
+      (isSearchIndex || requiresServiceAccount) &&
       (serviceAccountProviderId === 'google-service-account' ||
         serviceAccountProviderId === 'atlassian-service-account')
         ? serviceAccountProviderId
@@ -313,6 +313,7 @@ export function ConnectorSettingsFields({
 
       {showServiceAccountModal && serviceAccountTarget && canAdmin && (
         <ConnectServiceAccountModal
+          atlassianProduct={connectorConfig?.id === 'confluence' ? 'confluence' : undefined}
           open
           onOpenChange={setShowServiceAccountModal}
           {...resourceScopeFields(scope)}

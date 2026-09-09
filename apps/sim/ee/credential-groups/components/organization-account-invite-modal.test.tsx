@@ -114,9 +114,6 @@ describe.each(['organization', 'workspace'] as const)(
           results: [{ email: 'member@example.com', success: true }],
         })
         await render({ optionId: 'gmail-option', providerName: 'Gmail' })
-        expect(document.body.textContent).toContain(
-          'This does not invite them to join the organization'
-        )
         await paste('member@example.com')
         await submit()
         expect(mocks.invite.mock.calls[0][0]).toEqual({

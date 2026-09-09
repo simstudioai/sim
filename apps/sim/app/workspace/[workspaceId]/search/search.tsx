@@ -6,6 +6,7 @@ import { Plus, Search as SearchIcon } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
@@ -30,6 +31,7 @@ import {
   useWorkspaceMemberConnectors,
 } from '@/hooks/queries/kb/connectors'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
@@ -48,7 +50,8 @@ export function Search() {
     ...connectorSearchParam.parser,
     ...connectorSearchUrlKeys,
   })
-  const sources = useSearchSources(workspaceId, { search: searchTerm })
+  const sourceSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const sources = useSearchSources(workspaceId, { search: sourceSearch })
   const [, setSelectedType] = useQueryState(
     searchSetupParam.key,
     searchSetupParam.parser.withOptions({ history: 'replace' })

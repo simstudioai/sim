@@ -73,7 +73,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map(),
     oauthServiceAvailability: new Map(),
-    isIntegrationAvailabilityReady: true,
+    isIntegrationAvailabilityReady: !mocks.availabilityError,
     integrationAvailabilityError: mocks.availabilityError,
     refetchIntegrationAvailability: mocks.retryAvailability,
   }),
@@ -317,7 +317,11 @@ describe('organization provider management', () => {
       expect(refetch).toHaveBeenCalledOnce()
     }
 
-    await click('Sources')
+    const sourcesTab = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+    ).find((item) => item.textContent === 'Sources')
+    expect(sourcesTab).toBeDefined()
+    await act(async () => sourcesTab!.click())
     expect(container.querySelector('input[placeholder="Search sources..."]')).toHaveValue(
       'handbook'
     )
@@ -335,6 +339,9 @@ describe('organization provider management', () => {
     )
     await click('Try again')
     expect(mocks.retryAvailability).toHaveBeenCalledOnce()
+    await click('Deactivate')
+    expect(document.body.textContent).toContain('Deactivate Google Drive?')
+    expect(mocks.activate).not.toHaveBeenCalled()
   })
 
   it('explains and retries Slack account lookup failures without hiding its sources', async () => {

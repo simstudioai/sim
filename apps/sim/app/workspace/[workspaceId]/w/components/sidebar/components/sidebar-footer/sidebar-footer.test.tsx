@@ -159,6 +159,12 @@ describe('SidebarFooter', () => {
     openProfileMenu()
 
     expect(menuItem('Organization')).toHaveAttribute('href', '/o/host-org')
+    const labels = Array.from(document.querySelectorAll('[role="menuitem"]')).map(
+      (item) => item.textContent
+    )
+    expect(labels.indexOf('Organization')).toBe(labels.indexOf('Settings') + 1)
+    expect(labels.indexOf('Organization')).toBeLessThan(labels.indexOf('Teammates'))
+    expect(document.querySelector('[role="menu"] [role="separator"]')).toBeNull()
   })
 
   it.each([false, undefined])(

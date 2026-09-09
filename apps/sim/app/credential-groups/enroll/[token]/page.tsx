@@ -16,7 +16,6 @@ import { CredentialGroupProviderConfigurationError } from '@/lib/credential-grou
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
@@ -212,13 +211,6 @@ export default async function CredentialGroupEnrollmentPage({
   const focusedConnected =
     focusedOption?.connections[0]?.status === 'connected' &&
     (returnToSearch || connectedOptionId === focusedOption.id)
-  const focusedProviderId = focusedOption
-    ? getCredentialGroupProviderService(focusedOption.provider).providerId
-    : undefined
-  const docsUrl = focusedProviderId
-    ? SEARCH_CONNECTORS.find((connector) => connector.providerIds.includes(focusedProviderId))?.meta
-        .searchDocsUrl
-    : undefined
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
     : undefined
@@ -317,12 +309,7 @@ export default async function CredentialGroupEnrollmentPage({
           </div>
         </SettingsSection>
         {focused ? (
-          <div className='mt-6 flex justify-end gap-2'>
-            {docsUrl && (
-              <ChipLink href={docsUrl} target='_blank' rel='noopener noreferrer'>
-                Setup guide
-              </ChipLink>
-            )}
+          <div className='mt-6 flex justify-end'>
             <ChipLink href={returnHref} variant={focusedConnected ? 'primary' : undefined}>
               {returnLabel}
             </ChipLink>

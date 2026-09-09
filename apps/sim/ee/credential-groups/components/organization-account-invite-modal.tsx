@@ -98,11 +98,6 @@ export function OrganizationAccountInviteModal({
           : 'Request account connections'}
       </ChipModalHeader>
       <ChipModalBody>
-        <p className='px-2 text-[var(--text-muted)] text-small'>
-          {searchConnection
-            ? `Ask people to connect their ${searchConnection.providerName} account for Search. This does not invite them to join the organization.`
-            : 'Ask people to connect their accounts. This does not invite them to join the organization.'}
-        </p>
         <ChipModalField
           type='emails'
           title='Emails'

@@ -7,6 +7,7 @@ import { authorizeOrganizationSettingsSection } from '@/lib/settings/application
 import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationProviderDetail } from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 interface OrganizationProviderPageProps {
   params: Promise<{ organizationId: string; connectorType: string }>
@@ -41,7 +42,9 @@ export default async function OrganizationProviderPage({ params }: OrganizationP
   )
     notFound()
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={<SettingsEmptyState variant='inline'>Loading integration…</SettingsEmptyState>}
+    >
       <OrganizationProviderDetail connectorType={connectorType} />
     </Suspense>
   )

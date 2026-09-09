@@ -31,10 +31,15 @@ describe('organization settings navigation', () => {
     ).toEqual(['members', 'search-mcp'])
   })
 
-  it('uses Integrations instead of Connected accounts when Search is available', () => {
+  it('uses Sources for administration when Search is available', () => {
     expect(organizationSettingsNavigation(true, enterprise, available)).toEqual(
       ORGANIZATION_SETTINGS_ITEMS.filter(({ id }) => id !== 'connected-accounts')
     )
+    expect(
+      organizationSettingsNavigation(true, enterprise, available).find(
+        ({ id }) => id === 'integrations'
+      )?.label
+    ).toBe('Sources')
   })
 
   it('keeps members and billing reachable without an enterprise plan', () => {

@@ -3,6 +3,7 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
@@ -137,6 +138,7 @@ describe('organization integrations role and source paths', () => {
 
   afterEach(async () => {
     await act(async () => root.unmount())
+    vi.useRealTimers()
     container.remove()
     vi.unstubAllGlobals()
   })
@@ -162,6 +164,16 @@ describe('organization integrations role and source paths', () => {
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
   })
 
+  it('debounces server search while applying the selected tab immediately', async () => {
+    vi.useFakeTimers()
+    await render()
+    mocks.filters.mockReturnValue({ tab: 'mine', search: ' drive ', setSearch: vi.fn() })
+    await render()
+    expect(mocks.sources).toHaveBeenLastCalledWith(scope, { search: '', mine: true })
+    await act(async () => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS))
+    expect(mocks.sources).toHaveBeenLastCalledWith(scope, { search: 'drive', mine: true })
+  })
+
   it('offers an approved integration before any source is configured', async () => {
     mocks.sources.mockReturnValue({ data: [], isPending: false })
     mocks.overview.mockReturnValue({
@@ -173,7 +185,7 @@ describe('organization integrations role and source paths', () => {
       isPending: false,
     })
     await render()
-    expect(document.body.textContent).toContain('Approved')
+    expect(document.body.textContent).toContain('Connect your account to search this source')
     expect(buttons('Connect account')).toHaveLength(1)
     await act(async () => buttons('Connect account')[0].click())
     expect(mocks.connect).toHaveBeenCalledWith(
@@ -208,6 +220,21 @@ describe('organization integrations role and source paths', () => {
       expect.objectContaining({ type: 'confluence' }),
       undefined
     )
+  })
+
+  it('keeps configured sources in alphabetical order with approved providers', async () => {
+    mocks.sources.mockReturnValue({ data: [memberSource], isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [
+        { connectorType: 'confluence', approved: true },
+        { connectorType: 'jira', approved: true },
+      ],
+      isPending: false,
+    })
+    await render()
+    const text = container.textContent ?? ''
+    expect(text.indexOf('Confluence')).toBeLessThan(text.indexOf('Gmail'))
+    expect(text.indexOf('Gmail')).toBeLessThan(text.indexOf('Jira'))
   })
 
   it('withholds connection when an integration is deactivated', async () => {
@@ -273,7 +300,7 @@ describe('organization integrations role and source paths', () => {
     expect(buttons('Connect account')).toHaveLength(0)
     expect(document.body.textContent).toContain('An admin needs to finish source setup')
   })
-  it('keeps personal connection actions and gives organization admins source management links', async () => {
+  it('keeps personal rows consistent for admins and directs management through Sources', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
@@ -284,7 +311,10 @@ describe('organization integrations role and source paths', () => {
       document.querySelector(
         'a[href="/o/organization-a/settings/integrations/sources/member-source"]'
       )
-    ).not.toBeNull()
+    ).toBeNull()
+    expect(
+      document.querySelector('a[href="/o/organization-a/settings/integrations"]')
+    ).toHaveTextContent('Manage sources')
     expect(document.querySelector('a[href="/account/settings/connected-accounts"]')).not.toBeNull()
     expect(buttons('Add source')).toHaveLength(0)
     expect(buttons('Manage')).toHaveLength(0)

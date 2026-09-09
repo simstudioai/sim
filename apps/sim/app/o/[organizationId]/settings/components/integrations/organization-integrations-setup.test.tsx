@@ -133,7 +133,7 @@ describe('organization integration management entry', () => {
   })
   it('does not turn a failed summary into an empty setup state', async () => {
     mocks.overview.mockReturnValue({
-      error: new Error('Could not load integrations'),
+      error: new Error('Could not load sources'),
       isError: true,
       refetch: mocks.refetch,
     })
@@ -146,7 +146,7 @@ describe('organization integration management entry', () => {
   it('keeps loading distinct from empty and disables creation', async () => {
     mocks.overview.mockReturnValue({ isPending: true })
     await render()
-    expect(container.textContent).toContain('Loading integrations')
+    expect(container.textContent).toContain('Loading sources')
     await click('Add integration')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })

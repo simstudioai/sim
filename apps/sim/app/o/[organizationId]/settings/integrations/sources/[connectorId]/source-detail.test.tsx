@@ -353,7 +353,7 @@ describe('organization source detail navigation', () => {
     await render()
     expect(container.textContent).toContain('This source is no longer available')
     expect(mocks.actions).not.toHaveBeenCalled()
-    await click('Integrations')
+    await click('Sources')
     expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
   })
   it('requires discard confirmation before leaving dirty settings', async () => {

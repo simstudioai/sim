@@ -931,7 +931,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
   if (id === 'integrations') {
     return {
       id,
-      label: 'Integrations',
+      label: 'Sources',
       description: 'Set up the sources your organization searches.',
       icon: Integration,
       group,

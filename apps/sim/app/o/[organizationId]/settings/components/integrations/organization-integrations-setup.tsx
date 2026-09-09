@@ -44,7 +44,7 @@ export function OrganizationIntegrationsSetup() {
 
   return (
     <SettingsPanel
-      search={{ value: search, onChange: setSearch, placeholder: 'Search integrations...' }}
+      search={{ value: search, onChange: setSearch, placeholder: 'Search sources...' }}
       actions={[
         {
           text: 'Add integration',
@@ -59,16 +59,16 @@ export function OrganizationIntegrationsSetup() {
         {overview.isError ? (
           <SettingsQueryErrorState
             error={overview.error}
-            fallback='Could not load integrations'
+            fallback='Could not load sources'
             isRetrying={overview.isFetching}
             onRetry={() => void overview.refetch()}
             variant='inline'
           />
         ) : overview.isPending ? (
-          <SettingsEmptyState variant='inline'>Loading integrations…</SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visible.length === 0 ? (
           <SettingsEmptyState variant='inline'>
-            {query ? 'No matching integrations' : 'Add an integration to get started.'}
+            {query ? 'No matching sources' : 'Add an integration to get started.'}
           </SettingsEmptyState>
         ) : (
           visible.map((provider) => {

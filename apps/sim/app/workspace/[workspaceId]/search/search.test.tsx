@@ -7,6 +7,7 @@ import type {
   SearchSourceSummary,
   WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: false,
@@ -158,11 +159,29 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount())
+  vi.useRealTimers()
   container.remove()
   vi.unstubAllGlobals()
 })
 
 describe('unified Search sources', () => {
+  it('keeps typing responsive and debounces the server search', async () => {
+    vi.useFakeTimers()
+    await render()
+    const input = document.querySelector<HTMLInputElement>('input')!
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      setValue.call(input, 'git')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(input.value).toBe('git')
+    expect(mocks.sourceQuery).toHaveBeenLastCalledWith('workspace-1', { search: '' })
+    await act(async () => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1))
+    expect(mocks.sourceQuery).toHaveBeenLastCalledWith('workspace-1', { search: '' })
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(mocks.sourceQuery).toHaveBeenLastCalledWith('workspace-1', { search: 'git' })
+  })
+
   it('shows configured central Drive and GitLab sources to readers without setup controls', async () => {
     await render()
     expect(document.body.textContent).toContain('Google Drive')
