@@ -9,6 +9,10 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { CursorOperationError } from '@/lib/internal/cursor/errors'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot/copilot-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { resolveStoredFileMetadata } from '@/lib/uploads/utils/validation'
+import type { UserFile } from '@/executor/types'
 import type { DownloadArtifactParams } from '@/tools/cursor/types'
 
 const logger = createLogger('CursorOperations')
@@ -23,6 +27,11 @@ interface CursorArtifactLocation {
 export interface CursorOperationContext {
   requestId: string
   signal?: AbortSignal
+  persistFile?: boolean
+  userId?: string
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
 }
 
 export async function downloadCursorArtifact(
@@ -30,9 +39,20 @@ export async function downloadCursorArtifact(
   context: CursorOperationContext
 ): Promise<{
   success: true
-  output: { file: { name: string; mimeType: string; data: string; size: number } }
+  output: { file: UserFile | { name: string; mimeType: string; data: string; size: number } }
 }> {
   context.signal?.throwIfAborted()
+  const executionContext =
+    context.workspaceId && context.workflowId && context.executionId
+      ? {
+          workspaceId: context.workspaceId,
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+        }
+      : null
+  if (context.persistFile && !executionContext && !context.userId) {
+    throw new CursorOperationError('User context is required to store artifacts', 401)
+  }
   const authHeader = `Basic ${Buffer.from(`${input.apiKey}:`).toString('base64')}`
   const artifactResponse = await fetch(
     `https://api.cursor.com/v0/agents/${encodeURIComponent(input.agentId)}/artifacts/download?path=${encodeURIComponent(input.path)}`,
@@ -83,11 +103,34 @@ export async function downloadCursorArtifact(
 
   const fileBuffer = Buffer.from(await downloadResponse.arrayBuffer())
   context.signal?.throwIfAborted()
-  const file = {
-    name: input.path.split('/').pop() || 'artifact',
-    mimeType: downloadResponse.headers.get('content-type') || 'application/octet-stream',
-    data: fileBuffer.toString('base64'),
-    size: fileBuffer.length,
+  const fileName = input.path.split('/').pop() || 'artifact'
+  const mimeType = downloadResponse.headers.get('content-type') || 'application/octet-stream'
+  let file: UserFile | { name: string; mimeType: string; data: string; size: number }
+  if (context.persistFile) {
+    const metadata = resolveStoredFileMetadata(fileName, mimeType, fileBuffer)
+    file = executionContext
+      ? await uploadExecutionFile(
+          executionContext,
+          fileBuffer,
+          metadata.fileName,
+          metadata.mimeType,
+          context.userId
+        )
+      : await uploadCopilotFile({
+          buffer: fileBuffer,
+          fileName: metadata.fileName,
+          contentType: metadata.mimeType,
+          userId: context.userId!,
+        })
+    context.signal?.throwIfAborted()
+  } else {
+    // V1 exposes base64 metadata rather than a file-typed output.
+    file = {
+      name: fileName,
+      mimeType,
+      data: fileBuffer.toString('base64'),
+      size: fileBuffer.length,
+    }
   }
   logger.info(`[${context.requestId}] Cursor artifact downloaded`, {
     agentId: input.agentId,

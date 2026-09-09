@@ -12,6 +12,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
   validateUrlWithDNS: mocks.validateUrlWithDNS,
 }))
+vi.mock('@/lib/uploads/contexts/copilot/copilot-file-manager', () => ({
+  uploadCopilotFile: vi.fn(),
+}))
+vi.mock('@/lib/uploads/contexts/execution', () => ({ uploadExecutionFile: vi.fn() }))
 
 import { downloadCursorArtifact } from '@/lib/internal/cursor/operations'
 

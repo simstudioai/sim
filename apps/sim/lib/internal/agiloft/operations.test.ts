@@ -20,6 +20,7 @@ const providerMocks = vi.hoisted(() => ({
 
 const fileMocks = vi.hoisted(() => ({
   resolveAgiloftAttachmentFile: vi.fn(),
+  uploadCopilotFile: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
@@ -28,6 +29,8 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 vi.mock('@/lib/internal/agiloft/client', () => clientMocks)
 vi.mock('@/lib/internal/agiloft/file-input', () => fileMocks)
+vi.mock('@/lib/uploads/contexts/copilot/copilot-file-manager', () => fileMocks)
+vi.mock('@/lib/uploads/contexts/execution', () => ({ uploadExecutionFile: vi.fn() }))
 
 import {
   executeAgiloftCreateRecord,
@@ -148,6 +151,15 @@ describe('Agiloft operations', () => {
 
   it('bounds attachment downloads and preserves binary metadata', async () => {
     const controller = new AbortController()
+    const storedFile = {
+      id: 'file-1',
+      key: 'copilot/user-1/file-1',
+      url: '/api/files/serve/file-1',
+      name: 'evidence.txt',
+      type: 'text/plain',
+      size: 5,
+    }
+    fileMocks.uploadCopilotFile.mockResolvedValue(storedFile)
     providerMocks.secureFetchWithPinnedIP.mockResolvedValue(
       createResponse({
         bytes: new TextEncoder().encode('hello'),
@@ -160,19 +172,20 @@ describe('Agiloft operations', () => {
 
     const result = await executeAgiloftRetrieveAttachment(
       { ...BASE, recordId: '1', fieldName: 'files', position: '0' },
-      { requestId: 'request-1', signal: controller.signal }
+      { requestId: 'request-1', userId: 'user-1', signal: controller.signal }
     )
 
     expect(result).toEqual({
       success: true,
       output: {
-        file: {
-          name: 'evidence.txt',
-          mimeType: 'text/plain',
-          data: Buffer.from('hello').toString('base64'),
-          size: 5,
-        },
+        file: storedFile,
       },
+    })
+    expect(fileMocks.uploadCopilotFile).toHaveBeenCalledWith({
+      buffer: Buffer.from('hello'),
+      fileName: 'evidence.txt',
+      contentType: 'text/plain',
+      userId: 'user-1',
     })
     expect(providerMocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/ewws/EWRetrieve'),

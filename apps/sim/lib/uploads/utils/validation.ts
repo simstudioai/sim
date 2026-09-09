@@ -14,6 +14,38 @@ function extractExtension(fileName: string): string {
 
 export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
+const IMAGE_FILE_EXTENSIONS: Record<string, string> = {
+  'image/gif': 'gif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+
+/** Normalize tool-output image metadata before storing provider bytes. */
+export function resolveStoredFileMetadata(
+  fileName: string,
+  declaredMimeType: string,
+  buffer: Buffer
+): { fileName: string; mimeType: string } {
+  if (!declaredMimeType.startsWith('image/')) {
+    return { fileName, mimeType: declaredMimeType }
+  }
+
+  const mimeType = sniffImageContentType(buffer)
+  if (!mimeType) {
+    return {
+      fileName: `${fileName.replace(/\.[^.]+$/, '')}.bin`,
+      mimeType: 'application/octet-stream',
+    }
+  }
+
+  const extension = IMAGE_FILE_EXTENSIONS[mimeType]
+  return {
+    fileName: extension ? `${fileName.replace(/\.[^.]+$/, '')}.${extension}` : fileName,
+    mimeType,
+  }
+}
+
 export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'pdf',
   'csv',

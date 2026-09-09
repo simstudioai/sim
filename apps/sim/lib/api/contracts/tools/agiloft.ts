@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -18,17 +19,10 @@ const optionalText = z
   .nullish()
   .transform((value) => value ?? undefined)
 
-const agiloftFileOutputSchema = z.object({
-  name: z.string(),
-  mimeType: z.string(),
-  data: z.string(),
-  size: z.number(),
-})
-
 export const agiloftRetrieveResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
-    file: agiloftFileOutputSchema,
+    file: userFileSchema,
   }),
 })
 

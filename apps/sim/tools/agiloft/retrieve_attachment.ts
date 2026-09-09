@@ -81,24 +81,13 @@ export const agiloftRetrieveAttachmentTool: InternalToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      return {
-        success: false,
-        output: {
-          file: { name: '', mimeType: '', data: '', size: 0 },
-        },
-        error: data.error || 'Failed to retrieve attachment',
-      }
+      throw new Error(data.error || 'Failed to retrieve attachment')
     }
 
     return {
       success: true,
       output: {
-        file: {
-          name: data.output.file.name,
-          mimeType: data.output.file.mimeType,
-          data: data.output.file.data,
-          size: data.output.file.size,
-        },
+        file: data.output.file,
       },
     }
   },
