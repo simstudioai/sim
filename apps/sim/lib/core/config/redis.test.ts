@@ -440,6 +440,28 @@ describe('redis config', () => {
       )
     })
 
+    it('describes the client that ran the command, not one that replaced it mid-flight', async () => {
+      // The PING check drops `state.client` after consecutive failures — the same
+      // unhealthy stretch in which the command is timing out. Reading the global
+      // then would report the replacement and misclassify the very failure this
+      // diagnostic exists to explain.
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.set.mockImplementationOnce(async () => {
+        resetForTesting()
+        throw new Error('Command timed out')
+      })
+
+      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('Command timed out')
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis lock acquire failed',
+        expect.objectContaining({
+          // Timestamps belong to whatever `state` holds now, so they are withheld
+          // rather than dated against a connection they never measured.
+          redis: expect.objectContaining({ status: 'connecting', clientAgeMs: null }),
+        })
+      )
+    })
+
     it('stays quiet on the taken and contended paths, which poll routes run constantly', async () => {
       mockRedisInstance.set.mockResolvedValueOnce('OK')
       await acquireLock(lockKey, value, ttlSeconds)
