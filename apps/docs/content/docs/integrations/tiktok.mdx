@@ -5,7 +5,7 @@ description: Access TikTok profiles and videos, and upload inbox drafts
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="tiktok"
   color="#000000"
 />
@@ -150,8 +150,6 @@ Check the status of a video draft upload. Use the publishId returned from Upload
 | `publiclyAvailablePostId` | array | Array of public post IDs \(as strings\) once the content is published and publicly viewable. Can be used to construct the TikTok post URL. |
 | `uploadedBytes` | number | Number of bytes uploaded to TikTok for FILE_UPLOAD posts |
 | `downloadedBytes` | number | Number of bytes TikTok reports as downloaded |
-
-
 
 ## Triggers
 
@@ -299,4 +297,3 @@ Trigger when a TikTok Content Posting publish fails
 | `publishId` | string | Content Posting API publish_id |
 | `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
 | `failReason` | string | Failure reason enum from TikTok when publishing fails |
-

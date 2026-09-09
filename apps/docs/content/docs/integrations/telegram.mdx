@@ -5,7 +5,7 @@ description: Interact with Telegram
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="telegram"
   color="#FFFFFF"
 />
@@ -661,8 +661,6 @@ Get information about a member of a Telegram chat through the Telegram Bot API.
 |     ↳ `last_name` | string | User's last name |
 |     ↳ `username` | string | User's username |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -715,4 +713,3 @@ Trigger workflow from Telegram bot messages and events
 |   ↳ `isBot` | boolean | Whether the sender is a bot |
 | `updateId` | number | Update ID for this webhook delivery |
 | `updateType` | string | Type of update: message, edited_message, channel_post, edited_channel_post, unknown |
-

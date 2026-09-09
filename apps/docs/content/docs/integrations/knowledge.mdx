@@ -5,7 +5,7 @@ description: Use vector search
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="knowledge"
   color="#00B0B0"
 />
@@ -48,7 +48,7 @@ Search for similar content in a knowledge base by relevance
 | `results` | array | Array of search results from the knowledge base |
 |   ↳ `documentId` | string | Document ID |
 |   ↳ `documentName` | string | Document name |
-|   ↳ `sourceUrl` | string | URL to the original source document \(e.g., Confluence page, Google Doc, Notion page\). Null for documents without an external source. |
+|   ↳ `sourceUrl` | string (nullable) | URL to the original source document \(e.g., Confluence page, Google Doc, Notion page\). Null for documents without an external source. |
 |   ↳ `content` | string | Content of the result |
 |   ↳ `chunkIndex` | number | Index of the chunk within the document |
 |   ↳ `similarity` | number | Similarity score of the result |
@@ -420,5 +420,3 @@ Trigger a manual sync for a knowledge base connector
 | --------- | ---- | ----------- |
 | `connectorId` | string | ID of the connector that was synced |
 | `message` | string | Status message from the sync trigger |
-
-

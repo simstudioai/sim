@@ -5,7 +5,7 @@ description: Manage contacts, companies, conversations, tickets, and messages in
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="intercom_v2"
   color="#FFFFFF"
 />
@@ -1075,8 +1075,6 @@ Remove a contact from a company in Intercom
 | `companyId` | string | ID of the company |
 | `name` | string | Name of the company |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1227,4 +1225,3 @@ Trigger workflow on any Intercom webhook event
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the affected object. Access via data.item for the resource \(conversation, contact, company, ticket, etc.\) |
-

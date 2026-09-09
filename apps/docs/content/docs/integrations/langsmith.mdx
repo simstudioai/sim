@@ -5,7 +5,7 @@ description: Forward workflow runs to LangSmith for observability
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="langsmith"
   color="#181C1E"
 />
@@ -100,7 +100,11 @@ Patch an existing LangSmith run with outputs, status, or timing once it complete
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the run update was accepted |
+| `runId` | string | ID of the run that was updated |
+| `message` | string | Response message from LangSmith, if provided |
 
 ### LangSmith Get Run
 
@@ -162,5 +166,3 @@ Attach a score, correction, or comment to a LangSmith run.
 | `value` | string | Categorical value recorded for the feedback |
 | `comment` | string | Comment recorded for the feedback |
 | `createdAt` | string | When the feedback was created \(ISO\) |
-
-

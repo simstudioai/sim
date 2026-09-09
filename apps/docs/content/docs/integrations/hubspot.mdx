@@ -5,7 +5,7 @@ description: Interact with HubSpot CRM or trigger workflows from HubSpot events
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="hubspot"
   color="#FF7A59"
 />
@@ -2031,8 +2031,6 @@ Create a new list in HubSpot. Specify the object type and processing type (MANUA
 | `listId` | string | The created list ID |
 | `success` | boolean | Operation success status |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2077,4 +2075,3 @@ Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom o
 | `previousValue` | string | Previous value before the change \(property_changed events only\) |
 | `listId` | string | HubSpot list ID \(list_membership events only\) |
 | `timestamp` | string | ISO timestamp when Sim emitted the event |
-

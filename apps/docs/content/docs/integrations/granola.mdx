@@ -5,7 +5,7 @@ description: Access meeting notes, transcripts, and audit events from Granola
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="granola"
   color="#B2C147"
 />
@@ -297,8 +297,6 @@ Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediat
 | `id` | string | ID of the deleted webhook endpoint |
 | `deleted` | boolean | Whether the endpoint was deleted |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -403,4 +401,3 @@ Trigger workflow when the first AI summary for a Granola note is generated
 | `occurred_at` | string | ISO 8601 timestamp of when the event occurred. |
 | `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
 | `payload` | json | Full raw webhook body as delivered by Granola. |
-

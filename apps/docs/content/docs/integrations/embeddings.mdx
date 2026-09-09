@@ -5,7 +5,7 @@ description: Generate embeddings
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="embeddings"
   color="#7B4DFF"
 />
@@ -51,11 +51,13 @@ Generate embeddings from text using OpenAI's embedding models
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `embeddings` | json | Generated embeddings |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
 | `model` | string | Model used |
 | `provider` | string | Provider used |
-| `dimensions` | number | Dimensionality of each vector |
+| `dimensions` | number | Dimensionality of each returned vector |
 | `usage` | json | Token usage |
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |
 
 ### OpenRouter Embeddings
 
@@ -75,11 +77,13 @@ Generate embeddings through OpenRouter
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `embeddings` | json | Generated embeddings |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
 | `model` | string | Model used |
 | `provider` | string | Provider used |
-| `dimensions` | number | Dimensionality of each vector |
+| `dimensions` | number | Dimensionality of each returned vector |
 | `usage` | json | Token usage |
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |
 
 ### Gemini Embeddings
 
@@ -99,11 +103,13 @@ Generate embeddings from text using Google's Gemini embedding models
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `embeddings` | json | Generated embeddings |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
 | `model` | string | Model used |
 | `provider` | string | Provider used |
-| `dimensions` | number | Dimensionality of each vector |
+| `dimensions` | number | Dimensionality of each returned vector |
 | `usage` | json | Token usage |
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |
 
 ### Cohere Embeddings
 
@@ -123,11 +129,13 @@ Generate embeddings from text using Cohere's embedding models
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `embeddings` | json | Generated embeddings |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
 | `model` | string | Model used |
 | `provider` | string | Provider used |
-| `dimensions` | number | Dimensionality of each vector |
+| `dimensions` | number | Dimensionality of each returned vector |
 | `usage` | json | Token usage |
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |
 
 ### Mistral Embeddings
 
@@ -147,11 +155,13 @@ Generate embeddings from text using Mistral's embedding models
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `embeddings` | json | Generated embeddings |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
 | `model` | string | Model used |
 | `provider` | string | Provider used |
-| `dimensions` | number | Dimensionality of each vector |
+| `dimensions` | number | Dimensionality of each returned vector |
 | `usage` | json | Token usage |
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |
 
 ### Ollama Embeddings
 
@@ -168,10 +178,10 @@ Generate embeddings on a self-hosted Ollama server
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `embeddings` | json | Generated embeddings |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
 | `model` | string | Model used |
 | `provider` | string | Provider used |
-| `dimensions` | number | Dimensionality of each vector |
+| `dimensions` | number | Dimensionality of each returned vector |
 | `usage` | json | Token usage |
-
-
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |

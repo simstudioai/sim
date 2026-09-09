@@ -5,7 +5,7 @@ description: Query traces, logs, and metrics in Pydantic Logfire
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="logfire"
   color="#000000"
 />
@@ -58,9 +58,9 @@ Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the r
 | --------- | ---- | ----------- |
 | `rows` | array | Result rows. Row fields depend on the query projection. |
 | `columns` | array | Column metadata for the result set |
-|   ↳ `name` | string | Column name |
+|   ↳ `name` | string (nullable) | Column name |
 |   ↳ `datatype` | json | Arrow datatype of the column |
-|   ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `nullable` | boolean (nullable) | Whether the column is nullable |
 | `rowCount` | number | Number of rows returned |
 
 ### Logfire Search Records
@@ -89,21 +89,21 @@ Search Logfire spans and logs using structured filters for message text, service
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `rows` | array | Matching spans and logs, most recent first |
-|   ↳ `startTimestamp` | string | UTC time the span started |
-|   ↳ `endTimestamp` | string | UTC time the span ended |
-|   ↳ `duration` | number | Span duration in seconds. Null for logs. |
-|   ↳ `level` | string | Severity name, such as info, warn, or error |
-|   ↳ `message` | string | Human-readable message |
-|   ↳ `spanName` | string | Template label for similar records |
-|   ↳ `kind` | string | Record kind: span, log, span_event, or pending_span |
-|   ↳ `serviceName` | string | Service that emitted the record |
-|   ↳ `deploymentEnvironment` | string | Deployment environment of the record |
-|   ↳ `traceId` | string | Trace this record belongs to |
-|   ↳ `spanId` | string | Identifier of this span |
-|   ↳ `parentSpanId` | string | Parent span identifier |
-|   ↳ `isException` | boolean | Whether an exception was recorded on the span |
-|   ↳ `exceptionType` | string | Fully qualified exception class name |
-|   ↳ `exceptionMessage` | string | Exception message |
+|   ↳ `startTimestamp` | string (nullable) | UTC time the span started |
+|   ↳ `endTimestamp` | string (nullable) | UTC time the span ended |
+|   ↳ `duration` | number (nullable) | Span duration in seconds. Null for logs. |
+|   ↳ `level` | string (nullable) | Severity name, such as info, warn, or error |
+|   ↳ `message` | string (nullable) | Human-readable message |
+|   ↳ `spanName` | string (nullable) | Template label for similar records |
+|   ↳ `kind` | string (nullable) | Record kind: span, log, span_event, or pending_span |
+|   ↳ `serviceName` | string (nullable) | Service that emitted the record |
+|   ↳ `deploymentEnvironment` | string (nullable) | Deployment environment of the record |
+|   ↳ `traceId` | string (nullable) | Trace this record belongs to |
+|   ↳ `spanId` | string (nullable) | Identifier of this span |
+|   ↳ `parentSpanId` | string (nullable) | Parent span identifier |
+|   ↳ `isException` | boolean (nullable) | Whether an exception was recorded on the span |
+|   ↳ `exceptionType` | string (nullable) | Fully qualified exception class name |
+|   ↳ `exceptionMessage` | string (nullable) | Exception message |
 | `rowCount` | number | Number of rows returned |
 | `sql` | string | SQL query that was executed against Logfire |
 
@@ -128,21 +128,21 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `rows` | array | Spans and logs in the trace, earliest first |
-|   ↳ `startTimestamp` | string | UTC time the span started |
-|   ↳ `endTimestamp` | string | UTC time the span ended |
-|   ↳ `duration` | number | Span duration in seconds. Null for logs. |
-|   ↳ `level` | string | Severity name, such as info, warn, or error |
-|   ↳ `message` | string | Human-readable message |
-|   ↳ `spanName` | string | Template label for similar records |
-|   ↳ `kind` | string | Record kind: span, log, span_event, or pending_span |
-|   ↳ `serviceName` | string | Service that emitted the record |
-|   ↳ `deploymentEnvironment` | string | Deployment environment of the record |
-|   ↳ `traceId` | string | Trace this record belongs to |
-|   ↳ `spanId` | string | Identifier of this span |
-|   ↳ `parentSpanId` | string | Parent span identifier |
-|   ↳ `isException` | boolean | Whether an exception was recorded on the span |
-|   ↳ `exceptionType` | string | Fully qualified exception class name |
-|   ↳ `exceptionMessage` | string | Exception message |
+|   ↳ `startTimestamp` | string (nullable) | UTC time the span started |
+|   ↳ `endTimestamp` | string (nullable) | UTC time the span ended |
+|   ↳ `duration` | number (nullable) | Span duration in seconds. Null for logs. |
+|   ↳ `level` | string (nullable) | Severity name, such as info, warn, or error |
+|   ↳ `message` | string (nullable) | Human-readable message |
+|   ↳ `spanName` | string (nullable) | Template label for similar records |
+|   ↳ `kind` | string (nullable) | Record kind: span, log, span_event, or pending_span |
+|   ↳ `serviceName` | string (nullable) | Service that emitted the record |
+|   ↳ `deploymentEnvironment` | string (nullable) | Deployment environment of the record |
+|   ↳ `traceId` | string (nullable) | Trace this record belongs to |
+|   ↳ `spanId` | string (nullable) | Identifier of this span |
+|   ↳ `parentSpanId` | string (nullable) | Parent span identifier |
+|   ↳ `isException` | boolean (nullable) | Whether an exception was recorded on the span |
+|   ↳ `exceptionType` | string (nullable) | Fully qualified exception class name |
+|   ↳ `exceptionMessage` | string (nullable) | Exception message |
 | `rowCount` | number | Number of rows returned |
 | `sql` | string | SQL query that was executed against Logfire |
 
@@ -162,9 +162,7 @@ Resolve which Logfire organization and project a read token belongs to. Useful f
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `organizationName` | string | Logfire organization the read token belongs to |
-| `projectName` | string | Logfire project the read token belongs to |
-| `expiresAt` | string | When the read token expires. Null when it never expires. |
-| `spendingCapReachedAt` | string | When the organization's spending cap was reached, which stops queries. Null when it has not been reached. |
-
-
+| `organizationName` | string (nullable) | Logfire organization the read token belongs to |
+| `projectName` | string (nullable) | Logfire project the read token belongs to |
+| `expiresAt` | string (nullable) | When the read token expires. Null when it never expires. |
+| `spendingCapReachedAt` | string (nullable) | When the organization's spending cap was reached, which stops queries. Null when it has not been reached. |

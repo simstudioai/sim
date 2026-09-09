@@ -5,7 +5,7 @@ description: Interact with Jira
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="jira"
   color="#FFFFFF"
 />
@@ -1165,8 +1165,6 @@ Get all system and custom fields defined in the Jira instance. Useful for discov
 |   ↳ `customType` | string | Custom field type identifier \(only for custom fields\) |
 | `total` | number | Number of fields returned |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2225,4 +2223,3 @@ Trigger workflow when a worklog entry is updated on a Jira issue
 |   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
 |   ↳ `issueId` | string | ID of the issue this worklog belongs to |
 |   ↳ `self` | string | REST API URL for this worklog entry |
-

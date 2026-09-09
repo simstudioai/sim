@@ -5,7 +5,7 @@ description: Manage expense reports, travel requests, cash advances, and more in
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="sap_concur"
   color="#FFFFFF"
 />
@@ -2805,5 +2805,3 @@ Upload an image-only receipt (POST /receipts/v4/users/\{userId\}/image-only-rece
 | `data` | json | Image-only receipt upload response \(HTTP 202 Accepted; Location and Link response headers exposed in body\) |
 |   ↳ `location` | string | Location header URL for the new receipt image \(e.g. /receipts/v4/images/\{receiptId\}\) |
 |   ↳ `link` | string | Raw Link header value, forwarded verbatim — it is not a bare URL. Format: &lt;https://\{datacenter\}/receipts/v4/status/\{receiptId\}&gt;; rel="processing-status". Parse the href out of the angle brackets before using it. |
-
-

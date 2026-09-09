@@ -5,7 +5,7 @@ description: Manage support tickets, users, and organizations in Zendesk
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="zendesk"
   color="#03363D"
 />
@@ -1256,8 +1256,6 @@ Count the number of search results matching a query in Zendesk
 | --------- | ---- | ----------- |
 | `count` | number | Number of matching results |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1463,4 +1461,3 @@ Trigger workflow when a ticket status changes in Zendesk
 |   ↳ `created_at` | string | Ticket creation timestamp |
 |   ↳ `updated_at` | string | Ticket last update timestamp |
 | `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
-

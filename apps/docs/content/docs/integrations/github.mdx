@@ -5,7 +5,7 @@ description: Interact with GitHub or trigger workflows from GitHub events
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="github_v2"
   color="#181C1E"
 />
@@ -51,22 +51,22 @@ Fetch PR details including diff and files changed
 |   ↳ `label` | string | Branch label \(owner:branch\) |
 |   ↳ `ref` | string | Branch name |
 |   ↳ `sha` | string | Commit SHA |
-|   ↳ `repo_full_name` | string | Full name \(owner/repo\) of the branch's repository |
+|   ↳ `repo_full_name` | string (nullable) | Full name \(owner/repo\) of the branch's repository |
 | `base` | object | Branch reference info |
 |   ↳ `label` | string | Branch label \(owner:branch\) |
 |   ↳ `ref` | string | Branch name |
 |   ↳ `sha` | string | Commit SHA |
-|   ↳ `repo_full_name` | string | Full name \(owner/repo\) of the branch's repository |
+|   ↳ `repo_full_name` | string (nullable) | Full name \(owner/repo\) of the branch's repository |
 | `id` | number | Pull request ID |
 | `number` | number | Pull request number |
 | `title` | string | PR title |
 | `state` | string | PR state \(open/closed\) |
 | `html_url` | string | GitHub web URL |
 | `diff_url` | string | Raw diff URL |
-| `body` | string | PR description |
+| `body` | string (nullable) | PR description |
 | `merged` | boolean | Whether PR is merged |
-| `mergeable` | boolean | Whether PR is mergeable |
-| `merged_by` | object | GitHub user object |
+| `mergeable` | boolean (nullable) | Whether PR is mergeable |
+| `merged_by` | object (nullable) | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
@@ -80,8 +80,8 @@ Fetch PR details including diff and files changed
 | `changed_files` | number | Number of changed files |
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
-| `closed_at` | string | Close timestamp |
-| `merged_at` | string | Merge timestamp |
+| `closed_at` | string (nullable) | Close timestamp |
+| `merged_at` | string (nullable) | Merge timestamp |
 | `files` | array | Array of changed file objects |
 |   ↳ `sha` | string | Blob SHA |
 |   ↳ `filename` | string | File path |
@@ -673,7 +673,7 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | number | Review ID |
-| `user` | object | GitHub user object |
+| `user` | object (nullable) | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
@@ -683,7 +683,7 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | `state` | string | Review state \(APPROVED/CHANGES_REQUESTED/COMMENTED\) |
 | `html_url` | string | GitHub web URL for the review |
 | `pull_request_url` | string | API URL of the reviewed pull request |
-| `commit_id` | string | SHA of the reviewed commit |
+| `commit_id` | string (nullable) | SHA of the reviewed commit |
 | `submitted_at` | string | Review submission timestamp |
 
 ### GitHub Get File Content
@@ -3414,8 +3414,6 @@ List users who have starred a repository
 |   ↳ `repos_url` | string | Repos API URL |
 | `count` | number | Number of stargazers returned |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -4611,4 +4609,3 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 | `event_type` | string | Type of GitHub event \(e.g., push, pull_request, issues\) |
 | `action` | string | The action that was performed \(e.g., opened, closed, synchronize\) |
 | `branch` | string | Branch name extracted from ref |
-

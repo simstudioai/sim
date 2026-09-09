@@ -5,7 +5,7 @@ description: Create and manage Zoom meetings and recordings
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="zoom"
   color="#2D8CFF"
 />
@@ -401,8 +401,6 @@ List participants from a past Zoom meeting
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -609,4 +607,3 @@ Trigger workflow on any Zoom webhook event
 | `event` | string | The webhook event type \(e.g., meeting.started, recording.completed\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
-

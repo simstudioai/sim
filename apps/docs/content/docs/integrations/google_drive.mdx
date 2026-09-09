@@ -5,7 +5,7 @@ description: Manage files, folders, and permissions
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="google_drive"
   color="#FFFFFF"
 />
@@ -869,8 +869,6 @@ Get information about the user and their Google Drive (storage quota, capabiliti
 | `exportFormats` | json | Map of Google Workspace MIME types and their exportable formats |
 | `maxUploadSize` | string | Maximum upload size in bytes |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -910,4 +908,3 @@ Triggers when files are created, modified, or deleted in Google Drive
 |   ↳ `starred` | boolean | Whether file is starred |
 | `eventType` | string | Change type: "created", "modified", or "deleted" |
 | `timestamp` | string | Event timestamp in ISO format |
-

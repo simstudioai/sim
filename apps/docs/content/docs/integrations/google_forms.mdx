@@ -5,7 +5,7 @@ description: Manage Google Forms and responses
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="google_forms"
   color="#FFFFFF"
 />
@@ -256,8 +256,6 @@ Renew a notification watch for another 7 days
 | `expireTime` | string | The new expiration time |
 | `state` | string | The watch state |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -286,4 +284,3 @@ Trigger workflow from Google Form submissions (via Apps Script forwarder)
 | `formId` | string | Google Form ID |
 | `answers` | object | Normalized map of question -&gt; answer |
 | `raw` | object | Original payload \(when enabled\) |
-

@@ -5,7 +5,7 @@ description: Access earnings calls, transcripts, filings, and slides
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="quartr"
   color="#000000"
 />
@@ -56,13 +56,13 @@ List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, cou
 | `companies` | array | Companies matching the filters |
 |   ↳ `id` | number | Quartr company ID |
 |   ↳ `name` | string | Legal company name |
-|   ↳ `displayName` | string | Display name |
+|   ↳ `displayName` | string (nullable) | Display name |
 |   ↳ `country` | string | ISO 3166-1 alpha-2 country code |
 |   ↳ `tickers` | array | Ticker listings for the company |
 |     ↳ `ticker` | string | Ticker symbol |
 |     ↳ `exchange` | string | Exchange symbol |
 |   ↳ `isins` | array | ISINs for the company |
-|   ↳ `cik` | string | SEC Central Index Key |
+|   ↳ `cik` | string (nullable) | SEC Central Index Key |
 |   ↳ `openfigi` | array | OpenFIGI share class identifiers |
 |   ↳ `backlinkUrl` | string | Quartr backlink URL for the company |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
@@ -87,13 +87,13 @@ Retrieve a single company from Quartr by its company ID.
 | `company` | object | The requested company |
 |   ↳ `id` | number | Quartr company ID |
 |   ↳ `name` | string | Legal company name |
-|   ↳ `displayName` | string | Display name |
+|   ↳ `displayName` | string (nullable) | Display name |
 |   ↳ `country` | string | ISO 3166-1 alpha-2 country code |
 |   ↳ `tickers` | array | Ticker listings for the company |
 |     ↳ `ticker` | string | Ticker symbol |
 |     ↳ `exchange` | string | Exchange symbol |
 |   ↳ `isins` | array | ISINs for the company |
-|   ↳ `cik` | string | SEC Central Index Key |
+|   ↳ `cik` | string (nullable) | SEC Central Index Key |
 |   ↳ `openfigi` | array | OpenFIGI share class identifiers |
 |   ↳ `backlinkUrl` | string | Quartr backlink URL for the company |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
@@ -134,8 +134,8 @@ List corporate events (earnings calls, capital markets days, etc.) from Quartr, 
 |   ↳ `title` | string | Event title \(e.g., "Q1 2024"\) |
 |   ↳ `date` | string | Event date \(ISO 8601\) |
 |   ↳ `typeId` | number | Event type ID |
-|   ↳ `fiscalYear` | number | Fiscal year |
-|   ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|   ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|   ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
 |   ↳ `language` | string | Event language code |
 |   ↳ `backlinkUrl` | string | Quartr backlink URL for the event |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
@@ -163,8 +163,8 @@ Retrieve a single corporate event from Quartr by its event ID.
 |   ↳ `title` | string | Event title \(e.g., "Q1 2024"\) |
 |   ↳ `date` | string | Event date \(ISO 8601\) |
 |   ↳ `typeId` | number | Event type ID |
-|   ↳ `fiscalYear` | number | Fiscal year |
-|   ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|   ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|   ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
 |   ↳ `language` | string | Event language code |
 |   ↳ `backlinkUrl` | string | Quartr backlink URL for the event |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
@@ -189,10 +189,10 @@ Retrieve the AI-generated summary of a corporate event from Quartr, with selecta
 | --------- | ---- | ----------- |
 | `summary` | string | AI-generated event summary in Markdown \(includes embedded document source tags unless a plain-text summary is requested\) |
 | `sources` | array | Source documents referenced by the summary |
-|   ↳ `sourceId` | string | ID linking the source document to tags embedded in the summary |
+|   ↳ `sourceId` | string (nullable) | ID linking the source document to tags embedded in the summary |
 |   ↳ `documentId` | number | Quartr document ID of the source |
-|   ↳ `page` | number | Page number or timestamp in seconds depending on the document type |
-|   ↳ `timestamp` | number | Timestamp in seconds |
+|   ↳ `page` | number (nullable) | Page number or timestamp in seconds depending on the document type |
+|   ↳ `timestamp` | number (nullable) | Timestamp in seconds |
 |   ↳ `typeId` | number | Document type ID of the source |
 | `summaryId` | number | Quartr summary ID |
 | `summaryCreatedAt` | string | Summary creation timestamp \(ISO 8601\) |
@@ -217,8 +217,8 @@ List the event types available in Quartr (e.g., earnings calls), useful for filt
 | --------- | ---- | ----------- |
 | `eventTypes` | array | Available event types |
 |   ↳ `id` | number | Event type ID |
-|   ↳ `name` | string | Event type name \(e.g., "Q1"\) |
-|   ↳ `parent` | string | Parent event type name \(e.g., "Earnings call"\) |
+|   ↳ `name` | string (nullable) | Event type name \(e.g., "Q1"\) |
+|   ↳ `parent` | string (nullable) | Parent event type name \(e.g., "Earnings call"\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
@@ -256,19 +256,19 @@ List documents of all kinds (reports, slide decks, and transcripts) from Quartr,
 | --------- | ---- | ----------- |
 | `documents` | array | Documents matching the filters |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
 ### Quartr List Document Types
@@ -291,10 +291,10 @@ List the document types available in Quartr (e.g., 10-Q quarterly reports), usef
 | `documentTypes` | array | Available document types |
 |   ↳ `id` | number | Document type ID |
 |   ↳ `name` | string | Document type name \(e.g., "Quarterly Report"\) |
-|   ↳ `description` | string | Document type description |
-|   ↳ `form` | string | Filing form \(e.g., "10-Q"\) |
+|   ↳ `description` | string (nullable) | Document type description |
+|   ↳ `form` | string (nullable) | Filing form \(e.g., "10-Q"\) |
 |   ↳ `category` | string | Document category \(e.g., "Report"\) |
-|   ↳ `documentGroupId` | number | Document group ID |
+|   ↳ `documentGroupId` | number (nullable) | Document group ID |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
@@ -332,19 +332,19 @@ List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filt
 | --------- | ---- | ----------- |
 | `reports` | array | Reports matching the filters |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
 ### Quartr Get Report
@@ -364,19 +364,19 @@ Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by 
 | --------- | ---- | ----------- |
 | `document` | object | Report metadata |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `fileUrl` | string | URL of the report PDF |
 | `file` | file | Downloaded report PDF stored in execution files |
 
@@ -413,19 +413,19 @@ List slide presentations from Quartr, filterable by company, event, document typ
 | --------- | ---- | ----------- |
 | `slideDecks` | array | Slide decks matching the filters |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
 ### Quartr Get Slide Deck
@@ -445,19 +445,19 @@ Retrieve a slide presentation from Quartr by its document ID and download the PD
 | --------- | ---- | ----------- |
 | `document` | object | Slide deck metadata |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `fileUrl` | string | URL of the slide deck PDF |
 | `file` | file | Downloaded slide deck PDF stored in execution files |
 
@@ -494,19 +494,19 @@ List event transcripts from Quartr, filterable by company, event, document type,
 | --------- | ---- | ----------- |
 | `transcripts` | array | Transcripts matching the filters |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
 ### Quartr Get Transcript
@@ -526,19 +526,19 @@ Retrieve an event transcript from Quartr by its document ID and download the tra
 | --------- | ---- | ----------- |
 | `document` | object | Transcript metadata |
 |   ↳ `id` | number | Quartr document ID |
-|   ↳ `companyId` | number | Quartr company ID |
-|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number (nullable) | Quartr company ID |
+|   ↳ `eventId` | number (nullable) | Quartr event ID |
 |   ↳ `typeId` | number | Document type ID |
 |   ↳ `fileUrl` | string | URL of the document file |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `fileUrl` | string | URL of the transcript JSON file |
 | `file` | file | Downloaded transcript JSON file stored in execution files |
 
@@ -575,23 +575,23 @@ List archived event audio recordings from Quartr, filterable by company, event, 
 |   ↳ `id` | number | Quartr audio ID |
 |   ↳ `companyId` | number | Quartr company ID |
 |   ↳ `eventId` | number | Quartr event ID |
-|   ↳ `fileUrl` | string | Download URL of the audio file \(MPEG\) |
-|   ↳ `streamUrl` | string | Streaming URL of the audio \(M3U8\) |
-|   ↳ `qna` | number | Timestamp in seconds where the Q&A section starts |
-|   ↳ `audioMetadata` | object | Audio file metadata |
-|     ↳ `size` | string | File size \(e.g., "200.00 MB"\) |
-|     ↳ `duration` | number | Duration in seconds |
-|     ↳ `encoding` | string | Audio encoding |
-|     ↳ `mimetype` | string | Audio MIME type |
+|   ↳ `fileUrl` | string (nullable) | Download URL of the audio file \(MPEG\) |
+|   ↳ `streamUrl` | string (nullable) | Streaming URL of the audio \(M3U8\) |
+|   ↳ `qna` | number (nullable) | Timestamp in seconds where the Q&A section starts |
+|   ↳ `audioMetadata` | object (nullable) | Audio file metadata |
+|     ↳ `size` | string (nullable) | File size \(e.g., "200.00 MB"\) |
+|     ↳ `duration` | number (nullable) | Duration in seconds |
+|     ↳ `encoding` | string (nullable) | Audio encoding |
+|     ↳ `mimetype` | string (nullable) | Audio MIME type |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
 ### Quartr Get Audio
@@ -613,23 +613,23 @@ Retrieve an archived event audio recording from Quartr by its audio ID. Returns 
 |   ↳ `id` | number | Quartr audio ID |
 |   ↳ `companyId` | number | Quartr company ID |
 |   ↳ `eventId` | number | Quartr event ID |
-|   ↳ `fileUrl` | string | Download URL of the audio file \(MPEG\) |
-|   ↳ `streamUrl` | string | Streaming URL of the audio \(M3U8\) |
-|   ↳ `qna` | number | Timestamp in seconds where the Q&A section starts |
-|   ↳ `audioMetadata` | object | Audio file metadata |
-|     ↳ `size` | string | File size \(e.g., "200.00 MB"\) |
-|     ↳ `duration` | number | Duration in seconds |
-|     ↳ `encoding` | string | Audio encoding |
-|     ↳ `mimetype` | string | Audio MIME type |
+|   ↳ `fileUrl` | string (nullable) | Download URL of the audio file \(MPEG\) |
+|   ↳ `streamUrl` | string (nullable) | Streaming URL of the audio \(M3U8\) |
+|   ↳ `qna` | number (nullable) | Timestamp in seconds where the Q&A section starts |
+|   ↳ `audioMetadata` | object (nullable) | Audio file metadata |
+|     ↳ `size` | string (nullable) | File size \(e.g., "200.00 MB"\) |
+|     ↳ `duration` | number (nullable) | Duration in seconds |
+|     ↳ `encoding` | string (nullable) | Audio encoding |
+|     ↳ `mimetype` | string (nullable) | Audio MIME type |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
-|     ↳ `title` | string | Event title |
-|     ↳ `typeId` | number | Event type ID |
-|     ↳ `fiscalYear` | number | Fiscal year |
-|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
-|     ↳ `language` | string | Event language code |
-|     ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `event` | object (nullable) | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string (nullable) | Event title |
+|     ↳ `typeId` | number (nullable) | Event type ID |
+|     ↳ `fiscalYear` | number (nullable) | Fiscal year |
+|     ↳ `fiscalPeriod` | string (nullable) | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string (nullable) | Event language code |
+|     ↳ `date` | string (nullable) | Event date \(ISO 8601\) |
 
 ### Quartr List Live Events
 
@@ -666,12 +666,10 @@ List live and upcoming events from Quartr with live audio and transcript stream 
 |   ↳ `eventId` | number | Quartr event ID |
 |   ↳ `companyId` | number | Quartr company ID |
 |   ↳ `date` | string | Scheduled event date \(ISO 8601\) |
-|   ↳ `wentLiveAt` | string | Timestamp when the event went live \(ISO 8601\) |
-|   ↳ `state` | string | Live state \(notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable\) |
-|   ↳ `audio` | string | URL of the live audio stream or recording |
-|   ↳ `transcript` | string | URL of the live transcript stream \(JSON Lines\) |
+|   ↳ `wentLiveAt` | string (nullable) | Timestamp when the event went live \(ISO 8601\) |
+|   ↳ `state` | string (nullable) | Live state \(notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable\) |
+|   ↳ `audio` | string (nullable) | URL of the live audio stream or recording |
+|   ↳ `transcript` | string (nullable) | URL of the live transcript stream \(JSON Lines\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
-
-

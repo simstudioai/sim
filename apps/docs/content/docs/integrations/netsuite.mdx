@@ -5,7 +5,7 @@ description: Manage NetSuite records, queries, datasets, batches, and async jobs
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="netsuite"
   color="#FFFFFF"
 />
@@ -60,7 +60,7 @@ List one page of a NetSuite record collection, optionally filtered with a q expr
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | One documented NetSuite collection page |
+| `data` | json (nullable) | One documented NetSuite collection page |
 |   ↳ `links` | array | Oracle HATEOAS links for the response |
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
@@ -94,7 +94,7 @@ Retrieve one NetSuite record by internal or external ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | NetSuite response body; record fields are account-specific and dynamic |
+| `data` | json (nullable) | NetSuite response body; record fields are account-specific and dynamic |
 
 ### NetSuite Create Record
 
@@ -114,7 +114,7 @@ Create a NetSuite record using the account-specific record metadata schema.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for standard HTTP 204 creation; replacement creation can return the documented HTTP 201 post-state object |
+| `data` | json (nullable) | Empty for standard HTTP 204 creation; replacement creation can return the documented HTTP 201 post-state object |
 | `location` | string | Newly created record URL from the Location response header |
 
 ### NetSuite Update Record
@@ -136,7 +136,7 @@ Update fields on an existing NetSuite record with PATCH.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 204 No Content response |
+| `data` | json (nullable) | Empty for the documented HTTP 204 No Content response |
 | `location` | string | Updated record URL from the Location response header |
 
 ### NetSuite Upsert Record
@@ -157,7 +157,7 @@ Create or update a NetSuite record by external ID with PUT.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 204 No Content response |
+| `data` | json (nullable) | Empty for the documented HTTP 204 No Content response |
 | `location` | string | URL of the created or updated record, when NetSuite returns a Location header |
 
 ### NetSuite Delete Record
@@ -177,7 +177,7 @@ Delete one NetSuite record by internal or external ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 204 No Content response |
+| `data` | json (nullable) | Empty for the documented HTTP 204 No Content response |
 
 ### NetSuite Get Subresource
 
@@ -197,7 +197,7 @@ Retrieve a record sublist, subrecord, referenced record, or nested subresource.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | NetSuite response body; record fields are account-specific and dynamic |
+| `data` | json (nullable) | NetSuite response body; record fields are account-specific and dynamic |
 
 ### NetSuite Get Record Form
 
@@ -220,7 +220,7 @@ Return a prepopulated create form, or an edit form when a record ID is supplied.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | NetSuite response body; record fields are account-specific and dynamic |
+| `data` | json (nullable) | NetSuite response body; record fields are account-specific and dynamic |
 
 ### NetSuite Get Select Options
 
@@ -244,7 +244,7 @@ Retrieve valid select values for one or more fields on a new or existing record.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Select-options response keyed by requested field ID; each dynamic field contains an _selectOptions object with links, items, count, offset, hasMore, and totalResults |
+| `data` | json (nullable) | Select-options response keyed by requested field ID; each dynamic field contains an _selectOptions object with links, items, count, offset, hasMore, and totalResults |
 |   ↳ `links` | array | Oracle HATEOAS links for the response |
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
@@ -270,7 +270,7 @@ Attach a contact or file to another NetSuite record.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 204 No Content response |
+| `data` | json (nullable) | Empty for the documented HTTP 204 No Content response |
 
 ### NetSuite Detach Record or File
 
@@ -291,7 +291,7 @@ Detach a contact or file from another NetSuite record.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 204 No Content response |
+| `data` | json (nullable) | Empty for the documented HTTP 204 No Content response |
 
 ### NetSuite Execute Record Action
 
@@ -312,7 +312,7 @@ Execute a supported NetSuite record action such as approve, reject, or confirm.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Documented NetSuite record-action response |
+| `data` | json (nullable) | Documented NetSuite record-action response |
 |   ↳ `result` | boolean | True when NetSuite completed the record action |
 
 ### NetSuite Transform Record
@@ -334,7 +334,7 @@ Transform a supported source record into another NetSuite record type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 204 No Content response |
+| `data` | json (nullable) | Empty for the documented HTTP 204 No Content response |
 | `location` | string | URL of the transformed record, when NetSuite returns a Location header |
 
 ### NetSuite Batch Get Records
@@ -358,7 +358,7 @@ Submit an asynchronous request to retrieve up to 100 records of one type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 202 Accepted submission response |
+| `data` | json (nullable) | Empty for the documented HTTP 202 Accepted submission response |
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
@@ -380,7 +380,7 @@ Submit an asynchronous batch that creates up to 100 records of one type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 202 Accepted submission response |
+| `data` | json (nullable) | Empty for the documented HTTP 202 Accepted submission response |
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
@@ -402,7 +402,7 @@ Submit an asynchronous batch that updates up to 100 records of one type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 202 Accepted submission response |
+| `data` | json (nullable) | Empty for the documented HTTP 202 Accepted submission response |
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
@@ -424,7 +424,7 @@ Submit an asynchronous batch that creates or updates up to 100 records by extern
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 202 Accepted submission response |
+| `data` | json (nullable) | Empty for the documented HTTP 202 Accepted submission response |
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
@@ -446,7 +446,7 @@ Submit an asynchronous request to delete up to 100 records of one type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Empty for the documented HTTP 202 Accepted submission response |
+| `data` | json (nullable) | Empty for the documented HTTP 202 Accepted submission response |
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
@@ -468,7 +468,7 @@ Execute one page of a SuiteQL query through SuiteTalk REST web services.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | One documented NetSuite collection page |
+| `data` | json (nullable) | One documented NetSuite collection page |
 |   ↳ `links` | array | Oracle HATEOAS links for the response |
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
@@ -495,7 +495,7 @@ List one page of SuiteAnalytics Workbook datasets available to the authenticated
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | One documented NetSuite collection page |
+| `data` | json (nullable) | One documented NetSuite collection page |
 |   ↳ `links` | array | Oracle HATEOAS links for the response |
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
@@ -523,7 +523,7 @@ Execute one page of a standard or custom SuiteAnalytics Workbook dataset.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | One documented NetSuite collection page |
+| `data` | json (nullable) | One documented NetSuite collection page |
 |   ↳ `links` | array | Oracle HATEOAS links for the response |
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
@@ -548,7 +548,7 @@ List record types exposed to the authenticated role by the REST metadata catalog
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | NetSuite REST metadata catalog |
+| `data` | json (nullable) | NetSuite REST metadata catalog |
 |   ↳ `links` | array | Oracle HATEOAS links for the response |
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
@@ -576,7 +576,7 @@ Retrieve account-specific metadata for one NetSuite record type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | NetSuite response body; record fields are account-specific and dynamic |
+| `data` | json (nullable) | NetSuite response body; record fields are account-specific and dynamic |
 
 ### NetSuite Get Async Status
 
@@ -596,7 +596,7 @@ Retrieve job status, list job tasks, or retrieve one task status.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Documented NetSuite asynchronous job, task collection, or task status |
+| `data` | json (nullable) | Documented NetSuite asynchronous job, task collection, or task status |
 |   ↳ `completed` | boolean | Whether processing has completed |
 |   ↳ `endTime` | string | Task completion time |
 |   ↳ `id` | string | Asynchronous job or task ID |
@@ -632,7 +632,7 @@ Retrieve the provider response for one task within a completed asynchronous job.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Result payload for the submitted asynchronous operation; record fields are account-specific and dynamic |
+| `data` | json (nullable) | Result payload for the submitted asynchronous operation; record fields are account-specific and dynamic |
 
 ### NetSuite Get Server Time
 
@@ -649,7 +649,7 @@ Retrieve the current UTC time from the NetSuite server.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | NetSuite server time response |
+| `data` | json (nullable) | NetSuite server time response |
 |   ↳ `serverTime` | string | Current NetSuite server time in UTC |
 
 ### NetSuite Get Governance Limits
@@ -667,10 +667,8 @@ Retrieve REST web-services concurrency limits for the NetSuite account and integ
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
-| `data` | json | Documented NetSuite governance limits |
+| `data` | json (nullable) | Documented NetSuite governance limits |
 |   ↳ `accountConcurrencyLimit` | number | Account concurrency limit |
 |   ↳ `accountUnallocatedConcurrencyLimit` | number | Account concurrency not allocated to integrations |
 |   ↳ `integrationConcurrencyLimit` | number | Concurrency allocated to this integration |
 |   ↳ `integrationLimitType` | string | Limit assignment: integrationSpecific, accountLimit, or internal |
-
-

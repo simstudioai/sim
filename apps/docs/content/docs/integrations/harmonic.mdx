@@ -5,7 +5,7 @@ description: Search and enrich private-market contacts
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="harmonic"
   color="#FFFFFF"
 />
@@ -58,26 +58,26 @@ Ask Harmonic Scout to find people using natural language and return a stable, wo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | People matching the Scout request, normalized for downstream workflow use |
-|   ↳ `personUrn` | string | Harmonic person URN |
-|   ↳ `personId` | number | Numeric Harmonic person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `headline` | string | LinkedIn headline or current title |
-|   ↳ `currentTitles` | array | Current job titles |
-|   ↳ `currentCompanyNames` | array | Current company names |
-|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
-|   ↳ `primaryEmail` | string | Primary known email address |
-|   ↳ `emails` | array | Known email addresses |
-|   ↳ `phoneNumbers` | array | Known phone numbers |
-|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
-|   ↳ `formattedLocation` | string | Formatted location |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State or region |
-|   ↳ `country` | string | Country |
-|   ↳ `profilePictureUrl` | string | Profile picture URL |
-|   ↳ `summary` | string | Scout-generated contact summary |
-|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+|   ↳ `personUrn` | string (nullable) | Harmonic person URN |
+|   ↳ `personId` | number (nullable) | Numeric Harmonic person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `headline` | string (nullable) | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array (nullable) | Current job titles |
+|   ↳ `currentCompanyNames` | array (nullable) | Current company names |
+|   ↳ `currentCompanyUrns` | array (nullable) | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string (nullable) | Primary known email address |
+|   ↳ `emails` | array (nullable) | Known email addresses |
+|   ↳ `phoneNumbers` | array (nullable) | Known phone numbers |
+|   ↳ `linkedinUrl` | string (nullable) | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string (nullable) | Formatted location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State or region |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `profilePictureUrl` | string (nullable) | Profile picture URL |
+|   ↳ `summary` | string (nullable) | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean (nullable) | Whether Harmonic marks the person record as redacted |
 | `taskId` | string | Harmonic Scout task identifier |
 | `status` | string | Final Scout task status \(success\) |
 | `count` | number | Number of contacts returned |
@@ -97,30 +97,30 @@ Resolve a LinkedIn profile URL or email address into a normalized Harmonic conta
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contact` | object | Normalized Harmonic contact, or null when the person is not yet in Harmonic |
-|   ↳ `personUrn` | string | Harmonic person URN |
-|   ↳ `personId` | number | Numeric Harmonic person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `headline` | string | LinkedIn headline or current title |
-|   ↳ `currentTitles` | array | Current job titles |
-|   ↳ `currentCompanyNames` | array | Current company names |
-|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
-|   ↳ `primaryEmail` | string | Primary known email address |
-|   ↳ `emails` | array | Known email addresses |
-|   ↳ `phoneNumbers` | array | Known phone numbers |
-|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
-|   ↳ `formattedLocation` | string | Formatted location |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State or region |
-|   ↳ `country` | string | Country |
-|   ↳ `profilePictureUrl` | string | Profile picture URL |
-|   ↳ `summary` | string | Scout-generated contact summary |
-|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
-| `enrichmentUrn` | string | Enrichment URN to poll with Get Enrichment Status when Harmonic queued a refresh |
-| `mergedPersonUrn` | string | URN this person was merged into, when Harmonic deduplicated the record |
-| `requestedEntityUrn` | string | Person URN Harmonic matched the request to |
+| `contact` | object (nullable) | Normalized Harmonic contact, or null when the person is not yet in Harmonic |
+|   ↳ `personUrn` | string (nullable) | Harmonic person URN |
+|   ↳ `personId` | number (nullable) | Numeric Harmonic person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `headline` | string (nullable) | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array (nullable) | Current job titles |
+|   ↳ `currentCompanyNames` | array (nullable) | Current company names |
+|   ↳ `currentCompanyUrns` | array (nullable) | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string (nullable) | Primary known email address |
+|   ↳ `emails` | array (nullable) | Known email addresses |
+|   ↳ `phoneNumbers` | array (nullable) | Known phone numbers |
+|   ↳ `linkedinUrl` | string (nullable) | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string (nullable) | Formatted location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State or region |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `profilePictureUrl` | string (nullable) | Profile picture URL |
+|   ↳ `summary` | string (nullable) | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean (nullable) | Whether Harmonic marks the person record as redacted |
+| `enrichmentUrn` | string (nullable) | Enrichment URN to poll with Get Enrichment Status when Harmonic queued a refresh |
+| `mergedPersonUrn` | string (nullable) | URN this person was merged into, when Harmonic deduplicated the record |
+| `requestedEntityUrn` | string (nullable) | Person URN Harmonic matched the request to |
 | `found` | boolean | Whether Harmonic returned a person profile |
 | `enrichmentQueued` | boolean | Whether Harmonic queued a background refresh \(HTTP 201\) for this person |
 
@@ -139,27 +139,27 @@ Fetch one Harmonic person by numeric ID or URN, including any email resolved by 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contact` | object | Normalized Harmonic contact, or null when Harmonic has no such person |
-|   ↳ `personUrn` | string | Harmonic person URN |
-|   ↳ `personId` | number | Numeric Harmonic person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `headline` | string | LinkedIn headline or current title |
-|   ↳ `currentTitles` | array | Current job titles |
-|   ↳ `currentCompanyNames` | array | Current company names |
-|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
-|   ↳ `primaryEmail` | string | Primary known email address |
-|   ↳ `emails` | array | Known email addresses |
-|   ↳ `phoneNumbers` | array | Known phone numbers |
-|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
-|   ↳ `formattedLocation` | string | Formatted location |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State or region |
-|   ↳ `country` | string | Country |
-|   ↳ `profilePictureUrl` | string | Profile picture URL |
-|   ↳ `summary` | string | Scout-generated contact summary |
-|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `contact` | object (nullable) | Normalized Harmonic contact, or null when Harmonic has no such person |
+|   ↳ `personUrn` | string (nullable) | Harmonic person URN |
+|   ↳ `personId` | number (nullable) | Numeric Harmonic person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `headline` | string (nullable) | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array (nullable) | Current job titles |
+|   ↳ `currentCompanyNames` | array (nullable) | Current company names |
+|   ↳ `currentCompanyUrns` | array (nullable) | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string (nullable) | Primary known email address |
+|   ↳ `emails` | array (nullable) | Known email addresses |
+|   ↳ `phoneNumbers` | array (nullable) | Known phone numbers |
+|   ↳ `linkedinUrl` | string (nullable) | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string (nullable) | Formatted location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State or region |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `profilePictureUrl` | string (nullable) | Profile picture URL |
+|   ↳ `summary` | string (nullable) | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean (nullable) | Whether Harmonic marks the person record as redacted |
 | `found` | boolean | Whether Harmonic returned a person profile |
 
 ### Harmonic Batch Get People
@@ -178,26 +178,26 @@ Fetch full Harmonic person profiles for up to 500 combined numeric IDs and perso
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Fetched Harmonic person profiles normalized as contacts |
-|   ↳ `personUrn` | string | Harmonic person URN |
-|   ↳ `personId` | number | Numeric Harmonic person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `headline` | string | LinkedIn headline or current title |
-|   ↳ `currentTitles` | array | Current job titles |
-|   ↳ `currentCompanyNames` | array | Current company names |
-|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
-|   ↳ `primaryEmail` | string | Primary known email address |
-|   ↳ `emails` | array | Known email addresses |
-|   ↳ `phoneNumbers` | array | Known phone numbers |
-|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
-|   ↳ `formattedLocation` | string | Formatted location |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State or region |
-|   ↳ `country` | string | Country |
-|   ↳ `profilePictureUrl` | string | Profile picture URL |
-|   ↳ `summary` | string | Scout-generated contact summary |
-|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+|   ↳ `personUrn` | string (nullable) | Harmonic person URN |
+|   ↳ `personId` | number (nullable) | Numeric Harmonic person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `headline` | string (nullable) | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array (nullable) | Current job titles |
+|   ↳ `currentCompanyNames` | array (nullable) | Current company names |
+|   ↳ `currentCompanyUrns` | array (nullable) | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string (nullable) | Primary known email address |
+|   ↳ `emails` | array (nullable) | Known email addresses |
+|   ↳ `phoneNumbers` | array (nullable) | Known phone numbers |
+|   ↳ `linkedinUrl` | string (nullable) | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string (nullable) | Formatted location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State or region |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `profilePictureUrl` | string (nullable) | Profile picture URL |
+|   ↳ `summary` | string (nullable) | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean (nullable) | Whether Harmonic marks the person record as redacted |
 | `count` | number | Number of contacts returned |
 
 ### Harmonic Get Company Employees
@@ -220,10 +220,10 @@ List person URNs for a company, filtered by role group and employment status. Pa
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `personUrns` | array | Person URNs for the matching employees; Harmonic returns URNs only |
-| `totalCount` | number | Total matching employees |
-| `pageInfo` | object | Cursor pagination metadata |
-|   ↳ `nextCursor` | string | Cursor for the next page |
-|   ↳ `currentCursor` | string | Cursor for the current page |
+| `totalCount` | number (nullable) | Total matching employees |
+| `pageInfo` | object (nullable) | Cursor pagination metadata |
+|   ↳ `nextCursor` | string (nullable) | Cursor for the next page |
+|   ↳ `currentCursor` | string (nullable) | Cursor for the current page |
 |   ↳ `hasNext` | boolean | Whether another page is available |
 
 ### Harmonic List People Saved Searches
@@ -243,7 +243,7 @@ List the team-shared Harmonic saved searches that target people. Use a returned 
 |   ↳ `savedSearchId` | number | Saved search ID |
 |   ↳ `savedSearchUrn` | string | Saved search URN |
 |   ↳ `name` | string | Saved search name |
-|   ↳ `isPrivate` | boolean | Whether the search is private |
+|   ↳ `isPrivate` | boolean (nullable) | Whether the search is private |
 |   ↳ `savedSearchType` | string | Saved search entity type \(PERSONS\) |
 |   ↳ `userSavedSearchType` | string | User-facing saved search type |
 |   ↳ `creatorUrn` | string | Creator user URN |
@@ -268,31 +268,31 @@ Get one page of a Harmonic people saved search. Full records become contacts; UR
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Full person records returned by the saved search, normalized as contacts |
-|   ↳ `personUrn` | string | Harmonic person URN |
-|   ↳ `personId` | number | Numeric Harmonic person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `headline` | string | LinkedIn headline or current title |
-|   ↳ `currentTitles` | array | Current job titles |
-|   ↳ `currentCompanyNames` | array | Current company names |
-|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
-|   ↳ `primaryEmail` | string | Primary known email address |
-|   ↳ `emails` | array | Known email addresses |
-|   ↳ `phoneNumbers` | array | Known phone numbers |
-|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
-|   ↳ `formattedLocation` | string | Formatted location |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State or region |
-|   ↳ `country` | string | Country |
-|   ↳ `profilePictureUrl` | string | Profile picture URL |
-|   ↳ `summary` | string | Scout-generated contact summary |
-|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+|   ↳ `personUrn` | string (nullable) | Harmonic person URN |
+|   ↳ `personId` | number (nullable) | Numeric Harmonic person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `headline` | string (nullable) | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array (nullable) | Current job titles |
+|   ↳ `currentCompanyNames` | array (nullable) | Current company names |
+|   ↳ `currentCompanyUrns` | array (nullable) | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string (nullable) | Primary known email address |
+|   ↳ `emails` | array (nullable) | Known email addresses |
+|   ↳ `phoneNumbers` | array (nullable) | Known phone numbers |
+|   ↳ `linkedinUrl` | string (nullable) | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string (nullable) | Formatted location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State or region |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `profilePictureUrl` | string (nullable) | Profile picture URL |
+|   ↳ `summary` | string (nullable) | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean (nullable) | Whether Harmonic marks the person record as redacted |
 | `personUrns` | array | All person URNs in the page, including rows returned without full profiles |
-| `totalCount` | number | Total matching people |
-| `pageInfo` | object | Cursor pagination metadata |
-|   ↳ `nextCursor` | string | Cursor for the next page |
-|   ↳ `currentCursor` | string | Cursor for the current page |
+| `totalCount` | number (nullable) | Total matching people |
+| `pageInfo` | object (nullable) | Cursor pagination metadata |
+|   ↳ `nextCursor` | string (nullable) | Cursor for the next page |
+|   ↳ `currentCursor` | string (nullable) | Cursor for the current page |
 |   ↳ `hasNext` | boolean | Whether another page is available |
 
 ### Harmonic Get People Saved Search Net-New Results
@@ -313,31 +313,31 @@ Get only the people newly matching a subscribed Harmonic people saved search, so
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Newly matching people returned as full profiles, normalized as contacts |
-|   ↳ `personUrn` | string | Harmonic person URN |
-|   ↳ `personId` | number | Numeric Harmonic person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `headline` | string | LinkedIn headline or current title |
-|   ↳ `currentTitles` | array | Current job titles |
-|   ↳ `currentCompanyNames` | array | Current company names |
-|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
-|   ↳ `primaryEmail` | string | Primary known email address |
-|   ↳ `emails` | array | Known email addresses |
-|   ↳ `phoneNumbers` | array | Known phone numbers |
-|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
-|   ↳ `formattedLocation` | string | Formatted location |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State or region |
-|   ↳ `country` | string | Country |
-|   ↳ `profilePictureUrl` | string | Profile picture URL |
-|   ↳ `summary` | string | Scout-generated contact summary |
-|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+|   ↳ `personUrn` | string (nullable) | Harmonic person URN |
+|   ↳ `personId` | number (nullable) | Numeric Harmonic person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `headline` | string (nullable) | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array (nullable) | Current job titles |
+|   ↳ `currentCompanyNames` | array (nullable) | Current company names |
+|   ↳ `currentCompanyUrns` | array (nullable) | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string (nullable) | Primary known email address |
+|   ↳ `emails` | array (nullable) | Known email addresses |
+|   ↳ `phoneNumbers` | array (nullable) | Known phone numbers |
+|   ↳ `linkedinUrl` | string (nullable) | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string (nullable) | Formatted location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `state` | string (nullable) | State or region |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `profilePictureUrl` | string (nullable) | Profile picture URL |
+|   ↳ `summary` | string (nullable) | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean (nullable) | Whether Harmonic marks the person record as redacted |
 | `personUrns` | array | All newly matching person URNs, including rows returned without full profiles |
-| `cursor` | string | Cursor echoed by Harmonic |
-| `pageInfo` | object | Cursor pagination metadata |
-|   ↳ `nextCursor` | string | Cursor for the next page |
-|   ↳ `currentCursor` | string | Cursor for the current page |
+| `cursor` | string (nullable) | Cursor echoed by Harmonic |
+| `pageInfo` | object (nullable) | Cursor pagination metadata |
+|   ↳ `nextCursor` | string (nullable) | Cursor for the next page |
+|   ↳ `currentCursor` | string (nullable) | Cursor for the current page |
 |   ↳ `hasNext` | boolean | Whether another page is available |
 
 ### Harmonic Clear People Saved Search Net-New Results
@@ -357,7 +357,7 @@ Acknowledge net-new people on a saved search so the next poll returns only fresh
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `cleared` | boolean | Whether Harmonic accepted the acknowledgement |
-| `clearedPersonUrns` | array | Person URNs acknowledged, or null when every net-new result was cleared |
+| `clearedPersonUrns` | array (nullable) | Person URNs acknowledged, or null when every net-new result was cleared |
 
 ### Harmonic Submit Email Enrichment Job
 
@@ -406,12 +406,12 @@ Check a Harmonic bulk email enrichment job. Per-person results appear once the j
 |   ↳ `totalFailed` | number | People whose enrichment failed |
 |   ↳ `totalSkipped` | number | People skipped |
 |   ↳ `totalNotFound` | number | People Harmonic could not resolve |
-| `results` | array | Per-person outcomes; null until the job reaches a terminal status |
+| `results` | array (nullable) | Per-person outcomes; null until the job reaches a terminal status |
 |   ↳ `personUrn` | string | Harmonic person URN |
 |   ↳ `status` | string | Per-person job status \(PENDING, SUCCESS, NOT_FOUND, FAILED, SKIPPED\) |
 | `succeededPersonUrns` | array | Person URNs whose email was found; pass these to Batch Get People |
 | `createdAt` | string | Job creation timestamp |
-| `completedAt` | string | Job completion timestamp |
+| `completedAt` | string (nullable) | Job completion timestamp |
 
 ### Harmonic Get Email Enrichment Usage
 
@@ -445,10 +445,8 @@ Check enrichment jobs Harmonic queued for people it did not already have, and re
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `enrichments` | array | Status of each requested enrichment job |
-|   ↳ `enrichmentUrn` | string | Harmonic enrichment URN |
-|   ↳ `status` | string | Enrichment job status \(QUEUED, IN_PROGRESS, COMPLETE, FAILED, NOT_FOUND, EXPERIENCES_HIDDEN\) |
-|   ↳ `message` | string | Provider status message |
-|   ↳ `enrichedEntityUrn` | string | Resulting company or person URN once enrichment completes |
+|   ↳ `enrichmentUrn` | string (nullable) | Harmonic enrichment URN |
+|   ↳ `status` | string (nullable) | Enrichment job status \(QUEUED, IN_PROGRESS, COMPLETE, FAILED, NOT_FOUND, EXPERIENCES_HIDDEN\) |
+|   ↳ `message` | string (nullable) | Provider status message |
+|   ↳ `enrichedEntityUrn` | string (nullable) | Resulting company or person URN once enrichment completes |
 | `count` | number | Number of enrichment statuses returned |
-
-

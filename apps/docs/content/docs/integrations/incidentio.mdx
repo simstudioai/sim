@@ -5,7 +5,7 @@ description: Manage incidents with incident.io
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="incidentio"
   color="#FFFFFF"
 />
@@ -1734,7 +1734,7 @@ List the entries of a catalog type in incident.io — for example every service,
 |   ↳ `archived_at` | string | When this entry was archived |
 |   ↳ `created_at` | string | When this entry was created |
 |   ↳ `updated_at` | string | When this entry was last updated |
-| `catalog_type` | object | The catalog type these entries belong to |
+| `catalog_type` | object (nullable) | The catalog type these entries belong to |
 |   ↳ `id` | string | Catalog type ID |
 |   ↳ `name` | string | Human readable name of this type |
 |   ↳ `description` | string | Human readable description of this type |
@@ -2027,8 +2027,6 @@ Revoke a user's membership of a private incident in incident.io
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2165,4 +2163,3 @@ Trigger workflow when an incident is updated in incident.io
 | `new_status` | json | New status object \(status-updated events only; null otherwise\). |
 | `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
 | `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
-

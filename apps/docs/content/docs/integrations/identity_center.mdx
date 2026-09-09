@@ -5,7 +5,7 @@ description: Manage temporary elevated access in AWS IAM Identity Center
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="identity_center"
   color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 />
@@ -50,11 +50,11 @@ List all AWS IAM Identity Center instances in your account
 | `instances` | array | Identity Center instances in the region |
 |   ↳ `instanceArn` | string | ARN of the Identity Center instance |
 |   ↳ `identityStoreId` | string | Identity Store ID backing the instance |
-|   ↳ `name` | string | Instance name |
+|   ↳ `name` | string (nullable) | Instance name |
 |   ↳ `status` | string | Instance status |
-|   ↳ `statusReason` | string | Explanation when the instance is not ACTIVE |
-|   ↳ `ownerAccountId` | string | AWS account that owns the instance |
-|   ↳ `createdDate` | string | ISO 8601 date the instance was created |
+|   ↳ `statusReason` | string (nullable) | Explanation when the instance is not ACTIVE |
+|   ↳ `ownerAccountId` | string (nullable) | AWS account that owns the instance |
+|   ↳ `createdDate` | string (nullable) | ISO 8601 date the instance was created |
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of instances returned |
 
@@ -82,7 +82,7 @@ List all AWS accounts in your organization
 |   ↳ `name` | string | Account name |
 |   ↳ `email` | string | Root email address of the account |
 |   ↳ `status` | string | Account status \(e.g., ACTIVE, SUSPENDED\) |
-|   ↳ `joinedTimestamp` | string | ISO 8601 date the account joined the organization |
+|   ↳ `joinedTimestamp` | string (nullable) | ISO 8601 date the account joined the organization |
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of accounts returned |
 
@@ -132,9 +132,9 @@ List all permission sets defined in an IAM Identity Center instance
 | `permissionSets` | array | Permission sets defined on the instance |
 |   ↳ `permissionSetArn` | string | ARN of the permission set |
 |   ↳ `name` | string | Permission set name |
-|   ↳ `description` | string | Permission set description |
-|   ↳ `sessionDuration` | string | ISO 8601 session duration \(e.g., PT1H\) |
-|   ↳ `createdDate` | string | ISO 8601 date the permission set was created |
+|   ↳ `description` | string (nullable) | Permission set description |
+|   ↳ `sessionDuration` | string (nullable) | ISO 8601 session duration \(e.g., PT1H\) |
+|   ↳ `createdDate` | string (nullable) | ISO 8601 date the permission set was created |
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of permission sets returned |
 
@@ -181,10 +181,10 @@ Resolve an Identity Store user ID to the user behind it. Use to turn the princip
 | --------- | ---- | ----------- |
 | `userId` | string | Identity Store user ID |
 | `userName` | string | Username in the Identity Store |
-| `displayName` | string | Display name of the user, or null when the Identity Store omits it |
-| `email` | string | Primary email address, or null when the user has no email attribute |
-| `userStatus` | string | Account status \(ENABLED or DISABLED\), or null when the Identity Store omits it |
-| `title` | string | Job title, or null when the Identity Store omits it |
+| `displayName` | string (nullable) | Display name of the user, or null when the Identity Store omits it |
+| `email` | string (nullable) | Primary email address, or null when the user has no email attribute |
+| `userStatus` | string (nullable) | Account status \(ENABLED or DISABLED\), or null when the Identity Store omits it |
+| `title` | string (nullable) | Job title, or null when the Identity Store omits it |
 | `externalIds` | array | External identity provider IDs linked to the user |
 |   ↳ `issuer` | string | Identity provider that issued the ID |
 |   ↳ `id` | string | Identifier at the issuer |
@@ -257,8 +257,8 @@ List all groups in the Identity Store
 | --------- | ---- | ----------- |
 | `groups` | array | Groups in the Identity Store |
 |   ↳ `groupId` | string | Identity Store group ID \(use as principalId\) |
-|   ↳ `displayName` | string | Group display name |
-|   ↳ `description` | string | Group description |
+|   ↳ `displayName` | string (nullable) | Group display name |
+|   ↳ `description` | string (nullable) | Group description |
 |   ↳ `externalIds` | array | External identity provider IDs linked to the group |
 |     ↳ `issuer` | string | Identity provider that issued the ID |
 |     ↳ `id` | string | Identifier at the issuer |
@@ -288,7 +288,7 @@ List the users who belong to an Identity Store group
 | `memberships` | array | Members of the group |
 |   ↳ `membershipId` | string | Identity Store membership ID |
 |   ↳ `groupId` | string | Identity Store group ID |
-|   ↳ `userId` | string | Identity Store user ID of the member — resolve with Describe User. Null when the member is not a user. |
+|   ↳ `userId` | string (nullable) | Identity Store user ID of the member — resolve with Describe User. Null when the member is not a user. |
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of memberships returned |
 
@@ -467,5 +467,3 @@ List every principal assigned a specific permission set on a specific AWS accoun
 |   ↳ `principalId` | string | Identity Store user or group ID — resolve with Describe User or Describe Group |
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of assignments returned |
-
-
