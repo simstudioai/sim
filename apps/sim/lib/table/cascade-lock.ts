@@ -40,7 +40,21 @@ export async function withCascadeLock<T>(
   fn: () => Promise<T>
 ): Promise<{ status: 'acquired'; result: T } | { status: 'contended' }> {
   const key = cascadeLockKey(tableId, rowId)
-  const acquired = await acquireLock(key, ownerId, LOCK_TTL_SECONDS)
+  const acquired = await acquireLock(key, ownerId, LOCK_TTL_SECONDS, {
+    /**
+     * A client-side timeout does not mean Redis declined the SET — the command
+     * can still be sitting in the offline queue and take the lock once the
+     * connection completes, leaving the row's cascade held for the full TTL by
+     * an owner that already threw, with no heartbeat and no release. Every other
+     * cell task for that row then reads `contended` and bails on the silent
+     * path, so one stalled connection quietly drops later cells too.
+     *
+     * Both preconditions hold here: `ownerId` is the cell task's `executionId`,
+     * unique to this holder, and a throw means `fn` never runs, so freeing a
+     * lock this call may have taken cannot cut under a caller still working.
+     */
+    reclaimOnFailure: true,
+  })
   if (!acquired) return { status: 'contended' }
 
   const heartbeat = setInterval(() => {
