@@ -1,6 +1,7 @@
 import type { SlackInstallationPrincipal } from '@sim/auth/principal'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { postSlackMessage } from '@/lib/internal/slack/client'
 import { runSlackSearchAssistant } from '@/lib/knowledge/application/slack-search/assistant'
 import {
   authorizeSlackSearchInstallation,
@@ -8,7 +9,12 @@ import {
 } from '@/lib/knowledge/application/slack-search/authorization'
 import { routeSlackSearchMentionToDm } from '@/lib/knowledge/application/slack-search/mention'
 import { dispatchSlackSearchTurn } from '@/lib/knowledge/application/slack-search/outbox'
-import { persistSlackSearchTurn } from '@/lib/knowledge/application/slack-search/turns'
+import {
+  persistSlackSearchTurn,
+  requireSlackSearchTurnLease,
+} from '@/lib/knowledge/application/slack-search/turns'
+import { SLACK_SEARCH_QUERY_TOO_LONG } from '@/lib/slack-search/constants'
+import { slackSearchReply } from '@/lib/slack-search/messages'
 import type { SlackSearchJob, SlackSearchMessage } from '@/lib/slack-search/types'
 
 const receiveOperation = Object.freeze({
@@ -78,7 +84,7 @@ export const respondToSlackSearchMessage: OperationUseCase<
   async execute({ principal, input }) {
     requireSlackInstallationPrincipal(principal)
     requireMessageBinding(principal, input.job.message)
-    if (input.job.message.queryTooLong || !input.job.message.query)
+    if (!input.job.message.queryTooLong && !input.job.message.query)
       throw new OrchestrationError(
         'validation',
         'Send a search query between 1 and 2,000 characters'
@@ -87,6 +93,25 @@ export const respondToSlackSearchMessage: OperationUseCase<
       ...input,
       signal: input.controller.signal,
     })
+    if (job.message.queryTooLong) {
+      /** A mention's private root already contains the length notice. */
+      if (!input.job.message.channelId.startsWith('D')) return
+      await requireSlackSearchTurnLease(input.turnId, input.leaseId)
+      const context = await authorizeSlackSearchInstallation(principal, job)
+      if (!context) throw new OrchestrationError('forbidden', 'Slack Search binding changed')
+      input.controller.signal.throwIfAborted()
+      const response = await postSlackMessage(
+        context.secret.botToken,
+        slackSearchReply(
+          { ...job.message, threadTs: job.message.threadTs ?? job.message.messageTs },
+          SLACK_SEARCH_QUERY_TOO_LONG
+        ),
+        AbortSignal.any([input.controller.signal, AbortSignal.timeout(10_000)])
+      )
+      if (response.status !== 200 || response.data.ok !== true)
+        throw new Error('Could not deliver the Slack question length notice')
+      return
+    }
     await runSlackSearchAssistant(principal, { ...input, job })
   },
 }

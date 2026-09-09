@@ -63,6 +63,12 @@ Apply `0332_slack_search` after the existing staging migration history. Local de
 db:push` from `packages/db`. Current staging schema requires PostgreSQL 15 or
 newer; PostgreSQL 17 with pgvector is suitable.
 
+The credential-to-app foreign key uses `NOT VALID` for the expand deployment,
+following the repository's migration-safety playbook. It enforces new writes;
+the added nullable column has no pre-existing non-null values.
+**contract-pending(after #7644 is fully deployed):** validate
+`credential_slack_app_id_slack_app_id_fk` in a separate migration.
+
 | Table | Purpose |
 | --- | --- |
 | `slack_app` | Slack app ID, custom/shared ownership, client ID, encrypted client and signing secrets, and configuration revision. |
@@ -160,6 +166,10 @@ message timestamps are retained in the chat's Slack origin metadata. The bot
 posts no search results in the source channel. A failed or ambiguous DM creation
 is terminal and does not replay the Assistant run.
 
+Questions longer than 2,000 characters receive a private length notice without
+starting an Assistant run. DMs receive the notice in their original thread;
+channel mentions receive it as the root of the new private DM thread.
+
 ## Member onboarding
 
 A sender without a matching verified Sim organization membership receives a
@@ -215,14 +225,19 @@ The shared citation evidence parser accepts successful retrieval results.
 Up to five source buttons use verified retrieval URLs; model-generated URLs and
 incomplete citation markup are not sent. Stream failures abort execution and
 record a failed outcome without switching delivery methods or replaying the run.
-A confirmed Assistant failure closes an established, healthy stream with a
-generic error and saves that error in private Sim history. Only a persisted
+A failed turn closes an established stream once with a generic error and saves
+that error in private Sim history. Cleanup has its own five-second signal and
+rechecks installation, membership, lease, and chat ownership after execution
+aborts. It never retries an ambiguous stop or guesses a stream ID after a failed
+start. Cleanup failures remain part of the recorded turn failure. Only a persisted
 native Stop event marks the response as stopped by the user.
 
 Slack’s native Stop cancels the active turn and pending follow-ups for the
 authenticated sender’s thread. A persisted timestamp watermark also rejects
 late deliveries from before Stop; a replayed Stop cannot cancel later messages.
-The handler clears Slack’s processing state after cancellation.
+[Slack stops active streaming messages when the user clicks Stop](https://docs.slack.dev/ai/agent-sessions/#stopping-a-session).
+The handler cancels Sim work and clears Slack’s processing state; failure cleanup
+does not send an additional stop or error message for this native cancellation.
 
 ## Verification
 

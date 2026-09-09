@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { openSlackDm, postSlackMessage, slackString } from '@/lib/internal/slack/client'
 import { authorizeSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/authorization'
+import { SLACK_SEARCH_QUERY_TOO_LONG } from '@/lib/slack-search/constants'
 import { slackSearchConversationKey } from '@/lib/slack-search/conversation'
 import { type SlackSearchJob, slackSearchJobSchema } from '@/lib/slack-search/types'
 
@@ -72,8 +73,18 @@ export async function routeSlackSearchMentionToDm(
       context.secret.botToken,
       {
         channel: channelId,
-        text: 'Your question for Sim Search',
-        blocks: [{ type: 'section', text: { type: 'plain_text', text: job.message.query } }],
+        text: job.message.queryTooLong
+          ? SLACK_SEARCH_QUERY_TOO_LONG
+          : 'Your question for Sim Search',
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'plain_text',
+              text: job.message.queryTooLong ? SLACK_SEARCH_QUERY_TOO_LONG : job.message.query,
+            },
+          },
+        ],
         unfurl_links: false,
         unfurl_media: false,
       },

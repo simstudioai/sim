@@ -140,9 +140,10 @@ export async function runSlackSearchAssistant(
   let failed = true
   let failure: Error | undefined
   let registry: ResolvedSecretTraceRegistry | undefined
+  let stream: SlackSearchAssistantStream | undefined
   let checking = false
-  const checkAccess = async () => {
-    controller.signal.throwIfAborted()
+  const checkAccess = async (signal: AbortSignal = controller.signal) => {
+    signal.throwIfAborted()
     await requireSlackSearchTurnLease(turnId, leaseId)
     if (!(await authorizeSlackSearchInstallation(principal, job)))
       throw new OrchestrationError('forbidden', 'Slack Search is disabled')
@@ -223,7 +224,7 @@ export async function runSlackSearchAssistant(
       })
       if (!run) throw new Error('Could not persist Assistant execution')
       runId = run.id
-      const stream = new SlackSearchAssistantStream({
+      const responseStream = new SlackSearchAssistantStream({
         token: secret.botToken,
         channel: job.message.channelId,
         threadTs: job.message.threadTs ?? job.message.messageTs,
@@ -231,7 +232,9 @@ export async function runSlackSearchAssistant(
         controller,
         registry: environmentContext.resolvedSecretTraceRegistry,
         beforeDelivery: checkAccess,
+        beforeCleanup: checkAccess,
       })
+      stream = responseStream
       const payload = await buildCopilotRequestPayload(
         {
           message: job.message.query,
@@ -248,7 +251,7 @@ export async function runSlackSearchAssistant(
         actorUserId: userId,
         organizationId: installation.organizationId,
       })
-      await stream.start()
+      await responseStream.start()
       result = await runHeadlessCopilotLifecycle(payload, {
         userId,
         organizationId: installation.organizationId,
@@ -264,28 +267,36 @@ export async function runSlackSearchAssistant(
         autoExecuteTools: true,
         onEvent: async (event) => {
           try {
-            await stream.onEvent(event)
+            await responseStream.onEvent(event)
           } catch (error) {
             controller.abort(error)
             throw error
           }
         },
       })
-      stream.assertHealthy()
+      responseStream.assertHealthy()
       controller.signal.throwIfAborted()
       if (!result.success) {
-        await stream.finishWithError()
+        await responseStream.finishWithError()
         throw new Error('Organization Assistant did not complete')
       }
       await checkAccess()
-      await stream.finish(result)
+      await responseStream.finish(result)
       failed = false
       await recordSlackSearchOutcome(installation, 'success')
     }
   } catch (error) {
     failure = toError(error)
     controller.abort(error)
+    const failedStream = stream
     const outcomes = await Promise.allSettled([
+      ...(failedStream
+        ? [
+            wasSlackSearchTurnStopped(turnId, leaseId).then((stopped) =>
+              stopped ? undefined : failedStream.terminateAfterFailure()
+            ),
+          ]
+        : []),
       recordSlackSearchOutcome(installation, 'assistant_or_delivery_failed'),
       ...(runId ? [updateRunStatus(runId, 'error')] : []),
     ])
@@ -295,7 +306,7 @@ export async function runSlackSearchAssistant(
     if (errors.length)
       failure = new AggregateError(
         [failure, ...errors],
-        'Slack turn and outcome persistence failed'
+        'Slack turn cleanup or outcome persistence failed'
       )
   } finally {
     await titleTask

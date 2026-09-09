@@ -45,7 +45,12 @@ interface AssistantStreamOptions {
   controller: AbortController
   registry: ResolvedSecretTraceRegistry
   beforeDelivery: () => Promise<void>
+  beforeCleanup: (signal: AbortSignal) => Promise<void>
 }
+
+const FAILURE_BLOCKS: Record<string, unknown>[] = [
+  { type: 'section', text: { type: 'plain_text', text: SLACK_SEARCH_FAILED_ANSWER } },
+]
 
 /** Serial delivery through the same provider primitives as Slack blocks; ambiguous sends are terminal. */
 export class SlackSearchAssistantStream {
@@ -55,6 +60,7 @@ export class SlackSearchAssistantStream {
   private lastSentAt = 0
   private failure?: Error
   private closed = false
+  private closeAttempted = false
   private separateNextText = false
   constructor(private readonly options: AssistantStreamOptions) {}
 
@@ -162,17 +168,31 @@ export class SlackSearchAssistantStream {
 
   /** A confirmed Assistant failure closes the established stream without exposing backend errors. */
   async finishWithError() {
-    await this.close([
-      {
-        type: 'section',
-        text: { type: 'plain_text', text: SLACK_SEARCH_FAILED_ANSWER },
-      },
-    ])
+    await this.close(FAILURE_BLOCKS)
+  }
+
+  /** Closes a known stream once after abort, with fresh authority and no replay of failed sends. */
+  async terminateAfterFailure() {
+    if (!this.stream || this.closed || this.closeAttempted) return
+    const signal = AbortSignal.timeout(5000)
+    await this.options.beforeCleanup(signal)
+    signal.throwIfAborted()
+    this.closeAttempted = true
+    await stopSlackAgentStream(
+      this.options.token,
+      this.stream.channel,
+      this.stream.ts,
+      'active',
+      signal,
+      FAILURE_BLOCKS
+    )
+    this.closed = true
   }
 
   private async close(blocks: Record<string, unknown>[]) {
     await this.deliver(async () => {
       if (!this.stream || this.closed) throw new Error('Slack stream is not active')
+      this.closeAttempted = true
       await stopSlackAgentStream(
         this.options.token,
         this.stream.channel,

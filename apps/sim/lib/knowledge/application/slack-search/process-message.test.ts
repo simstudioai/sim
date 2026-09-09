@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   persist: vi.fn(),
   dispatch: vi.fn(),
   assistant: vi.fn(),
+  route: vi.fn(),
+  lease: vi.fn(),
+  post: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
   requireSlackInstallationPrincipal: vi.fn(),
@@ -16,12 +19,22 @@ vi.mock('@/lib/knowledge/application/slack-search/assistant', () => ({
 }))
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
   persistSlackSearchTurn: mocks.persist,
+  requireSlackSearchTurnLease: mocks.lease,
 }))
+vi.mock('@/lib/knowledge/application/slack-search/mention', () => ({
+  routeSlackSearchMentionToDm: mocks.route,
+}))
+vi.mock('@/lib/internal/slack/client', () => ({ postSlackMessage: mocks.post }))
 vi.mock('@/lib/knowledge/application/slack-search/outbox', () => ({
   dispatchSlackSearchTurn: mocks.dispatch,
 }))
 
-import { receiveSlackSearchMessage } from '@/lib/knowledge/application/slack-search/process-message'
+import {
+  receiveSlackSearchMessage,
+  respondToSlackSearchMessage,
+} from '@/lib/knowledge/application/slack-search/process-message'
+import { SLACK_SEARCH_QUERY_TOO_LONG } from '@/lib/slack-search/constants'
+import type { SlackSearchJob } from '@/lib/slack-search/types'
 
 const principal = {
   kind: 'slack_installation',
@@ -46,8 +59,85 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.authorize.mockResolvedValue({
     installation: { id: 'i1', revision: 'r1', botUserId: 'UBOT' },
+    secret: { botToken: 'test-token' },
   })
   mocks.persist.mockResolvedValue('turn1')
+  mocks.route.mockImplementation(async (_principal, { job }) => job)
+  mocks.post.mockResolvedValue({ status: 200, data: { ok: true } })
+})
+
+describe('Slack Search question validation', () => {
+  function respond(overrides: Partial<SlackSearchJob['message']> = {}) {
+    return respondToSlackSearchMessage.execute({
+      principal,
+      input: {
+        job: {
+          installationId: 'i1',
+          revision: 'r1',
+          credentialId: 'c1',
+          credentialVersion: 'v1',
+          receivedAt: principal.receivedAt.getTime(),
+          message: { ...message, query: '', queryTooLong: true, ...overrides },
+        },
+        turnId: 'turn1',
+        leaseId: 'lease1',
+        controller: new AbortController(),
+      },
+    })
+  }
+
+  it.each([undefined, '1700000000.000001'])(
+    'sends a length notice in the original DM thread without running the Assistant: %s',
+    async (threadTs) => {
+      await respond({ threadTs })
+      expect(mocks.lease).toHaveBeenCalledWith('turn1', 'lease1')
+      expect(mocks.post).toHaveBeenCalledWith(
+        'test-token',
+        expect.objectContaining({
+          channel: 'D1',
+          thread_ts: threadTs ?? message.messageTs,
+          text: SLACK_SEARCH_QUERY_TOO_LONG,
+        }),
+        expect.any(AbortSignal)
+      )
+      expect(mocks.authorize.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.post.mock.invocationCallOrder[0]
+      )
+      expect(mocks.assistant).not.toHaveBeenCalled()
+    }
+  )
+  it('routes an oversized channel mention privately and does not duplicate its root notice', async () => {
+    mocks.route.mockImplementationOnce(async (_principal, { job }) => ({
+      ...job,
+      message: { ...job.message, channelId: 'D1', threadTs: '1700000000.000001' },
+    }))
+    await respond({ channelId: 'C1' })
+    expect(mocks.route).toHaveBeenCalledOnce()
+    expect(mocks.post).not.toHaveBeenCalled()
+    expect(mocks.assistant).not.toHaveBeenCalled()
+  })
+  it('does not deliver after the installation is disabled', async () => {
+    mocks.authorize.mockResolvedValueOnce(null)
+    await expect(respond()).rejects.toThrow('binding changed')
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+  it('does not deliver after losing the durable turn lease', async () => {
+    mocks.lease.mockRejectedValueOnce(new Error('lease lost'))
+    await expect(respond()).rejects.toThrow('lease lost')
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+  it('propagates an unsuccessful notice delivery without executing the Assistant', async () => {
+    mocks.post.mockResolvedValueOnce({ status: 200, data: { ok: false } })
+    await expect(respond()).rejects.toThrow('question length notice')
+    expect(mocks.post).toHaveBeenCalledOnce()
+    expect(mocks.assistant).not.toHaveBeenCalled()
+  })
+  it('does not retry an ambiguous notice delivery', async () => {
+    mocks.post.mockRejectedValueOnce(new Error('response lost'))
+    await expect(respond()).rejects.toThrow('response lost')
+    expect(mocks.post).toHaveBeenCalledOnce()
+    expect(mocks.assistant).not.toHaveBeenCalled()
+  })
 })
 describe('Slack Search intake', () => {
   it('accepts channel mentions and strips only this bot’s mention', async () => {

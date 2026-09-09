@@ -27,6 +27,7 @@ beforeEach(() => {
 function setup() {
   const controller = new AbortController()
   const beforeDelivery = vi.fn().mockResolvedValue(undefined)
+  const beforeCleanup = vi.fn().mockResolvedValue(undefined)
   const registry = {
     isComplete: () => true,
     getActiveMatches: () => [],
@@ -34,6 +35,7 @@ function setup() {
   return {
     controller,
     beforeDelivery,
+    beforeCleanup,
     stream: new SlackSearchAssistantStream({
       token: 'test-token',
       channel: 'D1',
@@ -42,6 +44,7 @@ function setup() {
       controller,
       registry,
       beforeDelivery,
+      beforeCleanup,
     }),
   }
 }
@@ -70,8 +73,8 @@ describe('Slack Assistant delivery', () => {
     ).toBe('Hello world. ')
     expect(api.stop).toHaveBeenCalledOnce()
   })
-  it('aborts after an ambiguous append and never tries an alternate delivery or stop', async () => {
-    const { stream, controller } = setup()
+  it('aborts after an ambiguous append and closes the known stream without replaying text', async () => {
+    const { stream, controller, beforeCleanup } = setup()
     api.append.mockRejectedValueOnce(new Error('connection closed'))
     await stream.start()
     await expect(
@@ -80,7 +83,51 @@ describe('Slack Assistant delivery', () => {
     expect(controller.signal.aborted).toBe(true)
     await expect(stream.finish(result)).rejects.toThrow('connection closed')
     await expect(stream.finishWithError()).rejects.toThrow('connection closed')
+    await stream.terminateAfterFailure()
+    await stream.terminateAfterFailure()
     expect(api.append).toHaveBeenCalledOnce()
+    expect(api.stop).toHaveBeenCalledOnce()
+    const cleanupSignal = api.stop.mock.calls[0][4]
+    expect(cleanupSignal).not.toBe(controller.signal)
+    expect(cleanupSignal.aborted).toBe(false)
+    expect(beforeCleanup).toHaveBeenCalledWith(cleanupSignal)
+    expect(api.stop.mock.calls[0][5][0].text.text).toBe(
+      'I couldn’t complete this search. Please try again.'
+    )
+    expect(beforeCleanup.mock.invocationCallOrder[0]).toBeLessThan(
+      api.stop.mock.invocationCallOrder[0]
+    )
+  })
+  it('does not guess a stream identity after an ambiguous start', async () => {
+    const { stream } = setup()
+    api.start.mockRejectedValueOnce(new Error('start response lost'))
+    await expect(stream.start()).rejects.toThrow('start response lost')
+    await stream.terminateAfterFailure()
+    expect(api.stop).not.toHaveBeenCalled()
+  })
+  it('does not retry an ambiguous stop during cleanup', async () => {
+    const { stream } = setup()
+    await stream.start()
+    api.stop.mockRejectedValueOnce(new Error('stop response lost'))
+    await expect(stream.finish(result)).rejects.toThrow('stop response lost')
+    await stream.terminateAfterFailure()
+    expect(api.stop).toHaveBeenCalledOnce()
+  })
+  it('propagates cleanup failures without repeating the stop request', async () => {
+    const { stream, controller } = setup()
+    await stream.start()
+    controller.abort(new Error('Assistant failed'))
+    api.stop.mockRejectedValueOnce(new Error('cleanup failed'))
+    await expect(stream.terminateAfterFailure()).rejects.toThrow('cleanup failed')
+    await stream.terminateAfterFailure()
+    expect(api.stop).toHaveBeenCalledOnce()
+  })
+  it('refuses cleanup delivery after installation, membership, or lease authority is revoked', async () => {
+    const { stream, controller, beforeCleanup } = setup()
+    await stream.start()
+    controller.abort(new Error('Assistant failed'))
+    beforeCleanup.mockRejectedValueOnce(new Error('authority revoked'))
+    await expect(stream.terminateAfterFailure()).rejects.toThrow('authority revoked')
     expect(api.stop).not.toHaveBeenCalled()
   })
   it('separates public text before and after a tool call', async () => {

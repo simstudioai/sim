@@ -17,6 +17,8 @@ const m = vi.hoisted(() => ({
   start: vi.fn(),
   finish: vi.fn(),
   finishWithError: vi.fn(),
+  terminate: vi.fn(),
+  streamOptions: vi.fn(),
   payload: vi.fn(),
   outcome: vi.fn(),
   memberAuthorization: vi.fn(),
@@ -99,9 +101,13 @@ vi.mock('@/lib/copilot/request/session/abort', () => ({
 }))
 vi.mock('@/lib/slack-search/assistant-stream', () => ({
   SlackSearchAssistantStream: class {
+    constructor(options: unknown) {
+      m.streamOptions(options)
+    }
     start = m.start
     finish = m.finish
     finishWithError = m.finishWithError
+    terminateAfterFailure = m.terminate
     onEvent = vi.fn()
     assertHealthy = vi.fn()
   },
@@ -308,8 +314,23 @@ describe('organization Assistant from Slack', () => {
     m.finish.mockRejectedValueOnce(new Error('ambiguous send'))
     await expect(run()).rejects.toThrow('ambiguous send')
     expect(m.run).toHaveBeenCalledOnce()
+    expect(m.terminate).toHaveBeenCalledOnce()
     expect(m.updateRun).toHaveBeenCalledWith('run1', 'error')
     expect(m.release).toHaveBeenCalledOnce()
+  })
+  it('rechecks cleanup authority with a fresh signal after aborting execution', async () => {
+    m.run.mockRejectedValueOnce(new Error('Assistant disconnected'))
+    m.terminate.mockImplementationOnce(async () => {
+      const options = m.streamOptions.mock.calls[0][0]
+      expect(options.controller.signal.aborted).toBe(true)
+      await options.beforeCleanup(new AbortController().signal)
+    })
+    await expect(run()).rejects.toThrow('Assistant disconnected')
+    expect(m.terminate).toHaveBeenCalledOnce()
+    expect(m.memberAuthorization).toHaveBeenCalled()
+    expect(m.terminate.mock.invocationCallOrder[0]).toBeLessThan(
+      m.release.mock.invocationCallOrder[0]
+    )
   })
   it('closes a healthy Slack stream when the Assistant reports failure', async () => {
     m.run.mockResolvedValueOnce({ success: false, content: '', contentBlocks: [], toolCalls: [] })
@@ -328,9 +349,10 @@ describe('organization Assistant from Slack', () => {
   })
   it('marks private history as stopped only when the turn was cancelled by native Stop', async () => {
     m.run.mockRejectedValueOnce(new Error('Stream stopped'))
-    m.stopped.mockResolvedValueOnce(true)
+    m.stopped.mockResolvedValue(true)
     await expect(run()).rejects.toThrow('Stream stopped')
     expect(m.stoppedMessage).toHaveBeenCalledOnce()
     expect(m.finishWithError).not.toHaveBeenCalled()
+    expect(m.terminate).not.toHaveBeenCalled()
   })
 })
