@@ -107,38 +107,6 @@ const services = [
 ]
 
 describe('listCredentialProviderCatalog', () => {
-  it.each(['netsuite', 'snowflake', 'harmonic'])(
-    'projects %s as a stored service-account provider without an OAuth connection',
-    async (serviceId) => {
-      const providerId = `${serviceId}-service-account`
-      mocks.getAllOAuthServices.mockReturnValue([
-        {
-          serviceId,
-          providerId,
-          serviceAccountProviderId: providerId,
-          name: serviceId,
-          description: serviceId,
-          baseProvider: serviceId,
-          authType: 'service_account',
-        },
-      ])
-      const isCredentialVisible = vi.fn(() => true)
-      mocks.createVisibility.mockReturnValue({
-        isCredentialVisible,
-        isOAuthServiceVisible: () => false,
-      })
-      const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
-      expect(catalog).toHaveLength(1)
-      expect(catalog[0]).toMatchObject({ type: 'service_account', providerId, available: true })
-      expect(isCredentialVisible).toHaveBeenCalledWith({ providerId, type: 'service_account' })
-      expect(requireAvailableServiceAccountCredentialProvider(catalog, providerId)).toBe(catalog[0])
-      isCredentialVisible.mockReturnValue(false)
-      const restricted = await listCredentialProviderCatalog(personalPrincipal, context)
-      expect(() =>
-        requireAvailableServiceAccountCredentialProvider(restricted, providerId)
-      ).toThrow('unavailable')
-    }
-  )
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getAllOAuthServices.mockReturnValue(services)

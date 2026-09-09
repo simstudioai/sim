@@ -111,8 +111,15 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     serviceName: serviceAccountService?.serviceName,
     serviceIcon: serviceAccountService?.serviceIcon,
   })
+  /**
+   * Unknown availability offers the connect control rather than withholding it,
+   * matching `oauthAvailable` above. The deployment answer arrives with the
+   * permission config, and on an integration whose only path is a stored
+   * service account a pessimistic default renders a disabled "Unavailable"
+   * verdict for the whole load — a false negative, not a neutral placeholder.
+   */
   const serviceAccountDeploymentAvailable =
-    availability?.state === 'ready' || availability?.state === 'limited'
+    availability === undefined || availability.state === 'ready' || availability.state === 'limited'
   const hasServiceAccount =
     serviceAccountDeploymentAvailable &&
     Boolean(serviceAccountTarget) &&

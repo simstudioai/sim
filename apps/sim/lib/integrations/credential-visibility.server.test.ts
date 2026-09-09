@@ -56,6 +56,21 @@ function availability(
 }
 
 describe('integration credential visibility', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getBlockMock.mockImplementation((type: string) => ({ type }))
+    getIntegrationAvailabilityMock.mockReturnValue([
+      availability('notion_v2', 'limited', {
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
+      }),
+      availability('slack_v2', 'limited', {
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
+      }),
+    ])
+  })
+
   it.each(['netsuite', 'snowflake', 'harmonic'])(
     'applies allowlists and block visibility to %s stored credentials',
     (serviceId) => {
@@ -89,26 +104,12 @@ describe('integration credential visibility', () => {
       expect(
         visible([serviceId], true).isCredentialVisible({ providerId, type: 'service_account' })
       ).toBe(false)
-      getBlockMock.mockReturnValue({ type: serviceId, preview: true })
+      getBlockMock.mockImplementation((type: string) => ({ type, preview: true }))
       expect(
         visible([serviceId]).isCredentialVisible({ providerId, type: 'service_account' })
       ).toBe(false)
     }
   )
-  beforeEach(() => {
-    vi.clearAllMocks()
-    getBlockMock.mockImplementation((type: string) => ({ type }))
-    getIntegrationAvailabilityMock.mockReturnValue([
-      availability('notion_v2', 'limited', {
-        oauthAvailable: false,
-        serviceAccountAvailable: true,
-      }),
-      availability('slack_v2', 'limited', {
-        oauthAvailable: false,
-        serviceAccountAvailable: true,
-      }),
-    ])
-  })
 
   it('applies the integration allowlist to OAuth and service-account credentials', () => {
     const visibility = createIntegrationCredentialVisibility({

@@ -89,6 +89,7 @@ export interface ServiceAccountIntegrationMatch {
   slug: string
   serviceAccountProviderId: ServiceAccountProviderId
   serviceName: string
+  serviceIcon: ComponentType<{ className?: string }>
   providerId: string
 }
 
@@ -126,6 +127,7 @@ const SERVICE_ACCOUNT_INTEGRATIONS: readonly ServiceAccountIntegrationMatch[] =
         slug: integration.slug,
         serviceAccountProviderId: match.serviceAccountProviderId,
         serviceName: integration.name,
+        serviceIcon: match.serviceIcon,
         providerId: match.providerId,
       },
     ]
