@@ -169,6 +169,10 @@ describe('Knowledge Utils', () => {
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
     }
+    /** Keep provider selection independent of credentials loaded from local environment files. */
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('OPENROUTER_API_KEY', '')
+    vi.stubEnv('AZURE_OPENAI_API_KEY', '')
     Object.assign(env, { ...defaultMockEnv, OPENAI_API_KEY: 'test-key' })
     retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
     applyBillingSpies()
@@ -324,16 +328,13 @@ describe('Knowledge Utils', () => {
 
     it('should throw error when no API configuration provided', async () => {
       Object.keys(env).forEach((key) => delete (env as Record<string, unknown>)[key])
-      /** Prevent local credentials from satisfying the missing-configuration scenario. */
-      vi.stubEnv('OPENAI_API_KEY', '')
-      const configurationError = new Error('No rotation keys configured')
       const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
-        throw configurationError
+        throw new Error('No rotation keys configured')
       })
 
       try {
-        await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toBe(
-          configurationError
+        await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
+          'OPENAI_API_KEY is not configured'
         )
         expect(rotationSpy).toHaveBeenCalledWith('openai')
         expect(fetch).not.toHaveBeenCalled()
