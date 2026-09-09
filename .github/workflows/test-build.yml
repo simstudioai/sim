@@ -3,6 +3,11 @@ name: Test and Build
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      comparison_base:
+        description: 'Full commit SHA to compare against the selected branch'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -171,7 +176,7 @@ jobs:
       # The diff-based audits below need a base commit to read, and the default
       # depth of 1 clones a single commit with no parent. They normally fetch
       # their base by SHA (see "Resolve base ref"), so this depth only covers the
-      # `HEAD~1` fallback — but without it that fallback resolves to nothing.
+      # new-branch push's `HEAD~1` fallback — without it that resolves to nothing.
       #
       # Worth stating because the failure was invisible for so long: the migration
       # audit read the resulting `git diff` failure as "no migrations changed" and
@@ -286,19 +291,33 @@ jobs:
       # It is fetched by SHA at depth 1; the audits diff two tips and need no
       # common ancestry. An all-zero `before` means the branch is new and has no
       # predecessor to diff, so `HEAD~1` remains the fallback there.
+      # PRs use the event's base SHA, not a branch that can advance while queued.
+      # Manual runs require an explicit base so earlier commits are audited too.
       - name: Resolve base ref for diff-based audits
         id: audit_base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          COMPARISON_BASE: ${{ inputs.comparison_base }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --depth=1 origin "${{ github.base_ref }}"
-            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.before }}" ] &&
-               [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            git fetch --depth=1 origin "${{ github.event.before }}"
-            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base_sha="$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            base_sha="$COMPARISON_BASE"
+          elif [ -n "$PUSH_BEFORE_SHA" ] &&
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            base_sha="$PUSH_BEFORE_SHA"
           else
-            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
+            base_sha="$(git rev-parse --verify 'HEAD~1^{commit}')"
           fi
+          if ! [[ "$base_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo 'Comparison base must be a full commit SHA.' >&2
+            exit 1
+          fi
+          git fetch --no-tags --depth=1 origin "$base_sha"
+          resolved_base="$(git rev-parse --verify "$base_sha^{commit}")"
+          echo "ref=$resolved_base" >> "$GITHUB_OUTPUT"
 
       - name: Check block registry invariants
         run: bun run apps/sim/scripts/check-block-registry.ts "${{ steps.audit_base.outputs.ref }}"
