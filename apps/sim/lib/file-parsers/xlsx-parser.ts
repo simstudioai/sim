@@ -8,6 +8,10 @@ import {
   isEncryptedOfficeParserError,
   toFileParserError,
 } from '@/lib/file-parsers/errors'
+import {
+  normalizeSheetDisplayText,
+  SHEET_DISPLAY_READ_OPTIONS,
+} from '@/lib/file-parsers/sheet-display-text'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -78,6 +82,7 @@ export class XlsxParser implements FileParser {
         type: 'buffer',
         dense: true, // Use dense mode for better memory efficiency
         sheetStubs: false, // Don't create stub cells
+        ...SHEET_DISPLAY_READ_OPTIONS,
       })
 
       return this.processWorkbook(workbook)
@@ -162,13 +167,25 @@ export class XlsxParser implements FileParser {
        */
       const lastPreviewRow = Math.min(range.e.r, range.s.r + CONFIG.MAX_PREVIEW_ROWS - 1)
       const lastPreviewColumn = Math.min(range.e.c, range.s.c + CONFIG.MAX_PREVIEW_COLUMNS - 1)
+      const window = {
+        s: { r: range.s.r, c: range.s.c },
+        e: { r: lastPreviewRow, c: lastPreviewColumn },
+      }
+
+      /**
+       * Indexed as the text a user sees, not the value Excel stores: `raw: false`
+       * emits each cell's formatted text, so `$1,250.00` and `20%` survive
+       * instead of `1250` and `0.2`, and the Google Sheets and Excel connectors
+       * (which already request display text) agree with a Drive export of the
+       * same sheet. Dates and General numbers are rewritten first because their
+       * file-formatted text is locale-shaped or loses digits.
+       */
+      normalizeSheetDisplayText(worksheet, window, XLSX.utils)
       const sheetData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
         header: 1,
         blankrows: false, // Skip blank rows
-        range: {
-          s: { r: range.s.r, c: range.s.c },
-          e: { r: lastPreviewRow, c: lastPreviewColumn },
-        },
+        raw: false,
+        range: window,
       })
 
       // Reported from the declared range, as before, so bounding the conversion
