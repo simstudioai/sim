@@ -52,8 +52,6 @@ Configurations are additive: a narrower one does not restrict an existing broade
 </Step>
 </Steps>
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/gmail-setup.jpg" alt="Gmail Search source configuration" width={520} height={329} />
-
 ## Set up a central service account
 
 Open **Settings → Sources**, enable **Gmail**, and select **Manage → Advanced → Add sync configuration**. If personal connections are disabled for your organization, select **Add source** from the provider page instead.
@@ -114,7 +112,9 @@ Teammates follow these same steps after joining the organization. Once an admin 
 
 ## Source options
 
-An admin opens **Settings → Sources**, selects **Manage** beside **Gmail**, then opens the configuration from **Advanced** or the source list. Select its **Settings** tab to change these options. Filters apply separately to each mailbox in the source. **Documents** shows indexed threads and **Sync history** shows recent runs.
+An admin opens **Settings → Sources** and selects **Manage** beside **Gmail** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. Filters apply separately to each mailbox in the source. **Documents** shows indexed threads and **Sync history** shows recent runs.
+
+**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Indexing account** and select **Change indexing account**.
 
 | Option | Behavior |
 | --- | --- |

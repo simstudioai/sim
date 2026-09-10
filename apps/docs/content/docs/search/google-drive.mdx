@@ -88,7 +88,7 @@ Paste that Client ID into **Client ID**, then enter these exact scopes as a comm
 https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.group.readonly,https://www.googleapis.com/auth/admin.directory.domain.readonly
 ```
 
-Select **Authorize**, then **View details** to confirm all four scopes were saved. If your organization requires multi-party approval, another super administrator must approve the request. Delegation changes can take up to 24 hours to propagate. See Google's [Admin Console delegation guide](https://knowledge.workspace.google.com/admin/apps/control-api-access-with-domain-wide-delegation).
+Select **Authorize**, then **View details** to confirm all four scopes were saved. If you reuse a Gmail or Calendar service account, retain those services' required scopes and add any missing Drive scopes. If your organization requires multi-party approval, another super administrator must approve the request. Delegation changes can take up to 24 hours to propagate. See Google's [Admin Console delegation guide](https://knowledge.workspace.google.com/admin/apps/control-api-access-with-domain-wide-delegation).
 
 These are Search's central crawl scopes. The general [Google service account guide](/integrations/google-service-account) includes broader scopes for workflow actions; do not copy those into this Search setup.
 
@@ -123,6 +123,10 @@ Teammates join the Sim organization with their matching verified email; they do 
 
 ## Source options
 
+An admin opens **Settings → Sources** and selects **Manage** beside **Google Drive** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed files and **Sync history** shows recent runs.
+
+**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Indexing account** and select **Change indexing account**.
+
 | Option | Behavior |
 | --- | --- |
 | Folders / Folder IDs | Optional. Includes files in each selected folder and its accessible subfolders. A folder selection does not grant access. |
@@ -135,7 +139,7 @@ Teammates join the Sim organization with their matching verified email; they do 
 
 Sim exports Docs and Slides as text and Sheets as XLSX spreadsheets. Supported uploaded files use the knowledge-base document pipeline, including PDF and Office formats. Unsupported files and oversized exports cannot be indexed; Google limits Workspace exports to 10 MB. See [Drive export formats](https://developers.google.com/workspace/drive/api/guides/ref-export-formats) and [download limits](https://developers.google.com/workspace/drive/api/guides/manage-downloads).
 
-Search schedules syncs hourly. Central crawls revisit the selected users' files and permissions, including unchanged files, so permission changes and a new employee's older files are included. Unfinished crawls resume before deletion reconciliation. Content, deletions, and permissions refresh in the background; results are not a live read from Drive. Open **Settings → Sources**, select **Manage** beside **Google Drive**, then select its configuration from **Advanced** (or the source list when personal connections are disabled) to inspect **Documents**, edit **Settings**, or review **Sync history**. **Accounts** on the provider page shows personal account connections where configured; it does not list the central service-account credential.
+Search schedules syncs hourly. Central crawls revisit the selected users' files and permissions, including unchanged files, so permission changes and a new employee's older files are included. Unfinished crawls resume before deletion reconciliation. Content, deletions, and permissions refresh in the background; results are not a live read from Drive. **Accounts** on the provider page shows personal account connections where configured; it does not list the central service-account credential.
 
 ## Troubleshooting
 

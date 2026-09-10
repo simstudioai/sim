@@ -53,11 +53,17 @@ vi.mock('@/lib/credential-groups/providers', () => ({
 }))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
-    google_drive: { name: 'Google Drive', auth: { mode: 'oauth', provider: 'google-drive' } },
-    gmail: { name: 'Gmail', auth: { mode: 'oauth', provider: 'google-email' } },
+    google_drive: {
+      name: 'Google Drive',
+      auth: { mode: 'oauth', provider: 'google-drive', adminCredentialType: 'service_account' },
+    },
+    gmail: {
+      name: 'Gmail',
+      auth: { mode: 'oauth', provider: 'google-email', adminCredentialType: 'service_account' },
+    },
     google_calendar: {
       name: 'Google Calendar',
-      auth: { mode: 'oauth', provider: 'google-calendar' },
+      auth: { mode: 'oauth', provider: 'google-calendar', adminCredentialType: 'service_account' },
     },
     slack: { name: 'Slack', auth: { mode: 'oauth', provider: 'slack' } },
     gitlab: { name: 'GitLab', auth: { mode: 'apiKey' } },
@@ -111,11 +117,17 @@ vi.mock('@/app/o/[organizationId]/settings/components/integrations/slack-account
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationProviderDetail } from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail'
 
-const provider = { connectorType: 'google_drive', approved: true, status: 'active' }
+const provider = {
+  connectorType: 'google_drive',
+  approved: true,
+  status: 'active',
+  sourceCount: 0,
+}
 const source = {
   connectorId: 'source-one',
   connectorType: 'google_drive',
   sourceDescription: 'Engineering handbook',
+  accessMode: 'admin',
   enabled: true,
   hasSyncError: false,
   isSyncing: false,
@@ -227,7 +239,7 @@ describe('organization provider management', () => {
       })
       mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
       mocks.sources.mockReturnValue({ data: [], isPending: false })
-      await render(connectorType)
+      await render(connectorType, '?view=accounts')
       expect(container.textContent).toContain('Waiting for connections')
       expect(container.textContent).toContain(
         'Members connect their accounts from Integrations. Indexing starts automatically.'
@@ -259,23 +271,139 @@ describe('organization provider management', () => {
     'does not ask for personal connections when %s already has a central source',
     async (connectorType) => {
       mocks.overview.mockReturnValue({
-        data: { providers: [{ ...provider, connectorType, sourceCount: 1 }] },
+        data: {
+          providers: [{ ...provider, connectorType, sourceCount: 1 }],
+        },
       })
       mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
       mocks.access = { admin: true, members: true }
       await render(connectorType)
 
-      expect(container.textContent).toContain('No connected member accounts.')
+      expect(container.textContent).toContain('Engineering handbook')
+      expect(container.textContent).not.toContain('No connected member accounts.')
       expect(container.textContent).not.toContain(
         'Members connect their accounts from Integrations.'
       )
-      await click('Advanced')
       await click('Add sync configuration')
       await vi.waitFor(() => {
         const params = mocks.updateUrl.mock.calls.at(-1)![0].searchParams
         expect(params.get('addConnector')).toBe(connectorType)
         expect(params.get('source-access')).toBeNull()
       })
+    }
+  )
+
+  describe.each(['gmail', 'google_calendar', 'google_drive'])(
+    '%s default management view',
+    (connectorType) => {
+      function withSources(accessModes: string[]) {
+        mocks.overview.mockReturnValue({
+          data: { providers: [{ ...provider, connectorType, sourceCount: accessModes.length }] },
+          isPending: false,
+        })
+        mocks.sources.mockReturnValue({
+          data: accessModes.map((accessMode, index) => ({
+            ...source,
+            connectorType,
+            accessMode,
+            connectorId: `source-${index}`,
+          })),
+          isPending: false,
+        })
+      }
+
+      it.each([
+        { name: 'member-only', modes: ['members'] },
+        { name: 'central-only', modes: ['admin'] },
+        { name: 'mixed', modes: ['admin', 'members'] },
+        { name: 'not configured', modes: [] },
+      ])('opens configurations for the $name setup', async ({ modes }) => {
+        withSources(modes)
+        await render(connectorType)
+        expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
+          'Advanced'
+        )
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: true })
+        )
+        expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+        expect(container.textContent).toContain('Add sync configuration')
+        if (modes.length === 0)
+          expect(container.textContent).toContain('No sync configurations yet.')
+      })
+
+      it.each(['accounts', 'sources'])('honors explicit %s links', async (view) => {
+        withSources(['admin'])
+        await render(connectorType, `?view=${view}`)
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: view === 'sources' })
+        )
+        expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
+          view === 'accounts' ? 'Accounts' : 'Advanced'
+        )
+      })
+
+      it('loads the configuration list in parallel with its overview and retains the default', async () => {
+        mocks.overview.mockReturnValue({ isPending: true })
+        await render(connectorType)
+        expect(container.textContent).toContain('Loading integration…')
+        expect(container.textContent).not.toContain('No connected member accounts.')
+        expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: true })
+        )
+        withSources(['members'])
+        await render(connectorType)
+        expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
+          'Advanced'
+        )
+        expect(container.textContent).toContain('Engineering handbook')
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: true })
+        )
+        expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+      })
+
+      it('preserves an explicit Accounts choice when the overview changes', async () => {
+        withSources(['members'])
+        await render(connectorType)
+        await click('Accounts')
+        await vi.waitFor(() =>
+          expect(mocks.updateUrl.mock.calls.at(-1)?.[0].searchParams.get('view')).toBe('accounts')
+        )
+        withSources(['admin'])
+        await render(connectorType)
+        expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
+          'Accounts'
+        )
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: false })
+        )
+      })
+
+      it.each([
+        { accessMode: 'admin', method: 'Service account' },
+        { accessMode: 'members', method: 'Member accounts' },
+      ])(
+        'identifies $method configurations without changing their title or destination',
+        async ({ accessMode, method }) => {
+          withSources([accessMode])
+          mocks.sources.mockReturnValue({
+            data: [{ ...source, connectorType, accessMode }],
+            isPending: false,
+          })
+          await render(connectorType)
+          expect(container.textContent).toContain(`${method} · Last synced`)
+          expect(
+            container.querySelector('a[aria-label="Open Engineering handbook"]')
+          ).toHaveAttribute('href', '/o/org-one/settings/integrations/sources/source-one')
+        }
+      )
     }
   )
 
@@ -411,7 +539,7 @@ describe('organization provider management', () => {
       expect(mocks.people).not.toHaveBeenCalled()
       expect(
         container.querySelector(
-          `input[placeholder="${params === '?view=sources' ? 'Search sync configurations...' : 'Search people...'}"]`
+          `input[placeholder="${params === '?view=accounts' ? 'Search people...' : 'Search sync configurations...'}"]`
         )
       ).toBeEnabled()
     }

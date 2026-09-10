@@ -50,8 +50,6 @@ The default date range covers the previous and next 30 days. Save any changes to
 </Step>
 </Steps>
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-calendar-setup.jpg" alt="Google Calendar Search source configuration" width={520} height={397} />
-
 <Callout type="info">
   `primary` means the connected or impersonated person's main calendar. A calendar selected from the list is a specific calendar ID, even when it is your main calendar. That same ID applies to every selected user, and only users with access to it can search its events.
 </Callout>
@@ -116,7 +114,9 @@ Teammates repeat only these connection steps after joining the organization. The
 
 ## Source options
 
-An admin opens **Settings → Sources**, selects **Manage** beside **Google Calendar**, then opens the configuration from **Advanced** or the source list. Select its **Settings** tab to change these options. **Documents** shows indexed events and **Sync history** shows recent runs.
+An admin opens **Settings → Sources** and selects **Manage** beside **Google Calendar** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed events and **Sync history** shows recent runs.
+
+**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Indexing account** and select **Change indexing account**.
 
 | Option | Behavior |
 | --- | --- |

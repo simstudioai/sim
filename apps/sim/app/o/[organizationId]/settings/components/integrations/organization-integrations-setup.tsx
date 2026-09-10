@@ -61,7 +61,7 @@ export function OrganizationIntegrationsSetup() {
 
   return (
     <SettingsPanel
-      search={{ value: search, onChange: setSearch, placeholder: 'Search integrations...' }}
+      search={{ value: search, onChange: setSearch, placeholder: 'Search sources...' }}
     >
       {availability.integrationAvailabilityError && (
         <SettingsQueryErrorState
@@ -84,7 +84,7 @@ export function OrganizationIntegrationsSetup() {
         ) : overview.isPending ? (
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visible.length === 0 ? (
-          <SettingsEmptyState variant='inline'>No matching integrations</SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>No matching sources</SettingsEmptyState>
         ) : (
           visible.map(([type, meta]) => {
             const provider = providers.get(type)
