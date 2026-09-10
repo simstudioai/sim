@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 import { useId } from 'react'
+import { CLAUDE_MARK_PATH, GEMINI_MARK_PATH, OPENAI_MARK_PATH, XAI_MARK_POLYGONS } from '@sim/emcn'
 
 export function EnrichmentIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -1307,22 +1308,10 @@ export function xAIIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <g>
-        <polygon
-          points='557.09,211.99 565.4,538.36 631.96,538.36 640.28,93.18'
-          fill='currentColor'
-        />
-        <polygon
-          points='640.28,56.91 538.72,56.91 379.35,284.53 430.13,357.05'
-          fill='currentColor'
-        />
-        <polygon
-          points='201.61,538.36 303.17,538.36 353.96,465.84 303.17,393.31'
-          fill='currentColor'
-        />
-        <polygon
-          points='201.61,211.99 430.13,538.36 531.69,538.36 303.17,211.99'
-          fill='currentColor'
-        />
+        <polygon points={XAI_MARK_POLYGONS[0]} fill='currentColor' />
+        <polygon points={XAI_MARK_POLYGONS[1]} fill='currentColor' />
+        <polygon points={XAI_MARK_POLYGONS[2]} fill='currentColor' />
+        <polygon points={XAI_MARK_POLYGONS[3]} fill='currentColor' />
       </g>
     </svg>
   )
@@ -1772,10 +1761,7 @@ export function OpenAIIcon(props: SVGProps<SVGSVGElement>) {
       role='img'
       xmlns='http://www.w3.org/2000/svg'
     >
-      <path
-        d='M22.28 9.82a5.98 5.98 0 0 0-.516-4.91 6.05 6.05 0 0 0-6.51-2.9A6.07 6.07 0 0 0 4.98 4.18a5.98 5.98 0 0 0-4 2.9 6.05 6.05 0 0 0 .743 7.1 5.98 5.98 0 0 0 .511 4.91 6.05 6.05 0 0 0 6.51 2.9A5.98 5.98 0 0 0 13.26 24a6.06 6.06 0 0 0 5.77-4.21 5.99 5.99 0 0 0 4-2.9 6.06 6.06 0 0 0-.748-7.07zm-9.02 12.61a4.48 4.48 0 0 1-2.88-1.04l.142-.08 4.78-2.76a.795.79 0 0 0 .393-.681v-6.74l2.02 1.17a.71.07 0 0 1 .38.05v5.58a4.5 4.5 0 0 1-4.49 4.49zm-9.66-4.13a4.47 4.47 0 0 1-.535-3.01l.142.09 4.78 2.76a.771.77 0 0 0 .781 0l5.84-3.37v2.33a.804.08 0 0 1-.332.06L9.74 19.95a4.5 4.5 0 0 1-6.14-1.65zM2.34 7.9a4.49 4.49 0 0 1 2.37-1.97V11.6a.766.77 0 0 0 .388.68l5.81 3.35-2.02 1.17a.757.08 0 0 1-.071 0l-4.83-2.79A4.5 4.5 0 0 1 2.34 7.87zm16.6 3.86L13.1 8.36 15.12 7.2a.757.08 0 0 1 .071 0l4.83 2.79a4.49 4.49 0 0 1-.676 8.1v-5.68a.79.79 0 0 0-.407-.667zm2.01-3.02l-.142-.085-4.77-2.78a.776.78 0 0 0-.785 0L9.41 9.23V6.9a.662.07 0 0 1 .028-.061l4.83-2.79a4.5 4.5 0 0 1 6.68 4.66zM8.31 12.86l-2.02-1.16a.804.08 0 0 1-.038-.057V6.07a4.5 4.5 0 0 1 7.38-3.45l-.142.08L8.7 5.46a.795.79 0 0 0-.393.68zm1.1-2.37l2.6-1.5 2.61 1.5v3l-2.6 1.5-2.61-1.5Z'
-        fill='currentColor'
-      />
+      <path d={OPENAI_MARK_PATH} fill='currentColor' />
     </svg>
   )
 }
@@ -4032,7 +4018,7 @@ export const ClaudeIcon = (props: SVGProps<SVGSVGElement>) => (
     xmlns='http://www.w3.org/2000/svg'
   >
     <title>Claude</title>
-    <path d='m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z' />
+    <path d={CLAUDE_MARK_PATH} />
   </svg>
 )
 
@@ -4392,11 +4378,7 @@ export function GeminiIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='100%' stopColor='#F0DCD6' />
         </linearGradient>
       </defs>
-      <path
-        d='M12 24A14.3 14.3 0 000 12 14.3 14.3 0 0012 0a14.31 14.31 0 0012 12 14.31 14.31 0 00-12 12'
-        fill={`url(#${gradientId})`}
-        fillRule='nonzero'
-      />
+      <path d={GEMINI_MARK_PATH} fill={`url(#${gradientId})`} fillRule='nonzero' />
     </svg>
   )
 }

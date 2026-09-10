@@ -1,4 +1,10 @@
-import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
+import { cn } from '@sim/emcn'
+import {
+  LANDING_CONTENT_WIDTH,
+  LANDING_GUTTER,
+  LANDING_HERO_TOP_PADDING,
+  PUBLIC_PAGE_TYPE,
+} from '@/app/(landing)/components/landing-layout'
 
 /**
  * Prose-layout spacing and type - the single source of truth for every gutter,
@@ -23,7 +29,7 @@ export const PROSE_SPACING = {
   /** Outer content cap, matching navbar/footer. */
   outerCap: LANDING_CONTENT_WIDTH,
   /** Top padding that clears the sticky navbar, matching the platform hero. */
-  heroTopPadding: 'pt-[112px] max-sm:pt-20',
+  heroTopPadding: LANDING_HERO_TOP_PADDING,
   /** Vertical rhythm of the content column - hero → body and section → section. */
   bodyRhythm: 'gap-16 max-sm:gap-12',
   /** Hero header sub-stack (title → meta → lead → actions). */
@@ -55,13 +61,13 @@ export const PROSE_TABLE_WIDTHS = {
  * Uses the platform light tokens exclusively (no hex, no `--landing-*`).
  */
 export const PROSE_TYPE = {
-  h1: 'text-balance text-[40px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px]',
+  h1: cn('text-balance text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.title),
   meta: 'text-[14px] text-[var(--text-muted)]',
   lead: 'max-w-[640px] text-[20px] text-[var(--text-body)] leading-[1.5] max-sm:text-[17px]',
   h2: 'text-[24px] text-[var(--text-primary)] leading-[1.25] max-sm:text-[21px]',
   h3: 'text-[17px] text-[var(--text-primary)] leading-[1.35]',
-  body: 'text-[15px] text-[var(--text-body)] leading-[1.65]',
-  list: 'text-[15px] text-[var(--text-body)] leading-[1.6] marker:text-[var(--text-muted)]',
+  body: 'max-w-[75ch] text-[16px] text-[var(--text-body)] leading-[1.65]',
+  list: 'max-w-[75ch] text-[16px] text-[var(--text-body)] leading-[1.6] marker:text-[var(--text-muted)]',
   callout:
     'rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-[14px] text-[var(--text-body)] leading-[1.6]',
   link: 'text-[var(--text-primary)] underline underline-offset-2 transition-colors hover:text-[var(--text-body)]',

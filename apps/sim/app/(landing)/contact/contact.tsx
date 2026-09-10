@@ -1,4 +1,5 @@
 import { chipBorderShadowRing, cn } from '@sim/emcn'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 import { ContactForm } from '@/app/(landing)/contact/components/contact-form'
 
@@ -10,8 +11,7 @@ import { ContactForm } from '@/app/(landing)/contact/components/contact-form'
  * The section is a two-column CSS grid capped and centered at the shared
  * `max-w-[1728px]` with the navbar-aligned `px-10` gutter, so the headline starts
  * on the same vertical line as the wordmark. The desktop split is `xl:grid-cols-2`
- * with `xl:gap-x-0` — the columns split at the exact horizontal center, so the
- * right card occupies the same rectangle as the hero's right panel. The card is
+ * with a 64px gap separating the copy from the form. The card is
  * inset from the section's top and bottom by 32px (`xl:pt-8`/`xl:pb-8`), spans both
  * rows (`xl:row-span-2`), and its content drives the column height — the left
  * column stretches to match, bottom-anchoring the logos to the card's lower edge.
@@ -34,7 +34,7 @@ export default function Contact() {
       <section
         id='contact'
         aria-labelledby='contact-heading'
-        className='mx-auto grid w-full max-w-[1728px] grid-cols-1 gap-y-10 px-10 pt-20 pb-24 max-sm:gap-y-8 max-sm:pt-16 max-sm:pb-16 max-md:px-7 max-lg:px-8 max-xl:px-9 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-0 xl:pt-8 xl:pb-8'
+        className='mx-auto grid w-full max-w-[1728px] grid-cols-1 gap-y-10 px-10 pt-20 pb-24 max-sm:gap-y-8 max-sm:pt-12 max-sm:pb-16 max-md:px-7 max-lg:px-8 max-xl:px-9 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-16 xl:pt-8 xl:pb-8'
       >
         <div className='flex flex-col gap-5 xl:col-start-1 xl:row-start-1 xl:self-start xl:pt-[80px]'>
           <p className='sr-only'>
@@ -45,7 +45,10 @@ export default function Contact() {
 
           <h1
             id='contact-heading'
-            className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px] max-xl:text-wrap max-xl:text-[40px] [&>br]:max-xl:hidden'
+            className={cn(
+              'text-balance text-[var(--text-primary)] max-xl:text-wrap [&>br]:max-xl:hidden',
+              PUBLIC_PAGE_TYPE.detail
+            )}
           >
             Get in touch with Sim, <br />
             the AI agent workspace.

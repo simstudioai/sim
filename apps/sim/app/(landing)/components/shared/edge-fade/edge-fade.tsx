@@ -57,6 +57,7 @@ const AXIS = { top: 'y', bottom: 'y', left: 'x', right: 'x' } as const
 /**
  * How far a strip reaches in from its edge.
  *
+ * - `heading` - a pinned introduction above an arriving scene needs a deeper top veil.
  * - `preview` - a compact nav preview keeps the fade within a 40px inset.
  * - `stage` - a scene that owns its whole band has room to spare, so the fade
  *   takes the depth it wants at every width.
@@ -68,6 +69,7 @@ const AXIS = { top: 'y', bottom: 'y', left: 'x', right: 'x' } as const
  */
 const DEPTH = {
   preview: { x: 'w-10', y: 'h-10' },
+  heading: { x: 'w-[240px]', y: 'h-[240px] lg:h-[280px]' },
   stage: { x: 'w-[72px] lg:w-[144px]', y: 'h-[96px] lg:h-[128px]' },
   bleed: { x: 'w-[144px] max-md:w-7 max-lg:w-8', y: 'h-[128px] max-md:h-7 max-lg:h-8' },
 } as const

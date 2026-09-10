@@ -1,3 +1,5 @@
+import { cn } from '@sim/emcn'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 import { PricingPlans } from '@/app/(landing)/pricing/components/pricing-plans'
 import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricing-structured-data'
 
@@ -13,7 +15,7 @@ const PRICING_HEADING = (
   <>
     <h1
       id='pricing-heading'
-      className='text-balance text-center text-[30px] text-[var(--text-primary)]'
+      className={cn('text-balance text-center text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.title)}
     >
       Plans that scale with you
     </h1>
@@ -51,7 +53,7 @@ export default function Pricing() {
       <section
         id='pricing'
         aria-labelledby='pricing-heading'
-        className='mx-auto flex w-full max-w-[1728px] flex-col gap-7 px-10 pt-8 max-md:px-7 max-lg:px-8 max-xl:px-9'
+        className='mx-auto flex w-full max-w-[1728px] flex-col gap-7 px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'
       >
         <PricingPlans heading={PRICING_HEADING} />
       </section>

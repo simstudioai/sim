@@ -13,7 +13,11 @@ import { POPULAR_WORKFLOWS } from '@/lib/integrations/popular-workflows'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
-import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
+import {
+  LANDING_CONTENT_WIDTH,
+  LANDING_GUTTER,
+  PUBLIC_PAGE_TYPE,
+} from '@/app/(landing)/components/landing-layout'
 import { IntegrationCard } from '@/app/(landing)/integrations/components/integration-card'
 import { IntegrationGrid } from '@/app/(landing)/integrations/components/integration-grid'
 import { RequestIntegrationModal } from '@/app/(landing)/integrations/components/request-integration-modal'
@@ -172,11 +176,17 @@ export default async function IntegrationsPage({
       <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
-      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+      <div
+        className={cn(
+          LANDING_CONTENT_WIDTH,
+          LANDING_GUTTER,
+          'pt-[112px] max-sm:pt-12 max-xl:pt-20'
+        )}
+      >
         <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
           <h1
             id='integrations-heading'
-            className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+            className={cn('text-balance text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.title)}
           >
             Integrations
           </h1>

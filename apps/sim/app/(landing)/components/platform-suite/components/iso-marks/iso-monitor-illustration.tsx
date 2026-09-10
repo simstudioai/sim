@@ -6,6 +6,7 @@ import {
   type IsoTone,
   withIsoFace,
 } from '@/app/(landing)/components/platform-suite/components/iso-marks/iso-illustration-style'
+import { ISO_MONITOR_PATHS } from '@/app/(landing)/components/platform-suite/components/iso-marks/iso-mark-paths'
 import styles from '@/app/(landing)/components/platform-suite/components/iso-marks/iso-marks.module.css'
 
 export interface IsoMonitorIllustrationProps {
@@ -99,54 +100,27 @@ export function IsoMonitorIllustration({
       )}
       <g>
         <g data-monitor-layer='shadow-plane' pointerEvents='none'>
-          <path
-            d='M16.45 -34.38 L211.55 78.26 Q228.00 87.76 211.55 97.26 L16.45 209.89 Q0.00 219.39 -16.45 209.89 L-211.55 97.26 Q-228.00 87.76 -211.55 78.26 L-16.45 -34.38 Q0.00 -43.88 16.45 -34.38 Z'
-            {...lineProps}
-          />
+          <path d={ISO_MONITOR_PATHS[0]} {...lineProps} />
         </g>
         <g data-monitor-layer='base-bar' pointerEvents='none'>
-          <path
-            d='M-186.71 89.66 L-3.29 195.55 Q0.00 197.45 0.00 193.65 L0.00 179.31 Q0.00 175.51 -3.29 173.61 L-186.71 67.72 Q-190.00 65.82 -190.00 69.62 L-190.00 83.96 Q-190.00 87.76 -186.71 89.66 Z'
-            {...withIsoFace(lineProps, ISO_PALETTE.low)}
-          />
-          <path
-            d='M186.71 89.66 L3.29 195.55 Q0.00 197.45 0.00 193.65 L0.00 179.31 Q0.00 175.51 3.29 173.61 L186.71 67.72 Q190.00 65.82 190.00 69.62 L190.00 83.96 Q190.00 87.76 186.71 89.66 Z'
-            {...withIsoFace(lineProps, ISO_PALETTE.mid)}
-          />
-          <path
-            d='M3.29 -41.98 L186.71 63.92 Q190.00 65.82 186.71 67.72 L3.29 173.61 Q0.00 175.51 -3.29 173.61 L-186.71 67.72 Q-190.00 65.82 -186.71 63.92 L-3.29 -41.98 Q0.00 -43.88 3.29 -41.98 Z'
-            {...withIsoFace(lineProps, ISO_PALETTE.high)}
-          />
+          <path d={ISO_MONITOR_PATHS[1]} {...withIsoFace(lineProps, ISO_PALETTE.low)} />
+          <path d={ISO_MONITOR_PATHS[2]} {...withIsoFace(lineProps, ISO_PALETTE.mid)} />
+          <path d={ISO_MONITOR_PATHS[3]} {...withIsoFace(lineProps, ISO_PALETTE.high)} />
         </g>
         <g data-monitor-layer='right-panel' pointerEvents='none'>
-          <path
-            d='M32.91 -68.76 L128.59 -13.52 Q161.50 5.48 161.50 -32.52 L161.50 -88.15 Q161.50 -126.15 128.59 -145.15 L32.91 -200.39 Q0.00 -219.39 0.00 -181.39 L0.00 -125.76 Q0.00 -87.76 32.91 -68.76 Z'
-            {...lineProps}
-          />
+          <path d={ISO_MONITOR_PATHS[4]} {...lineProps} />
         </g>
         <g data-monitor-layer='inner-low' pointerEvents='none'>
-          <path
-            d='M32.91 -2.94 L119.09 46.82 Q152.00 65.82 119.09 84.82 L32.91 134.58 Q0.00 153.58 -32.91 134.58 L-119.09 84.82 Q-152.00 65.82 -119.09 46.82 L-32.91 -2.94 Q0.00 -21.94 32.91 -2.94 Z'
-            {...withIsoFace(lineProps, ISO_PALETTE.low)}
-          />
+          <path d={ISO_MONITOR_PATHS[5]} {...withIsoFace(lineProps, ISO_PALETTE.low)} />
         </g>
         <g data-monitor-layer='inner-high' pointerEvents='none'>
-          <path
-            d='M32.91 -46.82 L119.09 2.94 Q152.00 21.94 119.09 40.94 L32.91 90.70 Q0.00 109.70 -32.91 90.70 L-119.09 40.94 Q-152.00 21.94 -119.09 2.94 L-32.91 -46.82 Q0.00 -65.82 32.91 -46.82 Z'
-            {...withIsoFace(lineProps, ISO_PALETTE.mid)}
-          />
+          <path d={ISO_MONITOR_PATHS[6]} {...withIsoFace(lineProps, ISO_PALETTE.mid)} />
         </g>
         <g data-monitor-layer='left-panel' pointerEvents='none'>
-          <path
-            d='M-157.09 62.88 L-32.91 134.58 Q0.00 153.58 0.00 115.58 L0.00 38.00 Q0.00 0.00 -32.91 -19.00 L-157.09 -90.70 Q-190.00 -109.70 -190.00 -71.70 L-190.00 5.88 Q-190.00 43.88 -157.09 62.88 Z'
-            {...lineProps}
-          />
+          <path d={ISO_MONITOR_PATHS[7]} {...lineProps} />
         </g>
         <g data-monitor-layer='top-lid' pointerEvents='none'>
-          <path
-            d='M32.91 -200.39 L81.09 -172.58 Q114.00 -153.58 81.09 -134.58 L-43.09 -62.88 Q-76.00 -43.88 -108.91 -62.88 L-157.09 -90.70 Q-190.00 -109.70 -157.09 -128.70 L-32.91 -200.39 Q0.00 -219.39 32.91 -200.39 Z'
-            {...lineProps}
-          />
+          <path d={ISO_MONITOR_PATHS[8]} {...lineProps} />
         </g>
       </g>
     </svg>

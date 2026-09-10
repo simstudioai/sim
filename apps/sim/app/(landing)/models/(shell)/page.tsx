@@ -1,9 +1,11 @@
+import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
 import {
@@ -182,11 +184,11 @@ export default async function ModelsPage({
       <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'>
           <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
             <h1
               id='models-heading'
-              className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+              className={cn('text-balance text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.title)}
             >
               Compare AI Models
             </h1>

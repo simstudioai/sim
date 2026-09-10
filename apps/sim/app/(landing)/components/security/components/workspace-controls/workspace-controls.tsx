@@ -70,32 +70,32 @@ const CONTROLS: readonly Control[] = [
   },
 ] as const
 
-/** Six workspace capabilities grouped in a shared panel below the product rail. */
+/** Six workspace capabilities arranged in an open grid below the product rail. */
 export function WorkspaceControls() {
   return (
     <section
       id='controls'
       aria-label='Workspace controls'
-      className={cn('flex w-full flex-col', LANDING_CONTENT_WIDTH, LANDING_GUTTER)}
+      className='relative w-full pb-8 max-sm:pb-6'
     >
-      <div className={cn(HOME_INSET, 'pt-12 max-sm:pt-8')}>
-        <ul className='grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] max-sm:grid-cols-1 max-lg:grid-cols-2'>
-          {CONTROLS.map(({ title, description, Mark }) => (
-            <li
-              key={title}
-              className='flex flex-col items-start gap-3 bg-[var(--surface-2)] p-7 max-sm:p-6'
-            >
-              <Mark className={cn('size-[56px]', CONTROL_QUIET)} />
-              <div>
-                <h3 className={cn('text-[var(--text-primary)]', HOME_TYPE.body)}>{title}</h3>
-                <p className={cn('mt-1.5 max-w-[30ch] text-pretty', CONTROL_QUIET, CONTROL_COPY)}>
-                  {description}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+        <div className={cn(HOME_INSET, 'pt-12 max-sm:pt-8')}>
+          <ul className='grid grid-cols-3 gap-x-12 gap-y-12 max-sm:grid-cols-1 max-sm:gap-y-8 max-lg:grid-cols-2'>
+            {CONTROLS.map(({ title, description, Mark }) => (
+              <li key={title} className='flex flex-col items-start gap-3'>
+                <Mark className={cn('size-[56px]', CONTROL_QUIET)} />
+                <div>
+                  <h3 className={cn('text-[var(--text-primary)]', HOME_TYPE.body)}>{title}</h3>
+                  <p className={cn('mt-1.5 max-w-[30ch] text-pretty', CONTROL_QUIET, CONTROL_COPY)}>
+                    {description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
+      <hr className='absolute inset-x-0 top-full mt-18 border-0 border-[var(--border)] border-t max-sm:mt-10 max-lg:mt-12' />
     </section>
   )
 }

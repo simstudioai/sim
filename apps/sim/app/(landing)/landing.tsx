@@ -12,6 +12,7 @@ import {
   WorkspaceControls,
 } from '@/app/(landing)/components'
 import { HOME_SECTION_RHYTHM } from '@/app/(landing)/components/landing-layout'
+import { SimStack } from '@/app/(landing)/components/sim-stack/sim-stack'
 import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
 
 /**
@@ -23,17 +24,18 @@ import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
  * never drift and the navbar persists across navigation. This page emits only
  * its `<main>` and the home-specific structured data.
  *
- * Section order copies Harvey's homepage:
+ * Section order follows the homepage design:
  *
  * 1. {@link Hero} - split masthead and full-width product stage.
  * 2. {@link Proof} - customer-logo row.
  * 3. {@link FeaturedCustomer} - featured customer film carousel.
  * 4. {@link AgentMomentum} - editorial proof points for the open-source agent ecosystem.
- * 5. {@link PlatformSuite} - creation and centralized-governance windows.
- * 6. {@link ProductDemo} - the demo player, grouped with the platform cards.
- * 7. {@link Features} - the horizontal product rail.
- * 8. {@link WorkspaceControls} - the rail's six governance controls, untitled.
- * 9. {@link Security} - governance intro, Trust Center link, certification blocs.
+ * 5. {@link SimStack} - scroll-driven architecture, from governance to the workspace.
+ * 6. {@link PlatformSuite} - creation and centralized-governance windows.
+ * 7. {@link ProductDemo} - the demo player, grouped with the platform cards.
+ * 8. {@link Features} - the horizontal product rail.
+ * 9. {@link WorkspaceControls} - the rail's six governance controls, untitled.
+ * 10. {@link Security} - governance intro, Trust Center link, certification blocs.
  *
  * `<main>` is a `flex flex-col` whose `gap` is the single source of truth for
  * major-section rhythm. Customer proof, platform media, and product controls
@@ -54,6 +56,7 @@ export default function Landing() {
           </div>
         </div>
       </div>
+      <SimStack />
       {/* The demo frame belongs to the platform section: it follows the two
         cards at the cards' own gap and shares their inset, so the three read
         as one grid. The `<main>` rhythm applies around the group, and nothing

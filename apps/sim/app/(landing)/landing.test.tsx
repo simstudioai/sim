@@ -25,6 +25,10 @@ vi.mock('@/app/(landing)/components/landing-layout', () => ({
   HOME_SECTION_RHYTHM: 'gap-test',
 }))
 
+vi.mock('@/app/(landing)/components/sim-stack/sim-stack', () => ({
+  SimStack: () => <span>sim-stack-marker</span>,
+}))
+
 vi.mock('@/app/(landing)/landing-analytics', () => ({
   LandingAnalytics: () => <span>landing-analytics-marker</span>,
 }))
@@ -42,11 +46,13 @@ describe('Landing', () => {
     const markup = renderToStaticMarkup(<Landing />)
     const featuredCustomerIndex = markup.indexOf('featured-customer-marker')
     const agentMomentumIndex = markup.indexOf('agent-momentum-marker')
+    const stackIndex = markup.indexOf('sim-stack-marker')
     const platformSuiteIndex = markup.indexOf('platform-suite-marker')
 
     expect(featuredCustomerIndex).toBeGreaterThan(-1)
     expect(agentMomentumIndex).toBeGreaterThan(featuredCustomerIndex)
-    expect(platformSuiteIndex).toBeGreaterThan(agentMomentumIndex)
+    expect(stackIndex).toBeGreaterThan(agentMomentumIndex)
+    expect(platformSuiteIndex).toBeGreaterThan(stackIndex)
   })
 
   it('places the workspace controls between the feature rail and the governance beat', () => {

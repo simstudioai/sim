@@ -99,3 +99,9 @@ export const HOME_TYPE = {
   body: LANDING_TYPE.body,
   meta: LANDING_TYPE.meta,
 } as const
+
+/** Public directory and detail headings, using the landing page's display rhythm. */
+export const PUBLIC_PAGE_TYPE = {
+  title: HOME_TYPE.h2Display,
+  detail: 'text-[48px] leading-[1.1] tracking-[-0.025em] max-sm:text-[32px] max-xl:text-[40px]',
+} as const

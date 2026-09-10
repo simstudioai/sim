@@ -6,7 +6,11 @@ import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
-import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
+import {
+  LANDING_CONTENT_WIDTH,
+  LANDING_GUTTER,
+  PUBLIC_PAGE_TYPE,
+} from '@/app/(landing)/components/landing-layout'
 import { ShareButton } from '@/app/(landing)/components/share-button'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
@@ -149,7 +153,13 @@ export default async function ModelPage({
       <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
-        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+        <div
+          className={cn(
+            LANDING_CONTENT_WIDTH,
+            LANDING_GUTTER,
+            'pt-[112px] max-sm:pt-12 max-xl:pt-20'
+          )}
+        >
           <div className='mb-6'>
             <BackLink href={provider.href} label={`Back to ${provider.name}`} />
           </div>
@@ -166,7 +176,7 @@ export default async function ModelPage({
               </p>
               <h1
                 id='model-heading'
-                className='text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
+                className={cn('text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.detail)}
               >
                 {model.displayName}
               </h1>

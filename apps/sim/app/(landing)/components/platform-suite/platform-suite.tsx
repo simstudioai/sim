@@ -101,6 +101,7 @@ export function PlatformSuite() {
         <div className='flex flex-col items-center gap-8 text-center max-sm:gap-5'>
           <h2
             id='platform-heading'
+            tabIndex={-1}
             className={cn('text-balance text-[var(--text-primary)]', HOME_TYPE.h2Display)}
           >
             One Platform for every AI Agent
