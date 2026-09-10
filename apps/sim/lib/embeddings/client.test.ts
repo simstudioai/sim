@@ -1811,10 +1811,10 @@ describe('durable embedding batches', () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(openAIBody([[1]], 7))))
     await embed(['text'], { apiKey: 'fixture-key', checkpoints: memoryCheckpoints() })
     expect(mockAdmit).toHaveBeenLastCalledWith(
-      expect.objectContaining({ maxWaitMs: KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS, lane: 'bulk' })
+      expect.objectContaining({ maxWaitMs: KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS, bulk: true })
     )
     await embed(['text'], { apiKey: 'fixture-key' })
-    expect(mockAdmit).toHaveBeenLastCalledWith(expect.objectContaining({ lane: 'interactive' }))
+    expect(mockAdmit).toHaveBeenLastCalledWith(expect.objectContaining({ bulk: false }))
     expect(mockAdmit.mock.lastCall?.[0].maxWaitMs).toBeGreaterThan(
       KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS
     )

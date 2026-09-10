@@ -1,18 +1,13 @@
 /**
  * @vitest-environment node
  */
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { consumeTokens, getCooldownUntil, setCooldownUntil, mockEnv } = vi.hoisted(() => ({
+const { consumeTokens, getCooldownUntil, setCooldownUntil } = vi.hoisted(() => ({
   consumeTokens: vi.fn(),
   getCooldownUntil: vi.fn(),
   setCooldownUntil: vi.fn(),
-  mockEnv: {} as Record<string, string | undefined>,
-}))
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  envNumber: (value: string | undefined, fallback: number) =>
-    value === undefined ? fallback : Number(value),
 }))
 vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
   createStorageAdapter: () => ({
@@ -41,7 +36,10 @@ describe('provider admission', () => {
     consumeTokens.mockResolvedValue({ allowed: true, tokensRemaining: 1, resetAt: new Date() })
   })
 
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    resetEnvMock()
+  })
 
   it('shares both credential dimensions in one reservation across concurrent callers', async () => {
     await Promise.all([waitForProviderAdmission(INPUT), waitForProviderAdmission(INPUT)])
@@ -92,15 +90,11 @@ describe('provider admission', () => {
     )
   })
 
-  it('caps the bulk lane below the aggregate budget so interactive callers keep headroom', async () => {
-    await waitForProviderAdmission({ ...INPUT, lane: 'bulk' })
-    await waitForProviderAdmission({ ...INPUT, lane: 'interactive' })
-    const [bulkReservations, bulkOptions] = consumeTokens.mock.calls[0]
-    expect(bulkReservations).toMatchObject([
-      {
-        key: 'provider:embedding:openai:hashed-credential:tokens',
-        config: { maxTokens: 600_000, refillRate: 10_000 },
-      },
+  it('caps bulk work below the aggregate budget so interactive callers keep headroom', async () => {
+    await waitForProviderAdmission({ ...INPUT, bulk: true })
+    const [reservations, options] = consumeTokens.mock.calls[0]
+    expect(reservations).toMatchObject([
+      { key: 'provider:embedding:openai:hashed-credential:tokens', config: { maxTokens: 600_000 } },
       { key: 'provider:embedding:openai:hashed-credential:requests', config: { maxTokens: 64 } },
       {
         key: 'provider:embedding:openai:hashed-credential:bulk:tokens',
@@ -112,31 +106,24 @@ describe('provider admission', () => {
         config: { maxTokens: 57, refillRate: 9 },
       },
     ])
-    expect(bulkOptions.cooldownKeys).toEqual([
+    expect(options.cooldownKeys).toEqual([
       'provider:embedding:openai:hashed-credential:cooldown',
       'provider:embedding:openai:hashed-credential:quota',
     ])
-    const [interactiveReservations, interactiveOptions] = consumeTokens.mock.calls[1]
-    expect(interactiveReservations.map((item: { key: string }) => item.key)).toEqual([
-      'provider:embedding:openai:hashed-credential:tokens',
-      'provider:embedding:openai:hashed-credential:requests',
-    ])
-    expect(interactiveOptions.cooldownKeys).toEqual(bulkOptions.cooldownKeys)
   })
 
-  it('never shrinks a bulk bucket below one valid reservation', async () => {
-    mockEnv.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE = '1'
-    mockEnv.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE = '100'
-    try {
-      await waitForProviderAdmission({ ...INPUT, inputTokens: 95, lane: 'bulk' })
-    } finally {
-      mockEnv.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE = undefined
-      mockEnv.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE = undefined
-    }
-    expect(consumeTokens.mock.calls[0][0]).toMatchObject([
-      { key: 'provider:embedding:openai:hashed-credential:tokens', config: { maxTokens: 100 } },
-      { key: 'provider:embedding:openai:hashed-credential:requests', config: { maxTokens: 1 } },
-      { key: 'provider:embedding:openai:hashed-credential:bulk:tokens', config: { maxTokens: 95 } },
+  it('rejects a bulk batch the lane can never hold and keeps one request slot at a minimal burst', async () => {
+    setEnv({
+      KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: '1',
+      KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE: '100',
+    })
+    await expect(
+      waitForProviderAdmission({ ...INPUT, inputTokens: 95, bulk: true })
+    ).rejects.toThrow('exceeds the configured per-credential token budget')
+    await waitForProviderAdmission({ ...INPUT, inputTokens: 95 })
+    await waitForProviderAdmission({ ...INPUT, inputTokens: 90, bulk: true })
+    expect(consumeTokens.mock.calls[1][0].slice(2)).toMatchObject([
+      { key: 'provider:embedding:openai:hashed-credential:bulk:tokens', config: { maxTokens: 90 } },
       {
         key: 'provider:embedding:openai:hashed-credential:bulk:requests',
         config: { maxTokens: 1 },

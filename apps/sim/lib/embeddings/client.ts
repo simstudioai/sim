@@ -11,7 +11,6 @@ import {
 } from '@/lib/core/config/env-capabilities'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
-  type ProviderAdmissionLane,
   ProviderQuotaExhaustedError,
   recordProviderCooldown,
   waitForProviderAdmission,
@@ -545,9 +544,10 @@ async function callEmbeddingAPI(
   expectedDimensions: number | undefined,
   isBYOK: boolean,
   signal?: AbortSignal,
-  admissionWaitMs = EMBEDDING_RETRY_BUDGET_MS,
-  lane?: ProviderAdmissionLane
+  /** Bulk indexing waits briefly and is capped below the credential budget; everything else has a person waiting on it. */
+  bulk = false
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
+  const admissionWaitMs = bulk ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : EMBEDDING_RETRY_BUDGET_MS
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
   return retryWithExponentialBackoff(
     async (operationSignal, deadlineAt) => {
@@ -565,7 +565,7 @@ async function callEmbeddingAPI(
           ),
           signal: operationSignal,
           maxWaitMs: Math.min(admissionWaitMs, Math.max(0, deadlineAt - Date.now())),
-          lane,
+          bulk,
         })
       } catch (error) {
         if (error instanceof ProviderQuotaExhaustedError)
@@ -798,6 +798,7 @@ async function mapEmbeddingBatches<T, R>(
   return results.map((result) => result!.value)
 }
 
+/** Checkpoints mark the bulk indexing path; every other caller is interactive. */
 async function callCheckpointedEmbeddingBatch(
   batch: string[],
   batchIndex: number,
@@ -851,13 +852,7 @@ async function callCheckpointedEmbeddingBatch(
     provider.dimensions,
     provider.isBYOK,
     signal,
-    checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined,
-    /**
-     * Checkpoints mark the bulk indexing path, which may never take the whole
-     * credential budget. Everything else has a person waiting on it and uses
-     * the headroom the bulk lane leaves.
-     */
-    checkpoints ? 'bulk' : 'interactive'
+    checkpoints !== undefined
   )
   if (identity) await checkpoints!.save(identity, result, signal)
   return result

@@ -13,22 +13,19 @@ export interface ProviderIdentity {
 }
 
 /**
- * Every caller reserves from the credential's aggregate buckets, so the
- * configured budget is never exceeded. The bulk lane also reserves from a
- * bucket capped at {@link BULK_LANE_SHARE} of that budget, which leaves an
- * interactive caller headroom instead of a queue behind a crawl's batches.
- * Cooldown and quota gates stay per identity: a provider pause or an exhausted
- * balance still stops every lane.
+ * Share of a credential's budget the bulk lane may use. Every caller reserves
+ * from the aggregate buckets, so the budget is never exceeded; bulk callers
+ * also reserve from buckets capped at this share, which leaves an interactive
+ * caller headroom instead of a queue behind a crawl's batches.
  */
-export type ProviderAdmissionLane = 'bulk' | 'interactive'
-
 const BULK_LANE_SHARE = 0.9
 
 interface ProviderAdmissionInput extends ProviderIdentity {
   inputTokens?: number
   signal?: AbortSignal
   maxWaitMs: number
-  lane?: ProviderAdmissionLane
+  /** Bulk work is capped at {@link BULK_LANE_SHARE}; cooldown and quota gates still stop every caller. */
+  bulk?: boolean
 }
 
 /**
@@ -75,7 +72,8 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
           perMinute: envNumber(env.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE, 600_000, { min: 1 }),
         }
       : undefined
-  if (tokenBudget && tokenBudget.cost > tokenBudget.perMinute) {
+  const laneShare = input.bulk ? BULK_LANE_SHARE : 1
+  if (tokenBudget && tokenBudget.cost > Math.floor(tokenBudget.perMinute * laneShare)) {
     throw new Error('Embedding request exceeds the configured per-credential token budget')
   }
   const requestBurst = Math.min(
@@ -83,14 +81,13 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     requestsPerMinute
   )
   const reservations: TokenBucketReservation[] = []
-  /** A lane bucket always holds at least one valid reservation, so a tiny budget cannot lock the lane. */
   const reserveBuckets = (bucketKey: string, share: number) => {
     if (tokenBudget) {
       reservations.push({
         key: `${bucketKey}:tokens`,
         cost: tokenBudget.cost,
         config: {
-          maxTokens: Math.max(tokenBudget.cost, Math.floor(tokenBudget.perMinute * share)),
+          maxTokens: Math.floor(tokenBudget.perMinute * share),
           refillRate: (tokenBudget.perMinute * share) / 60,
           refillIntervalMs: 1000,
         },
@@ -100,6 +97,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       key: `${bucketKey}:requests`,
       cost: 1,
       config: {
+        /** A burst of one leaves no share to carve out, so the lane then matches the aggregate. */
         maxTokens: Math.max(1, Math.floor(requestBurst * share)),
         refillRate: (requestsPerMinute * share) / 60,
         refillIntervalMs: 1000,
@@ -107,7 +105,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     })
   }
   reserveBuckets(key, 1)
-  if (input.lane === 'bulk') reserveBuckets(`${key}:bulk`, BULK_LANE_SHARE)
+  if (input.bulk) reserveBuckets(`${key}:bulk`, BULK_LANE_SHARE)
 
   /** When the bucket last said capacity returns, so a deadline hit after a sleep reports the wait still left. */
   let capacityAvailableAt: number | undefined
