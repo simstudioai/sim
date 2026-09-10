@@ -1,10 +1,16 @@
-import { createReadStream, existsSync } from 'fs'
+import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { Readable } from 'stream'
 import { createLogger } from '@sim/logger'
 import { type Options, parse } from 'csv-parse'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
+import {
+  type DecodedText,
+  decodeTextBuffer,
+  sanitizeTextForUTF8,
+  truncationNotice,
+} from '@/lib/file-parsers/utils'
 
 const logger = createLogger('CsvParser')
 
@@ -12,10 +18,17 @@ const CONFIG = {
   MAX_PREVIEW_ROWS: 1000, // Only keep first 1000 rows for preview
   MAX_SAMPLE_ROWS: 100, // Sample for metadata
   MAX_ERRORS: 100, // Stop after 100 errors
-  STREAM_CHUNK_SIZE: 16384, // 16KB chunks for streaming
 }
 
 export class CsvParser implements FileParser {
+  /**
+   * Reads the whole file before parsing rather than streaming 16 KB chunks:
+   * encoding detection needs the complete byte sequence (a BOM-less UTF-16 or
+   * Windows-1252 file cannot be recognized per chunk, and a multi-byte UTF-8
+   * sequence split across chunk boundaries would be misread). The upload size
+   * caps already bound the file, and `parseBuffer` — the production path —
+   * always held the full buffer.
+   */
   async parseFile(filePath: string): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
@@ -25,11 +38,7 @@ export class CsvParser implements FileParser {
       throw new Error(`File not found: ${filePath}`)
     }
 
-    const stream = createReadStream(filePath, {
-      highWaterMark: CONFIG.STREAM_CHUNK_SIZE,
-    })
-
-    return this.parseStream(stream)
+    return this.parseBuffer(await readFile(filePath))
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
@@ -38,14 +47,18 @@ export class CsvParser implements FileParser {
       `Parsing CSV buffer, size: ${bufferSize} bytes (${(bufferSize / 1024 / 1024).toFixed(2)} MB)`
     )
 
+    const decoded = decodeTextBuffer(buffer)
     const stream = new Readable({ read() {} })
-    stream.push(buffer)
+    stream.push(decoded.text)
     stream.push(null)
 
-    return this.parseStream(stream)
+    return this.parseStream(stream, decoded)
   }
 
-  private parseStream(inputStream: NodeJS.ReadableStream): Promise<FileParseResult> {
+  private parseStream(
+    inputStream: NodeJS.ReadableStream,
+    decoded: DecodedText
+  ): Promise<FileParseResult> {
     return new Promise((resolve, reject) => {
       let rowCount = 0
       let errorCount = 0
@@ -145,6 +158,8 @@ export class CsvParser implements FileParser {
               errors: errors.slice(0, 10),
               truncated: rowCount > CONFIG.MAX_PREVIEW_ROWS,
               sampledData: sampledRows,
+              encoding: decoded.encoding,
+              ...(decoded.warning ? { warning: decoded.warning } : {}),
             },
           })
         }

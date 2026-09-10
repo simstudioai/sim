@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { boxConnectorMeta } from '@/connectors/box/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -319,7 +320,7 @@ async function fetchPlainTextContent(
   extension: string
 ): Promise<string> {
   const buffer = await downloadWithinLimit(`${BOX_API_BASE}/files/${fileId}/content`, accessToken)
-  const text = buffer.toString('utf8')
+  const { text } = decodeTextBuffer(buffer)
   return HTML_EXTENSIONS.has(extension) ? htmlToPlainText(text) : text
 }
 
@@ -347,7 +348,7 @@ async function fetchExtractedText(
         urlTemplate.replace('{+asset_path}', ''),
         accessToken
       )
-      return buffer.toString('utf8')
+      return decodeTextBuffer(buffer).text
     }
     if (state === 'error' || !infoUrl) return null
     if (attempt === REPRESENTATION_POLL_ATTEMPTS) break

@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { parseGitHubRepository } from '@/lib/oauth/github-repository'
 import { githubConnectorMeta } from '@/connectors/github/meta'
@@ -296,7 +297,7 @@ async function fetchBlobContent(
     throw new ConnectorFileTooLargeError(maxBytes)
   }
   if (isBinaryBuffer(buffer)) return null
-  return buffer.toString('utf8')
+  return decodeTextBuffer(buffer).text
 }
 
 /** Resolves links within one snapshot; Contents can truncate dereferenced targets at 1 MiB. */

@@ -462,6 +462,35 @@ describe('file parser operation', () => {
     )
   })
 
+  /**
+   * A parser that could only scrape bytes flags its output `degraded`; the tool
+   * must report that as a failure rather than hand placeholder prose to the model.
+   */
+  it('reports degraded parser output as a failure instead of returning it as content', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+      authenticated: true,
+    })
+    mockParseBuffer.mockResolvedValue({
+      content: 'Unable to extract text from DOC file. Please convert to DOCX format.',
+      metadata: { degraded: true, warning: 'Basic text extraction used' },
+    })
+    const req = createMockRequest('POST', {
+      filePath: 'workspace/legacy.doc',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('Could not extract text from legacy.doc')
+    expect(data.error).toContain('Basic text extraction used')
+    expect(JSON.stringify(data)).not.toContain('Unable to extract text from DOC file')
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
+
   it('should reject parser complexity limits instead of returning raw text', async () => {
     setupFileApiMocks({
       cloudEnabled: true,

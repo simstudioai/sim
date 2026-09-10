@@ -24,3 +24,188 @@ export function sanitizeTextForUTF8(text: string): string {
 export function truncationNotice(detail: string): string {
   return `\n[... ${detail} ...]\n`
 }
+
+/** Character encodings {@link decodeTextBuffer} can produce. */
+export type TextEncodingLabel = 'utf-8' | 'utf-16le' | 'utf-16be' | 'windows-1252'
+
+export interface DecodedText {
+  text: string
+  encoding: TextEncodingLabel
+  /** Set when the bytes were not clean UTF-8 and a lossy or inferred decode was used. */
+  warning?: string
+}
+
+const strictUtf8Decoder = new TextDecoder('utf-8', { fatal: true })
+const utf16leDecoder = new TextDecoder('utf-16le')
+const utf16beDecoder = new TextDecoder('utf-16be')
+
+/**
+ * WHATWG windows-1252: identical to Latin-1 except 0x80–0x9F, which hold the
+ * typographic characters (smart quotes, dashes, €, …) instead of C1 controls.
+ * Implemented here rather than via `TextDecoder('windows-1252')` because a
+ * Node build without full ICU silently falls back to Latin-1 for that label,
+ * so the same bytes would decode differently under test and in production.
+ */
+const WINDOWS_1252_C1 = [
+  '\u20AC',
+  '\u0081',
+  '\u201A',
+  '\u0192',
+  '\u201E',
+  '\u2026',
+  '\u2020',
+  '\u2021',
+  '\u02C6',
+  '\u2030',
+  '\u0160',
+  '\u2039',
+  '\u0152',
+  '\u008D',
+  '\u017D',
+  '\u008F',
+  '\u0090',
+  '\u2018',
+  '\u2019',
+  '\u201C',
+  '\u201D',
+  '\u2022',
+  '\u2013',
+  '\u2014',
+  '\u02DC',
+  '\u2122',
+  '\u0161',
+  '\u203A',
+  '\u0153',
+  '\u009D',
+  '\u017E',
+  '\u0178',
+] as const
+const C1_RANGE = /[\u0080-\u009F]/g
+
+function decodeWindows1252(buffer: Uint8Array): string {
+  return Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    .toString('latin1')
+    .replace(C1_RANGE, (char) => WINDOWS_1252_C1[char.charCodeAt(0) - 0x80])
+}
+
+const UTF8_BOM_LENGTH = 3
+const UTF16_BOM_LENGTH = 2
+/** A UTF-8 sequence is at most four bytes, so a truncated tail is at most three. */
+const MAX_TRUNCATED_UTF8_TAIL = 3
+const UTF16_HEURISTIC_SAMPLE_BYTES = 4096
+
+export const TRUNCATED_UTF8_WARNING = 'Trailing bytes of an incomplete UTF-8 sequence were dropped'
+export const WINDOWS_1252_WARNING = 'File was not valid UTF-8; decoded as Windows-1252'
+
+function stripLeadingBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+}
+
+/** Declared length of the UTF-8 sequence a lead byte starts, or 0 for a non-lead byte. */
+function utf8SequenceLength(lead: number): number {
+  if (lead >= 0xc2 && lead <= 0xdf) return 2
+  if (lead >= 0xe0 && lead <= 0xef) return 3
+  if (lead >= 0xf0 && lead <= 0xf4) return 4
+  return 0
+}
+
+/**
+ * Whether the last `tailLength` bytes look like the cut-off start of one UTF-8
+ * sequence (a lead byte followed only by continuation bytes, shorter than the
+ * length the lead declares) AND the bytes before it already contain multi-byte
+ * UTF-8. Without that second condition a Latin-1 file that merely ends in an
+ * accented letter would be misread as truncated UTF-8 and lose the letter.
+ */
+function isTruncatedUtf8Tail(buffer: Uint8Array, tailLength: number): boolean {
+  const tailStart = buffer.length - tailLength
+  const declared = utf8SequenceLength(buffer[tailStart])
+  if (declared === 0 || tailLength >= declared) return false
+  for (let index = tailStart + 1; index < buffer.length; index++) {
+    if ((buffer[index] & 0xc0) !== 0x80) return false
+  }
+  for (let index = 0; index < tailStart; index++) {
+    if (buffer[index] >= 0x80) return true
+  }
+  return false
+}
+
+/**
+ * Whether a BOM-less buffer is laid out as UTF-16 ASCII-range text: one half of
+ * every byte pair is NUL while the other is not. Reports the byte order of the
+ * non-NUL half, or `null` when the sample does not fit either layout.
+ */
+export function detectBomlessUtf16(buffer: Uint8Array): 'utf-16le' | 'utf-16be' | null {
+  const sampleLength = Math.min(buffer.length, UTF16_HEURISTIC_SAMPLE_BYTES) & ~1
+  if (sampleLength < 4) return null
+
+  let evenNul = 0
+  let oddNul = 0
+  for (let index = 0; index < sampleLength; index += 2) {
+    if (buffer[index] === 0) evenNul++
+    if (buffer[index + 1] === 0) oddNul++
+  }
+
+  const pairs = sampleLength / 2
+  const highThreshold = pairs * 0.9
+  const lowThreshold = pairs * 0.05
+  if (oddNul >= highThreshold && evenNul <= lowThreshold) return 'utf-16le'
+  if (evenNul >= highThreshold && oddNul <= lowThreshold) return 'utf-16be'
+  return null
+}
+
+/**
+ * Decodes text bytes without ever emitting U+FFFD for single-byte input.
+ *
+ * Order: a UTF-16 BOM wins; otherwise strict UTF-8 (which also consumes a UTF-8
+ * BOM). When strict UTF-8 rejects the buffer it is retried with up to three
+ * trailing bytes removed, so a size-capped download cut mid-codepoint keeps its
+ * UTF-8 reading instead of falling to Windows-1252 wholesale. Only then is the
+ * whole buffer read as Windows-1252, which is a superset of Latin-1 and decodes
+ * every byte, so `sanitizeTextForUTF8` has nothing to delete. Never throws.
+ */
+export function decodeTextBuffer(buffer: Uint8Array): DecodedText {
+  if (buffer.length >= UTF16_BOM_LENGTH) {
+    if (buffer[0] === 0xff && buffer[1] === 0xfe) {
+      return {
+        text: stripLeadingBom(utf16leDecoder.decode(buffer.subarray(UTF16_BOM_LENGTH))),
+        encoding: 'utf-16le',
+      }
+    }
+    if (buffer[0] === 0xfe && buffer[1] === 0xff) {
+      return {
+        text: stripLeadingBom(utf16beDecoder.decode(buffer.subarray(UTF16_BOM_LENGTH))),
+        encoding: 'utf-16be',
+      }
+    }
+  }
+
+  const bomlessUtf16 = detectBomlessUtf16(buffer)
+  if (bomlessUtf16 === 'utf-16le') {
+    return { text: utf16leDecoder.decode(buffer), encoding: 'utf-16le' }
+  }
+  if (bomlessUtf16 === 'utf-16be') {
+    return { text: utf16beDecoder.decode(buffer), encoding: 'utf-16be' }
+  }
+
+  try {
+    return { text: strictUtf8Decoder.decode(buffer), encoding: 'utf-8' }
+  } catch {
+    for (let dropped = 1; dropped <= MAX_TRUNCATED_UTF8_TAIL; dropped++) {
+      if (buffer.length - dropped < UTF8_BOM_LENGTH) break
+      if (!isTruncatedUtf8Tail(buffer, dropped)) continue
+      try {
+        return {
+          text: strictUtf8Decoder.decode(buffer.subarray(0, buffer.length - dropped)),
+          encoding: 'utf-8',
+          warning: TRUNCATED_UTF8_WARNING,
+        }
+      } catch {}
+    }
+  }
+
+  return {
+    text: decodeWindows1252(buffer),
+    encoding: 'windows-1252',
+    warning: WINDOWS_1252_WARNING,
+  }
+}

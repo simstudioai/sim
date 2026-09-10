@@ -128,4 +128,16 @@ describe('assertYamlWithinLimits', () => {
     const astral = String.fromCodePoint(0x1f600).repeat(10 * 1024 * 1024)
     expect(() => assertYamlWithinLimits({ text: astral })).not.toThrow()
   })
+
+  it('decodes a BOM-prefixed Latin-1 YAML file without losing accented characters', async () => {
+    const bom = await parseYAMLBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('name: Café')])
+    )
+    const latin1 = await parseYAMLBuffer(Buffer.from('name: Caf\xe9', 'latin1'))
+
+    expect(JSON.parse(bom.content)).toEqual({ name: 'Café' })
+    expect(bom.metadata?.encoding).toBe('utf-8')
+    expect(JSON.parse(latin1.content)).toEqual({ name: 'Café' })
+    expect(latin1.metadata?.encoding).toBe('windows-1252')
+  })
 })

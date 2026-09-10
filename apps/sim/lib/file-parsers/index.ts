@@ -13,9 +13,11 @@ import {
   parseJSONLBuffer,
 } from '@/lib/file-parsers/json-parser'
 import { MdParser } from '@/lib/file-parsers/md-parser'
+import { ArchiveIntegrityError } from '@/lib/file-parsers/ooxml-limits'
 import { OpenDocumentParser } from '@/lib/file-parsers/opendocument-parser'
 import { PdfParser } from '@/lib/file-parsers/pdf-parser'
 import { PptxParser } from '@/lib/file-parsers/pptx-parser'
+import { reconcileParserRoute, sniffFileKind } from '@/lib/file-parsers/sniff'
 import { TxtParser } from '@/lib/file-parsers/txt-parser'
 import type {
   FileParseOptions,
@@ -38,9 +40,9 @@ const logger = createLogger('FileParser')
  * - `xlsm`/`xlsb`/`xltx`/`xls`/`ods` are all read natively by SheetJS. `ods` is
  *   treated as a spreadsheet rather than routed to {@link OpenDocumentParser} so
  *   its output keeps per-sheet structure instead of one flat text run.
- * - `pptm`/`potx` are the PresentationML package `pptx` uses. `ppt` is the legacy
- *   OLE binary that no bundled library reads; it is mapped here so it degrades
- *   through the parser's own reporting rather than looking simply unsupported.
+ * - `pptm`/`potx` are the PresentationML package `pptx` uses. Legacy OLE `ppt`
+ *   is deliberately absent: no bundled library reads it, and registering it only
+ *   produced scraped placeholder prose, so uploads refuse it up front instead.
  *
  * Every parser module is imported statically and every dependency is a regular
  * (non-optional) one, so a broken install fails loudly at import. This previously
@@ -70,7 +72,6 @@ const PARSERS = new Map<string, FileParser>([
   ['xltx', new XlsxParser()],
   ['ods', new XlsxParser()],
   ['pptx', new PptxParser()],
-  ['ppt', new PptxParser()],
   ['pptm', new PptxParser()],
   ['potx', new PptxParser()],
   ['odt', new OpenDocumentParser()],
@@ -121,6 +122,11 @@ export async function parseFile(
   }
 }
 
+function joinWarnings(...warnings: Array<string | undefined>): string | undefined {
+  const present = warnings.filter((warning): warning is string => Boolean(warning))
+  return present.length > 0 ? present.join('. ') : undefined
+}
+
 /**
  * Parse a buffer based on file extension
  * @param buffer Buffer containing the file data
@@ -131,7 +137,12 @@ export async function parseFile(
  * The zip-bomb guard runs here for every extension, not just the OOXML ones:
  * the extension is an attacker-controlled routing hint, and the guard no-ops
  * for buffers that are not ZIP archives. Individual parsers still call it so a
- * direct `parser.parseBuffer` caller is covered too.
+ * direct `parser.parseBuffer` caller is covered too. Its integrity rejection is
+ * surfaced as a typed `invalid_format` so callers never retry a corrupt archive.
+ *
+ * After the guard, the bytes are sniffed and reconciled with the extension (see
+ * {@link reconcileParserRoute}); a re-routed parse records `detectedType` and a
+ * warning in its metadata.
  */
 export async function parseBuffer(
   buffer: Buffer,
@@ -147,26 +158,50 @@ export async function parseBuffer(
       throw new Error('No file extension provided')
     }
 
-    assertOoxmlArchiveWithinLimits(buffer)
+    try {
+      assertOoxmlArchiveWithinLimits(buffer)
+    } catch (error) {
+      if (error instanceof ArchiveIntegrityError) {
+        throw new FileParserError('invalid_format', error.message, error)
+      }
+      throw error
+    }
 
     const normalizedExtension = extension.toLowerCase()
-    const parser = PARSERS.get(normalizedExtension)
-
-    if (!parser) {
+    if (!PARSERS.has(normalizedExtension)) {
       throw new FileParserError(
         'unsupported_type',
         `Unsupported file type: ${normalizedExtension}. Supported types are: ${SUPPORTED_EXTENSIONS_TEXT}`
       )
     }
 
-    if (!parser.parseBuffer) {
+    const kind = sniffFileKind(buffer)
+    const route = reconcileParserRoute(normalizedExtension, kind)
+    const parser = PARSERS.get(route.extension)
+
+    if (!parser?.parseBuffer) {
       throw new FileParserError(
         'unsupported_type',
-        `Parser for ${normalizedExtension} does not support buffer parsing`
+        `Parser for ${route.extension} does not support buffer parsing`
       )
     }
 
-    return await parser.parseBuffer(buffer, options)
+    const result = await parser.parseBuffer(buffer, options)
+    if (!route.detectedType) return result
+
+    logger.warn('Parsed buffer under a re-routed parser', {
+      extension: normalizedExtension,
+      detectedType: route.detectedType,
+      route: route.extension,
+    })
+    return {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        detectedType: route.detectedType,
+        warning: joinWarnings(route.warning, result.metadata?.warning),
+      },
+    }
   } catch (error) {
     logger.error('Buffer parsing error:', error)
     throw error

@@ -7,10 +7,10 @@ export interface FileParseMetadata {
    * True when no real extraction happened and `content` is best-effort scraped
    * bytes or a placeholder message rather than the document's text.
    *
-   * The legacy-format parsers (`doc`, `ppt`) deliberately never throw, so an
-   * interactive upload still shows the user something. An automated caller must
-   * not index that: it embeds ZIP internals or an English placeholder sentence as
-   * if it were document content. Such callers check this flag and skip the file.
+   * The legacy `pptx` fallback deliberately never throws, so an interactive
+   * upload still shows the user something. An automated caller must not index
+   * that: it embeds ZIP internals or an English placeholder sentence as if it
+   * were document content. Such callers check this flag and skip the file.
    */
   degraded?: boolean
   extractionMethod?: string
@@ -58,7 +58,6 @@ export type SupportedFileType =
   | 'html'
   | 'htm'
   | 'pptx'
-  | 'ppt'
   | 'pptm'
   | 'potx'
   | 'odt'

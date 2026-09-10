@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import * as yaml from 'js-yaml'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
+import { type DecodedText, decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { measureYamlExpansion, type YamlExpansionLimits } from '@/lib/file-parsers/yaml-limits'
 
 /**
@@ -52,7 +53,7 @@ export function assertYamlWithinLimits(root: unknown): number {
  * Parse a YAML value into the shared `FileParseResult` shape after validating
  * that its expanded form stays within safe complexity limits.
  */
-function buildYamlResult(yamlData: unknown): FileParseResult {
+function buildYamlResult(yamlData: unknown, decoded: DecodedText): FileParseResult {
   if (yamlData === undefined) {
     throw new FileParserError('empty_input', 'Empty YAML input provided')
   }
@@ -66,6 +67,8 @@ function buildYamlResult(yamlData: unknown): FileParseResult {
     keys: Array.isArray(yamlData) ? [] : Object.keys((yamlData as Record<string, unknown>) || {}),
     itemCount: Array.isArray(yamlData) ? yamlData.length : undefined,
     depth,
+    encoding: decoded.encoding,
+    ...(decoded.warning ? { warning: decoded.warning } : {}),
   }
 
   return {
@@ -79,19 +82,7 @@ function buildYamlResult(yamlData: unknown): FileParseResult {
  */
 export async function parseYAML(filePath: string): Promise<FileParseResult> {
   const fs = await import('fs/promises')
-  const content = await fs.readFile(filePath, 'utf-8')
-
-  try {
-    const yamlData = yaml.load(content)
-    return buildYamlResult(yamlData)
-  } catch (error) {
-    if (error instanceof FileParserError) throw error
-    throw new FileParserError(
-      'invalid_format',
-      `Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`,
-      error
-    )
-  }
+  return parseYAMLBuffer(await fs.readFile(filePath))
 }
 
 /**
@@ -102,11 +93,11 @@ export async function parseYAMLBuffer(buffer: Buffer): Promise<FileParseResult> 
     throw new FileParserError('empty_input', 'Empty buffer provided')
   }
 
-  const content = buffer.toString('utf-8')
+  const decoded = decodeTextBuffer(buffer)
 
   try {
-    const yamlData = yaml.load(content)
-    return buildYamlResult(yamlData)
+    const yamlData = yaml.load(decoded.text)
+    return buildYamlResult(yamlData, decoded)
   } catch (error) {
     if (error instanceof FileParserError) throw error
     throw new FileParserError(
