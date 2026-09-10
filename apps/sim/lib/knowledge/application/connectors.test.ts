@@ -268,6 +268,7 @@ describe('knowledge connector application use cases', () => {
     async (accessMode) => {
       await expect(
         resolveConnectorCredentialAccessToken({
+          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
           credentialId: 'credential-1',
           workspaceId: 'workspace-a',
           actingUserId: 'admin',
@@ -285,6 +286,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
     await expect(
       resolveConnectorCredentialAccessToken({
+        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
         credentialId: 'credential-1',
         workspaceId: 'workspace-a',
         actingUserId: 'admin',
@@ -316,6 +318,7 @@ describe('knowledge connector application use cases', () => {
     } as Parameters<typeof validateConnectorSourceConfig>[0]['connector']
     await expect(
       validateConnectorSourceConfig({
+        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
         connector,
         sourceConfig: { adminEmail: 'admin@corp.com' },
         workspaceId: 'workspace-a',
