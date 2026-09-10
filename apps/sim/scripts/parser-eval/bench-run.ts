@@ -6,6 +6,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import path from 'path'
+import { getErrorMessage } from '@sim/utils/errors'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import { parseBuffer } from '@/lib/file-parsers'
 import { FileParserError } from '@/lib/file-parsers/errors'
@@ -33,7 +34,9 @@ for (const ext of readdirSync(filesRoot).sort()) {
       let chunkCount = -1
       try {
         chunkCount = (await chunker.chunk(result.content)).length
-      } catch {}
+      } catch {
+        chunkCount = -1
+      }
       const { html, sampledData, messages, headings, links, ...metadata } = result.metadata ?? {}
       writeFileSync(
         path.join(OUT, `${label}.json`),
@@ -67,14 +70,14 @@ for (const ext of readdirSync(filesRoot).sort()) {
           ok: false,
           typedError: typed,
           errorCode: typed ? error.code : undefined,
-          errorName: (error as Error)?.name,
-          error: String((error as Error)?.message ?? error).slice(0, 300),
+          errorName: error instanceof Error ? error.name : undefined,
+          error: getErrorMessage(error, 'Unknown error').slice(0, 300),
         })
       )
       summary[ext].error++
       if (typed) summary[ext].typed++
       process.stdout.write(
-        `FAIL ${label} ${typed ? `typed:${error.code}` : `UNTYPED:${(error as Error)?.name}`} ${String((error as Error)?.message).slice(0, 80)}\n`
+        `FAIL ${label} ${typed ? `typed:${error.code}` : `UNTYPED:${error instanceof Error ? error.name : 'unknown'}`} ${getErrorMessage(error, 'Unknown error').slice(0, 80)}\n`
       )
     }
   }

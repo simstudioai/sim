@@ -25,12 +25,19 @@ def vocab(t): return {w for w in WORD.findall(norm(t)) if len(w) >= 2}
 def canon_vocab(text): return {w for w in vocab(re.sub(r'(\w)-\s*\n?\s*(\w)', r'\1\2', text)) if not w.isdigit()}
 def ref_vocab_of(text): return canon_vocab(text)
 def out_vocab_of(text): return {w for w in canon_vocab(text) | vocab(text) if not w.isdigit() and w not in MARKER_TOKENS}
+def canon_vocab_list(text): return [w for w in WORD.findall(norm(re.sub(r'(\w)-\s*\n?\s*(\w)', r'\1\2', text))) if len(w) >= 2 and not w.isdigit()]
 def found(needle, hay):
   n = norm(needle)[:NEEDLE_CAP]
   if not n: return False
   if n in hay: return True
   return fuzz.partial_ratio(n, hay[:HAY_CAP], score_cutoff=90) >= 90
 def blocks(t): return [l.strip() for l in (t or '').split('\n') if l.strip()]
+def spread_sample(items, cap):
+  # Evenly spaced sample across the whole document, so a loss on page 40 is as visible as one on page 1.
+  if len(items) <= cap: return items
+  step = len(items) / cap
+  return [items[int(i * step)] for i in range(cap)]
+def word_counts(text): return Counter(w for w in WORD.findall(norm(re.sub(r'(\w)-\s*\n?\s*(\w)', r'\1\2', text))) if len(w) >= 3 and not w.isdigit())
 def junk_per_1k(t):
   bad = sum(1 for ch in t if (unicodedata.category(ch) in ('Cc', 'Co', 'Cn') and ch not in '\n\t\r') or ch in '�­')
   return round(1000 * bad / max(1, len(t)), 2)
@@ -53,19 +60,20 @@ def metrics(rec, refs):
   ref_vocab = set(); recalls = []; precisions = []
   for name, text in refs.items():
     n_ref = norm(text); ref_vocab |= ref_vocab_of(text)
-    ref_lines = [l for l in blocks(text) if len(l) >= 25][:LINE_CAP]
-    out_lines = [l for l in blocks(out) if len(l) >= 25][:LINE_CAP]
+    ref_lines = spread_sample([l for l in blocks(text) if len(l) >= 25], LINE_CAP)
+    out_lines = spread_sample([l for l in blocks(out) if len(l) >= 25], LINE_CAP)
     if ref_lines: recalls.append(sum(found(l, n_out) for l in ref_lines) / len(ref_lines))
     if out_lines: precisions.append(sum(found(l, n_ref) for l in out_lines) / len(out_lines))
   m['recall'] = r(max(recalls)) if recalls else None
   m['precision'] = r(max(precisions)) if precisions else None
   if ref_vocab:
-    words = [w for w in WORD.findall(n_out) if len(w) >= 2 and w not in MARKER_TOKENS]
+    words = [w for w in canon_vocab_list(out) if w not in MARKER_TOKENS]
     noise = [w for w in words if w not in ref_vocab]
     m['noise'] = r(len(noise) / max(1, len(words)))
-    m['glued'] = len({w for w in set(noise) if len(w) >= 6 and any(w[:i] in ref_vocab and w[i:] in ref_vocab and i >= 2 and len(w) - i >= 2 for i in range(2, len(w) - 1))})
-    m['ref_vocab_recall'] = r(len(set(words) & ref_vocab) / max(1, len(ref_vocab)))
+    raw_words = {w for w in vocab(out) if len(w) >= 6 and w not in ref_vocab}
+    m['glued'] = len({w for w in raw_words if any(w[:i] in ref_vocab and w[i:] in ref_vocab and i >= 2 and len(w) - i >= 2 for i in range(2, len(w) - 1))})
     m['ref_vocab_recall'] = r(len(out_vocab_of(out) & ref_vocab) / max(1, len(ref_vocab)))
+    m['word_counts'] = word_counts(out)
   return m
 
 rows = []
@@ -82,6 +90,21 @@ for f in labels:
     else: flags.append('REGRESSION:ok->untyped-error')
   if not mb['ok'] and ma['ok']: flags.append('improved:error->ok')
   if not mb['ok'] and not ma['ok'] and not mb.get('typed') and ma.get('typed'): flags.append('improved:untyped->typed')
+  if mb['ok'] and ma['ok'] and 'word_counts' in mb and 'word_counts' in ma:
+    ref_counts = Counter()
+    for text in refs.values(): ref_counts.update(word_counts(text))
+    depleted = sorted(
+      (w for w, c in mb['word_counts'].items() if c >= 5 and ref_counts.get(w, 0) >= 5 and ma['word_counts'].get(w, 0) < 0.5 * c),
+      key=lambda w: mb['word_counts'][w] - ma['word_counts'].get(w, 0), reverse=True)
+    lost = sorted(w for w in (set(mb['word_counts']) & set(ref_counts)) if w not in ma['word_counts'])
+    ma['depleted_words'] = [(w, mb['word_counts'][w], ma['word_counts'].get(w, 0)) for w in depleted[:12]]
+    ma['lost_words'] = lost[:20]
+    ma['lost_word_count'] = len(lost)
+    if len(lost) >= 5: flags.append(f"CHECK:lost-words {len(lost)} ({' '.join(lost[:6])})")
+    if depleted:
+      summary = ' '.join('%s:%d->%d' % (w, mb['word_counts'][w], ma['word_counts'].get(w, 0)) for w in depleted[:4])
+      flags.append('CHECK:depleted ' + summary)
+  for side in (mb, ma): side.pop('word_counts', None)
   if mb['ok'] and ma['ok']:
     if mb.get('recall') is not None and ma.get('recall') is not None and ma['recall'] < mb['recall'] - 0.02: flags.append(f"REGRESSION:recall {mb['recall']}->{ma['recall']}")
     if mb.get('ref_vocab_recall') is not None and ma.get('ref_vocab_recall') is not None and ma['ref_vocab_recall'] < mb['ref_vocab_recall'] - 0.02: flags.append(f"REGRESSION:vocab-recall {mb['ref_vocab_recall']}->{ma['ref_vocab_recall']}")
@@ -89,7 +112,7 @@ for f in labels:
     if mb.get('glued') is not None and ma.get('glued', 0) > mb.get('glued', 0): flags.append(f"REGRESSION:glued {mb['glued']}->{ma['glued']}")
     if ma['junk'] > mb['junk'] + 0.5: flags.append(f"REGRESSION:junk {mb['junk']}->{ma['junk']}")
     if not mb['degraded'] and ma['degraded']: flags.append('REGRESSION:now-degraded')
-    if ma['ms'] > 3 * mb['ms'] and ma['ms'] - mb['ms'] > 500: flags.append(f"SLOWER:{mb['ms']:.0f}->{ma['ms']:.0f}ms")
+    if ma['ms'] > 2.5 * mb['ms'] and ma['ms'] - mb['ms'] > 200: flags.append(f"SLOWER:{mb['ms']:.0f}->{ma['ms']:.0f}ms")
     if ma['length'] < 0.8 * mb['length'] and mb['length'] > 200 and (mb.get('recall') is None or ma.get('recall') is None): flags.append(f"CHECK:length {mb['length']}->{ma['length']} (no reference)")
   rows.append(dict(label=b['label'], ext=b['ext'], before=mb, after=ma, flags=flags))
 
@@ -101,7 +124,7 @@ def mean(xs):
 by_ext = defaultdict(list)
 for row in rows: by_ext[row['ext']].append(row)
 cols = ['recall', 'ref_vocab_recall', 'precision', 'noise', 'glued', 'lines', 'repeated_lines', 'page_number_lines', 'junk', 'chunks', 'ms']
-L = ['# Before/after benchmark', '', f'{len(rows)} files compared. Gate: recall −0.02, vocab recall −0.02, noise +0.02, glued +1, junk +0.5, ok→error (except intended), now-degraded.', '']
+L = ['# Before/after benchmark', '', f'{len(rows)} files compared. Gate: recall −0.02, vocab recall −0.02, noise +0.02, glued +1, junk +0.5, ok→error (except intended), now-degraded; CHECK flags for count-aware word depletion (a reference word whose occurrences fell by more than half) and for ≥5 reference words present before and absent after.', '']
 regressions = [x for x in rows if any(f.startswith('REGRESSION') for f in x['flags'])]
 L += [f"**Regressions: {len(regressions)}**", '']
 L += ['| ext | n | ok before→after | typed errors b→a | degraded b→a | ' + ' | '.join(f'{c} b→a' for c in cols) + ' |', '|' + '---|' * (len(cols) + 5)]

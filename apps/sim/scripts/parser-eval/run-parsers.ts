@@ -5,6 +5,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import path from 'path'
+import { getErrorMessage } from '@sim/utils/errors'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import { parseBuffer } from '@/lib/file-parsers'
 import { FileParserError } from '@/lib/file-parsers/errors'
@@ -135,7 +136,7 @@ async function runOne(label: string, ext: string, bytes: Buffer, meta: Record<st
       ok: false,
       typedError: typed,
       errorCode: typed ? (error as FileParserError).code : undefined,
-      error: String((error as Error)?.message ?? error),
+      error: getErrorMessage(error, 'Unknown error'),
       ...meta,
     }
     writeFileSync(path.join(OUTPUTS, `${label}.json`), JSON.stringify(record, null, 1))

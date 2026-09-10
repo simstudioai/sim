@@ -1,6 +1,6 @@
 # Findings — 2026-09-09 run
 
-Corpus: 107 ground-truth renders (14 docs × docx/odt/pptx/html/md/pdf, 3 two-column PDFs, 4 workbooks × xlsx/xls/xlsb/ods/csv), 30 real-world files, 14 robustness cases. Raw metrics in `REPORT.md`. Reproduce with the scripts in this directory (see `PLAN.md`).
+Corpus: 107 ground-truth renders (14 docs × docx/odt/pptx/html/md/pdf, 3 two-column PDFs, 4 workbooks × xlsx/xls/xlsb/ods/csv), 30 real-world files, 14 robustness cases. Raw metrics in `REPORT-before.md` (staging) and `REPORT-after.md` (this branch). Reproduce with the scripts in this directory (see `PLAN.md`).
 
 Content recall is 0.99–1.00 in every prose format and PDF text matches PyMuPDF at NED 0.996–1.000 on six real documents. The problems are structure, boilerplate, and typed cells.
 
