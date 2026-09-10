@@ -2,7 +2,11 @@ import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { FileParserError, isEncryptedOfficeParserError } from '@/lib/file-parsers/errors'
+import {
+  FileParserError,
+  isEncryptedOfficeParserError,
+  isFileParserError,
+} from '@/lib/file-parsers/errors'
 import { extractOpenDocumentText } from '@/lib/file-parsers/odf-text'
 import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
@@ -59,6 +63,9 @@ export class OpenDocumentParser implements FileParser {
       extracted = await extractOpenDocumentText(buffer, options)
     } catch (walkerError) {
       options.signal?.throwIfAborted()
+      if (isFileParserError(walkerError) && walkerError.code === 'complexity_limit') {
+        throw walkerError
+      }
       logger.warn('OpenDocument walker failed, trying officeparser', {
         error: getErrorMessage(walkerError),
       })

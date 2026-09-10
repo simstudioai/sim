@@ -1,11 +1,14 @@
 import { FileParserError } from '@/lib/file-parsers/errors'
+import { isEncryptedOoxmlContainer } from '@/lib/file-parsers/ooxml-encryption'
 import { decodeTextBuffer, detectBomlessUtf16 } from '@/lib/file-parsers/utils'
 import { isZipShaped } from '@/lib/file-parsers/zip-guard'
 
 /**
  * What the bytes of a buffer look like, independent of the caller-supplied
  * extension. `zip` is a ZIP archive that is none of the recognized Office
- * containers; `ole2` is any OLE compound file (legacy `.doc`/`.xls`/`.ppt`).
+ * containers; `ole2` is any OLE compound file (legacy `.doc`/`.xls`/`.ppt`);
+ * `encrypted-ooxml` is an OLE compound file wrapping a password-protected
+ * `.docx`/`.xlsx`/`.pptx` package.
  */
 export type SniffedKind =
   | 'pdf'
@@ -18,6 +21,7 @@ export type SniffedKind =
   | 'zip'
   | 'ole2'
   | 'rtf'
+  | 'encrypted-ooxml'
   | 'html'
   | 'text'
   | 'binary'
@@ -209,7 +213,7 @@ export function sniffFileKind(buffer: Buffer, declaredExtension?: string): Sniff
       : startsWithPdfSignature(buffer)
   if (isPdf) return 'pdf'
   if (buffer.length >= OLE2_SIGNATURE.length && buffer.subarray(0, 8).equals(OLE2_SIGNATURE)) {
-    return 'ole2'
+    return isEncryptedOoxmlContainer(buffer) ? 'encrypted-ooxml' : 'ole2'
   }
   if (isZipShaped(buffer)) return classifyZip(buffer)
   if (buffer.subarray(0, RTF_SIGNATURE.length).equals(RTF_SIGNATURE)) return 'rtf'
@@ -352,6 +356,12 @@ export function reconcileParserRoute(extension: string, kind: SniffedKind): Pars
   }
 
   if (kind === 'text') return override(family === 'sheet' ? 'csv' : 'txt')
+  if (kind === 'encrypted-ooxml') {
+    throw new FileParserError(
+      'encrypted_file',
+      'This document is encrypted or password-protected. Remove the password and retry.'
+    )
+  }
   if (kind === 'ole2') {
     if (family === 'word') return override('doc')
     if (family === 'presentation') {
