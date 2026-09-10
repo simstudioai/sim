@@ -79,6 +79,15 @@ interface GmailBodyContext {
   remainingBytes: number
 }
 
+function isConfirmedResponseOverflow(error: unknown, label: string): boolean {
+  return (
+    isPayloadSizeLimitError(error) &&
+    error.label === label &&
+    error.observedBytes !== undefined &&
+    error.observedBytes > error.maxBytes
+  )
+}
+
 /** Legacy cursors contain only Gmail's raw page token. */
 function parseListingCursor(cursor?: string): { pageToken?: string; searchQuery?: string } {
   if (!cursor) return {}
@@ -357,11 +366,7 @@ async function readMessageBody(
       label: 'Gmail message body',
     })
   } catch (error) {
-    if (
-      isPayloadSizeLimitError(error) &&
-      error.observedBytes !== undefined &&
-      error.observedBytes > error.maxBytes
-    ) {
+    if (isConfirmedResponseOverflow(error, 'Gmail message body')) {
       throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
     }
     throw error
@@ -598,6 +603,7 @@ function threadToStub(
     sourceUrl: threadUrl(thread.id),
     /** Rehydrate older rows that omitted separately stored message bodies. */
     contentHash: `gmail:${thread.id}:${thread.historyId}:body-v2`,
+    skippedRetryPolicy: 'source-change',
     metadata: {},
   }
 }
@@ -748,7 +754,33 @@ export const gmailConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     const threadId = sourceDocumentId(externalId, syncContext)
     if (!threadId) return null
-    const thread = await fetchThread(accessToken, threadId)
+    let thread: GmailThread | null
+    try {
+      thread = await fetchThread(accessToken, threadId)
+    } catch (error) {
+      if (!isConfirmedResponseOverflow(error, 'Gmail thread response')) throw error
+      const before = await fetchThread(accessToken, threadId, 'minimal')
+      if (!before) return null
+
+      /** The capped response has no verified revision; bracket one bounded retry before caching a skip. */
+      try {
+        thread = await fetchThread(accessToken, threadId)
+      } catch (retryError) {
+        if (!isConfirmedResponseOverflow(retryError, 'Gmail thread response')) throw retryError
+        const after = await fetchThread(accessToken, threadId, 'minimal')
+        if (!after) return null
+        if (before.historyId !== after.historyId) {
+          throw new Error('Gmail thread changed while checking its size')
+        }
+        return {
+          ...markSkipped(
+            threadToStub(after, syncContext),
+            sizeLimitSkipReason(MAX_THREAD_RESPONSE_BYTES)
+          ),
+          skippedExistingDisposition: 'replace',
+        }
+      }
+    }
     if (!thread) return null
 
     let formatted: Awaited<ReturnType<typeof formatThread>>
@@ -756,7 +788,10 @@ export const gmailConnector: ConnectorConfig = {
       formatted = await formatThread(thread, accessToken)
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
-        return markSkipped(threadToStub(thread, syncContext), sizeLimitSkipReason(error.limitBytes))
+        return {
+          ...markSkipped(threadToStub(thread, syncContext), sizeLimitSkipReason(error.limitBytes)),
+          skippedExistingDisposition: 'replace',
+        }
       }
       throw error
     }

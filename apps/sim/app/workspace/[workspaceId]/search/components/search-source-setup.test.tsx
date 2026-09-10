@@ -375,6 +375,14 @@ function organizationSetup() {
 
 describe('organization setup entry points', () => {
   it('uses central mode and its own draft even when the saved draft contains member mode', async () => {
+    mocks.credentials = [
+      {
+        id: 'cred-source',
+        name: 'Indexing account',
+        provider: 'confluence',
+        type: 'service_account',
+      },
+    ]
     useConnectorSetupStore
       .getState()
       .saveDraft('user-1:organization:org-1:kb-search:confluence:admin', {
@@ -1126,11 +1134,11 @@ describe('administrator source prerequisites in real connector dialogs', () => {
           initialAccessMode='admin'
         />
       )
-      await openCombo('Select Confluence account')
+      await openCombo('Select a service account')
       const options = Array.from(document.querySelectorAll('[role="option"]'))
       expect(
         options.some((node) => node.textContent?.trim() === 'Connect Confluence account')
-      ).toBe(true)
+      ).toBe(false)
       const serviceAccountOption = options.find(
         (node) => node.textContent?.trim() === 'Add service account'
       )
@@ -1358,7 +1366,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     expect(mocks.applyAccess).not.toHaveBeenCalled()
   })
 
-  it('guides a member source back to saving its crawl subject without losing drafts or combining mutations', async () => {
+  it('guides a general knowledge-base member source back to saving its crawl subject without losing drafts or combining mutations', async () => {
     const existing = connector({
       connectorType: 'google_drive',
       sourceConfig: { folderId: 'original-folder', _canonicalModes: { folderId: 'advanced' } },
@@ -1367,8 +1375,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       <EditConnectorModal
         open
         onOpenChange={vi.fn()}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
+        knowledgeBaseId='kb-general'
         connector={existing}
       />
     )
@@ -1409,8 +1416,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
         key='saved-settings'
         open
         onOpenChange={vi.fn()}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
+        knowledgeBaseId='kb-general'
         connector={connector({
           ...existing,
           sourceConfig: mocks.update.mock.calls[0][0].updates.sourceConfig,
@@ -1423,7 +1429,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     await click(button('Apply connection method'))
     expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
       {
-        knowledgeBaseId: 'kb-search',
+        knowledgeBaseId: 'kb-general',
         connectorId: existing.id,
         access: { accessMode: 'admin', credentialId: driveCredential.id },
       },
@@ -1455,9 +1461,14 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     expect(mocks.applyAccess).not.toHaveBeenCalled()
   })
 
-  it('blocks an already selected Confluence administrator transition when identity access becomes unavailable', async () => {
+  it('blocks a general knowledge-base Confluence administrator transition when identity access becomes unavailable', async () => {
     mocks.credentials = [
-      { id: 'confluence-account', name: 'Confluence indexing account', provider: 'confluence' },
+      {
+        id: 'confluence-account',
+        name: 'Confluence indexing account',
+        provider: 'confluence',
+        type: 'service_account',
+      },
     ]
     const existing = connector({
       connectorType: 'confluence',
@@ -1467,13 +1478,12 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       <EditConnectorModal
         open
         onOpenChange={vi.fn()}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
+        knowledgeBaseId='kb-general'
         connector={existing}
       />
     )
     await render(modal)
-    await click(button('Admin or service account'))
+    await click(button('Service account'))
     await chooseCombo('Select the account to sync as', 'Confluence indexing account')
     expect(button('Apply connection method')).toBeEnabled()
     mocks.features.knowledgeMemberAccess = false

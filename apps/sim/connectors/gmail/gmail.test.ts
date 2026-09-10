@@ -10,7 +10,22 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
   VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/service', () => ({
+  isTriggerAvailable: () => false,
+  processDocumentsWithQueue: vi.fn(),
+}))
+vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
+  addDocument: vi.fn(),
+  persistSkippedDocuments: vi.fn(),
+  persistSkippedRetryHashes: vi.fn(),
+  updateDocument: vi.fn(),
+}))
 
+import {
+  classifyExternalDoc,
+  mergeHydratedSkippedDocument,
+  shouldReplaceExistingWithSkippedDocument,
+} from '@/lib/knowledge/connectors/sync-primitives'
 import { gmailConnector } from '@/connectors/gmail/gmail'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -262,43 +277,51 @@ function mockExternalBodyThread(
 }
 
 describe('Gmail full-thread response budget', () => {
-  it('rejects an oversized Content-Length before reading the thread', async () => {
+  it('records a versioned size skip without reading oversized Content-Length bodies', async () => {
     const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
       controller.enqueue(Buffer.from(JSON.stringify(threadFixture())))
       controller.close()
     })
     const cancel = vi.fn()
-    mockFetchWithRetry.mockResolvedValue(
-      new Response(new ReadableStream({ pull, cancel }, { highWaterMark: 0 }), {
-        headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
-      })
+    mockFetchWithRetry.mockImplementation(async (url: string) =>
+      new URL(url).searchParams.get('format') === 'minimal'
+        ? Response.json({ id: 'thread-1', historyId: '10' })
+        : new Response(new ReadableStream({ pull, cancel }, { highWaterMark: 0 }), {
+            headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+          })
     )
 
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toMatchObject({
-      name: 'PayloadSizeLimitError',
-      maxBytes: 32 * 1024 * 1024,
-      observedBytes: 32 * 1024 * 1024 + 1,
+    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).resolves.toMatchObject({
+      externalId: 'thread-1',
+      contentHash: 'gmail:thread-1:10:body-v2',
+      content: '',
+      contentDeferred: false,
+      skippedExistingDisposition: 'replace',
+      skippedReason: 'File exceeds the 32MB size limit and was not indexed',
     })
     expect(pull).not.toHaveBeenCalled()
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(mockFetchWithRetry).toHaveBeenCalledTimes(1)
+    expect(cancel).toHaveBeenCalledTimes(2)
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(4)
   })
 
-  it('cancels chunked oversized JSON before consuming the complete thread', async () => {
-    let chunksRead = 0
+  it('cancels chunked oversized JSON and skips only after verifying a stable revision', async () => {
+    const chunksRead: number[] = []
     const chunk = Buffer.alloc(1024 * 1024, 'a')
     const cancel = vi.fn()
-    mockFetchWithRetry.mockResolvedValue(
-      new Response(
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (new URL(url).searchParams.get('format') === 'minimal')
+        return Response.json({ id: 'thread-1', historyId: '10' })
+      const index = chunksRead.push(0) - 1
+      return new Response(
         new ReadableStream(
           {
             pull(controller) {
-              chunksRead += 1
-              if (chunksRead === 1) {
+              chunksRead[index] += 1
+              if (chunksRead[index] === 1) {
                 controller.enqueue(
                   Buffer.from('{"id":"thread-1","historyId":"10","messages":[],"padding":"')
                 )
-              } else if (chunksRead <= 35) {
+              } else if (chunksRead[index] <= 35) {
                 controller.enqueue(chunk)
               } else {
                 controller.enqueue(Buffer.from('"}'))
@@ -310,14 +333,141 @@ describe('Gmail full-thread response budget', () => {
           { highWaterMark: 0 }
         )
       )
-    )
-
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toMatchObject({
-      name: 'PayloadSizeLimitError',
-      maxBytes: 32 * 1024 * 1024,
     })
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(chunksRead).toBeLessThan(35)
+
+    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).resolves.toMatchObject({
+      content: '',
+      skippedReason: 'File exceeds the 32MB size limit and was not indexed',
+      contentHash: 'gmail:thread-1:10:body-v2',
+    })
+    expect(cancel).toHaveBeenCalledTimes(2)
+    expect(chunksRead).toHaveLength(2)
+    expect(chunksRead.every((count) => count < 35)).toBe(true)
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(4)
+  })
+
+  it('replaces stale content once, resumes on source change, and preserves member isolation', async () => {
+    let historyId = '10'
+    mockFetchWithRetry.mockImplementation(async (url: string, init?: RequestInit) => {
+      const parsed = new URL(url)
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer alice-token')
+      if (parsed.pathname.endsWith('/threads'))
+        return Response.json({ threads: [{ id: 'thread-1', historyId }] })
+      if (parsed.searchParams.get('format') === 'minimal')
+        return Response.json({ id: 'thread-1', historyId })
+      return new Response(null, {
+        headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+      })
+    })
+    const context = memberContext('alice')
+    const [stub] = (await gmailConnector.listDocuments('alice-token', {}, undefined, context))
+      .documents
+    const skipped = await gmailConnector.getDocument('alice-token', {}, stub.externalId, context)
+    expect(skipped?.externalId).toBe('member:alice:thread-1')
+    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: 'old.txt' }, skipped!)).toBe(true)
+    const merged = mergeHydratedSkippedDocument(stub, skipped!)
+    const stored = { id: 'stored', contentHash: merged.contentHash, storageKey: null }
+    expect(classifyExternalDoc(stub, stored)).toEqual({ type: 'unchanged' })
+    expect(classifyExternalDoc(stub, stored, true)).toEqual({
+      type: 'update',
+      existingId: 'stored',
+    })
+    historyId = '11'
+    const [updated] = (
+      await gmailConnector.listDocuments('alice-token', {}, undefined, memberContext('alice'))
+    ).documents
+    expect(classifyExternalDoc(updated, stored)).toEqual({ type: 'update', existingId: 'stored' })
+    mockFetchWithRetry.mockClear()
+    expect(
+      await gmailConnector.getDocument('alice-token', {}, stub.externalId, memberContext('bob'))
+    ).toBeNull()
+    expect(mockFetchWithRetry).not.toHaveBeenCalled()
+  })
+
+  it('does not cache a size skip for a revision that changes during the bounded retry', async () => {
+    let metadataReads = 0
+    mockFetchWithRetry.mockImplementation(async (url: string) =>
+      new URL(url).searchParams.get('format') === 'minimal'
+        ? Response.json({ id: 'thread-1', historyId: String(10 + metadataReads++) })
+        : new Response(null, {
+            headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+          })
+    )
+    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow(
+      'Gmail thread changed while checking its size'
+    )
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(4)
+  })
+
+  it('hydrates a thread that becomes small enough during the bounded retry', async () => {
+    let fullReads = 0
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      const parsed = new URL(url)
+      if (parsed.pathname.endsWith('/labels')) return Response.json({ labels: [] })
+      if (parsed.searchParams.get('format') === 'minimal')
+        return Response.json({ id: 'thread-1', historyId: '11' })
+      if (fullReads++ === 0)
+        return new Response(null, {
+          headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+        })
+      return Response.json(threadFixture('11', 'A smaller current thread'))
+    })
+    const document = await gmailConnector.getDocument('token', {}, 'thread-1')
+    expect(document?.content).toContain('A smaller current thread')
+    expect(document?.skippedReason).toBeUndefined()
+    expect(document?.contentHash).toBe('gmail:thread-1:11:body-v2')
+    expect(fullReads).toBe(2)
+  })
+
+  it.each([401, 429, 503])(
+    'preserves metadata HTTP %s failure instead of caching a skip',
+    async (status) => {
+      mockFetchWithRetry.mockImplementation(async (url: string) =>
+        new URL(url).searchParams.get('format') === 'minimal'
+          ? new Response(null, { status })
+          : new Response(null, {
+              headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+            })
+      )
+      await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toMatchObject({
+        status,
+      })
+      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it.each([{}, { id: 'thread-1' }, { id: 'other-thread', historyId: '10' }])(
+    'rejects unverified metadata instead of synthesizing a skip revision: %j',
+    async (metadata) => {
+      mockFetchWithRetry.mockImplementation(async (url: string) =>
+        new URL(url).searchParams.get('format') === 'minimal'
+          ? Response.json(metadata)
+          : new Response(null, {
+              headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+            })
+      )
+      await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow(
+        'Gmail returned malformed thread metadata'
+      )
+      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('returns null when the oversized thread disappears before revision verification', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) =>
+      new URL(url).searchParams.get('format') === 'minimal'
+        ? new Response(null, { status: 404 })
+        : new Response(null, {
+            headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
+          })
+    )
+    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).resolves.toBeNull()
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not turn a missing response body into a permanent size skip', async () => {
+    mockFetchWithRetry.mockResolvedValueOnce(new Response(null))
+    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow()
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(1)
   })
 
@@ -505,6 +655,8 @@ describe('Gmail separately stored message bodies', () => {
       content: '',
       contentDeferred: false,
       skippedReason: 'File exceeds the 12MB size limit and was not indexed',
+      skippedExistingDisposition: 'replace',
+      skippedRetryPolicy: 'source-change',
     })
   })
 
