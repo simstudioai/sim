@@ -25,7 +25,7 @@ describe('syncThemeToNextThemes', () => {
     expect(add).not.toHaveBeenCalled()
   })
 
-  it('repairs the document class without emitting a redundant storage event', () => {
+  it('leaves document classes to the active theme provider', () => {
     localStorage.setItem('sim-theme', 'dark')
     document.documentElement.classList.add('light')
     const dispatchEvent = vi.spyOn(window, 'dispatchEvent')
@@ -33,7 +33,7 @@ describe('syncThemeToNextThemes', () => {
     syncThemeToNextThemes('dark')
 
     expect(dispatchEvent).not.toHaveBeenCalled()
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
-    expect(document.documentElement.classList.contains('light')).toBe(false)
+    expect(document.documentElement.classList.contains('light')).toBe(true)
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })

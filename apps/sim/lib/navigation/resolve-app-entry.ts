@@ -1,10 +1,6 @@
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import {
-  organizationRoutes,
-  WORKSPACE_SETTINGS_PATH,
-  WORKSPACES_PATH,
-} from '@/lib/navigation/paths'
+import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 
 interface EntrySession {
@@ -12,8 +8,12 @@ interface EntrySession {
 }
 
 /**
- * Routes organization members to Home when Search is enabled and workspace settings otherwise.
- * Viewers without an organization land on the workspace picker.
+ * Routes organization members to Home when the organization surface is enabled for
+ * them. Everyone else — viewers without an organization, and members whose
+ * organization has not been rolled out — lands on the workspace picker, which is
+ * where the signed-in app's front door pointed before the organization surface
+ * existed. The default landing never opens settings: a viewer who did not ask for
+ * settings must not be dropped into them.
  */
 export async function resolveAppEntryPath(session: EntrySession): Promise<string> {
   const organizationId = await resolveOrganizationLanding(
@@ -21,8 +21,7 @@ export async function resolveAppEntryPath(session: EntrySession): Promise<string
     getActiveOrganizationId(session)
   )
   if (!organizationId) return WORKSPACES_PATH
-  const routes = organizationRoutes(organizationId)
   return (await isKnowledgeMemberAccessAvailable({ organizationId }))
-    ? routes.home
-    : WORKSPACE_SETTINGS_PATH
+    ? organizationRoutes(organizationId).home
+    : WORKSPACES_PATH
 }

@@ -28,10 +28,16 @@ describe('AppEntryPage', () => {
     vi.clearAllMocks()
   })
 
-  it('sends a signed-out visitor to login without resolving an entry', async () => {
+  /**
+   * The proxy sends cookie-less requests to /login before this route renders, so a
+   * null session here is always a stale cookie. Redirecting to /login would be
+   * bounced back by the proxy's presence-only cookie check, looping forever.
+   */
+  it('sends a stale-cookie viewer to the recovery surface, never back to login', async () => {
     mockGetSession.mockResolvedValue(null)
 
-    await expect(AppEntryPage()).rejects.toThrow('NEXT_REDIRECT:/login')
+    await expect(AppEntryPage()).rejects.toThrow('NEXT_REDIRECT:/workspace')
+    expect(mockRedirect).not.toHaveBeenCalledWith('/login')
     expect(mockResolveAppEntryPath).not.toHaveBeenCalled()
   })
 

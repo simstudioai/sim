@@ -2,13 +2,14 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
+import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -43,15 +44,18 @@ export default async function OrganizationLayout({
   const [context, cookieStore] = await Promise.all([
     getOrganizationSurfaceContext(organizationId, session.user.id),
     cookies(),
-    /* The rail's footer renders the viewer, so the profile is layout data: seeded
-       here it paints hydrated, and a page hydrating the same key beneath finds it
-       populated rather than an empty query it cannot fill during render. */
-    prefetchUserProfile(queryClient, session.user.id),
   ])
   if (!context) {
     return <OrganizationAccessDenied />
   }
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
+
+  await prefetchOrganizationSidebar(
+    queryClient,
+    organizationId,
+    { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+    getActiveOrganizationId(session)
+  )
 
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 

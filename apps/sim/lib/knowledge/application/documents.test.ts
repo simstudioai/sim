@@ -115,7 +115,11 @@ import {
 } from '@/lib/knowledge/application/documents'
 
 /** Every mocked context carries the workspace read scope the resolvers would attach. */
-const knowledgeAccess = { get: async () => WORKSPACE_ACCESS_SCOPE }
+const knowledgeAccess = {
+  get: async () => WORKSPACE_ACCESS_SCOPE,
+  getForDocuments: async () => WORKSPACE_ACCESS_SCOPE,
+  getForConnectors: async () => WORKSPACE_ACCESS_SCOPE,
+}
 
 const context = {
   access: knowledgeAccess,

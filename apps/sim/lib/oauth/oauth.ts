@@ -80,6 +80,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   GITHUB_TOKEN_URL,
   parseGitHubRepositoriesTokenResponse,
@@ -119,6 +120,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'GitHub',
         description: 'Search repository files through your GitHub App access.',
         providerId: 'github-repositories',
+        serviceAccountProviderId: GITHUB_INSTALLATION_PROVIDER_ID,
         icon: GithubIcon,
         baseProviderIcon: GithubIcon,
         scopes: [],

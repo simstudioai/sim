@@ -5,8 +5,10 @@
 import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
+import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 
 const {
+  mockSleep,
   mockCheckAttributedUsageLimits,
   mockCheckRateLimit,
   mockGetActivelyBannedUserIds,
@@ -14,6 +16,7 @@ const {
   mockResolveBillingAttribution,
   mockResolveSystemBillingAttribution,
 } = vi.hoisted(() => ({
+  mockSleep: vi.fn().mockResolvedValue(undefined),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
@@ -22,6 +25,9 @@ const {
   mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
+vi.mock('@sim/utils/helpers', () => ({
+  sleep: mockSleep,
+}))
 vi.mock('@/lib/auth/ban', () => ({
   getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))
@@ -248,6 +254,10 @@ describe('preprocessExecution logPreprocessingErrors option', () => {
 })
 
 describe('preprocessExecution suppressRetryableFailureLogs option', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   const baseOptions = {
     workflowId: 'workflow-1',
     userId: 'owner-1',
@@ -266,8 +276,13 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     }
   }
 
+  /** Preprocessing only reaches `safeStart`/`safeCompleteWithError`, so the mock stands in for the full session. */
+  function asLoggingSession(session: ReturnType<typeof makeLoggingSession>): LoggingSession {
+    return session as unknown as LoggingSession
+  }
+
   it('skips the failure row for a retryable infrastructure failure', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
       Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
     )
     const loggingSession = makeLoggingSession()
@@ -275,7 +290,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     const result = await preprocessExecution({
       ...baseOptions,
       suppressRetryableFailureLogs: true,
-      loggingSession: loggingSession as any,
+      loggingSession: asLoggingSession(loggingSession),
     })
 
     expect(result).toMatchObject({
@@ -298,7 +313,7 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     const result = await preprocessExecution({
       ...baseOptions,
       suppressRetryableFailureLogs: true,
-      loggingSession: loggingSession as any,
+      loggingSession: asLoggingSession(loggingSession),
     })
 
     expect(result).toMatchObject({
@@ -308,15 +323,32 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
     expect(loggingSession.safeStart).toHaveBeenCalled()
   })
 
+  it('retries the workflow fetch before surfacing a transient failure', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      loggingSession: asLoggingSession(makeLoggingSession()),
+    })
+
+    expect(workflowAuthzMockFns.mockGetActiveWorkflowRecord).toHaveBeenCalledTimes(3)
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: 'Internal error while fetching workflow', retryable: true },
+    })
+  })
+
   it('records retryable failures when the option is absent', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(
       Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
     )
     const loggingSession = makeLoggingSession()
 
     const result = await preprocessExecution({
       ...baseOptions,
-      loggingSession: loggingSession as any,
+      loggingSession: asLoggingSession(loggingSession),
     })
 
     expect(result).toMatchObject({

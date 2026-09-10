@@ -53,6 +53,7 @@ import {
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
+import { GitHubInstallationModal } from '@/app/workspace/[workspaceId]/search/components/github-installation-modal'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -146,6 +147,7 @@ export function AddConnectorModal({
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
+  const [showGitHubInstallationModal, setShowGitHubInstallationModal] = useState(false)
 
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [useApiKey, setUseApiKey] = useState(!isSearchIndex)
@@ -353,6 +355,8 @@ export function AddConnectorModal({
         }
       : null
 
+  const canSetUpGitHubInstallation =
+    canAdmin && isSearchIndex && selectedType === 'github' && scope.kind === 'organization'
   const contentCredentialField =
     isMembersMode && connectorConfig?.supportsSeparateContentCredential ? (
       <>
@@ -381,6 +385,16 @@ export function AddConnectorModal({
                     label: serviceAccountTarget.label,
                     icon: Plus,
                     onSelect: () => setShowServiceAccountModal(true),
+                  },
+                ]
+              : []),
+            ...(canSetUpGitHubInstallation
+              ? [
+                  {
+                    value: '__github_installation__',
+                    label: 'Connect GitHub App',
+                    icon: Plus,
+                    onSelect: () => setShowGitHubInstallationModal(true),
                   },
                 ]
               : []),
@@ -726,7 +740,7 @@ export function AddConnectorModal({
                     </ChipModalField>
                   ) : null}
 
-                  {!isSearchIndex && contentCredentialField}
+                  {(!isSearchIndex || canSetUpGitHubInstallation) && contentCredentialField}
 
                   {configFieldsProps && (
                     <ConnectorConfigFields
@@ -755,7 +769,7 @@ export function AddConnectorModal({
                       </div>
                       {showMetadata && (
                         <>
-                          {isSearchIndex && contentCredentialField}
+                          {isSearchIndex && !canSetUpGitHubInstallation && contentCredentialField}
                           {configFieldsProps && hasOptionalSetupFields && (
                             <ConnectorConfigFields
                               {...configFieldsProps}
@@ -887,6 +901,20 @@ export function AddConnectorModal({
           onCreated={setSelectedCredentialId}
         />
       )}
+      {showGitHubInstallationModal &&
+        canSetUpGitHubInstallation &&
+        isMembersMode &&
+        scope.kind === 'organization' && (
+          <GitHubInstallationModal
+            key={scope.organizationId}
+            organizationId={scope.organizationId}
+            onClose={() => setShowGitHubInstallationModal(false)}
+            onConnected={(credentialId) => {
+              setContentCredentialId(credentialId)
+              setShowGitHubInstallationModal(false)
+            }}
+          />
+        )}
       {showOAuthModal &&
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&

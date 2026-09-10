@@ -62,13 +62,14 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { connectorKeys, searchSourceKeys } from '@/hooks/queries/kb/connectors'
+import { connectorKeys } from '@/hooks/queries/kb/connectors'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   KNOWLEDGE_BASE_LIST_STALE_TIME,
   type KnowledgeQueryScope,
   knowledgeKeys,
 } from '@/hooks/queries/utils/knowledge-keys'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const logger = createLogger('KnowledgeQueries')
 

@@ -1,4 +1,4 @@
-import { env } from '@/lib/core/config/env'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { organizationRoutes } from '@/lib/navigation/paths'
 
 export function slackSearchOnboardingPath(token: string) {
@@ -12,7 +12,7 @@ export function slackSearchIntegrationsPath(organizationId: string, token: strin
 
 /** The destination is application-authored; model-generated links never enter onboarding. */
 export function slackSearchOnboardingUrl(token: string) {
-  return new URL(slackSearchOnboardingPath(token), env.NEXT_PUBLIC_APP_URL).href
+  return new URL(slackSearchOnboardingPath(token), getBaseUrl()).href
 }
 
 export const SLACK_SEARCH_CONNECT_ACCOUNT =

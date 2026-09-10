@@ -70,9 +70,13 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import {
+  knowledgeAccessCondition,
+  knowledgeMetadataCandidateAccessCondition,
+} from '@/lib/knowledge/access/predicate'
 import {
   type KnowledgeAccessScope,
+  MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   SYSTEM_ACCESS_SCOPE,
   type SystemAccessScope,
 } from '@/lib/knowledge/access/types'
@@ -138,6 +142,7 @@ import {
 } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
   createKnowledgeDocumentSourceValue,
@@ -2456,7 +2461,7 @@ export async function getDocuments(
     tagFilters?: TagFilterCondition[]
   },
   requestId: string,
-  access: KnowledgeAccessScope | SystemAccessScope
+  access: KnowledgeReadAccess
 ): Promise<{
   documents: Array<{
     id: string
@@ -2517,7 +2522,6 @@ export async function getDocuments(
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
-    knowledgeAccessCondition(access),
   ]
 
   if (enabledFilter === 'enabled') {
@@ -2537,14 +2541,6 @@ export async function getDocuments(
       whereConditions.push(condition)
     }
   }
-
-  const totalResult = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(document)
-    .where(and(...whereConditions))
-
-  const total = Number(totalResult[0]?.count ?? 0)
-  const hasMore = offset + limit < total
 
   const getOrderByColumn = () => {
     switch (sortBy) {
@@ -2571,50 +2567,117 @@ export async function getDocuments(
   const secondaryOrderBy =
     sortBy === 'filename' ? desc(document.uploadedAt) : asc(document.filename)
 
-  const documents = await db
-    .select({
-      id: document.id,
-      knowledgeBaseId: document.knowledgeBaseId,
-      filename: document.filename,
-      fileUrl: document.fileUrl,
-      fileSize: document.fileSize,
-      mimeType: document.mimeType,
-      chunkCount: document.chunkCount,
-      tokenCount: document.tokenCount,
-      characterCount: document.characterCount,
-      processingStatus: document.processingStatus,
-      processingStartedAt: document.processingStartedAt,
-      processingCompletedAt: document.processingCompletedAt,
-      processingError: document.processingError,
-      enabled: document.enabled,
-      uploadedAt: document.uploadedAt,
-      tag1: document.tag1,
-      tag2: document.tag2,
-      tag3: document.tag3,
-      tag4: document.tag4,
-      tag5: document.tag5,
-      tag6: document.tag6,
-      tag7: document.tag7,
-      number1: document.number1,
-      number2: document.number2,
-      number3: document.number3,
-      number4: document.number4,
-      number5: document.number5,
-      date1: document.date1,
-      date2: document.date2,
-      boolean1: document.boolean1,
-      boolean2: document.boolean2,
-      boolean3: document.boolean3,
-      connectorId: document.connectorId,
-      connectorType: knowledgeConnector.connectorType,
-      sourceUrl: document.sourceUrl,
-    })
-    .from(document)
-    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
-    .where(and(...whereConditions))
-    .orderBy(primaryOrderBy, secondaryOrderBy)
-    .limit(limit)
-    .offset(offset)
+  const readDocuments = () =>
+    db
+      .select({
+        id: document.id,
+        knowledgeBaseId: document.knowledgeBaseId,
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+        chunkCount: document.chunkCount,
+        tokenCount: document.tokenCount,
+        characterCount: document.characterCount,
+        processingStatus: document.processingStatus,
+        processingStartedAt: document.processingStartedAt,
+        processingCompletedAt: document.processingCompletedAt,
+        processingError: document.processingError,
+        enabled: document.enabled,
+        uploadedAt: document.uploadedAt,
+        tag1: document.tag1,
+        tag2: document.tag2,
+        tag3: document.tag3,
+        tag4: document.tag4,
+        tag5: document.tag5,
+        tag6: document.tag6,
+        tag7: document.tag7,
+        number1: document.number1,
+        number2: document.number2,
+        number3: document.number3,
+        number4: document.number4,
+        number5: document.number5,
+        date1: document.date1,
+        date2: document.date2,
+        boolean1: document.boolean1,
+        boolean2: document.boolean2,
+        boolean3: document.boolean3,
+        connectorId: document.connectorId,
+        connectorType: knowledgeConnector.connectorType,
+        sourceUrl: document.sourceUrl,
+      })
+      .from(document)
+      .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+
+  let total = 0
+  for await (const accessCondition of knowledgeReadAccessBatches(access, whereConditions)) {
+    const [counts] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(document)
+      .where(and(...whereConditions, accessCondition))
+    total += Number(counts?.count ?? 0)
+  }
+
+  let documents: Awaited<ReturnType<typeof readDocuments>> = []
+  if (!('get' in access)) {
+    documents = await readDocuments()
+      .where(and(...whereConditions, knowledgeAccessCondition(access)))
+      .orderBy(primaryOrderBy, secondaryOrderBy)
+      .limit(limit)
+      .offset(offset)
+  } else {
+    const identity = await access.get()
+    const rankedCandidates = db
+      .select({
+        id: document.id,
+        rank: sql<number>`row_number() over (order by ${primaryOrderBy}, ${secondaryOrderBy}, ${asc(document.id)})`
+          .mapWith(Number)
+          .as('read_rank'),
+      })
+      .from(document)
+      .where(and(...whereConditions, knowledgeMetadataCandidateAccessCondition(identity)))
+      .as('knowledge_document_candidates')
+    let remainingOffset = offset
+    let lastRank = 0
+    while (documents.length < limit) {
+      const candidates = await db
+        .select({ id: rankedCandidates.id, rank: rankedCandidates.rank })
+        .from(rankedCandidates)
+        .where(sql`${rankedCandidates.rank} > ${lastRank}`)
+        .orderBy(asc(rankedCandidates.rank))
+        .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      if (candidates.length === 0) break
+      const candidateIds = candidates.map((candidate) => candidate.id)
+      const scope = await access.getForDocuments(candidateIds)
+      const accessCondition = knowledgeAccessCondition(scope)
+      const visible = await db
+        .select({ id: document.id, rank: rankedCandidates.rank })
+        .from(document)
+        .innerJoin(rankedCandidates, eq(document.id, rankedCandidates.id))
+        .where(and(...whereConditions, inArray(document.id, candidateIds), accessCondition))
+        .orderBy(asc(rankedCandidates.rank))
+        .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      if (remainingOffset >= visible.length) remainingOffset -= visible.length
+      else {
+        const pageIds = visible
+          .slice(remainingOffset, remainingOffset + limit - documents.length)
+          .map((row) => row.id)
+        remainingOffset = 0
+        if (pageIds.length) {
+          documents.push(
+            ...(await readDocuments()
+              .innerJoin(rankedCandidates, eq(document.id, rankedCandidates.id))
+              .where(and(...whereConditions, accessCondition, inArray(document.id, pageIds)))
+              .orderBy(asc(rankedCandidates.rank))
+              .limit(limit))
+          )
+        }
+      }
+      if (candidates.length < MAX_KNOWLEDGE_ACCESS_CANDIDATES) break
+      lastRank = candidates[candidates.length - 1].rank
+    }
+  }
+  const hasMore = offset + limit < total
 
   logger.info(
     `[${requestId}] Retrieved ${documents.length} documents (${offset}-${offset + documents.length} of ${total}) for knowledge base ${knowledgeBaseId}`
@@ -3053,7 +3116,7 @@ export async function bulkDocumentOperation(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   documentIds: string[],
-  access: KnowledgeAccessScope,
+  access: KnowledgeReadAccess,
   requestId: string
 ): Promise<{
   success: boolean
@@ -3069,22 +3132,31 @@ export async function bulkDocumentOperation(
     `[${requestId}] Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`
   )
 
-  const documentsToUpdate = await db
-    .select({
-      id: document.id,
-      enabled: document.enabled,
-    })
-    .from(document)
-    .where(
-      and(
-        eq(document.knowledgeBaseId, knowledgeBaseId),
-        inArray(document.id, documentIds),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        knowledgeAccessCondition(access)
-      )
+  const candidateConditions = [
+    eq(document.knowledgeBaseId, knowledgeBaseId),
+    inArray(document.id, documentIds),
+  ]
+  const documentsToUpdate: { id: string; enabled: boolean }[] = []
+  for await (const accessCondition of knowledgeReadAccessBatches(access, candidateConditions)) {
+    documentsToUpdate.push(
+      ...(await db
+        .select({
+          id: document.id,
+          enabled: document.enabled,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, knowledgeBaseId),
+            inArray(document.id, documentIds),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt),
+            accessCondition
+          )
+        ))
     )
+  }
 
   if (documentsToUpdate.length === 0) {
     throw new OrchestrationError('not_found', 'No valid documents found to update')
@@ -3147,7 +3219,7 @@ export async function bulkDocumentOperationByFilter(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   enabledFilter: 'all' | 'enabled' | 'disabled' | undefined,
-  access: KnowledgeAccessScope,
+  access: KnowledgeReadAccess,
   requestId: string
 ): Promise<{
   success: boolean
@@ -3167,8 +3239,6 @@ export async function bulkDocumentOperationByFilter(
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
-    /** "Every document" means every document the caller can see. */
-    knowledgeAccessCondition(access),
   ]
 
   if (enabledFilter === 'enabled') {
@@ -3177,33 +3247,36 @@ export async function bulkDocumentOperationByFilter(
     whereConditions.push(eq(document.enabled, false))
   }
 
-  let updateResult: Array<{
+  const updateResult: Array<{
     id: string
     enabled?: boolean
     deletedAt?: Date | null
-  }>
+  }> = []
 
-  if (operation === 'delete') {
-    const matchingDocs = await db
-      .select({ id: document.id })
-      .from(document)
-      .where(and(...whereConditions))
+  for await (const accessCondition of knowledgeReadAccessBatches(access, whereConditions)) {
+    if (operation === 'delete') {
+      const matchingDocs = await db
+        .select({ id: document.id })
+        .from(document)
+        .where(and(...whereConditions, accessCondition))
 
-    const deletedIds = matchingDocs.map((doc) => doc.id)
-    const deletedCount = await deleteDocumentsByLifecyclePolicy(deletedIds, requestId)
-    updateResult = deletedIds.slice(0, deletedCount).map((id) => ({ id }))
-  } else {
-    const enabled = operation === 'enable'
+      const deletedIds = matchingDocs.map((doc) => doc.id)
+      const deletedCount = await deleteDocumentsByLifecyclePolicy(deletedIds, requestId)
+      updateResult.push(...deletedIds.slice(0, deletedCount).map((id) => ({ id })))
+    } else {
+      const enabled = operation === 'enable'
 
-    updateResult = await db
-      .update(document)
-      .set({
-        enabled,
-      })
-      .where(and(...whereConditions))
-      .returning({ id: document.id, enabled: document.enabled })
+      updateResult.push(
+        ...(await db
+          .update(document)
+          .set({
+            enabled,
+          })
+          .where(and(...whereConditions, accessCondition))
+          .returning({ id: document.id, enabled: document.enabled }))
+      )
+    }
   }
-
   const successCount = updateResult.length
 
   logger.info(
