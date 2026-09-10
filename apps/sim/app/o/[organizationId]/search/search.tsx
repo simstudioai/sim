@@ -17,10 +17,13 @@ import {
   organizationSearchUrlKeys,
 } from '@/app/o/[organizationId]/search/search-params'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
+import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
+import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useVoiceInput } from '@/hooks/use-voice-input'
 
 const SUBMIT_BUTTON_BASE = 'size-[28px] shrink-0 rounded-full border-0 p-0 transition-colors'
 const SUBMIT_BUTTON_ACTIVE =
@@ -49,7 +52,13 @@ function SearchField({
   docked = false,
 }: SearchFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const { organization } = useOrganizationContext()
   const [value, setValue] = useState(initialValue)
+  const voice = useVoiceInput({
+    organizationId: organization.id,
+    getValue: () => value,
+    onChange: setValue,
+  })
   const canSubmit = value.trim().length > 0
 
   useEffect(() => {
@@ -79,21 +88,34 @@ function SearchField({
         aria-label='Search your sources'
         autoComplete='off'
         spellCheck={false}
-        className='h-full w-full bg-transparent font-body text-[14px] text-[var(--text-primary)] tracking-[-0.015em] outline-hidden placeholder:text-[var(--text-muted)] [&::-webkit-search-cancel-button]:hidden'
+        className='h-full min-w-0 flex-1 bg-transparent font-body text-[14px] text-[var(--text-primary)] tracking-[-0.015em] outline-hidden placeholder:text-[var(--text-muted)] [&::-webkit-search-cancel-button]:hidden'
       />
-      <Button
-        type='button'
-        variant='ghost'
-        onClick={() => onSubmit(value)}
-        disabled={!canSubmit}
-        aria-label='Search'
-        className={cn(
-          SUBMIT_BUTTON_BASE,
-          canSubmit ? SUBMIT_BUTTON_ACTIVE : SUBMIT_BUTTON_DISABLED
+      <div className='flex shrink-0 items-center gap-1.5'>
+        {voice.isSupported && (
+          <MicButton
+            audioLevelsRef={voice.audioLevelsRef}
+            isListening={voice.isListening}
+            onToggle={voice.toggleListening}
+          />
         )}
-      >
-        <ArrowUp className='block size-[16px] text-white dark:text-black' />
-      </Button>
+        <Button
+          type='button'
+          variant='ghost'
+          onClick={() => onSubmit(value)}
+          disabled={!canSubmit}
+          aria-label='Search'
+          className={cn(
+            SUBMIT_BUTTON_BASE,
+            canSubmit ? SUBMIT_BUTTON_ACTIVE : SUBMIT_BUTTON_DISABLED
+          )}
+        >
+          <ArrowUp className='block size-[16px] text-white dark:text-black' />
+        </Button>
+      </div>
+      <MicrophonePermissionHelp
+        open={voice.permissionHelpOpen}
+        onOpenChange={voice.setPermissionHelpOpen}
+      />
     </div>
   )
 }

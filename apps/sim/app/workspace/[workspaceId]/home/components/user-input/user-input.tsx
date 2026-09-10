@@ -16,7 +16,6 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { getDesktopBridge } from '@/lib/desktop'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -43,7 +42,7 @@ import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
@@ -122,7 +121,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const contextsEnabled = !canSearch || mode === 'build'
   const contextsEnabledRef = useRef(contextsEnabled)
   contextsEnabledRef.current = contextsEnabled
-  const [microphonePermissionHelpOpen, setMicrophonePermissionHelpOpen] = useState(false)
 
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
@@ -332,14 +330,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (defaultValue) editorRef.current.setValue(defaultValue)
   }, [defaultValue])
 
-  const sttPrefixRef = useRef('')
-
-  function handleTranscript(text: string) {
-    const prefix = sttPrefixRef.current
-    const newVal = prefix ? `${prefix} ${text}` : text
-    editorRef.current.setValue(newVal)
-  }
-
   function handleUsageLimitExceeded(message?: string, isMemberLimit?: boolean) {
     // A per-member cap can only be raised by an org admin, so don't offer Upgrade
     // (the member can't act on it) — the message already tells them to ask an admin.
@@ -356,58 +346,20 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     )
   }
 
-  function handleSpeechError(error: SpeechToTextError) {
-    if (error === 'microphone-blocked') {
-      const desktopBridge = getDesktopBridge()
-      if (desktopBridge) {
-        const { openMicrophoneSettings } = desktopBridge
-        toast.error(
-          'Microphone access is blocked. Allow Sim to use the microphone in your system privacy settings.',
-          openMicrophoneSettings
-            ? {
-                action: {
-                  label: 'Open Settings',
-                  onClick: () => void openMicrophoneSettings(),
-                },
-              }
-            : undefined
-        )
-      } else {
-        toast.error('Microphone access is blocked. Allow it for this site and try again.', {
-          action: {
-            label: 'Show steps',
-            onClick: () => setMicrophonePermissionHelpOpen(true),
-          },
-        })
-      }
-      return
-    }
-    if (error === 'microphone-unavailable') {
-      toast.error('No microphone found. Connect one and try again.')
-      return
-    }
-    toast.error('Could not start voice input. Try again.')
-  }
-
   const {
     audioLevelsRef,
     isListening,
     isSupported: isSttSupported,
-    toggleListening: rawToggle,
+    toggleListening,
     resetTranscript,
-  } = useSpeechToText({
-    onTranscript: handleTranscript,
-    onUsageLimitExceeded: handleUsageLimitExceeded,
-    onError: handleSpeechError,
+    permissionHelpOpen,
+    setPermissionHelpOpen,
+  } = useVoiceInput({
     workspaceId,
+    getValue: () => editorRef.current.getValue(),
+    onChange: (value) => editorRef.current.setValue(value),
+    onUsageLimitExceeded: handleUsageLimitExceeded,
   })
-
-  const toggleListening = useCallback(() => {
-    if (!isListening) {
-      sttPrefixRef.current = editorRef.current.getValue()
-    }
-    rawToggle()
-  }, [isListening, rawToggle])
 
   const onSendQueuedHeadRef = useRef(onSendQueuedHead)
   onSendQueuedHeadRef.current = onSendQueuedHead
@@ -553,7 +505,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   /** Empties the text, chips, attachments, transcript, and the saved draft in one step. */
   const clearComposer = useCallback(() => {
     editorRef.current.clear()
-    sttPrefixRef.current = ''
     if (draftSaveTimerRef.current !== null) {
       window.clearTimeout(draftSaveTimerRef.current)
       draftSaveTimerRef.current = null
@@ -758,10 +709,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       {files.isDragging && <DropOverlay />}
 
-      <MicrophonePermissionHelp
-        open={microphonePermissionHelpOpen}
-        onOpenChange={setMicrophonePermissionHelpOpen}
-      />
+      <MicrophonePermissionHelp open={permissionHelpOpen} onOpenChange={setPermissionHelpOpen} />
     </div>
   )
 })
