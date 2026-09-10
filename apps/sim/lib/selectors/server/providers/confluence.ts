@@ -135,7 +135,7 @@ async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' 
   if (args.request.kind === 'detail') {
     const requestedId = args.request.id.trim()
     if (!requestedId || requestedId.length > 255) throw new SelectorContextUnavailableError()
-    if (/^[1-9][0-9]{0,19}$/.test(requestedId)) {
+    if (identifier === 'id' && /^[1-9][0-9]{0,19}$/.test(requestedId)) {
       const space = await fetchProviderJson<ConfluenceSpace>(
         `https://api.atlassian.com/ex/confluence/${auth.cloudId}/wiki/api/v2/spaces/${requestedId}`,
         {

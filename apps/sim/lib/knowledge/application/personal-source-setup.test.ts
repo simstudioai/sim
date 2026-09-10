@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authorizeOperation: vi.fn(),
@@ -69,6 +69,12 @@ import {
   listPersonalSourceSetupAccounts,
   personalSourceSetup,
 } from '@/lib/knowledge/application/personal-source-setup'
+import { MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
+import type { SelectorRequest } from '@/lib/selectors/types'
+
+interface ValidationSelectorCall {
+  input: { request: SelectorRequest; signal: AbortSignal }
+}
 
 const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
 const owner = { organizationId: 'organization-1', connectorType: 'jira' } as const
@@ -84,6 +90,10 @@ const runConnect = (changes = {}) =>
   personalSourceSetup.execute({ principal, input: { ...connect, keys: ['PROJECT'], ...changes } })
 
 describe('personal source setup', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     vi.resetAllMocks()
     mocks.authorize.mockResolvedValue(principal.userId)
@@ -245,15 +255,154 @@ describe('personal source setup', () => {
     { kind: 'list', items: [], truncated: true, nextCursor: '50' },
     { kind: 'list', items: [] },
   ])('rejects unavailable manually entered keys before source creation %#', async (page) => {
-    mocks.selector.mockResolvedValue(page)
+    mocks.selector.mockResolvedValueOnce(page).mockResolvedValue({ kind: 'detail', item: null })
     await expect(runConnect({ keys: ['MISSING'] })).rejects.toThrow('could not be found')
     expect(mocks.configure).not.toHaveBeenCalled()
   })
 
-  it('rejects a repeated pagination cursor without looping or creating a source', async () => {
-    mocks.selector.mockResolvedValue({ kind: 'list', items: [], nextCursor: '50' })
+  it.each(['jira', 'confluence'] as const)(
+    'verifies a manually entered %s key outside the available listing through the same authorized selector',
+    async (connectorType) => {
+      mocks.selector
+        .mockResolvedValueOnce({ kind: 'list', items: [] })
+        .mockResolvedValueOnce({ kind: 'detail', item: { id: 'PROJECT', label: 'Project' } })
+      await expect(runConnect({ connectorType })).resolves.toMatchObject({ kind: 'connected' })
+      expect(mocks.selector).toHaveBeenLastCalledWith({
+        principal,
+        request: undefined,
+        input: {
+          selectorKey: connectorType === 'jira' ? 'jira.projectKeys' : 'confluence.spaces',
+          scope: { kind: 'organization', organizationId: owner.organizationId },
+          context: { oauthCredential: credential.credentialId, domain: credential.domain },
+          personalSearchSetup: connectorType,
+          signal: expect.any(AbortSignal),
+          request: { kind: 'detail', id: 'PROJECT' },
+        },
+      })
+      expect(mocks.ownAccount).toHaveBeenCalledTimes(2)
+      expect(mocks.oauth).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { name: 'truncated results', pages: 1, truncated: true, nextCursor: '50' },
+    { name: 'a repeated cursor', pages: 2, nextCursor: '50' },
+    { name: 'the page limit', pages: MAX_SELECTOR_PAGES },
+  ])('resolves remaining keys directly after $name', async ({ pages, truncated, nextCursor }) => {
+    let listed = 0
+    mocks.selector.mockImplementation(({ input }: ValidationSelectorCall) => {
+      if (input.request.kind === 'detail') {
+        return { kind: 'detail', item: { id: input.request.id, label: 'Project' } }
+      }
+      listed++
+      return { kind: 'list', items: [], nextCursor: nextCursor ?? String(listed), truncated }
+    })
+    await expect(runConnect()).resolves.toMatchObject({ kind: 'connected' })
+    expect(listed).toBe(pages)
+    expect(mocks.selector).toHaveBeenCalledTimes(pages + 1)
+    expect(mocks.oauth).not.toHaveBeenCalled()
+  })
+
+  it('gives direct validation a fresh deadline when listing times out', async () => {
+    const listing = new AbortController()
+    const details = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout')
+      .mockReturnValueOnce(listing.signal)
+      .mockReturnValueOnce(details.signal)
+    mocks.selector
+      .mockImplementationOnce(({ input }: ValidationSelectorCall) => {
+        listing.abort(new DOMException('Listing timed out', 'TimeoutError'))
+        input.signal.throwIfAborted()
+      })
+      .mockImplementationOnce(({ input }: ValidationSelectorCall) => {
+        expect(input.signal.aborted).toBe(false)
+        expect(input.request).toEqual({ kind: 'detail', id: 'PROJECT' })
+        return { kind: 'detail', item: { id: 'PROJECT', label: 'Project' } }
+      })
+    await expect(runConnect()).resolves.toMatchObject({ kind: 'connected' })
+    expect(AbortSignal.timeout).toHaveBeenCalledTimes(2)
+    expect(mocks.oauth).not.toHaveBeenCalled()
+  })
+
+  it('fails before mutation when direct validation also exceeds its deadline', async () => {
+    const listing = new AbortController()
+    const details = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout')
+      .mockReturnValueOnce(listing.signal)
+      .mockReturnValueOnce(details.signal)
+    mocks.selector
+      .mockResolvedValueOnce({ kind: 'list', items: [] })
+      .mockImplementationOnce(({ input }: ValidationSelectorCall) => {
+        details.abort(new DOMException('Validation timed out', 'TimeoutError'))
+        input.signal.throwIfAborted()
+      })
+    await expect(runConnect()).rejects.toThrow('took too long')
+    expect(mocks.configure).not.toHaveBeenCalled()
+  })
+
+  it('does not retry direct validation after the caller cancels listing', async () => {
+    const caller = new AbortController()
+    mocks.selector.mockImplementationOnce(({ input }: ValidationSelectorCall) => {
+      caller.abort(new Error('Setup cancelled'))
+      input.signal.throwIfAborted()
+    })
+    await expect(
+      personalSourceSetup.execute({
+        principal,
+        input: { ...connect, keys: ['PROJECT'] },
+        request: { headers: new Headers(), signal: caller.signal },
+      })
+    ).rejects.toThrow('Setup cancelled')
+    expect(mocks.selector).toHaveBeenCalledTimes(1)
+    expect(mocks.configure).not.toHaveBeenCalled()
+  })
+
+  it('rejects a detail response for a different key', async () => {
+    mocks.selector
+      .mockResolvedValueOnce({ kind: 'list', items: [] })
+      .mockResolvedValueOnce({ kind: 'detail', item: { id: 'OTHER', label: 'Other project' } })
     await expect(runConnect()).rejects.toThrow('could not be found')
-    expect(mocks.selector).toHaveBeenCalledTimes(2)
+    expect(mocks.configure).not.toHaveBeenCalled()
+  })
+
+  it('bounds direct validation concurrency and validates each unresolved key only once', async () => {
+    let release = () => {}
+    let allStarted = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const started = new Promise<void>((resolve) => {
+      allStarted = resolve
+    })
+    let active = 0
+    let maximumActive = 0
+    mocks.selector.mockImplementation(async ({ input }: ValidationSelectorCall) => {
+      if (input.request.kind === 'list') return { kind: 'list', items: [] }
+      active++
+      maximumActive = Math.max(maximumActive, active)
+      if (active === 5) allStarted()
+      await gate
+      active--
+      return { kind: 'detail', item: { id: input.request.id, label: input.request.id } }
+    })
+    const keys = Array.from({ length: 12 }, (_, index) => `PROJECT${index}`)
+    const connection = runConnect({ keys: [...keys, ...keys] })
+    await started
+    try {
+      expect(mocks.selector).toHaveBeenCalledTimes(6)
+      expect(mocks.configure).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
+    await expect(connection).resolves.toMatchObject({ kind: 'connected' })
+    expect(maximumActive).toBe(5)
+    expect(mocks.selector).toHaveBeenCalledTimes(keys.length + 1)
+  })
+
+  it('propagates listing failures without starting direct validation', async () => {
+    mocks.selector.mockRejectedValueOnce(new Error('Account revoked'))
+    await expect(runConnect()).rejects.toThrow('Account revoked')
+    expect(mocks.selector).toHaveBeenCalledTimes(1)
     expect(mocks.configure).not.toHaveBeenCalled()
   })
 
@@ -273,6 +422,37 @@ describe('personal source setup', () => {
     await expect(runConnect()).rejects.toThrow('Connect your account again')
     expect(mocks.configure).not.toHaveBeenCalled()
   })
+
+  it.each(['binding', 'ownership'] as const)(
+    'stops before source creation if the caller cancels during the final %s check',
+    async (phase) => {
+      const caller = new AbortController()
+      if (phase === 'binding') {
+        mocks.binding.mockImplementationOnce(() => {
+          caller.abort(new Error('Setup cancelled'))
+          return {
+            organizationId: owner.organizationId,
+            credentialGroupId: 'group-1',
+            credentialGroupOptionId: 'option-1',
+          }
+        })
+      } else {
+        mocks.ownAccount.mockResolvedValueOnce(account).mockImplementationOnce(() => {
+          caller.abort(new Error('Setup cancelled'))
+          return account
+        })
+      }
+      await expect(
+        personalSourceSetup.execute({
+          principal,
+          input: { ...connect, keys: ['PROJECT'] },
+          request: { headers: new Headers(), signal: caller.signal },
+        })
+      ).rejects.toThrow('Setup cancelled')
+      expect(mocks.configure).not.toHaveBeenCalled()
+      expect(mocks.dispatch).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects a current operation authorization denial before any setup effects', async () => {
     mocks.authorizeOperation.mockRejectedValue(new Error('Membership ended'))

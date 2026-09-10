@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   loadManagedCredentialGroupBinding,
   loadScopedAccountsCredentialListContext,
@@ -29,6 +30,8 @@ import { MAX_PERSONAL_SOURCE_SETUP_KEYS } from '@/lib/sim-search/personal-source
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
 const logger = createLogger('PersonalSourceSetup')
+const VALIDATION_PHASE_TIMEOUT_MS = 30_000
+const DETAIL_VALIDATION_CONCURRENCY = 5
 
 interface PersonalSourceSetupOwner {
   organizationId: string
@@ -176,12 +179,13 @@ export const personalSourceSetup = defineAuthorizedKnowledgeUseCase({
     const keys = [...new Set(input.keys.map((key) => key.trim()))]
     const remaining = new Set(keys)
     const cursors = new Set<string>()
-    const timeout = AbortSignal.timeout(30_000)
+    const timeout = AbortSignal.timeout(VALIDATION_PHASE_TIMEOUT_MS)
     const signal = request?.signal ? AbortSignal.any([request.signal, timeout]) : timeout
     let cursor: string | undefined
     for (let page = 0; page < MAX_SELECTOR_PAGES; page++) {
       let result: SelectorExecutionResult
       try {
+        signal.throwIfAborted()
         result = await executeSelector.execute({
           principal,
           request,
@@ -191,13 +195,9 @@ export const personalSourceSetup = defineAuthorizedKnowledgeUseCase({
             request: { kind: 'list', ...(cursor ? { cursor } : {}) },
           },
         })
+        signal.throwIfAborted()
       } catch (error) {
-        if (timeout.aborted && !request?.signal?.aborted) {
-          throw new OrchestrationError(
-            'validation',
-            'Checking the selected projects or spaces took too long. Try fewer selections.'
-          )
-        }
+        if (timeout.aborted && !request?.signal?.aborted) break
         throw error
       }
       if (result.kind !== 'list') throw new Error('Source discovery returned an unexpected result')
@@ -207,11 +207,45 @@ export const personalSourceSetup = defineAuthorizedKnowledgeUseCase({
       cursor = result.nextCursor
       cursors.add(cursor)
     }
+    request?.signal?.throwIfAborted()
     if (remaining.size > 0) {
-      throw new OrchestrationError(
-        'validation',
-        'Some selected projects or spaces could not be found with this account. Refresh the choices and try again.'
-      )
+      const detailTimeout = AbortSignal.timeout(VALIDATION_PHASE_TIMEOUT_MS)
+      const details = new AbortController()
+      const detailSignal = AbortSignal.any([
+        detailTimeout,
+        details.signal,
+        ...(request?.signal ? [request.signal] : []),
+      ])
+      try {
+        await mapWithConcurrency([...remaining], DETAIL_VALIDATION_CONCURRENCY, async (key) => {
+          detailSignal.throwIfAborted()
+          const result = await executeSelector.execute({
+            principal,
+            request,
+            input: {
+              ...selectorInput,
+              signal: detailSignal,
+              request: { kind: 'detail', id: key },
+            },
+          })
+          detailSignal.throwIfAborted()
+          if (result.kind !== 'detail' || result.item?.id !== key) {
+            throw new OrchestrationError(
+              'validation',
+              'Some selected projects or spaces could not be found with this account. Refresh the choices and try again.'
+            )
+          }
+        })
+      } catch (error) {
+        details.abort(error)
+        if (detailTimeout.aborted && !request?.signal?.aborted) {
+          throw new OrchestrationError(
+            'validation',
+            'Checking the selected projects or spaces took too long. Try fewer selections.'
+          )
+        }
+        throw error
+      }
     }
     const [binding, group] = await Promise.all([
       loadManagedCredentialGroupBinding(input.credentialId),
@@ -232,6 +266,7 @@ export const personalSourceSetup = defineAuthorizedKnowledgeUseCase({
       )
     }
     await authorizePersonalSearchSetupCredential(principal, input)
+    request?.signal?.throwIfAborted()
     const result = await configureSimSearchConnector.execute({
       principal,
       request,

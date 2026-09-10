@@ -134,23 +134,70 @@ describe('Confluence server selector adapters', () => {
     )
   })
 
-  it('hydrates a legacy numeric value in the key selector without rewriting it', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: '12345', key: 'ENG', name: 'Engineering' }), {
-        status: 200,
+  it.each(['current', 'archived'] as const)(
+    'looks up a numeric %s space key as a key rather than a resource ID',
+    async (status) => {
+      mockFetch.mockImplementation((input: URL) => {
+        const matches = new URL(input).searchParams.get('status') === status
+        return new Response(
+          JSON.stringify({
+            results: matches ? [{ id: '99999', key: '12345', name: 'Numeric key' }] : [],
+          }),
+          { status: 200 }
+        )
       })
-    )
 
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute({
+          ...spaceDetailArgs(),
+          request: { kind: 'detail', id: '12345' },
+        })
+      ).resolves.toEqual({
+        kind: 'detail',
+        item: {
+          id: '12345',
+          label: status === 'archived' ? 'Numeric key (12345) — archived' : 'Numeric key (12345)',
+        },
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      for (const [input] of mockFetch.mock.calls) {
+        const url = new URL(String(input))
+        expect(url.pathname).toBe('/ex/confluence/cloud-1/wiki/api/v2/spaces')
+        expect(url.searchParams.get('keys')).toBe('12345')
+      }
+    }
+  )
+
+  it('does not accept a numeric resource ID as a matching space key', async () => {
+    mockFetch.mockImplementation(
+      () =>
+        new Response(
+          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          { status: 200 }
+        )
+    )
     await expect(
       confluenceSelectorAttachments['confluence.spaces'].execute({
         ...spaceDetailArgs(),
         request: { kind: 'detail', id: '12345' },
       })
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: '12345', label: 'Engineering (ENG)' },
-    })
-    expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/wiki/api/v2/spaces/12345')
+    ).resolves.toEqual({ kind: 'detail', item: null })
+  })
+
+  it('preserves key aliases when hydrating the ID selector', async () => {
+    mockFetch.mockImplementation(
+      () =>
+        new Response(
+          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          { status: 200 }
+        )
+    )
+    await expect(
+      confluenceSelectorAttachments['confluence.spacesById'].execute({
+        ...spaceIdDetailArgs(),
+        request: { kind: 'detail', id: 'ENG' },
+      })
+    ).resolves.toEqual({ kind: 'detail', item: { id: 'ENG', label: 'Engineering (ENG)' } })
   })
 
   it('projects provider IDs for block space lists while key selectors remain unchanged', async () => {
