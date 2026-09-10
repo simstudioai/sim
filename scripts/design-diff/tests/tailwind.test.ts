@@ -39,6 +39,30 @@ it('preserves dark/responsive/state variants', async () => {
   expect(JSON.stringify(report.findings)).toContain('hover')
 })
 
+it('preserves statement boundaries between selector and block custom variants', async () => {
+  const report = await compareFiles(
+    {
+      [theme]: `
+        @custom-variant dark (&:where(.dark, .dark *):not(:where(.light, .light *)));
+        @custom-variant hover (&:hover);
+        @custom-variant hover-hover {
+          @media (hover: hover) and (pointer: fine) { &:hover { @slot; } }
+        }
+        @theme { --color-brand: #383838; }
+      `,
+      [file]: 'export const A=()=> <div className="dark:bg-brand hover:bg-brand hover-hover:p-2"/>',
+    },
+    {
+      [file]: 'export const A=()=> <div className="dark:bg-brand hover:bg-brand hover-hover:p-4"/>',
+    }
+  )
+  const finding = report.findings.find((finding) => finding.after?.location.file === file)
+  expect(finding?.decision).toBe('flag')
+  expect(finding?.category).toBe('dimensions')
+  expect(finding?.limitations).toEqual([])
+  expect(JSON.stringify(finding?.after?.value)).toContain('(pointer: fine)')
+})
+
 it('flags unchanged consumers of changed global theme variables', async () => {
   const report = await compareFiles(
     {

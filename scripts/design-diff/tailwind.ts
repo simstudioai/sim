@@ -49,7 +49,7 @@ export class TailwindNormalizer {
         root.each((node) => {
           if (node.type !== 'atrule') return
           if (['theme', 'custom-variant', 'utility'].includes(node.name))
-            chunks.push(node.toString())
+            chunks.push(`${node.toString()}${node.nodes ? '' : ';'}`)
           if (['plugin', 'config'].includes(node.name))
             limitations.push('Application JavaScript plugins/configuration are not executed')
           if (node.name === 'import') {

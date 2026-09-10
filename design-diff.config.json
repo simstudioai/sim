@@ -76,6 +76,7 @@
     "clsx",
     "classnames",
     "tailwind-merge",
+    "@sim/emcn",
     "@sim/emcn/lib/cn",
     "@/lib/utils",
     "@/lib/cn"

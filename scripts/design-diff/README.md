@@ -202,3 +202,29 @@ are whole commits, including ancillary changes, rather than only their headline 
 
 These comparisons validate source-policy behavior, not rendered pixels or recall over all
 historical PRs. Screenshot capture, AI interpretation and Slack delivery are separate stages.
+
+### Incremental smoke test on PR #7742
+
+Five temporary commits were created directly on `458a515cbed7fbcf127ce72348ff755c5308ce13`,
+each changing one existing source file. Comparing that commit with each temporary head
+isolated the test edit from the implementation PR's own dependency changes. No temporary
+UI edits were checked out, pushed or included in the PR.
+
+| Incremental edit | Observed result after fixes |
+| --- | --- |
+| EMCN Button `rounded-[5px]` to `rounded-none` | Flagged; a `shape-effects` finding identifies `buttonVariants` |
+| Send button token `bg-[#383838]` to `bg-[#E11D48]` | Flagged; `colour` review evidence reaches the unchanged `SendButton` consumer |
+| Send button token `p-0` to `p-2` | Flagged; `dimensions` review evidence reaches the unchanged consumer |
+| TSDoc wording only in EMCN Button | Clean; zero findings |
+| Add `translate-x-2` to the send button token | Flagged for review; movement is not proven harmless in this runtime context |
+
+The experiment exposed and fixed dropped semicolons between CSS custom-variant statements
+and missing recognition of the repository's `cn` import from `@sim/emcn`. Regression tests
+cover both. All five overall flagging decisions matched expectations. One stricter category
+assertion did not: generated translation declarations currently receive the broader `layout`
+category, rather than `movement`; the conservative review decision is retained.
+
+Report noise remains substantial: the shared shape edit generated 2 static flags and 2,205
+review findings; each local token edit generated 93 review findings. These counts describe
+potential effects, not independently verified visual regressions. Conditional consumers
+still require review. This validates local engine behavior, not cloud workflow activation.

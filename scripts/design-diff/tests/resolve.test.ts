@@ -105,6 +105,26 @@ it('does not collapse class composition order', async () => {
   expect(report.flagged).toBe(true)
 })
 
+it.each([
+  ['bg-[#383838]', 'bg-[#E11D48]', 'colour'],
+  ['p-0', 'p-2', 'dimensions'],
+])('resolves imported %s through the EMCN root cn export', async (before, after, category) => {
+  const report = await compareFiles(
+    {
+      [token]: `export const classes = '${before}'`,
+      [consumer]:
+        'import {cn} from "@sim/emcn"; import {classes} from "./token"; export const A=()=> <button className={cn("rounded-full", classes)}/>',
+    },
+    { [token]: `export const classes = '${after}'` },
+    { ...config, themes: [] }
+  )
+  const finding = report.findings.find((finding) => finding.after?.location.file === consumer)
+  expect(finding?.decision).toBe('flag')
+  expect(finding?.category).toBe(category)
+  expect(finding?.limitations).toEqual([])
+  expect(finding?.dependencies).toContain(token)
+})
+
 it('reviews unsupported class helpers instead of executing or trusting their names', async () => {
   const source = (value: string) =>
     `import {clsx} from 'untrusted-helper'; export const A=()=> <div className={clsx('${value}')}/>`
