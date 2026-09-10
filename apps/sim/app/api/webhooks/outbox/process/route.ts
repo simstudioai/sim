@@ -23,6 +23,8 @@ import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/works
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
+import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
+import { forkContentOutboxHandlers } from '@/ee/workspace-forking/application/content-outbox'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 
 const logger = createLogger('OutboxProcessorAPI')
@@ -45,6 +47,8 @@ const handlers = {
   ...workspaceFileLiveDocOutboxHandlers,
   ...workspaceFileStorageCleanupOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
+  ...workspaceOperationOutboxHandlers,
+  ...forkContentOutboxHandlers,
 } as const
 
 export const GET = withRouteHandler(async (request: NextRequest) => {

@@ -6,7 +6,8 @@ export const selectorOperations = {
     id: 'selectors.execute',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    oauthScope: 'api:read',
     capability: 'none',
   }),
 } as const

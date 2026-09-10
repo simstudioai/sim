@@ -8,11 +8,13 @@
  *
  * @vitest-environment node
  */
+import { user } from '@sim/db/schema'
 import { auditMock, authMockFns, createMockRequest, type MockUser } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FolderCollectionFullError } from '@/lib/folders/errors'
 
-const { mockLogger, mockCreateFork, mockAssertCanFork } = vi.hoisted(() => ({
+const { mockLogger, mockCreateFork, mockAuthorizeWorkspaceOperation } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -23,7 +25,7 @@ const { mockLogger, mockCreateFork, mockAssertCanFork } = vi.hoisted(() => ({
     child: vi.fn(),
   },
   mockCreateFork: vi.fn(),
-  mockAssertCanFork: vi.fn(),
+  mockAuthorizeWorkspaceOperation: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -33,7 +35,25 @@ vi.mock('@sim/logger', () => ({
   getRequestContext: () => undefined,
 }))
 vi.mock('@/ee/workspace-forking/lib/create-fork', () => ({ createFork: mockCreateFork }))
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({ assertCanFork: mockAssertCanFork }))
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
+  assertForkingEnabled: vi.fn(),
+  ForkError: class extends Error {},
+}))
+vi.mock('@/lib/core/application/workspace-authorization', () => ({
+  authorizeWorkspaceOperation: mockAuthorizeWorkspaceOperation,
+  requireAllowedWorkspacePrincipal: vi.fn(),
+}))
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
+    id,
+    name: 'Source',
+    organizationId: null,
+    allowPersonalApiKeys: true,
+  })),
+}))
+vi.mock('@/lib/workspaces/policy', () => ({
+  getWorkspaceCreationPolicy: vi.fn(async () => ({ canCreate: true })),
+}))
 
 import { POST } from '@/app/api/workspaces/[id]/fork/route'
 
@@ -56,11 +76,10 @@ function forkRequest() {
 describe('POST /api/workspaces/[id]/fork', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER })
-    mockAssertCanFork.mockResolvedValue({
-      source: { id: SOURCE_WORKSPACE_ID, name: 'Source' },
-      policy: {},
-    })
+    authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER, session: { id: 'session-1' } })
+    resetDbChainMock()
+    queueTableRows(user, [{ name: TEST_USER.name }])
+    mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
   })
 
   it('renders a full-folder-tree refusal as an actionable 409', async () => {
@@ -100,12 +119,25 @@ describe('POST /api/workspaces/[id]/fork', () => {
 
   it('still returns the created fork when the copy succeeds', async () => {
     mockCreateFork.mockResolvedValue({
-      workspace: { id: 'ws-child', name: 'Child' },
+      workspace: {
+        id: 'ws-child',
+        name: 'Child',
+        ownerId: TEST_USER.id,
+        organizationId: null,
+        workspaceMode: 'personal',
+      },
       workflowsCopied: 2,
     })
 
     const response = await POST(forkRequest(), routeContext)
 
     expect(response.status).toBe(201)
+    expect(mockCreateFork).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: expect.objectContaining({ id: SOURCE_WORKSPACE_ID }),
+        userId: TEST_USER.id,
+        actorName: TEST_USER.name,
+      })
+    )
   })
 })

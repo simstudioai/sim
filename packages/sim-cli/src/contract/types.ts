@@ -311,6 +311,8 @@ export interface CommandSpec {
    * when the profile says so) whatever the profile's display format is.
    */
   document?: boolean
+  /** Mutation returns a durable workspace operation and supports --wait. */
+  workspaceOperation?: boolean
   /** Keep the operation out of the CLI surface entirely. */
   hidden?: boolean
 }

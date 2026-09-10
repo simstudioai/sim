@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { getBlock } from '@/blocks/registry'
 import {
   applyDependentOverrides,
   customBlockInputStorageKey,
@@ -11,7 +10,8 @@ import {
   remapForkBlockType,
   replaceCustomBlockInputs,
   scanWorkflowReferences,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
+import { getBlock } from '@/blocks/registry'
 
 const PROD_BLOCK = 'custom_block_prodabc123'
 const UAT_BLOCK = 'custom_block_uatxyz7890'

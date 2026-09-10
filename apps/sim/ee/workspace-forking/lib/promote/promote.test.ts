@@ -142,13 +142,13 @@ vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
 vi.mock('@/ee/workspace-forking/lib/promote/promote-run-store', () => ({
   upsertPromoteRun: mockUpsertPromoteRun,
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/resources', () => ({
+vi.mock('@/lib/workflows/references/resources', () => ({
   getMcpServerMetaByIds: mockGetMcpServerMeta,
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/block-identity', () => ({
   buildForkBlockIdResolver: mockBuildBlockIdResolver,
 }))
-vi.mock('@/ee/workspace-forking/lib/remap/remap-references', () => ({
+vi.mock('@/lib/workflows/references/remap-references', () => ({
   createForkSubBlockTransform: mockCreateTransform,
 }))
 vi.mock('@/ee/workspace-forking/lib/socket', () => ({
@@ -860,6 +860,40 @@ describe('promoteFork trigger URLs', () => {
 
     const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
     expect(writeParams.triggerPathByBlockId?.size).toBe(0)
+  })
+
+  it('rejects an invalid source-scoped choice before writing the workflow or scheduling deployment', async () => {
+    arrangeReCreatedTrigger()
+    await expect(
+      promoteFork({
+        ...promoteParams(),
+        triggerMappings: [
+          {
+            sourceWorkflowId: 'wf-src',
+            sourceBlockId: 'blk-new',
+            adoptPath: 'someone-elses-path',
+          },
+        ],
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(copyWorkflowStateIntoTarget).not.toHaveBeenCalled()
+    expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
+    expect(performFullDeploy).not.toHaveBeenCalled()
+  })
+
+  it('applies an explicit source-scoped choice through the same locked trigger plan', async () => {
+    arrangeReCreatedTrigger()
+    const result = await promoteFork({
+      ...promoteParams(),
+      triggerMappings: [
+        { sourceWorkflowId: 'wf-src', sourceBlockId: 'blk-new', adoptPath: 'live-slack-path' },
+      ],
+    })
+    expect(result.blocked).toBeNull()
+    expect(
+      vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0].triggerPathByBlockId?.get('blk-new')
+    ).toBe('live-slack-path')
+    expect(result.triggerUrlChanges).toEqual([])
   })
 })
 

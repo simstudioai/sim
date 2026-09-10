@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
+import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import {
   type ForkDependentValue,
   forkDependentValueKey,
@@ -10,7 +11,6 @@ import {
   reconcileForkDependentValues,
   translateForkDependentValues,
 } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
-import type { ForkReferenceResolver } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 describe('forkDependentValueKey', () => {
   it('builds a stable triple key', () => {
