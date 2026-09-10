@@ -133,7 +133,6 @@ const REPRESENTATION_EXTENSIONS = new Set([
   'odt',
   'otp',
   'pdf',
-  'ppt',
   'pptx',
   'rtf',
   'vi',

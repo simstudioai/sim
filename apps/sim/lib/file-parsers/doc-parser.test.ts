@@ -37,6 +37,7 @@ interface WordSections {
   footers?: string
   footnotes?: string
   endnotes?: string
+  textboxes?: string
 }
 
 /** The accessor surface of word-extractor's `Document`, with empty sections by default. */
@@ -48,7 +49,7 @@ function wordDocument(sections: WordSections) {
     getFootnotes: () => sections.footnotes ?? '',
     getEndnotes: () => sections.endnotes ?? '',
     getAnnotations: () => '',
-    getTextboxes: () => '',
+    getTextboxes: () => sections.textboxes ?? '',
   }
 }
 
@@ -169,6 +170,7 @@ describe('DocParser.parseBuffer', () => {
         footers: 'Page footer',
         footnotes: '',
         endnotes: 'An endnote',
+        textboxes: 'Pull quote in a text box',
       })
     )
 
@@ -177,7 +179,7 @@ describe('DocParser.parseBuffer', () => {
     expect(mockWordExtract).toHaveBeenCalledOnce()
     expect(mockParseOfficeText).not.toHaveBeenCalled()
     expect(result.content).toBe(
-      'Body paragraph “quoted”\n\nRunning header\n\nPage footer\n\nAn endnote'
+      'Body paragraph “quoted”\n\nRunning header\n\nPage footer\n\nAn endnote\n\nPull quote in a text box'
     )
     expect(result.metadata).toMatchObject({
       extractionMethod: 'word-extractor',
@@ -200,18 +202,26 @@ describe('DocParser.parseBuffer', () => {
     expect((error as Error).message).toMatch(/Word 6\/95/)
   })
 
-  it('maps any other word-extractor failure to invalid_format with the cause retained', async () => {
-    const libraryError = new Error('Invalid Short Sector Allocation Table')
-    mockWordExtract.mockRejectedValue(libraryError)
+  it.each([
+    new Error('Invalid Short Sector Allocation Table'),
+    new RangeError('Attempt to access memory outside buffer bounds'),
+  ])(
+    'maps any other word-extractor failure to a stable invalid_format message with the cause retained: %s',
+    async (libraryError) => {
+      mockWordExtract.mockRejectedValue(libraryError)
 
-    const error = await new DocParser()
-      .parseBuffer(buildLegacyOleDoc())
-      .catch((caught: unknown) => caught)
+      const error = await new DocParser()
+        .parseBuffer(buildLegacyOleDoc())
+        .catch((caught: unknown) => caught)
 
-    expect(error).toBeInstanceOf(FileParserError)
-    expect(error).toMatchObject({ code: 'invalid_format' })
-    expect((error as FileParserError).cause).toBe(libraryError)
-  })
+      expect(error).toBeInstanceOf(FileParserError)
+      expect(error).toMatchObject({
+        code: 'invalid_format',
+        message: 'This .doc file could not be read',
+      })
+      expect((error as FileParserError).cause).toBe(libraryError)
+    }
+  )
 
   it('reports a legacy .doc with no text as no_extractable_text', async () => {
     mockWordExtract.mockResolvedValue(wordDocument({ body: '   \n' }))

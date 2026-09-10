@@ -20,10 +20,18 @@ interface LegacyDocSections {
   footers: string
   footnotes: string
   endnotes: string
+  textboxes: string
 }
 
 function joinSections(sections: LegacyDocSections): string {
-  return [sections.body, sections.headers, sections.footers, sections.footnotes, sections.endnotes]
+  return [
+    sections.body,
+    sections.headers,
+    sections.footers,
+    sections.footnotes,
+    sections.endnotes,
+    sections.textboxes,
+  ]
     .map((section) => section.trim())
     .filter((section) => section.length > 0)
     .join('\n\n')
@@ -103,6 +111,12 @@ export class DocParser implements FileParser {
         footers: document.getFooters(raw),
         footnotes: document.getFootnotes(raw),
         endnotes: document.getEndnotes(raw),
+        /**
+         * `includeBody`/`includeHeadersAndFooters` select *which* text boxes are
+         * returned (those anchored in the body vs. in headers/footers), not
+         * whether body text is repeated — both default true, and both are wanted.
+         */
+        textboxes: document.getTextboxes(raw),
       }
     } catch (error) {
       options.signal?.throwIfAborted()
@@ -113,7 +127,8 @@ export class DocParser implements FileParser {
           error
         )
       }
-      throw toFileParserError(error, 'invalid_format', 'Failed to parse DOC buffer')
+      /** word-extractor surfaces corrupt files as raw `RangeError`s; users get a stable message. */
+      throw new FileParserError('invalid_format', 'This .doc file could not be read', error)
     }
     options.signal?.throwIfAborted()
 

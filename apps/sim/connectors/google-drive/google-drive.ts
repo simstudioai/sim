@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import {
   type DrivePermission,
   driveFileAcl,
@@ -194,10 +195,10 @@ async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<F
         },
       }
     }
-    return { content: bytes.toString('utf8'), mimeType: 'text/plain' }
+    return { content: decodeTextBuffer(bytes).text, mimeType: 'text/plain' }
   }
   if (file.mimeType === 'text/html') {
-    const html = (await downloadFile(accessToken, file.id)).toString('utf8')
+    const html = decodeTextBuffer(await downloadFile(accessToken, file.id)).text
     return { content: htmlToPlainText(html), mimeType: 'text/plain' }
   }
   const raw = rawFileType(file)
@@ -210,7 +211,7 @@ async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<F
   }
   if (isSupportedTextFile(file.mimeType)) {
     return {
-      content: (await downloadFile(accessToken, file.id)).toString('utf8'),
+      content: decodeTextBuffer(await downloadFile(accessToken, file.id)).text,
       mimeType: 'text/plain',
     }
   }
