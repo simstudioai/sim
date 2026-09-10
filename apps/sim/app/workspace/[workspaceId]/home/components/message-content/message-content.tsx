@@ -21,6 +21,10 @@ import {
   humanizeToolName,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  getLatestToolId,
+  getVisibleMainAgentItems,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
@@ -490,7 +494,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * Groups content blocks into agent-scoped segments.
  * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
  * into the agent header. Inner tool_calls are nested underneath their agent.
- * Orphan tool_calls (no calledBy, not a dispatch) group under "Sim".
+ * Main-agent tool calls share one latest activity status across all segments.
  *
  * New backends stamp every subagent block with deterministic span identity; in
  * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The
@@ -498,10 +502,22 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * span identity existed.
  */
 export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
-  if (blocks.some((block) => Boolean(block.spanId))) {
-    return parseBlocksWithSpanTree(blocks)
+  const segments = blocks.some((block) => Boolean(block.spanId))
+    ? parseBlocksWithSpanTree(blocks)
+    : parseBlocksLegacy(blocks)
+  let latestToolId: string | undefined
+  for (let index = segments.length - 1; index >= 0; index--) {
+    const segment = segments[index]
+    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') continue
+    latestToolId = getLatestToolId(segment.items)
+    if (latestToolId !== undefined) break
   }
-  return parseBlocksLegacy(blocks)
+
+  return segments.flatMap<MessageSegment>((segment) => {
+    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') return [segment]
+    const items = getVisibleMainAgentItems(segment.items, latestToolId)
+    return items.length > 0 ? [{ ...segment, items }] : []
+  })
 }
 
 function joinRenderableText(parts: string[]): string {
@@ -760,22 +776,17 @@ export function assistantMessageHasRenderableContent(
 }
 
 /** True when the transcript is already rendering an executing tool row. */
-export function assistantMessageHasVisibleExecutingTool(blocks: ContentBlock[]): boolean {
-  const subagentDispatchCallIds = new Set<string>()
-  for (const block of blocks) {
-    if (block.type === 'subagent' && block.parentToolCallId) {
-      subagentDispatchCallIds.add(block.parentToolCallId)
-    }
-  }
+export function assistantMessageHasVisibleExecutingTool(segments: MessageSegment[]): boolean {
+  const hasExecutingTool = (items: AgentGroupItem[]): boolean =>
+    items.some((item) =>
+      item.type === 'tool'
+        ? item.data.status === 'executing'
+        : item.type === 'agent_group' && hasExecutingTool(item.group.items)
+    )
 
-  return blocks.some((block) => {
-    const toolCall = block.toolCall
-    if (!toolCall || toolCall.status !== 'executing') return false
-    if (isHiddenToolCall(toolCall.name)) return false
-    if (toolCall.name === ReadTool.id && isToolResultRead(toolCall.params)) return false
-    if (SUBAGENT_KEYS.has(toolCall.name)) return false
-    return !subagentDispatchCallIds.has(toolCall.id)
-  })
+  return segments.some(
+    (segment) => segment.type === 'agent_group' && hasExecutingTool(segment.items)
+  )
 }
 
 export function shouldSmoothTextSegment({
@@ -960,7 +971,7 @@ function MessageContentInner({
   // A mid-stream special tag renders nothing until complete, so its bytes are a
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
-  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
+  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(segments)
   const showShimmer =
     thinkingExpanded &&
     thinkingLabel !== null &&

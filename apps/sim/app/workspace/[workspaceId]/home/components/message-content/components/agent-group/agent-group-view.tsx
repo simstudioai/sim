@@ -12,9 +12,9 @@ import {
 import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import { Terminal as TerminalTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
+import { getVisibleMainAgentItems } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import {
   getAgentIcon,
@@ -208,27 +208,7 @@ export function AgentGroupView({
     setManualExpanded(!expanded)
   }
 
-  let latestTool: AgentGroupItem | undefined
-  if (isMainAgent) {
-    for (let index = items.length - 1; index >= 0; index--) {
-      if (items[index].type === 'tool') {
-        latestTool = items[index]
-        break
-      }
-    }
-  }
-  /** Keep blocking controls visible even when a newer tool replaces the activity text. */
-  const visibleItems = isMainAgent
-    ? items.filter(
-        (item) =>
-          item.type !== 'tool' ||
-          item === latestTool ||
-          item.data.status === ToolCallStatus.awaiting_approval ||
-          (item.data.status === ToolCallStatus.executing &&
-            item.data.toolName === TerminalTool.id &&
-            item.data.params?.operation === 'handoff')
-      )
-    : items
+  const visibleItems = isMainAgent ? getVisibleMainAgentItems(items) : items
   const activity = (
     <div className={cn('flex min-w-0 flex-col gap-1.5', !isMainAgent && 'py-0.5 pl-6')}>
       {visibleItems.map((item, idx) => {
