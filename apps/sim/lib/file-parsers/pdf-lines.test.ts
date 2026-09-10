@@ -6,7 +6,9 @@ import {
   collectCompounds,
   collectWords,
   dominantLineHeight,
+  headingMarkersViable,
   joinLines,
+  MAX_PDF_LINES,
   normalizePdfWhitespace,
   type PdfLine,
   PdfLineBuilder,
@@ -86,18 +88,49 @@ describe('joinLines', () => {
     expect(joinLines(lines)).toBe('one\ntwo')
   })
 
-  it('prefixes short oversized lines with a heading marker', () => {
+  it('prefixes short oversized lines with a heading marker only when markers are requested', () => {
     const lines: PdfLine[] = [
       { text: 'Memo: Office Relocation Timeline', y: 692, height: 15.4 },
       ...paragraph(['Body text follows the title.'], 676.6),
     ]
 
-    expect(joinLines(lines, { bodyHeight: BODY })).toBe(
+    expect(joinLines(lines, { bodyHeight: BODY, headingMarkers: true })).toBe(
       '## Memo: Office Relocation Timeline\n\nBody text follows the title.'
     )
-    expect(joinLines(lines, { bodyHeight: BODY, headingMarkers: false })).toBe(
+    expect(joinLines(lines, { bodyHeight: BODY })).toBe(
       'Memo: Office Relocation Timeline\n\nBody text follows the title.'
     )
+  })
+
+  it('does not mark a heading candidate inside a run of more than three same-height lines', () => {
+    const tall = paragraph(
+      ['Slide bullet one', 'Slide bullet two', 'Slide bullet three', 'Slide bullet four'],
+      700,
+      15.4
+    )
+    const single: PdfLine[] = [
+      { text: 'Real heading', y: 700, height: 15.4 },
+      ...paragraph(['Body text follows the heading here.'], 684),
+    ]
+
+    expect(joinLines(tall, { bodyHeight: BODY, headingMarkers: true })).not.toContain('## ')
+    expect(joinLines(single, { bodyHeight: BODY, headingMarkers: true })).toMatch(
+      /^## Real heading/
+    )
+  })
+
+  it('joins fifty thousand lines in linear time', () => {
+    const lines: PdfLine[] = Array.from({ length: 50_000 }, (_, i) => ({
+      text: i % 2 === 0 ? `line ${i} ends with hyphen-` : `ated continuation ${i}`,
+      y: 1_000_000 - i * 14.4,
+      height: BODY,
+    }))
+    const started = performance.now()
+
+    const text = joinLines(lines, { words: new Set(['hyphenated']) })
+
+    expect(performance.now() - started).toBeLessThan(1000)
+    expect(text).toContain('ends with hyphenated continuation')
   })
 
   it('keeps a multi-line heading together by scaling the pitch with its height', () => {
@@ -163,6 +196,22 @@ describe('joinLines', () => {
 })
 
 describe('PdfLineBuilder', () => {
+  it('stops splitting lines at the ceiling and keeps the overflow text', () => {
+    const builder = new PdfLineBuilder()
+    for (let i = 0; i < MAX_PDF_LINES; i++) {
+      builder.append('x', { x: 0, y: i, width: 1, height: 1 })
+      builder.endLine()
+    }
+    builder.append('overflow', { x: 0, y: -1, width: 1, height: 1 })
+    builder.endLine()
+    builder.append('tail', { x: 0, y: -2, width: 1, height: 1 })
+
+    const lines = builder.finish()
+
+    expect(lines).toHaveLength(MAX_PDF_LINES)
+    expect(lines[lines.length - 1].text).toBe('x overflow tail')
+  })
+
   it('starts a new line on a baseline change even without hasEOL', () => {
     const builder = new PdfLineBuilder()
     builder.append('and', { x: 100, y: 700, width: 20, height: 11 })
@@ -237,5 +286,35 @@ describe('helpers', () => {
         { text: 'Another body line', height: 11.02 },
       ])
     ).toBe(11)
+  })
+
+  it('weighs only prose-like lines when the document has any, so table text cannot become the body', () => {
+    const cells = Array.from({ length: 200 }, (_, i) => ({ text: `${i} 4,512 7%`, height: 7.5 }))
+    const prose = [
+      { text: 'This sentence is long enough and has enough words to count as prose.', height: 11 },
+    ]
+
+    expect(dominantLineHeight([...cells, ...prose])).toBe(11)
+    expect(dominantLineHeight(cells)).toBe(7.5)
+  })
+
+  it('disables heading markers when too many lines would qualify', () => {
+    const bullets = Array.from({ length: 6 }, () => ({ text: 'Bullet', height: 15 }))
+    const body = Array.from({ length: 4 }, () => ({ text: 'Body', height: 11 }))
+
+    expect(headingMarkersViable([...bullets, ...body], 11)).toBe(false)
+    expect(headingMarkersViable([bullets[0], ...body], 11)).toBe(true)
+  })
+
+  it('collects words of three to forty letters and caps the set', () => {
+    const words = collectWords([
+      { text: `ab abc ${'x'.repeat(41)} ${'y'.repeat(40)}`, height: BODY },
+    ])
+    expect(words).toEqual(new Set(['abc', 'y'.repeat(40)]))
+
+    const letters = (n: number): string =>
+      n < 26 ? String.fromCharCode(97 + n) : letters(Math.floor(n / 26)) + letters(n % 26)
+    const unique = Array.from({ length: 200_050 }, (_, i) => `w${letters(i)}z`).join(' ')
+    expect(collectWords([{ text: unique, height: BODY }]).size).toBe(200_000)
   })
 })

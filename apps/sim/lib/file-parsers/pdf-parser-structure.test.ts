@@ -11,7 +11,7 @@ vi.mock('@/lib/file-parsers/pdfjs-server', () => ({
   openPdfDocument: mockOpenPdfDocument,
 }))
 
-import { PdfParser } from '@/lib/file-parsers/pdf-parser'
+import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
 
 const PAGE_HEIGHT = 792
 const BODY = 11
@@ -154,7 +154,7 @@ describe('PdfParser structure reconstruction', () => {
       [
         'ACME Corp — Internal Use Only',
         '',
-        '## Memo: Office Relocation Timeline',
+        'Memo: Office Relocation Timeline',
         '',
         ...firstParagraph,
         '',
@@ -191,6 +191,59 @@ describe('PdfParser structure reconstruction', () => {
 
     expect(result.content).toBe('First line.\nSecond line.\n\nNext page.')
     expect(result.metadata).toMatchObject({ pageCount: 2, truncated: false })
+  })
+
+  it('still parses when a page cannot report its viewport', async () => {
+    const pdf = pdfWithPages([
+      [...paragraph(['Header'], 760), ...paragraph(['Body one.'], 700)],
+      [...paragraph(['Header'], 760), ...paragraph(['Body two.'], 700)],
+      [...paragraph(['Header'], 760), ...paragraph(['Body three.'], 700)],
+    ])
+    for (let pageNumber = 1; pageNumber <= 3; pageNumber++) {
+      const page = await pdf.getPage(pageNumber)
+      page.getViewport = () => {
+        throw new Error('no viewport')
+      }
+    }
+    mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+
+    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'), {
+      pdfTextMode: 'complete',
+    })
+
+    expect(result.content).toBe('Header\nBody one.\n\nHeader\nBody two.\n\nHeader\nBody three.')
+  })
+
+  it('keeps the free separator when the character budget cuts an item short', async () => {
+    const first = item('A'.repeat(MAX_PDF_TEXT_CHARS - 5), 90, 700)
+    const second = item('tail text', first.transform[4] + first.width + 6, 700)
+    mockOpenPdfDocument.mockResolvedValueOnce(pdfWithPages([[first, second]]))
+
+    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+
+    expect(result.content.slice(MAX_PDF_TEXT_CHARS - 8, MAX_PDF_TEXT_CHARS)).toBe('AAA tail')
+    expect(result.metadata?.truncated).toBe(true)
+  })
+
+  it('flags preview output as truncated when paragraph breaks push it past the budget', async () => {
+    const long = MAX_PDF_TEXT_CHARS - 20
+    mockOpenPdfDocument.mockResolvedValueOnce(
+      pdfWithPages([
+        [
+          item('A'.repeat(long), 90, 700),
+          eol(90, 700 - PITCH),
+          item('B'.repeat(9), 90, 700 - PITCH),
+          eol(90, 700 - 4 * PITCH),
+          item('C'.repeat(9), 90, 700 - 4 * PITCH),
+        ],
+      ])
+    )
+
+    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+
+    expect(result.content).toContain('\n[... PDF text truncated at parser limits')
+    expect(result.metadata?.truncated).toBe(true)
+    expect(result.content.indexOf('[...')).toBe(MAX_PDF_TEXT_CHARS + 1)
   })
 
   it('falls back to hasEOL line breaks when items carry no geometry', async () => {

@@ -12,19 +12,22 @@ import {
 import type { PdfLine } from '@/lib/file-parsers/pdf-lines'
 
 const PAGE_HEIGHT = 792
+const PITCH = 12
 
-function line(text: string, y: number): PdfLine {
-  return { text, y, height: 11 }
+function line(text: string, y: number, height = 11): PdfLine {
+  return { text, y, height }
 }
 
-/** A page with a top header, a bottom footer, and two body lines. */
+/** Body lines at a regular pitch running down from `top`. */
+function body(count: number, top: number, label = 'Body'): PdfLine[] {
+  return Array.from({ length: count }, (_, i) => line(`${label} line ${i + 1}`, top - i * PITCH))
+}
+
+/** A page with a top header, a bottom footer, and a body separated from both by a margin gap. */
 function page(index: number, options: { header?: string; footer?: string } = {}): PdfPageLines {
   const lines: PdfLine[] = []
   if (options.header) lines.push(line(options.header, 729))
-  lines.push(
-    line(`Body line one of page ${index}`, 600),
-    line(`Body line two of page ${index}`, 585)
-  )
+  lines.push(...body(40, 660, `Page ${index}`))
   if (options.footer) lines.push(line(options.footer, 55))
   return { lines, pageHeight: PAGE_HEIGHT }
 }
@@ -32,25 +35,6 @@ function page(index: number, options: { header?: string; footer?: string } = {})
 function texts(pages: PdfLine[][]): string[][] {
   return pages.map((lines) => lines.map((entry) => entry.text))
 }
-
-describe('page numbers outside the band', () => {
-  it('drops a folio that is the last line of a page even inside a wide margin', () => {
-    const page = (n: number) => ({
-      pageHeight: 842,
-      lines: [
-        { text: 'Body text of the page.', y: 700, height: 10 },
-        { text: String(n), y: 189, height: 10 },
-      ],
-    })
-    const result = suppressFurniture([page(1), page(2), page(3)])
-
-    expect(result.map((lines) => lines.map((line) => line.text))).toEqual([
-      ['Body text of the page.'],
-      ['Body text of the page.'],
-      ['Body text of the page.'],
-    ])
-  })
-})
 
 describe('suppressFurniture', () => {
   it('drops a header repeated on enough pages but keeps its first occurrence', () => {
@@ -61,7 +45,7 @@ describe('suppressFurniture', () => {
     expect(result[0]).toContain('ACME Corp — Internal Use Only')
     for (const remaining of result.slice(1)) {
       expect(remaining).not.toContain('ACME Corp — Internal Use Only')
-      expect(remaining).toHaveLength(2)
+      expect(remaining).toHaveLength(40)
     }
   })
 
@@ -114,12 +98,30 @@ describe('suppressFurniture', () => {
 
   it('drops page numbers in the bands regardless of repetition', () => {
     const pages: PdfPageLines[] = [
-      { lines: [line('Page 1 of 3', 55), line('Body', 600)], pageHeight: PAGE_HEIGHT },
-      { lines: [line('2', 55), line('Body', 600), line('iv', 729)], pageHeight: PAGE_HEIGHT },
-      { lines: [line('- 3 -', 55), line('Body', 600), line('925', 60)], pageHeight: PAGE_HEIGHT },
+      { lines: [line('Page 1 of 3', 55), ...body(3, 600)], pageHeight: PAGE_HEIGHT },
+      { lines: [line('2', 55), ...body(3, 600), line('ii', 729)], pageHeight: PAGE_HEIGHT },
+      { lines: [line('- 3 -', 55), ...body(3, 600), line('925', 60)], pageHeight: PAGE_HEIGHT },
     ]
 
-    expect(texts(suppressFurniture(pages))).toEqual([['Body'], ['Body'], ['Body', '925']])
+    const result = texts(suppressFurniture(pages))
+
+    expect(result[0]).toEqual(['Body line 1', 'Body line 2', 'Body line 3'])
+    expect(result[1]).toEqual(['Body line 1', 'Body line 2', 'Body line 3'])
+    expect(result[2]).toEqual(['Body line 1', 'Body line 2', 'Body line 3', '925'])
+  })
+
+  it('drops a folio outside the band only when a margin gap separates it from the text', () => {
+    const pages = [1, 2].map((i) => ({
+      lines: [...body(20, 700), line(`${i}`, 100)],
+      pageHeight: PAGE_HEIGHT,
+    }))
+    const tableCells = [1, 2].map(() => ({
+      lines: [...body(50, 700), line('1', 700 - 50 * PITCH)],
+      pageHeight: PAGE_HEIGHT,
+    }))
+
+    for (const kept of texts(suppressFurniture(pages))) expect(kept).toHaveLength(20)
+    for (const kept of texts(suppressFurniture(tableCells))) expect(kept).toContain('1')
   })
 
   it('ignores band text longer than the furniture cap, such as a repeated table header', () => {
@@ -135,7 +137,7 @@ describe('suppressFurniture', () => {
   it('merges same-baseline fragments into one key before matching', () => {
     const pages = [1, 2, 3, 4].map((i) => ({
       lines: [
-        line('Body', 600),
+        ...body(3, 600),
         line(`${i}`, 31.3),
         line('Chapter 1', 31.3),
         line('Publication 17 (2025)', 32.5),
@@ -145,8 +147,83 @@ describe('suppressFurniture', () => {
 
     const result = texts(suppressFurniture(pages))
 
-    expect(result[0]).toEqual(['Body', '1', 'Chapter 1', 'Publication 17 (2025)'])
-    expect(result[3]).toEqual(['Body'])
+    expect(result[0].slice(3)).toEqual(['1', 'Chapter 1', 'Publication 17 (2025)'])
+    expect(result[3]).toHaveLength(3)
+  })
+
+  it('keeps a table header that repeats at the top of every page while dropping the running header above it', () => {
+    const pages = Array.from({ length: 5 }, () => {
+      const rows = Array.from({ length: 50 }, (_, i) =>
+        line(`${1000 + i} ${2000 + i} ${3000 + i}`, 740 - (i + 1) * 8, 7.5)
+      )
+      return {
+        lines: [
+          line('2025 Tax Table — Continued', 772, 10),
+          line('Single Married filing jointly Head of household', 740, 7.5),
+          ...rows,
+          line('Need more information? Visit IRS.gov.', 31, 10),
+        ],
+        pageHeight: PAGE_HEIGHT,
+      }
+    })
+
+    const result = texts(suppressFurniture(pages))
+
+    for (const kept of result) {
+      expect(kept).toContain('Single Married filing jointly Head of household')
+    }
+    expect(result.flat().filter((text) => text === '2025 Tax Table — Continued')).toHaveLength(1)
+    expect(
+      result.flat().filter((text) => text === 'Need more information? Visit IRS.gov.')
+    ).toHaveLength(1)
+  })
+
+  it('keeps a footnote that sits directly under the body while dropping the footer below it', () => {
+    const pages = Array.from({ length: 4 }, () => ({
+      lines: [
+        ...body(52, 700),
+        line(
+          '* This column must also be used by a qualifying surviving spouse.',
+          700 - 52 * PITCH,
+          8
+        ),
+        line('Visit IRS.gov.', 30, 10),
+      ],
+      pageHeight: PAGE_HEIGHT,
+    }))
+
+    const result = texts(suppressFurniture(pages))
+
+    for (const kept of result) {
+      expect(kept).toContain('* This column must also be used by a qualifying surviving spouse.')
+    }
+    expect(result.flat().filter((text) => text === 'Visit IRS.gov.')).toHaveLength(1)
+  })
+
+  it('keeps a band line whose text also occurs in body positions', () => {
+    const pages = [1, 2, 3, 4].map((i) => ({
+      lines: [
+        line('Quarter Revenue Margin', 760),
+        ...body(40, 660),
+        ...(i === 1 ? [line('Quarter Revenue Margin', 400)] : []),
+      ],
+      pageHeight: PAGE_HEIGHT,
+    }))
+
+    for (const kept of texts(suppressFurniture(pages))) {
+      expect(kept).toContain('Quarter Revenue Margin')
+    }
+  })
+
+  it('never drops a band line that would leave a hyphenated word orphaned', () => {
+    const pages = [1, 2, 3, 4].map(() => ({
+      lines: [line('Married filing sepa-', 760), ...body(40, 660)],
+      pageHeight: PAGE_HEIGHT,
+    }))
+
+    for (const kept of texts(suppressFurniture(pages))) {
+      expect(kept).toContain('Married filing sepa-')
+    }
   })
 
   it('leaves body text alone even when it repeats', () => {
@@ -189,7 +266,8 @@ describe('isPageNumber', () => {
     expect(isPageNumber('page 3 of 10', 10)).toBe(true)
     expect(isPageNumber('3 / 10', 10)).toBe(true)
     expect(isPageNumber('7', 10)).toBe(true)
-    expect(isPageNumber('xiv', 10)).toBe(true)
+    expect(isPageNumber('xiv', 20)).toBe(true)
+    expect(isPageNumber('CD', 500)).toBe(true)
     expect(isPageNumber('— 12 —', 20)).toBe(true)
   })
 
@@ -198,6 +276,15 @@ describe('isPageNumber', () => {
     expect(isPageNumber('2120', 142)).toBe(false)
     expect(isPageNumber('Chapter 1', 10)).toBe(false)
     expect(isPageNumber('civilian', 10)).toBe(false)
+  })
+
+  it('rejects words that merely look like roman numerals', () => {
+    for (const word of ['mix', 'mild', 'civil', 'vivid', 'mimic', 'dim']) {
+      expect(isPageNumber(word, 1000)).toBe(false)
+    }
+    expect(isPageNumber('CD', 10)).toBe(false)
+    expect(isPageNumber('xiv', 10)).toBe(false)
+    expect(isPageNumber('ii', 1)).toBe(false)
   })
 })
 
