@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   enrollmentMutate: vi.fn(),
   sourceConnectionMutate: vi.fn(),
   invalidateQueries: vi.fn(),
+  connectionError: vi.fn(),
   channels: [] as Array<{
     name: string
     onmessage: ((event: MessageEvent<unknown>) => void) | null
@@ -48,24 +49,39 @@ let enrollmentTab: { location: { href: string }; closed: boolean; close: () => v
 function Harness({
   connected,
   directOAuth,
+  onConnectionError,
 }: {
   connected: ReadonlySet<string>
   directOAuth?: boolean
+  onConnectionError?: (message: string) => void
 }) {
   latest = useMemberEnrollment({
     membershipQueryKeys: [],
     connectedConnectorIds: connected,
     directOAuth,
+    onConnectionError,
   })
   return null
 }
 
-function mount(connected: ReadonlySet<string> = new Set(), directOAuth = false) {
+function mount(
+  connected: ReadonlySet<string> = new Set(),
+  directOAuth = false,
+  onConnectionError?: (message: string) => void
+) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root?.render(<Harness connected={connected} directOAuth={directOAuth} />))
+  act(() =>
+    root?.render(
+      <Harness
+        connected={connected}
+        directOAuth={directOAuth}
+        onConnectionError={onConnectionError}
+      />
+    )
+  )
 }
 
 function enrollment(): Enrollment {
@@ -107,6 +123,67 @@ afterEach(() => {
 })
 
 describe('useMemberEnrollment', () => {
+  it('reports an OAuth mismatch once per attempt and allows the same error on a later retry', () => {
+    mount(new Set(), true, mocks.connectionError)
+    for (let index = 0; index < 2; index += 1) {
+      act(() => enrollment().connect('kb-1', 'connector-1'))
+      act(() =>
+        mocks.enrollmentMutate.mock.calls[index][1].onSuccess({
+          url: 'https://provider.test/authorize',
+        })
+      )
+      act(() =>
+        mocks.channels[index].onmessage?.(new MessageEvent('message', { data: 'account_mismatch' }))
+      )
+      act(() =>
+        mocks.channels[index].onmessage?.(new MessageEvent('message', { data: 'account_mismatch' }))
+      )
+      expect(mocks.connectionError).toHaveBeenCalledTimes(index + 1)
+      expect(enrollment().isAwaiting('connector-1')).toBe(false)
+    }
+    expect(mocks.connectionError).toHaveBeenLastCalledWith(
+      'Choose the account matching your Sim email address.'
+    )
+    act(() => vi.advanceTimersByTime(10 * 60_000))
+    expect(mocks.connectionError).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not report a successful OAuth completion as an error', () => {
+    mount(new Set(), true, mocks.connectionError)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({
+        url: 'https://provider.test/authorize',
+      })
+    )
+    act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'connected' })))
+    expect(mocks.connectionError).not.toHaveBeenCalled()
+  })
+
+  it('reports a blocked popup once without starting a connection', () => {
+    mount(new Set(), true, mocks.connectionError)
+    vi.mocked(window.open).mockReturnValueOnce(null)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    expect(mocks.connectionError).toHaveBeenCalledExactlyOnceWith(
+      'Allow pop-ups for this site to connect your account.'
+    )
+    expect(mocks.enrollmentMutate).not.toHaveBeenCalled()
+  })
+
+  it.each(['existing', 'new'] as const)('reports %s source startup errors once', (source) => {
+    mount(new Set(), true, mocks.connectionError)
+    act(() => {
+      if (source === 'existing') enrollment().connect('kb-1', 'connector-1')
+      else enrollment().connectSource({ kind: 'organization', organizationId: 'org-1' }, 'jira')
+    })
+    const mutation = source === 'existing' ? mocks.enrollmentMutate : mocks.sourceConnectionMutate
+    act(() => mutation.mock.calls[0][1].onError(new Error('Connection unavailable')))
+    expect(mocks.connectionError).toHaveBeenCalledExactlyOnceWith('Connection unavailable')
+    act(() => vi.advanceTimersByTime(10 * 60_000))
+    expect(mocks.connectionError).toHaveBeenCalledOnce()
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+  })
+
   it('opens provider OAuth and waits for its own completion even if the account was already connected', () => {
     mount(new Set(['connector-1']), true)
     act(() => enrollment().connect('kb-1', 'connector-1'))

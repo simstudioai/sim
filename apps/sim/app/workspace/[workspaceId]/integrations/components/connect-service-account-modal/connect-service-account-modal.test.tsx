@@ -30,12 +30,21 @@ vi.mock('@sim/emcn', () => ({
     ),
   ChipModalFooter: ({
     primaryAction,
+    secondaryActions = [],
   }: {
     primaryAction: { label: string; onClick: () => void; disabled: boolean }
+    secondaryActions?: { label: string; onClick: () => void }[]
   }) => (
-    <button type='button' onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
-      {primaryAction.label}
-    </button>
+    <>
+      <button type='button' onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
+        {primaryAction.label}
+      </button>
+      {secondaryActions.map((action) => (
+        <button key={action.label} type='button' onClick={action.onClick}>
+          {action.label}
+        </button>
+      ))}
+    </>
   ),
   SecretInput: () => null,
 }))
@@ -70,7 +79,7 @@ const serviceAccountJson = JSON.stringify({
   project_id: 'test-project',
 })
 
-describe('Google service-account creation', () => {
+describe('service-account setup', () => {
   let container: HTMLDivElement
   let root: Root
   beforeEach(() => {
@@ -82,8 +91,39 @@ describe('Google service-account creation', () => {
     mocks.create.mockResolvedValue({ credential: { id: 'credential-1' } })
   })
   afterEach(() => {
+    vi.restoreAllMocks()
     act(() => root.unmount())
     container.remove()
+  })
+
+  it.each([
+    [undefined, 'https://docs.sim.ai/integrations/atlassian-service-account'],
+    [
+      'https://docs.sim.ai/search/confluence#using-a-service-account',
+      'https://docs.sim.ai/search/confluence#using-a-service-account',
+    ],
+  ])('opens the applicable Atlassian setup guide (%s)', (setupGuideUrl, expectedUrl) => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    act(() =>
+      root.render(
+        <ConnectServiceAccountModal
+          organizationId='org-1'
+          open
+          onOpenChange={vi.fn()}
+          serviceAccountProviderId='atlassian-service-account'
+          atlassianProduct='confluence'
+          atlassianSetupGuideUrl={setupGuideUrl}
+          serviceName='Confluence'
+          serviceIcon={() => null}
+        />
+      )
+    )
+    act(() => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Setup guide')!
+        .click()
+    })
+    expect(open).toHaveBeenCalledExactlyOnceWith(expectedUrl, '_blank', 'noopener,noreferrer')
   })
 
   it.each([{ organizationId: 'org-1' }, { workspaceId: 'workspace-1' }])(

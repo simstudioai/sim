@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode } from 'react'
+import { toast } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import { SEARCH_CONNECTORS, type SearchConnector } from '@/lib/sim-search/connectors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   availability: vi.fn(),
   refetchAvailability: vi.fn(),
   enrollment: vi.fn(),
+  enrollmentError: null as string | null,
+  setupConnector: null as SearchConnector | null,
 }))
 
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
@@ -65,7 +69,9 @@ vi.mock('@/hooks/use-member-enrollment', () => ({
       connectSearchSource: mocks.connect,
       isAwaiting: () => false,
       isPending: false,
-      error: null,
+      error: mocks.enrollmentError,
+      setupConnector: mocks.setupConnector,
+      closeSetup: vi.fn(),
     }
   },
 }))
@@ -112,6 +118,9 @@ describe('organization integrations role and source paths', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(toast, 'error').mockReturnValue('toast-id')
+    mocks.enrollmentError = null
+    mocks.setupConnector = null
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
@@ -151,6 +160,7 @@ describe('organization integrations role and source paths', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     vi.useRealTimers()
+    vi.restoreAllMocks()
     container.remove()
     vi.unstubAllGlobals()
   })
@@ -164,6 +174,32 @@ describe('organization integrations role and source paths', () => {
       (button) => button.textContent?.trim() === label
     )
   }
+
+  it.each([OrganizationIntegrations, ConnectAccountOptions])(
+    'shows connection errors in a toast without adding inline error text in %s',
+    async (Component) => {
+      const message = 'Choose the account matching your Sim email address.'
+      mocks.enrollmentError = message
+      await act(async () => root.render(<Component />))
+      const options = mocks.enrollment.mock.calls[0][0] as {
+        onConnectionError: (message: string) => void
+      }
+      act(() => options.onConnectionError(message))
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(message)
+      expect(container.textContent).not.toContain(message)
+      await act(async () => root.render(<Component />))
+      expect(toast.error).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('keeps source setup fields after a failure without duplicating the toast inside the modal', async () => {
+    const message = 'Connection unavailable'
+    mocks.enrollmentError = message
+    mocks.setupConnector = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira') ?? null
+    await render()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.body.textContent).not.toContain(message)
+  })
 
   it('uses the actual organization and only asks members to connect identity-dependent sources', async () => {
     await render()

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { toast } from '@sim/emcn'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
@@ -60,6 +61,7 @@ export function OrganizationIntegrations({
     membershipQueryKeys,
     connectedConnectorIds,
     directOAuth: true,
+    onConnectionError: toast.error,
   })
 
   return (
@@ -121,9 +123,6 @@ export function OrganizationIntegrations({
             <SearchSourcePagination {...sources} />
           </>
         ) : null}
-        {enrollment.error && (
-          <p className='text-[var(--text-error)] text-caption'>{enrollment.error}</p>
-        )}
       </div>
       <ConnectAccountOptions
         search={sourceSearch}

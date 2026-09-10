@@ -7,22 +7,20 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search issue titles, descriptions, and metadata from selected Jira Cloud projects. An organization admin sets up the source; each teammate connects their own Jira account to search the issues they can access.
+Search issue titles, descriptions, and metadata from selected **Jira Cloud** projects. An organization admin approves Jira and defines the source; **each teammate connects their own Jira account** to search issues they can access.
 
-This Search connector uses **Member accounts**. It does not offer a central admin crawl. Comments, attachment contents, dashboards, and saved filters are not indexed.
-
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Jira Search uses **Member accounts**. Service accounts are supported for Jira workflows, but do not provide a central Jira Search crawl. Comments, attachment contents, dashboards, and saved filters are not indexed.
 
 ## Before you start
 
-- A **Sim organization admin** must approve Jira. An admin can configure the source beforehand, or the first member connection can supply the required site and project settings.
-- Use an Atlassian Cloud site such as `your-team.atlassian.net`. Jira Server and Data Center are not supported by this connector.
-- Each person needs a verified Sim email matching the email on their active Atlassian account, plus access to the selected Jira site and projects. Jira's **Browse Projects** and issue security permissions still determine which issues they can search.
+- A **Sim organization admin** must approve Jira. The admin can configure the source, or the first member connection can supply its site and projects.
+- Use a Cloud site hostname such as `your-team.atlassian.net`. Server and Data Center are not supported.
+- Each person needs a verified Sim email matching their active Atlassian account's email, plus access to the selected site and projects. Jira's Browse Projects and issue security permissions determine the issues they can search.
 
-On hosted Sim, teammates authorize the existing Sim app. They do not create an Atlassian app or API token. Deployment owners running their own Sim instance configure the [shared OAuth app](#self-hosted-operator-setup) once.
+On hosted Sim, teammates authorize Sim's existing app. Self-hosted deployments configure the [shared OAuth app](#self-hosted-operator-setup) once.
 
 <Callout type="info">
-Sim uses its existing Jira OAuth integration. Search uses `read:jira-work` to read issues, `read:me` to identify the connected person, and `offline_access` to refresh the connection. The authorization screen also includes permissions for other Jira features, including writes. Review the requested permissions before authorizing.
+Search uses `read:jira-work`, `read:me`, and `offline_access` for issues, identity, and refresh. Sim's shared Jira app also requests permissions for workflow actions, including writes and deletes. Review the consent screen before authorizing.
 </Callout>
 
 ## Set up the source
@@ -32,22 +30,20 @@ Sim uses its existing Jira OAuth integration. Search uses `read:jira-work` to re
 
 ### Choose Jira
 
-Open **Settings → Sources** and turn on **Jira**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Jira sources use member accounts.
+Open your organization's **Settings → Sources**, turn on **Jira**, then select **Set up** (or **Manage**) → **Add source**.
 
 </Step>
 <Step>
 
 ### Choose the projects
 
-Under **Account for browsing**, select an account or choose **Connect Jira account** and complete Atlassian authorization. Enter **Jira Domain**, then choose one or more **Projects**.
-
-If you already know the project keys, use the switch beside **Projects** to select manual input and enter keys such as `ENG, SUPPORT`. Manual input lets you configure the source without connecting a browsing account first.
+Enter **Jira Domain**. Under **Account for browsing**, select an account or choose **Connect Jira account**, then select **Projects**. To enter keys such as `ENG, SUPPORT` manually, use the switch beside Projects; this works without a browsing account.
 
 **Account for browsing** only populates the project picker. You can use OAuth or **Add service account** for this step; neither enrolls that account for Search or enables central indexing. Each teammate still connects their own Jira account.
 
 <Image className="mx-auto h-auto w-full max-w-md"
   src="/static/search/jira-setup.jpg"
-  alt="Jira source setup with an account for browsing and required site and project fields"
+  alt="Jira source setup with an account for browsing, site domain, and projects"
   width={520}
   height={397}
 />
@@ -55,89 +51,58 @@ If you already know the project keys, use the switch beside **Projects** to sele
 </Step>
 <Step>
 
-### Create the source
+### Save the source
 
-Open **More options** for **JQL Filter** and **Metadata tags**. Leave JQL empty to include all accessible issues in the selected projects, or add a condition such as `status = "Done"`.
+Under **More options**, optionally set a **JQL Filter**, such as `status = "Done"`, and choose **Metadata tags**. Leave JQL empty for all accessible issues in the selected projects. Enter conditions only; omit `ORDER BY` because Sim supplies sorting.
 
-Click **Add source**. The source appears on Jira's **Sources** tab. Creating it does not authorize accounts or send invitations.
+Select **Add source**. This saves the shared scope; it does not authorize accounts or send invitations.
 
 </Step>
 <Step>
 
 ### Connect your search account
 
-Open **Integrations** in the main sidebar and click **Connect** on the Jira source. Complete the connection in the new tab using the Atlassian email that matches your verified Sim email. Select the configured Atlassian site when asked and grant the requested permissions.
+Open **Integrations** in the main sidebar and select **Connect** on the Jira source. In the new tab, authorize the configured site using the Atlassian email matching your verified Sim email.
 
-Return to Integrations to see connection and indexing status. Each teammate follows this same step. A previously authorized account may already be connected.
+Each teammate follows this step. An existing authorized account may already be connected. Return to Integrations to check indexing status and your searchable document count.
 
 </Step>
 </Steps>
 
-## Configuration
+For workspace Search, start from **Search → Add source**; its source-creation button is **Create & Invite**. Search manages the sync schedule and hides item limits.
 
-| Setting | What to enter |
-| --- | --- |
-| **Jira Domain** | The Cloud site hostname, such as `your-team.atlassian.net`. Use the same site during authorization. |
-| **Projects / Project Keys** | One or more projects. The picker shows projects available to the browsing account; manual input accepts comma-separated keys. |
-| **JQL Filter** | Optional conditions that narrow the selected projects. Leave out `ORDER BY`; Sim supplies the sorting. |
-| **Metadata tags** | Optional issue type, status, priority, labels, assignee, and last-updated tags. In the add-source form, these are under **More options**. |
+## Manage the source
 
-Search manages the sync schedule. Item limits and sync frequency are not setup decisions on this page.
+Admins open **Settings → Sources → Jira → Manage**, then a source's **Documents**, **Settings**, or **Sync history**. Settings include the site, projects, JQL filter, and optional issue type, status, priority, labels, assignee, and last-updated tags.
 
-## Teammates and ongoing sync
+Teammates share the configured scope and do not choose projects again. For another site or scope, add another source, or use **Connect** beside **Connect a different site or content scope** in Integrations.
 
-Existing organization members see the same source configuration and their own **Connect**, **Reconnect**, or indexing status. They do not choose projects again. Invite new teammates to the Sim organization through its Members settings or SSO onboarding, then have them open Integrations and connect Jira. A Jira authorization does not grant Sim organization membership.
+Invite new teammates to the Sim organization through Members settings or SSO, then have them connect Jira. **Jira → Accounts → Request connections** requests a provider connection; it does not add people to the organization.
 
-Sim checks Jira separately using each connected person's account. Issue content and tags become searchable as processing finishes; changes and lost issue access are picked up by later syncs. The main Integrations page reports documents searchable by the current viewer. Admins open **Settings → Sources**, select **Manage** beside **Jira**, then open the source for **Documents**, **Settings**, and **Sync history**.
-
-Use **Jira → Accounts → Request connections** to send Jira connection requests. These requests do not invite people into the Sim organization. For a different site or project scope, an admin can add another source; members can also select **Connect** beside the Jira row labeled **Connect a different site or content scope** in Integrations.
+Sim checks Jira separately for each connected person. Content becomes searchable as indexing finishes; issue changes and lost access are reflected after later syncs.
 
 ## Troubleshooting
 
-| What you see | What to do |
+| Problem | What to check |
 | --- | --- |
-| No provider setup controls | Ask a Sim organization admin to approve and set up Jira. |
-| Projects are empty or disabled | Enter the domain and connect a browsing account, or switch to manual project keys. Check that the account can browse those projects. |
-| Connected, but no issues | Confirm the authorized site matches the configured domain. Check project access, issue security, and the JQL filter. An admin's Jira access does not grant access to other members. |
-| Email mismatch | Sign in to Atlassian with the same email as your verified Sim account. If switching accounts in Jira does not help, log out of Atlassian and sign in again before retrying **Connect**. |
-| Atlassian says the callback URL is invalid | Ask the deployment operator to check the OAuth app identified by `JIRA_CLIENT_ID`. Its saved callback must exactly match the authorization request's `redirect_uri`, including scheme, hostname, port, and `/api/auth/oauth2/callback/jira` path. |
-| **Reconnect** | Reauthorize the Jira account and grant all requested permissions. This is needed after a grant is revoked or its required permissions change. |
-| Connection tab does not open | Allow pop-ups for Sim, then click **Connect** again. |
+| No source setup controls | Ask a Sim organization admin to approve Jira. |
+| Projects are empty or disabled | Enter the correct domain, connect a browsing account with project access, or switch to manual keys. |
+| Connected, but no issues | Check the authorized site, project access, issue security, and JQL. An admin's Jira access does not grant access to teammates. |
+| Email mismatch | Use the Atlassian email matching your verified Sim email. If switching accounts fails, sign out of Atlassian and retry **Connect**. |
+| **Reconnect** | Reauthorize and grant all requested permissions. A revoked grant or changed scope list can require a new connection. |
+| Connection tab does not open | Allow pop-ups for Sim and retry. |
+| Invalid callback URL | Ask the operator to check the app identified by `JIRA_CLIENT_ID`; its callback must exactly match Sim's `redirect_uri`. See operator setup below. |
 
-### Check access in Jira
-
-First, open a missing issue in Jira using the same account you connected to Sim. If you cannot open it there, ask a Jira admin to check its project permissions and issue security.
-
-For company-managed projects, an admin can open **Settings → System → Admin Helper → Permission Helper**, enter the affected user and issue key, and check **Browse Projects**. The result explains which permission condition failed. Fix access in Jira, then let the next Sim sync finish. See Atlassian's [Permission Helper instructions](https://support.atlassian.com/jira-cloud-administration/docs/check-a-users-access-from-a-work-item/) and [illustrated permissions tutorial](https://www.atlassian.com/software/jira/guides/permissions/tutorials).
-
-<Image className="mx-auto h-auto w-full max-w-xl"
-  src="https://dam-cdn.atl.orangelogic.com/AssetLink/3ud2hh403t5og84cwcs2kp38cd6dn0d3.png"
-  alt="Atlassian illustration of Jira's Permission helper with User and Issue fields and Browse Projects selected"
-  width={2880}
-  height={1350}
-  unoptimized
-/>
-
-Atlassian illustration from its [permissions tutorial](https://www.atlassian.com/software/jira/guides/permissions/tutorials). UI labels may vary by Jira version.
+Open a missing issue in Jira using the connected account. For company-managed projects, an admin can check **Settings → System → Admin Helper → Permission Helper → Browse Projects**, using the affected user and issue key. Resolve Jira access first, then sync again. See [Atlassian's Permission Helper instructions](https://support.atlassian.com/jira-cloud-administration/docs/check-a-users-access-from-a-work-item/).
 
 ## Self-hosted operator setup
 
-The deployment operator configures one shared Jira OAuth integration. Teammates continue to start **Connect** from Sim.
+Configure one shared Jira OAuth app for the deployment:
 
-1. Open the [Atlassian developer console](https://developer.atlassian.com/console/myapps/) and select your deployment's **OAuth 2.0 integration**, or create one for the deployment.
-2. Under **Authorization**, configure **OAuth 2.0 (3LO)**. Add `https://<your-sim-domain>/api/auth/oauth2/callback/jira` to **Callback URLs**, keeping any callbacks already used by your deployment, then save.
+1. In the [Atlassian developer console](https://developer.atlassian.com/console/myapps/), select or create an **OAuth 2.0 integration**.
+2. Under **Authorization → OAuth 2.0 (3LO)**, save `https://<your-sim-domain>/api/auth/oauth2/callback/jira` as a callback, preserving callbacks used by other deployments.
+3. Under **Permissions**, add **Jira API** and configure the full `jira` scope list from [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts), including its Jira Service Management and Assets scopes. Add **User Identity API → read:me**. Sim requests `offline_access` for refresh tokens; Search's three scopes above are only a subset of this shared app's permissions.
+4. Enable sharing under **Distribution**. Set `JIRA_CLIENT_ID` and `JIRA_CLIENT_SECRET` from the app's **Settings**, verify `NEXT_PUBLIC_APP_URL`, and restart Sim.
+5. Connect from **Integrations** and select the configured site. After changing the OAuth client or requested scopes, use **Settings → Sources → More → Refresh connection settings**, then have affected teammates reconnect.
 
-   <Image className="mx-auto h-auto w-full max-w-md"
-     src="/static/search/atlassian-oauth-callback.png"
-     alt="Atlassian OAuth Authorization form with an example Sim Jira callback URL"
-     width={768}
-     height={929}
-   />
-
-   Example callback in Atlassian's developer console. Replace `sim.example.com` with your Sim domain.
-
-3. Under **Permissions**, add **Jira API**, then **Configure** its classic and granular scopes for Jira, Jira Service Management, and Assets. Separately add **User Identity API** with `read:me`. Sim requests `offline_access` in the authorization URL for refresh tokens. Configure the full `jira` scope list for your release in [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts); the Search read scopes above are only a subset of this shared integration's permissions.
-4. Under **Distribution**, enable sharing so teammates can authorize the app. Copy the client ID and secret from **Settings** into `JIRA_CLIENT_ID` and `JIRA_CLIENT_SECRET`, set the correct `NEXT_PUBLIC_APP_URL`, and restart Sim.
-5. Start a connection from **Integrations**. Confirm that Atlassian lists the intended site, then return to Sim. After changing the deployment's OAuth client or requested scopes, an organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected teammates reconnect.
-
-For a local instance using `NEXT_PUBLIC_APP_URL=http://localhost:3000`, register `http://localhost:3000/api/auth/oauth2/callback/jira`. Use a separate development OAuth app when production callbacks must remain unchanged. After updating local client credentials or the app URL, restart Sim and begin a new connection from **Integrations**. If only the app owner can connect, check **Distribution**. See Atlassian's [OAuth configuration and sharing guide](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) and Sim's [deployment reference](/platform/self-hosting/integrations-oauth).
+The callback must match exactly, including scheme, hostname, port, and path. For `http://localhost:3000`, register `http://localhost:3000/api/auth/oauth2/callback/jira`. Use a separate development app when production callbacks must stay unchanged. If only the app owner can connect, check **Distribution**. See the [Atlassian OAuth guide](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) and [Sim deployment reference](/platform/self-hosting/integrations-oauth).

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, toast } from '@sim/emcn'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import {
   connectorDisplayName,
@@ -64,6 +64,7 @@ export function ConnectAccountOptions({
     membershipQueryKeys,
     connectedConnectorIds,
     directOAuth: true,
+    onConnectionError: toast.error,
   })
   const visibleSources =
     sources.data?.filter(
@@ -206,15 +207,11 @@ export function ConnectAccountOptions({
             {search ? 'No matching integrations.' : 'No integrations are available to connect.'}
           </SettingsEmptyState>
         ) : null}
-        {enrollment.error && (
-          <p className='text-[var(--text-error)] text-caption'>{enrollment.error}</p>
-        )}
       </div>
       {enrollment.setupConnector && (
         <SourceSetupModal
           connector={enrollment.setupConnector}
           isPending={enrollment.isPending}
-          error={enrollment.error}
           onClose={enrollment.closeSetup}
           onConnect={(config) =>
             enrollment.connectSource(scope, enrollment.setupConnector!.type, config)
