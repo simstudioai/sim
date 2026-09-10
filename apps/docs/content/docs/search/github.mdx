@@ -5,6 +5,7 @@ description: Index repository files with a GitHub App while preserving each pers
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
 
 GitHub Search indexes text files from repositories on `github.com`. An organization admin can install the GitHub App once and use it to index selected repositories. Each person connects their own GitHub account once to search the repositories they can access. Installing the App does not connect teammates or give them the installer's permissions.
 
@@ -34,9 +35,13 @@ Open **Settings → Sources** and turn on **GitHub**. Select **Set up** (or **Ma
 
 In **Sync documents with**, choose **Connect GitHub App** to index through an installation:
 
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-indexing-options.jpg" alt="GitHub source setup with indexing choices for connected members, a GitHub account, or a GitHub App" width={402} height={240} />
+
 1. Select **Connect your GitHub account** if prompted. Finish authorization in the new tab, then return and select **Refresh**.
 2. Select **Install GitHub App**. Choose your GitHub account or organization and the repositories to include. If it is already installed, check its repository selection.
 3. Return to Sim and select **Refresh**. Choose the installation and select **Use installation**. Only installations on your own account or organizations you own are available.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-installation-connect.jpg" alt="Connect GitHub App dialog requiring a personal GitHub connection to verify manageable installations" width={402} height={210} />
 
 The installation is now selected under **Sync documents with**. You can reuse it when adding another repository source in the same Sim organization.
 
@@ -50,6 +55,8 @@ Alternatively, leave **Connected members** selected to use members' accounts for
 Enter **Repository** as `owner/repo`. For installation indexing, it must belong to the installation's account and be included in the repositories granted to the App. Add one source per repository; installing on all repositories does not automatically create sources for them.
 
 Open **More options** if you need a different branch, path or extension filters, or metadata tags.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-setup.jpg" alt="GitHub repository configuration with branch, path filter, file extensions, and metadata tags" width={402} height={532} />
 
 | Field | What to enter |
 |---|---|

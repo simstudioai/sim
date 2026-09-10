@@ -195,7 +195,9 @@ GITHUB_APP_CLIENT_SECRET=<Client secret>
 GITHUB_APP_PRIVATE_KEY=<complete RSA PEM private key>
 ```
 
-The private key must include its PEM header, footer, and contents. Sim accepts actual newlines or escaped `\n` sequences. Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
+The private key must include its PEM header, footer, and contents. Sim accepts actual newlines or escaped `\n` sequences. When storing it in a JSON secret, use the plaintext JSON editor and encode each line break as `\n` inside the string. Single-line key/value fields can remove line breaks; replacing them with spaces makes the PEM invalid. Restart Sim after saving configuration changes.
+
+Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
 
 The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
 
