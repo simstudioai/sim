@@ -9,6 +9,8 @@ vi.mock('@/components/icons', () => ({
   GmailIcon: () => null,
   GoogleCalendarIcon: () => null,
   GoogleDriveIcon: () => null,
+  JiraIcon: () => null,
+  ConfluenceIcon: () => null,
 }))
 
 import { describeSearchSource, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
@@ -17,9 +19,11 @@ import {
   type UseConnectorConfigFieldsResult,
   useConnectorConfigFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
+import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorMeta } from '@/connectors/types'
 
 describe('useConnectorConfigFields member configuration', () => {
@@ -276,6 +280,36 @@ describe('useConnectorConfigFields member configuration', () => {
     act(() => current.setSourceConfig({}))
     expect(current.selectionLabels).toEqual({})
   })
+
+  it.each([
+    [jiraConnectorMeta, 'projectKey', 'projectSelector'],
+    [confluenceConnectorMeta, 'spaceKey', 'spaceSelector'],
+  ] as const)(
+    'carries the current $0.name keys between picker and manual entry',
+    (meta, canonicalId, selectorId) => {
+      render({ connectorConfig: meta, accessMode: 'members' })
+      act(() => current.handleFieldChange('domain', 'team.atlassian.net'))
+      act(() =>
+        current.handleFieldChange(
+          selectorId,
+          ['ENG', 'SUPPORT'],
+          [{ id: 'ENG', label: 'Engineering' }]
+        )
+      )
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'SUPPORT'])
+      expect(current.selectionLabels[canonicalId]).toEqual([{ id: 'ENG', label: 'Engineering' }])
+      act(() => current.handleFieldChange(canonicalId, 'ENG, PRODUCT'))
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.sourceConfig[selectorId]).toEqual(['ENG', 'PRODUCT'])
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'PRODUCT'])
+      expect(current.selectionLabels).toEqual({})
+      act(() => current.handleFieldChange('domain', 'other.atlassian.net'))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
+    }
+  )
 
   it('clears dependent selector labels together with their values', () => {
     const meta: ConnectorMeta = {

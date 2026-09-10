@@ -73,11 +73,11 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
       <ChipConfirmModal
         open={removal.open}
         onOpenChange={removal.onOpenChange}
-        title='Remove source'
+        title='Remove connection'
         text={
           removal.syncsPerMember
-            ? 'This disconnects the source, stops future syncs, and deletes its member documents.'
-            : 'This disconnects the source and stops future syncs. Synced documents remain unless you delete them below.'
+            ? 'This removes the connection, stops future syncs, and deletes its member documents.'
+            : 'This removes the connection and stops future syncs. Synced documents remain unless you delete them below.'
         }
         confirm={{
           label: 'Remove',

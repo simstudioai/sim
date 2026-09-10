@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Search email threads from your Gmail account. Members can connect their own accounts, or an administrator can index Google Workspace mailboxes with a service account. In either case, each mailbox stays private to its owner.
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead.
 
 ## Choose your setup
 
@@ -29,34 +29,34 @@ Central indexing does not make email searchable by the administrator, other reci
 
 ### Allow Gmail
 
-Open **Settings → Sources** and turn on **Gmail**. This allows personal connections; it does not connect anyone's account.
+An admin selects **Settings → Sources → Add source → Gmail**, chooses **Sync using → Member accounts**, sets any filters, and selects **Set up member accounts**.
 
 </Step>
 <Step>
 
 ### Connect your account
 
-Join the Sim organization, then open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The first connection creates the default sync configuration: the last 6 months across all labels, excluding Promotions, Social, Spam, and Trash. Return to Integrations to see indexing status and your searchable document count.
+Join the Sim organization, then open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The default filters cover the last 6 months across all labels, excluding Promotions, Social, Spam, and Trash. Return to Integrations to see indexing status and your searchable document count.
 
 </Step>
 <Step>
 
 ### Adjust filters if needed
 
-An admin selects **Manage** beside Gmail in **Settings → Sources**, opens **Advanced**, then selects the configuration's **Settings** tab. Change **Labels**, **Date Range**, or other filters and save.
+An admin opens **Settings → Sources → Gmail**, selects the connection, then selects the connection's **Settings** tab. Change **Labels**, **Date Range**, or other filters and save.
 
-One member-account configuration is usually enough. Its filters apply to all active Gmail connections, including accounts connected later. It does not assign different filters to selected people or let teammates search each other's mail. **Add sync configuration** opens the [central service-account setup](#set-up-a-central-service-account); it does not edit this member configuration.
+One member-account connection is usually enough. Its filters apply to all active Gmail connections, including accounts connected later. It does not assign different filters to selected people or let teammates search each other's mail. **Connect service account** opens the [central service-account setup](#set-up-a-central-service-account); it does not edit this member connection.
 
-Configurations are additive: a narrower one does not restrict an existing broader one, and overlapping configurations can index the same thread more than once. For one organization-wide policy, edit the existing configuration.
+Connections are additive: a narrower one does not restrict an existing broader one, and overlapping connections can index the same thread more than once. For one organization-wide policy, edit the existing connection.
 
 </Step>
 </Steps>
 
-Admins can request member connections from **Manage → Accounts → Request connections**. These requests do not invite recipients to the Sim organization. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
+Admins can request member connections from **Settings → Sources → People → Request connections** (filter by the integration first). These requests do not invite recipients to the Sim organization. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
 
 ## Set up a central service account
 
-Open **Settings → Sources**, enable **Gmail**, and select **Manage → Advanced → Add sync configuration**. If personal connections are disabled for your organization, select **Add source** from the provider page instead.
+Open **Settings → Sources → Add source** and select **Gmail**. This opens **Connect Gmail service account**. To add another connection later, open **Gmail** from the Sources list and select **Connect service account**.
 
 This requires Google Workspace and a Workspace super administrator to authorize delegation. Consumer Gmail accounts cannot use this path. Each selected user must have Gmail enabled.
 
@@ -91,7 +91,7 @@ If your organization requires multi-party approval, another super administrator 
 
 ### Configure Gmail in Sim
 
-Under **Indexing account**, select **Add service account** and paste the JSON key into **Add Google Service Account**, or select an existing service account. Set **Directory administrator email** to an active Workspace administrator who can read users in the Directory API. This account supplies directory access; each mailbox is read using that mailbox owner's delegated identity.
+Under **Service account**, select **Add service account** and paste the JSON key into **Add Google Service Account**, or select an existing service account. Set **Directory administrator email** to an active Workspace administrator who can read users in the Directory API. This account supplies directory access; each mailbox is read using that mailbox owner's delegated identity.
 
 Keep the default **Date Range** of **Last 6 months**, or adjust it and **Labels**. Use label names or system IDs such as `INBOX`; custom `Label_…` IDs are mailbox-specific. A label that does not exist in one mailbox simply matches no threads there.
 
@@ -104,9 +104,9 @@ Teammates join the Sim organization with their matching verified primary email. 
 
 ## Source options
 
-An admin opens **Settings → Sources** and selects **Manage** beside **Gmail** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. Filters apply separately to each mailbox in the source. **Documents** shows indexed threads and **Sync history** shows recent runs.
+An admin opens **Settings → Sources → Gmail** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a connection's **Settings** tab to edit its filters, then select **Save**. Filters apply separately to each mailbox in the connection. **Documents** shows indexed threads and **Sync history** shows recent runs.
 
-**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Indexing account** and select **Change indexing account**.
+**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Service account** and select **Change service account**.
 
 | Option | Behavior |
 | --- | --- |
@@ -155,7 +155,7 @@ Member-account connections use the deployment's Google OAuth client below. Centr
 1. In [Google Cloud Console](https://console.cloud.google.com/), select your project. Open **APIs & Services → Library**, find **Gmail API**, and enable it.
 2. Open **Google Auth platform → Branding**. Select **Get started** if needed, then enter the app name, support email, and contact email. Under **Audience**, use **Internal** only for an app limited to your Google Workspace organization; otherwise use **External** and add test users while testing. Review the app's permissions under **Data Access → Add or remove scopes**, using the current Sim scopes below. Follow Google's [consent and verification guidance](https://developers.google.com/workspace/guides/configure-oauth-consent) for your audience.
 3. Open **Google Auth platform → Clients → Create client**. Choose **Web application**, give the client a name, and add the URI below under **Authorized redirect URIs**. If this instance already has a Google client, add this URI to that client instead. See [Google's credential setup](https://developers.google.com/workspace/guides/create-credentials#web-application).
-4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected teammates reconnect.
+4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Update sign-in settings**, then affected teammates reconnect.
 
 ```text
 https://<your-sim-domain>/api/auth/oauth2/callback/google-email

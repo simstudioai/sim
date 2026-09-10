@@ -312,7 +312,12 @@ export function useRevokeOrganizationAccountEnrollment() {
         params: { id: organizationId, enrollmentId },
       }),
     onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
+      Promise.all([
+        resetOrganizationSearchAccess(queryClient, organizationId),
+        queryClient.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(organizationId),
+        }),
+      ]),
   })
 }
 export function useAddOrganizationAccountMcpProvider() {

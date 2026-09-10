@@ -70,7 +70,7 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
 
   if (!viewer.isAdmin)
     return (
-      <SettingsPanel back={back} title='Search source'>
+      <SettingsPanel back={back} title='Connection'>
         <SettingsEmptyState variant='inline'>
           Only organization admins can manage sources.
         </SettingsEmptyState>
@@ -89,17 +89,17 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
   )
   if (failedQuery && (!hasCanonicalDetail || accessFailure))
     return (
-      <SettingsPanel back={back} title='Search source'>
+      <SettingsPanel back={back} title='Connection'>
         {isApiClientError(failedQuery.error) && failedQuery.error.status === 404 ? (
           <SettingsEmptyState variant='inline'>
-            This source is no longer available.
+            This connection is no longer available.
           </SettingsEmptyState>
         ) : (
           <SettingsQueryErrorState
             error={failedQuery.error}
             isRetrying={failedQuery.isFetching}
             onRetry={() => void failedQuery.refetch()}
-            fallback='Could not load source'
+            fallback='Could not load connection'
             variant='inline'
           />
         )}
@@ -107,9 +107,9 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
     )
   if (!index.isPending && !knowledgeBaseId)
     return (
-      <SettingsPanel back={back} title='Search source'>
+      <SettingsPanel back={back} title='Connection'>
         <SettingsEmptyState variant='inline'>
-          This source is no longer available.
+          This connection is no longer available.
         </SettingsEmptyState>
       </SettingsPanel>
     )
@@ -120,8 +120,8 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
     detail.data.knowledgeBaseId !== knowledgeBaseId
   )
     return (
-      <SettingsPanel back={back} title='Search source'>
-        <SettingsEmptyState variant='inline'>Loading source…</SettingsEmptyState>
+      <SettingsPanel back={back} title='Connection'>
+        <SettingsEmptyState variant='inline'>Loading connection…</SettingsEmptyState>
       </SettingsPanel>
     )
   return (
@@ -137,7 +137,7 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
             error={failedQuery.error}
             isRetrying={failedQuery.isFetching}
             onRetry={() => void failedQuery.refetch()}
-            fallback='Could not refresh source'
+            fallback='Could not refresh connection'
             variant='inline'
           />
         ) : undefined
@@ -184,7 +184,7 @@ function SourceDetailContent({
   const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
   const title = meta
     ? describeSearchSource(meta, connector.sourceConfig) || meta.name
-    : 'Search source'
+    : 'Connection'
   const { effectiveStatus, lastSyncError } = getConnectorSyncState(connector)
   const status =
     effectiveStatus === 'paused'
@@ -209,7 +209,7 @@ function SourceDetailContent({
     return (
       <SettingsPanel
         back={{ text: backText, icon: ArrowLeft, onSelect: onBack }}
-        title='Search source'
+        title='Connection'
       >
         <SettingsQueryErrorState
           error={integrations.error}
@@ -241,15 +241,6 @@ function SourceDetailContent({
           description='Its content is unavailable in Search, Assistant, and MCP.'
         />
       )}
-      {connector.accessMode === 'members' && (
-        <SettingsResourceRow
-          title='Search accounts'
-          description='Each person connects from Integrations to sync content they can access.'
-          href={organizationRoutes(organization.id).integrations}
-          clickLabel='Manage your Search accounts'
-          navigable
-        />
-      )}
     </>
   )
   if (view === 'settings')
@@ -279,8 +270,8 @@ function SourceDetailContent({
       <SourceNavigation view={view} onViewChange={onViewChange} />
       {effectiveStatus === 'active' && lastSyncError && (
         <SettingsResourceRow
-          title='Some source updates are incomplete'
-          description='Review the source settings and try syncing again.'
+          title='Some connection updates are incomplete'
+          description='Review the connection settings and try syncing again.'
         />
       )}
       <ConnectorRecovery
@@ -326,7 +317,7 @@ function SourceNavigation({ view, onViewChange }: SourceNavigationProps) {
         tabs={SOURCE_VIEWS}
         value={view}
         onChange={onViewChange}
-        aria-label='Source views'
+        aria-label='Connection views'
       />
     </div>
   )

@@ -6,6 +6,8 @@ import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
+  /** Trusted entry point for Search metering; never read from model arguments. */
+  searchSurface?: 'copilot' | 'slack'
   mcpBlockId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
   userId: string

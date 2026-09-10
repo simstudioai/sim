@@ -119,6 +119,31 @@ describe('Assistant retrieval tools', () => {
     })
   })
 
+  it.each([
+    { searchSurface: undefined, expected: 'copilot' },
+    { searchSurface: 'slack' as const, expected: 'slack' },
+  ])(
+    'attributes organization searches to trusted $expected provenance',
+    async ({ searchSurface, expected }) => {
+      const result = await searchWorkspaceServerTool.execute(
+        { query: 'policy', surface: 'api', searchSurface: 'api' },
+        {
+          ...context,
+          workspaceId: undefined,
+          organizationId: 'org-1',
+          chatId: 'chat-1',
+          requestMode: 'assistant',
+          searchSurface,
+        }
+      )
+      expect(result).toMatchObject({ success: true })
+      expect(mocks.search).toHaveBeenCalledWith({
+        principal: expect.objectContaining({ organizationId: 'org-1', subjectUserId: 'reader' }),
+        input: expect.objectContaining({ surface: expected, organizationId: 'org-1' }),
+      })
+    }
+  )
+
   it('rejects a removed member or another private chat before reading documents', async () => {
     mocks.authorizeChat.mockRejectedValueOnce(new Error('Conversation not found'))
     const result = await readDocumentServerTool.execute(

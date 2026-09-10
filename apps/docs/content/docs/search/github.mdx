@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 GitHub Search indexes text files from repositories on `github.com`. An organization admin can install the GitHub App once and use it to index selected repositories. Each person connects their own GitHub account once to search the repositories they can access. Installing the App does not connect teammates or give them the installer's permissions.
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. Installation indexing is available for organization Search. For workspace Search, use **Search → Add source** with member accounts or a dedicated user account; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. Installation indexing is available for organization Search. For workspace Search, use **Search → Add source** with member accounts or a dedicated user account.
 
 ## Before you start
 
@@ -26,7 +26,7 @@ To connect an installation for central indexing, you must be a Sim organization 
 
 ### Open GitHub setup
 
-Open **Settings → Sources** and turn on **GitHub**. Select **Set up** (or **Manage** if sources already exist), then **Add source**.
+Open **Settings → Sources → Add source** and select **GitHub**. This opens **Add GitHub repository**. Add one repository per connection; to add another, open **GitHub** from the Sources list and select **Add repository**.
 
 </Step>
 <Step>
@@ -34,8 +34,6 @@ Open **Settings → Sources** and turn on **GitHub**. Select **Set up** (or **Ma
 ### Choose how to index
 
 In **Sync documents with**, choose **Connect GitHub App** to index through an installation:
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-indexing-options.jpg" alt="GitHub source setup with indexing choices for connected members, a GitHub account, or a GitHub App" width={402} height={240} />
 
 1. Select **Connect your GitHub account** if prompted. Finish authorization in the new tab, then return and select **Refresh**.
 
@@ -55,20 +53,18 @@ Alternatively, leave **Connected members** selected to use members' accounts for
 
 ### Choose what to index
 
-Enter **Repository** as `owner/repo`. For installation indexing, it must belong to the installation's account and be included in the repositories granted to the App. Add one source per repository; installing on all repositories does not automatically create sources for them.
+Enter **Repository** as `owner/repo`. For installation indexing, it must belong to the installation's account and be included in the repositories granted to the App. Add one connection per repository; installing on all repositories does not automatically add them to Search.
 
 Open **More options** if you need a different branch, path or extension filters, or metadata tags.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-setup.jpg" alt="GitHub repository configuration with branch, path filter, file extensions, and metadata tags" width={402} height={532} />
-
 | Field | What to enter |
 |---|---|
-| Repository | `owner/repo`. Add another source for another repository. |
+| Repository | `owner/repo`. Use **Add repository** for another repository. |
 | Branch | Optional. Leave blank to follow the repository's default branch. |
 | Path Filter | Optional prefix such as `docs/`. |
 | File Extensions | Optional comma-separated list, such as `.md, .txt, .mdx`. |
 
-**Metadata tags** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Add source** to save the source.
+**Metadata tags** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Add repository** to save the connection.
 
 </Step>
 <Step>
@@ -79,9 +75,9 @@ Open **Integrations** in the main sidebar, select **Connect** on the GitHub sour
 
 An App installation or dedicated indexing account can start syncing after the source is saved. With **Connected members**, indexing begins after someone connects. Each teammate still connects before searching. An existing GitHub connection in the same Sim organization is reused across its GitHub sources.
 
-Open **Settings → Sources**, select **Manage** beside **GitHub**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**.
+Open **Settings → Sources**, open **GitHub**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**.
 
-Use **GitHub → Accounts → Request connections** to send provider-specific connection requests. These requests do not grant organization membership. For another repository, add another source; members can also select **Connect** beside the GitHub row labeled **Connect a different site or content scope** in Integrations.
+Use **Settings → Sources → People**, filter by **GitHub**, then select **Request connections** to send provider-specific connection requests. These requests do not grant organization membership. For another repository, add another source; members can also select **Connect** beside the GitHub row labeled **Connect a different site or content scope** in Integrations.
 
 </Step>
 </Steps>
@@ -106,7 +102,7 @@ This is an installation plus personal authorization flow. GitHub Search does not
 | Identity verification fails | Verify the email used by your Sim account in GitHub's email settings, then reconnect. A public profile email alone is insufficient. |
 | Authorization fails after installation | Return to Sim and start **Connect** there. Do not enable authorization during installation. |
 | Account authorization did not complete | Start the connection again from Sim. If it repeats, contact your organization admin or Sim support. For self-hosted Sim, check the [App callback and credentials](/platform/self-hosting/integrations-oauth#github-search). |
-| GitHub asks for a provider configuration update | An organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected users reconnect GitHub. |
+| GitHub asks for a provider configuration update | An organization admin selects **Settings → Sources → More → Update sign-in settings**, then affected users reconnect GitHub. |
 | Indexed files no longer appear | Confirm your own repository access, App repository selection, and connection status. Installation-indexed content is also withheld when GitHub cannot verify current access; retry once GitHub is available. |
 | Sync is incomplete | Review the source status. Very large Git trees, file size limits, and unreadable files can limit indexing. |
 | Empty repository returns an error | Add an initial commit, then sync again. GitHub does not return a file tree for an uninitialized repository. |

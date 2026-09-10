@@ -23,7 +23,7 @@ export function SearchSourcePagination({
     return (
       <SettingsQueryErrorState
         error={error}
-        fallback='Could not load more sources'
+        fallback='Could not load more connections'
         isRetrying={isFetchingNextPage}
         onRetry={() => void fetchNextPage()}
         variant='inline'

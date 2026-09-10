@@ -15,10 +15,7 @@ import {
   searchSetupParam,
   searchSetupReturnParam,
 } from '@/app/workspace/[workspaceId]/search/search-params'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
 import {
   useEnsureOrganizationAccounts,
@@ -83,32 +80,30 @@ export function OrganizationSlackAccountSetup() {
         }}
       />
     )
+  const error = accounts.error ?? setupError
+  if (!error) return null
   return (
     <ChipModal
       open
       onOpenChange={(next) => {
         if (!next) close()
       }}
-      srTitle='Connect Slack accounts'
+      srTitle='Set up Slack app'
     >
-      <ChipModalHeader onClose={close}>Connect Slack accounts</ChipModalHeader>
+      <ChipModalHeader onClose={close}>Set up Slack app</ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='Connected accounts'>
-          {accounts.error || setupError ? (
-            <SettingsQueryErrorState
-              error={accounts.error ?? setupError}
-              fallback='Could not load connected accounts'
-              isRetrying={accounts.isFetching || setupPending}
-              onRetry={() =>
-                accounts.error
-                  ? void accounts.refetch()
-                  : ensureAccounts({ organizationId: organization.id })
-              }
-              variant='inline'
-            />
-          ) : (
-            <SettingsEmptyState variant='inline'>Loading Slack setup…</SettingsEmptyState>
-          )}
+        <ChipModalField type='custom' title='Slack app'>
+          <SettingsQueryErrorState
+            error={error}
+            fallback='Could not load Slack setup'
+            isRetrying={accounts.isFetching || setupPending}
+            onRetry={() =>
+              accounts.error
+                ? void accounts.refetch()
+                : ensureAccounts({ organizationId: organization.id })
+            }
+            variant='inline'
+          />
         </ChipModalField>
       </ChipModalBody>
       <ChipModalFooter onCancel={close} defaultAction='dismiss' />

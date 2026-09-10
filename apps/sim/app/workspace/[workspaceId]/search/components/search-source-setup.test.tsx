@@ -375,16 +375,16 @@ function organizationSetup() {
 
 describe('organization setup entry points', () => {
   it.each([
-    { type: 'google_drive', mode: 'admin', name: 'Google Drive' },
-    { type: 'gmail', mode: 'admin', name: 'Gmail' },
-    { type: 'google_calendar', mode: 'admin', name: 'Google Calendar' },
-    { type: 'confluence', mode: 'admin', name: 'Confluence' },
-    { type: 'gitlab', mode: 'admin', name: 'GitLab' },
-    { type: 'gmail', mode: 'members', name: 'Gmail' },
-    { type: 'google_calendar', mode: 'members', name: 'Google Calendar' },
-    { type: 'jira', mode: 'members', name: 'Jira' },
-    { type: 'github', mode: 'members', name: 'GitHub' },
-    { type: 'slack', mode: 'members', name: 'Slack' },
+    { type: 'google_drive', mode: 'admin', name: 'Connect Google Drive service account' },
+    { type: 'gmail', mode: 'admin', name: 'Connect Gmail service account' },
+    { type: 'google_calendar', mode: 'admin', name: 'Connect Google Calendar service account' },
+    { type: 'confluence', mode: 'admin', name: 'Connect Confluence site' },
+    { type: 'gitlab', mode: 'admin', name: 'Add GitLab project' },
+    { type: 'gmail', mode: 'members', name: 'Set up Gmail member accounts' },
+    { type: 'google_calendar', mode: 'members', name: 'Set up Google Calendar member accounts' },
+    { type: 'jira', mode: 'members', name: 'Add Jira projects' },
+    { type: 'github', mode: 'members', name: 'Add GitHub repository' },
+    { type: 'slack', mode: 'members', name: 'Choose Slack channels and DMs' },
   ])(
     'opens the known $name configuration after preparing its missing index',
     async ({ type, mode, name }) => {
@@ -396,32 +396,36 @@ describe('organization setup entry points', () => {
         connectorType: type,
         accessMode: mode,
       })
-      expect(document.body.textContent).toContain(`Configure ${name}`)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
       expect(document.body.textContent).not.toContain('Continue setup')
       expect(document.body.textContent).not.toContain('Find a source')
+      mocks.preparePending = true
       await render(organizationSetup(), query)
       expect(mocks.prepare).toHaveBeenCalledOnce()
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      mocks.preparePending = false
       mocks.bases = [{ id: 'kb-search', name: 'Sim Search', isSearchIndex: true }]
       await render(organizationSetup(), query)
-      expect(document.body.textContent).toContain(`Configure ${name}`)
+      expect(document.body.textContent).toContain(name)
       expect(document.body.textContent).not.toContain('Loading source setup')
       expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
       expect(mocks.prepare).toHaveBeenCalledOnce()
     }
   )
 
-  it('waits for index discovery without showing a redundant provider row', async () => {
+  it('waits for index discovery without opening an interim modal', async () => {
     mocks.bases = []
     mocks.basesPending = true
     await render(organizationSetup(), '?addConnector=google_drive')
     expect(mocks.prepare).not.toHaveBeenCalled()
-    expect(document.body.textContent).toContain('Loading source setup')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(document.body.textContent).not.toContain('Continue setup')
     mocks.basesPending = false
     mocks.bases = [{ id: 'kb-search', name: 'Sim Search', isSearchIndex: true }]
     await render(organizationSetup(), '?addConnector=google_drive')
     expect(mocks.prepare).not.toHaveBeenCalled()
     expect(document.body.textContent).not.toContain('Loading source setup')
+    expect(document.body.textContent).toContain('Connect Google Drive service account')
   })
 
   it.each(['loading', 'error'] as const)(
@@ -434,6 +438,11 @@ describe('organization setup entry points', () => {
       await render(organizationSetup(), '?addConnector=google_drive')
       expect(mocks.prepare).not.toHaveBeenCalled()
       expect(document.body.textContent).not.toContain('Continue setup')
+      if (state === 'loading') {
+        expect(document.querySelector('[role="dialog"]')).toBeNull()
+      } else {
+        expect(document.body.textContent).toContain('Availability failed')
+      }
     }
   )
 
@@ -467,7 +476,7 @@ describe('organization setup entry points', () => {
     expect(mocks.prepare).not.toHaveBeenCalled()
   })
 
-  it('uses central mode and its own draft even when the saved draft contains member mode', async () => {
+  it('honors the central entry point while restoring its draft and offering both sync methods', async () => {
     mocks.credentials = [
       {
         id: 'cred-source',
@@ -478,7 +487,7 @@ describe('organization setup entry points', () => {
     ]
     useConnectorSetupStore
       .getState()
-      .saveDraft('user-1:organization:org-1:kb-search:confluence:admin', {
+      .saveDraft('user-1:organization:org-1:kb-search:confluence:choose', {
         sourceConfig: { domain: 'team.atlassian.net', spaceKey: ['ENG'] },
         canonicalModes: { spaceKey: 'advanced' },
         accessMode: 'members',
@@ -489,7 +498,8 @@ describe('organization setup entry points', () => {
       })
     await render(organizationSetup(), '?addConnector=confluence')
 
-    expect(document.body.textContent).not.toContain('Sync using')
+    expect(button('Member accounts')).toBeEnabled()
+    expect(button('Service account')).toBeEnabled()
     expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
     expect(
       document.querySelector<HTMLInputElement>('input[placeholder="yoursite.atlassian.net"]')?.value
@@ -548,12 +558,16 @@ describe('organization setup entry points', () => {
       mocks.bases = [{ id: 'kb-search', name: 'Sim Search', isSearchIndex: true }]
       await render(organizationSetup(), `?addConnector=${type}`)
       expect(button('Connect & Sync')).toBeDisabled()
-      expect(document.body.textContent).not.toContain('Sync using')
+      expect(document.body.textContent).toContain('Sync using')
+      expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
+      await click(button('Member accounts'))
+      expect(button('Set up member accounts')).toBeEnabled()
+      expect(document.body.textContent).not.toContain('Directory administrator email')
       await render(organizationSetup(), `?addConnector=${type}&source-access=members`)
-      expect(button('Add source')).toBeEnabled()
+      expect(button('Set up member accounts')).toBeEnabled()
       expect(document.body.textContent).not.toContain('Connect & Sync')
       expect(document.body.textContent).not.toContain('Directory administrator email')
-      await click(button('Add source'))
+      await click(button('Set up member accounts'))
       expect(mocks.create).toHaveBeenCalledWith(
         expect.objectContaining({
           connectorType: type,
@@ -614,14 +628,86 @@ describe('organization setup entry points', () => {
     }
   )
 
-  it('remounts the locked form when the same provider URL changes connection mode', async () => {
+  it('resets the form to the requested method when the same provider URL changes connection mode', async () => {
     await render(organizationSetup(), '?addConnector=confluence&source-access=members')
-    expect(button('Add source')).toBeDisabled()
+    expect(button('Add Confluence site')).toBeDisabled()
     await render(organizationSetup(), '?addConnector=confluence')
     expect(button('Connect & Sync')).toBeDisabled()
     expect(document.body.textContent).not.toContain('Add source')
-    expect(document.body.textContent).not.toContain('Sync using')
+    expect(button('Member accounts')).toBeEnabled()
+    expect(button('Service account')).toBeEnabled()
   })
+
+  it.each([
+    {
+      type: 'gmail',
+      placeholder: 'e.g. INBOX, Engineering (comma-separated)',
+      value: 'QA',
+      config: { label: ['QA'] },
+      manualField: null,
+    },
+    {
+      type: 'google_drive',
+      placeholder: 'e.g. 1aBcDeFg…, 2cDeFgHi… (comma-separated for multiple)',
+      value: 'qa-folder',
+      config: { folderId: ['qa-folder'] },
+      manualField: 'Folders',
+    },
+    {
+      type: 'google_calendar',
+      placeholder: 'e.g. primary, team@group.calendar.google.com (comma-separated for multiple)',
+      value: 'qa@group.calendar.google.com',
+      config: { calendarId: ['qa@group.calendar.google.com'] },
+      manualField: 'Calendars',
+    },
+    {
+      type: 'confluence',
+      placeholder: 'e.g. ENG, PRODUCT (comma-separated for multiple)',
+      value: 'QA',
+      config: { spaceKey: ['QA'], domain: 'qa.atlassian.net' },
+      manualField: 'Spaces',
+    },
+  ])(
+    'preserves the $type draft and chosen method when availability fails and recovers',
+    async ({ type, placeholder, value, config, manualField }) => {
+      const query = `?addConnector=${type}`
+      await render(organizationSetup(), query)
+      await click(button('Member accounts'))
+      if (type === 'confluence') await fill('yoursite.atlassian.net', 'qa.atlassian.net')
+      if (manualField) await click(button(`Switch ${manualField} to manual input`))
+      await fill(placeholder, value)
+      const submitLabel = type === 'confluence' ? 'Add Confluence site' : 'Set up member accounts'
+      expect(button(submitLabel)).toBeEnabled()
+
+      mocks.availabilityReady = false
+      mocks.availabilityError = new Error('Availability refresh failed')
+      await render(organizationSetup(), query)
+      expect(
+        document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)?.value
+      ).toBe(value)
+      expect(button(submitLabel)).toBeDisabled()
+      await click(button('Try again'))
+      expect(mocks.refetchAvailability).toHaveBeenCalledOnce()
+      expect(mocks.create).not.toHaveBeenCalled()
+
+      mocks.availabilityReady = true
+      mocks.availabilityError = null
+      await render(organizationSetup(), query)
+      expect(
+        document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)?.value
+      ).toBe(value)
+      expect(button(submitLabel)).toBeEnabled()
+      await click(button(submitLabel))
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectorType: type,
+          accessMode: 'members',
+          sourceConfig: expect.objectContaining(config),
+        }),
+        expect.any(Object)
+      )
+    }
+  )
 })
 
 describe('Search source setup with real connector dialogs', () => {
@@ -1587,9 +1673,9 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     )!
     await act(async () => option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
     expect(button('Save')).toBeDisabled()
-    expect(button('Change indexing account')).toBeEnabled()
+    expect(button('Change service account')).toBeEnabled()
 
-    await click(button('Change indexing account'))
+    await click(button('Change service account'))
 
     expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
       {
@@ -1943,7 +2029,7 @@ describe('resuming Search source setup', () => {
     await render(setup(), '?search=nothing-matches&addConnector=gitlab&credentialDraftId=draft-1')
     expect(document.body.textContent).toContain('Admin or service account')
     expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
-    expect(document.body.textContent).toContain('Configure GitLab')
+    expect(document.body.textContent).toContain('Add GitLab project')
     expect(document.body.textContent).not.toContain('Sync Frequency')
     expect(document.body.textContent).not.toContain('Sync automatically')
     expect(mocks.prepare).not.toHaveBeenCalled()
@@ -1956,7 +2042,7 @@ describe('resuming Search source setup', () => {
     expect(document.body.textContent).toContain('Add source')
     await fill('Find a source…', 'confluence')
     await click(button('Set up'))
-    expect(document.body.textContent).toContain('Configure Confluence')
+    expect(document.body.textContent).toContain('Connect Confluence site')
   })
 
   it('restores the source configuration and content account after an account-settings detour', async () => {

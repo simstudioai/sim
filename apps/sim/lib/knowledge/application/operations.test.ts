@@ -78,10 +78,13 @@ describe('knowledge operation registry', () => {
       'knowledge.search.sources.progress',
       'knowledge.search.integrations.list',
       'knowledge.search.integrations.overview',
+      'knowledge.search.stats.read',
       'knowledge.search.integrations.approve',
       'knowledge.connectors.members.list',
       'knowledge.connectors.members.enroll',
       'knowledge.simSearch.connect',
+      'knowledge.search.personalSetup.accounts.list',
+      'knowledge.search.personalSetup',
       'knowledge.search.sources.connectApproved',
       'knowledge.search.index.read',
       'knowledge.search.sources.prepare',
@@ -143,8 +146,22 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.readSearchIndex,
       knowledgeOperations.enrollConnectorMember,
       knowledgeOperations.simSearchConnect,
+      knowledgeOperations.listPersonalSourceSetupAccounts,
+      knowledgeOperations.personalSourceSetup,
     ]) {
       expect(operation.organizationOperation.minimumRole).toBe('member')
+    }
+  })
+
+  it('limits personal source setup to the signed-in member without delegating credential discovery', () => {
+    for (const operation of [
+      knowledgeOperations.listPersonalSourceSetupAccounts,
+      knowledgeOperations.personalSourceSetup,
+    ]) {
+      expect(operation.principalKinds).toEqual(['session'])
+      expect(operation.organizationOperation.principalKinds).not.toContain('organization_delegated')
+      expect(operation.workspaceApiKey).toBe('deny')
+      expect(operation.capability).toBe('knowledge.use')
     }
   })
 

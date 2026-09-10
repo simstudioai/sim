@@ -23,7 +23,7 @@ Skip to **Connect the source** if the organization already has a verified Slack 
 
 ### Open provider settings
 
-Open **Settings → Sources** and turn on **Slack**. Select **Set up** (or **Manage** if sources already exist), then **Set up Slack app**. Allowing Slack does not configure the app or start indexing.
+Open **Settings → Sources → Add source** and select **Slack**. Complete **Set up Slack app** before choosing messages to index. If Slack is already listed, open it and select **Set up Slack app**.
 
 </Step>
 <Step>
@@ -53,14 +53,14 @@ Return to **Settings → Sources → Slack → Set up Slack app**. Select **Veri
 
 Member connections use one configured Slack app and workspace per organization. Installing another bot does not change that configuration. Changing the verified app requires members to reconnect.
 
-After verification, open **Sources → Add source** on Slack’s provider page to choose what to index. A connected bot alone does not mean Slack messages have been indexed.
+After verification, select **Add channels or DMs** on Slack’s provider page to choose what to index. A connected bot alone does not mean Slack messages have been indexed.
 
 </Step>
 </Steps>
 
 ## Connect the source
 
-Open **Sources → Add source** on Slack's provider page. Choose **Channel Messages**, **Direct Messages**, **Channels**, and **Earliest Message Date**. Open **More options** for exclusions, archived channels, metadata tags, and **Sync documents with**. Keep **Connected members** for the usual setup.
+Open **Add channels or DMs** on Slack's provider page. Choose **Channel Messages**, **Direct Messages**, **Channels**, and **Earliest Message Date**. Open **More options** for exclusions, archived channels, metadata tags, and **Sync documents with**. Keep **Connected members** for the usual setup.
 
 | Field | Behavior |
 |---|---|
@@ -71,15 +71,15 @@ Open **Sources → Add source** on Slack's provider page. Choose **Channel Messa
 | Archived Channels | Included by default. The picker lists active channels; use manual names/IDs to select archived channels. |
 | Earliest Message Date | Optional UTC date (`YYYY-MM-DD`). Applies to the thread's first message; replies are included with that thread. |
 
-Select **Add source**. Each person opens **Integrations** in the main sidebar, selects **Connect** on the Slack source, and approves the configured app. Creating the source or verifying the Slack app does not authorize teammates automatically.
+Select **Add channels or DMs**. Each person opens **Integrations** in the main sidebar, selects **Connect** on the Slack source, and approves the configured app. Creating the source or verifying the Slack app does not authorize teammates automatically.
 
 The Slack app's **Home → Connect sources** opens this same Integrations page.
 
-To send a Slack connection request, open **Slack → Accounts → Request connections**. This requests an external account connection; it does not invite the recipient to the Sim organization.
+To send a Slack connection request, open **Settings → Sources → People**, filter by **Slack**, then select **Request connections**. This requests an external account connection; it does not invite the recipient to the Sim organization.
 
 You can instead select an existing account under **Sync documents with** to supply message content centrally. Members still connect their own accounts to establish access. The selected account must itself be able to read the selected channels.
 
-Admins open **Settings → Sources**, select **Manage** beside **Slack**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. Search reads indexed content, so source changes appear after background syncing. Slack retention and API limits determine how much history is available.
+Admins open **Settings → Sources**, open **Slack**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. Search reads indexed content, so source changes appear after background syncing. Slack retention and API limits determine how much history is available.
 
 ## Permissions reference
 

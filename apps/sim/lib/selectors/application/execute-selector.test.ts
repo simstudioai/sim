@@ -20,6 +20,15 @@ const mocks = vi.hoisted(() => ({
   resolveReferences: vi.fn(),
   resolveScope: vi.fn(),
   sanitize: vi.fn(),
+  authorizePersonalSearch: vi.fn(),
+  requireOrganizationMembership: vi.fn(),
+}))
+
+vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
+  authorizePersonalSearchSetup: mocks.authorizePersonalSearch,
+}))
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  requireOrganizationMembership: mocks.requireOrganizationMembership,
 }))
 
 vi.mock('@sim/audit', () => ({ recordAudit: vi.fn() }))
@@ -155,6 +164,105 @@ describe('executeSelector', () => {
       'provider-execution',
       'sanitization',
     ])
+  })
+
+  it('keeps generic organization browsing admin-only', async () => {
+    mocks.requireOrganizationMembership.mockRejectedValueOnce(new Error('Admin required'))
+    await expect(
+      execute({ scope: { kind: 'organization', organizationId: 'org-1' } })
+    ).rejects.toThrow('Admin required')
+    expect(mocks.requireOrganizationMembership).toHaveBeenCalledWith(
+      principal,
+      'org-1',
+      'admin',
+      'knowledge.use'
+    )
+    expect(mocks.authorizePersonalSearch).not.toHaveBeenCalled()
+    expect(mocks.getAttachment).not.toHaveBeenCalled()
+  })
+
+  it('rejects a personal setup marker outside its approved provider selector and organization scope', async () => {
+    await expect(execute({ personalSearchSetup: 'jira' })).rejects.toBeInstanceOf(
+      SelectorContextUnavailableError
+    )
+    await expect(
+      execute({
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        selectorKey: 'jira.issues',
+        personalSearchSetup: 'jira',
+      })
+    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    expect(mocks.authorizeCredential).not.toHaveBeenCalled()
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  it('requires the personal setup authorization before canonical discovery and provider calls', async () => {
+    mocks.authorizePersonalSearch.mockRejectedValueOnce(new Error('Integration unapproved'))
+    await expect(
+      execute({
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        selectorKey: 'jira.projectKeys',
+        context: { oauthCredential: 'managed-1', domain: 'example.atlassian.net' },
+        personalSearchSetup: 'jira',
+      })
+    ).rejects.toThrow('Integration unapproved')
+    expect(mocks.authorizePersonalSearch).toHaveBeenCalledWith(principal, {
+      organizationId: 'org-1',
+      connectorType: 'jira',
+    })
+    expect(mocks.resolveScope).not.toHaveBeenCalled()
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  it('uses the shared selector execution and records the prepared account access once', async () => {
+    const personalScope = { kind: 'organization' as const, organizationId: 'org-1' }
+    mocks.resolveScope.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      workspaceId: undefined,
+      selectorKey: 'jira.projectKeys',
+      selectorManifest: getSelectorManifestEntry('jira.projectKeys'),
+      selectorScope: personalScope,
+    })
+    mocks.resolveReferences.mockResolvedValueOnce({
+      context: { oauthCredential: 'managed-1', domain: 'example.atlassian.net' },
+      request: { kind: 'list' },
+      references: new Map(),
+    })
+    mocks.authorizeCredential.mockResolvedValueOnce({
+      suppliedId: 'managed-1',
+      providerId: 'jira',
+      personalSearchSetup: { principal, organizationId: 'org-1', connectorType: 'jira' },
+    })
+    mocks.getAttachment.mockReturnValueOnce({
+      destination: 'fixed',
+      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] },
+      auditCredentialUse: true,
+      execute: async (args: ExecuteServerSelectorArgs) => {
+        args.recordCredentialUse?.('jira')
+        args.recordCredentialUse?.('jira')
+        return { kind: 'list', items: [{ id: 'PROJECT', label: 'Project' }] }
+      },
+    })
+    await expect(
+      execute({
+        selectorKey: 'jira.projectKeys',
+        scope: personalScope,
+        context: { oauthCredential: 'managed-1', domain: 'example.atlassian.net' },
+        personalSearchSetup: 'jira',
+      })
+    ).resolves.toEqual({ kind: 'list', items: [{ id: 'PROJECT', label: 'Project' }] })
+    expect(mocks.authorizeCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ personalSearchSetup: 'jira', organizationId: 'org-1' })
+    )
+    expect(mocks.requireOrganizationMembership).not.toHaveBeenCalled()
+    expect(mocks.recordCredentialAccess).toHaveBeenCalledTimes(1)
+    expect(mocks.recordCredentialAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: principal.userId,
+        resourceId: 'managed-1',
+        providerId: 'jira',
+      })
+    )
   })
 
   /**

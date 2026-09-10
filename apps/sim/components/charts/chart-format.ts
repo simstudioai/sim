@@ -16,10 +16,15 @@ export function formatChartLatency(ms: number): string {
 }
 
 /** The tooltip's header line: `MAR 4 3:05 PM`. Empty for an unparseable timestamp. */
-export function formatChartTimestamp(timestamp?: string): string {
+export function formatChartTimestamp(timestamp?: string, timeZone?: string): string {
   if (!timestamp) return ''
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
+  if (timeZone) {
+    const day = date.toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' })
+    const time = date.toLocaleTimeString('en-US', { timeZone, hour: 'numeric', minute: '2-digit' })
+    return `${day.toUpperCase()} ${time}`
+  }
   return `${format(date, 'MMM d').toUpperCase()} ${format(date, 'h:mm a')}`
 }
 

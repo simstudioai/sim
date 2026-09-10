@@ -192,10 +192,11 @@ describe('organization integrations role and source paths', () => {
     }
   )
 
-  it('keeps source setup fields after a failure without duplicating the toast inside the modal', async () => {
+  it('keeps manual source setup fields after a failure without duplicating the toast inside the modal', async () => {
     const message = 'Connection unavailable'
     mocks.enrollmentError = message
-    mocks.setupConnector = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira') ?? null
+    mocks.setupConnector =
+      SEARCH_CONNECTORS.find((connector) => connector.type === 'github') ?? null
     await render()
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     expect(document.body.textContent).not.toContain(message)

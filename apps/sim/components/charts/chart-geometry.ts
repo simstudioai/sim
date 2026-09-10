@@ -110,14 +110,19 @@ export function resolveTimeTickIndices(pointCount: number, usableWidth: number):
  * Tick label whose precision follows the window: clock time within a day and a half,
  * calendar day within a quarter, month beyond that.
  */
-export function formatTimeTick(date: Date, spanMs: number): string {
+export function formatTimeTick(date: Date, spanMs: number, timeZone?: string): string {
   if (spanMs <= 36 * 60 * 60 * 1000) {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    return date.toLocaleTimeString('en-US', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
   }
   if (spanMs <= 90 * 24 * 60 * 60 * 1000) {
-    return date.toLocaleString('en-US', { month: 'short', day: 'numeric' })
+    return date.toLocaleString('en-US', { timeZone, month: 'short', day: 'numeric' })
   }
-  return date.toLocaleString('en-US', { month: 'short', year: 'numeric' })
+  return date.toLocaleString('en-US', { timeZone, month: 'short', year: 'numeric' })
 }
 
 /** Milliseconds between the first and last timestamp, or 0 for a degenerate series. */

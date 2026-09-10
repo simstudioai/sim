@@ -213,7 +213,21 @@ export function useSearchIntegrationConnection({
         error: 'Connection canceled. You can try again.',
       })
   }, [attempt, key])
+  const completeSetup = useCallback(
+    (result: { connectorId: string; credentialId: string }) => {
+      writeSearchConnectionAttempt(key, {
+        completionId: generateId(),
+        requestedAt: Date.now(),
+        connectorId: result.connectorId,
+        credentialId: result.credentialId,
+        status: 'connected',
+        error: null,
+      })
+    },
+    [key]
+  )
   return {
+    completeSetup,
     connect,
     cancel,
     inventoryError: query.error?.message,

@@ -258,7 +258,11 @@ export function ConnectorSettingsFields({
                     {isSwitchingAccess
                       ? 'Switching…'
                       : isContentCredentialChange
-                        ? 'Change indexing account'
+                        ? isSearchIndex
+                          ? requiresServiceAccount
+                            ? 'Change service account'
+                            : 'Change account'
+                          : 'Change indexing account'
                         : 'Apply connection method'}
                   </Chip>
                   <Chip onClick={onResetAccess} disabled={isSaving}>
@@ -269,7 +273,7 @@ export function ConnectorSettingsFields({
                   {accessSetupHint ??
                     (isContentCredentialChange
                       ? syncsPerMember
-                        ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
+                        ? 'The next sync uses this account. Members keep their connected accounts and source permissions.'
                         : 'The next sync uses this account and refreshes source permissions.'
                       : SWITCH_NOTICE[access.accessMode])}
                 </p>
@@ -282,7 +286,13 @@ export function ConnectorSettingsFields({
       {connectorConfig && needsWorkspaceCredential && canAdmin && (
         <ChipModalField
           type='custom'
-          title='Indexing account'
+          title={
+            isSearchIndex
+              ? requiresServiceAccount
+                ? 'Service account'
+                : 'Account'
+              : 'Indexing account'
+          }
           hint={
             !requiresServiceAccount && !credentialsLoading && credentialOptions.length === 0
               ? `Connect a ${connectorConfig.name} account in Integrations, then return here to select it.`

@@ -393,7 +393,7 @@ describe('connector settings service-account choices', () => {
       },
     ]
     await render(confluenceConnectorMeta)
-    expect(container.textContent).toContain('Indexing account')
+    expect(container.textContent).toContain('Service account')
     await openAccountChoices()
     expect(
       Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map((node) =>

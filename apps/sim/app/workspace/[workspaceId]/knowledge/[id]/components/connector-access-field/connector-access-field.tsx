@@ -152,7 +152,7 @@ export function ConnectorAccessField({
         canAdmin && isAvailabilityReady && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
           : lockAccessMode
-            ? 'Create a new source to change the sync method.'
+            ? 'Add a new connection to change the sync method.'
             : value.accessMode === 'workspace'
               ? 'Everyone in this workspace can search these documents.'
               : undefined

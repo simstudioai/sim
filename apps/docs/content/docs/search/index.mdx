@@ -14,22 +14,18 @@ Search brings your connected sources into one place. An organization admin allow
 <Steps>
 <Step>
 
-### Allow an integration
+### Choose an integration
 
-As an organization admin, open **Settings → Sources** and turn on the integration. It stays in the list; no setup page opens automatically.
-
-The switch saves immediately and permits the integration in your organization. It does not connect an account, grant document access, or start indexing. Teammates connect from **Integrations** in the main sidebar; only admins manage these switches.
+Open **Settings → Sources → Add source** and choose an integration. Unavailable integrations need deployment configuration before they can be connected.
 
 </Step>
 <Step>
 
-### Connect or configure the source
+### Connect the content
 
-For personal Gmail, Calendar, or Drive, teammates can connect immediately from **Integrations**. The first account creates the default sync configuration. Admins can adjust it later under **Manage → Advanced** on the provider page.
+Follow the integration's **Setup guide**. Confluence connects a site and selected spaces; Jira adds projects; GitHub adds a repository; GitLab adds a project; Slack configures its app, then channels or DMs. Google service-account setup connects Drive, Gmail, or Calendar with the selected users and filters.
 
-For other sources, select **Set up** or **Manage**, then **Add source**. For a central Gmail, Calendar, or Drive service account, use **Manage → Advanced → Add sync configuration**. For Slack, complete **Set up Slack app** first. Follow the provider's **Setup guide** to configure its connection and content. **More options** contains secondary filters and **Metadata tags**.
-
-In the source form, select **Connect & Sync** for a central account or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
+Select **Connect & Sync** for a central account, or the form’s **Add** or **Set up member accounts** action for member accounts. **More options** contains additional filters. Saving a connection does not invite teammates or authorize their accounts.
 
 </Step>
 <Step>
@@ -41,9 +37,9 @@ For member-account sources, open **Integrations** in the main sidebar and select
 </Step>
 </Steps>
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.jpg" alt="Organization Sources settings with provider switches and Set up or Manage actions" width={800} height={674} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.png" alt="Organization Sources with Add source, connection status, People, and Stats" width={1037} height={714} />
 
-Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue. If an existing provider asks for a configuration update after a deployment change, an admin selects **More → Refresh connection settings** on this page, then affected teammates reconnect.
+Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue. If an existing provider asks for a configuration update after a deployment change, an admin selects **More → Update sign-in settings** on this page, then affected teammates reconnect.
 
 ## Choose the right connection method
 
@@ -57,7 +53,9 @@ Sources can use member accounts or a central connection. Gmail, Google Calendar,
 | **Confluence service account** | Connects an account that can read the selected content and its permissions. | Join the organization and connect Confluence to establish identity. |
 | **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
 
-Adding a Google or Confluence source from the admin page opens its central setup form directly. Google providers use **Manage → Advanced → Add sync configuration**; Confluence uses **Set up/Manage → Add source**. For personal connections, use **Integrations → Connect** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab. When personal connections are disabled for the organization, Google providers use **Add source** on the provider page instead of **Advanced**.
+Open an integration from the Sources list to manage its connections. Use **Connect service account** for Google, **Add Confluence site**, **Add projects** for Jira, **Add repository** for GitHub, **Add project** for GitLab, or **Add channels or DMs** for Slack.
+
+For personal connections, teammates use **Integrations → Connect** in the main sidebar after the admin adds the provider. First-time setup may ask you to select content after connecting your account. Admins can edit those connections' filters afterward in **Settings**.
 
 Some member sources offer **Sync documents with**, either directly in setup or under **More options**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. For GitHub organization sources, choose **Connect GitHub App** in this field to [connect an installation](/search/github#add-a-repository). **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
 
@@ -82,9 +80,9 @@ Some member sources offer **Sync documents with**, either directly in setup or u
 
 Invite people through the organization's **Settings → Members**, or use your organization's [SSO provisioning](/platform/enterprise/sso). Share the organization's **Home** or **Integrations** URL. People need their own Sim account and organization membership; they do not need access to a workspace. Connecting an external account alone does not grant organization membership.
 
-To request a particular account connection, open **Settings → Sources**, select **Manage** beside the integration (or **Set up** if no sources exist), then **Accounts → Request connections**. This tab is available for providers that support personal connections. If setup is missing, complete the source or Slack app setup shown there first. The list shows organization account contributors and their connection status for that provider.
+Open **Settings → Sources → People** to view account contributors and their connection status. Choose an integration in the filter to inspect its connections or send a targeted **Request connections** invitation. **All integrations** shows each person's connected providers and accounts needing reconnection.
 
-These requests are separate from organization invitations. They let recipients contribute an external account; they do not grant Sim organization membership or Search access. **People** on the Sources settings page shows account contributors across providers. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
+Connection requests do not grant organization membership. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
 
 **Revoke all account access** withdraws every account that person contributed to the organization, including other providers. It does not remove their organization membership.
 
@@ -92,25 +90,27 @@ These requests are separate from organization invitations. They let recipients c
 
 ## Manage sources and documents
 
-Open **Settings → Sources** and select **Manage** beside the integration. When personal connections are enabled, Gmail, Calendar, and Drive list their sync configurations under **Advanced** and connections under **Accounts**. Other providers with personal connections use **Sources** and **Accounts**. Providers without personal connections open directly to the source list. Select a source or sync configuration to manage it. Multiple sources can have different folder, repository, space, or project scopes.
+Open **Settings → Sources**, choose the integration, then select its site, project, repository, or account connection. Each row identifies **Member accounts**, **Service account**, or **Admin account** and shows its sync status.
 
-For Gmail, one configuration is usually enough. **Add sync configuration** creates another source; editing **Settings** updates the selected source. A member configuration applies to all connected Gmail accounts, including accounts connected later. A central configuration applies to the selected Workspace **Users**, or all active users when that field is blank. Its labels and filters are evaluated separately in each mailbox.
+Edit **Settings** to change an existing connection's filters. Adding another connection creates a separate selection. For Gmail, one member-account connection is usually enough: its filters apply separately to each connected mailbox, including accounts connected later. A central Google connection applies to its selected **Users**, or all active users when that field is blank.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.jpg" alt="Gmail Advanced tab with a sync configuration, search, and Add sync configuration action" width={1008} height={340} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.png" alt="Gmail connections with the Connect service account action" width={1037} height={264} />
 
-| Source tab | What you can do |
+| Connection tab | What you can do |
 | --- | --- |
 | **Documents** | Find indexed documents, inspect processing status, retry failed indexing, or exclude and restore documents. |
 | **Settings** | Edit the source's scope, filters, and supported indexing credentials. Select **Save** to apply changes or **Discard** to undo them. |
 | **Sync history** | Review run dates, document changes, and any sync or account errors. |
 
-**Sync using** shows the method selected when the source was created. Create a new source to change that method. To replace a supported indexing credential, select its replacement and use **Change indexing account**.
+**Sync using** shows the method selected when the source was created. Add a new connection to change that method. To replace a supported indexing credential, select its replacement and use **Change service account** or **Change account**, as shown.
 
-Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. To disable an entire integration, turn off its switch in **Settings → Sources**. If it has sources, confirm **Deactivate**. Its content becomes unavailable in Search, Assistant, and MCP; sources and connected accounts are preserved. Turn the switch back on to allow it again.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-settings.jpg" alt="Gmail Settings with the read-only Sync using method and editable label, date range, and search filters" width={824} height={606} />
+Use the connection header to sync, pause, resume, or remove it. To deactivate an entire integration, open it from **Settings → Sources**, select **Deactivate**, and confirm. Its content becomes unavailable in Search, Assistant, and MCP; saved connections remain. Select **Activate** on that integration to enable it again.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-sync-history.jpg" alt="Gmail Sync history showing run dates and document additions, deletions, or no changes" width={824} height={446} />
+
+## Usage stats
+
+**Settings → Sources → Stats** shows successful Search invocations, active people, and results returned. Filter by entry point and a preset or custom date range of up to 90 days. Dates use UTC. Source usage counts requests that returned content from each integration; it is not a click or citation count. Tracking starts when enabled and does not backfill earlier activity.
 
 ## Search, Assistant, and MCP
 
@@ -135,7 +135,7 @@ Search runs background syncs on an hourly schedule. Large sources, provider limi
 
 A completed sync means the source was checked; some documents may still be indexing. Integrations lists personal connections; a central Google source can be searchable without appearing there. In the main **Integrations** page, each connected source row shows how many documents you can search and whether indexing failed for any documents you can access.
 
-As an admin, open **Settings → Sources**, select **Manage** beside the integration, then open its source or sync configuration. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+As an admin, open **Settings → Sources**, select the integration, then open its connection. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
 
