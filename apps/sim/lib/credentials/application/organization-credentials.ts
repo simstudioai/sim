@@ -263,6 +263,7 @@ export async function authorizeOrganizationCredentialUse(input: {
   const row = await getOrganizationCredential(input.organizationId, input.credentialId)
   if (
     !row ||
+    row.revokedAt ||
     (row.type !== 'oauth' && row.type !== 'service_account') ||
     !row.providerId ||
     (row.type === 'oauth' && row.createdBy !== context.userId)
