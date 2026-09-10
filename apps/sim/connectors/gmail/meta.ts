@@ -19,6 +19,8 @@ export const gmailConnectorMeta: ConnectorMeta = {
   },
 
   permissionScopedListing: { capFieldIds: ['maxThreads'] },
+  /** A personal mailbox is indexed from the last six months unless the source says otherwise. */
+  searchDefaultSourceConfig: { dateRange: '6m' },
   configFields: [
     {
       id: 'labelSelector',

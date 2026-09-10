@@ -313,6 +313,12 @@ export interface ConnectorMeta {
   search?: true
   /** Source setup guide shown only in Search connection flows. */
   searchDocsUrl?: string
+  /**
+   * Settings a Search source starts from when nobody chose a value, such as a
+   * bounded history window for a mailbox. Explicit settings always win, and
+   * knowledge-base connectors ignore these defaults.
+   */
+  searchDefaultSourceConfig?: Readonly<Record<string, string>>
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */
