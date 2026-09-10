@@ -130,6 +130,41 @@ function readIncludeAttendees(sourceConfig: Record<string, unknown>): boolean {
 const NO_ATTENDEES_HASH_SUFFIX = ':noattendees'
 
 /**
+ * Appended to the metadata-only content hash of an invitation the connected
+ * account declined, so an event indexed before the response was recorded picks
+ * up the response line without waiting for the organizer to edit it.
+ */
+const DECLINED_HASH_SUFFIX = ':declined'
+
+/** Only `default` events describe meetings; the listing asks Google for these alone. */
+const INDEXED_EVENT_TYPE = 'default'
+
+/** The connected account's own response to an invitation, when Google reports it. */
+function memberResponseStatus(event: CalendarEvent): string | undefined {
+  return event.attendees?.find((attendee) => attendee.self)?.responseStatus
+}
+
+/**
+ * Whether the event carries something to search. Status entries (working
+ * location, out of office, focus time, birthdays) describe availability rather
+ * than a meeting. A reader with free/busy access alone receives a bare time
+ * block: Google strips the title, description, location, organizer and
+ * attendees, so an event with none of those is that placeholder. An untitled
+ * meeting that still names a room or its participants stays indexed.
+ */
+function isSearchableEvent(event: CalendarEvent): boolean {
+  if (event.status === 'cancelled') return false
+  if (event.eventType && event.eventType !== INDEXED_EVENT_TYPE) return false
+  return Boolean(
+    event.summary?.trim() ||
+      event.description?.trim() ||
+      event.location?.trim() ||
+      event.organizer ||
+      (event.attendees && event.attendees.length > 0)
+  )
+}
+
+/**
  * Counts attendees excluding rooms/equipment, matching what the content renderer lists.
  */
 function countAttendees(attendees?: CalendarAttendee[]): number {
@@ -180,6 +215,10 @@ function eventToContent(event: CalendarEvent, includeAttendees: boolean): string
 
   if (event.location) {
     parts.push(`Location: ${event.location}`)
+  }
+
+  if (memberResponseStatus(event) === 'declined') {
+    parts.push('Response: declined')
   }
 
   if (includeAttendees) {
@@ -271,13 +310,14 @@ async function eventToDocument(
   includeAttendees: boolean,
   syncContext?: Record<string, unknown>
 ): Promise<ExternalDocument | null> {
-  if (event.status === 'cancelled') return null
+  if (!isSearchableEvent(event)) return null
 
   const content = eventToContent(event, includeAttendees)
   if (!content.trim()) return null
 
   const startTime = event.start?.dateTime || event.start?.date || ''
   const attendeeCount = countAttendees(event.attendees)
+  const responseStatus = memberResponseStatus(event)
 
   const memberScoped = isPerMemberListing(syncContext)
   const externalId = memberDocumentId(
@@ -287,7 +327,9 @@ async function eventToDocument(
   const baseHash = isMultiCalendar
     ? `gcal:${calendarId}:${event.id}:${event.updated ?? ''}`
     : `gcal:${event.id}:${event.updated ?? ''}`
-  const contentHash = includeAttendees ? baseHash : `${baseHash}${NO_ATTENDEES_HASH_SUFFIX}`
+  const attendeeHash = includeAttendees ? baseHash : `${baseHash}${NO_ATTENDEES_HASH_SUFFIX}`
+  const contentHash =
+    responseStatus === 'declined' ? `${attendeeHash}${DECLINED_HASH_SUFFIX}` : attendeeHash
 
   const metadata = {
     calendarId,
@@ -296,6 +338,7 @@ async function eventToDocument(
     location: event.location || '',
     organizer: includeAttendees ? formatOrganizer(event.organizer) : '',
     attendeeCount,
+    ...(responseStatus ? { responseStatus } : {}),
     isAllDay: isAllDayEvent(event),
     eventDate: startTime,
     updatedTime: event.updated,
@@ -393,6 +436,7 @@ export const googleCalendarConnector: ConnectorConfig = {
     const queryParams = new URLSearchParams({
       singleEvents: 'true',
       orderBy: 'startTime',
+      eventTypes: INDEXED_EVENT_TYPE,
       maxResults: String(pageSize),
       timeMin,
       timeMax,
@@ -593,8 +637,6 @@ export const googleCalendarConnector: ConnectorConfig = {
     }
 
     const event = (await response.json()) as CalendarEvent
-
-    if (event.status === 'cancelled') return null
 
     return eventToDocument(
       event,
