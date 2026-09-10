@@ -160,6 +160,57 @@ describe('useMemberEnrollment', () => {
     expect(mocks.connectionError).not.toHaveBeenCalled()
   })
 
+  it.each(['existing', 'new'] as const)(
+    'does not expire a superseded %s source authorization after its retry connects',
+    (source) => {
+      mount(new Set(), true, mocks.connectionError)
+      const mutation = source === 'existing' ? mocks.enrollmentMutate : mocks.sourceConnectionMutate
+      for (let index = 0; index < 2; index += 1) {
+        act(() => {
+          if (source === 'existing') enrollment().connect('kb-1', 'connector-1')
+          else enrollment().connectSource('workspace-1', 'jira')
+        })
+        act(() =>
+          mutation.mock.calls[index][1].onSuccess({
+            url: `https://provider.test/attempt-${index}`,
+            connectorId: 'connector-1',
+          })
+        )
+      }
+      act(() => mocks.channels[1].onmessage?.(new MessageEvent('message', { data: 'connected' })))
+      act(() => vi.advanceTimersByTime(10 * 60_000))
+      act(() =>
+        mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'account_mismatch' }))
+      )
+      expect(mocks.connectionError).not.toHaveBeenCalled()
+      expect(enrollment().error).toBeNull()
+      expect(enrollment().isAwaiting('connector-1')).toBe(false)
+      expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+      expect(mocks.channels[1].close).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('reopening one connector leaves a different connector authorization active', () => {
+    mount(new Set(), true, mocks.connectionError)
+    for (const connectorId of ['connector-1', 'connector-2', 'connector-1']) {
+      act(() => enrollment().connect('kb-1', connectorId))
+      const index = mocks.enrollmentMutate.mock.calls.length - 1
+      act(() =>
+        mocks.enrollmentMutate.mock.calls[index][1].onSuccess({
+          url: `https://provider.test/attempt-${index}`,
+        })
+      )
+    }
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+    expect(mocks.channels[1].close).not.toHaveBeenCalled()
+    act(() => mocks.channels[2].onmessage?.(new MessageEvent('message', { data: 'connected' })))
+    expect(enrollment().isAwaiting('connector-2')).toBe(true)
+    act(() => mocks.channels[1].onmessage?.(new MessageEvent('message', { data: 'denied' })))
+    expect(mocks.connectionError).toHaveBeenCalledExactlyOnceWith(
+      'Authorization was canceled. Try connecting your account again.'
+    )
+  })
+
   it('reports a blocked popup once without starting a connection', () => {
     mount(new Set(), true, mocks.connectionError)
     vi.mocked(window.open).mockReturnValueOnce(null)

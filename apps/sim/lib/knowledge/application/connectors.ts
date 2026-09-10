@@ -31,7 +31,6 @@ import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -86,6 +85,7 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
@@ -491,23 +491,28 @@ export interface ListWorkspaceMemberConnectorsInput {
 /** Live documents per connector that the viewer's tokens match, for the Search tab's counts. */
 async function countViewerDocuments(
   connectorIds: readonly string[],
-  access: KnowledgeAccessScope
+  access: KnowledgeReadAccess
 ): Promise<Map<string, number>> {
-  if (connectorIds.length === 0) return new Map()
-  const rows = await db
-    .select({ connectorId: document.connectorId, count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        inArray(document.connectorId, [...connectorIds]),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        knowledgeAccessCondition(access)
-      )
-    )
-    .groupBy(document.connectorId)
-  return new Map(rows.flatMap((row) => (row.connectorId ? [[row.connectorId, row.count]] : [])))
+  const counts = new Map<string, number>()
+  if (connectorIds.length === 0) return counts
+  const conditions = [
+    inArray(document.connectorId, [...connectorIds]),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+  ]
+  for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+    const rows = await db
+      .select({ connectorId: document.connectorId, count: sql<number>`count(*)::int` })
+      .from(document)
+      .where(and(...conditions, accessCondition))
+      .groupBy(document.connectorId)
+    for (const row of rows) {
+      if (row.connectorId)
+        counts.set(row.connectorId, (counts.get(row.connectorId) ?? 0) + row.count)
+    }
+  }
+  return counts
 }
 
 /** Live workspace sources that let the viewer connect a crawl account or a mirrored-ACL identity. */
@@ -564,7 +569,7 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
       }),
       countViewerDocuments(
         rows.map((row) => row.id),
-        await createKnowledgeAccessProvider(principal, { workspaceId: context.workspaceId }).get()
+        createKnowledgeAccessProvider(principal, { workspaceId: context.workspaceId })
       ),
     ])
     return {

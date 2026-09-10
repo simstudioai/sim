@@ -428,7 +428,7 @@ interface SearchReadCandidate {
   id: string
   documentId: string
   connectorId: string | null
-  installationSource: boolean
+  liveAuthorizationSource: boolean
 }
 
 /** Only opaque identifiers leave candidate ranking; content stays behind the full read predicate. */
@@ -436,11 +436,15 @@ const SEARCH_READ_CANDIDATE_FIELDS = {
   id: embedding.id,
   documentId: document.id,
   connectorId: document.connectorId,
-  installationSource: sql<boolean>`EXISTS (
+  liveAuthorizationSource: sql<boolean>`EXISTS (
     SELECT 1 FROM ${knowledgeConnector}
     WHERE ${knowledgeConnector.id} = ${document.connectorId}
-      AND ${knowledgeConnector.connectorType} = 'github'
-      AND ${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId'
+      AND (
+        (${knowledgeConnector.connectorType} = 'github'
+          AND ${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId')
+        OR (${knowledgeConnector.connectorType} = 'confluence'
+          AND ${knowledgeConnector.accessMode} = 'admin')
+      )
   )`,
 }
 
@@ -449,7 +453,7 @@ const LIVE_SEARCH_BUDGET_MS = 8000
 
 /**
  * Verification follows ranked candidates, never the organization's source order. Denied
- * repositories are excluded on refill, so many matches from one revoked source cannot
+ * sources are excluded on refill, so many matches from one revoked source cannot
  * consume every result slot. The existing vector tuple budget also bounds candidate work.
  */
 async function selectAuthorizedSearchResults(input: {
@@ -494,13 +498,16 @@ async function selectAuthorizedSearchResults(input: {
     input.signal?.throwIfAborted()
     const grantedSources = new Set(
       access.kind === 'user'
-        ? (access.githubInstallationGrants?.map((grant) => grant.connectorId) ?? [])
+        ? [
+            ...(access.githubInstallationGrants?.map((grant) => grant.connectorId) ?? []),
+            ...(access.confluenceSiteGrants?.map((grant) => grant.connectorId) ?? []),
+          ]
         : []
     )
     const excludedBefore = excludedSources.size
     for (const candidate of candidates) {
       if (
-        candidate.installationSource &&
+        candidate.liveAuthorizationSource &&
         candidate.connectorId &&
         !grantedSources.has(candidate.connectorId)
       )

@@ -102,7 +102,7 @@ import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 function fieldProps(connectorConfig: ConnectorMeta): ConnectorSettingsFieldsProps {
   return {
-    availability: { error: null, isFetching: false, refetch: vi.fn() },
+    availability: { error: null, isFetching: false, isReady: true, refetch: vi.fn() },
     isSearchIndex: true,
     connectorConfig,
     selectionLabels: {},
@@ -194,6 +194,29 @@ describe('connector settings service-account choices', () => {
       )
     }
   )
+
+  it('keeps a failed availability check actionable before methods are known', async () => {
+    const refetch = vi.fn()
+    await render(confluenceConnectorMeta, {
+      availability: {
+        error: new Error('Could not load connection availability'),
+        isFetching: false,
+        isReady: false,
+        refetch,
+      },
+      allowAdmin: false,
+    })
+    expect(container.textContent).toContain('Could not load connection availability')
+    expect(mocks.accessField).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isAvailabilityReady: false, allowAdmin: false })
+    )
+    const retry = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Try again'
+    )
+    expect(retry).toBeEnabled()
+    await act(async () => retry!.click())
+    expect(refetch).toHaveBeenCalledOnce()
+  })
 
   it('shows the acting user’s managed connection for browsing member sources', async () => {
     mocks.credentials = [

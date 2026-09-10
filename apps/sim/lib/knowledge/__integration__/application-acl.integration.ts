@@ -3,6 +3,7 @@
  * vectors and the storage root is temporary; no database, principal, scope,
  * authorization, parser, chunking, ACL persistence, or search code is mocked.
  */
+import { createHash } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -11,6 +12,7 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   credential,
+  credentialGroup,
   credentialGroupEnrollment,
   document,
   embedding,
@@ -18,6 +20,7 @@ import {
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
   knowledgeExternalGroup,
+  knowledgeExternalGroupMember,
   permissions,
   user,
   workspace,
@@ -49,6 +52,10 @@ vi.mock('@/lib/embeddings', async () => ({
 }))
 
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { env } from '@/lib/core/config/env'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
+import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -56,6 +63,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
@@ -71,6 +79,11 @@ import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 
 describe('indexed source content through real application access', () => {
+  const previousConfluenceClient = {
+    id: env.CONFLUENCE_CLIENT_ID,
+    secret: env.CONFLUENCE_CLIENT_SECRET,
+  }
+  const revokedSiteReaders = new Set<string>()
   const ids = createKnowledgeAclFixtureIds()
   const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups, groupIds } =
     ids
@@ -94,11 +107,121 @@ describe('indexed source content through real application access', () => {
   })
 
   beforeAll(async () => {
-    vi.stubGlobal('fetch', async () => {
+    Object.assign(env, {
+      CONFLUENCE_CLIENT_ID: 'isolated-confluence-fixture-client',
+      CONFLUENCE_CLIENT_SECRET: 'isolated-confluence-fixture-secret',
+    })
+    vi.stubGlobal('fetch', async (url: string, options?: RequestInit) => {
+      const authorization = new Headers(options?.headers).get('Authorization')
+      const reader = [aliceId, bobId].find(
+        (id) => authorization === `Bearer fixture-confluence-${id}`
+      )
+      if (
+        url ===
+          'https://api.atlassian.com/ex/confluence/fixture-tenant/wiki/rest/api/user/current' &&
+        reader
+      )
+        return revokedSiteReaders.has(reader)
+          ? new Response(null, { status: 403 })
+          : Response.json({ type: 'known', accountId: reader })
       throw new Error('Unexpected outbound request in isolated application integration test')
     })
     fixtures.storageRoot = mkdtempSync(path.join(tmpdir(), 'sim-acl-integration-'))
     await seedKnowledgeAclFixture(ids)
+    const policy = await getCredentialGroupProviderAdapterByProviderId('confluence').getPolicy(
+      undefined,
+      { workspaceId }
+    )
+    const groupId = generateId()
+    const optionId = generateId()
+    const crawlerId = generateId()
+    await db.insert(credentialGroup).values({
+      id: groupId,
+      workspaceId,
+      publicId: generateId(),
+      name: 'Connected accounts',
+      options: [
+        {
+          id: optionId,
+          provider: 'confluence',
+          label: 'Confluence',
+          required: false,
+          status: 'active',
+          authorizationAppId: policy.authorizationAppId,
+          requiredScopes: policy.requiredScopes,
+          scopeVersion: policy.scopeVersion,
+        },
+        {
+          id: generateId(),
+          provider: 'google-drive',
+          label: 'Drive fixture',
+          authorizationAppId: 'fixture-app',
+          requiredScopes: ['drive.readonly'],
+          scopeVersion: 1,
+          required: false,
+          status: 'active',
+        },
+      ],
+    })
+    await db.insert(credential).values({
+      id: crawlerId,
+      workspaceId,
+      type: 'service_account',
+      providerId: 'atlassian-service-account',
+      displayName: 'Confluence crawler',
+      createdBy: aliceId,
+      encryptedServiceAccountKey: (
+        await encryptSecret(
+          JSON.stringify({
+            type: 'atlassian_service_account',
+            cloudId: 'fixture-tenant',
+            domain: 'fixture.atlassian.net',
+            apiToken: 'fixture-crawler-never-used-for-reading',
+          })
+        )
+      ).encrypted,
+    })
+    await db
+      .update(knowledgeConnector)
+      .set({ credentialId: crawlerId, sourceConfig: { domain: 'fixture.atlassian.net' } })
+      .where(eq(knowledgeConnector.id, connectorId))
+    for (const userId of [aliceId, bobId]) {
+      const enrollmentId = generateId()
+      await db.insert(credentialGroupEnrollment).values({
+        id: enrollmentId,
+        credentialGroupId: groupId,
+        userId,
+        email: `${userId}@fixture.test`,
+        status: 'completed',
+        invitationTokenHash: createHash('sha256').update(generateId()).digest('hex'),
+        invitationExpiresAt: new Date(Date.now() + 3600000),
+        invitedAt: new Date(),
+      })
+      await db.insert(credential).values({
+        id: generateId(),
+        workspaceId,
+        type: 'managed_oauth',
+        displayName: 'Personal Confluence',
+        createdBy: userId,
+        providerId: 'confluence',
+        providerSubjectId: userId,
+        authorizationAppId: policy.authorizationAppId,
+        credentialGroupEnrollmentId: enrollmentId,
+        credentialGroupOptionId: optionId,
+        managedOauthScopeVersion: policy.scopeVersion,
+        managedOauthStatus: 'active',
+        grantedScopes: policy.requiredScopes,
+        grantedAt: new Date(),
+        encryptedOauthTokenSet: await encryptManagedOAuthTokenSet({
+          accessToken: `fixture-confluence-${userId}`,
+        }),
+        accessTokenExpiresAt: new Date(Date.now() + 3600000),
+      })
+      await db
+        .update(knowledgeExternalGroupMember)
+        .set({ subjectToken: `s:confluence:-:${userId}` })
+        .where(eq(knowledgeExternalGroupMember.subjectToken, `u:${userId}@fixture.test`))
+    }
     const doc = await addDocument(
       knowledgeBaseId,
       connectorId,
@@ -133,9 +256,26 @@ describe('indexed source content through real application access', () => {
     expect(persisted).toEqual({ status: 'completed', error: null })
     expect(await search(alice)).toEqual([])
     await persistDocumentAcls(connectorId, new Map([['page-1', sourceAcl]]))
+    const readerAccess = createKnowledgeAccessProvider(alice, {
+      workspaceId,
+      knowledgeBaseIds: [knowledgeBaseId],
+    })
+    expect((await readerAccess.get()).tokens).toEqual(
+      expect.arrayContaining([`s:confluence:-:${aliceId}`, 'g:confluence:fixture-tenant:page'])
+    )
+    const proof = await readerAccess.getForConnectors([connectorId])
+    expect(proof).toMatchObject({
+      confluenceSiteGrants: [
+        expect.objectContaining({ connectorId, readerSubjectToken: `s:confluence:-:${aliceId}` }),
+      ],
+    })
   })
 
   afterAll(async () => {
+    Object.assign(env, {
+      CONFLUENCE_CLIENT_ID: previousConfluenceClient.id,
+      CONFLUENCE_CLIENT_SECRET: previousConfluenceClient.secret,
+    })
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, aliceId))
     await db.delete(user).where(eq(user.id, bobId))
@@ -242,6 +382,25 @@ describe('indexed source content through real application access', () => {
     expect(fixtures.calls).toBeGreaterThan(0)
   })
 
+  it('denies a revoked Confluence site across search, chunks, document reads, and files without rewriting ACLs', async () => {
+    revokedSiteReaders.add(aliceId)
+    try {
+      expect(await search(alice)).toEqual([])
+      await expect(
+        readKnowledgeDocument.execute({ principal: alice, input: { knowledgeBaseId, documentId } })
+      ).rejects.toThrow('Document not found')
+      await expect(
+        listKnowledgeChunks.execute({ principal: alice, input: { knowledgeBaseId, documentId } })
+      ).rejects.toThrow('Document not found')
+      await expect(
+        downloadFileFromUrl(fileUrl, { userId: aliceId, knowledgeAccess: 'user' })
+      ).rejects.toThrow('Access denied')
+    } finally {
+      revokedSiteReaders.delete(aliceId)
+    }
+    expect(await search(alice)).toEqual([documentId])
+  })
+
   async function refreshDirectory(bobCanReadPage: boolean, complete = true) {
     await db
       .update(knowledgeExternalGroup)
@@ -258,8 +417,8 @@ describe('indexed source content through real application access', () => {
           group,
           complete,
           memberTokens: [
-            `u:${aliceId}@fixture.test`,
-            ...(group.id !== 'page' || bobCanReadPage ? [`u:${bobId}@fixture.test`] : []),
+            `s:confluence:-:${aliceId}`,
+            ...(group.id !== 'page' || bobCanReadPage ? [`s:confluence:-:${bobId}`] : []),
           ],
         }),
       },
@@ -325,25 +484,36 @@ describe('indexed source content through real application access', () => {
   })
 
   it('permits fresh public grants for workspace keys but expires public evidence too', async () => {
-    await persistDocumentAcls(connectorId, new Map([['page-1', ['pub']]]))
-    expect(await search(workspaceKey)).toEqual([documentId])
-    expect(
-      (
-        await readKnowledgeDocument.execute({
+    await db
+      .update(knowledgeConnector)
+      .set({ connectorType: 'google_drive' })
+      .where(eq(knowledgeConnector.id, connectorId))
+    try {
+      await persistDocumentAcls(connectorId, new Map([['page-1', ['pub']]]))
+      expect(await search(workspaceKey)).toEqual([documentId])
+      expect(
+        (
+          await readKnowledgeDocument.execute({
+            principal: workspaceKey,
+            input: { knowledgeBaseId, documentId },
+          })
+        ).document.id
+      ).toBe(documentId)
+      await db.update(document).set({ aclVerifiedAt: null }).where(eq(document.id, documentId))
+      expect(await search(workspaceKey)).toEqual([])
+      await expect(
+        readKnowledgeDocument.execute({
           principal: workspaceKey,
           input: { knowledgeBaseId, documentId },
         })
-      ).document.id
-    ).toBe(documentId)
-    await db.update(document).set({ aclVerifiedAt: null }).where(eq(document.id, documentId))
-    expect(await search(workspaceKey)).toEqual([])
-    await expect(
-      readKnowledgeDocument.execute({
-        principal: workspaceKey,
-        input: { knowledgeBaseId, documentId },
-      })
-    ).rejects.toThrow('Document not found')
-    await persistDocumentAcls(connectorId, new Map([['page-1', sourceAcl]]))
+      ).rejects.toThrow('Document not found')
+      await persistDocumentAcls(connectorId, new Map([['page-1', sourceAcl]]))
+    } finally {
+      await db
+        .update(knowledgeConnector)
+        .set({ connectorType: 'confluence' })
+        .where(eq(knowledgeConnector.id, connectorId))
+    }
   })
 
   it('requires current verified identity and actual workspace membership even when source groups grant access', async () => {

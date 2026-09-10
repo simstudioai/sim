@@ -154,6 +154,9 @@ export function getServiceAccountCoverageSentence(providerId: string): string | 
   const familyName = getServiceAccountFamilyName(providerId)
   if (!familyName) return null
   const covered = getIntegrationsForCredentialProvider(providerId)
+  if (providerId === 'atlassian-service-account') {
+    return `Reuse one token across ${formatList(covered.map((i) => i.name))}. Each product requires its own scopes and app access.`
+  }
   if (covered.length > MAX_ENUMERATED_INTEGRATIONS) {
     return `One token works across all ${covered.length} ${familyName} integrations.`
   }

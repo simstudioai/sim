@@ -12,6 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockResolveV1KnowledgeReadAccess,
   mockExecuteKnowledgeSearch,
   mockGenerateSearchEmbedding,
   mockGetDocumentMetadataByIds,
@@ -21,6 +22,7 @@ const {
   mockResolveSystemBillingAttribution,
   mockRecordSearchEmbeddingUsage,
 } = vi.hoisted(() => ({
+  mockResolveV1KnowledgeReadAccess: vi.fn(),
   mockExecuteKnowledgeSearch: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
   mockGetDocumentMetadataByIds: vi.fn(),
@@ -81,9 +83,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 }))
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
-  resolveV1KnowledgeAccessScope: vi
-    .fn()
-    .mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] }),
+  resolveV1KnowledgeReadAccess: mockResolveV1KnowledgeReadAccess,
   handleError: (e: unknown) =>
     new Response(JSON.stringify({ error: getErrorMessage(e, 'error') }), {
       status: 500,
@@ -111,6 +111,7 @@ const baseKb = (id: string, embeddingModel: string, embeddingDimension = 1536) =
 describe('v1 knowledge search route — per-KB embedding model', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockResolveV1KnowledgeReadAccess.mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] })
     mockAuthenticateRequest.mockResolvedValue({
       requestId: 'req-1',
       userId: 'user-1',
@@ -133,6 +134,35 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     )
     mockResolveSystemBillingAttribution.mockResolvedValue(SYSTEM_BILLING_ATTRIBUTION)
     mockRecordSearchEmbeddingUsage.mockResolvedValue(undefined)
+  })
+
+  it('retains the reader provider for ranked results and returned document metadata', async () => {
+    const access = { kind: 'user' as const, userId: 'user-1', tokens: ['reader-token'] }
+    const provider = {
+      get: vi.fn().mockResolvedValue(access),
+      getForConnectors: vi.fn(),
+      getForDocuments: vi.fn(),
+    }
+    mockResolveV1KnowledgeReadAccess.mockResolvedValue(provider)
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: baseKb('kb-1', 'text-embedding-3-small'),
+    })
+    const response = await POST(
+      createMockRequest('POST', {
+        workspaceId: 'ws-1',
+        knowledgeBaseIds: 'kb-1',
+        query: 'hello',
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        access,
+        accessProvider: provider,
+      })
+    )
+    expect(mockGetDocumentMetadataByIds).toHaveBeenCalledWith([], access, provider)
   })
 
   it('passes the KB embedding model into generateSearchEmbedding', async () => {

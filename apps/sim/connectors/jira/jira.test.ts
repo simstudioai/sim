@@ -74,7 +74,7 @@ describe('Jira Search member documents', () => {
     expect(
       jiraConnectorMeta.configFields.filter((field) => field.canonicalParamId === 'projectKey')
     ).toEqual([
-      expect.objectContaining({ selectorKey: 'jira.projects', mode: 'basic', required: true }),
+      expect.objectContaining({ selectorKey: 'jira.projectKeys', mode: 'basic', required: true }),
       expect.objectContaining({ id: 'projectKey', mode: 'advanced', required: true }),
     ])
   })

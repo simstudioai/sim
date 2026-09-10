@@ -16,7 +16,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
-import { resolveKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -277,7 +277,7 @@ async function executeListKnowledgeBases(args: {
     sortOrder: args.input.sortOrder,
     limit: args.input.limit,
     cursorKeys: args.input.cursorKeys,
-    access: await resolveKnowledgeAccessScope(args.principal, args.context),
+    access: createKnowledgeAccessProvider(args.principal, args.context),
   })
   return {
     knowledgeBases: page.data.map((knowledgeBase) => ({
@@ -349,7 +349,7 @@ async function executeReadKnowledgeBase(args: {
   return {
     knowledgeBase: await attachKnowledgeBaseConnectors(
       args.context.knowledgeBase,
-      await args.context.access.get()
+      args.context.access
     ),
     folderPath: knowledgeFolderPathForId(index, args.context.knowledgeBase.folderId),
   }
@@ -389,10 +389,7 @@ async function executeUpdateKnowledgeBase(args: {
     knowledgeBaseId: knowledgeBase.id,
   })
   return {
-    knowledgeBase: await attachKnowledgeBaseConnectors(
-      knowledgeBase,
-      await args.context.access.get()
-    ),
+    knowledgeBase: await attachKnowledgeBaseConnectors(knowledgeBase, args.context.access),
     folderPath: knowledgeFolderPathForId(index, knowledgeBase.folderId),
   }
 }
@@ -505,7 +502,7 @@ export const restoreKnowledgeBase = defineAuthorizedKnowledgeUseCase({
     return {
       knowledgeBase: await attachKnowledgeBaseConnectors(
         knowledgeBase,
-        await resolveKnowledgeAccessScope(principal, context)
+        createKnowledgeAccessProvider(principal, context)
       ),
       folderPath: knowledgeFolderPathForId(index, knowledgeBase.folderId),
       restored,
@@ -549,7 +546,7 @@ export const listInternalKnowledgeBases = {
     const { data: knowledgeBases } = await getWorkspaceKnowledgeBases(
       context.workspaceId,
       input.scope,
-      { access: await resolveKnowledgeAccessScope(principal, context) }
+      { access: createKnowledgeAccessProvider(principal, context) }
     )
     return { knowledgeBases }
   },
@@ -735,7 +732,7 @@ export const readInternalKnowledgeBase = {
     return {
       knowledgeBase: await attachKnowledgeBaseConnectors(
         knowledgeBase,
-        await resolveKnowledgeAccessScope(principal, {
+        createKnowledgeAccessProvider(principal, {
           workspaceId: knowledgeBase.workspaceId,
         })
       ),
@@ -794,7 +791,7 @@ export const updateInternalKnowledgeBase = {
     return {
       knowledgeBase: await attachKnowledgeBaseConnectors(
         outcome.knowledgeBase,
-        await resolveKnowledgeAccessScope(principal, {
+        createKnowledgeAccessProvider(principal, {
           workspaceId: outcome.knowledgeBase.workspaceId ?? undefined,
         })
       ),

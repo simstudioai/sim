@@ -131,7 +131,10 @@ export function useMemberEnrollment({
 }: UseMemberEnrollmentProps) {
   const connectedRef = useRef(connectedConnectorIds)
   const oauthPopups = useRef(
-    new Map<string, { channel: BroadcastChannel; timer: ReturnType<typeof setTimeout> }>()
+    new Map<
+      string,
+      { channel: BroadcastChannel; timer: ReturnType<typeof setTimeout>; connectorId?: string }
+    >()
   )
   const queryClient = useQueryClient()
   const enrollment = useStartConnectorMemberEnrollment()
@@ -244,6 +247,16 @@ export function useMemberEnrollment({
           if (oauthCompletionId)
             finishOAuth(oauthCompletionId, CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES.denied)
           return false
+        }
+        if (oauthCompletionId) {
+          const popup = oauthPopups.current.get(oauthCompletionId)!
+          for (const [previousId, previous] of oauthPopups.current) {
+            if (previousId === oauthCompletionId || previous.connectorId !== connectorId) continue
+            clearTimeout(previous.timer)
+            previous.channel.close()
+            oauthPopups.current.delete(previousId)
+          }
+          popup.connectorId = connectorId
         }
         tab.location.href = url
         setAwaitingSince((current) =>

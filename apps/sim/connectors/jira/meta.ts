@@ -25,7 +25,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
       id: 'projectSelector',
       title: 'Projects',
       type: 'selector',
-      selectorKey: 'jira.projects',
+      selectorKey: 'jira.projectKeys',
       canonicalParamId: 'projectKey',
       mode: 'basic',
       multi: true,

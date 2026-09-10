@@ -750,7 +750,7 @@ describe('knowledge search application use case', () => {
     expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(
       ['document-1'],
       expect.anything(),
-      undefined,
+      expect.objectContaining({ getForDocuments: expect.any(Function) }),
       undefined
     )
     expect(result.results[0]).toMatchObject({

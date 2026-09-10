@@ -279,9 +279,9 @@ describe('resolveCredentialDisplay', () => {
 })
 
 describe('getServiceAccountCoverageSentence', () => {
-  it('tells the user up front that one Atlassian token spans all three products', () => {
+  it('explains that reusing an Atlassian token requires scopes and app access for each product', () => {
     expect(getServiceAccountCoverageSentence('atlassian-service-account')).toBe(
-      'One token works across Confluence, Jira, and Jira Service Management.'
+      'Reuse one token across Confluence, Jira, and Jira Service Management. Each product requires its own scopes and app access.'
     )
   })
 

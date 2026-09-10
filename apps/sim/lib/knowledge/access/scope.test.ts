@@ -6,10 +6,16 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAvailability, mockCheckWorkspaceAccess, mockGitHubReadGrants } = vi.hoisted(() => ({
+const {
+  mockAvailability,
+  mockCheckWorkspaceAccess,
+  mockGitHubReadGrants,
+  mockConfluenceReadGrants,
+} = vi.hoisted(() => ({
   mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
   mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
   mockGitHubReadGrants: vi.fn(async () => []),
+  mockConfluenceReadGrants: vi.fn(async () => []),
 }))
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
@@ -18,12 +24,16 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
+vi.mock('@/lib/knowledge/access/confluence-site', () => ({
+  resolveConfluenceSiteReadGrants: mockConfluenceReadGrants,
+}))
 vi.mock('@/lib/knowledge/access/github-installation', () => ({
   resolveGitHubInstallationReadGrants: mockGitHubReadGrants,
 }))
 
 import {
   createKnowledgeAccessProvider,
+  createUserKnowledgeAccessProvider,
   resolveKnowledgeAccessScope,
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
@@ -483,6 +493,71 @@ describe('organization document ACL scope', () => {
       signal: undefined,
     })
     expect(scope).toMatchObject({ githubInstallationGrants: [] })
+  })
+  it('checks only the enrolled Confluence reader after ranking canonical document candidates', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    queueSubjects([
+      {
+        email: 'viewer@example.com',
+        credentialId: 'personal-confluence',
+        providerId: 'confluence',
+        providerSubjectId: 'alice',
+        providerTenantId: null,
+      },
+    ])
+    const provider = createKnowledgeAccessProvider(SESSION, {
+      ...organization,
+      knowledgeBaseIds: ['index-1'],
+    })
+    expect(await provider.get()).not.toHaveProperty('confluenceSiteGrants')
+    expect(mockConfluenceReadGrants).not.toHaveBeenCalled()
+    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    expect(await provider.getForDocuments(['selected-document'])).toMatchObject({
+      confluenceSiteGrants: [],
+    })
+    expect(mockConfluenceReadGrants).toHaveBeenCalledWith({
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      readers: [{ credentialId: 'personal-confluence', subjectToken: 's:confluence:-:alice' }],
+      knowledgeBaseIds: ['index-1'],
+      connectorIds: ['confluence-source'],
+      signal: undefined,
+    })
+    expect(mockGitHubReadGrants).not.toHaveBeenCalled()
+  })
+  it('preserves candidate admission for an already-authenticated personal-key or session user', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    queueSubjects([
+      {
+        credentialId: 'personal-confluence',
+        providerId: 'confluence',
+        providerSubjectId: 'alice',
+        providerTenantId: null,
+      },
+    ])
+    const provider = createUserKnowledgeAccessProvider('user-1', organization)
+    expect(await provider.get()).toMatchObject({ kind: 'user', userId: 'user-1' })
+    expect(mockConfluenceReadGrants).not.toHaveBeenCalled()
+    await provider.getForConnectors(['source-1'])
+    expect(mockConfluenceReadGrants).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorIds: ['source-1'],
+        readers: [{ credentialId: 'personal-confluence', subjectToken: 's:confluence:-:alice' }],
+      })
+    )
+  })
+  it('cannot check a retained Confluence connection after organization removal', async () => {
+    queueTableRows(schemaMock.member, [])
+    queueSubjects([
+      {
+        credentialId: 'personal-confluence',
+        providerId: 'confluence',
+        providerSubjectId: 'alice',
+        providerTenantId: null,
+      },
+    ])
+    const provider = createKnowledgeAccessProvider(SESSION, organization)
+    expect(await provider.getForConnectors(['confluence-source'])).toMatchObject({ tokens: [] })
+    expect(mockConfluenceReadGrants).not.toHaveBeenCalled()
   })
   it('does not live-check retained provider credentials after organization removal', async () => {
     queueTableRows(schemaMock.member, [])

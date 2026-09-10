@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   resolveArchivedKnowledgeBase: vi.fn(),
   resolvePermission: vi.fn(),
   resolveAccess: vi.fn(),
+  createAccessProvider: vi.fn(),
   attachConnectors: vi.fn(),
   resolveFolderPath: vi.fn(),
   createRecord: vi.fn(),
@@ -49,7 +50,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/knowledge/access/scope', () => ({
-  resolveKnowledgeAccessScope: mocks.resolveAccess,
+  createKnowledgeAccessProvider: mocks.createAccessProvider,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -143,6 +144,7 @@ describe('knowledge base application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveAccess.mockResolvedValue({ kind: 'workspace', tokens: ['workspace', 'public'] })
+    mocks.createAccessProvider.mockReturnValue({ get: mocks.resolveAccess })
     mocks.attachConnectors.mockImplementation(async (kb) => kb)
     mocks.resolveWorkspace.mockResolvedValue(context)
     mocks.loadAuthorizationWorkspace.mockResolvedValue(context)
@@ -226,7 +228,7 @@ describe('knowledge base application use cases', () => {
       { forUpdate: undefined }
     )
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived', {
-      access: expect.objectContaining({ kind: 'workspace' }),
+      access: expect.objectContaining({ get: mocks.resolveAccess }),
     })
   })
 
@@ -247,7 +249,7 @@ describe('knowledge base application use cases', () => {
     ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
 
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'active', {
-      access: expect.objectContaining({ kind: 'workspace' }),
+      access: expect.objectContaining({ get: mocks.resolveAccess }),
     })
   })
 
@@ -674,7 +676,7 @@ describe('knowledge base application use cases', () => {
     })
 
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived', {
-      access: expect.objectContaining({ kind: 'workspace' }),
+      access: expect.objectContaining({ get: mocks.resolveAccess }),
       folderId: undefined,
       search: 'docs',
       sortBy: 'updatedAt',
