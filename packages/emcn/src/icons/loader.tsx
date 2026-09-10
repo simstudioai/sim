@@ -28,8 +28,8 @@ export function Loader({ animate = false, className, ...props }: LoaderProps) {
       aria-hidden='true'
       {...props}
     >
-      <circle cx='12' cy='12' r='9.5' stroke='currentColor' strokeWidth='4' opacity='.25' />
-      <circle cx='12' cy='2.5' r='2' fill='currentColor' />
+      <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' opacity='.25' />
+      <circle cx='12' cy='2' r='2' fill='currentColor' />
     </svg>
   )
 }

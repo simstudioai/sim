@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Library, useNativeSurfaceOcclusionReady } from '@sim/emcn'
+import { cn, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import {
   Columns3,
   Database,
@@ -22,6 +22,7 @@ import {
   Home,
   Integration,
   Key,
+  Library,
   Pencil,
   Play,
   Plus,

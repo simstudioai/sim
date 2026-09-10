@@ -10,13 +10,12 @@ import {
   DashedDividerLine,
   FieldDivider,
   Label,
-  Loader,
   OverflowText,
   Switch,
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Loader, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'

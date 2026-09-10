@@ -1,16 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, Tooltip, usePrefersReducedMotion } from '@sim/emcn'
 import {
-  Button,
-  cn,
+  Circle,
   Duplicate,
+  Loader,
+  Minus,
   PlayOutline,
-  Tooltip,
+  Plus,
+  Square,
   Trash,
-  usePrefersReducedMotion,
-} from '@sim/emcn'
-import { Circle, Loader, Minus, Plus, Square, Unlock } from '@sim/emcn/icons'
+  Unlock,
+} from '@sim/emcn/icons'
 import {
   CanvasSentenceView,
   InlineChip,

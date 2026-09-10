@@ -106,7 +106,7 @@ export const FindBar = memo(function FindBar({
   function counterContent() {
     if (!hasQuery) return null
     if (hasMatches) return `${currentIndex + 1} of ${count}${truncated ? '+' : ''}`
-    return isLoading ? <Loader aria-hidden className='size-[13px]' animate /> : 'No results'
+    return isLoading ? <Loader aria-hidden className='size-[14px]' animate /> : 'No results'
   }
 
   return (

@@ -1,18 +1,17 @@
 'use client'
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { Button, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
 import {
-  Button,
   Check,
-  cn,
+  Circle,
   Duplicate,
-  handleKeyboardActivation,
+  Loader,
   PlayOutline,
-  Switch,
-  Tooltip,
+  Square,
   Trash,
-} from '@sim/emcn'
-import { Circle, Loader, Square, Unlock } from '@sim/emcn/icons'
+  Unlock,
+} from '@sim/emcn/icons'
 import {
   BLOCK_DIMENSIONS,
   CanvasSentenceView,

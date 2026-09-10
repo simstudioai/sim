@@ -7,13 +7,22 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-  Duplicate,
-  PlayOutline,
   Tooltip,
-  Trash,
   toast,
 } from '@sim/emcn'
-import { Ban, Circle, Loader, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn/icons'
+import {
+  Ban,
+  Circle,
+  Duplicate,
+  Loader,
+  Lock,
+  LogOut,
+  Palette,
+  PlayOutline,
+  Square,
+  Trash,
+  Unlock,
+} from '@sim/emcn/icons'
 import {
   DEFAULT_NOTE_COLOR,
   isNoteColor,
@@ -96,11 +105,12 @@ const RUNNING_FILL_INSET_SWELL = 'left-[42.75px]'
 const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
 
 /**
- * A vertical entry with 4px rounded corners. The solid body overlaps each end cap
+ * A vertical entry with 6px corners, matching the buttons’ rounded-md radius.
+ * The solid body overlaps each end cap
  * by 1px to avoid seams at fractional zoom; the plain bar keeps a square end.
  */
 const RUNNING_FILL_MASK = [
-  '[mask-image:linear-gradient(black,black),url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2024%22%3E%3Cpath%20d%3D%22M4%200H16V24H4A4%204%200%200%201%200%2020V4A4%204%200%200%201%204%200Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"),var(--running-fill-end-mask,linear-gradient(black,black))]',
+  '[mask-image:linear-gradient(black,black),url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2024%22%3E%3Cpath%20d%3D%22M6%200H16V24H6A6%206%200%200%201%200%2018V6A6%206%200%200%201%206%200Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"),var(--running-fill-end-mask,linear-gradient(black,black))]',
   '[mask-size:calc(100%_-_54px)_100%,16px_100%,40px_100%]',
   '[mask-position:15px_top,left_top,right_top]',
   '[mask-repeat:no-repeat]',
@@ -110,9 +120,9 @@ const RUNNING_FILL_MASK = [
 const RUNNING_FILL_ROUNDED_END =
   '[--running-fill-end-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2024%22%3E%3Cpath%20d%3D%22M0%200H16.25A8%208%200%200%201%2022.4%202.88L36.59%2019.9A2.5%202.5%200%200%201%2034.66%2024H0Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E")]'
 
-/** Keeps the outer shoulder and a vertical right edge with 4px rounded corners. */
+/** Keeps the outer shoulder and matches the buttons’ 6px rounded-md inner corners. */
 const RUNNING_BUTTON_CLIP_SWELL =
-  "[clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24H36A4_4_0_0_0_40_20V4A4_4_0_0_0_36_0Z')]"
+  "[clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24H34A6_6_0_0_0_40_18V6A6_6_0_0_0_34_0Z')]"
 
 /** The clip path owns the corners within the standard 40px slot. */
 const RUNNING_BUTTON_LAYOUT_SWELL = 'relative w-[40px]! shrink-0 rounded-none'
@@ -132,15 +142,15 @@ type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' |
 function RunningActionIcon() {
   return (
     <span
-      className='relative grid size-[16px] translate-x-[8px] translate-y-px place-items-center'
+      className='relative grid size-[18px] translate-x-[8px] translate-y-px place-items-center'
       role='status'
     >
       <span className='sr-only'>Block running</span>
       <span
         aria-hidden='true'
-        className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-reduce:transition-none'
+        className='-translate-x-[1px] col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-reduce:transition-none'
       >
-        <Loader className='size-[16px]' animate />
+        <Loader className='size-[18px]' animate />
       </span>
       <span
         aria-hidden='true'

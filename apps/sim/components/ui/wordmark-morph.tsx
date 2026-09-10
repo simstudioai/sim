@@ -1,17 +1,18 @@
 'use client'
 
 import { useEffect, useId, useRef } from 'react'
-import { cn } from '@sim/emcn'
-import { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@/lib/branding/wordmark'
+import { WordmarkFrame } from '@/components/ui/wordmark-frame'
+import {
+  WORDMARK_MORPH_TRANSFORM,
+  WORDMARK_PATHS,
+  WORDMARK_VIEW_BOX,
+} from '@/lib/branding/wordmark'
 
 /** Theme-aware ink shared by the wordmark and every shape in its animation. */
 const INK_STOPS = {
   inner: '[stop-color:var(--thinking-ink-inner)]',
   outer: '[stop-color:var(--thinking-ink-outer)]',
 } as const
-
-/** Brand palette: Static on light backgrounds, Graphite on dark backgrounds. */
-const FLAT_INK = '[color:#e6e6e6] dark:[color:#3b3b3b]'
 
 /**
  * The seven thinking-loader shapes in play order, each with its hold in ms.
@@ -329,15 +330,6 @@ function sampleTrack(track: Track, at: number): Sample {
   return { x, y, opacity }
 }
 
-/**
- * The wordmark's width inside the 100-unit stage - the generator's 816×392
- * mark at 0.11164, so the word sits at the same size relative to the orb.
- */
-const WORDMARK_WIDTH = 91.1
-const WORDMARK_SCALE = WORDMARK_WIDTH / WORDMARK_VIEW_BOX.width
-const WORDMARK_HEIGHT = WORDMARK_VIEW_BOX.height * WORDMARK_SCALE
-const WORDMARK_X = (100 - WORDMARK_WIDTH) / 2
-const WORDMARK_Y = (100 - WORDMARK_HEIGHT) / 2
 const WORDMARK_CX = WORDMARK_VIEW_BOX.width / 2
 const WORDMARK_CY = WORDMARK_VIEW_BOX.height / 2
 
@@ -529,127 +521,106 @@ export function WordmarkMorph({
   }, [])
 
   return (
-    <div
-      className={cn(
-        'relative mx-auto aspect-[5/3] shrink-0',
-        size === 'sm' ? 'w-[108px]' : 'w-[clamp(180px,17vw,320px)]',
-        className
-      )}
-    >
-      <svg
-        ref={svgRef}
-        viewBox='0 0 100 100'
-        aria-hidden='true'
-        className={cn(
-          '-translate-y-1/2 absolute inset-x-0 top-1/2 aspect-square w-full overflow-visible',
-          variant === 'flat' && FLAT_INK
+    <WordmarkFrame className={className} size={size} variant={variant} svgRef={svgRef}>
+      <defs>
+        <filter
+          id={gooId}
+          x='-30%'
+          y='-30%'
+          width='160%'
+          height='160%'
+          colorInterpolationFilters='sRGB'
+        >
+          <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={0} result='blur' />
+          {/** The alpha threshold joins nearby shapes during the liquid morph. */}
+          <feColorMatrix
+            data-goo-matrix=''
+            in='blur'
+            values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0'
+            result='goo'
+          />
+        </filter>
+        {variant === 'gradient' && (
+          <>
+            <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
+              <stop className={INK_STOPS.inner} />
+              <stop offset='1' className={INK_STOPS.outer} />
+            </radialGradient>
+            <radialGradient
+              id={wordmarkInkId}
+              cx='0'
+              cy='0'
+              r='1'
+              gradientUnits='userSpaceOnUse'
+              gradientTransform={`translate(${WORDMARK_CX} ${WORDMARK_CY}) rotate(90) scale(${WORDMARK_CY} ${WORDMARK_CX})`}
+            >
+              <stop className={INK_STOPS.inner} />
+              <stop offset='1' className={INK_STOPS.outer} />
+            </radialGradient>
+          </>
         )}
-      >
-        <defs>
-          <filter
-            id={gooId}
-            x='-30%'
-            y='-30%'
-            width='160%'
-            height='160%'
-            colorInterpolationFilters='sRGB'
-          >
-            <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={0} result='blur' />
-            {/** The alpha threshold joins nearby shapes during the liquid morph. */}
-            <feColorMatrix
-              data-goo-matrix=''
-              in='blur'
-              values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0'
-              result='goo'
-            />
-          </filter>
-          {variant === 'gradient' && (
-            <>
-              <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
-                <stop className={INK_STOPS.inner} />
-                <stop offset='1' className={INK_STOPS.outer} />
-              </radialGradient>
-              <radialGradient
-                id={wordmarkInkId}
-                cx='0'
-                cy='0'
-                r='1'
-                gradientUnits='userSpaceOnUse'
-                gradientTransform={`translate(${WORDMARK_CX} ${WORDMARK_CY}) rotate(90) scale(${WORDMARK_CY} ${WORDMARK_CX})`}
-              >
-                <stop className={INK_STOPS.inner} />
-                <stop offset='1' className={INK_STOPS.outer} />
-              </radialGradient>
-            </>
-          )}
-          <clipPath id={clipId}>
-            <rect width='100' height='100' />
-          </clipPath>
-          <clipPath id={windowId}>
-            <rect x='12.5' y='12.5' width='75' height='75' />
-          </clipPath>
-        </defs>
+        <clipPath id={clipId}>
+          <rect width='100' height='100' />
+        </clipPath>
+        <clipPath id={windowId}>
+          <rect x='12.5' y='12.5' width='75' height='75' />
+        </clipPath>
+      </defs>
 
-        <g filter={`url(#${gooId})`} fill={shapeInk} stroke={shapeInk} strokeWidth={0}>
-          <g data-stage='metaballs' opacity={0} clipPath={`url(#${clipId})`}>
-            <circle data-anim='metaballsA' cx='22' cy='50' r='16' />
-            <circle data-anim='metaballsB' cx='78' cy='50' r='16' />
-          </g>
-          <g data-stage='relay' opacity={0} clipPath={`url(#${clipId})`}>
-            <rect x='13' y='28' width='16' height='44' />
-            <rect x='71' y='28' width='16' height='44' />
-            <circle data-anim='relayBall' cx='21' cy='50' r='14' />
-          </g>
-          <g data-stage='compass' opacity={0} clipPath={`url(#${clipId})`}>
-            <circle cx='50' cy='23' r='14' />
-            <circle cx='23' cy='50' r='14' />
-            <circle cx='77' cy='50' r='14' />
-            <circle cx='50' cy='77' r='14' />
-            <circle data-anim='compassMover' cx='50' cy='23' r='14' />
-          </g>
-          <g data-stage='corners' opacity={0} clipPath={`url(#${clipId})`}>
-            <rect x='27' y='27' width='46' height='46' />
-            <circle data-anim='cornersA' cx='27' cy='27' r='14' />
-            <circle data-anim='cornersB' cx='73' cy='27' r='14' />
-            <circle data-anim='cornersC' cx='73' cy='73' r='14' />
-            <circle data-anim='cornersD' cx='27' cy='73' r='14' />
-          </g>
-          <g data-stage='burst' opacity={0} clipPath={`url(#${windowId})`}>
-            <rect x='12.5' y='43.75' width='75' height='12.5' />
-            <rect x='43.75' y='12.5' width='12.5' height='75' />
-            <circle cx='50' cy='50' r='12.5' />
-            <circle data-anim='burstUp' cx='50' cy='50' r='12.5' />
-            <circle data-anim='burstDown' cx='50' cy='50' r='12.5' />
-            <circle data-anim='burstLeft' cx='50' cy='50' r='12.5' />
-            <circle data-anim='burstRight' cx='50' cy='50' r='12.5' />
-          </g>
-          <g data-stage='squeeze' opacity={0} clipPath={`url(#${clipId})`}>
-            <path d='M 21.36 37.5 A 31.25 31.25 0 0 1 78.64 37.5' fill='none' strokeWidth='12.5' />
-            <path d='M 21.36 62.5 A 31.25 31.25 0 0 0 78.64 62.5' fill='none' strokeWidth='12.5' />
-            <rect data-anim='squeezeBarL' x='15' y='37.5' width='12.5' height='25' />
-            <rect data-anim='squeezeBarR' x='72.5' y='37.5' width='12.5' height='25' />
-          </g>
-          <g data-stage='thinking' opacity={0} clipPath={`url(#${clipId})`}>
-            <circle cx='50' cy='50' r='15' />
-            <circle data-anim='thinkA' cx='50' cy='50' r='12' />
-            <circle data-anim='thinkB' cx='50' cy='50' r='12' />
-            <circle data-anim='thinkC' cx='50' cy='50' r='11' />
-          </g>
-          <g data-stage='orb' opacity={0}>
-            <circle cx='50' cy='50' r='42' />
-          </g>
-          <g
-            data-stage='wm'
-            opacity={1}
-            fill={wordmarkInk}
-            transform={`translate(${round(WORDMARK_X)} ${round(WORDMARK_Y)}) scale(${WORDMARK_SCALE.toFixed(5)})`}
-          >
-            {WORDMARK_PATHS.map((d) => (
-              <path key={d} d={d} />
-            ))}
-          </g>
+      <g filter={`url(#${gooId})`} fill={shapeInk} stroke={shapeInk} strokeWidth={0}>
+        <g data-stage='metaballs' opacity={0} clipPath={`url(#${clipId})`}>
+          <circle data-anim='metaballsA' cx='22' cy='50' r='16' />
+          <circle data-anim='metaballsB' cx='78' cy='50' r='16' />
         </g>
-      </svg>
-    </div>
+        <g data-stage='relay' opacity={0} clipPath={`url(#${clipId})`}>
+          <rect x='13' y='28' width='16' height='44' />
+          <rect x='71' y='28' width='16' height='44' />
+          <circle data-anim='relayBall' cx='21' cy='50' r='14' />
+        </g>
+        <g data-stage='compass' opacity={0} clipPath={`url(#${clipId})`}>
+          <circle cx='50' cy='23' r='14' />
+          <circle cx='23' cy='50' r='14' />
+          <circle cx='77' cy='50' r='14' />
+          <circle cx='50' cy='77' r='14' />
+          <circle data-anim='compassMover' cx='50' cy='23' r='14' />
+        </g>
+        <g data-stage='corners' opacity={0} clipPath={`url(#${clipId})`}>
+          <rect x='27' y='27' width='46' height='46' />
+          <circle data-anim='cornersA' cx='27' cy='27' r='14' />
+          <circle data-anim='cornersB' cx='73' cy='27' r='14' />
+          <circle data-anim='cornersC' cx='73' cy='73' r='14' />
+          <circle data-anim='cornersD' cx='27' cy='73' r='14' />
+        </g>
+        <g data-stage='burst' opacity={0} clipPath={`url(#${windowId})`}>
+          <rect x='12.5' y='43.75' width='75' height='12.5' />
+          <rect x='43.75' y='12.5' width='12.5' height='75' />
+          <circle cx='50' cy='50' r='12.5' />
+          <circle data-anim='burstUp' cx='50' cy='50' r='12.5' />
+          <circle data-anim='burstDown' cx='50' cy='50' r='12.5' />
+          <circle data-anim='burstLeft' cx='50' cy='50' r='12.5' />
+          <circle data-anim='burstRight' cx='50' cy='50' r='12.5' />
+        </g>
+        <g data-stage='squeeze' opacity={0} clipPath={`url(#${clipId})`}>
+          <path d='M 21.36 37.5 A 31.25 31.25 0 0 1 78.64 37.5' fill='none' strokeWidth='12.5' />
+          <path d='M 21.36 62.5 A 31.25 31.25 0 0 0 78.64 62.5' fill='none' strokeWidth='12.5' />
+          <rect data-anim='squeezeBarL' x='15' y='37.5' width='12.5' height='25' />
+          <rect data-anim='squeezeBarR' x='72.5' y='37.5' width='12.5' height='25' />
+        </g>
+        <g data-stage='thinking' opacity={0} clipPath={`url(#${clipId})`}>
+          <circle cx='50' cy='50' r='15' />
+          <circle data-anim='thinkA' cx='50' cy='50' r='12' />
+          <circle data-anim='thinkB' cx='50' cy='50' r='12' />
+          <circle data-anim='thinkC' cx='50' cy='50' r='11' />
+        </g>
+        <g data-stage='orb' opacity={0}>
+          <circle cx='50' cy='50' r='42' />
+        </g>
+        <g data-stage='wm' opacity={1} fill={wordmarkInk} transform={WORDMARK_MORPH_TRANSFORM}>
+          {WORDMARK_PATHS.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
+      </g>
+    </WordmarkFrame>
   )
 }

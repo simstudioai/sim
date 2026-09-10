@@ -12,10 +12,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  Loader,
   OverflowText,
 } from '@sim/emcn'
-import { MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Loader, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
