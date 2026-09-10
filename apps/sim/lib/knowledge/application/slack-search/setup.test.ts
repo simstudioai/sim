@@ -14,6 +14,9 @@ const m = vi.hoisted(() => ({
   audit: vi.fn(),
   baseUrl: vi.fn(),
   shared: vi.fn(),
+  revoke: vi.fn(),
+  validateGrant: vi.fn(),
+  ensureGroup: vi.fn(),
 }))
 vi.mock('@/lib/slack-search/shared-app', () => ({ readSharedSlackSearchApp: m.shared }))
 vi.mock('@sim/audit', () => ({
@@ -45,7 +48,12 @@ vi.mock('@/lib/slack-search/oauth-state', () => ({
   consumeSlackSearchOAuthAttempt: m.consume,
   storeSlackSearchOAuthAttempt: m.store,
 }))
-vi.mock('@/lib/internal/slack/oauth', () => ({ exchangeSlackBotAuthorization: m.exchange }))
+vi.mock('@/lib/internal/slack/oauth', () => ({
+  exchangeSlackBotAuthorization: m.exchange,
+  revokeSlackBotAuthorization: m.revoke,
+  validateSlackBotAuthorization: m.validateGrant,
+}))
+vi.mock('@/lib/credential-groups/service', () => ({ ensureWorkspaceAccountsGroup: m.ensureGroup }))
 vi.mock('@/lib/credential-groups/organization-slack-app', () => ({
   loadOrganizationSlackMemberApps: async () => [],
   adoptOrganizationSlackMemberApp: vi.fn(),
@@ -87,6 +95,9 @@ const complete = () =>
 beforeEach(() => {
   vi.clearAllMocks()
   m.shared.mockResolvedValue(null)
+  m.revoke.mockResolvedValue(undefined)
+  m.validateGrant.mockReset()
+  m.ensureGroup.mockResolvedValue({ id: 'accounts' })
   m.baseUrl.mockReturnValue('https://sim.test')
   m.membership.mockResolvedValue([{ role: 'admin' }])
   m.rows.mockReset().mockResolvedValue([])
@@ -285,4 +296,131 @@ it('rejects a shared-app callback if the global configuration was disabled or ro
   m.shared.mockResolvedValue({ id: 'ASHARED', revision: 'new-rev' })
   await expect(complete()).rejects.toThrow()
   expect(m.exchange).not.toHaveBeenCalled()
+})
+
+describe('shared app completion', () => {
+  const sharedApp = { id: 'A1', revision: 'shared-revision', kind: 'shared', organizationId: null }
+  beforeEach(() => {
+    m.shared.mockResolvedValue(sharedApp)
+    m.consume.mockResolvedValue({
+      ...attempt,
+      sharedApp: { id: sharedApp.id, revision: sharedApp.revision },
+    })
+  })
+
+  it('commits the personal app configuration, bot credential and installation in one transaction', async () => {
+    m.rows
+      .mockResolvedValueOnce([sharedApp])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'accounts', options: [], encryptedProviderConfiguration: null },
+      ])
+    await expect(complete()).resolves.toEqual({ organizationId: 'org1' })
+    expect(db.transaction).toHaveBeenCalledOnce()
+    expect(m.ensureGroup).toHaveBeenCalledWith(
+      { kind: 'organization', organizationId: 'org1' },
+      'admin',
+      undefined,
+      expect.objectContaining({ insert: expect.any(Function) })
+    )
+    const group = m.set.mock.calls[0][0]
+    expect(group.options).toEqual([
+      expect.objectContaining({
+        provider: 'slack',
+        authorizationAppId: 'slack:A1:T1',
+        status: 'active',
+        requiredScopes: expect.arrayContaining([
+          'channels:history',
+          'groups:history',
+          'im:history',
+          'mpim:history',
+          'users:read.email',
+        ]),
+      }),
+    ])
+    const configuration = JSON.parse(
+      group.encryptedProviderConfiguration.slice('encrypted:'.length)
+    )
+    expect(configuration.slack).toMatchObject({
+      source: 'slack_app',
+      appId: 'A1',
+      teamId: 'T1',
+      scopes: group.options[0].requiredScopes,
+    })
+    expect(configuration.slack).not.toHaveProperty('clientSecret')
+    const rows = m.values.mock.calls.map(([value]) => value)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      organizationId: 'org1',
+      workspaceId: null,
+      type: 'service_account',
+      slackAppId: 'A1',
+    })
+    expect(rows[1]).toMatchObject({
+      organizationId: 'org1',
+      credentialId: rows[0].id,
+      slackAppId: 'A1',
+      appId: 'A1',
+      teamId: 'T1',
+      enabled: true,
+    })
+    expect(m.verify).toHaveBeenCalledTimes(2)
+    expect(m.revoke).not.toHaveBeenCalled()
+    expect(m.audit).toHaveBeenCalledOnce()
+  })
+
+  it('revokes an unused shared bot grant after a conflicting workspace binding', async () => {
+    m.rows
+      .mockResolvedValueOnce([sharedApp])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'other-app' }])
+    await expect(complete()).rejects.toThrow('already has an active Search installation')
+    expect(m.revoke).toHaveBeenCalledWith('bot-token')
+    expect(m.values).not.toHaveBeenCalled()
+    expect(m.audit).not.toHaveBeenCalled()
+  })
+
+  it('revokes an unused shared grant after a database write fails', async () => {
+    m.rows
+      .mockResolvedValueOnce([sharedApp])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'accounts', options: [], encryptedProviderConfiguration: null },
+      ])
+    m.values.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
+    await expect(complete()).rejects.toThrow('write failed')
+    expect(m.revoke).toHaveBeenCalledWith('bot-token')
+    expect(m.audit).not.toHaveBeenCalled()
+  })
+
+  it('never revokes a bot with an existing installation when the initiating admin loses access', async () => {
+    m.verify.mockImplementationOnce(async () => {
+      m.membership.mockResolvedValue([{ role: 'member' }])
+      return identity
+    })
+    m.rows.mockResolvedValueOnce([{ id: 'existing-installation' }])
+    await expect(complete()).rejects.toThrow('administrator')
+    expect(m.revoke).not.toHaveBeenCalled()
+    expect(m.values).not.toHaveBeenCalled()
+  })
+
+  it('revokes a shared grant rejected by scope or token-rotation policy', async () => {
+    m.validateGrant.mockImplementationOnce(() => {
+      throw new Error('unsupported grant')
+    })
+    await expect(complete()).rejects.toThrow('unsupported grant')
+    expect(m.revoke).toHaveBeenCalledWith('bot-token')
+    expect(m.values).not.toHaveBeenCalled()
+  })
+
+  it('surfaces cleanup failure with a concrete recovery step', async () => {
+    m.verify.mockRejectedValueOnce(new Error('invalid bot'))
+    m.revoke.mockRejectedValueOnce(new Error('provider failed'))
+    await expect(complete()).rejects.toThrow('Remove the unused app in Slack before retrying')
+    expect(m.audit).not.toHaveBeenCalled()
+  })
 })
