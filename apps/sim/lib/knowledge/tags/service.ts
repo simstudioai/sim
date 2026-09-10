@@ -9,7 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
@@ -201,23 +201,23 @@ export async function getNextAvailableSlot(
   return null // All slots for this field type are used
 }
 
-/**
- * Get all tag definitions for a knowledge base
- */
+const DOCUMENT_TAG_DEFINITION_FIELDS = {
+  id: knowledgeBaseTagDefinitions.id,
+  knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+  tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+  displayName: knowledgeBaseTagDefinitions.displayName,
+  fieldType: knowledgeBaseTagDefinitions.fieldType,
+  createdAt: knowledgeBaseTagDefinitions.createdAt,
+  updatedAt: knowledgeBaseTagDefinitions.updatedAt,
+}
+
+/** Get all tag definitions for a knowledge base. */
 export async function getDocumentTagDefinitions(
   knowledgeBaseId: string,
   txDb?: DbOrTx
 ): Promise<DocumentTagDefinition[]> {
   const definitions = await (txDb ?? db)
-    .select({
-      id: knowledgeBaseTagDefinitions.id,
-      knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
-      tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-      displayName: knowledgeBaseTagDefinitions.displayName,
-      fieldType: knowledgeBaseTagDefinitions.fieldType,
-      createdAt: knowledgeBaseTagDefinitions.createdAt,
-      updatedAt: knowledgeBaseTagDefinitions.updatedAt,
-    })
+    .select(DOCUMENT_TAG_DEFINITION_FIELDS)
     .from(knowledgeBaseTagDefinitions)
     .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
     .orderBy(knowledgeBaseTagDefinitions.tagSlot)
@@ -226,6 +226,35 @@ export async function getDocumentTagDefinitions(
     ...def,
     tagSlot: def.tagSlot as string,
   }))
+}
+
+/** Loads each requested base's slot-ordered definitions in one statement, including empty bases. */
+export async function getDocumentTagDefinitionsByKnowledgeBaseIds(
+  knowledgeBaseIds: readonly string[]
+): Promise<Map<string, DocumentTagDefinition[]>> {
+  const definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>(
+    knowledgeBaseIds.map((id) => [id, []])
+  )
+  if (definitionsByKnowledgeBase.size === 0) return definitionsByKnowledgeBase
+  if (definitionsByKnowledgeBase.size === 1) {
+    const id = knowledgeBaseIds[0]
+    definitionsByKnowledgeBase.set(id, await getDocumentTagDefinitions(id))
+    return definitionsByKnowledgeBase
+  }
+  const definitions = await db
+    .select(DOCUMENT_TAG_DEFINITION_FIELDS)
+    .from(knowledgeBaseTagDefinitions)
+    .where(
+      inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, [...definitionsByKnowledgeBase.keys()])
+    )
+    .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+  for (const definition of definitions) {
+    definitionsByKnowledgeBase.get(definition.knowledgeBaseId)!.push({
+      ...definition,
+      tagSlot: definition.tagSlot as string,
+    })
+  }
+  return definitionsByKnowledgeBase
 }
 
 /**

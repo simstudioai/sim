@@ -576,6 +576,77 @@ describe('live repository authorization follows ranked candidates', () => {
     }
   )
 
+  it.each(['vector', 'tag-vector', 'tags', 'keyword'] as const)(
+    '%s skips discovery for an explicit non-GitHub source and retains full hydration',
+    async (mode) => {
+      getForConnectors.mockResolvedValue(identity)
+      queueTableRows(schemaMock.embedding, [
+        { ...candidate('gmail', 'gmail-source'), installationSource: false },
+      ])
+      const hydrated = [{ id: 'gmail', content: 'current permitted content' }]
+      queueTableRows(schemaMock.embedding, hydrated)
+      const searchParams = { ...params, filters: { source: 'gmail' } }
+      const rows =
+        mode === 'vector'
+          ? await handleVectorOnlySearch(searchParams)
+          : mode === 'tag-vector'
+            ? await handleTagAndVectorSearch(searchParams)
+            : mode === 'tags'
+              ? await handleTagOnlySearch(searchParams)
+              : await executeKeywordSearch({
+                  ...searchParams,
+                  query: 'release',
+                  queryVector: searchParams.queryVector!,
+                })
+
+      expect(rows).toEqual(hydrated)
+      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith([], undefined)
+      for (const [condition] of dbChainMockFns.where.mock.calls) {
+        expect(JSON.stringify(condition)).toContain('gmail')
+      }
+      const hydration = JSON.stringify(dbChainMockFns.where.mock.calls[1][0])
+      expect(hydration).toContain('acl')
+      expect(hydration).toContain('knowledgeConnectorMember')
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it.each([undefined, '', 'github'])(
+    'retains discovery for classic GitHub when source is %s',
+    async (source) => {
+      queueTableRows(schemaMock.embedding, [
+        { ...candidate('selected', 'allowed-source'), installationSource: false },
+        { ...candidate('second', 'allowed-source'), installationSource: false },
+      ])
+      queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
+
+      expect(await handleTagOnlySearch({ ...params, filters: { source } })).toEqual([
+        { id: 'selected', content: 'verified result' },
+      ])
+      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
+      expect(JSON.stringify(dbChainMockFns.where.mock.calls[1][0])).toContain('github_read_grant')
+    }
+  )
+
+  it('retains every connector in unfiltered mixed pages', async () => {
+    queueTableRows(schemaMock.embedding, [
+      { ...candidate('gmail', 'gmail-source'), installationSource: false },
+      { ...candidate('classic', 'classic-source'), installationSource: false },
+      candidate('selected', 'allowed-source'),
+      candidate('selected-second-chunk', 'allowed-source'),
+      { ...candidate('upload', 'unused'), connectorId: null, installationSource: false },
+    ])
+    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
+
+    expect(await handleTagOnlySearch(params)).toEqual([
+      { id: 'selected', content: 'verified result' },
+    ])
+    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(
+      ['gmail-source', 'classic-source', 'allowed-source'],
+      undefined
+    )
+  })
+
   it('refills after a denied repository instead of letting its matches consume the result limit', async () => {
     getForConnectors.mockResolvedValueOnce(identity)
     queueTableRows(schemaMock.embedding, [candidate('denied', 'revoked-source')])
@@ -612,16 +683,23 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(getForConnectors).toHaveBeenCalledOnce()
   })
 
-  it('propagates caller cancellation before content hydration', async () => {
-    const cancellation = new AbortController()
-    getForConnectors.mockImplementation(async () => {
-      cancellation.abort(new Error('Search cancelled'))
-      return allowed
-    })
-    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
-    await expect(handleTagOnlySearch({ ...params, signal: cancellation.signal })).rejects.toThrow(
-      'Search cancelled'
-    )
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-  })
+  it.each([undefined, 'gmail'])(
+    'propagates caller cancellation before hydration with source %s',
+    async (source) => {
+      const cancellation = new AbortController()
+      getForConnectors.mockImplementation(async () => {
+        cancellation.abort(new Error('Search cancelled'))
+        return allowed
+      })
+      queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+      await expect(
+        handleTagOnlySearch({ ...params, filters: { source }, signal: cancellation.signal })
+      ).rejects.toThrow('Search cancelled')
+      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(
+        source ? [] : ['allowed-source'],
+        cancellation.signal
+      )
+      expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    }
+  )
 })

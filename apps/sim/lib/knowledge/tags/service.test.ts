@@ -3,7 +3,7 @@
  */
 
 import { knowledgeBaseTagDefinitions } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/utils/id', () => ({
@@ -14,6 +14,8 @@ vi.mock('@sim/utils/id', () => ({
 import {
   createOrUpdateTagDefinitionsBulk,
   createTagDefinition,
+  getDocumentTagDefinitions,
+  getDocumentTagDefinitionsByKnowledgeBaseIds,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 
@@ -31,6 +33,83 @@ function existingDefinition(overrides: Record<string, unknown>) {
     ...overrides,
   }
 }
+
+describe('getDocumentTagDefinitionsByKnowledgeBaseIds', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('loads twenty bases in one query and retains each base in requested order', async () => {
+    const ids = Array.from({ length: 20 }, (_, index) => `kb-${index}`)
+    queueTableRows(knowledgeBaseTagDefinitions, [
+      existingDefinition({ knowledgeBaseId: 'kb-2', tagSlot: 'number1', fieldType: 'number' }),
+      existingDefinition({ knowledgeBaseId: 'kb-1', tagSlot: 'tag1' }),
+      existingDefinition({ knowledgeBaseId: 'kb-2', tagSlot: 'tag1' }),
+    ])
+
+    const result = await getDocumentTagDefinitionsByKnowledgeBaseIds(ids)
+
+    expect([...result.keys()]).toEqual(ids)
+    expect(result.get('kb-0')).toEqual([])
+    expect(result.get('kb-1')?.map((definition) => definition.tagSlot)).toEqual(['tag1'])
+    expect(result.get('kb-2')?.map((definition) => definition.tagSlot)).toEqual(['number1', 'tag1'])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(knowledgeBaseTagDefinitions.tagSlot)
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0][0],
+        (node) =>
+          node.type === 'inArray' &&
+          node.column === knowledgeBaseTagDefinitions.knowledgeBaseId &&
+          JSON.stringify(node.values) === JSON.stringify(ids)
+      )
+    ).toBe(true)
+    const projection = dbChainMockFns.select.mock.calls[0][0]
+    await getDocumentTagDefinitions('kb-0')
+    expect(dbChainMockFns.select.mock.calls[1][0]).toEqual(projection)
+  })
+
+  it('keeps empty bases and deduplicates requested ids', async () => {
+    const result = await getDocumentTagDefinitionsByKnowledgeBaseIds(['kb-2', 'kb-1', 'kb-2'])
+    expect([...result]).toEqual([
+      ['kb-2', []],
+      ['kb-1', []],
+    ])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0][0],
+        (node) =>
+          node.type === 'inArray' &&
+          JSON.stringify(node.values) === JSON.stringify(['kb-2', 'kb-1'])
+      )
+    ).toBe(true)
+  })
+
+  it('skips an empty batch and preserves the singleton equality predicate', async () => {
+    expect(await getDocumentTagDefinitionsByKnowledgeBaseIds([])).toEqual(new Map())
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(await getDocumentTagDefinitionsByKnowledgeBaseIds(['kb-1'])).toEqual(
+      new Map([['kb-1', []]])
+    )
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0][0],
+        (node) => node.type === 'eq' && node.right === 'kb-1'
+      )
+    ).toBe(true)
+  })
+
+  it('propagates batch database failures', async () => {
+    const failure = new Error('tag database unavailable')
+    dbChainMockFns.orderBy.mockRejectedValueOnce(failure)
+    await expect(getDocumentTagDefinitionsByKnowledgeBaseIds(['kb-1', 'kb-2'])).rejects.toBe(
+      failure
+    )
+  })
+})
 
 describe('createOrUpdateTagDefinitionsBulk', () => {
   beforeEach(() => {
