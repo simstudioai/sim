@@ -115,6 +115,7 @@ interface ConnectServiceAccountModalProps {
   organizationId?: string
   serviceAccountProviderId: ServiceAccountProviderId
   atlassianProduct?: AtlassianProduct
+  atlassianSetupGuideUrl?: string
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
@@ -150,6 +151,7 @@ export function ConnectServiceAccountModal({
   organizationId,
   serviceAccountProviderId,
   atlassianProduct,
+  atlassianSetupGuideUrl,
   serviceName,
   serviceIcon,
   credentialId,
@@ -211,6 +213,7 @@ export function ConnectServiceAccountModal({
     return (
       <AtlassianServiceAccountModal
         atlassianProduct={atlassianProduct}
+        setupGuideUrl={atlassianSetupGuideUrl}
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
@@ -450,15 +453,18 @@ function GoogleServiceAccountModalForm({
   )
 }
 
+interface AtlassianServiceAccountModalProps extends ProviderModalProps {
+  atlassianProduct?: AtlassianProduct
+  setupGuideUrl?: string
+}
+
 /**
  * Atlassian service-account flow. Accepts an API token + site domain and
  * validates server-side against the Atlassian API. Maps the route's
  * `error.code` to descriptive copy so users know whether the token, domain,
  * or upstream availability is at fault.
  */
-function AtlassianServiceAccountModal(
-  props: ProviderModalProps & { atlassianProduct?: AtlassianProduct }
-) {
+function AtlassianServiceAccountModal(props: AtlassianServiceAccountModalProps) {
   if (!props.open) return null
   return (
     <AtlassianServiceAccountModalForm
@@ -470,6 +476,7 @@ function AtlassianServiceAccountModal(
 
 function AtlassianServiceAccountModalForm({
   atlassianProduct,
+  setupGuideUrl = ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL,
   open,
   onOpenChange,
   workspaceId,
@@ -480,7 +487,7 @@ function AtlassianServiceAccountModalForm({
   initialDisplayName,
   initialDescription,
   onCreated,
-}: ProviderModalProps & { atlassianProduct?: AtlassianProduct }) {
+}: AtlassianServiceAccountModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -608,7 +615,7 @@ function AtlassianServiceAccountModalForm({
         secondaryActions={[
           {
             label: 'Setup guide',
-            onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
+            onClick: () => openDocs(setupGuideUrl),
           },
         ]}
         primaryAction={{

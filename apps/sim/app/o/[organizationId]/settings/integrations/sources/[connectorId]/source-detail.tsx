@@ -241,6 +241,15 @@ function SourceDetailContent({
           description='Its content is unavailable in Search, Assistant, and MCP.'
         />
       )}
+      {connector.accessMode === 'members' && (
+        <SettingsResourceRow
+          title='Search accounts'
+          description='Each person connects from Integrations to sync content they can access.'
+          href={organizationRoutes(organization.id).integrations}
+          clickLabel='Manage your Search accounts'
+          navigable
+        />
+      )}
     </>
   )
   if (view === 'settings')

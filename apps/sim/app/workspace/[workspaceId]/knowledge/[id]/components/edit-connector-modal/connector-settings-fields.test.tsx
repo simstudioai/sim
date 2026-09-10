@@ -327,6 +327,10 @@ describe('connector settings service-account choices', () => {
           organizationId: 'org-1',
           serviceAccountProviderId: provider,
           atlassianProduct: product,
+          atlassianSetupGuideUrl:
+            product === 'confluence'
+              ? 'https://docs.sim.ai/search/confluence#using-a-service-account'
+              : undefined,
         })
       )
 

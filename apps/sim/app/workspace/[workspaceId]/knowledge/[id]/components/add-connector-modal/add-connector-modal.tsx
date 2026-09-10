@@ -681,6 +681,11 @@ export function AddConnectorModal({
                               ? 'Account'
                               : 'Service account'
                       }
+                      hint={
+                        isSearchIndex && isMembersMode
+                          ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
+                          : undefined
+                      }
                     >
                       {credentialsError && rawCredentials.length === 0 ? (
                         <SettingsQueryErrorState
@@ -899,6 +904,11 @@ export function AddConnectorModal({
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
           atlassianProduct={selectedType === 'confluence' ? 'confluence' : undefined}
+          atlassianSetupGuideUrl={
+            selectedType === 'confluence' && docsUrl
+              ? `${docsUrl}#using-a-service-account`
+              : undefined
+          }
           onCreated={setSelectedCredentialId}
         />
       )}

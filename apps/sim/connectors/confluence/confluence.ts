@@ -25,6 +25,7 @@ import {
   listAncestorIds,
   listSpaceReadPrincipals,
   openConfluenceDirectory,
+  validateConfluencePermissionAccess,
 } from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -37,6 +38,7 @@ import {
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+const PERMISSION_VALIDATION_TIMEOUT_MS = 10_000
 
 /**
  * The configured space does not exist for the caller. Confluence answers a
@@ -736,12 +738,15 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await resolveCloudId(
-        accessToken,
-        sourceConfig,
-        syncContext,
-        VALIDATE_RETRY_OPTIONS
-      )
+      const retryOptions =
+        syncContext?.mirrorsSourceAcls === true
+          ? {
+              ...VALIDATE_RETRY_OPTIONS,
+              retryBudgetMs: PERMISSION_VALIDATION_TIMEOUT_MS,
+              signal: AbortSignal.timeout(PERMISSION_VALIDATION_TIMEOUT_MS),
+            }
+          : VALIDATE_RETRY_OPTIONS
+      const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext, retryOptions)
       const params = new URLSearchParams()
       for (const key of spaceKeys) params.append('keys', key)
       params.append('limit', String(Math.max(spaceKeys.length, 1)))
@@ -755,7 +760,7 @@ export const confluenceConnector: ConnectorConfig = {
             Authorization: `Bearer ${accessToken}`,
           },
         },
-        VALIDATE_RETRY_OPTIONS
+        retryOptions
       )
       if (!response.ok) {
         return { valid: false, error: `Failed to validate spaces: ${response.status}` }
@@ -769,6 +774,19 @@ export const confluenceConnector: ConnectorConfig = {
           valid: false,
           error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
         }
+      }
+      if (syncContext?.mirrorsSourceAcls === true) {
+        const spaceId = results[0]?.id
+        if (typeof spaceId !== 'string' || !spaceId) {
+          return { valid: false, error: 'Confluence returned a space without an ID. Try again.' }
+        }
+        await validateConfluencePermissionAccess({
+          cloudId,
+          accessToken,
+          spaceId,
+          contentType: (sourceConfig.contentType as string) || 'page',
+          retryOptions,
+        })
       }
       return { valid: true }
     } catch (error) {

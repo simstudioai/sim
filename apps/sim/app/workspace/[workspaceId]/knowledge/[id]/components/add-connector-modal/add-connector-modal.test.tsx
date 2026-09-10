@@ -830,6 +830,7 @@ describe('Account connection dropdown', () => {
       expect.objectContaining({
         serviceAccountProviderId: 'atlassian-service-account',
         atlassianProduct: 'confluence',
+        atlassianSetupGuideUrl: 'https://docs.sim.ai/search/confluence#using-a-service-account',
       })
     )
     await act(async () => button('Finish service account setup').click())

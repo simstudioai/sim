@@ -317,6 +317,11 @@ export function ConnectorSettingsFields({
       {showServiceAccountModal && serviceAccountTarget && canAdmin && (
         <ConnectServiceAccountModal
           atlassianProduct={connectorConfig?.id === 'confluence' ? 'confluence' : undefined}
+          atlassianSetupGuideUrl={
+            isSearchIndex && connectorConfig?.id === 'confluence' && connectorConfig.searchDocsUrl
+              ? `${connectorConfig.searchDocsUrl}#using-a-service-account`
+              : undefined
+          }
           open
           onOpenChange={setShowServiceAccountModal}
           {...resourceScopeFields(scope)}
@@ -332,7 +337,15 @@ export function ConnectorSettingsFields({
         connectorConfig.configFields.some(
           (field) => field.type === 'selector' && isFieldVisible(field)
         ) && (
-          <ChipModalField type='custom' title='Account for browsing'>
+          <ChipModalField
+            type='custom'
+            title='Account for browsing'
+            hint={
+              isSearchIndex
+                ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
+                : undefined
+            }
+          >
             <ChipCombobox
               options={rawCredentials.map((credential) => ({
                 label: credential.name || credential.provider,

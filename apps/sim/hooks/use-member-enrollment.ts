@@ -109,6 +109,7 @@ interface UseMemberEnrollmentProps {
   connectedConnectorIds: ReadonlySet<string>
   /** Main Integrations skips the invitation page; invitation-based surfaces keep their flow. */
   directOAuth?: boolean
+  onConnectionError?: (message: string) => void
 }
 
 /**
@@ -126,6 +127,7 @@ export function useMemberEnrollment({
   membershipQueryKeys,
   connectedConnectorIds,
   directOAuth = false,
+  onConnectionError,
 }: UseMemberEnrollmentProps) {
   const connectedRef = useRef(connectedConnectorIds)
   const oauthPopups = useRef(
@@ -158,6 +160,7 @@ export function useMemberEnrollment({
         new Map([...current].filter(([, entry]) => entry.oauthCompletionId !== completionId))
     )
     setOAuthError(error)
+    if (error) onConnectionError?.(error)
     refreshMemberships()
   }
 
@@ -215,6 +218,7 @@ export function useMemberEnrollment({
     const tab = window.open('about:blank', '_blank')
     if (!tab) {
       setPopupBlocked(true)
+      onConnectionError?.(POPUP_BLOCKED_MESSAGE)
       return
     }
     tab.opener = null
@@ -267,6 +271,7 @@ export function useMemberEnrollment({
           onSuccess: ({ url }) => onSuccess(url, connectorId),
           onError: (err) => {
             onError()
+            onConnectionError?.(err.message)
             logger.error('Failed to start member enrollment', { error: err.message })
           },
         }
@@ -297,6 +302,7 @@ export function useMemberEnrollment({
           },
           onError: (err) => {
             onError()
+            onConnectionError?.(err.message)
             logger.error('Failed to connect a Sim Search source', { error: err.message })
           },
         }
