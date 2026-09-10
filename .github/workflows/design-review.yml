@@ -1,0 +1,94 @@
+name: Design diff (advisory)
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Open PR number targeting staging
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: design-diff-${{ github.event.pull_request.number || inputs.pull_request }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    if: github.event_name == 'pull_request_target' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Resolve immutable trusted engine and PR revisions
+        id: revisions
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REQUESTED_PR: ${{ inputs.pull_request }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = context.payload.pull_request?.number ?? Number(process.env.REQUESTED_PR);
+            if (!Number.isSafeInteger(number) || number <= 0) throw new Error('Invalid PR number');
+            const pr = context.payload.pull_request ?? (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+            if (pr.state !== 'open' || pr.base.ref !== 'staging' || pr.base.repo.full_name !== `${owner}/${repo}`) {
+              throw new Error('Expected an open PR targeting this repository staging branch');
+            }
+            const repository = (await github.rest.repos.get({ owner, repo })).data;
+            const engine = (await github.rest.repos.getCommit({ owner, repo, ref: repository.default_branch })).data.sha;
+            for (const sha of [engine, pr.base.sha, pr.head.sha]) {
+              if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid commit identity');
+            }
+            core.setOutput('engine', engine);
+            core.setOutput('base', pr.base.sha);
+            core.setOutput('head', pr.head.sha);
+            core.setOutput('pr', String(number));
+
+      - name: Checkout trusted engine only
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ steps.revisions.outputs.engine }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Install trusted dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Fetch PR source as Git objects
+        env:
+          BASE_SHA: ${{ steps.revisions.outputs.base }}
+          HEAD_SHA: ${{ steps.revisions.outputs.head }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH_HEADER" fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA" >/dev/null 2>&1
+          test "$(git rev-parse --verify "$BASE_SHA^{commit}")" = "$BASE_SHA"
+          test "$(git rev-parse --verify "$HEAD_SHA^{commit}")" = "$HEAD_SHA"
+
+      - name: Analyze source
+        env:
+          BASE_SHA: ${{ steps.revisions.outputs.base }}
+          HEAD_SHA: ${{ steps.revisions.outputs.head }}
+          DESIGN_DIFF_PR: ${{ steps.revisions.outputs.pr }}
+          DESIGN_DIFF_ENGINE_SHA: ${{ steps.revisions.outputs.engine }}
+          REPORT_PATH: ${{ runner.temp }}/design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}.json
+        run: bun run design:diff --base "$BASE_SHA" --head "$HEAD_SHA" --output "$REPORT_PATH" > /dev/null 2>&1
+
+      - name: Retain JSON report
+        if: ${{ always() && steps.revisions.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}
+          path: ${{ runner.temp }}/design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}.json
+          retention-days: 7
+          if-no-files-found: error

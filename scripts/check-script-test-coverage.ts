@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Asserts every `scripts/*.test.ts` file is collected by the root Vitest config.
+ * Asserts every root script test and nested design-diff test is collected by the root Vitest config.
  *
  * The root `test` script once chained a hand-maintained list of `test:*` entries, and a
  * hand-maintained list silently drifts from the files on disk: a test added without a matching
@@ -57,10 +57,14 @@ const collected = new Set(
   )
 )
 
-const onDisk = readdirSync(path.join(ROOT, 'scripts'))
-  .filter((file) => file.endsWith('.test.ts'))
-  .map((file) => `scripts/${file}`)
-  .sort()
+const onDisk = [
+  ...readdirSync(path.join(ROOT, 'scripts'))
+    .filter((file) => file.endsWith('.test.ts'))
+    .map((file) => `scripts/${file}`),
+  ...readdirSync(path.join(ROOT, 'scripts/design-diff/tests'), { recursive: true })
+    .filter((file): file is string => typeof file === 'string' && file.endsWith('.test.ts'))
+    .map((file) => `scripts/design-diff/tests/${file.split(path.sep).join('/')}`),
+].sort()
 
 const orphaned = onDisk.filter((file) => !collected.has(file))
 if (orphaned.length > 0) {

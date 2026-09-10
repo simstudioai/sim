@@ -1,0 +1,62 @@
+[
+  {
+    "name": "local colour",
+    "before": "export const Button = () => <button style={{color:'red'}}>Go</button>",
+    "after": "export const Button = () => <button style={{color:'blue'}}>Go</button>",
+    "category": "colour"
+  },
+  {
+    "name": "padding",
+    "before": "export const Button = () => <button style={{padding:8}}>Go</button>",
+    "after": "export const Button = () => <button style={{padding:12}}>Go</button>",
+    "category": "dimensions"
+  },
+  {
+    "name": "width",
+    "before": "export const Button = () => <button style={{width:80}}>Go</button>",
+    "after": "export const Button = () => <button style={{width:100}}>Go</button>",
+    "category": "dimensions"
+  },
+  {
+    "name": "font",
+    "before": "export const Button = () => <button style={{fontSize:14}}>Go</button>",
+    "after": "export const Button = () => <button style={{fontSize:16}}>Go</button>",
+    "category": "typography"
+  },
+  {
+    "name": "shape",
+    "before": "export const Button = () => <button style={{borderRadius:50}}>Go</button>",
+    "after": "export const Button = () => <button style={{borderRadius:0}}>Go</button>",
+    "category": "shape-effects"
+  },
+  {
+    "name": "wrapping",
+    "before": "export const Button = () => <button style={{flexWrap:'nowrap'}}>Go</button>",
+    "after": "export const Button = () => <button style={{flexWrap:'wrap'}}>Go</button>",
+    "category": "layout"
+  },
+  {
+    "name": "visibility",
+    "before": "export const Button = () => <button style={{overflow:'visible'}}>Go</button>",
+    "after": "export const Button = () => <button style={{overflow:'hidden'}}>Go</button>",
+    "category": "visibility"
+  },
+  {
+    "name": "visible copy",
+    "before": "export const Button = () => <button>Go</button>",
+    "after": "export const Button = () => <button>Continue</button>",
+    "category": "content"
+  },
+  {
+    "name": "motion",
+    "before": "export const Button = () => <motion.button animate={{opacity:1}}>Go</motion.button>",
+    "after": "export const Button = () => <motion.button animate={{opacity:0.5}}>Go</motion.button>",
+    "category": "motion"
+  },
+  {
+    "name": "inline SVG",
+    "before": "export const Icon = () => <svg><path d='M0 0L4 4'/></svg>",
+    "after": "export const Icon = () => <svg><path d='M0 0L8 8'/></svg>",
+    "category": "content"
+  }
+]

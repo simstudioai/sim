@@ -1,0 +1,85 @@
+{
+  "sourceRoots": ["apps/", "packages/"],
+  "exclude": [
+    "(?:^|/)(?:node_modules|__tests__|__fixtures__|fixtures|test-results|\\.source|dist|build)/",
+    "\\.(?:test|spec)\\.[cm]?[jt]sx?$",
+    "(?:^|/)next-env\\.d\\.ts$"
+  ],
+  "renderedMarkdown": ["apps/docs/content/", "apps/sim/content/"],
+  "aliases": [
+    {
+      "from": "apps/sim/",
+      "prefix": "@/",
+      "target": "apps/sim/"
+    },
+    {
+      "from": "apps/docs/",
+      "prefix": "@/",
+      "target": "apps/docs/"
+    }
+  ],
+  "themes": [
+    {
+      "roots": ["apps/sim/", "packages/emcn/", "packages/workflow-renderer/"],
+      "path": "apps/sim/app/_styles/globals.css"
+    },
+    {
+      "roots": ["apps/docs/", "packages/emcn/", "packages/workflow-renderer/"],
+      "path": "apps/docs/app/global.css"
+    }
+  ],
+  "classFunctions": ["cn", "clsx", "classNames", "twMerge"],
+  "variantFunctions": ["cva"],
+  "nativeAppearance": [
+    "backgroundColor",
+    "titleBarStyle",
+    "titleBarOverlay",
+    "trafficLightPosition",
+    "vibrancy",
+    "visualEffectState",
+    "transparent",
+    "opacity",
+    "frame",
+    "roundedCorners",
+    "backgroundMaterial",
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "maxWidth",
+    "maxHeight",
+    "resizable",
+    "fullscreen",
+    "autoHideMenuBar",
+    "icon"
+  ],
+  "infrastructure": [
+    "(?:^|/)(?:tailwind|postcss|next|vite|electron-vite|source)\\.config\\.",
+    "(?:^|/)mdx-components\\.",
+    "(?:^|/)lib/postcss/",
+    "(?:^|/)lib/cn\\.ts$",
+    "(?:^|/)tsconfig[^/]*\\.json$"
+  ],
+  "renderingDependencies": "^(?:react(?:-dom)?|next|tailwindcss|tailwind-merge|clsx|class-variance-authority|postcss|electron|framer-motion|motion|tw-animate-css|@tailwindcss/|@radix-ui/|@react-email/|fumadocs|@mdx-js/|remark-|rehype-|lucide)",
+  "limits": {
+    "fileBytes": 2097152,
+    "totalBytes": 268435456,
+    "resolutionDepth": 24,
+    "resolutionSteps": 5000
+  },
+  "nativeRendering": [
+    "apps/desktop/src/main/terminal-themes.ts",
+    "apps/desktop/src/main/context-menu.ts",
+    "apps/desktop/src/main/tray.ts"
+  ],
+  "classModules": [
+    "clsx",
+    "classnames",
+    "tailwind-merge",
+    "@sim/emcn/lib/cn",
+    "@/lib/utils",
+    "@/lib/cn"
+  ],
+  "variantModules": ["class-variance-authority"],
+  "mergeFontSizes": ["micro", "caption", "small", "md"]
+}
