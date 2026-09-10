@@ -234,9 +234,8 @@ describe('organization provider management', () => {
       )
       expect(container.textContent).not.toContain('Add source')
       expect(container.textContent).not.toContain('Add sync configuration')
-      expect(container.querySelector('a[href="/o/org-one/integrations"]')).toHaveTextContent(
-        'Open Integrations'
-      )
+      expect(container.querySelector('a[href="/o/org-one/integrations"]')).toBeNull()
+      expect(container.textContent).not.toContain('Open Integrations')
       expect(mocks.sources).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({ enabled: false })

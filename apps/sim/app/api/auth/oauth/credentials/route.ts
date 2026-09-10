@@ -35,13 +35,15 @@ function toCredentialResponse(
   credentialType: 'oauth' | 'service_account' = 'oauth'
 ) {
   const storedScope = scope?.trim()
-  // Some providers (e.g. Box) don't return scopes in their token response,
-  // so the DB column stays empty. Fall back to the configured scopes for
-  // the provider so the credential-selector doesn't show a false
-  // "Additional permissions required" banner.
+  /**
+   * Confluence reports granted scopes, so absent metadata must prompt reauthorization.
+   * Preserve the existing fallback for providers that omit scopes, such as Box.
+   */
   const scopes = storedScope
     ? storedScope.split(/[\s,]+/).filter(Boolean)
-    : getCanonicalScopesForProvider(providerId)
+    : providerId === 'confluence'
+      ? []
+      : getCanonicalScopesForProvider(providerId)
   const [_, featureType = 'default'] = providerId.split('-')
 
   return {
