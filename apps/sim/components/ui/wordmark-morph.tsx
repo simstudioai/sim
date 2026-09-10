@@ -1,17 +1,17 @@
 'use client'
 
-import { type CSSProperties, useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { cn } from '@sim/emcn'
 import { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@/lib/branding/wordmark'
 
-/**
- * The mark's ink: the platform's thinking-loader gradient tokens, so it follows
- * the theme. Light resolves to the locked `GOO_GRADIENT` recipe; dark lifts it
- * to the loader's light-on-dark material. Set through `style`, where `var()`
- * is unambiguous, rather than as a presentation attribute.
- */
-const INK_STOP_INNER = { stopColor: 'var(--thinking-ink-inner)' } as const satisfies CSSProperties
-const INK_STOP_OUTER = { stopColor: 'var(--thinking-ink-outer)' } as const satisfies CSSProperties
+/** Theme-aware ink shared by the wordmark and every shape in its animation. */
+const INK_STOPS = {
+  inner: '[stop-color:var(--thinking-ink-inner)]',
+  outer: '[stop-color:var(--thinking-ink-outer)]',
+} as const
+
+/** Brand palette: Static on light backgrounds, Graphite on dark backgrounds. */
+const FLAT_INK = '[color:#e6e6e6] dark:[color:#3b3b3b]'
 
 /**
  * The seven thinking-loader shapes in play order, each with its hold in ms.
@@ -428,10 +428,12 @@ function paintFrame(
 }
 
 interface WordmarkMorphProps {
-  /** Layout only: margins and alignment. */
+  /** Layout only: sizing, margins and alignment. */
   className?: string
   /** Compact loading indicator or responsive footer mark. */
   size?: 'sm' | 'lg'
+  /** Theme-aware gradient or solid gray ink. */
+  variant?: 'gradient' | 'flat'
 }
 
 /**
@@ -440,7 +442,11 @@ interface WordmarkMorphProps {
  * Renders a crisp resting frame, pauses outside the viewport, and stays
  * still under reduced motion. Frames update SVG attributes without React renders.
  */
-export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
+export function WordmarkMorph({
+  className,
+  size = 'sm',
+  variant = 'gradient',
+}: WordmarkMorphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const id = useId().replace(/[^a-zA-Z0-9-]/g, '')
   const gooId = `fwl-goo-${id}`
@@ -448,6 +454,8 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
   const wordmarkInkId = `fwl-wm-ink-${id}`
   const clipId = `fwl-clip-${id}`
   const windowId = `fwl-window-${id}`
+  const shapeInk = variant === 'flat' ? 'currentColor' : `url(#${inkId})`
+  const wordmarkInk = variant === 'flat' ? shapeInk : `url(#${wordmarkInkId})`
 
   useEffect(() => {
     const svg = svgRef.current
@@ -524,7 +532,7 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
     <div
       className={cn(
         'relative mx-auto aspect-[5/3] shrink-0',
-        size === 'sm' ? 'w-[80px]' : 'w-[clamp(180px,17vw,320px)]',
+        size === 'sm' ? 'w-[108px]' : 'w-[clamp(180px,17vw,320px)]',
         className
       )}
     >
@@ -532,7 +540,10 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
         ref={svgRef}
         viewBox='0 0 100 100'
         aria-hidden='true'
-        className='-translate-y-1/2 absolute inset-x-0 top-1/2 aspect-square w-full overflow-visible'
+        className={cn(
+          '-translate-y-1/2 absolute inset-x-0 top-1/2 aspect-square w-full overflow-visible',
+          variant === 'flat' && FLAT_INK
+        )}
       >
         <defs>
           <filter
@@ -544,9 +555,7 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
             colorInterpolationFilters='sRGB'
           >
             <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={0} result='blur' />
-            {/* A steep threshold: the melt between shapes keeps its liquid
-                merges, but every edge resolves within a pixel, so the mark
-                stays crisp at the cycle's full blur. */}
+            {/** The alpha threshold joins nearby shapes during the liquid morph. */}
             <feColorMatrix
               data-goo-matrix=''
               in='blur'
@@ -554,21 +563,25 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
               result='goo'
             />
           </filter>
-          <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
-            <stop style={INK_STOP_INNER} />
-            <stop offset='1' style={INK_STOP_OUTER} />
-          </radialGradient>
-          <radialGradient
-            id={wordmarkInkId}
-            cx='0'
-            cy='0'
-            r='1'
-            gradientUnits='userSpaceOnUse'
-            gradientTransform={`translate(${WORDMARK_CX} ${WORDMARK_CY}) rotate(90) scale(${WORDMARK_CY} ${WORDMARK_CX})`}
-          >
-            <stop style={INK_STOP_INNER} />
-            <stop offset='1' style={INK_STOP_OUTER} />
-          </radialGradient>
+          {variant === 'gradient' && (
+            <>
+              <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
+                <stop className={INK_STOPS.inner} />
+                <stop offset='1' className={INK_STOPS.outer} />
+              </radialGradient>
+              <radialGradient
+                id={wordmarkInkId}
+                cx='0'
+                cy='0'
+                r='1'
+                gradientUnits='userSpaceOnUse'
+                gradientTransform={`translate(${WORDMARK_CX} ${WORDMARK_CY}) rotate(90) scale(${WORDMARK_CY} ${WORDMARK_CX})`}
+              >
+                <stop className={INK_STOPS.inner} />
+                <stop offset='1' className={INK_STOPS.outer} />
+              </radialGradient>
+            </>
+          )}
           <clipPath id={clipId}>
             <rect width='100' height='100' />
           </clipPath>
@@ -577,12 +590,7 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
           </clipPath>
         </defs>
 
-        <g
-          filter={`url(#${gooId})`}
-          fill={`url(#${inkId})`}
-          stroke={`url(#${inkId})`}
-          strokeWidth={0}
-        >
+        <g filter={`url(#${gooId})`} fill={shapeInk} stroke={shapeInk} strokeWidth={0}>
           <g data-stage='metaballs' opacity={0} clipPath={`url(#${clipId})`}>
             <circle data-anim='metaballsA' cx='22' cy='50' r='16' />
             <circle data-anim='metaballsB' cx='78' cy='50' r='16' />
@@ -633,7 +641,7 @@ export function WordmarkMorph({ className, size = 'sm' }: WordmarkMorphProps) {
           <g
             data-stage='wm'
             opacity={1}
-            fill={`url(#${wordmarkInkId})`}
+            fill={wordmarkInk}
             transform={`translate(${round(WORDMARK_X)} ${round(WORDMARK_Y)}) scale(${WORDMARK_SCALE.toFixed(5)})`}
           >
             {WORDMARK_PATHS.map((d) => (

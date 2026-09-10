@@ -175,11 +175,7 @@ export function CommandList() {
             alt='Sim'
             width={99.56}
             height={48.56}
-            className='opacity-70'
-            style={{
-              filter:
-                'brightness(0) saturate(100%) invert(69%) sepia(0%) saturate(0%) hue-rotate(202deg) brightness(94%) contrast(89%)',
-            }}
+            className='opacity-70 [filter:brightness(0)_saturate(100%)_invert(69%)_sepia(0%)_saturate(0%)_hue-rotate(202deg)_brightness(94%)_contrast(89%)]'
           />
         </div>
 

@@ -91,16 +91,16 @@ const ACTION_BUTTON_STYLES = [
 const RUNNING_FILL =
   'bg-[repeating-linear-gradient(75deg,var(--surface-2)_11.59px_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.485px_36.7px)]'
 
-/** A 2.75px gap across the 15° slant matches the 2px inset plus 0.75px outer stroke. */
-const RUNNING_FILL_INSET_SWELL = 'left-[42.85px]'
+/** Matches the Stop highlight's 2px inset plus the node's 0.75px outer stroke. */
+const RUNNING_FILL_INSET_SWELL = 'left-[42.75px]'
 const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
 
 /**
- * A 15° entry with 4px rounded corners. The solid body overlaps each end cap
+ * A vertical entry with 4px rounded corners. The solid body overlaps each end cap
  * by 1px to avoid seams at fractional zoom; the plain bar keeps a square end.
  */
 const RUNNING_FILL_MASK = [
-  '[mask-image:linear-gradient(black,black),url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2024%22%3E%3Cpath%20d%3D%22M5.213%200H16V24H9.5A4%204%200%200%201%205.636%2021.035L1.349%205.035A4%204%200%200%201%205.213%200Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"),var(--running-fill-end-mask,linear-gradient(black,black))]',
+  '[mask-image:linear-gradient(black,black),url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2024%22%3E%3Cpath%20d%3D%22M4%200H16V24H4A4%204%200%200%201%200%2020V4A4%204%200%200%201%204%200Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"),var(--running-fill-end-mask,linear-gradient(black,black))]',
   '[mask-size:calc(100%_-_54px)_100%,16px_100%,40px_100%]',
   '[mask-position:15px_top,left_top,right_top]',
   '[mask-repeat:no-repeat]',
@@ -110,16 +110,12 @@ const RUNNING_FILL_MASK = [
 const RUNNING_FILL_ROUNDED_END =
   '[--running-fill-end-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2024%22%3E%3Cpath%20d%3D%22M0%200H16.25A8%208%200%200%201%2022.4%202.88L36.59%2019.9A2.5%202.5%200%200%201%2034.66%2024H0Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E")]'
 
-/**
- * The running button keeps its outer shoulder and rounds its 15° right edge.
- * The edge runs from x=40 at the top to x=46.43 at the bottom, parallel to the hatch.
- */
+/** Keeps the outer shoulder and a vertical right edge with 4px rounded corners. */
 const RUNNING_BUTTON_CLIP_SWELL =
-  "[clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24H41.217A4_4_0_0_0_45.081_18.965L40.795_2.965A4_4_0_0_0_36.931_0Z')]"
+  "[clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24H36A4_4_0_0_0_40_20V4A4_4_0_0_0_36_0Z')]"
 
-/** Extends the highlight while preserving the 40px slot and the icon's center. */
-const RUNNING_BUTTON_LAYOUT_SWELL =
-  'relative z-[1] -mr-[6.43px] w-[46.43px]! shrink-0 rounded-none pr-[6.43px]'
+/** The clip path owns the corners within the standard 40px slot. */
+const RUNNING_BUTTON_LAYOUT_SWELL = 'relative w-[40px]! shrink-0 rounded-none'
 
 const ICON_SIZE = 'size-[14px]'
 

@@ -8,7 +8,7 @@ interface WorkflowLoaderProps {
 export function WorkflowLoader({ label = 'Loading workflow' }: WorkflowLoaderProps) {
   return (
     <div role='status'>
-      <WordmarkMorph />
+      <WordmarkMorph variant='flat' />
       <span className='sr-only'>{label}</span>
     </div>
   )
