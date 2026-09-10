@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import {
   BrowserAgentIcon,
-  getBrowserAgentHostname,
+  getBrowserAgentFaviconUrl,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -25,53 +25,72 @@ function tool(overrides: Partial<ToolCallData> = {}): AgentGroupItem {
   }
 }
 
-describe('getBrowserAgentHostname', () => {
+describe('getBrowserAgentFaviconUrl', () => {
+  it('keeps the observed origin and port without disclosing page details', () => {
+    expect(
+      getBrowserAgentFaviconUrl([
+        tool({
+          result: {
+            success: true,
+            output: {
+              url: 'https://username:password@example.com:8443/document?token=private#part',
+            },
+          },
+        }),
+      ])
+    ).toBe('https://example.com:8443/favicon.ico')
+  })
+
   it('uses the pending destination, then the observed redirect, and retains it during editing', () => {
     const navigating = tool({
       status: 'executing',
       params: { url: 'https://example.org/start' },
       result: undefined,
     })
-    expect(getBrowserAgentHostname([tool(), navigating])).toBe('example.org')
+    expect(getBrowserAgentFaviconUrl([tool(), navigating])).toBe('https://example.org/favicon.ico')
     const redirected = tool({ params: { url: 'https://example.org/start' } })
-    expect(getBrowserAgentHostname([redirected])).toBe('example.com')
+    expect(getBrowserAgentFaviconUrl([redirected])).toBe('https://example.com/favicon.ico')
     expect(
-      getBrowserAgentHostname([
+      getBrowserAgentFaviconUrl([
         redirected,
         tool({ toolName: 'browser_type', status: 'executing', result: undefined }),
       ])
-    ).toBe('example.com')
+    ).toBe('https://example.com/favicon.ico')
   })
 
   it.each(['error', 'cancelled', 'rejected', 'awaiting_approval'] as const)(
     'does not adopt a destination from a %s tool',
     (status) => {
       expect(
-        getBrowserAgentHostname([
+        getBrowserAgentFaviconUrl([
           tool(),
           tool({ status, params: { url: 'https://example.org' }, result: undefined }),
         ])
-      ).toBe('example.com')
+      ).toBe('https://example.com/favicon.ico')
     }
   )
 
-  it.each(['', 'about:blank', 'file:///document', 'data:text/html,hello', 'not a URL'])(
-    'clears the previous site for a page without an HTTP hostname: %s',
-    (url) => {
-      expect(
-        getBrowserAgentHostname([
-          tool(),
-          tool({ toolName: 'browser_switch_tab', result: { success: true, output: { url } } }),
-        ])
-      ).toBeNull()
-    }
-  )
+  it.each([
+    '',
+    'about:blank',
+    'http://example.com',
+    'file:///document',
+    'data:text/html,hello',
+    'not a URL',
+  ])('clears the previous site when the page cannot supply an allowed favicon: %s', (url) => {
+    expect(
+      getBrowserAgentFaviconUrl([
+        tool(),
+        tool({ toolName: 'browser_switch_tab', result: { success: true, output: { url } } }),
+      ])
+    ).toBeNull()
+  })
 
   it.each(['browser_open_tab', 'browser_switch_tab', 'browser_close_tab', 'browser_go_back'])(
     'clears an obsolete site while %s has no known destination',
     (toolName) => {
       expect(
-        getBrowserAgentHostname([
+        getBrowserAgentFaviconUrl([
           tool(),
           tool({ toolName, status: 'executing', result: undefined }),
         ])
@@ -89,13 +108,13 @@ describe('getBrowserAgentHostname', () => {
       { tabs, activeTabId: 'agent' },
     ]) {
       expect(
-        getBrowserAgentHostname([
+        getBrowserAgentFaviconUrl([
           tool({ toolName: 'browser_list_tabs', result: { success: true, output } }),
         ])
-      ).toBe('example.com')
+      ).toBe('https://example.com/favicon.ico')
     }
     expect(
-      getBrowserAgentHostname([
+      getBrowserAgentFaviconUrl([
         tool(),
         tool({
           toolName: 'browser_list_tabs',
@@ -118,14 +137,14 @@ describe('getBrowserAgentHostname', () => {
       ['browser_extract', { page: { url: 'https://example.org' } }],
     ] as const) {
       expect(
-        getBrowserAgentHostname([tool(), tool({ toolName, result: { success: true, output } })])
-      ).toBe('example.org')
+        getBrowserAgentFaviconUrl([tool(), tool({ toolName, result: { success: true, output } })])
+      ).toBe('https://example.org/favicon.ico')
     }
   })
 
   it('clears a stale site when an action navigated without reporting its destination', () => {
     expect(
-      getBrowserAgentHostname([
+      getBrowserAgentFaviconUrl([
         tool(),
         tool({
           toolName: 'browser_click',
@@ -137,7 +156,7 @@ describe('getBrowserAgentHostname', () => {
 
   it('ignores URLs from other tools and nested agent runs', () => {
     expect(
-      getBrowserAgentHostname([
+      getBrowserAgentFaviconUrl([
         tool(),
         tool({
           toolName: 'browser_read_text',
@@ -160,7 +179,7 @@ describe('getBrowserAgentHostname', () => {
           },
         },
       ])
-    ).toBe('example.com')
+    ).toBe('https://example.com/favicon.ico')
   })
 })
 
@@ -184,10 +203,11 @@ describe('BrowserAgentIcon', () => {
     )
   }
 
-  it('keeps the globe until load and resets image state when the hostname changes', () => {
-    render('https://example.com/document?token=private#section')
+  it('keeps the globe until load and resets image state when the page origin changes', () => {
+    render('https://username:password@example.com/document?token=private#section')
     const firstImage = container.querySelector('img')!
-    expect(firstImage.src).toBe('https://www.google.com/s2/favicons?domain=example.com&sz=32')
+    expect(firstImage.src).toBe('https://example.com/favicon.ico')
+    expect(firstImage.getAttribute('referrerpolicy')).toBe('no-referrer')
     expect(container.querySelector('svg')).not.toBeNull()
     act(() => firstImage.dispatchEvent(new Event('load')))
     expect(container.querySelector('svg')).toBeNull()
