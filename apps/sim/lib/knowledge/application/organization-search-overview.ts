@@ -15,6 +15,7 @@ import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { MAX_SEARCH_SOURCE_PROVIDER_TYPES } from '@/lib/knowledge/constants'
 import { canConnectWithDefaults, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 
@@ -100,6 +101,11 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
       ))
     )`
     const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+    /**
+     * A member whose last run only had per-document content failures carries
+     * {@link SOURCE_CONTENT_ERROR} as a marker so its next run lists fully; the
+     * member itself is healthy and the documents are reported separately.
+     */
     const hasMemberError = exists(
       db
         .select({ id: knowledgeConnectorMember.id })
@@ -110,7 +116,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
             sql`(
             ${knowledgeConnectorMember.status} = 'suspended'
             OR (${knowledgeConnectorMember.status} = 'active' AND (
-              ${knowledgeConnectorMember.lastError} IS NOT NULL
+              (${knowledgeConnectorMember.lastError} IS NOT NULL AND ${knowledgeConnectorMember.lastError} <> ${SOURCE_CONTENT_ERROR})
               OR ${knowledgeConnectorMember.consecutiveFailures} > 0
               OR coalesce(${knowledgeConnectorMember.memberSyncedThrough}, ${knowledgeConnectorMember.lastCompleteListingAt}, ${knowledgeConnectorMember.createdAt}) < ${cutoff}
             ))

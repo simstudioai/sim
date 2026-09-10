@@ -93,6 +93,7 @@ const INLINE_FORMATTING_TAGS = new Set([
   'var',
   'samp',
   'time',
+  'ac:inline-comment-marker',
 ])
 
 /**
@@ -204,33 +205,98 @@ export function preserveConfluenceCallouts(html: string): string {
 }
 
 const STORAGE_MACRO_SELECTOR = 'ac\\:structured-macro, ac\\:macro'
+const ADF_NODE_SELECTOR = 'ac\\:adf-node'
+/** Callout macros whose body is prefixed with a semantic label, as on the view path. */
+const LOCAL_CALLOUT_MACROS = new Set(['info', 'note', 'warning', 'tip', 'panel'])
+/**
+ * Macros whose text is authored on the page itself: callouts, expand/excerpt/code
+ * bodies, legacy `section`/`column` layouts (which wrap the entire body of pages
+ * built in the old editor), Page Properties (`details`), table-wrapping macros,
+ * and `status` lozenges. Everything else either resolves another resource
+ * (include, jira, children, page tree, label reports) or is an app macro, and
+ * may render differently for each reader.
+ */
 const LOCAL_STORAGE_MACROS = new Set([
-  'info',
-  'note',
-  'warning',
-  'tip',
-  'panel',
+  ...LOCAL_CALLOUT_MACROS,
   'expand',
   'excerpt',
   'code',
   'noformat',
+  'section',
+  'column',
+  'details',
+  'toc-zone',
+  'chart',
+  'table-filter',
+  'table-chart',
+  'table-pivot',
+  'table-transformer',
+  'table-excerpt',
+  'table-plus',
+  'status',
 ])
+/** New-editor nodes stored as ADF whose content is authored on the page. */
+const LOCAL_ADF_NODE_TYPES = new Set(['panel', 'decision-list', 'decision-item'])
+/** ADF nodes rendered by a Forge or Connect app; their output is resolved elsewhere. */
+const APP_ADF_NODE_TYPES = new Set(['extension', 'bodiedExtension', 'inlineExtension'])
+/** Storage-format bookkeeping that is never page prose. */
+const STORAGE_NOISE_SELECTOR = [
+  'ac\\:parameter',
+  'ac\\:default-parameter',
+  'ac\\:adf-attribute',
+  'ac\\:adf-fallback',
+  'ac\\:placeholder',
+  'ac\\:task-id',
+  'ac\\:task-uuid',
+  'ac\\:task-status',
+  'script',
+  'style',
+].join(', ')
+
+/** Recorded when a scoped page holds nothing but content resolved from elsewhere. */
+export const DYNAMIC_CONTENT_SKIP_REASON =
+  'Page only contains dynamic content (child lists, includes, or app macros) that Search cannot index'
+
+export interface ConfluenceStorageText {
+  text: string
+  /** True when at least one non-local macro or app node was removed. */
+  droppedDynamicContent: boolean
+}
 
 /**
  * Search authorizes the containing page, not content expanded from another
  * resource. Read authored storage text and known local macro bodies only;
  * inclusion and third-party macros may render differently for each reader.
  */
-export function confluenceStorageToPlainText(storage: string): string {
+export function extractConfluenceStorageText(storage: string): ConfluenceStorageText {
   const $ = cheerio.load(
     storage,
     { xml: { xmlMode: false, recognizeCDATA: true, recognizeSelfClosing: true } },
     false
   )
-  $('ac\\:adf-extension').remove()
+  let droppedDynamicContent = false
+
+  for (const element of $(ADF_NODE_SELECTOR).toArray().reverse()) {
+    const node = $(element)
+    const type = node.attr('type') ?? ''
+    if (!LOCAL_ADF_NODE_TYPES.has(type)) {
+      if (APP_ADF_NODE_TYPES.has(type)) droppedDynamicContent = true
+      node.remove()
+      continue
+    }
+    const panelType = node.children('ac\\:adf-attribute[key="panel-type"]').text().trim()
+    node.children('ac\\:adf-attribute, ac\\:adf-fallback').remove()
+    const body = extractBlockJoinedText($, node)
+    const label =
+      type === 'panel'
+        ? (CALLOUT_LABELS[panelType === 'info' ? 'information' : panelType] ?? '[CALLOUT]')
+        : ''
+    node.replaceWith($('<p></p>').text([label, body].filter(Boolean).join(' ')))
+  }
 
   $(STORAGE_MACRO_SELECTOR).each((_, element) => {
     if (!LOCAL_STORAGE_MACROS.has($(element).attr('ac:name') ?? '')) {
+      droppedDynamicContent = true
       $(element).remove()
     }
   })
@@ -248,13 +314,23 @@ export function confluenceStorageToPlainText(storage: string): string {
         ? title
           ? `[CALLOUT: ${title}]`
           : '[CALLOUT]'
-        : CALLOUT_LABELS[name === 'info' ? 'information' : name]
+        : LOCAL_CALLOUT_MACROS.has(name)
+          ? CALLOUT_LABELS[name === 'info' ? 'information' : name]
+          : ''
     const text = [label, name === 'panel' ? '' : title, body].filter(Boolean).join(' ')
     macro.replaceWith($('<p></p>').text(text))
   }
 
-  $('ac\\:parameter, ac\\:default-parameter, script, style').remove()
-  return extractBlockJoinedText($, $.root()).replace(/\s+/g, ' ').trim()
+  $(STORAGE_NOISE_SELECTOR).remove()
+  return {
+    text: extractBlockJoinedText($, $.root()).replace(/\s+/g, ' ').trim(),
+    droppedDynamicContent,
+  }
+}
+
+/** Plain text of a storage-format body; see {@link extractConfluenceStorageText}. */
+export function confluenceStorageToPlainText(storage: string): string {
+  return extractConfluenceStorageText(storage).text
 }
 
 function usesPermissionScopedContent(syncContext?: Record<string, unknown>): boolean {
@@ -313,7 +389,7 @@ export function readIncludedLabels(page: Record<string, unknown>): string[] {
  * ordinary knowledge bases retain their existing rendered representation.
  */
 const CONTENT_REPRESENTATION = 'view-callouts'
-const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v1'
+const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v2'
 
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
@@ -690,9 +766,8 @@ export const confluenceConnector: ConnectorConfig = {
       throw new Error(`Confluence content is missing its ${bodyFormat} body`)
     }
     const rawContent = representation.value
-    const plainText = scopedContent
-      ? confluenceStorageToPlainText(rawContent)
-      : htmlToPlainText(preserveConfluenceCallouts(rawContent))
+    const scoped = scopedContent ? extractConfluenceStorageText(rawContent) : null
+    const plainText = scoped ? scoped.text : htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const links = page._links as Record<string, unknown> | undefined
     const stub = pageToStub(
@@ -707,7 +782,12 @@ export const confluenceConnector: ConnectorConfig = {
 
     if (!plainText.trim()) {
       return {
-        ...markSkipped(stub, 'Document contains no extractable text'),
+        ...markSkipped(
+          stub,
+          scoped?.droppedDynamicContent
+            ? DYNAMIC_CONTENT_SKIP_REASON
+            : 'Document contains no extractable text'
+        ),
         skippedExistingDisposition: 'replace',
       }
     }

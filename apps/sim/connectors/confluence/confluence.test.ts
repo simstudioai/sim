@@ -10,7 +10,9 @@ import {
   buildLastModifiedClause,
   confluenceConnector,
   confluenceStorageToPlainText,
+  DYNAMIC_CONTENT_SKIP_REASON,
   escapeCql,
+  extractConfluenceStorageText,
   isCurrentContent,
   preserveConfluenceCallouts,
   readIncludedLabels,
@@ -770,6 +772,77 @@ describe('confluenceStorageToPlainText', () => {
     expect(confluenceStorageToPlainText(storage)).toBe('Public body')
   })
 
+  it('keeps text authored inside legacy section and column layouts', () => {
+    const storage =
+      '<ac:structured-macro ac:name="section"><ac:rich-text-body>' +
+      '<ac:structured-macro ac:name="column"><ac:parameter ac:name="width">50%</ac:parameter>' +
+      '<ac:rich-text-body><h1>Linux Patching</h1><p>Run the playbook.</p></ac:rich-text-body>' +
+      '</ac:structured-macro>' +
+      '<ac:structured-macro ac:name="column"><ac:rich-text-body><p>Second column</p></ac:rich-text-body>' +
+      '</ac:structured-macro></ac:rich-text-body></ac:structured-macro>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      'Linux Patching Run the playbook. Second column'
+    )
+  })
+
+  it('keeps page properties tables, table-macro bodies, and status labels', () => {
+    const storage =
+      '<ac:structured-macro ac:name="details"><ac:rich-text-body>' +
+      '<table><tbody><tr><th>Owner</th><td>Platform team</td></tr></tbody></table>' +
+      '</ac:rich-text-body></ac:structured-macro>' +
+      '<ac:structured-macro ac:name="table-filter"><ac:parameter ac:name="column">Name</ac:parameter>' +
+      '<ac:rich-text-body><table><tbody><tr><td>Filtered row</td></tr></tbody></table></ac:rich-text-body>' +
+      '</ac:structured-macro>' +
+      '<p>State: <ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter>' +
+      '<ac:parameter ac:name="title">Approved</ac:parameter></ac:structured-macro></p>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      'Owner Platform team Filtered row State: Approved'
+    )
+  })
+
+  it('keeps new-editor panel and decision text while dropping app extensions', () => {
+    const storage =
+      '<ac:adf-extension><ac:adf-node type="panel">' +
+      '<ac:adf-attribute key="panel-type">custom</ac:adf-attribute>' +
+      '<ac:adf-content><p>Rotate the key quarterly.</p></ac:adf-content>' +
+      '</ac:adf-node><ac:adf-fallback><p>Rotate the key quarterly.</p></ac:adf-fallback></ac:adf-extension>' +
+      '<ac:adf-extension><ac:adf-node type="decision-list">' +
+      '<ac:adf-attribute key="local-id">abc</ac:adf-attribute>' +
+      '<ac:adf-node type="decision-item"><ac:adf-attribute key="state">DECIDED</ac:adf-attribute>' +
+      '<ac:adf-content>Use Vault</ac:adf-content></ac:adf-node></ac:adf-node></ac:adf-extension>' +
+      '<ac:adf-extension><ac:adf-node type="extension">' +
+      '<ac:adf-attribute key="parameters">remote</ac:adf-attribute></ac:adf-node>' +
+      '<ac:adf-fallback><p>Rendered by an app</p></ac:adf-fallback></ac:adf-extension>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      '[CALLOUT] Rotate the key quarterly. Use Vault'
+    )
+  })
+
+  it('drops template placeholders and task bookkeeping but keeps task text intact', () => {
+    const storage =
+      '<p><ac:placeholder>Type your summary here</ac:placeholder></p>' +
+      '<ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-uuid>u</ac:task-uuid>' +
+      '<ac:task-status>incomplete</ac:task-status><ac:task-body>Ship it</ac:task-body></ac:task></ac:task-list>' +
+      '<p>Un<ac:inline-comment-marker ac:ref="r">believ</ac:inline-comment-marker>able</p>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe('Ship it Unbelievable')
+  })
+
+  it('reports whether dynamic content was removed', () => {
+    expect(extractConfluenceStorageText('<p>Local</p>')).toEqual({
+      text: 'Local',
+      droppedDynamicContent: false,
+    })
+    expect(
+      extractConfluenceStorageText(
+        '<ac:structured-macro ac:name="children"><ac:parameter ac:name="depth">1</ac:parameter></ac:structured-macro>'
+      )
+    ).toEqual({ text: '', droppedDynamicContent: true })
+  })
+
   it.each(['expand', 'excerpt', 'noformat'])(
     'retains the authored content of the %s macro',
     (name) => {
@@ -902,7 +975,36 @@ describe('Confluence permission-scoped content', () => {
         cloudId: 'cloud-1',
         mirrorsSourceAcls: true,
       })
-    ).resolves.toMatchObject({ content: '', skippedExistingDisposition: 'replace' })
+    ).resolves.toMatchObject({
+      content: '',
+      skippedReason: DYNAMIC_CONTENT_SKIP_REASON,
+      skippedExistingDisposition: 'replace',
+    })
+  })
+
+  it('names dynamic-only hub pages distinctly from genuinely empty ones', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 'hub',
+          version: { number: 2 },
+          body: {
+            storage: {
+              value:
+                '<ac:structured-macro ac:name="children" /><ac:structured-macro ac:name="jira">' +
+                '<ac:parameter ac:name="jql">project = X</ac:parameter></ac:structured-macro>',
+            },
+          },
+        })
+      )
+    )
+    const document = await confluenceConnector.getDocument('token', config, 'hub', {
+      cloudId: 'cloud-1',
+      perMemberListing: true,
+      memberId: 'member-1',
+    })
+    expect(document?.skippedReason).toBe(DYNAMIC_CONTENT_SKIP_REASON)
+    expect(document?.skippedRetryPolicy).toBe('source-change')
   })
 
   it('keeps skipped pages retryable when no usable source version is available', async () => {
@@ -1015,7 +1117,7 @@ describe('Confluence permission-scoped content', () => {
       )
       const expectedHash =
         'mirrorsSourceAcls' in mode || 'perMemberListing' in mode
-          ? 'confluence:storage-local-body-v1:shared-page:1'
+          ? 'confluence:storage-local-body-v2:shared-page:1'
           : 'confluence:view-callouts:shared-page:1'
 
       expect(v2.documents[0].contentHash).toBe(expectedHash)

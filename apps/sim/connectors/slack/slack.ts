@@ -15,6 +15,10 @@ import {
   readSlackConversationSetting as readConversationSetting,
 } from '@/connectors/slack/config'
 import { DEFAULT_MAX_MESSAGES, slackConnectorMeta } from '@/connectors/slack/meta'
+import {
+  ConnectorSourceError,
+  type ConnectorSourceFailureCategory,
+} from '@/connectors/source-error'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   BoundedLines,
@@ -95,16 +99,70 @@ interface SlackListingCursor {
   scanned: number
 }
 
+interface SlackCodeClassification {
+  /** The HTTP status Slack would have used had it not answered 200 with an error envelope. */
+  status: number
+  category: ConnectorSourceFailureCategory
+}
+
+/**
+ * Slack answers HTTP 200 with `ok: false` and a machine-readable code. Mapping
+ * the known codes onto the shared failure categories lets the sync engine and
+ * the stored document error tell a revoked token from a missing thread from a
+ * throttle, instead of every envelope error reading as an unknown failure.
+ */
+const SLACK_CODE_CLASSIFICATIONS: ReadonlyArray<[ReadonlySet<string>, SlackCodeClassification]> = [
+  [new Set(['ratelimited']), { status: 429, category: 'rate_limit' }],
+  [
+    new Set(['invalid_auth', 'token_revoked', 'token_expired', 'account_inactive', 'not_authed']),
+    { status: 401, category: 'authorization' },
+  ],
+  [
+    new Set(['missing_scope', 'access_denied', 'restricted_action', 'ekm_access_denied']),
+    { status: 403, category: 'authorization' },
+  ],
+  [
+    new Set([
+      'channel_not_found',
+      'not_in_channel',
+      'channel_is_limited_access',
+      'thread_not_found',
+      'message_not_found',
+    ]),
+    { status: 404, category: 'source_unavailable' },
+  ],
+  [
+    new Set(['service_unavailable', 'internal_error', 'fatal_error', 'request_timeout']),
+    { status: 503, category: 'provider_unavailable' },
+  ],
+]
+
+/** Unknown codes are treated as a rejected request; the status alone drives the diagnostic. */
+const UNCLASSIFIED_SLACK_CODE: SlackCodeClassification = {
+  status: 400,
+  category: 'request_rejected',
+}
+
+function classifySlackCode(code: string): SlackCodeClassification {
+  for (const [codes, classification] of SLACK_CODE_CLASSIFICATIONS) {
+    if (codes.has(code)) return classification
+  }
+  return UNCLASSIFIED_SLACK_CODE
+}
+
 /** Slack's HTTP-200 errors still retain their machine-readable provider code. */
-class SlackApiError extends Error {
+class SlackApiError extends ConnectorSourceError {
+  readonly code: string
+  readonly method: string
+  readonly headers?: Headers
   readonly rateLimited: boolean
-  constructor(
-    readonly code: string,
-    readonly method: string,
-    readonly headers?: Headers
-  ) {
-    super(`Slack ${method} failed: ${code}`)
+  constructor(code: string, method: string, headers?: Headers) {
+    const { status, category } = classifySlackCode(code)
+    super(`Slack ${method} failed: ${code}`, status, category)
     this.name = 'SlackApiError'
+    this.code = code
+    this.method = method
+    this.headers = headers
     this.rateLimited = code === 'ratelimited'
   }
 }
@@ -120,7 +178,13 @@ async function slackApiGet(
     { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
     retryOptions
   )
-  if (!response.ok) throw new Error(`Slack ${method} failed with HTTP ${response.status}`)
+  /** Retries are exhausted by now; the status must survive so the failure can be classified. */
+  if (!response.ok) {
+    throw new ConnectorSourceError(
+      `Slack ${method} failed with HTTP ${response.status}`,
+      response.status
+    )
+  }
   const data = await readResponseJsonWithLimit(response, {
     maxBytes: MAX_RESPONSE_BYTES,
     label: `Slack ${method} response`,
