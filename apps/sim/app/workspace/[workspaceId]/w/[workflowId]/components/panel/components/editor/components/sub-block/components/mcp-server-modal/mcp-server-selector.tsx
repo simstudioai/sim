@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Combobox } from '@sim/emcn'
+import { ChipCombobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { McpIcon } from '@/components/icons'
+import { getMcpTargetOptions } from '@/components/mcp/target-options'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -30,10 +30,14 @@ export function McpServerSelector({
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [inputValue, setInputValue] = useState('')
 
   const { data: servers = [], isLoading, error } = useMcpToolServers(workspaceId)
-  const enabledServers = servers.filter((s) => s.enabled && !s.deletedAt)
+  const [configuredServer] = useSubBlockValue(blockId, 'server')
+  const targetOptions = getMcpTargetOptions(
+    servers,
+    subBlock.id === 'connection' ? 'connection' : 'server',
+    configuredServer
+  )
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
@@ -42,39 +46,22 @@ export function McpServerSelector({
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedServerId = effectiveValue || ''
 
-  const selectedServer = enabledServers.find((server) => server.id === selectedServerId)
+  const selectedServer = targetOptions.find((option) => option.value === selectedServerId)
+  const selectedServerLabel = selectedServer?.label
 
-  const comboboxOptions = useMemo(
-    () =>
-      enabledServers.map((server) => ({
-        label: server.name,
-        value: server.id,
-        icon: server.managedConnectorId
-          ? getManagedMcpConnectorIcon(server.managedConnectorId)
-          : McpIcon,
-      })),
-    [enabledServers]
-  )
+  const comboboxOptions = targetOptions.map((option) => ({
+    ...option,
+    icon: option.managedConnectorId
+      ? getManagedMcpConnectorIcon(option.managedConnectorId)
+      : McpIcon,
+  }))
 
+  const inputValue =
+    selectedServerLabel ?? (typeof effectiveValue === 'string' ? effectiveValue : '')
   const handleComboboxChange = (value: string) => {
-    const matchedServer = enabledServers.find((s) => s.id === value)
-    if (matchedServer) {
-      setInputValue(matchedServer.name)
-      if (!isPreview) {
-        setStoreValue(value)
-      }
-    } else {
-      setInputValue(value)
-    }
+    if (!isPreview) setStoreValue(value)
   }
 
-  useEffect(() => {
-    if (selectedServer) {
-      setInputValue(selectedServer.name)
-    } else {
-      setInputValue('')
-    }
-  }, [selectedServer])
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
     activeSearchTarget,
     subBlockId: subBlock.id,
@@ -83,7 +70,7 @@ export function McpServerSelector({
   })
 
   return (
-    <Combobox
+    <ChipCombobox
       options={comboboxOptions}
       value={inputValue}
       selectedValue={selectedServerId}

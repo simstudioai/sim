@@ -117,16 +117,16 @@ Once MCP servers are configured, their tools become available within your agent 
   />
 </div>
 
-4. Select individual tools, or choose **Use all N tools** to add every tool from that server
+4. Select individual tools, or choose **Configure operations access** for a dynamic server attachment
 5. The agent can now access these tools during execution
 
 <Callout type="info">
 If you haven't configured a server yet, click **Add MCP Server** at the top of the dropdown to open the setup modal without leaving the block.
 </Callout>
 
-## Standalone MCP Tool Block
+## Standalone MCP Block
 
-For more granular control, you can use the dedicated MCP Tool block to execute specific MCP tools:
+Use the MCP block to discover operations or run one operation with explicit inputs:
 
 <div className="flex justify-center">
   <Image
@@ -138,7 +138,30 @@ For more granular control, you can use the dedicated MCP Tool block to execute s
   />
 </div>
 
-The MCP Tool block runs one configured tool with parameters you set explicitly, and its output is readable by later blocks like any other.
+Choose an **Action**:
+
+- **List operations** discovers authorized operation names, descriptions, and input schemas without executing provider operations. Filter by name or description, set a page size from 1 to 100, and pass `nextCursor` into the next request while `hasMore` is true. An authorized list can be empty.
+- **Run operation** executes one exact operation name. Configured operations keep their generated argument fields. For an operation name resolved at runtime, supply a JSON arguments object; Sim validates it against the operation's discovered schema before execution.
+
+Server, managed connection, operation name, and arguments can use upstream block references. If you supply a managed connection separately, it must belong to the selected canonical server and be authorized for the workflow's workspace.
+
+### Operations access
+
+The standalone MCP block and **MCP Server (Advanced)** Agent attachment share three access modes:
+
+| Mode | Behavior |
+| --- | --- |
+| **Only selected** | Allows only selected exact operation names. An empty selection allows nothing. Newly discovered names stay excluded. |
+| **All except selected** | Denies selected exact names. An empty selection allows everything otherwise permitted. Denied names stay saved if they temporarily disappear. |
+| **All permitted** | Allows every operation available to the authorized credential. |
+
+New restricted configurations start with an empty explicit selection. Existing saved workflows retain their prior access through normalization, while current organization and credential authorization still apply.
+
+Operation restrictions are saved in workflow state, on the MCP block or Agent attachment. An operation must be available to the authorized credential and permitted by the saved restriction.
+
+Discovery filters the catalog shown to the editor and Agent. Execution checks the actual server, connection, and saved block restriction again before calling the provider. Missing or forbidden operations, unverifiable schemas, malformed arguments, and incorrect connection scopes fail the call. An Agent attachment with no permitted operations fails clearly.
+
+Policies match exact MCP tool names on a canonical server. They do not inspect operation arguments: allowing a generic `execute_sql` operation does not limit which SQL it can execute.
 
 ## When to Use MCP Tool vs Agent
 

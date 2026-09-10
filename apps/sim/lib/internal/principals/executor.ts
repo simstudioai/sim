@@ -83,7 +83,7 @@ export async function createExecutorPrincipalFromExecutionContext({
   return createExecutorPrincipalFromDelegationOrigin(
     origin,
     audience,
-    resourceScope,
+    context.mcpBlockId ? { ...resourceScope, mcpBlockId: context.mcpBlockId } : resourceScope,
     expiresAt,
     context.userId
   )

@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
@@ -10,11 +11,15 @@ import {
   saveManagedMcpToolSnapshot,
 } from '@/lib/credentials/managed-mcp'
 import { loadManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
+import { loadMcpOperationAccess } from '@/lib/mcp/application/operation-access'
 import { mcpService } from '@/lib/mcp/service'
+import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 
 export interface DiscoverManagedMcpToolsInput {
   workspaceId: string
   credentialId: string
+  assertedServerId?: string
   signal?: AbortSignal
 }
 
@@ -32,11 +37,30 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: { delegation: managedMcpCredentialDelegationPolicy },
   async authorizeResource({ principal, context, resourcePolicy }) {
+    const subject = resolvePrincipalSubject(principal)
+    if (subject?.kind === 'sim_user')
+      await assertWorkspaceCapability(
+        subject.userId,
+        context.workspaceId,
+        'integrations.manage',
+        context.workspaceOrganizationId
+      )
     await requireCredentialGroupCredentialAccess(principal, context, resourcePolicy)
   },
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
+    if (
+      runtime.mcpServerId !== context.mcpServerId ||
+      runtime.credentialId !== context.credentialId
+    )
+      throw new OrchestrationError('forbidden', 'Managed MCP credential binding changed')
+    const allowed = await loadMcpOperationAccess(principal, {
+      workspaceId: context.workspaceId,
+      serverId: runtime.mcpServerId,
+      connectionId: runtime.credentialId,
+      assertedServerId: input.assertedServerId,
+    })
     const tools = await mcpService.discoverManagedMcpTools(
       runtime.mcpServerId,
       runtime.scope,
@@ -57,10 +81,13 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
       runtime.oauthConfigVersion,
       runtime.grantedAt
     )
+    const authorized = tools.filter((tool) => allowed.allows(tool.name))
+    for (const tool of authorized) compileMcpToolSchema(tool.inputSchema)
     return {
-      tools: tools.map((tool) => ({
+      tools: authorized.map((tool) => ({
         ...tool,
         serverId: runtime.credentialId,
+        canonicalServerId: runtime.mcpServerId,
         serverName: runtime.mcpServerName,
       })),
     }

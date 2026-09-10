@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
@@ -255,6 +256,14 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     return `${where} is missing a string "type". Custom tools require "type":"custom-tool" (without it the tool will not attach or show its icon); use "mcp" for MCP tools or an integration block type (e.g. "exa") otherwise`
   }
 
+  if (
+    (type === 'mcp' || type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+    item.operationPolicy !== undefined &&
+    !mcpOperationPolicySchema.safeParse(item.operationPolicy).success
+  ) {
+    return `${where} has an invalid MCP operations access policy`
+  }
+
   if (type === 'custom-tool') {
     const hasReference = typeof item.customToolId === 'string' && item.customToolId.trim() !== ''
     const fn = item.schema?.function
@@ -288,6 +297,12 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     const serverId = item.params?.serverId
     if (typeof serverId !== 'string' || !serverId.trim()) {
       return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) must include params.serverId`
+    }
+    if (
+      item.params?.connectionId !== undefined &&
+      (typeof item.params.connectionId !== 'string' || !item.params.connectionId.trim())
+    ) {
+      return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) connection must be a nonempty string`
     }
     return null
   }
@@ -722,6 +737,22 @@ export function validateValueForSubBlockType(
           error: `Invalid selector value for field "${fieldName}" - expected a string${subBlockConfig.multiSelect ? ' or array of strings' : ''}`,
         },
       }
+    }
+
+    case 'mcp-operation-policy': {
+      const parsed = mcpOperationPolicySchema.safeParse(value)
+      return parsed.success
+        ? { valid: true, value: parsed.data }
+        : {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: 'Invalid MCP operations access policy',
+            },
+          }
     }
 
     default:

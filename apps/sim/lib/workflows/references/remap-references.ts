@@ -4,6 +4,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { readFolderPaths } from '@/lib/folders/selection'
+import { normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import { createMcpToolId, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
@@ -60,6 +61,21 @@ import type { ParameterVisibility } from '@/tools/types'
 export type ForkRemapKind = WorkflowResourceKind
 
 const logger = createLogger('WorkspaceForkRemapReferences')
+
+/** Server mappings assert equivalence, so exact operation restrictions must follow that identity. */
+function remapMcpOperationPolicy(value: unknown, resolve: ForkReferenceResolver): unknown {
+  if (value == null) return value
+  const policy = normalizeMcpOperationPolicy(value)
+  if (policy.mode === 'all') return value
+  let changed = false
+  const operations = policy.operations.map((operation) => {
+    const target = resolve('mcp-server', operation.serverId)
+    if (!target || target === operation.serverId) return operation
+    changed = true
+    return { ...operation, serverId: target }
+  })
+  return changed ? { mode: policy.mode, operations } : value
+}
 
 /**
  * Reference kinds whose absence BLOCKS a sync (they gate `requiredComplete` and are resolved by
@@ -1031,6 +1047,16 @@ function remapForkToolInputValue(
 
   array.forEach((tool, toolIndex) => {
     const keep = (nextTool: unknown) => {
+      if (
+        isRecordLike(nextTool) &&
+        (nextTool.type === 'mcp' || nextTool.type === MCP_SERVER_ADVANCED_TOOL_TYPE)
+      ) {
+        const operationPolicy = remapMcpOperationPolicy(nextTool.operationPolicy, resolve)
+        if (operationPolicy !== nextTool.operationPolicy) {
+          nextTool = { ...nextTool, operationPolicy }
+          changed = true
+        }
+      }
       newIndexByOldIndex.set(toolIndex, next.length)
       next.push(nextTool)
     }
@@ -1230,6 +1256,11 @@ export function remapForkSubBlocks(
 
     const resolveField: ForkReferenceResolver = (kind, id, path) =>
       resolve(kind, id, [subBlockKey, ...(path ?? [])])
+    if (subBlock.type === 'mcp-operation-policy') {
+      result[subBlockKey] = { ...subBlock, value: remapMcpOperationPolicy(subBlock.value, resolveField) }
+      continue
+    }
+
     let value = subBlock.value
     const valueBeforeResource = value
     const subBlockType = typeof subBlock.type === 'string' ? subBlock.type : undefined

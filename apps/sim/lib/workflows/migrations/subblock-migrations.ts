@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
   buildCanonicalIndex,
@@ -564,8 +565,9 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
     const purged = dropParkedSubblocks(renamed.subBlocks)
     const changedSubBlocks = renamed.migrated || purged.dropped
     const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
-    const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
-    const blockMigrated = changedSubBlocks || sanitized.changed
+    const mcpMigrated = migrateMcpOperationControls(renamedBlock)
+    const sanitized = sanitizeMalformedSubBlocks(mcpMigrated)
+    const blockMigrated = changedSubBlocks || sanitized.changed || mcpMigrated !== renamedBlock
 
     if (blockMigrated) {
       if (purged.dropped) {

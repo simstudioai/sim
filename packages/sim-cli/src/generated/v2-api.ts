@@ -419,6 +419,24 @@ type ApplyWorkflowOperationsBodyRef4 =
     }
 
 type ApplyWorkflowOperationsBodyRef5 = {
+  operationPolicy?:
+    | {
+        mode: 'all'
+      }
+    | {
+        mode: 'allow'
+        operations: Array<{
+          serverId: string
+          name: string
+        }>
+      }
+    | {
+        mode: 'deny'
+        operations: Array<{
+          serverId: string
+          name: string
+        }>
+      }
   type: 'mcp'
   params: {
     serverId: string
@@ -429,7 +447,26 @@ type ApplyWorkflowOperationsBodyRef5 = {
 
 type ApplyWorkflowOperationsBodyRef6 = {
   type: 'mcp-server-advanced'
+  operationPolicy?:
+    | {
+        mode: 'all'
+      }
+    | {
+        mode: 'allow'
+        operations: Array<{
+          serverId: string
+          name: string
+        }>
+      }
+    | {
+        mode: 'deny'
+        operations: Array<{
+          serverId: string
+          name: string
+        }>
+      }
   params: {
+    connectionId?: string
     serverId: string
   }
   usageControl?: 'auto' | 'force' | 'none'

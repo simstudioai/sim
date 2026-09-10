@@ -89,6 +89,7 @@ export function canonicalizeSubBlockValue(
    */
   if (shaped === null || shaped === undefined) return undefined
 
+  if (spec?.type === 'mcp-operation-policy') return shaped
   if (spec?.defaultValue === undefined) return shaped
 
   const shapedDefault = shapeSubBlockValue(subBlockId, spec.defaultValue, spec.type)

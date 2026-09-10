@@ -81,6 +81,18 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
     )
   })
 
+  it('binds MCP policy provenance from the trusted execution context', async () => {
+    const principal = await createExecutorPrincipalFromExecutionContext({
+      context: executionContext({
+        mcpBlockId: 'saved-block',
+        executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
+      }),
+      audience: 'sim:mcp-servers',
+      resourceScope: { mcpServerId: 'server-1' },
+    })
+    expect(principal.resourceScope).toEqual({ mcpBlockId: 'saved-block', mcpServerId: 'server-1' })
+  })
+
   it('uses an explicit trusted execution deadline as the delegation expiry', async () => {
     const expiresAt = new Date('2026-01-01T01:00:00.000Z')
 

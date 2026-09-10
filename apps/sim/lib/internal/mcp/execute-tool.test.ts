@@ -9,6 +9,7 @@ import type { InternalToolOperationContext } from '@/lib/internal/tool-operation
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
   executeUseCase: vi.fn(),
+  executeManagedUseCase: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
@@ -17,6 +18,9 @@ vi.mock('@/lib/internal/principals/executor', () => ({
 vi.mock('@/lib/mcp/application/execute-tool', () => ({
   executeMcpToolUseCase: { execute: mocks.executeUseCase },
   McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
+}))
+vi.mock('@/lib/mcp/application/execute-managed-tool', () => ({
+  executeManagedMcpToolUseCase: { execute: mocks.executeManagedUseCase },
 }))
 
 import { executeMcpTool } from '@/lib/internal/mcp/execute-tool'
@@ -56,6 +60,7 @@ const BILLING = {
   payerSubscription: null,
 } as unknown as BillingAttributionSnapshot
 const CONTEXT: InternalToolOperationContext = {
+  mcpBlockId: 'block-1',
   userId: 'user-1',
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
@@ -121,6 +126,97 @@ describe('executeMcpTool', () => {
       input: expect.objectContaining({ arguments: { query: 'sim' } }),
     })
   })
+
+  it('dispatches the stable operation using resolved targets and never forwards block policy', async () => {
+    const response = await executeMcpTool({
+      toolId: 'mcp_run_operation',
+      input: {
+        server: 'canonical-server-with-hyphens',
+        tool: 'read_data',
+        arguments: '{"query":"sim"}',
+        operationPolicy: { mode: 'all' },
+        _context: { mcpBlockId: 'forged' },
+      },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      success: true,
+      output: { content: [{ type: 'text', text: 'done' }] },
+    })
+    expect(mocks.createPrincipal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: CONTEXT,
+        resourceScope: { mcpServerId: 'canonical-server-with-hyphens' },
+      })
+    )
+    expect(mocks.executeUseCase).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({
+        serverId: 'canonical-server-with-hyphens',
+        toolName: 'read_data',
+        arguments: { query: 'sim' },
+      }),
+    })
+  })
+
+  it('passes resolved connection-to-server binding into the managed application boundary', async () => {
+    const credentialId = 'mcp-cg-123456789012345678901'
+    mocks.executeManagedUseCase.mockResolvedValue({ success: true, output: { content: [] } })
+    const response = await executeMcpTool({
+      toolId: 'mcp_run_operation',
+      input: { server: 'canonical-server', connection: credentialId, tool: 'read', arguments: {} },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+    expect(response.status).toBe(200)
+    expect(mocks.executeManagedUseCase).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({
+        credentialId,
+        assertedServerId: 'canonical-server',
+        toolName: 'read',
+      }),
+    })
+    expect(mocks.executeUseCase).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty resolved connection without choosing the server credential', async () => {
+    const response = await executeMcpTool({
+      toolId: 'mcp_run_operation',
+      input: {
+        server: 'mcp-cg-123456789012345678901',
+        connection: '',
+        tool: 'read',
+        arguments: {},
+      },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+    expect(response.status).toBe(400)
+    expect(mocks.executeManagedUseCase).not.toHaveBeenCalled()
+    expect(mocks.executeUseCase).not.toHaveBeenCalled()
+  })
+
+  it.each(['{broken', '[]', 'null', 7])(
+    'rejects malformed JSON arguments %j before invoking providers',
+    async (args) => {
+      const response = await executeMcpTool({
+        toolId: 'mcp_run_operation',
+        input: { server: 'server-1', tool: 'read', arguments: args },
+        headers: new Headers(),
+        context: CONTEXT,
+        requestId: 'request-1',
+      })
+      expect(response.status).toBe(400)
+      expect(mocks.executeUseCase).not.toHaveBeenCalled()
+      expect(mocks.executeManagedUseCase).not.toHaveBeenCalled()
+    }
+  )
 
   it('fails closed without trusted workspace or billing context', async () => {
     const missingWorkspace = await executeMcpTool({

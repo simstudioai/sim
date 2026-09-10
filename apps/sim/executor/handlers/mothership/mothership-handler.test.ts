@@ -47,6 +47,10 @@ const {
   mockReadUserFileContent: vi.fn(),
 }))
 
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalDelegationToken: vi.fn().mockResolvedValue('signed-mcp-scope'),
+}))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   areModelSafeWorkspaceFileKeys: mockAreModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
@@ -173,6 +177,11 @@ describe('MothershipBlockHandler', () => {
 
     context = {
       workflowId: 'workflow-1',
+      executorDelegationOrigin: {
+        workflowId: 'workflow-1',
+        subjectUserId: 'user-1',
+        executionId: 'execution-1',
+      },
       executionId: 'execution-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
@@ -1030,23 +1039,24 @@ describe('MothershipBlockHandler', () => {
     ])
   })
 
-  it('does not forward tools for a blank advanced MCP server binding', async () => {
+  it('rejects a blank advanced MCP server binding', async () => {
     fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
 
-    await handler.execute(context, block, {
-      prompt: 'Continue without MCP tools',
-      tools: [
-        {
-          type: 'mcp-server-advanced',
-          params: { serverId: '' },
-          usageControl: 'auto',
-        },
-      ],
-    })
+    await expect(
+      handler.execute(context, block, {
+        prompt: 'Continue without MCP tools',
+        tools: [
+          {
+            type: 'mcp-server-advanced',
+            params: { serverId: '' },
+            usageControl: 'auto',
+          },
+        ],
+      })
+    ).rejects.toThrow('requires params.serverId')
 
     expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(options.body))).not.toHaveProperty('mcpTools')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not scan arbitrary Mothership metadata, attachment names, or payloads', async () => {

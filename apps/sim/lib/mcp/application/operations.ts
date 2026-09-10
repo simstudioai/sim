@@ -20,7 +20,7 @@ const DISCOVERY_PRINCIPAL_POLICY = {
 } as const
 const EXECUTION_PRINCIPAL_POLICY = {
   principalKinds: ['delegated'],
-  delegatedServices: ['executor'],
+  delegatedServices: ['executor', 'copilot'],
 } as const
 
 /**

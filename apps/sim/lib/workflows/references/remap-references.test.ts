@@ -499,6 +499,51 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
   const mapServer = (kind: string, id: string) =>
     kind === 'mcp-server' && id === 'mcp-src1' ? 'mcp-tgt9' : null
 
+  it.each(['allow', 'deny'])(
+    'preserves %s restrictions when canonical server identities are remapped',
+    (mode) => {
+      vi.mocked(getBlock).mockReturnValue(mcpBlock())
+      const policy = {
+        mode,
+        operations: [
+          { serverId: 'mcp-src1', name: 'temporarily_missing' },
+          { serverId: 'other-server', name: 'read' },
+        ],
+      }
+      const transformed = remapForkSubBlocks(
+        {
+          ...mcpSubBlocks(),
+          operationPolicy: { id: 'operationPolicy', type: 'mcp-operation-policy', value: policy },
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              {
+                type: 'mcp-server-advanced',
+                params: { serverId: 'mcp-src1' },
+                operationPolicy: policy,
+              },
+            ],
+          },
+        },
+        mapServer,
+        'promote'
+      )
+      const expected = {
+        mode,
+        operations: [
+          { serverId: 'mcp-tgt9', name: 'temporarily_missing' },
+          { serverId: 'other-server', name: 'read' },
+        ],
+      }
+      expect(transformed.subBlocks.operationPolicy.value).toEqual(expected)
+      expect(transformed.subBlocks.tools.value).toEqual([
+        expect.objectContaining({ operationPolicy: expected }),
+      ])
+      expect(policy.operations[0].serverId).toBe('mcp-src1')
+    }
+  )
+
   it('sync transform: keeps the tool (embedded server id swapped, name verbatim) and its arguments', () => {
     // The same transform serves BOTH create- and replace-mode sync targets, so a freshly
     // created target deploys with the tool intact instead of an empty required field.

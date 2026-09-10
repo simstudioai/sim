@@ -50,6 +50,36 @@ describe('internal JWT claims', () => {
 })
 
 describe('internal executor delegation claims', () => {
+  it('round-trips the signed MCP source block', async () => {
+    const token = await generateInternalDelegationToken({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      mcpBlockId: 'mcp-block',
+    })
+    expect(await verifyInternalDelegationToken(token)).toMatchObject({ mcpBlockId: 'mcp-block' })
+  })
+
+  it.each([7, '', {}, null])('rejects malformed signed MCP block claim %j', async (mcpBlockId) => {
+    const token = await new SignJWT({
+      type: 'internal_delegation',
+      serviceId: 'executor',
+      workflowId: 'workflow-1',
+      mcpBlockId,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-1')
+      .setJti('delegation-1')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .setIssuer('sim-internal')
+      .setAudience('sim-api')
+      .sign(new TextEncoder().encode(env.INTERNAL_API_SECRET))
+    await expect(verifyInternalDelegationToken(token)).rejects.toBeInstanceOf(
+      InvalidInternalDelegationTokenError
+    )
+  })
+
   it('round-trips a subject-bearing workflow execution delegation', async () => {
     const token = await generateInternalDelegationToken({
       subjectUserId: 'user-1',

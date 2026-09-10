@@ -22,6 +22,7 @@ export interface McpToolForUI {
   name: string
   description?: string
   serverId: string
+  canonicalServerId?: string
   serverName: string
   type: 'mcp'
   inputSchema: McpToolSchema
@@ -48,6 +49,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       name: tool.name,
       description: tool.description,
       serverId: tool.serverId,
+      canonicalServerId: tool.canonicalServerId,
       serverName: tool.serverName,
       type: 'mcp' as const,
       inputSchema: tool.inputSchema,

@@ -2,6 +2,7 @@ import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
+  ChipCombobox,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
@@ -14,8 +15,11 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
+import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
+import { getMcpTargetOptions } from '@/components/mcp/target-options'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
@@ -110,9 +114,14 @@ const logger = createLogger('ToolInput')
 const ADVANCED_MCP_SERVER_TOOL_SCHEMA: McpToolSchema = {
   type: 'object',
   properties: {
+    connectionId: {
+      type: 'string',
+      description:
+        'Optional managed connection ID or upstream reference, bound to the canonical server',
+    },
     serverId: {
       type: 'string',
-      description: 'Canonical workspace MCP server ID',
+      description: 'MCP server or managed connection ID, or upstream reference',
     },
   },
   required: ['serverId'],
@@ -460,7 +469,7 @@ export const ToolInput = memo(function ToolInput({
   const shouldFetchCustomTools = !isPreview || hasReferenceOnlyCustomTools
   const { data: customTools = [] } = useCustomTools(shouldFetchCustomTools ? workspaceId : '')
 
-  const { mcpTools, isLoading: mcpLoading } = useMcpTools(workspaceId)
+  const { mcpTools, isLoading: mcpLoading, error: mcpToolsError } = useMcpTools(workspaceId)
   const mcpToolNamesById = useMemo(() => {
     const names = new Map<string, string>()
     for (const t of mcpTools) {
@@ -469,7 +478,11 @@ export const ToolInput = memo(function ToolInput({
     return names
   }, [mcpTools])
 
-  const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpToolServers(workspaceId)
+  const {
+    data: mcpServers = [],
+    isLoading: mcpServersLoading,
+    error: mcpServersError,
+  } = useMcpToolServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools().mutate
   const { navigateToSettings } = useSettingsNavigation()
@@ -920,6 +933,13 @@ export const ToolInput = memo(function ToolInput({
             { ...tool.params, [paramId]: paramValue },
             paramId
           )
+          if (
+            tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE &&
+            paramId === 'connectionId' &&
+            paramValue === ''
+          ) {
+            return { ...tool, params: omit(params, ['connectionId']) }
+          }
           return { ...tool, params }
         })
       )
@@ -1153,7 +1173,7 @@ export const ToolInput = memo(function ToolInput({
 
       if (supportsAdvancedMcpServer) {
         serverToolItems.push({
-          label: 'Use all available tools',
+          label: 'Configure operations access',
           value: `mcp-server-all-${mcpServerDrilldown}`,
           iconElement: createToolIcon('var(--brand-agent)', ServerIcon),
           onSelect: () => {
@@ -1167,8 +1187,9 @@ export const ToolInput = memo(function ToolInput({
             )
             const serverBinding: StoredTool = {
               type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+              operationPolicy: { mode: 'allow', operations: [] },
               params: { serverId: mcpServerDrilldown },
-              isExpanded: false,
+              isExpanded: true,
               usageControl: 'auto',
             }
             const nextTools = [
@@ -1404,6 +1425,7 @@ export const ToolInput = memo(function ToolInput({
                 ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
                 {
                   type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+                  operationPolicy: { mode: 'allow', operations: [] },
                   params: { serverId: '' },
                   isExpanded: true,
                   usageControl: 'auto',
@@ -1805,6 +1827,34 @@ export const ToolInput = memo(function ToolInput({
 
               {!isCustomTool && isExpandedForDisplay && (
                 <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
+                  {isAdvancedMcpServer && (
+                    <McpOperationPolicyEditor
+                      value={tool.operationPolicy}
+                      operations={mcpTools
+                        .filter(
+                          (candidate) =>
+                            !tool.params?.serverId ||
+                            String(tool.params.serverId).includes('<') ||
+                            String(tool.params.serverId).includes('{{') ||
+                            candidate.serverId === tool.params.serverId ||
+                            candidate.canonicalServerId === tool.params.serverId
+                        )
+                        .map((candidate) => ({
+                          ...candidate,
+                          serverId: candidate.canonicalServerId ?? candidate.serverId,
+                        }))}
+                      disabled={disabled || isPreview}
+                      isLoading={mcpDataLoading}
+                      error={mcpToolsError ?? mcpServersError?.message ?? null}
+                      onChange={(operationPolicy) =>
+                        setStoreValue(
+                          selectedTools.map((candidate, index) =>
+                            index === toolIndex ? { ...candidate, operationPolicy } : candidate
+                          )
+                        )
+                      }
+                    />
+                  )}
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     if (!hasOperations) return null
@@ -1838,6 +1888,34 @@ export const ToolInput = memo(function ToolInput({
 
                   {(() => {
                     const renderSubBlock = (sb: BlockSubBlockConfig): React.ReactNode => {
+                      if (isAdvancedMcpServer) {
+                        const options = getMcpTargetOptions(
+                          mcpServers,
+                          sb.id === 'connectionId' ? 'connection' : 'server',
+                          tool.params?.serverId
+                        )
+                        const value = tool.params?.[sb.id] ?? ''
+                        return (
+                          <div key={sb.id} className='flex flex-col gap-[9px]'>
+                            <span className='text-[var(--text-muted)] text-small'>
+                              {sb.id === 'connectionId' ? 'Managed connection' : 'MCP server'}
+                            </span>
+                            <ChipCombobox
+                              options={options}
+                              value={
+                                options.find((option) => option.value === value)?.label ?? value
+                              }
+                              selectedValue={value}
+                              editable
+                              disabled={disabled || isPreview}
+                              isLoading={mcpServersLoading}
+                              error={mcpServersError?.message ?? null}
+                              placeholder='Select or enter an upstream reference'
+                              onChange={(next) => handleParamChange(toolIndex, sb.id, next)}
+                            />
+                          </div>
+                        )
+                      }
                       const effectiveParamId = sb.id
                       const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
                       const canonicalGroup = canonicalId

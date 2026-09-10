@@ -3,6 +3,7 @@ import '@sim/testing/mocks/executor'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
+import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/index'
 import { BlockType } from '@/executor/constants'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
@@ -11,6 +12,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { selectKnowledgeDocumentWriteSecretProvenance } from '@/tools/knowledge/secret-provenance'
+import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -103,6 +105,37 @@ describe('GenericBlockHandler', () => {
       executionContext: mockContext,
     })
     expect(result).toEqual(expectedOutput)
+  })
+
+  it('executes the standalone stable MCP action after argument resolution with trusted block scope', async () => {
+    mockGetBlock.mockReturnValue(McpBlock)
+    mockGetTool.mockReturnValue(mcpRunOperationTool)
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { content: [{ type: 'text', text: 'done' }] },
+    })
+    const block: SerializedBlock = {
+      ...mockBlock,
+      metadata: { id: 'mcp', name: 'MCP' },
+      config: { tool: 'mcp_run_operation', params: {} },
+    }
+    const result = await handler.execute(mockContext, block, {
+      server: 'canonical-server',
+      connection: 'mcp-cg-123456789012345678901',
+      tool: 'read',
+      arguments: '{"limit":2}',
+    })
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'mcp_run_operation',
+      expect.objectContaining({
+        server: 'canonical-server',
+        connection: 'mcp-cg-123456789012345678901',
+        tool: 'read',
+        arguments: { limit: 2 },
+      }),
+      { executionContext: expect.objectContaining({ mcpBlockId: block.id }) }
+    )
+    expect(result).toEqual({ content: [{ type: 'text', text: 'done' }] })
   })
 
   /**

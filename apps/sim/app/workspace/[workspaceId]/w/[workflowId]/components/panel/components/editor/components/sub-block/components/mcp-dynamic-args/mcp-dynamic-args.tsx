@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
@@ -111,6 +112,14 @@ export function McpDynamicArgs({
   const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading } = useMcpTools(workspaceId)
   const [toolFromStore] = useSubBlockValue(blockId, 'tool')
+  const [serverFromStore] = useSubBlockValue(blockId, 'server')
+  const [connectionFromStore] = useSubBlockValue(blockId, 'connection')
+  const selectedConnection = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.connection)
+    : connectionFromStore
+  const selectedServer = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.server)
+    : serverFromStore
   const selectedTool = previewContextValues
     ? resolvePreviewContextValue(previewContextValues.tool)
     : toolFromStore
@@ -120,8 +129,12 @@ export function McpDynamicArgs({
     : schemaFromStore
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
-  const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
-  const toolSchema = cachedSchema || selectedToolConfig?.inputSchema
+  const selectedToolConfig = mcpTools.find(
+    (tool) =>
+      tool.serverId === (selectedConnection || selectedServer) &&
+      (tool.id === selectedTool || tool.name === selectedTool)
+  )
+  const toolSchema = selectedToolConfig?.inputSchema || cachedSchema
 
   /**
    * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
@@ -132,8 +145,7 @@ export function McpDynamicArgs({
    * the live persisted value, so an external change to that value (undo/redo, a diff
    * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
    * Drafts also reset wholesale on either of two independent triggers:
-   *  - the selected tool or the cached `_toolSchema` snapshot changes (this pair
-   *    always drives `toolSchema` whenever a cached snapshot exists) — the live
+   *  - the selected tool or the cached `_toolSchema` snapshot changes — the live
    *    schema tracker is also re-baselined to the new tool's current signature
    *    here (even if still empty), so a tool switch never leaves the *previous*
    *    tool's signature behind to be misread as a "refresh" once the new tool's
@@ -449,6 +461,29 @@ export function McpDynamicArgs({
         )
       }
     }
+  }
+
+  if (
+    isMcpRuntimeReference(selectedTool) ||
+    isMcpRuntimeReference(selectedServer) ||
+    isMcpRuntimeReference(selectedConnection) ||
+    (selectedTool && !toolSchema && !isLoading)
+  ) {
+    return (
+      <LongInput
+        blockId={blockId}
+        subBlockId={subBlockId}
+        config={{
+          id: subBlockId,
+          type: 'long-input',
+          title: 'Arguments',
+          placeholder: 'JSON arguments or an upstream reference',
+        }}
+        disabled={disabled}
+        isPreview={isPreview}
+        previewValue={previewValue}
+      />
+    )
   }
 
   if (!selectedTool) {

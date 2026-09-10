@@ -1,3 +1,4 @@
+import { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 /**
  * Shared MCP utilities - safe for both client and server.
  * No server-side dependencies (database, fs, etc.) should be imported here.
@@ -11,7 +12,9 @@ export interface McpServerAdvancedToolBinding {
   type: typeof MCP_SERVER_ADVANCED_TOOL_TYPE
   params: {
     serverId: string
+    connectionId?: string
   }
+  operationPolicy?: McpOperationPolicy
   usageControl?: 'auto' | 'force' | 'none'
 }
 
@@ -38,7 +41,7 @@ export function assertValidMcpServerToolBindings(value: unknown): void {
     const tool = candidate as {
       type?: unknown
       usageControl?: unknown
-      params?: { serverId?: unknown }
+      params?: { serverId?: unknown; connectionId?: unknown }
     }
     if (tool.usageControl === 'none') continue
     if (tool.type === 'mcp') {
@@ -48,11 +51,18 @@ export function assertValidMcpServerToolBindings(value: unknown): void {
       continue
     }
     if (tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) continue
+    normalizeMcpOperationPolicy((candidate as { operationPolicy?: unknown }).operationPolicy)
     const serverId = tool.params?.serverId
     if (typeof serverId !== 'string') {
       throw new Error('MCP Server (Advanced) requires params.serverId')
     }
-    if (!serverId.trim()) continue
+    if (!serverId.trim()) throw new Error('MCP Server (Advanced) requires params.serverId')
+    if (
+      tool.params?.connectionId !== undefined &&
+      (typeof tool.params.connectionId !== 'string' || !tool.params.connectionId.trim())
+    ) {
+      throw new Error('MCP Server (Advanced) connection must be a nonempty string')
+    }
     if (advancedServerIds.has(serverId)) {
       throw new Error(`Duplicate MCP Server (Advanced) binding for ${serverId}`)
     }

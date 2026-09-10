@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
+import { normalizeSavedMcpOperationName } from '@/lib/mcp/operation-policy'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -647,6 +648,14 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     }
   })
 
+  if (block.type === 'mcp') {
+    if (params.connection == null || params.connection === '') params.connection = undefined
+    params.tool = normalizeSavedMcpOperationName({
+      ...params,
+      operation: block.subBlocks.operation?.value,
+      operationPolicy: block.subBlocks.operationPolicy?.value,
+    })
+  }
   return params
 }
 

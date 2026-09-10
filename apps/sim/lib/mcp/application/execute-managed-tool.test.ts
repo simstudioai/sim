@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  loadWorkflow: vi.fn(),
   discoverTools: vi.fn(),
   executeTool: vi.fn(),
   loadAuthProvider: vi.fn(),
@@ -13,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   requireCredentialAccess: vi.fn(),
   resolvePermission: vi.fn(),
   saveToolSnapshot: vi.fn(),
+}))
+
+vi.mock('@sim/workflow-persistence', () => ({
+  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
 }))
 
 vi.mock('@/lib/credentials/managed-mcp', () => ({
@@ -70,7 +76,7 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   audience: 'sim:managed-mcp-credentials',
   issuedAt: new Date(Date.now() - 1_000),
   expiresAt: new Date(Date.now() + 60_000),
-  resourceScope: { credentialId: context.credentialId },
+  resourceScope: { credentialId: context.credentialId, mcpBlockId: 'block-1' },
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
@@ -86,6 +92,23 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
 describe('executeManagedMcpToolUseCase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    const savedWorkflow = {
+      workspaceId: 'workspace-1',
+      blocks: {
+        'block-1': {
+          type: 'mcp',
+          enabled: true,
+          subBlocks: {
+            server: { value: context.credentialId },
+            tool: { value: 'search_transcripts' },
+          },
+        },
+      },
+    }
+    mocks.loadWorkflow.mockResolvedValue(savedWorkflow)
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
     mocks.loadContext.mockResolvedValue(context)
     mocks.loadRuntime.mockResolvedValue({
       credentialId: context.credentialId,
@@ -220,5 +243,117 @@ describe('executeManagedMcpToolUseCase', () => {
         },
       })
     )
+  })
+
+  it('rejects a connection resolved for another canonical server', async () => {
+    await expect(
+      executeManagedMcpToolUseCase.execute({
+        principal,
+        input: {
+          workspaceId: context.workspaceId,
+          credentialId: context.credentialId,
+          assertedServerId: 'other-server',
+          toolName: 'search_transcripts',
+        },
+      })
+    ).rejects.toThrow('does not belong')
+    expect(mocks.discoverTools).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('enforces the saved block allowlist before discovering managed operations', async () => {
+    mocks.loadWorkflow.mockResolvedValue({
+      workspaceId: context.workspaceId,
+      blocks: {
+        'block-1': {
+          type: 'mcp',
+          subBlocks: {
+            server: { value: context.mcpServerId },
+            connection: { value: context.credentialId },
+            tool: { value: '<upstream.operation>' },
+            operationPolicy: { value: { mode: 'allow', operations: [] } },
+          },
+        },
+      },
+    })
+    await expect(
+      executeManagedMcpToolUseCase.execute({
+        principal: {
+          ...principal,
+          delegationContext: {
+            ...principal.delegationContext,
+            currentWorkflow: { mode: 'draft', workflowId: 'workflow-1' },
+          },
+        },
+        input: {
+          workspaceId: context.workspaceId,
+          credentialId: context.credentialId,
+          toolName: 'search_transcripts',
+        },
+      })
+    ).rejects.toThrow('not permitted')
+    expect(mocks.discoverTools).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects credentials changed during discovery and never substitutes a connection', async () => {
+    const runtime = await mocks.loadRuntime()
+    mocks.loadRuntime
+      .mockResolvedValueOnce(runtime)
+      .mockResolvedValue({ ...runtime, oauthConfigVersion: runtime.oauthConfigVersion + 1 })
+    mocks.discoverTools.mockResolvedValue([
+      { name: 'search_transcripts', inputSchema: { type: 'object', properties: {} } },
+    ])
+    await expect(
+      executeManagedMcpToolUseCase.execute({
+        principal,
+        input: {
+          workspaceId: context.workspaceId,
+          credentialId: context.credentialId,
+          toolName: 'search_transcripts',
+        },
+      })
+    ).rejects.toThrow('credential changed during discovery')
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+    expect(mocks.loadRuntime.mock.calls.slice(1)).toEqual([
+      [context.credentialId, context.workspaceId],
+      [context.credentialId, context.workspaceId],
+    ])
+  })
+
+  it('fails closed for incomplete discovery and a missing operation', async () => {
+    const input = {
+      workspaceId: context.workspaceId,
+      credentialId: context.credentialId,
+      toolName: 'search_transcripts',
+    }
+    mocks.discoverTools.mockRejectedValueOnce(new Error('discovery timed out'))
+    await expect(executeManagedMcpToolUseCase.execute({ principal, input })).rejects.toThrow(
+      'discovery timed out'
+    )
+    await expect(executeManagedMcpToolUseCase.execute({ principal, input })).rejects.toThrow(
+      'Tool not found'
+    )
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('rechecks workspace and credential access after discovery', async () => {
+    mocks.requireCredentialAccess
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Workspace access revoked'))
+    mocks.discoverTools.mockResolvedValue([
+      { name: 'search_transcripts', inputSchema: { type: 'object', properties: {} } },
+    ])
+    await expect(
+      executeManagedMcpToolUseCase.execute({
+        principal,
+        input: {
+          workspaceId: context.workspaceId,
+          credentialId: context.credentialId,
+          toolName: 'search_transcripts',
+        },
+      })
+    ).rejects.toThrow('Workspace access revoked')
+    expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 })

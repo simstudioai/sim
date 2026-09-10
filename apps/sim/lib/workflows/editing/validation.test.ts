@@ -1291,6 +1291,27 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     expect(result.validInputs.tools).toBeDefined()
   })
 
+  it.each(['mcp', 'mcp-server-advanced'])(
+    'rejects invalid operation policy on %s attachments',
+    (type) => {
+      const result = validateInputsForBlock(
+        'agent',
+        {
+          tools: [
+            {
+              type,
+              params: { serverId: 'srv_1', toolName: 'read' },
+              operationPolicy: '<upstream.policy>',
+            },
+          ],
+        },
+        'agent-1'
+      )
+      expect(result.validInputs.tools).toBeUndefined()
+      expect(result.errors[0]?.error).toContain('invalid MCP operations access policy')
+    }
+  )
+
   it('accepts an integration tool whose type is a known block', () => {
     const result = validateInputsForBlock(
       'agent',
