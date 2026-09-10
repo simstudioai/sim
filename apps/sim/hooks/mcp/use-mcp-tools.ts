@@ -13,7 +13,8 @@ import { McpIcon } from '@/components/icons'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import type { McpToolSchema } from '@/lib/mcp/types'
-import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
+import { useMcpToolsQuery } from '@/hooks/queries/mcp'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 
 const logger = createLogger('useMcpTools')
 

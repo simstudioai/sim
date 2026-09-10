@@ -41,6 +41,7 @@ import type {
   McpTransport,
   StoredMcpTool,
 } from '@/lib/mcp/types'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
@@ -49,23 +50,6 @@ export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 export type { McpServer }
 
 export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
-
-export const mcpKeys = {
-  all: ['mcp'] as const,
-  servers: () => [...mcpKeys.all, 'servers'] as const,
-  serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
-  managedCatalog: () => [...mcpKeys.all, 'managedCatalog'] as const,
-  managedCatalogList: (workspaceId?: string) =>
-    [...mcpKeys.managedCatalog(), workspaceId ?? ''] as const,
-  serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
-  serverToolsWorkspace: (workspaceId?: string) =>
-    [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
-  serverToolsList: (workspaceId?: string, serverId?: string) =>
-    [...mcpKeys.serverToolsWorkspace(workspaceId), serverId ?? ''] as const,
-  storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
-  storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
-  allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
-}
 
 async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
   try {

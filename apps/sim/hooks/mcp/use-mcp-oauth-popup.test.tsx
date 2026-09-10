@@ -15,17 +15,6 @@ vi.mock('@sim/emcn', () => ({
 
 vi.mock('@/hooks/queries/mcp', () => ({
   useStartMcpOauth: () => ({ mutateAsync: mockStartOauth }),
-  mcpKeys: {
-    serversList: (workspaceId: string) => ['mcp', 'servers', workspaceId],
-    managedCatalogList: (workspaceId: string) => ['mcp', 'managed-catalog', workspaceId],
-    serverToolsList: (workspaceId: string, serverId: string) => [
-      'mcp',
-      'server-tools',
-      workspaceId,
-      serverId,
-    ],
-    storedToolsList: (workspaceId: string) => ['mcp', 'stored-tools', workspaceId],
-  },
 }))
 
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
