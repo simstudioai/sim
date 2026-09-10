@@ -203,7 +203,8 @@ describe('PdfParser', () => {
 
   it('preserves the password-required error for encrypted PDFs', async () => {
     await expect(new PdfParser().parseBuffer(buildEncryptedPdf())).rejects.toMatchObject({
-      name: 'PasswordException',
+      name: 'FileParserError',
+      code: 'encrypted_file',
     })
   })
 })

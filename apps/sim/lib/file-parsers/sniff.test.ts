@@ -1,0 +1,304 @@
+/**
+ * @vitest-environment node
+ */
+import JSZip from 'jszip'
+import { describe, expect, it } from 'vitest'
+import * as XLSX from 'xlsx'
+import { parseBuffer } from '@/lib/file-parsers'
+import { FileParserError } from '@/lib/file-parsers/errors'
+import { reconcileParserRoute, type SniffedKind, sniffFileKind } from '@/lib/file-parsers/sniff'
+
+const OLE2_HEADER = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
+
+function oleBinary(): Buffer {
+  return Buffer.concat([OLE2_HEADER, Buffer.alloc(2048, 0)])
+}
+
+function pngBinary(): Buffer {
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from(Array.from({ length: 4000 }, (_, index) => (index * 7919) % 256)),
+  ])
+}
+
+async function zipWith(entries: Record<string, string>, storedMimetype?: string): Promise<Buffer> {
+  const zip = new JSZip()
+  if (storedMimetype) zip.file('mimetype', storedMimetype, { compression: 'STORE' })
+  for (const [name, content] of Object.entries(entries)) zip.file(name, content)
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }) as Promise<Buffer>
+}
+
+function buildDocx(text: string): Promise<Buffer> {
+  return zipWith({
+    '[Content_Types].xml':
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+    '_rels/.rels':
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+    'word/document.xml': `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`,
+  })
+}
+
+describe('sniffFileKind', () => {
+  it('recognizes a PDF by its header anywhere in the first KiB', () => {
+    expect(sniffFileKind(Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n'))).toBe('pdf')
+    expect(sniffFileKind(Buffer.concat([Buffer.alloc(200, 0x20), Buffer.from('%PDF-1.4')]))).toBe(
+      'pdf'
+    )
+    expect(
+      sniffFileKind(Buffer.concat([Buffer.alloc(2000, 0x20), Buffer.from('%PDF-1.4')]))
+    ).not.toBe('pdf')
+  })
+
+  it('recognizes an OLE2 compound file', () => {
+    expect(sniffFileKind(oleBinary())).toBe('ole2')
+  })
+
+  it('classifies Office packages by their central-directory part names', async () => {
+    expect(sniffFileKind(await zipWith({ 'word/document.xml': '<w/>' }))).toBe('docx')
+    expect(
+      sniffFileKind(await zipWith({ '[Content_Types].xml': '<T/>', 'xl/workbook.xml': '<w/>' }))
+    ).toBe('xlsx')
+    expect(sniffFileKind(await zipWith({ 'ppt/presentation.xml': '<p/>' }))).toBe('pptx')
+  })
+
+  it('classifies OpenDocument packages by the stored mimetype entry', async () => {
+    expect(
+      sniffFileKind(
+        await zipWith({ 'content.xml': '<c/>' }, 'application/vnd.oasis.opendocument.text')
+      )
+    ).toBe('odt')
+    expect(
+      sniffFileKind(
+        await zipWith({ 'content.xml': '<c/>' }, 'application/vnd.oasis.opendocument.spreadsheet')
+      )
+    ).toBe('ods')
+    expect(
+      sniffFileKind(
+        await zipWith({ 'content.xml': '<c/>' }, 'application/vnd.oasis.opendocument.presentation')
+      )
+    ).toBe('odp')
+  })
+
+  it('classifies SheetJS-written workbooks the way the spreadsheet parser expects', () => {
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['a'], ['b']]), 'S')
+
+    expect(sniffFileKind(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer)).toBe(
+      'xlsx'
+    )
+    expect(sniffFileKind(XLSX.write(wb, { type: 'buffer', bookType: 'xlsb' }) as Buffer)).toBe(
+      'xlsx'
+    )
+    expect(sniffFileKind(XLSX.write(wb, { type: 'buffer', bookType: 'ods' }) as Buffer)).toBe('ods')
+    expect(sniffFileKind(XLSX.write(wb, { type: 'buffer', bookType: 'xls' }) as Buffer)).toBe(
+      'ole2'
+    )
+  })
+
+  it('reports an unrecognized archive as zip', async () => {
+    expect(sniffFileKind(await zipWith({ 'readme.txt': 'hi' }))).toBe('zip')
+  })
+
+  it('reports NUL-bearing bytes without a UTF-16 layout as binary', () => {
+    expect(sniffFileKind(pngBinary())).toBe('binary')
+    expect(sniffFileKind(Buffer.from('abc\0def'))).toBe('binary')
+  })
+
+  it('treats UTF-16 text as text, with or without a BOM', () => {
+    expect(
+      sniffFileKind(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Hello', 'utf16le')]))
+    ).toBe('text')
+    expect(sniffFileKind(Buffer.from('Hello UTF-16 without a BOM', 'utf16le'))).toBe('text')
+  })
+
+  it('recognizes an HTML document by its opening tag after optional BOM and whitespace', () => {
+    expect(sniffFileKind(Buffer.from('<!DOCTYPE html><html><body>x</body></html>'))).toBe('html')
+    expect(sniffFileKind(Buffer.from('\n  <HTML lang="en"><p>x</p></HTML>'))).toBe('html')
+    expect(
+      sniffFileKind(
+        Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('<html><p>x</p></html>')])
+      )
+    ).toBe('html')
+    expect(sniffFileKind(Buffer.from('<p>fragment, not a document</p>'))).toBe('text')
+  })
+
+  it('reports plain text and Latin-1 text as text', () => {
+    expect(sniffFileKind(Buffer.from('Vendor list\nBloomberg\n'))).toBe('text')
+    expect(sniffFileKind(Buffer.from('Caf\xe9 r\xe9sum\xe9', 'latin1'))).toBe('text')
+  })
+})
+
+describe('reconcileParserRoute', () => {
+  it.each<[string, SniffedKind]>([
+    ['pdf', 'pdf'],
+    ['docx', 'docx'],
+    ['docm', 'docx'],
+    ['xlsx', 'xlsx'],
+    ['xls', 'ole2'],
+    ['xlsx', 'ole2'],
+    ['ods', 'ods'],
+    ['pptx', 'pptx'],
+    ['odt', 'odt'],
+    ['odp', 'odp'],
+    ['doc', 'ole2'],
+    ['txt', 'text'],
+    ['csv', 'text'],
+    ['html', 'html'],
+    ['html', 'text'],
+    ['md', 'text'],
+  ])('keeps the .%s route when the bytes are %s', (extension, kind) => {
+    expect(reconcileParserRoute(extension, kind)).toEqual({ extension })
+  })
+
+  it.each<[string, SniffedKind, string]>([
+    ['xlsx', 'text', 'csv'],
+    ['xls', 'text', 'csv'],
+    ['txt', 'html', 'html'],
+    ['md', 'html', 'html'],
+    ['docx', 'pdf', 'pdf'],
+    ['txt', 'pdf', 'pdf'],
+    ['xlsx', 'docx', 'docx'],
+    ['doc', 'docx', 'docx'],
+    ['pdf', 'docx', 'docx'],
+    ['docx', 'xlsx', 'xlsx'],
+    ['docx', 'pptx', 'pptx'],
+    ['docx', 'odt', 'odt'],
+    ['odt', 'ods', 'ods'],
+    ['txt', 'odp', 'odp'],
+    ['docx', 'ole2', 'doc'],
+    ['doc', 'text', 'txt'],
+    ['docx', 'text', 'txt'],
+    ['pptx', 'text', 'txt'],
+    ['pdf', 'text', 'txt'],
+    ['odt', 'text', 'txt'],
+  ])('re-routes .%s holding %s to the %s parser with a warning', (extension, kind, route) => {
+    expect(reconcileParserRoute(extension, kind)).toEqual({
+      extension: route,
+      detectedType: kind,
+      warning: expect.stringContaining(`parsed as .${route} instead of .${extension}`),
+    })
+  })
+
+  it.each<[string, SniffedKind]>([
+    ['txt', 'binary'],
+    ['csv', 'zip'],
+    ['txt', 'ole2'],
+    ['doc', 'binary'],
+    ['docx', 'binary'],
+    ['docx', 'zip'],
+    ['xlsx', 'binary'],
+    ['pdf', 'binary'],
+    ['pdf', 'ole2'],
+    ['odt', 'ole2'],
+    ['odt', 'zip'],
+  ])('rejects .%s holding %s as invalid_format', (extension, kind) => {
+    const error = (() => {
+      try {
+        reconcileParserRoute(extension, kind)
+        return null
+      } catch (caught) {
+        return caught
+      }
+    })()
+
+    expect(error).toBeInstanceOf(FileParserError)
+    expect(error).toMatchObject({ code: 'invalid_format' })
+  })
+
+  it('rejects a legacy OLE binary under a PowerPoint extension as unsupported_type', () => {
+    expect(() => reconcileParserRoute('pptx', 'ole2')).toThrow(
+      expect.objectContaining({ code: 'unsupported_type' })
+    )
+  })
+
+  it('leaves an extension with no known family alone', () => {
+    expect(reconcileParserRoute('unknown', 'binary')).toEqual({ extension: 'unknown' })
+  })
+})
+
+describe('parseBuffer reconciles the extension with the sniffed bytes', () => {
+  it('parses CSV bytes labelled .xlsx as CSV and keeps their UTF-8 intact', async () => {
+    const result = await parseBuffer(Buffer.from('name,city\nAna,Araújo\n'), 'xlsx')
+
+    expect(result.content).toContain('Araújo')
+    expect(result.content).not.toContain('Ã')
+    expect(result.metadata).toMatchObject({
+      detectedType: 'text',
+      warning: expect.stringContaining('parsed as .csv instead of .xlsx'),
+    })
+  })
+
+  it('strips markup from an HTML document labelled .txt', async () => {
+    const result = await parseBuffer(
+      Buffer.from('<!DOCTYPE html><html><body><h1>Memo</h1><p>Body text</p></body></html>'),
+      'txt'
+    )
+
+    expect(result.content).toContain('Body text')
+    expect(result.content.toLowerCase()).not.toContain('<html')
+    expect(result.metadata?.detectedType).toBe('html')
+  })
+
+  it('extracts a docx labelled .xlsx through the Word parser', async () => {
+    const result = await parseBuffer(await buildDocx('Office Relocation'), 'xlsx')
+
+    expect(result.content).toContain('Office Relocation')
+    expect(result.metadata?.detectedType).toBe('docx')
+  })
+
+  it('extracts a docx labelled .doc through the Word parser without degrading', async () => {
+    const result = await parseBuffer(await buildDocx('Office Relocation'), 'doc')
+
+    expect(result.content).toContain('Office Relocation')
+    expect(result.metadata?.degraded).toBeFalsy()
+  })
+
+  it('keeps plain text labelled .docx as text with a warning', async () => {
+    const result = await parseBuffer(Buffer.from('Vendor list\nBloomberg\n'), 'docx')
+
+    expect(result.content).toContain('Bloomberg')
+    expect(result.metadata?.warning).toContain('parsed as .txt instead of .docx')
+  })
+
+  it('rejects a PNG labelled .doc with a typed error instead of placeholder prose', async () => {
+    await expect(parseBuffer(pngBinary(), 'doc')).rejects.toMatchObject({
+      name: 'FileParserError',
+      code: 'invalid_format',
+    })
+  })
+
+  it('rejects an OLE binary labelled .txt', async () => {
+    await expect(parseBuffer(oleBinary(), 'txt')).rejects.toMatchObject({ code: 'invalid_format' })
+  })
+
+  it('rejects a legacy OLE deck labelled .pptx as unsupported', async () => {
+    await expect(parseBuffer(oleBinary(), 'pptx')).rejects.toMatchObject({
+      code: 'unsupported_type',
+    })
+  })
+
+  it('refuses the .ppt extension before sniffing', async () => {
+    await expect(parseBuffer(oleBinary(), 'ppt')).rejects.toMatchObject({
+      code: 'unsupported_type',
+    })
+  })
+
+  it('surfaces a truncated OOXML archive as a typed invalid_format failure', async () => {
+    const truncated = (await buildDocx('Office Relocation')).subarray(0, 200)
+
+    await expect(parseBuffer(truncated, 'docx')).rejects.toMatchObject({
+      name: 'FileParserError',
+      code: 'invalid_format',
+    })
+  })
+
+  it('decodes a Latin-1 text file and reports the encoding', async () => {
+    const result = await parseBuffer(
+      Buffer.from('Caf\xe9 r\xe9sum\xe9 na\xefve \xa3 42', 'latin1'),
+      'txt'
+    )
+
+    expect(result.content).toBe('Café résumé naïve £ 42')
+    expect(result.metadata).toMatchObject({ encoding: 'windows-1252', characterCount: 22 })
+  })
+})

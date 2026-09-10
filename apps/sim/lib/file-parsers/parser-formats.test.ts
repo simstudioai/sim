@@ -154,11 +154,18 @@ describe('PptxParser degraded reporting', () => {
 })
 
 describe('DocParser degraded reporting', () => {
-  it('flags a legacy OLE .doc binary as degraded', async () => {
-    const result = await new DocParser().parseBuffer(buildLegacyOleBinary())
+  /**
+   * An OLE2 header with no valid compound-file structure behind it used to fall
+   * through to the byte scrape and come back as degraded placeholder prose. It is
+   * now a typed rejection, so nothing downstream can index the placeholder.
+   */
+  it('rejects an OLE .doc binary that word-extractor cannot read as invalid_format', async () => {
+    const error = await new DocParser()
+      .parseBuffer(buildLegacyOleBinary())
+      .catch((caught: unknown) => caught)
 
-    expect(result.metadata?.degraded).toBe(true)
-    expect(result.content).toContain('Unable to extract text')
+    expect(error).toBeInstanceOf(FileParserError)
+    expect(error).toMatchObject({ code: 'invalid_format' })
   })
 
   /**

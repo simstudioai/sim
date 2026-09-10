@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
+import { type DecodedText, decodeTextBuffer } from '@/lib/file-parsers/utils'
 
 const MAX_JSON_DEPTH = 500
 const MAX_JSON_NODES = 1_000_000
@@ -141,7 +142,14 @@ function assertJsonValueWithinLimits(
   return maxDepth
 }
 
-function buildJsonResult(jsonData: unknown): FileParseResult {
+function encodingMetadata(decoded: DecodedText): Record<string, unknown> {
+  return {
+    encoding: decoded.encoding,
+    ...(decoded.warning ? { warning: decoded.warning } : {}),
+  }
+}
+
+function buildJsonResult(jsonData: unknown, decoded: DecodedText): FileParseResult {
   const budget = { nodes: 0, serializedUnits: 0 }
   const depth = assertJsonValueWithinLimits(jsonData, budget)
   const formattedContent = JSON.stringify(jsonData, null, 2)
@@ -156,13 +164,20 @@ function buildJsonResult(jsonData: unknown): FileParseResult {
       keys: isRecord ? Object.keys(jsonData as Record<string, unknown>) : [],
       itemCount: isArray ? jsonData.length : undefined,
       depth,
+      ...encodingMetadata(decoded),
     },
   }
 }
 
-function parseJsonContent(content: string): FileParseResult {
+/**
+ * Decodes before `JSON.parse`: a UTF-8 BOM is not JSON whitespace, so the raw
+ * `toString('utf-8')` read used to reject every BOM-prefixed file from Windows
+ * editors, and a Windows-1252 file silently lost its accented characters.
+ */
+function parseJsonContent(buffer: Uint8Array): FileParseResult {
+  const decoded = decodeTextBuffer(buffer)
   try {
-    return buildJsonResult(JSON.parse(content))
+    return buildJsonResult(JSON.parse(decoded.text), decoded)
   } catch (error) {
     if (error instanceof FileParserError) throw error
     if (!(error instanceof SyntaxError)) {
@@ -179,12 +194,12 @@ function parseJsonContent(content: string): FileParseResult {
 /** Parse a JSON file. */
 export async function parseJSON(filePath: string): Promise<FileParseResult> {
   const fs = await import('fs/promises')
-  return parseJsonContent(await fs.readFile(filePath, 'utf-8'))
+  return parseJsonContent(await fs.readFile(filePath))
 }
 
 /** Parse JSON from a buffer. */
 export async function parseJSONBuffer(buffer: Buffer): Promise<FileParseResult> {
-  return parseJsonContent(buffer.toString('utf-8'))
+  return parseJsonContent(buffer)
 }
 
 function* iterateJsonLines(content: string): Generator<{ line: string; lineNumber: number }> {
@@ -201,12 +216,13 @@ function* iterateJsonLines(content: string): Generator<{ line: string; lineNumbe
   }
 }
 
-function parseJsonLinesContent(content: string): FileParseResult {
+function parseJsonLinesContent(buffer: Uint8Array): FileParseResult {
+  const decoded = decodeTextBuffer(buffer)
   const items: unknown[] = []
   const budget = { nodes: 0, serializedUnits: 0 }
   let depth = assertJsonValueWithinLimits([], budget)
 
-  for (const { line, lineNumber } of iterateJsonLines(content)) {
+  for (const { line, lineNumber } of iterateJsonLines(decoded.text)) {
     let item: unknown
     try {
       item = JSON.parse(line)
@@ -229,6 +245,7 @@ function parseJsonLinesContent(content: string): FileParseResult {
       keys: [],
       itemCount: items.length,
       depth,
+      ...encodingMetadata(decoded),
     },
   }
 }
@@ -236,10 +253,10 @@ function parseJsonLinesContent(content: string): FileParseResult {
 /** Parse a JSON Lines file. */
 export async function parseJSONL(filePath: string): Promise<FileParseResult> {
   const fs = await import('fs/promises')
-  return parseJsonLinesContent(await fs.readFile(filePath, 'utf-8'))
+  return parseJsonLinesContent(await fs.readFile(filePath))
 }
 
 /** Parse JSON Lines from a buffer. */
 export async function parseJSONLBuffer(buffer: Buffer): Promise<FileParseResult> {
-  return parseJsonLinesContent(buffer.toString('utf-8'))
+  return parseJsonLinesContent(buffer)
 }

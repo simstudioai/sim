@@ -42,4 +42,30 @@ describe('JSON parser complexity limits', () => {
     expect(JSON.parse(result.content)).toEqual({ items: [1, 2], name: 'test' })
     expect(result.metadata).toMatchObject({ isArray: false, keys: ['items', 'name'], depth: 2 })
   })
+
+  it('parses a BOM-prefixed JSON file and reports its encoding', async () => {
+    const result = await parseJSONBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"name":"Café"}')])
+    )
+
+    expect(JSON.parse(result.content)).toEqual({ name: 'Café' })
+    expect(result.metadata?.encoding).toBe('utf-8')
+    expect(result.metadata?.warning).toBeUndefined()
+  })
+
+  it('decodes a Windows-1252 JSON file instead of rejecting or mangling it', async () => {
+    const result = await parseJSONBuffer(Buffer.from('{"city":"Z\xfcrich"}', 'latin1'))
+
+    expect(JSON.parse(result.content)).toEqual({ city: 'Zürich' })
+    expect(result.metadata?.encoding).toBe('windows-1252')
+    expect(result.metadata?.warning).toMatch(/Windows-1252/)
+  })
+
+  it('parses BOM-prefixed JSON Lines', async () => {
+    const result = await parseJSONLBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"a":1}\n{"a":2}')])
+    )
+
+    expect(JSON.parse(result.content)).toEqual([{ a: 1 }, { a: 2 }])
+  })
 })
