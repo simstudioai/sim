@@ -74,9 +74,8 @@ export function BrowserTabIcon({ tabId, scopeId, className }: BrowserTabIconProp
           {showSpinner ? (
             <Loader
               animate
-              className='size-[14px] text-[var(--text-icon)]'
+              className='size-[14px] text-[var(--text-icon)] [--loader-duration:650ms]'
               strokeWidth={2}
-              style={{ animationDuration: '650ms' }}
             />
           ) : !faviconLoaded || faviconFailed ? (
             <Globe className='size-[12px] text-[var(--text-icon)]' />
