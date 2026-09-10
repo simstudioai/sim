@@ -17,7 +17,14 @@ INTENDED_ERROR_EXTS = {'ppt'}
 def norm(t):
   t = unicodedata.normalize('NFKC', t or '').replace('­', '').replace('‑', '-').lower()
   return re.sub(r'\s+', ' ', t).strip()
+MARKER_TOKENS = {'table', 'notes'}
 def vocab(t): return {w for w in WORD.findall(norm(t)) if len(w) >= 2}
+# Reference extractors keep line-end hyphenation and page folios. The parser under test rejoins a
+# hyphenated word when the document shows it intact and otherwise keeps the hyphen, so vocabulary is
+# compared with every hyphen between letters collapsed on both sides and bare numbers ignored.
+def canon_vocab(text): return {w for w in vocab(re.sub(r'(\w)-\s*\n?\s*(\w)', r'\1\2', text)) if not w.isdigit()}
+def ref_vocab_of(text): return canon_vocab(text)
+def out_vocab_of(text): return {w for w in canon_vocab(text) | vocab(text) if not w.isdigit() and w not in MARKER_TOKENS}
 def found(needle, hay):
   n = norm(needle)[:NEEDLE_CAP]
   if not n: return False
@@ -45,7 +52,7 @@ def metrics(rec, refs):
   m['page_number_lines'] = sum(1 for l in blocks(out) if PAGE_NUM.match(l))
   ref_vocab = set(); recalls = []; precisions = []
   for name, text in refs.items():
-    n_ref = norm(text); ref_vocab |= vocab(text)
+    n_ref = norm(text); ref_vocab |= ref_vocab_of(text)
     ref_lines = [l for l in blocks(text) if len(l) >= 25][:LINE_CAP]
     out_lines = [l for l in blocks(out) if len(l) >= 25][:LINE_CAP]
     if ref_lines: recalls.append(sum(found(l, n_out) for l in ref_lines) / len(ref_lines))
@@ -53,11 +60,12 @@ def metrics(rec, refs):
   m['recall'] = r(max(recalls)) if recalls else None
   m['precision'] = r(max(precisions)) if precisions else None
   if ref_vocab:
-    words = [w for w in WORD.findall(n_out) if len(w) >= 2]
+    words = [w for w in WORD.findall(n_out) if len(w) >= 2 and w not in MARKER_TOKENS]
     noise = [w for w in words if w not in ref_vocab]
     m['noise'] = r(len(noise) / max(1, len(words)))
     m['glued'] = len({w for w in set(noise) if len(w) >= 6 and any(w[:i] in ref_vocab and w[i:] in ref_vocab and i >= 2 and len(w) - i >= 2 for i in range(2, len(w) - 1))})
     m['ref_vocab_recall'] = r(len(set(words) & ref_vocab) / max(1, len(ref_vocab)))
+    m['ref_vocab_recall'] = r(len(out_vocab_of(out) & ref_vocab) / max(1, len(ref_vocab)))
   return m
 
 rows = []
