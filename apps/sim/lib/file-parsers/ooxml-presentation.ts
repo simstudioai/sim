@@ -4,6 +4,7 @@ import {
   findAll,
   findFirst,
   formatTableRow,
+  imageAltText,
   isXmlElement,
   joinBlocks,
   NOTES_MARKER,
@@ -31,8 +32,12 @@ const SLIDE_PART = /^ppt\/slides\/slide(\d+)\.xml$/
 const NOTES_RELATIONSHIP_SUFFIX = '/notesSlide'
 const NOTES_PART_PREFIX = 'ppt/notesSlides/'
 
-/** Fields PowerPoint fills at render time; their cached text is the layout's, not the author's. */
-const RENDER_TIME_FIELD_TYPES = /^(slidenum|datetime)/i
+/**
+ * The slide-number field's cached text is the layout's, not the author's. Date
+ * fields keep their text: outside a `dt` placeholder (already skipped) a deck's
+ * dates are content, and python-pptx keeps them too.
+ */
+const SLIDE_NUMBER_FIELD_TYPE = 'slidenum'
 
 /** Layout-chrome placeholders whose text is a field, not slide content. */
 const SKIPPED_PLACEHOLDER_TYPES = new Set(['sldNum', 'dt', 'ftr', 'hdr'])
@@ -49,7 +54,7 @@ function placeholderType(shape: XmlElement): string | null {
 
 /**
  * Concatenates a DrawingML paragraph's runs, turning `<a:br/>` into a newline
- * and skipping slide-number and date fields wherever they appear.
+ * and skipping slide-number fields wherever they appear.
  */
 function paragraphText(paragraph: XmlElement): string {
   const pieces: string[] = []
@@ -58,7 +63,7 @@ function paragraphText(paragraph: XmlElement): string {
       pieces.push('\n')
       return
     }
-    if (element.name === 'a:fld' && RENDER_TIME_FIELD_TYPES.test(element.attribs.type ?? '')) {
+    if (element.name === 'a:fld' && element.attribs.type === SLIDE_NUMBER_FIELD_TYPE) {
       return
     }
     if (element.name === 'a:t') {
@@ -124,8 +129,8 @@ function graphicFrameBlocks(frame: XmlElement): string[] {
 function pictureBlocks(picture: XmlElement): string[] {
   const nonVisual = childElements(picture).find((child) => child.name === 'p:nvPicPr')
   const properties = nonVisual ? findFirst(nonVisual, 'p:cNvPr') : null
-  const description = properties?.attribs.descr?.trim()
-  return description ? [`[Image: ${description}]`] : []
+  const image = imageAltText(properties?.attribs.descr)
+  return image ? [image] : []
 }
 
 /**

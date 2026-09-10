@@ -5,6 +5,7 @@ import {
   collapseWhitespace,
   findFirst,
   formatTableRow,
+  imageAltText,
   isXmlElement,
   joinBlocks,
   NOTES_MARKER,
@@ -246,8 +247,7 @@ function imageFrameText(frame: XmlElement, state: WalkState): string | null {
   const children = childElements(frame)
   if (!children.some((child) => child.name === 'draw:image')) return null
   const alt = children.find((child) => child.name === 'svg:title' || child.name === 'svg:desc')
-  const text = alt ? collapseWhitespace(inlineText(alt, state)) : ''
-  return text ? `[Image: ${text}]` : ''
+  return alt ? (imageAltText(inlineText(alt, state)) ?? '') : ''
 }
 
 function emitNotes(notes: XmlElement, state: WalkState): void {

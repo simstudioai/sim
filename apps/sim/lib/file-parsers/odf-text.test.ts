@@ -127,6 +127,14 @@ describe('extractOpenDocumentText', () => {
     expect(await extractOpenDocumentText(buffer)).toBe('[Image: Org chart]')
   })
 
+  it('drops a file-name image title', async () => {
+    const buffer = await text(
+      `<text:p><draw:frame draw:name="Image1"><draw:image xlink:href="Pictures/a.png" xmlns:xlink="http://www.w3.org/1999/xlink"/><svg:title xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">python-icon.jpeg</svg:title></draw:frame>after</text:p>`
+    )
+
+    expect(await extractOpenDocumentText(buffer)).toBe('after')
+  })
+
   it('rejects a content part above the per-part size cap before parsing it', async () => {
     const buffer = await text('<text:p>Small</text:p>')
     const zip = await JSZip.loadAsync(buffer)

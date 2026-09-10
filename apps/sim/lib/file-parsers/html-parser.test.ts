@@ -159,6 +159,18 @@ describe('HtmlParser', () => {
       expect(result.metadata?.tableCount).toBe(2)
     })
 
+    it('keeps descriptive image alt text and drops file-name alt text', async () => {
+      const buffer = Buffer.from(
+        `<body><img alt="Org chart"><img alt="python-logo.gif"><img alt="Image 2"><p>Body</p></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('[Image: Org chart]')
+      expect(result.content).not.toContain('python-logo')
+      expect(result.content).not.toContain('Image 2')
+    })
+
     it('separates block elements inside a list item', async () => {
       const buffer = Buffer.from(
         `<body><ul><li><div><p>Versions</p><p>Release Information</p></div></li></ul></body>`

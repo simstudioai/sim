@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
 import { FileParserError } from '@/lib/file-parsers/errors'
+import { imageAltText } from '@/lib/file-parsers/office-text'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { decodeTextBuffer, sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
@@ -259,10 +260,8 @@ function processElement(
       }
 
       case 'img': {
-        const alt = $node.attr('alt')
-        if (alt) {
-          contentParts.push(`[Image: ${alt}]`)
-        }
+        const image = imageAltText($node.attr('alt'))
+        if (image) contentParts.push(image)
         break
       }
 
@@ -372,7 +371,8 @@ function flattenedTableCells($: cheerio.CheerioAPI, table: cheerio.Cheerio<AnyNo
 }
 
 /**
- * One cell's text on a single line. Block elements inside the cell get a space
+ * One cell's text on a single line. A text-only cell — the common case in a
+ * data table — is read directly. Block elements inside the cell get a space
  * so adjacent paragraphs do not glue together — this mutates the live DOM, and
  * runs before `extractHeadings`/`extractLinks`, so heading or link text inside a
  * cell gains those spaces too. A nested table is rendered on a clone of the cell
@@ -380,6 +380,10 @@ function flattenedTableCells($: cheerio.CheerioAPI, table: cheerio.Cheerio<AnyNo
  * outer row stays one line and the inner text appears exactly once.
  */
 function cellText($: cheerio.CheerioAPI, cell: cheerio.Cheerio<AnyNode>): string {
+  if (cell.children().length === 0) {
+    return cell.text().replace(/\s+/g, ' ').trim()
+  }
+
   const nested = topLevelNestedTables($, cell)
   if (nested.length === 0) {
     cell.find(CELL_BLOCK_SELECTOR).after(' ')

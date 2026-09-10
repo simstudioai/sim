@@ -88,6 +88,22 @@ export function findAll(node: XmlDocument | XmlElement, tagName: string): XmlEle
   return DomUtils.findAll((element) => element.name === tagName, node.children)
 }
 
+/** A bare file name (`python-logo.gif`) rather than a description. */
+const FILENAME_LIKE = /^[^\s]+\.[a-z0-9]{2,4}$/i
+
+/** Auto-generated captions that name the object, not its content (`Picture 3`). */
+const AUTO_CAPTION = /^(?:picture|image|graphic|photo|figure|chart|diagram|screenshot)\s*\d*$/i
+
+/**
+ * Renders an image's alternative text as `[Image: …]`, or `null` when the text
+ * is a file name or an auto-generated caption, which would only add noise.
+ */
+export function imageAltText(raw: string | undefined): string | null {
+  const text = raw ? collapseWhitespace(raw) : ''
+  if (!text || FILENAME_LIKE.test(text) || AUTO_CAPTION.test(text)) return null
+  return `[Image: ${text}]`
+}
+
 /** Collapses internal whitespace so a cell or list item occupies a single line. */
 export function collapseWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim()

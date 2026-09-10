@@ -145,14 +145,24 @@ describe('extractPresentationText', () => {
     )
   })
 
-  it('skips slide-number and date fields outside their placeholders', async () => {
-    const spTree = `<p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/></p:nvSpPr><p:txBody><a:p><a:r><a:t>Page </a:t></a:r><a:fld type="slidenum"><a:t>369</a:t></a:fld><a:fld type="datetime1"><a:t>1/1/2026</a:t></a:fld><a:fld type="custom"><a:t>kept</a:t></a:fld></a:p></p:txBody></p:sp>`
+  it('skips slide-number fields outside their placeholder but keeps date fields', async () => {
+    const spTree = `<p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/></p:nvSpPr><p:txBody><a:p><a:r><a:t>Page </a:t></a:r><a:fld type="slidenum"><a:t>369</a:t></a:fld><a:fld type="datetime1"><a:t>6/29/2021</a:t></a:fld><a:fld type="custom"><a:t>kept</a:t></a:fld></a:p></p:txBody></p:sp>`
 
-    expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe('Page kept')
+    expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe(
+      'Page 6/29/2021kept'
+    )
   })
 
-  it('emits a picture as its alternative text', async () => {
-    const spTree = `<p:pic><p:nvPicPr><p:cNvPr id="4" name="Picture 3" descr="Org chart"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr></p:pic>${shape('Caption')}`
+  it('still drops a date field inside a dt placeholder', async () => {
+    const spTree = `<p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/><p:nvPr><p:ph type="dt"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:fld type="datetime1"><a:t>6/29/2021</a:t></a:fld></a:p></p:txBody></p:sp>${shape('Body')}`
+
+    expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe('Body')
+  })
+
+  it('emits a picture as its alternative text unless it is a file name or auto caption', async () => {
+    const pic = (descr: string) =>
+      `<p:pic><p:nvPicPr><p:cNvPr id="4" name="Picture 3" descr="${descr}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr></p:pic>`
+    const spTree = pic('Org chart') + pic('python-logo.gif') + pic('Picture 2') + shape('Caption')
 
     expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe(
       '[Image: Org chart]\nCaption'
