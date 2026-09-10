@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { ConnectorsSection } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 
@@ -33,6 +34,16 @@ export function SearchSourceStatus({
   onClose,
 }: SearchSourceStatusProps) {
   const router = useRouter()
+  const host = useOptionalWorkspaceHostContext()
+  const organizationId =
+    scope.kind === 'organization'
+      ? scope.organizationId
+      : host?.workspace.id === scope.workspaceId &&
+          host.viewer.isHostOrganizationMember &&
+          host.features?.organizationSearch &&
+          host.features.knowledgeMemberAccess
+        ? host.hostOrganizationId
+        : null
   const title = `${CONNECTOR_META_REGISTRY[connectorType]?.name ?? 'Source'} sources`
   return (
     <ChipModal
@@ -56,18 +67,15 @@ export function SearchSourceStatus({
           />
         </ChipModalField>
       </ChipModalBody>
-      <ChipModalFooter
-        hideCancel
-        primaryAction={{
-          label: 'Start searching',
-          onClick: () =>
-            router.push(
-              scope.kind === 'organization'
-                ? organizationRoutes(scope.organizationId).search
-                : `/workspace/${scope.workspaceId}/home?mode=search`
-            ),
-        }}
-      />
+      {organizationId && (
+        <ChipModalFooter
+          hideCancel
+          primaryAction={{
+            label: 'Start searching',
+            onClick: () => router.push(organizationRoutes(organizationId).search),
+          }}
+        />
+      )}
     </ChipModal>
   )
 }

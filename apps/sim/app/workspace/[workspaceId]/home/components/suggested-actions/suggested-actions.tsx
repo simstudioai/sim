@@ -14,15 +14,12 @@ import {
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { SearchSources } from '@/app/workspace/[workspaceId]/home/components/search-sources'
 import type {
   Action,
   ActionIcon,
   OAuthConnectTarget,
 } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/types'
 import { weightedSample } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/weighted-sample'
-import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
-import type { MothershipMode } from '@/app/workspace/[workspaceId]/home/search-params'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
@@ -30,7 +27,6 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */
 const SLUG_BY_LOWER_NAME: ReadonlyMap<string, string> = new Map(
@@ -232,13 +228,6 @@ const INITIAL_ACTIONS: Action[] = [
     .map(toPromptAction),
 ]
 
-/** Section heading per composer mode — Search reads as a connect-your-sources list. */
-const HEADINGS: Record<MothershipMode, string> = {
-  build: 'Suggested actions',
-  search: 'Sources',
-  assistant: 'Sources',
-}
-
 interface SuggestedActionsProps {
   onSelectPrompt: (prompt: string) => void
 }
@@ -246,8 +235,6 @@ interface SuggestedActionsProps {
 export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
-  const [mode] = useMothershipMode()
-  const { integrationAvailability } = usePermissionConfig()
 
   const { data: credentials = EMPTY_CREDENTIALS } = useWorkspaceCredentials({
     workspaceId,
@@ -294,25 +281,11 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
     [connectedProviders, tables.length, knowledgeBases.length]
   )
 
-  /**
-   * Each mode's list is memoized on its own inputs alone, so switching modes —
-   * or the other mode's signals settling — never re-samples it.
-   *
-   * Search lists connectors to attach, and waits for the viewer's credentials:
-   * sampling against an empty set would list connected providers and then
-   * reshuffle when the query lands. Build lists personalized suggestions,
-   * re-sampled whenever signals resolve, and falls back to
-   * {@link INITIAL_ACTIONS} until the credential and service queries have loaded
-   * — and stays there for users with no connections — so first paint never
-   * flashes. The store's default mode is Build, so the server render never
-   * shows the sampled Search list.
-   */
-  const buildActions = useMemo(() => {
+  const actions = useMemo(() => {
     const personalized = services.length > 0 && connectedProviders.size > 0
     if (!personalized) return INITIAL_ACTIONS
     return computeActions(services, signals)
   }, [connectedProviders, services, signals])
-  const actions = buildActions
 
   const handleSelect = (action: Action, position: number) => {
     captureEvent(posthog, 'suggested_action_clicked', {
@@ -349,7 +322,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
         aria-expanded={expanded}
         className='group/toggle flex w-full cursor-pointer items-center gap-2'
       >
-        <span className='text-[var(--text-muted)] text-caption'>{HEADINGS[mode]}</span>
+        <span className='text-[var(--text-muted)] text-caption'>Suggested actions</span>
         {/*
          * Revealed by hovering anywhere in the section — the group sits on the
          * section wrapper rather than this row, so the action rows below arm it just
@@ -374,34 +347,28 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
               `collapsible-up`/`-down` interpolate height alone, so a margin here
               would hold its full value through the close and then vanish on unmount,
               snapping the content below up. */}
-          {mode !== 'build' && workspaceId ? (
-            <div className='pt-1.5'>
-              <SearchSources workspaceId={workspaceId} />
-            </div>
-          ) : (
-            <div className='flex flex-col pt-1.5'>
-              {actions.map((action, i) => {
-                const Icon = action.icon
-                return (
-                  <button
-                    key={action.id}
-                    type='button'
-                    onClick={() => handleSelect(action, i)}
-                    className={cn(
-                      'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
-                      i > 0 && 'border-t'
-                    )}
-                  >
-                    <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
-                    <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
-                      {action.label}
-                    </span>
-                    <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          <div className='flex flex-col pt-1.5'>
+            {actions.map((action, i) => {
+              const Icon = action.icon
+              return (
+                <button
+                  key={action.id}
+                  type='button'
+                  onClick={() => handleSelect(action, i)}
+                  className={cn(
+                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+                    i > 0 && 'border-t'
+                  )}
+                >
+                  <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
+                  <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
+                    {action.label}
+                  </span>
+                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+                </button>
+              )
+            })}
+          </div>
         </ExpandableContent>
       </Expandable>
       {oauthTarget && workspaceId && (

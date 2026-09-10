@@ -1873,11 +1873,7 @@ export function useChat(
         window.history.replaceState(
           null,
           '',
-          chatUrl(
-            organizationId ? { organizationId } : workspaceId!,
-            chatId,
-            activeTurn?.optimisticUserMessage.requestMode
-          )
+          chatUrl(organizationId ? { organizationId } : workspaceId!, chatId)
         )
       }
       if (options?.invalidateList) {
