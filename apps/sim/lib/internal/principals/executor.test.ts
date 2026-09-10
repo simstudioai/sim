@@ -81,16 +81,47 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
     )
   })
 
-  it('binds MCP policy provenance from the trusted execution context', async () => {
+  it.each(['sim:mcp-servers', 'sim:managed-mcp-credentials'])(
+    'binds MCP policy provenance from the trusted execution context for %s',
+    async (audience) => {
+      const principal = await createExecutorPrincipalFromExecutionContext({
+        context: executionContext({
+          mcpBlockId: 'saved-block',
+          executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
+        }),
+        audience,
+        resourceScope: { mcpServerId: 'server-1' },
+      })
+      expect(principal.resourceScope).toEqual({
+        mcpBlockId: 'saved-block',
+        mcpServerId: 'server-1',
+      })
+    }
+  )
+
+  it('keeps credential lookup unscoped when its block has MCP provenance metadata', async () => {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: executionContext({
-        mcpBlockId: 'saved-block',
+        mcpBlockId: 'credential-block',
         executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
       }),
-      audience: 'sim:mcp-servers',
-      resourceScope: { mcpServerId: 'server-1' },
+      audience: 'sim:credential-groups',
     })
-    expect(principal.resourceScope).toEqual({ mcpBlockId: 'saved-block', mcpServerId: 'server-1' })
+    expect(principal.resourceScope).toBeUndefined()
+    expect(principal.subjectUserId).toBe('user-origin')
+    expect(principal.delegationContext?.workflowId).toBe('workflow-origin')
+  })
+
+  it('preserves another operation’s resource scope without adding MCP policy metadata', async () => {
+    const principal = await createExecutorPrincipalFromExecutionContext({
+      context: executionContext({
+        mcpBlockId: 'agent-block',
+        executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
+      }),
+      audience: 'sim:tables',
+      resourceScope: { tableId: 'table-1' },
+    })
+    expect(principal.resourceScope).toEqual({ tableId: 'table-1' })
   })
 
   it('uses an explicit trusted execution deadline as the delegation expiry', async () => {

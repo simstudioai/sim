@@ -1,8 +1,10 @@
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { bindInternalExecutorDelegation } from '@/lib/auth/internal-delegation'
+import { MANAGED_MCP_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import { ExecutorDelegationOriginRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const EXECUTOR_DELEGATION_TTL_MS = 5 * 60 * 1000
@@ -80,10 +82,14 @@ export async function createExecutorPrincipalFromExecutionContext({
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
   if (!origin) throw new ExecutorDelegationOriginRequiredError()
+  const isMcpAudience =
+    audience === MCP_SERVER_DELEGATION_AUDIENCE || audience === MANAGED_MCP_DELEGATION_AUDIENCE
   return createExecutorPrincipalFromDelegationOrigin(
     origin,
     audience,
-    context.mcpBlockId ? { ...resourceScope, mcpBlockId: context.mcpBlockId } : resourceScope,
+    isMcpAudience && context.mcpBlockId
+      ? { ...resourceScope, mcpBlockId: context.mcpBlockId }
+      : resourceScope,
     expiresAt,
     context.userId
   )
