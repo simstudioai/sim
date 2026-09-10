@@ -34,9 +34,9 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { checkIngestionUsageLimits } from '@/lib/billing/core/ingestion-usage-gate'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   applyStorageUsageDeltasInTx,
@@ -1618,7 +1618,7 @@ export async function processDocumentAsync(
     assertBillingAttributionOwner(billingAttribution, ctx)
     const documentActorUserId = billingAttribution.actorUserId
 
-    const usageGate = await checkAttributedUsageLimits(billingAttribution)
+    const usageGate = await checkIngestionUsageLimits(billingAttribution)
     if (usageGate.isExceeded) {
       logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
       throw new UsageLimitDocumentProcessingError(

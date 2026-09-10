@@ -65,11 +65,13 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import * as billingAttribution from '@/lib/billing/core/billing-attribution'
+import { resetIngestionUsageGateCache } from '@/lib/billing/core/ingestion-usage-gate'
 import * as embeddingClient from '@/lib/embeddings/client'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
+  resetIngestionUsageGateCache()
   vi.spyOn(billingAttribution, 'checkAttributedUsageLimits').mockImplementation(
     mockCheckAttributedUsageLimits
   )
