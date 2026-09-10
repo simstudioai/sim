@@ -2,6 +2,17 @@ import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
 import { FileParserError } from '@/lib/file-parsers/errors'
+import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
+import {
+  collectCompounds,
+  dominantLineHeight,
+  joinLines,
+  normalizePdfWhitespace,
+  type PdfLine,
+  PdfLineBuilder,
+  type PdfTextItem,
+  readItemGeometry,
+} from '@/lib/file-parsers/pdf-lines'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
@@ -27,6 +38,15 @@ export const MAX_COMPLETE_PDF_PAGE_CHARS = 250_000
 /** Wall-clock ceiling for extracting text from a whole document. */
 const PDF_EXTRACTION_TIMEOUT_MS = 60_000
 
+/**
+ * Upper bound on what line reconstruction adds per line after the budget is
+ * spent: a two-character paragraph break plus a three-character heading marker.
+ */
+const MAX_LINE_DECORATION_BYTES = 5
+
+/** Pages are joined with a paragraph break. */
+const PAGE_SEPARATOR = '\n\n'
+
 const PDF_TRUNCATION_WARNING = 'PDF text extraction stopped at a parser limit and is incomplete'
 const PDF_READ_DEADLINE_REACHED = Symbol('PDF_READ_DEADLINE_REACHED')
 
@@ -34,11 +54,11 @@ const PDF_READ_DEADLINE_REACHED = Symbol('PDF_READ_DEADLINE_REACHED')
 const PDF_PARSER_SOURCE = 'unpdf'
 
 interface TextContentChunk {
-  items?: Array<{ str?: unknown; hasEOL?: unknown }>
+  items?: PdfTextItem[]
 }
 
 interface PageExtraction {
-  text: string
+  lines: PdfLine[]
   /** Characters consumed from the caller's budget. */
   used: number
   /** False when a budget stopped the read before the page was exhausted. */
@@ -141,7 +161,7 @@ async function readPageWithinBudget(
     .streamTextContent()
     .getReader() as ReadableStreamDefaultReader<TextContentChunk>
 
-  const parts: string[] = []
+  const builder = new PdfLineBuilder()
   let remaining = budget
   let completed = false
   let dropped = false
@@ -180,16 +200,23 @@ async function readPageWithinBudget(
       for (const item of value?.items ?? []) {
         if (typeof item?.str !== 'string') continue
 
-        const piece = item.hasEOL === true ? `${item.str}\n` : item.str
-        if (piece.length > remaining) {
-          parts.push(piece.slice(0, remaining))
+        const str = item.str
+        const hasEOL = item.hasEOL === true
+        const geometry = readItemGeometry(item)
+        const separator = str.length > 0 ? builder.separatorBefore(str, geometry) : ''
+        const cost = separator.length + str.length + (hasEOL ? 1 : 0)
+        if (cost > remaining) {
+          appendTruncated(builder, separator, str, geometry, remaining)
           remaining = 0
           dropped = true
           break
         }
 
-        if (piece.length > 0) parts.push(piece)
-        remaining -= piece.length
+        if (separator === '\n') builder.endLine()
+        else if (separator.length > 0) builder.append(separator)
+        builder.append(str, geometry)
+        if (hasEOL) builder.endLine()
+        remaining -= cost
       }
     }
   } finally {
@@ -201,7 +228,66 @@ async function readPageWithinBudget(
     }
   }
 
-  return { text: parts.join(''), used: budget - remaining, completed, deadlineReached }
+  return { lines: builder.finish(), used: budget - remaining, completed, deadlineReached }
+}
+
+/** Appends as much of `separator + str` as `remaining` allows, mirroring the old `slice(0, remaining)`. */
+function appendTruncated(
+  builder: PdfLineBuilder,
+  separator: string,
+  str: string,
+  geometry: ReturnType<typeof readItemGeometry>,
+  remaining: number
+): void {
+  let keep = remaining
+  if (separator.length > 0 && keep > 0) {
+    if (separator === '\n') builder.endLine()
+    else builder.append(separator)
+    keep -= 1
+  }
+  if (keep > 0) builder.append(str.slice(0, keep), geometry)
+}
+
+/** Page height in user space, or undefined when the page cannot report a viewport. */
+function readPageHeight(page: PDFPageProxy): number | undefined {
+  if (typeof page.getViewport !== 'function') return undefined
+  try {
+    const height = page.getViewport({ scale: 1 }).height
+    return Number.isFinite(height) && height > 0 ? height : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Bytes a page's lines can occupy in the output once joined and decorated. */
+function estimatePageBytes(lines: readonly PdfLine[]): number {
+  let bytes = 0
+  for (const line of lines) {
+    bytes += Buffer.byteLength(line.text, 'utf8') + MAX_LINE_DECORATION_BYTES
+  }
+  return bytes
+}
+
+/**
+ * Turns the collected pages into text: repeated furniture is dropped, lines are
+ * joined into paragraphs, hyphenation is undone, and pages are separated by a
+ * paragraph break.
+ */
+function assemblePages(pages: readonly PdfPageLines[], complete: boolean): string {
+  const filteredPages = suppressFurniture(pages)
+  const allLines = filteredPages.flat()
+  const options = {
+    compounds: collectCompounds(allLines),
+    bodyHeight: dominantLineHeight(allLines),
+  }
+  const pageTexts: string[] = []
+  for (const lines of filteredPages) {
+    const joined = joinLines(lines, options)
+    const text = complete ? normalizePdfWhitespace(sanitizeTextForUTF8(joined)).trim() : joined
+    if (text.length > 0) pageTexts.push(text)
+  }
+  const text = pageTexts.join(PAGE_SEPARATOR)
+  return complete ? text : normalizePdfWhitespace(text).trim()
 }
 
 function completeExtractionLimit(message: string): FileParserError {
@@ -217,7 +303,7 @@ async function extractTextWithinBudget(
   const complete = options.pdfTextMode === 'complete'
   const totalPages = pdf.numPages
   const pageLimit = Math.min(totalPages, MAX_PDF_PAGES)
-  const pageTexts: string[] = []
+  const pages: PdfPageLines[] = []
 
   let remainingChars = MAX_PDF_TEXT_CHARS
   let outputBytes = 0
@@ -250,6 +336,7 @@ async function extractTextWithinBudget(
     }
 
     const page = pageResult
+    const pageHeight = readPageHeight(page)
     let extraction: PageExtraction
     try {
       extraction = await readPageWithinBudget(
@@ -262,26 +349,25 @@ async function extractTextWithinBudget(
       page.cleanup()
     }
 
-    const { text, used, completed } = extraction
+    const { lines, used, completed } = extraction
 
     if (!complete) remainingChars -= used
 
     /** A page stopped before yielding text must not count as read or add a separator. */
-    if (completed || text.length > 0) {
+    if (completed || used > 0) {
       pagesRead++
       if (complete) {
-        const normalized = sanitizeTextForUTF8(text.replace(/\s+/g, ' ')).trim()
-        if (normalized.length > 0) {
-          outputBytes += Buffer.byteLength(normalized, 'utf8') + (pageTexts.length > 0 ? 1 : 0)
+        if (lines.length > 0) {
+          outputBytes += estimatePageBytes(lines) + (pages.length > 0 ? PAGE_SEPARATOR.length : 0)
           if (outputBytes > MAX_COMPLETE_PDF_TEXT_BYTES) {
             throw completeExtractionLimit(
               `PDF text exceeds the safe ${MAX_COMPLETE_PDF_TEXT_BYTES.toLocaleString()}-byte output limit.`
             )
           }
-          pageTexts.push(normalized)
+          pages.push({ lines, pageHeight })
         }
       } else {
-        pageTexts.push(text)
+        pages.push({ lines, pageHeight })
       }
     }
 
@@ -298,8 +384,11 @@ async function extractTextWithinBudget(
     }
   }
 
+  const text = assemblePages(pages, complete)
+
   return {
-    text: complete ? pageTexts.join(' ') : pageTexts.join('\n').replace(/\s+/g, ' '),
+    /** Paragraph breaks and heading markers land after the budget is spent, so trim that overflow. */
+    text: complete ? text : text.slice(0, MAX_PDF_TEXT_CHARS),
     totalPages,
     pagesRead,
     truncated,
