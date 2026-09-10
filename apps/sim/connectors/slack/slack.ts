@@ -20,6 +20,7 @@ import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
   ConnectorFileTooLargeError,
+  markSkipped,
   parseDefaultedUnlimitedSafeInteger,
   parseMultiValue,
   parseTagDate,
@@ -693,22 +694,14 @@ async function getDocument(
       cursor = continuation
     }
     if (!exhausted) throw new Error(`Slack thread exceeds ${MAX_THREAD_PAGES} reply pages`)
-    if (!root || lines.count === 0) return null
-    const link = await slackApiGet('chat.getPermalink', accessToken, {
-      channel: channelId,
-      message_ts: rootTs,
-    })
-    if (typeof link.permalink !== 'string' || !link.permalink.startsWith('https://')) {
-      throw new Error('Slack did not return a message permalink')
-    }
-    const content = lines.join()
-    return {
+    if (!root) return null
+    const content = lines.count > 0 ? lines.join() : ''
+    const document: ExternalDocument = {
       externalId,
       title: messageTitle(channel, root),
       content,
       contentDeferred: false,
       mimeType: 'text/plain',
-      sourceUrl: link.permalink,
       contentHash: `slack-content:v4:${createHash('sha256').update(content).digest('hex')}`,
       metadata: {
         channelName: channel.name,
@@ -720,6 +713,21 @@ async function getDocument(
         lastActivity: new Date(Number(lastActivity) * 1000).toISOString(),
       },
     }
+    /** Only a fully read thread can authoritatively replace previously indexed text with a skip. */
+    if (lines.count === 0) {
+      return {
+        ...markSkipped(document, 'Document contains no extractable text'),
+        skippedExistingDisposition: 'replace',
+      }
+    }
+    const link = await slackApiGet('chat.getPermalink', accessToken, {
+      channel: channelId,
+      message_ts: rootTs,
+    })
+    if (typeof link.permalink !== 'string' || !link.permalink.startsWith('https://')) {
+      throw new Error('Slack did not return a message permalink')
+    }
+    return { ...document, sourceUrl: link.permalink }
   } catch (error) {
     if (
       error instanceof SlackApiError &&
