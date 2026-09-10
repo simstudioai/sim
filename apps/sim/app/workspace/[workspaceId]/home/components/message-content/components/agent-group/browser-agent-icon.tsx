@@ -5,8 +5,11 @@ import { isBrowserToolName } from '@sim/browser-protocol'
 import { cn } from '@sim/emcn'
 import { Globe } from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
+import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 function pageFaviconUrl(url: string): string | null {
   try {
@@ -90,20 +93,35 @@ interface BrowserAgentIconProps {
 }
 
 export function BrowserAgentIcon({ items }: BrowserAgentIconProps) {
+  const { chatId } = useChatSurface()
   const url = getBrowserAgentFaviconUrl(items)
-  return <BrowserAgentFavicon key={url} url={url} />
+  const pageIsOpen = useBrowserSessionStore((state) => {
+    const session = chatId ? state.sessions[chatId] : undefined
+    if (!url || !session?.sessionAlive || session.suspended) return false
+    const tab = session.tabs.find((tab) => tab.tabId === session.automationTabId)
+    return Boolean(tab && !tab.loading && !tab.issue && pageFaviconUrl(tab.url) === url)
+  })
+  return (
+    <BrowserAgentFavicon
+      key={`${chatId ?? ''}:${url ?? ''}`}
+      url={url}
+      canLoad={isBrowserAgentAvailable() && pageIsOpen}
+    />
+  )
 }
 
 interface BrowserAgentFaviconProps {
   url: string | null
+  canLoad: boolean
 }
 
-function BrowserAgentFavicon({ url }: BrowserAgentFaviconProps) {
+function BrowserAgentFavicon({ url, canLoad }: BrowserAgentFaviconProps) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>('loading')
 
   return (
     <span className='relative flex size-[16px] items-center justify-center' aria-hidden='true'>
-      {url && status !== 'failed' && (
+      {/** History alone must not contact a site; keep an already loaded image after the tab closes. */}
+      {url && status !== 'failed' && (canLoad || status === 'loaded') && (
         <img
           src={url}
           referrerPolicy='no-referrer'

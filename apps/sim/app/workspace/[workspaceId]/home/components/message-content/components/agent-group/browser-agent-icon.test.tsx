@@ -3,13 +3,34 @@
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import {
   BrowserAgentIcon,
   getBrowserAgentFaviconUrl,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
+
+const { browserAvailable, chatIdentity } = vi.hoisted(() => ({
+  browserAvailable: vi.fn(() => true),
+  chatIdentity: { chatId: 'chat-1' },
+}))
+vi.mock('@/lib/browser-agent/transport', () => ({ isBrowserAgentAvailable: browserAvailable }))
+vi.mock('@/app/workspace/[workspaceId]/home/components/chat-surface-context', () => ({
+  useChatSurface: () => chatIdentity,
+}))
+
+function openPage(url: string, scopeId = 'chat-1', loading = false) {
+  act(() =>
+    useBrowserSessionStore.getState().setTabsState({
+      scopeId,
+      activeTabId: 'tab-1',
+      automationTabId: 'tab-1',
+      tabs: [{ tabId: 'tab-1', title: '', url, loading, active: true }],
+    })
+  )
+}
 
 function tool(overrides: Partial<ToolCallData> = {}): AgentGroupItem {
   return {
@@ -189,6 +210,9 @@ describe('BrowserAgentIcon', () => {
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    browserAvailable.mockReturnValue(true)
+    chatIdentity.chatId = 'chat-1'
+    useBrowserSessionStore.setState({ sessions: {}, activeScopeId: null })
     container = document.createElement('div')
     root = createRoot(container)
   })
@@ -203,7 +227,45 @@ describe('BrowserAgentIcon', () => {
     )
   }
 
+  it('does not contact sites from history, other chats, or pending navigation', () => {
+    render('https://example.com/document')
+    expect(container.querySelector('img')).toBeNull()
+    openPage('https://example.com', 'another-chat')
+    expect(container.querySelector('img')).toBeNull()
+    openPage('https://example.com', 'chat-1', true)
+    expect(container.querySelector('img')).toBeNull()
+    openPage('https://example.org')
+    expect(container.querySelector('img')).toBeNull()
+    openPage('https://example.com')
+    expect(container.querySelector('img')).not.toBeNull()
+  })
+
+  it('requires the local desktop browser and retains an already loaded favicon after closing it', () => {
+    browserAvailable.mockReturnValue(false)
+    openPage('https://example.com')
+    render('https://example.com')
+    expect(container.querySelector('img')).toBeNull()
+    browserAvailable.mockReturnValue(true)
+    render('https://example.com')
+    const img = container.querySelector('img')!
+    act(() => img.dispatchEvent(new Event('load')))
+    act(() => useBrowserSessionStore.getState().discardScope('chat-1'))
+    expect(container.querySelector('img')).toBe(img)
+    expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('does not carry loaded state into another chat with the same destination', () => {
+    openPage('https://example.com')
+    render('https://example.com')
+    act(() => container.querySelector('img')!.dispatchEvent(new Event('load')))
+    chatIdentity.chatId = 'chat-2'
+    render('https://example.com')
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('svg')).not.toBeNull()
+  })
+
   it('keeps the globe until load and resets image state when the page origin changes', () => {
+    openPage('https://example.com/document')
     render('https://username:password@example.com/document?token=private#section')
     const firstImage = container.querySelector('img')!
     expect(firstImage.src).toBe('https://example.com/favicon.ico')
@@ -216,6 +278,7 @@ describe('BrowserAgentIcon', () => {
     expect(container.querySelector('img')).toBe(firstImage)
     expect(container.querySelector('svg')).toBeNull()
 
+    openPage('https://example.org/document')
     render('https://example.org/document')
     expect(container.querySelector('img')).not.toBe(firstImage)
     expect(container.querySelector('svg')).not.toBeNull()
@@ -225,6 +288,7 @@ describe('BrowserAgentIcon', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(container.querySelector('svg')).not.toBeNull()
 
+    openPage('https://example.com')
     render('https://example.com')
     expect(container.querySelector('img')).not.toBeNull()
     render('about:blank')
