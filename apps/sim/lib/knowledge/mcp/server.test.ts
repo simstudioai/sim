@@ -293,6 +293,17 @@ describe('organization chat', () => {
     expect((await call('chat', { query: 'answer' })).isError).toBe(true)
     expect(mocks.chat).not.toHaveBeenCalled()
   })
+  it('includes the actual retry delay in rate-limited tool results', async () => {
+    create()
+    mocks.rateLimit.mockResolvedValueOnce(
+      new Response(null, { status: 429, headers: { 'Retry-After': '90' } })
+    )
+    expect(await call('chat', { query: 'answer' })).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'API rate limit exceeded. Retry in 90 seconds.' }],
+    })
+    expect(mocks.chat).not.toHaveBeenCalled()
+  })
   it('does not leak backend failures', async () => {
     create()
     mocks.chat.mockRejectedValueOnce(new Error('private backend detail'))

@@ -274,6 +274,23 @@ describe('redirects', () => {
 })
 
 describe('non-JSON responses', () => {
+  it.each([200, 409, 503])('normalizes unreadable HTTP %s response bodies', async (status) => {
+    const response = new Response(null, { status })
+    vi.spyOn(response, 'text').mockRejectedValue(new Error('Connection closed during response'))
+    const fetch = vi.fn().mockResolvedValue(response)
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      client().request('/api/v2/workspaces/ws_1/operations/operation-1')
+    ).rejects.toMatchObject({
+      name: 'SimApiError',
+      status,
+      code: 'RESPONSE_READ_FAILED',
+      message: 'Unable to read the response: Connection closed during response',
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('names the URL and the shape instead of dumping a page of HTML', async () => {
     vi.stubGlobal(
       'fetch',
@@ -984,6 +1001,10 @@ describe('destructive operations are gated', () => {
    * default by being named something the old regex did not match.
    */
   const DESTRUCTIVE_NON_DELETE = new Set<V2OperationName>([
+    'pushWorkspace',
+    'pullWorkspace',
+    'rollbackWorkspaceFork',
+    'unlinkWorkspaceFork',
     // The same application operation as `rollbackWorkflow`, under a different
     // transition: both switch which version production serves away from the one
     // the caller last chose.
@@ -1005,6 +1026,15 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'forkWorkspace',
+    'getSelector',
+    'listSelector',
+    'previewWorkflowImport',
+    'previewWorkspaceFork',
+    'previewWorkspacePull',
+    'previewWorkspacePush',
+    'updateWorkspaceForkExclusions',
+    'updateWorkspaceForkMappings',
     'addTableColumn',
     'addWorkflowGroup',
     'addWorkspaceFilesToKnowledgeBase',

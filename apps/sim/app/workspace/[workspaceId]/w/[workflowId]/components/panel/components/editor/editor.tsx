@@ -18,6 +18,8 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
+import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
@@ -258,6 +260,7 @@ export function Editor() {
 
   const {
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetSubblockValue,
     collaborativeUpdateBlockName,
     collaborativeSetBlockRetry,
     collaborativeBatchToggleLocked,
@@ -670,7 +673,16 @@ export function Editor() {
                               isCanonicalSwap && canonicalMode && canonicalId
                                 ? {
                                     mode: canonicalMode,
-                                    disabled: !canEditBlock,
+                                    disabled:
+                                      !canEditBlock ||
+                                      (currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'tool' &&
+                                        isMcpRuntimeReference(
+                                          resolveMcpBlockConfig(
+                                            blockSubBlockValues,
+                                            canonicalModeOverrides
+                                          ).server
+                                        )),
                                     onToggle: () => {
                                       if (!currentBlockId) return
                                       const nextMode =
@@ -680,6 +692,35 @@ export function Editor() {
                                         canonicalId,
                                         nextMode
                                       )
+                                      if (
+                                        currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'server'
+                                      ) {
+                                        collaborativeSetSubblockValue(
+                                          currentBlockId,
+                                          '_toolSchema',
+                                          null
+                                        )
+                                        const next = resolveMcpBlockConfig(blockSubBlockValues, {
+                                          ...canonicalModeOverrides,
+                                          server: nextMode,
+                                        })
+                                        if (
+                                          isMcpRuntimeReference(next.server) &&
+                                          canonicalModeOverrides?.tool !== 'advanced'
+                                        ) {
+                                          collaborativeSetSubblockValue(
+                                            currentBlockId,
+                                            'toolReference',
+                                            blockSubBlockValues.toolSelector ?? ''
+                                          )
+                                          collaborativeSetBlockCanonicalMode(
+                                            currentBlockId,
+                                            'tool',
+                                            'advanced'
+                                          )
+                                        }
+                                      }
                                     },
                                   }
                                 : undefined

@@ -19,6 +19,7 @@ import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
+  type ContentEngineAccessMode,
   effectiveConnectorSyncIntervalMinutes,
   isContentEngineAccessMode,
   mirrorsSourceAcls,
@@ -105,11 +106,9 @@ export {
  * documents would let a revoked grant stay readable until somebody happened to
  * edit the file.
  *
- * A listed document the connector could not speak for gets an empty ACL, which
- * hides it. That is the safe direction and it is visible — a connector
- * declaring {@link ConnectorMeta.mirrorsSourceAcls} is promising an ACL for
- * every document it lists, so a missing one is a bug in the connector rather
- * than an expected state to paper over.
+ * An unresolved observation cannot erase another identity's verified ACL from
+ * this crawl. Older unverified grants are hidden, while explicit source answers
+ * always replace existing permissions.
  */
 async function applySourceMirroredAcls(input: {
   connectorId: string
@@ -121,6 +120,7 @@ async function applySourceMirroredAcls(input: {
   /** External ids of every live document the connector owns, listed this run or not. */
   ownedExternalIds: readonly (string | null)[]
   lease?: SyncRunLease
+  generationStartedAt: Date
 }): Promise<void> {
   const { connectorId, connectorConfig, externalDocs } = input
 
@@ -140,7 +140,8 @@ async function applySourceMirroredAcls(input: {
           input.syncContext
         )
       : {}
-  const { acls, unattributed } = mergeMirroredAcls(externalDocs, fetched)
+  const { acls, unattributed, unresolvedExternalIds } = mergeMirroredAcls(externalDocs, fetched)
+  const evidence = { unresolvedExternalIds, generationStartedAt: input.generationStartedAt }
   const listed = acls.size
   /**
    * A document this run did not list has no ACL this run can vouch for, so it
@@ -153,9 +154,9 @@ async function applySourceMirroredAcls(input: {
   const written = input.lease
     ? await db.transaction(async (tx) => {
         await assertSyncLeaseHeldInTx(tx, connectorId, input.lease!)
-        return persistDocumentAcls(connectorId, acls, tx)
+        return persistDocumentAcls(connectorId, acls, tx, evidence)
       })
-    : await persistDocumentAcls(connectorId, acls)
+    : await persistDocumentAcls(connectorId, acls, db, evidence)
   logger.info('Mirrored source permissions onto connector documents', {
     connectorId,
     listed,
@@ -164,10 +165,13 @@ async function applySourceMirroredAcls(input: {
     ...(unattributed > 0 ? { unattributed } : {}),
   })
   if (unattributed > 0) {
-    logger.error('Connector listed documents without an ACL; they are readable by nobody', {
-      connectorId,
-      unattributed,
-    })
+    logger.warn(
+      'Connector listed documents without an ACL; only current-crawl evidence is retained',
+      {
+        connectorId,
+        unattributed,
+      }
+    )
   }
 }
 
@@ -641,11 +645,13 @@ async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string,
-  sourceConfig: Record<string, unknown>
+  sourceConfig: Record<string, unknown>,
+  accessMode: ContentEngineAccessMode
 ): Promise<ConnectorAccessToken> {
   const requestId = `sync-${connector.credentialId}`
   const resolved = await resolveConnectorAccessToken({
     auth: connectorConfig.auth,
+    accessMode,
     connector,
     userId,
     requestId,
@@ -880,6 +886,7 @@ export async function executeSync(
   if (!isContentEngineAccessMode(connector.accessMode)) {
     throw new Error(`Connector ${connectorId} left the content engine's modes while locked`)
   }
+  const accessMode = connector.accessMode
   const mirrored = mirrorsSourceAcls(connector.accessMode)
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
   const syncStartedAt = new Date()
@@ -914,7 +921,8 @@ export async function executeSync(
       connector,
       connectorConfig,
       credentialUserId,
-      sourceConfig
+      sourceConfig,
+      accessMode
     )
     /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
     const refreshOAuthToken = async (): Promise<void> => {
@@ -923,7 +931,8 @@ export async function executeSync(
           connector,
           connectorConfig,
           credentialUserId,
-          sourceConfig
+          sourceConfig,
+          accessMode
         )
       }
     }
@@ -1091,7 +1100,7 @@ export async function executeSync(
       fullSync: options.fullSync,
       deadlineAt: syncStartedAt.getTime() + (CONNECTOR_SYNC_MAX_DURATION_SECONDS - 300) * 1000,
       onPage: mirrored
-        ? async (externalDocs) => {
+        ? async (externalDocs, generationStartedAt) => {
             await directoryRefreshed
             await applySourceMirroredAcls({
               connectorId,
@@ -1100,6 +1109,7 @@ export async function executeSync(
               syncContext,
               accessToken: credentialToken.accessToken,
               externalDocs,
+              generationStartedAt,
               ownedExternalIds: [],
               lease,
             })

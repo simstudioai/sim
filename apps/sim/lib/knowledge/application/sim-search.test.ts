@@ -97,6 +97,10 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
   canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
     Boolean(meta.permissionScopedListing),
+  withSearchSourceDefaults: (
+    meta: { searchDefaultSourceConfig?: Record<string, string> },
+    sourceConfig: Record<string, string> = {}
+  ) => ({ ...(meta.searchDefaultSourceConfig ?? {}), ...sourceConfig }),
   missingSetupFields: (
     meta: { configFields: Array<{ id: string; title: string; required?: boolean }> },
     sourceConfig: Record<string, unknown>
@@ -129,10 +133,19 @@ vi.mock('@/connectors/registry', () => ({
       permissionScopedListing: { capFieldIds: [] },
       configFields: [{ id: 'spaceKey', title: 'a space key', required: true }],
     },
+    gmail: {
+      name: 'Gmail',
+      search: true,
+      auth: { mode: 'oauth', provider: 'google-email' },
+      permissionScopedListing: { capFieldIds: ['maxThreads'] },
+      searchDefaultSourceConfig: { dateRange: '6m' },
+      configFields: [{ id: 'dateRange', title: 'Date Range', required: false }],
+    },
   },
 }))
 
 import {
+  configureSimSearchConnector,
   connectSimSearchConnector,
   prepareSearchSource,
 } from '@/lib/knowledge/application/sim-search'
@@ -189,6 +202,53 @@ describe('connectSimSearchConnector', () => {
       })
     )
   })
+
+  it('reuses a prepared account only when the source enrollment group and option match', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    queueTableRows(knowledgeConnector, [
+      { ...existingConnector, credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+    ])
+    await expect(
+      configureSimSearchConnector.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          connectorType: 'google_drive',
+          memberCredentialBinding: {
+            credentialGroupId: 'group-1',
+            credentialGroupOptionId: 'option-1',
+          },
+        },
+      })
+    ).resolves.toEqual(existingConnector)
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { credentialGroupId: 'other-group', credentialGroupOptionId: 'option-1' },
+    { credentialGroupId: 'group-1', credentialGroupOptionId: 'other-option' },
+  ])(
+    'refuses an existing source with a mismatched prepared account binding %#',
+    async (sourceBinding) => {
+      mocks.resolvePermission.mockResolvedValue('read')
+      queueTableRows(knowledgeConnector, [{ ...existingConnector, ...sourceBinding }])
+      await expect(
+        configureSimSearchConnector.execute({
+          principal,
+          input: {
+            workspaceId: 'workspace-1',
+            connectorType: 'google_drive',
+            memberCredentialBinding: {
+              credentialGroupId: 'group-1',
+              credentialGroupOptionId: 'option-1',
+            },
+          },
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.enroll).not.toHaveBeenCalled()
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+    }
+  )
 
   it('prepares a supported administrative source in the existing workspace index', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
@@ -259,6 +319,56 @@ describe('connectSimSearchConnector', () => {
     expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
     expect(mocks.createConnector).not.toHaveBeenCalled()
     expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it('creates a Gmail source from the connector Search defaults when the form is untouched', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    queueTableRows(knowledgeBase, [])
+    queueTableRows(knowledgeBase, [{ id: 'kb-new' }])
+    queueConnectorLookups(null, null, {
+      knowledgeBaseId: 'kb-new',
+      connectorId: 'connector-new',
+    } as typeof existingConnector)
+
+    await connectSimSearchConnector.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', connectorType: 'gmail' },
+    })
+
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          connectorType: 'gmail',
+          sourceConfig: { dateRange: '6m' },
+          accessMode: 'members',
+        }),
+      })
+    )
+  })
+
+  it('lets an explicit source setting replace a Search default', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    queueTableRows(knowledgeBase, [])
+    queueTableRows(knowledgeBase, [{ id: 'kb-new' }])
+    queueConnectorLookups(null, null, {
+      knowledgeBaseId: 'kb-new',
+      connectorId: 'connector-new',
+    } as typeof existingConnector)
+
+    await connectSimSearchConnector.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        connectorType: 'gmail',
+        sourceConfig: { dateRange: 'all' },
+      },
+    })
+
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ sourceConfig: { dateRange: 'all' } }),
+      })
+    )
   })
 
   it('refuses before creating anything when per-member access is unavailable', async () => {
@@ -509,7 +619,11 @@ describe('organization Search setup', () => {
     await expect(
       connectSimSearchConnector.execute({
         principal,
-        input: { ...owner, connectorType: 'google_drive' },
+        input: {
+          ...owner,
+          connectorType: 'google_drive',
+          oauthCompletionId: '550e8400-e29b-41d4-a716-446655440000',
+        },
       })
     ).resolves.toMatchObject(existingConnector)
     expect(mocks.enroll).toHaveBeenCalledWith(
@@ -518,6 +632,7 @@ describe('organization Search setup', () => {
         input: expect.objectContaining({
           assertedOrganizationId: 'org-1',
           connectorId: 'connector-drive',
+          oauthCompletionId: '550e8400-e29b-41d4-a716-446655440000',
         }),
       })
     )

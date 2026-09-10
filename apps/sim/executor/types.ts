@@ -413,6 +413,8 @@ export interface ExecutionContext {
   principal?: WorkflowExecutionPrincipal
   /** Trusted origin for signed executor delegation, distinct from the currently executing child. */
   executorDelegationOrigin?: ExecutorDelegationOrigin
+  /** Trusted source block for saved MCP operation restrictions. */
+  mcpBlockId?: string
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean

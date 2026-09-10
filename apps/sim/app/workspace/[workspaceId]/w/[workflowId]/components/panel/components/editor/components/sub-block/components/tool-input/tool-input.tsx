@@ -16,6 +16,7 @@ import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
+import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
@@ -112,7 +113,7 @@ const ADVANCED_MCP_SERVER_TOOL_SCHEMA: McpToolSchema = {
   properties: {
     serverId: {
       type: 'string',
-      description: 'Canonical workspace MCP server ID',
+      description: 'MCP server or managed connection ID, or upstream reference',
     },
   },
   required: ['serverId'],
@@ -1153,7 +1154,7 @@ export const ToolInput = memo(function ToolInput({
 
       if (supportsAdvancedMcpServer) {
         serverToolItems.push({
-          label: 'Use all available tools',
+          label: 'Configure operations access',
           value: `mcp-server-all-${mcpServerDrilldown}`,
           iconElement: createToolIcon('var(--brand-agent)', ServerIcon),
           onSelect: () => {
@@ -1167,8 +1168,9 @@ export const ToolInput = memo(function ToolInput({
             )
             const serverBinding: StoredTool = {
               type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+              operationPolicy: { mode: 'allow', operations: [] },
               params: { serverId: mcpServerDrilldown },
-              isExpanded: false,
+              isExpanded: true,
               usageControl: 'auto',
             }
             const nextTools = [
@@ -1404,6 +1406,7 @@ export const ToolInput = memo(function ToolInput({
                 ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
                 {
                   type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+                  operationPolicy: { mode: 'allow', operations: [] },
                   params: { serverId: '' },
                   isExpanded: true,
                   usageControl: 'auto',
@@ -1540,7 +1543,7 @@ export const ToolInput = memo(function ToolInput({
                 isAdvancedMcpServer
                   ? ADVANCED_MCP_SERVER_TOOL_SCHEMA
                   : (mcpToolSchema ?? undefined),
-                formatParameterLabel
+                isAdvancedMcpServer ? () => 'MCP Server' : formatParameterLabel
               )
             : (subBlocksResult?.subBlocks ?? []).filter(
                 (sb) =>
@@ -1805,6 +1808,19 @@ export const ToolInput = memo(function ToolInput({
 
               {!isCustomTool && isExpandedForDisplay && (
                 <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
+                  {isAdvancedMcpServer && (
+                    <McpOperationPolicyEditor
+                      value={tool.operationPolicy}
+                      disabled={disabled || isPreview}
+                      onChange={(operationPolicy) =>
+                        setStoreValue(
+                          selectedTools.map((candidate, index) =>
+                            index === toolIndex ? { ...candidate, operationPolicy } : candidate
+                          )
+                        )
+                      }
+                    />
+                  )}
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     if (!hasOperations) return null

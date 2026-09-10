@@ -61,6 +61,39 @@ describe('readUserFileContent', () => {
     expect(generatedPdf.size).toBe(PDF_BYTES.length)
   })
 
+  it('carries the actual execution principal through live knowledge-file authorization', async () => {
+    const principal = { kind: 'session' as const, userId: 'reader', sessionId: 'session-1' }
+    const file: UserFile = {
+      id: 'kb-file',
+      name: 'page.txt',
+      url: '',
+      size: 4,
+      type: 'text/plain',
+      key: 'kb/page.txt',
+      context: 'knowledge-base',
+    }
+    await readUserFileContent(file, {
+      userId: 'reader',
+      workspaceId: 'workspace-1',
+      principal,
+      encoding: 'text',
+    })
+    expect(mockVerifyFileAccess).toHaveBeenCalledWith(
+      'kb/page.txt',
+      'reader',
+      undefined,
+      'knowledge-base',
+      false,
+      {
+        knowledgeAccess: expect.objectContaining({
+          get: expect.any(Function),
+          getForConnectors: expect.any(Function),
+          getForDocuments: expect.any(Function),
+        }),
+      }
+    )
+  })
+
   it('authorizes execution-scoped files without inventing a human subject', async () => {
     const executionFile: UserFile = {
       id: 'file-2',

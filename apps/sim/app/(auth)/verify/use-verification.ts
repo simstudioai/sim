@@ -75,18 +75,19 @@ export function useVerification({
   isEmailVerificationEnabled,
 }: UseVerificationParams): UseVerificationReturn {
   const searchParams = useSearchParams()
-  const { refetch: refetchSession } = useSession()
+  const { data: session, refetch: refetchSession } = useSession()
   const [otp, setOtp] = useState('')
-  const [email, setEmail] = useState('')
+  const [storedEmail, setStoredEmail] = useState('')
   const [status, setStatus] = useState<VerificationStatus>('idle')
   const [isResending, setIsResending] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     const storedEmail = sessionStorage.getItem('verificationEmail')
-    if (storedEmail) setEmail(storedEmail)
+    if (storedEmail) setStoredEmail(storedEmail)
   }, [])
 
+  const email = session?.user?.email || storedEmail
   const isOtpComplete = otp.length === 6
 
   async function verifyCode() {

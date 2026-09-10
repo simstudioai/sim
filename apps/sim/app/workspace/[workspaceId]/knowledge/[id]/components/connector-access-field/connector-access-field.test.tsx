@@ -89,12 +89,69 @@ afterEach(async () => {
 })
 
 describe('connection method selection', () => {
+  it('does not label a saved method unavailable while availability is loading', async () => {
+    await render({
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      value: { accessMode: 'admin' },
+      lockAccessMode: true,
+      allowAdmin: false,
+      isAvailabilityReady: false,
+    })
+    expect(container.textContent).not.toContain('This connection method is not available')
+    expect(container.querySelector('[aria-label="Sync using: Service account"]')).toBeDisabled()
+  })
+
+  it('shows a real unavailable method after availability finishes loading', async () => {
+    await render({
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      value: { accessMode: 'admin' },
+      lockAccessMode: true,
+      allowAdmin: false,
+      isAvailabilityReady: true,
+    })
+    expect(container.textContent).toContain(
+      'This connection method is not available in this organization.'
+    )
+  })
+
+  it.each([
+    { mode: 'members', label: 'Member accounts' },
+    { mode: 'admin', label: 'Service account' },
+  ] as const)('shows a locked $mode method without allowing changes', async ({ mode, label }) => {
+    await render({ value: { accessMode: mode }, lockAccessMode: true })
+    const dropdown = container.querySelector<HTMLButtonElement>(
+      `[aria-label="Sync using: ${label}"]`
+    )
+    expect(dropdown).toBeDisabled()
+    expect(dropdown).toHaveTextContent(label)
+    expect(container.textContent).toContain('Add a new connection to change the sync method.')
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull()
+    await act(async () => dropdown!.click())
+    expect(document.querySelector('[role="menu"]')).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps source recovery available when the sync method is locked', async () => {
+    const onRecover = vi.fn()
+    await render({
+      lockAccessMode: true,
+      footer: <button onClick={onRecover}>Re-enable per-member sync</button>,
+    })
+    const recovery = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Re-enable per-member sync'
+    )
+    expect(recovery).toBeEnabled()
+    await act(async () => recovery!.click())
+    expect(onRecover).toHaveBeenCalledOnce()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('offers supported methods to admins without changing their contract values', async () => {
     await render()
     expect(container.textContent).toContain('Sync using')
     expect(radio('Member accounts')).toHaveAttribute('aria-checked', 'true')
     expect(container.querySelectorAll('[role="radio"]')).toHaveLength(2)
-    await act(async () => radio('Admin or service account').click())
+    await act(async () => radio('Service account').click())
     expect(onChange).toHaveBeenCalledWith({ accessMode: 'admin' })
   })
 
@@ -127,7 +184,7 @@ describe('connection method selection', () => {
     {
       current: 'admin',
       target: 'members',
-      label: 'Admin or service account',
+      label: 'Service account',
       targetLabel: 'Member accounts',
     },
     { current: 'workspace', target: 'members', label: 'Workspace', targetLabel: 'Member accounts' },
@@ -153,15 +210,15 @@ describe('connection method selection', () => {
   it('keeps available choices disabled during an in-flight change', async () => {
     await render({ disabled: true })
     expect(radio('Member accounts')).toBeDisabled()
-    expect(radio('Admin or service account')).toBeDisabled()
-    await act(async () => radio('Admin or service account').click())
+    expect(radio('Service account')).toBeDisabled()
+    await act(async () => radio('Service account').click())
     expect(onChange).not.toHaveBeenCalled()
   })
 
   it('keeps the current method readable if no replacement is allowed', async () => {
     await render({ value: { accessMode: 'admin' }, allowMembers: false, allowAdmin: false })
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
-    expect(container.textContent).toContain('Admin or service account')
+    expect(container.textContent).toContain('Service account')
   })
 })
 

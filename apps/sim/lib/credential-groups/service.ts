@@ -306,7 +306,9 @@ export async function ensureWorkspaceAccountsGroup(
         ) {
           throw new OrchestrationError(
             'validation',
-            `Update ${preparedOption.label} in Connected accounts before connecting this source`
+            scope.kind === 'organization'
+              ? `Refresh ${preparedOption.label} in Sources > More > Update sign-in settings, or Connected accounts > Providers > Update configurations when Search is disabled`
+              : `Update ${preparedOption.label} in Connected accounts before connecting this source`
           )
         }
         return existing

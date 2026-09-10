@@ -80,4 +80,24 @@ describe('server tool adapter authority boundary', () => {
       storageError
     )
   })
+
+  it('forwards trusted Search provenance independently of model parameters', async () => {
+    await createServerToolHandler('search_workspace')(
+      { query: 'policy', searchSurface: 'copilot', surface: 'copilot' },
+      {
+        userId: 'user-1',
+        workflowId: '',
+        organizationId: 'org-1',
+        chatId: 'chat-1',
+        toolCallId: 'call-1',
+        copilotToolExecution: true,
+        searchSurface: 'slack',
+      }
+    )
+    expect(mocks.routeExecution).toHaveBeenCalledWith(
+      'search_workspace',
+      expect.objectContaining({ query: 'policy' }),
+      expect.objectContaining({ searchSurface: 'slack', organizationId: 'org-1' })
+    )
+  })
 })

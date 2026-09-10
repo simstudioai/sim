@@ -99,6 +99,7 @@ vi.mock('@/lib/copilot/request/session/abort', () => ({
   startAbortPoller: () => 0,
   unregisterActiveStream: vi.fn(),
 }))
+vi.mock('@/lib/slack-search/connections', () => ({ deliverSlackSearchConnections: vi.fn() }))
 vi.mock('@/lib/slack-search/assistant-stream', () => ({
   SlackSearchAssistantStream: class {
     constructor(options: unknown) {
@@ -188,40 +189,29 @@ describe('organization Assistant from Slack', () => {
     expect(m.title).not.toHaveBeenCalled()
     expect(m.run).not.toHaveBeenCalled()
   })
-  it('persists source onboarding in private history without spending an Assistant run', async () => {
+  it('runs the Assistant with no indexed documents so it can list and connect integrations', async () => {
     m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
     await run()
-    expect(m.onboarding).toHaveBeenCalledWith(
-      principal,
-      expect.objectContaining({ reason: 'sources' })
-    )
-    expect(m.run).not.toHaveBeenCalled()
-    expect(m.createRun).not.toHaveBeenCalled()
-    expect(m.title).toHaveBeenCalledWith(
-      expect.objectContaining({ subjectUserId: 'member1', organizationId: 'org1' }),
-      expect.objectContaining({ job, signal: expect.any(AbortSignal) })
-    )
+    expect(m.onboarding).not.toHaveBeenCalled()
+    expect(m.run).toHaveBeenCalledOnce()
+    expect(m.createRun).toHaveBeenCalledOnce()
     expect(m.finalize).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assistantMessage: expect.objectContaining({
-          content: expect.stringContaining('[Connect sources]'),
-        }),
-      })
+      expect.objectContaining({ assistantMessage: expect.objectContaining({ content: 'Answer' }) })
     )
   })
-  it('delivers onboarding while naming runs and awaits naming before releasing the worker', async () => {
+  it('answers while naming runs and awaits naming before releasing the worker', async () => {
     const naming = Promise.withResolvers<void>()
     m.title.mockReturnValueOnce(naming.promise)
     m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
     const pending = run()
-    await vi.waitFor(() => expect(m.onboarding).toHaveBeenCalled())
+    await vi.waitFor(() => expect(m.run).toHaveBeenCalled())
     expect(m.release).not.toHaveBeenCalled()
     naming.resolve()
     await pending
     expect(m.release).toHaveBeenCalled()
   })
   it.each(['missing response', 'database error'] as const)(
-    'fails source onboarding when history persistence reports %s',
+    'fails an answer when history persistence reports %s',
     async (outcome) => {
       m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
       if (outcome === 'missing response') {
@@ -234,8 +224,8 @@ describe('organization Assistant from Slack', () => {
           ? 'Could not persist the Slack Assistant response'
           : 'History unavailable'
       )
-      expect(m.onboarding).toHaveBeenCalledOnce()
-      expect(m.run).not.toHaveBeenCalled()
+      expect(m.onboarding).not.toHaveBeenCalled()
+      expect(m.run).toHaveBeenCalledOnce()
       expect(m.release).toHaveBeenCalledOnce()
     }
   )
@@ -268,6 +258,7 @@ describe('organization Assistant from Slack', () => {
         chatId: 'chat1',
         goRoute: '/api/mothership',
         autoExecuteTools: true,
+        searchSurface: 'slack',
         billingAttribution: { organizationId: 'org1', actorUserId: 'member1' },
       })
     )

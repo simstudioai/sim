@@ -10,6 +10,7 @@ import {
 } from '@/lib/sim-search/source-identity'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 describe('Search source identity', () => {
@@ -97,6 +98,45 @@ describe('Search source identity', () => {
     expect(searchSourceIdentity(googleDriveConnectorMeta, labeledConfig)).toBe(
       searchSourceIdentity(googleDriveConnectorMeta, config)
     )
+  })
+
+  it.each([
+    ['primary', '1 calendar selected'],
+    ['team@group.calendar.google.com', '1 calendar selected'],
+    ['primary, team@group.calendar.google.com, primary', '2 calendars selected'],
+    [
+      ['first@group.calendar.google.com', 'second@group.calendar.google.com'],
+      '2 calendars selected',
+    ],
+    ['', ''],
+    [[], ''],
+  ])('describes manual Calendar selections without displaying raw IDs: %j', (calendarId, title) => {
+    expect(describeSearchSource(googleCalendarConnectorMeta, { calendarId })).toBe(title)
+  })
+
+  it('uses saved calendar names without changing identity and drops them after a selection change', () => {
+    const config = { calendarId: ['primary', 'team@group.calendar.google.com'] }
+    const labeledConfig = {
+      ...config,
+      [SOURCE_LABELS_KEY]: createSourceLabelMetadata(googleCalendarConnectorMeta, config, {
+        calendarId: [
+          { id: 'primary', label: 'My calendar' },
+          { id: 'team@group.calendar.google.com', label: 'Engineering' },
+        ],
+      }),
+    }
+    expect(describeSearchSource(googleCalendarConnectorMeta, labeledConfig)).toBe(
+      'My calendar · Engineering'
+    )
+    expect(searchSourceIdentity(googleCalendarConnectorMeta, labeledConfig)).toBe(
+      searchSourceIdentity(googleCalendarConnectorMeta, config)
+    )
+    expect(
+      describeSearchSource(googleCalendarConnectorMeta, {
+        ...labeledConfig,
+        calendarId: ['other@group.calendar.google.com'],
+      })
+    ).toBe('1 calendar selected')
   })
 
   it('drops saved labels when selections or source settings change', () => {

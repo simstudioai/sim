@@ -35,13 +35,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection =
-  | 'connected-accounts'
-  | 'general'
-  | 'billing'
-  | 'api-keys'
-  | 'admin'
-  | 'mothership'
+export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -539,14 +533,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       order: 1,
       organizationSection: 'connected-accounts',
     },
-    planes: {
-      account: {
-        id: 'connected-accounts',
-        group: 'account',
-        order: 3,
-        description: 'Manage accounts you have contributed to organizations.',
-      },
-    },
   },
   {
     label: 'Custom tools',
@@ -952,6 +938,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
       id,
       label: 'Search MCP',
       description: 'Search your sources from other apps.',
+      docsLink: 'https://docs.sim.ai/search/mcp',
       icon: Server,
       group,
     }

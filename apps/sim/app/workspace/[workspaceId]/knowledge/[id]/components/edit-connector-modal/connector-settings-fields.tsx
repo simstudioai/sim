@@ -56,6 +56,7 @@ export interface ConnectorSettingsFieldsProps {
   availability: {
     error: Error | null
     isFetching: boolean
+    isReady: boolean
     refetch: () => unknown
   }
   isSearchIndex: boolean
@@ -169,11 +170,13 @@ export function ConnectorSettingsFields({
     refetch: refetchCredentials,
   } = useOAuthCredentials(providerId ?? undefined, {
     enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
+    purpose: syncsPerMember ? 'browsing' : undefined,
     ...resourceScopeFields(scope),
   })
   useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', scope)
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
   const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
+  const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
   const credentialOptions = useMemo<ComboboxOption[]>(
     () =>
       rawCredentials
@@ -222,6 +225,8 @@ export function ConnectorSettingsFields({
           value={access}
           onChange={onAccessChange}
           canAdmin={canAdmin}
+          lockAccessMode={isSearchIndex}
+          isAvailabilityReady={availability.isReady}
           allowMembers={allowMembers}
           allowAdmin={allowAdmin}
           allowWorkspace={allowWorkspace}
@@ -253,7 +258,11 @@ export function ConnectorSettingsFields({
                     {isSwitchingAccess
                       ? 'Switching…'
                       : isContentCredentialChange
-                        ? 'Change indexing account'
+                        ? isSearchIndex
+                          ? requiresServiceAccount
+                            ? 'Change service account'
+                            : 'Change account'
+                          : 'Change indexing account'
                         : 'Apply connection method'}
                   </Chip>
                   <Chip onClick={onResetAccess} disabled={isSaving}>
@@ -264,7 +273,7 @@ export function ConnectorSettingsFields({
                   {accessSetupHint ??
                     (isContentCredentialChange
                       ? syncsPerMember
-                        ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
+                        ? 'The next sync uses this account. Members keep their connected accounts and source permissions.'
                         : 'The next sync uses this account and refreshes source permissions.'
                       : SWITCH_NOTICE[access.accessMode])}
                 </p>
@@ -278,9 +287,11 @@ export function ConnectorSettingsFields({
         <ChipModalField
           type='custom'
           title={
-            isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
-              ? 'Indexing account'
-              : 'Service account'
+            isSearchIndex
+              ? requiresServiceAccount
+                ? 'Service account'
+                : 'Account'
+              : 'Indexing account'
           }
           hint={
             !requiresServiceAccount && !credentialsLoading && credentialOptions.length === 0
@@ -314,6 +325,11 @@ export function ConnectorSettingsFields({
       {showServiceAccountModal && serviceAccountTarget && canAdmin && (
         <ConnectServiceAccountModal
           atlassianProduct={connectorConfig?.id === 'confluence' ? 'confluence' : undefined}
+          atlassianSetupGuideUrl={
+            isSearchIndex && connectorConfig?.id === 'confluence' && connectorConfig.searchDocsUrl
+              ? `${connectorConfig.searchDocsUrl}#using-a-service-account`
+              : undefined
+          }
           open
           onOpenChange={setShowServiceAccountModal}
           {...resourceScopeFields(scope)}
@@ -329,9 +345,20 @@ export function ConnectorSettingsFields({
         connectorConfig.configFields.some(
           (field) => field.type === 'selector' && isFieldVisible(field)
         ) && (
-          <ChipModalField type='custom' title='Account for browsing'>
+          <ChipModalField
+            type='custom'
+            title='Account for browsing'
+            hint={
+              isSearchIndex
+                ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
+                : undefined
+            }
+          >
             <ChipCombobox
-              options={credentialOptions}
+              options={rawCredentials.map((credential) => ({
+                label: credential.name || credential.provider,
+                value: credential.id,
+              }))}
               value={browseCredentialId ?? undefined}
               onChange={setBrowseCredentialId}
               placeholder={`Select your ${connectorConfig.name} account`}
@@ -348,7 +375,8 @@ export function ConnectorSettingsFields({
           connectorConfig={connectorConfig}
           sourceConfig={sourceConfig}
           selectionLabels={selectionLabels}
-          credentialId={selectorCredentialId}
+          credentialId={selectorCredential?.id ?? null}
+          credentialType={selectorCredential?.type}
           canonicalGroups={canonicalGroups}
           canonicalModes={canonicalModes}
           isFieldVisible={isFieldVisible}

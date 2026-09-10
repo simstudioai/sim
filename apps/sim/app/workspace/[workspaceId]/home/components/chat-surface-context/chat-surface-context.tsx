@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type ComponentType,
   createContext,
   type ReactNode,
   useCallback,
@@ -10,6 +11,7 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
+import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
@@ -20,6 +22,7 @@ import type { ChatContext } from '@/stores/panel'
  * consume them without relaying through every intermediate component.
  */
 interface ChatSurfaceContextValue {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   /** Resolved id of the chat backing this surface, if one exists yet. */
   chatId?: string
   /** Id of the user interacting with this surface. */
@@ -44,6 +47,7 @@ const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
 })
 
 interface ChatSurfaceProviderProps {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   chatId?: string
   userId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -59,6 +63,7 @@ interface ChatSurfaceProviderProps {
  * not re-render when a parent re-creates a handler.
  */
 export function ChatSurfaceProvider({
+  SearchConnectionComponent,
   chatId,
   userId,
   onContextAdd,
@@ -88,13 +93,21 @@ export function ChatSurfaceProvider({
 
   const value = useMemo<ChatSurfaceContextValue>(
     () => ({
+      SearchConnectionComponent,
       chatId,
       userId,
       onContextAdd: stableOnContextAdd,
       onContextRemove: stableOnContextRemove,
       onWorkspaceResourceSelect: stableOnWorkspaceResourceSelect,
     }),
-    [chatId, userId, stableOnContextAdd, stableOnContextRemove, stableOnWorkspaceResourceSelect]
+    [
+      SearchConnectionComponent,
+      chatId,
+      userId,
+      stableOnContextAdd,
+      stableOnContextRemove,
+      stableOnWorkspaceResourceSelect,
+    ]
   )
 
   return <ChatSurfaceContext.Provider value={value}>{children}</ChatSurfaceContext.Provider>

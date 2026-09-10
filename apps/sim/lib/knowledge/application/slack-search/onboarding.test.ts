@@ -206,7 +206,7 @@ describe('Slack onboarding authorization and retry', () => {
     queueContext()
     m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
     expect(await get()).toEqual({
-      status: 'needs_sources',
+      status: 'ready',
       organizationId: 'org1',
       question: job.message.query,
       isAdmin: false,
@@ -215,11 +215,11 @@ describe('Slack onboarding authorization and retry', () => {
     expect(m.persist).not.toHaveBeenCalled()
     expect(m.dispatch).not.toHaveBeenCalled()
   })
-  it('waits for accessible indexing before accepting a retry', async () => {
+  it('allows an authorized member to ask about integrations before indexing', async () => {
     queueContext()
     m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    await expect(retry()).rejects.toThrow('wait for indexing')
-    expect(m.persist).not.toHaveBeenCalled()
+    await expect(retry()).resolves.toEqual({ slackUrl: state.slackUrl })
+    expect(m.persist).toHaveBeenCalledOnce()
   })
   it('rechecks current capability permissions instead of trusting the link', async () => {
     queueContext()

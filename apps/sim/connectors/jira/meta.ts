@@ -16,7 +16,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
   configFields: [
     {
       id: 'domain',
-      title: 'Jira Domain',
+      title: 'Jira site',
       type: 'short-input',
       placeholder: 'yoursite.atlassian.net',
       required: true,
@@ -25,10 +25,12 @@ export const jiraConnectorMeta: ConnectorMeta = {
       id: 'projectSelector',
       title: 'Projects',
       type: 'selector',
-      selectorKey: 'jira.projects',
+      selectorKey: 'jira.projectKeys',
       canonicalParamId: 'projectKey',
       mode: 'basic',
       multi: true,
+      allowSelectAll: true,
+      preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more projects',
       required: true,

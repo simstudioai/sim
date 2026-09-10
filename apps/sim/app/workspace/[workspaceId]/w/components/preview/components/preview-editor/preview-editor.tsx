@@ -1416,6 +1416,10 @@ function PreviewEditorContent({
                         config={subBlockConfig}
                         isPreview={true}
                         subBlockValues={subBlockValues}
+                        dependencyContext={{
+                          ...subBlockValues,
+                          __canonicalModes: canonicalModeOverrides,
+                        }}
                         disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (

@@ -16,15 +16,46 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     mode: 'oauth',
     provider: 'google-calendar',
     requiredScopes: ['https://www.googleapis.com/auth/calendar'],
+    adminCredentialType: 'service_account',
+    serviceAccountScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+    adminServiceAccountScopes: ['https://www.googleapis.com/auth/admin.directory.user.readonly'],
+    serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+    serviceAccountSubjectFieldId: 'adminEmail',
   },
 
   permissionScopedListing: { capFieldIds: ['maxEvents'] },
+  mirrorsSourceAcls: true,
+  adminSetupHint:
+    'Use a service account with domain-wide delegation to index selected Google Workspace calendars. Each person searches only their own view of events.',
   configFields: [
+    {
+      id: 'adminEmail',
+      title: 'Directory administrator email',
+      showInAdminModeOnly: true,
+      type: 'short-input',
+      required: false,
+      placeholder: 'admin@yourcompany.com',
+      description:
+        'A Google Workspace administrator who can read the user directory. Calendars are read as each selected user.',
+    },
+    {
+      id: 'userEmails',
+      title: 'Users',
+      showInAdminModeOnly: true,
+      setupGroup: 'options',
+      type: 'short-input',
+      multi: true,
+      required: false,
+      placeholder: 'All active Google Workspace users',
+      description:
+        'Optional primary email addresses, separated by commas (up to 100). Leave blank to index all active users across this Google Workspace customer.',
+    },
     {
       id: 'calendarSelector',
       title: 'Calendars',
       type: 'selector',
       selectorKey: 'google.calendar',
+      hideInAdminMode: true,
       canonicalParamId: 'calendarId',
       mode: 'basic',
       multi: true,
@@ -43,6 +74,8 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
       required: false,
       description:
         'Calendars to sync from. Use "primary" for your main calendar. Defaults to "primary".',
+      descriptionInAdminMode:
+        'Leave blank or use "primary" for each selected user’s main calendar. Shared calendar IDs apply to each user who can read them.',
     },
     {
       id: 'dateRange',

@@ -25,23 +25,18 @@ import {
   type ResourceScope,
   resourceScopeFields,
   resourceScopeFromOwner,
-  sameResourceScope,
 } from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  canUseCredential,
-  getCredentialActorContext,
-  resolveCredentialTokenIdentity,
-} from '@/lib/credentials/access'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
+import { requireConnectorCredential } from '@/lib/knowledge/application/connector-credential'
 import {
   type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
@@ -52,6 +47,7 @@ import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/git
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   type ConnectorAccessMode,
+  isConnectorAccessMode,
   mirrorsSourceAcls,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -89,6 +85,7 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
@@ -96,7 +93,11 @@ import { credentialProviderMatchesService, type ServiceProviderIdentity } from '
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import { canConnectPersonally, personalSetupFields } from '@/lib/sim-search/connectors'
+import {
+  canConnectPersonally,
+  personalSourceConfigFieldIds,
+  withSearchSourceDefaults,
+} from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
@@ -243,6 +244,8 @@ export function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBase
 }
 
 async function resolveAuthorizedConnectorCredentialIdentity(input: {
+  principal: Principal
+  requestId: string
   credentialId: string
   workspaceId?: string
   organizationId?: string
@@ -251,21 +254,14 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
   auth: ConnectorAuthConfig
   accessMode: string
 }) {
-  const access = await getCredentialActorContext(input.credentialId, input.actingUserId)
-  if (
-    !access.credential ||
-    !sameResourceScope(resourceScopeFromOwner(access.credential), resourceScopeFromOwner(input)) ||
-    !canUseCredential(access)
-  ) {
-    throw new OrchestrationError(
-      'validation',
-      'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
-    )
-  }
+  const credential = await requireConnectorCredential({
+    ...input,
+    scope: resourceScopeFromOwner(input),
+  })
   if (
     input.service &&
-    (!access.credential.providerId ||
-      !credentialProviderMatchesService(access.credential.providerId, input.service))
+    (!credential.providerId ||
+      !credentialProviderMatchesService(credential.providerId, input.service))
   ) {
     throw new OrchestrationError(
       'validation',
@@ -291,6 +287,7 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
  * of another provider.
  */
 export async function resolveConnectorCredentialAccessToken(input: {
+  principal: Principal
   credentialId: string
   workspaceId?: string
   organizationId?: string
@@ -306,6 +303,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
   if (!identity) return null
   const resolved = await resolveConnectorAccessToken({
     auth: input.auth,
+    accessMode: input.accessMode,
     connector: { credentialId: input.credentialId, encryptedApiKey: null },
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
@@ -315,6 +313,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
 }
 
 export async function validateConnectorSourceConfig(input: {
+  principal: Principal
   connector: KnowledgeConnectorRow
   sourceConfig: Record<string, unknown>
   workspaceId?: string
@@ -322,6 +321,10 @@ export async function validateConnectorSourceConfig(input: {
   actingUserId: string
   requestId: string
 }): Promise<SourceConfigRejection | null> {
+  const accessMode = input.connector.accessMode
+  if (!isConnectorAccessMode(accessMode)) {
+    return { message: 'Unsupported connector access mode', errorCode: 'validation' }
+  }
   const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
   const connectorConfig = CONNECTOR_REGISTRY[input.connector.connectorType]
   if (!connectorConfig) {
@@ -375,6 +378,8 @@ export async function validateConnectorSourceConfig(input: {
       }
     }
     const identity = await resolveAuthorizedConnectorCredentialIdentity({
+      principal: input.principal,
+      requestId: input.requestId,
       credentialId: input.connector.credentialId,
       workspaceId: input.workspaceId,
       organizationId: input.organizationId,
@@ -384,7 +389,9 @@ export async function validateConnectorSourceConfig(input: {
     })
     if (!identity) {
       return {
-        message: 'Credential is no longer usable in this workspace. Please reconnect it.',
+        message: input.organizationId
+          ? 'Credential is no longer usable in this organization. Please reconnect it.'
+          : 'Credential is no longer usable in this workspace. Please reconnect it.',
         errorCode: 'validation',
       }
     }
@@ -393,6 +400,7 @@ export async function validateConnectorSourceConfig(input: {
 
   const resolved = await resolveConnectorAccessToken({
     auth: connectorConfig.auth,
+    accessMode,
     connector: input.connector,
     userId: tokenUserId,
     requestId: input.requestId,
@@ -483,23 +491,28 @@ export interface ListWorkspaceMemberConnectorsInput {
 /** Live documents per connector that the viewer's tokens match, for the Search tab's counts. */
 async function countViewerDocuments(
   connectorIds: readonly string[],
-  access: KnowledgeAccessScope
+  access: KnowledgeReadAccess
 ): Promise<Map<string, number>> {
-  if (connectorIds.length === 0) return new Map()
-  const rows = await db
-    .select({ connectorId: document.connectorId, count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        inArray(document.connectorId, [...connectorIds]),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        knowledgeAccessCondition(access)
-      )
-    )
-    .groupBy(document.connectorId)
-  return new Map(rows.flatMap((row) => (row.connectorId ? [[row.connectorId, row.count]] : [])))
+  const counts = new Map<string, number>()
+  if (connectorIds.length === 0) return counts
+  const conditions = [
+    inArray(document.connectorId, [...connectorIds]),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+  ]
+  for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+    const rows = await db
+      .select({ connectorId: document.connectorId, count: sql<number>`count(*)::int` })
+      .from(document)
+      .where(and(...conditions, accessCondition))
+      .groupBy(document.connectorId)
+    for (const row of rows) {
+      if (row.connectorId)
+        counts.set(row.connectorId, (counts.get(row.connectorId) ?? 0) + row.count)
+    }
+  }
+  return counts
 }
 
 /** Live workspace sources that let the viewer connect a crawl account or a mirrored-ACL identity. */
@@ -556,7 +569,7 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
       }),
       countViewerDocuments(
         rows.map((row) => row.id),
-        await createKnowledgeAccessProvider(principal, { workspaceId: context.workspaceId }).get()
+        createKnowledgeAccessProvider(principal, { workspaceId: context.workspaceId })
       ),
     ])
     return {
@@ -767,6 +780,9 @@ async function executeCreateKnowledgeConnector(
     }
   }
   const sourceConfig = await prepareGitHubInstallationSource({
+    principal,
+    requestId,
+    workspaceId: context.workspaceId,
     connectorType: input.connectorType,
     credentialId: input.credentialId,
     organizationId: context.organizationId,
@@ -792,6 +808,7 @@ async function executeCreateKnowledgeConnector(
       resolveKnowledgeBillingAttribution(principal, context),
     resolveAccessToken: (credentialId) =>
       resolveConnectorCredentialAccessToken({
+        principal,
         credentialId,
         ...owner,
         actingUserId,
@@ -874,7 +891,7 @@ export const createApprovedSearchSource = defineAuthorizedKnowledgeUseCase({
         'Only approved personal Search sources may be connected'
       )
     }
-    const allowedFields = new Set(personalSetupFields(meta).map((field) => field.id))
+    const allowedFields = personalSourceConfigFieldIds(meta)
     if (Object.keys(input.sourceConfig).some((field) => !allowedFields.has(field))) {
       throw new OrchestrationError(
         'validation',
@@ -890,7 +907,7 @@ export const createApprovedSearchSource = defineAuthorizedKnowledgeUseCase({
           knowledgeBaseId: input.knowledgeBaseId,
           assertedOrganizationId: input.assertedOrganizationId,
           connectorType: input.connectorType,
-          sourceConfig: input.sourceConfig,
+          sourceConfig: withSearchSourceDefaults(meta, input.sourceConfig),
           accessMode: 'members',
           syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
           reuseSearchSource: true,
@@ -941,6 +958,9 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       updates: input.updates,
       prepareSourceConfig: (connector, sourceConfig) =>
         prepareGitHubInstallationSource({
+          principal,
+          requestId,
+          workspaceId: context.workspaceId,
           connectorType: connector.connectorType,
           credentialId: connector.credentialId,
           organizationId: context.organizationId,
@@ -960,6 +980,7 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       validateSourceConfig: (connector, sourceConfig) => {
         const owner = resourceScopeFields(resourceScopeFromOwner(context))
         return validateConnectorSourceConfig({
+          principal,
           connector,
           sourceConfig,
           ...owner,

@@ -15,8 +15,9 @@ import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { MAX_SEARCH_SOURCE_PROVIDER_TYPES } from '@/lib/knowledge/constants'
-import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import { canConnectWithDefaults, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 
 interface OrganizationSearchOverviewInput {
   organizationId: string
@@ -26,6 +27,8 @@ interface ProviderHealth {
   sourceCount: number
   pausedCount: number
   hasError: boolean
+  hasAccountError: boolean
+  hasDocumentError: boolean
   hasIndexing: boolean
   hasWaiting: boolean
   hasUnstarted: boolean
@@ -35,12 +38,12 @@ interface ProviderHealth {
 function organizationSearchProviderStatus(
   health: ProviderHealth | undefined,
   approved: boolean,
-  mirrorsSourceAcls: boolean,
+  automaticSetup: boolean,
   available: boolean
 ) {
   if (!approved || !available) return 'paused' as const
   if (!health?.sourceCount)
-    return mirrorsSourceAcls ? ('needs_setup' as const) : ('waiting_for_connections' as const)
+    return automaticSetup ? ('waiting_for_connections' as const) : ('needs_setup' as const)
   if (health.pausedCount === health.sourceCount) return 'paused' as const
   if (health.hasError) return 'needs_attention' as const
   if (health.hasIndexing) return 'indexing' as const
@@ -98,6 +101,11 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
       ))
     )`
     const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+    /**
+     * A member whose last run only had per-document content failures carries
+     * {@link SOURCE_CONTENT_ERROR} as a marker so its next run lists fully; the
+     * member itself is healthy and the documents are reported separately.
+     */
     const hasMemberError = exists(
       db
         .select({ id: knowledgeConnectorMember.id })
@@ -108,7 +116,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
             sql`(
             ${knowledgeConnectorMember.status} = 'suspended'
             OR (${knowledgeConnectorMember.status} = 'active' AND (
-              ${knowledgeConnectorMember.lastError} IS NOT NULL
+              (${knowledgeConnectorMember.lastError} IS NOT NULL AND ${knowledgeConnectorMember.lastError} <> ${SOURCE_CONTENT_ERROR})
               OR ${knowledgeConnectorMember.consecutiveFailures} > 0
               OR coalesce(${knowledgeConnectorMember.memberSyncedThrough}, ${knowledgeConnectorMember.lastCompleteListingAt}, ${knowledgeConnectorMember.createdAt}) < ${cutoff}
             ))
@@ -194,6 +202,8 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
             OR ${hasMemberError} OR ${latestMemberRunHasError}
           ))
         ))`,
+          hasAccountError: sql<boolean>`bool_or(NOT ${paused} AND ${knowledgeConnector.accessMode} = 'members' AND ${hasMemberError})`,
+          hasDocumentError: sql<boolean>`bool_or(NOT ${paused} AND ${hasDocumentsInState(['failed'])})`,
           hasIndexing: sql<boolean>`bool_or(NOT ${paused}
             AND (${knowledgeConnector.accessMode} <> 'members' OR ${hasActiveMembers} OR ${knowledgeConnector.credentialId} IS NOT NULL)
             AND (
@@ -247,7 +257,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
         const status = organizationSearchProviderStatus(
           state,
           approved,
-          meta.mirrorsSourceAcls === true,
+          canConnectWithDefaults(meta) && availability.memberScoped,
           Boolean(
             (meta.permissionScopedListing && availability.memberScoped) ||
               (meta.mirrorsSourceAcls &&
@@ -261,6 +271,14 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
             approved,
             sourceCount: state?.sourceCount ?? 0,
             status,
+            issue:
+              status === 'needs_attention'
+                ? state?.hasAccountError
+                  ? ('account_sync_incomplete' as const)
+                  : state?.hasDocumentError
+                    ? ('document_indexing_failed' as const)
+                    : ('sync_failed' as const)
+                : null,
             isSyncing: status !== 'paused' && Boolean(state?.hasIndexing),
           },
         ]

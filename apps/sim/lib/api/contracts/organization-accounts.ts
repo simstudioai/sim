@@ -71,7 +71,7 @@ export const startOrganizationSlackConfigurationContract = defineRouteContract({
   path: '/api/organizations/[id]/connected-accounts/[groupId]/slack-managed-users',
   params: organizationAccountsParamsSchema.extend({ groupId: z.string().min(1).max(128) }),
   body: startSlackCredentialGroupConfigurationBodySchema
-    .omit({ slackBotCredentialId: true })
+    .omit({ slackBotCredentialId: true, clientId: true, clientSecret: true })
     .required({ appId: true, teamId: true }),
   response: startSlackCredentialGroupConfigurationContract.response,
 })

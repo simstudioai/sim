@@ -44,6 +44,7 @@ import {
   readSearchIndexContract,
   readSearchSourceOverviewContract,
   readSearchSourceProgressContract,
+  type SearchConnectionOAuthQuery,
   type SearchSourcePage,
   type SearchSourceProgress,
 } from '@/lib/api/contracts/knowledge/connectors'
@@ -418,7 +419,7 @@ async function updateConnectorAccess({
   return result.data
 }
 
-interface StartConnectorMemberEnrollmentParams {
+interface StartConnectorMemberEnrollmentParams extends SearchConnectionOAuthQuery {
   knowledgeBaseId: string
   connectorId: string
 }
@@ -426,9 +427,11 @@ interface StartConnectorMemberEnrollmentParams {
 async function startConnectorMemberEnrollment({
   knowledgeBaseId,
   connectorId,
+  oauthCompletionId,
 }: StartConnectorMemberEnrollmentParams): Promise<StartKnowledgeConnectorMemberEnrollmentData> {
   const response = await requestJson(startKnowledgeConnectorMemberEnrollmentContract, {
     params: { id: knowledgeBaseId, connectorId },
+    query: { oauthCompletionId },
   })
   return response.data
 }
@@ -804,7 +807,18 @@ export function useTriggerSync() {
         queryKey: connectorKeys.progresses(knowledgeBaseId, connectorId),
       })
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+    /** An early poll can read idle before dispatch marks pending; reconcile after the request settles. */
+    onSettled: (_data, error, { knowledgeBaseId, connectorId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+        queryClient.invalidateQueries({
+          queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
+          exact: true,
+        }),
+        ...(!error
+          ? [queryClient.invalidateQueries({ queryKey: connectorKeys.lists(knowledgeBaseId) })]
+          : []),
+      ]),
   })
 }
 

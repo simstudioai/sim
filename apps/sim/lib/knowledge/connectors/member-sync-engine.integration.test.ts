@@ -304,6 +304,7 @@ describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
   })
 
   it.each([undefined, 'organization'])(
@@ -438,6 +439,7 @@ describe('member engine with a dedicated content credential', () => {
     expect(result.membersClaimed).toBe(0)
     expect(mocks.list).toHaveBeenCalledTimes(1)
     expect(mocks.list.mock.calls[0][0]).toBe('service-token')
+    expect(mocks.token).toHaveBeenCalledWith(expect.objectContaining({ accessMode: 'members' }))
     expect(mocks.observe).not.toHaveBeenCalled()
   })
 

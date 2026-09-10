@@ -68,6 +68,7 @@ export {
   ChipModalError,
   type ChipModalErrorProps,
   ChipModalField,
+  type ChipModalFieldAria,
   type ChipModalFieldProps,
   ChipModalFooter,
   type ChipModalFooterAction,

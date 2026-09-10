@@ -50,6 +50,12 @@ import {
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
+import { v2OperationReportSchema } from '@/lib/api/contracts/v2/workspace-operations'
+import {
+  portableResourceKindSchema,
+  referenceOccurrenceSchema,
+  workflowReferenceManifestSchema,
+} from '@/lib/api/contracts/workflow-references'
 import {
   cancelWorkflowExecutionReasonSchema,
   workflowExecutionPausedDetailSchema,
@@ -60,6 +66,7 @@ import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
@@ -1893,6 +1900,11 @@ export const v2CancelWorkflowRunContract = defineRouteContract({
 
 export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
   .extend({
+    referenceManifest: workflowReferenceManifestSchema
+      .optional()
+      .describe(
+        'Versioned non-secret identifiers and registered source field occurrences for mapped import.'
+      ),
     version: v1WorkflowExportPayloadSchema.shape.version.describe(
       'Workflow export format version.'
     ),
@@ -1935,7 +1947,7 @@ export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
       'Portable, secret-sanitized workflow export. Workspace-scoped bindings must be selected again after import.',
   })
 
-export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
+export const v2ImportWorkflowBaseBodySchema = v1ImportWorkflowBodySchema
   .omit({ folderId: true, name: true, description: true })
   .extend({
     workspaceId: v1ImportWorkflowBodySchema.shape.workspaceId.describe(
@@ -1978,6 +1990,79 @@ export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
       .optional()
       .describe('Override for the imported workflow description.'),
   })
+  .extend({
+    mappings: z
+      .array(
+        z
+          .object({
+            kind: portableResourceKindSchema.describe('Resource or operation kind.'),
+            sourceId: z
+              .string()
+              .min(1)
+              .max(4096)
+              .describe(
+                'Untrusted source reference label; imports never use it to authorize or query a source workspace.'
+              ),
+            targetId: z
+              .string()
+              .min(1)
+              .max(4096)
+              .nullable()
+              .describe('Authorized destination identifier, or null to clear the mapping.'),
+          })
+          .strict()
+      )
+      .max(5000)
+      .optional()
+      .describe('Mappings keyed by resource type and source identifier.'),
+    bindings: z
+      .array(
+        referenceOccurrenceSchema
+          .extend({
+            kind: portableResourceKindSchema.describe('Resource or operation kind.'),
+            targetId: z
+              .string()
+              .min(1)
+              .max(4096)
+              .nullable()
+              .describe('Authorized destination identifier, or null to clear the mapping.'),
+            valuePath: referenceOccurrenceSchema.shape.valuePath.default([]),
+            encoding: referenceOccurrenceSchema.shape.encoding.default('scalar'),
+          })
+          .strict()
+      )
+      .max(5000)
+      .optional()
+      .describe('Resolved and unresolved source occurrences with their destination selections.'),
+    dependentValues: z
+      .array(
+        z
+          .object({
+            blockId: z
+              .string()
+              .min(1)
+              .max(256)
+              .describe('Source block identifier before graph ID regeneration.'),
+            subBlockKey: z
+              .string()
+              .min(1)
+              .max(256)
+              .describe(
+                'Registered source field key, including the tool index for nested Agent fields.'
+              ),
+            value: z
+              .string()
+              .max(16 * 1024)
+              .describe('Destination value for the registered dependent field.'),
+          })
+          .strict()
+      )
+      .max(2000)
+      .optional()
+      .describe(
+        'Destination-dependent choices keyed by source workflow, block, and field identities.'
+      ),
+  })
   .strict()
   .meta({
     id: 'ImportWorkflowRequest',
@@ -1992,12 +2077,186 @@ export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
     ],
   })
 
+export const v2ImportWorkflowBodySchema = v2ImportWorkflowBaseBodySchema
+  .extend({
+    requestId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/)
+      .optional()
+      .describe(
+        'Stable client-generated retry ID. Reuse it after uncertain completion; never submit a fresh ID to retry.'
+      )
+      .describe('Stable client request ID for reconciliation and identical retries.'),
+    previewFingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional()
+      .describe('Fingerprint returned by the last import preview.')
+      .describe('Fingerprint of the reviewed preview and its choices.'),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (
+      [
+        body.mappings,
+        body.bindings,
+        body.dependentValues,
+        body.requestId,
+        body.previewFingerprint,
+      ].some((value) => value !== undefined)
+    ) {
+      if (!body.requestId)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['requestId'],
+          message: 'Mapped imports require requestId',
+        })
+      if (!body.previewFingerprint)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['previewFingerprint'],
+          message: 'Mapped imports require previewFingerprint',
+        })
+    }
+  })
+
+export const v2ImportBindingResolutionSchema = z.object({
+  kind: portableResourceKindSchema.describe('Resource or operation kind.'),
+  sourceId: z
+    .string()
+    .max(4096)
+    .describe(
+      'Untrusted source reference label; imports never use it to authorize or query a source workspace.'
+    ),
+  targetId: z
+    .string()
+    .max(4096)
+    .nullable()
+    .describe('Authorized destination identifier, or null to clear the mapping.'),
+  required: z
+    .boolean()
+    .describe('Whether the reference or configuration is required for this operation.'),
+  occurrence: referenceOccurrenceSchema.describe(
+    'Registered source field occurrence addressed by this binding.'
+  ),
+})
+export const v2ImportConfigurationFieldSchema = z.object({
+  blockId: z
+    .string()
+    .min(1)
+    .max(256)
+    .describe('Source block identifier before graph ID regeneration.'),
+  subBlockKey: z
+    .string()
+    .min(1)
+    .max(1024)
+    .describe('Registered source field key, including the tool index for nested Agent fields.'),
+  title: z.string().max(1024).describe('Human-readable configuration field label.'),
+  required: z
+    .boolean()
+    .describe('Whether the reference or configuration is required for this operation.'),
+  configured: z
+    .boolean()
+    .describe('Whether this destination field currently has a nonempty value.'),
+  multiSelect: z
+    .boolean()
+    .optional()
+    .describe('Whether the field accepts comma-separated selections.'),
+  selectorKey: z
+    .string()
+    .max(256)
+    .optional()
+    .describe('Registered selector key for discovering this field’s destination options.'),
+  context: z
+    .record(z.string().max(256), z.string().max(16384))
+    .describe('Allowlisted selector dependencies scoped to the destination workspace.'),
+  requiresAuthentication: z
+    .boolean()
+    .describe('Whether a human must connect the provider before choices can be discovered.'),
+})
+export const v2PreviewWorkflowImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/import/preview',
+  query: noInputSchema,
+  body: v2ImportWorkflowBaseBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z
+        .object({
+          previewFingerprint: z
+            .string()
+            .length(64)
+            .describe('Fingerprint of the reviewed preview and its choices.'),
+          ready: z
+            .boolean()
+            .describe(
+              'Whether the operation passes its current apply or deployment readiness checks.'
+            ),
+          bindings: z
+            .array(v2ImportBindingResolutionSchema)
+            .max(10000)
+            .describe(
+              'Resolved and unresolved source occurrences with their destination selections.'
+            ),
+          unresolvedBindings: z
+            .array(v2ImportBindingResolutionSchema)
+            .max(10000)
+            .describe(
+              'Source references that still require destination mappings or explicit copy choices.'
+            ),
+          configuration: z
+            .array(v2ImportConfigurationFieldSchema)
+            .max(10000)
+            .describe('Dependent fields that may need destination-specific values.'),
+          unresolvedConfiguration: z
+            .array(v2ImportConfigurationFieldSchema)
+            .max(10000)
+            .describe('Required destination configuration that remains empty.'),
+          discovery: z
+            .array(
+              z.object({
+                kind: z.string().max(256).describe('Resource or operation kind.'),
+                command: z
+                  .string()
+                  .max(1024)
+                  .describe('CLI command to enumerate destination candidates.'),
+                humanAuthorizationMayBeRequired: z
+                  .boolean()
+                  .describe('Whether discovery may require a human OAuth authorization step.'),
+              })
+            )
+            .max(32)
+            .describe('CLI operations for discovering suitable destination resources.'),
+        })
+        .meta({
+          id: 'PreviewWorkflowImportResult',
+          title: 'PreviewWorkflowImportResult',
+          description: 'The PreviewWorkflowImportResult result.',
+        })
+    ),
+  },
+})
+export type V2ImportWorkflowBody = z.input<typeof v2ImportWorkflowBodySchema>
+export type V2PreviewWorkflowImportBody = z.input<typeof v2ImportWorkflowBaseBodySchema>
+
 export const v2ImportWorkflowDataSchema = z
   .object({
-    id: z.string().describe('Identifier of the imported workflow.'),
-    name: z.string().describe('Imported workflow name.'),
+    id: z
+      .string()
+      .describe('Identifier of the imported workflow.')
+      .describe('Resource identifier.'),
+    name: z
+      .string()
+      .describe('Imported workflow name.')
+      .describe('Display name of the workflow or workspace.'),
     description: z.string().nullable().describe('Imported workflow description.'),
-    workspaceId: z.string().describe('Workspace that owns the imported workflow.'),
+    workspaceId: z
+      .string()
+      .describe('Workspace that owns the imported workflow.')
+      .describe('Explicit current workspace scope.'),
     folderPath: v2FolderPathSchema.describe('Canonical containing-folder path.'),
     createdAt: z
       .string()
@@ -2008,6 +2267,7 @@ export const v2ImportWorkflowDataSchema = z
       .describe('ISO 8601 timestamp when the workflow was last updated.')
       .meta({ format: 'date-time' }),
   })
+  .extend(v2OperationReportSchema.omit({ workspaceId: true }).partial().shape)
   .meta({
     id: 'ImportedWorkflow',
     title: 'Imported workflow',
@@ -2017,7 +2277,15 @@ export const v2ImportWorkflowDataSchema = z
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[workflowId]/export',
-  query: noInputSchema,
+  query: z
+    .object({
+      includeReferences: booleanQueryFlagSchema
+        .optional()
+        .describe(
+          'Include non-secret resource identifiers and source field occurrences for mapped imports.'
+        ),
+    })
+    .strict(),
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -2818,6 +3086,7 @@ export const v2AgentMcpToolSchema = z
 export const v2AgentMcpServerAdvancedSchema = z
   .object({
     type: z.literal('mcp-server-advanced').describe('Server-wide MCP binding discriminator.'),
+    operationPolicy: mcpOperationPolicySchema.optional(),
     params: z
       .object({
         serverId: z
@@ -2830,7 +3099,9 @@ export const v2AgentMcpServerAdvancedSchema = z
           ),
       })
       .strict()
-      .describe('Server identity for discovering and invoking every available MCP tool.'),
+      .describe(
+        'Executable server or connection identity for authorized operation discovery and execution.'
+      ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
   })
   .catchall(
@@ -2839,7 +3110,8 @@ export const v2AgentMcpServerAdvancedSchema = z
   .meta({
     id: 'AgentMcpServerAdvanced',
     title: 'Agent MCP server (advanced)',
-    description: 'All tools available to the executing subject from one MCP server.',
+    description:
+      'Dynamically discovered operations permitted by the authorized credential and saved block policy.',
     examples: [
       {
         type: 'mcp-server-advanced',

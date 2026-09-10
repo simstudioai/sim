@@ -109,6 +109,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:hierarchical-content:confluence': 'View page hierarchy (children and ancestors)',
   'read:content.metadata:confluence': 'View content metadata (required for ancestors)',
   'read:user:confluence': 'View Confluence user profiles',
+  'read:group:confluence': 'View Confluence groups and memberships',
   'read:confluence-user': 'View Confluence user profiles (v1 API)',
   'read:task:confluence': 'View Confluence inline tasks',
   'write:task:confluence': 'Update Confluence inline tasks',
@@ -798,11 +799,10 @@ export function getMissingRequiredScopes(
  * least-privileged scope would report every already-connected credential as
  * missing it and prompt a re-consent that grants nothing new.
  *
- * This only derives a scope Sim actually requests. A consumer must never
- * require a scope absent from its provider's `scopes` array — no credential can
- * carry it, since that array is what the authorize request asks for.
+ * Only the direct scope sibling is accepted: `drive.file` does not grant
+ * `drive.readonly`, and a read-only grant never satisfies a write scope.
  */
-function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+export function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
   const readonlySuffix = '.readonly'
   if (!required.endsWith(readonlySuffix)) return false
   return granted.has(required.slice(0, -readonlySuffix.length))

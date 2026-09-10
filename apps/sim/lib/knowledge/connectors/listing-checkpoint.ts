@@ -89,6 +89,8 @@ export async function runResumableListing(input: {
   maxPages?: number
   beforePage: () => Promise<void>
   getAccessToken: (page: number) => Promise<string>
+  /** Uses the persistence clock when generation timestamps gate stored permission evidence. */
+  getGenerationStartedAt?: () => Promise<Date>
   /** False retains this page's cursor after a bounded amount of durable work. */
   processPage: (
     documents: ExternalDocument[],
@@ -124,7 +126,7 @@ export async function runResumableListing(input: {
       checkpoint = {
         ...checkpoint,
         generationId: generateId(),
-        startedAt: new Date().toISOString(),
+        startedAt: ((await input.getGenerationStartedAt?.()) ?? new Date()).toISOString(),
         cursor: null,
         complete: false,
         listedCount: 0,

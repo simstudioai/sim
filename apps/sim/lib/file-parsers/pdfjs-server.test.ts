@@ -27,6 +27,7 @@ vi.mock('pdfjs-dist/legacy/build/pdf.worker.mjs', () => ({
   WorkerMessageHandler: workerMessageHandler,
 }))
 
+import { FileParserError } from '@/lib/file-parsers/errors'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 
 describe('openPdfDocument', () => {
@@ -75,5 +76,27 @@ describe('openPdfDocument', () => {
 
     resolveLoading?.({ destroy: lateDocumentDestroy })
     await vi.waitFor(() => expect(lateDocumentDestroy).toHaveBeenCalledOnce())
+  })
+
+  it.each([
+    ['InvalidPDFException', 'Invalid PDF structure.', 'invalid_format'],
+    ['FormatError', 'Bad XRef entry', 'invalid_format'],
+    ['PasswordException', 'No password given', 'encrypted_file'],
+  ])('maps the pdf.js %s to a typed parser failure', async (name, message, code) => {
+    const pdfjsError = Object.assign(new Error(message), { name })
+    mockGetDocument.mockReturnValueOnce({ promise: Promise.reject(pdfjsError) })
+
+    const error = await openPdfDocument(new Uint8Array([1])).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(FileParserError)
+    expect(error).toMatchObject({ code })
+    expect((error as FileParserError).cause).toBe(pdfjsError)
+  })
+
+  it('leaves an unrecognized pdf.js failure untyped so it stays retryable', async () => {
+    const unknownError = new Error('worker crashed')
+    mockGetDocument.mockReturnValueOnce({ promise: Promise.reject(unknownError) })
+
+    await expect(openPdfDocument(new Uint8Array([1]))).rejects.toBe(unknownError)
   })
 })

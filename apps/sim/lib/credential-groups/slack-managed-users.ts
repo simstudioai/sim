@@ -518,7 +518,9 @@ export async function createSlackManagedUsersAttempt(params: {
     clientId = configured.app.clientId
     clientSecret = (await decryptSecret(configured.app.encryptedClientSecret)).decrypted
     appRevision = configured.app.revision
-    requiredScopes = [...SLACK_SEARCH_USER_SCOPES]
+    requiredScopes = resolveSlackManagedUserScopes(
+      existingOption ? existingOption.requiredScopes : SLACK_SEARCH_USER_SCOPES
+    )
   } else {
     if (!params.slackBotCredentialId)
       throw new SlackManagedUsersError('Select a custom Slack bot.', 'invalid_response')

@@ -1951,6 +1951,7 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'custom_block',
   'custom_tool',
   'skill',
+  'sandbox',
 ])
 
 export const workspaceForkResourceMap = pgTable(
@@ -2164,6 +2165,34 @@ export const backgroundWorkStatus = pgTable(
     ),
     metaOtherWorkspaceIdx: index('background_work_status_meta_other_ws_idx').on(
       sql`(${table.metadata} ->> 'otherWorkspaceId')`
+    ),
+  })
+)
+
+/** Workspace-lifetime mutation deduplication and bounded, durable operation reports. */
+export const workspaceOperationReceipt = pgTable(
+  'workspace_operation_receipt',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    requestHash: text('request_hash').notNull(),
+    kind: text('kind').notNull(),
+    report: jsonb('report').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    requestUnique: uniqueIndex('workspace_operation_receipt_request_unique').on(
+      table.workspaceId,
+      table.requestId
+    ),
+    workspaceCreatedIdx: index('workspace_operation_receipt_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
     ),
   })
 )
@@ -4520,6 +4549,37 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'voice-output',
   'api-tool',
 ])
+
+/** Content-free organization Search activity, independent of billable model usage. */
+export const organizationSearchInvocation = pgTable(
+  'organization_search_invocation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    surface: text('surface').notNull(),
+    sourceTypes: text('source_types').array().notNull(),
+    resultCount: integer('result_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationCreatedAtIdx: index('organization_search_invocation_org_created_idx').on(
+      table.organizationId,
+      table.createdAt
+    ),
+    userIdIdx: index('organization_search_invocation_user_idx').on(table.userId),
+    resultCountBounds: check(
+      'organization_search_invocation_result_count_bounds',
+      sql`${table.resultCount} BETWEEN 0 AND 100`
+    ),
+    sourceTypesBounds: check(
+      'organization_search_invocation_source_types_bounds',
+      sql`cardinality(${table.sourceTypes}) <= 100`
+    ),
+  })
+)
 
 export const usageLog = pgTable(
   'usage_log',

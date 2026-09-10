@@ -109,6 +109,8 @@ export function useConnectorConfigFields({
     if (!connectorConfig) return groups
     for (const field of connectorConfig.configFields) {
       if (accessMode === 'members' && field.hideInMemberMode) continue
+      if (accessMode === 'admin' && field.hideInAdminMode) continue
+      if (accessMode !== 'admin' && field.showInAdminModeOnly) continue
       if (!field.canonicalParamId) continue
       const existing = groups.get(field.canonicalParamId)
       if (existing) existing.push(field)
@@ -177,6 +179,8 @@ export function useConnectorConfigFields({
   const isFieldVisible = useCallback(
     (field: ConnectorConfigField): boolean => {
       if (accessMode === 'members' && field.hideInMemberMode) return false
+      if (accessMode === 'admin' && field.hideInAdminMode) return false
+      if (accessMode !== 'admin' && field.showInAdminModeOnly) return false
       if (!field.canonicalParamId || !field.mode) return true
       const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
       return field.mode === activeMode
@@ -215,17 +219,29 @@ export function useConnectorConfigFields({
     [dependentFieldIds, fieldsById]
   )
 
-  const toggleCanonicalMode = useCallback((canonicalId: string) => {
-    setSelectionLabels((prev) => {
-      const next = { ...prev }
-      delete next[canonicalId]
-      return next
-    })
-    setCanonicalModes((prev) => ({
-      ...prev,
-      [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
-    }))
-  }, [])
+  const toggleCanonicalMode = useCallback(
+    (canonicalId: string) => {
+      const group = canonicalGroups.get(canonicalId) ?? []
+      const currentMode = canonicalModes[canonicalId] ?? 'basic'
+      const nextMode = currentMode === 'basic' ? 'advanced' : 'basic'
+      const currentField = group.find((field) => field.mode === currentMode)
+      const nextField = group.find((field) => field.mode === nextMode)
+      if (currentField && nextField && group.some((field) => field.preserveValueOnModeChange)) {
+        setFieldValues((prev) => ({
+          ...prev,
+          [nextField.id]: coerceForField(nextField, prev[currentField.id]),
+        }))
+      } else {
+        setSelectionLabels((prev) => {
+          const next = { ...prev }
+          delete next[canonicalId]
+          return next
+        })
+      }
+      setCanonicalModes((prev) => ({ ...prev, [canonicalId]: nextMode }))
+    },
+    [canonicalGroups, canonicalModes]
+  )
 
   const resolveSourceConfig = useCallback((): Record<string, unknown> => {
     const resolved: Record<string, unknown> = {}

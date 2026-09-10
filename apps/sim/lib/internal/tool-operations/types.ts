@@ -17,6 +17,8 @@ export interface InternalToolOperationContext {
   executionId?: string
   userId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
+  /** Trusted source block for saved MCP operation restrictions. */
+  mcpBlockId?: string
   copilotToolExecution?: boolean
   copilotInteractionMode?: 'interactive' | 'headless'
   requestMode?: string

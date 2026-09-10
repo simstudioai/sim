@@ -25,6 +25,7 @@ import {
   listAncestorIds,
   listSpaceReadPrincipals,
   openConfluenceDirectory,
+  validateConfluencePermissionAccess,
 } from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -37,6 +38,35 @@ import {
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+const PERMISSION_VALIDATION_TIMEOUT_MS = 10_000
+const SPACE_BATCH_SIZE = 50
+const SPACE_BATCH_QUERY_LENGTH = 1_800
+const SPACE_BATCH_CURSOR_PREFIX = 'space-batches:'
+
+/** Bounds both space lookups and CQL URLs when a source includes many spaces. */
+function spaceKeyBatches(spaceKeys: string[]): string[][] {
+  const batches: string[][] = []
+  let batch: string[] = []
+  let queryLength = 0
+  for (const key of new Set(spaceKeys)) {
+    const encodedLength = encodeURIComponent(escapeCql(key)).length + 15
+    if (encodedLength > SPACE_BATCH_QUERY_LENGTH) {
+      throw new Error('A Confluence space key is too long. Check the selected spaces.')
+    }
+    if (
+      batch.length === SPACE_BATCH_SIZE ||
+      queryLength + encodedLength > SPACE_BATCH_QUERY_LENGTH
+    ) {
+      batches.push(batch)
+      batch = []
+      queryLength = 0
+    }
+    batch.push(key)
+    queryLength += encodedLength
+  }
+  if (batch.length > 0) batches.push(batch)
+  return batches
+}
 
 /**
  * The configured space does not exist for the caller. Confluence answers a
@@ -91,6 +121,7 @@ const INLINE_FORMATTING_TAGS = new Set([
   'var',
   'samp',
   'time',
+  'ac:inline-comment-marker',
 ])
 
 /**
@@ -202,33 +233,98 @@ export function preserveConfluenceCallouts(html: string): string {
 }
 
 const STORAGE_MACRO_SELECTOR = 'ac\\:structured-macro, ac\\:macro'
+const ADF_NODE_SELECTOR = 'ac\\:adf-node'
+/** Callout macros whose body is prefixed with a semantic label, as on the view path. */
+const LOCAL_CALLOUT_MACROS = new Set(['info', 'note', 'warning', 'tip', 'panel'])
+/**
+ * Macros whose text is authored on the page itself: callouts, expand/excerpt/code
+ * bodies, legacy `section`/`column` layouts (which wrap the entire body of pages
+ * built in the old editor), Page Properties (`details`), table-wrapping macros,
+ * and `status` lozenges. Everything else either resolves another resource
+ * (include, jira, children, page tree, label reports) or is an app macro, and
+ * may render differently for each reader.
+ */
 const LOCAL_STORAGE_MACROS = new Set([
-  'info',
-  'note',
-  'warning',
-  'tip',
-  'panel',
+  ...LOCAL_CALLOUT_MACROS,
   'expand',
   'excerpt',
   'code',
   'noformat',
+  'section',
+  'column',
+  'details',
+  'toc-zone',
+  'chart',
+  'table-filter',
+  'table-chart',
+  'table-pivot',
+  'table-transformer',
+  'table-excerpt',
+  'table-plus',
+  'status',
 ])
+/** New-editor nodes stored as ADF whose content is authored on the page. */
+const LOCAL_ADF_NODE_TYPES = new Set(['panel', 'decision-list', 'decision-item'])
+/** ADF nodes rendered by a Forge or Connect app; their output is resolved elsewhere. */
+const APP_ADF_NODE_TYPES = new Set(['extension', 'bodiedExtension', 'inlineExtension'])
+/** Storage-format bookkeeping that is never page prose. */
+const STORAGE_NOISE_SELECTOR = [
+  'ac\\:parameter',
+  'ac\\:default-parameter',
+  'ac\\:adf-attribute',
+  'ac\\:adf-fallback',
+  'ac\\:placeholder',
+  'ac\\:task-id',
+  'ac\\:task-uuid',
+  'ac\\:task-status',
+  'script',
+  'style',
+].join(', ')
+
+/** Recorded when a scoped page holds nothing but content resolved from elsewhere. */
+export const DYNAMIC_CONTENT_SKIP_REASON =
+  'Page only contains dynamic content (child lists, includes, or app macros) that Search cannot index'
+
+export interface ConfluenceStorageText {
+  text: string
+  /** True when at least one non-local macro or app node was removed. */
+  droppedDynamicContent: boolean
+}
 
 /**
  * Search authorizes the containing page, not content expanded from another
  * resource. Read authored storage text and known local macro bodies only;
  * inclusion and third-party macros may render differently for each reader.
  */
-export function confluenceStorageToPlainText(storage: string): string {
+export function extractConfluenceStorageText(storage: string): ConfluenceStorageText {
   const $ = cheerio.load(
     storage,
     { xml: { xmlMode: false, recognizeCDATA: true, recognizeSelfClosing: true } },
     false
   )
-  $('ac\\:adf-extension').remove()
+  let droppedDynamicContent = false
+
+  for (const element of $(ADF_NODE_SELECTOR).toArray().reverse()) {
+    const node = $(element)
+    const type = node.attr('type') ?? ''
+    if (!LOCAL_ADF_NODE_TYPES.has(type)) {
+      if (APP_ADF_NODE_TYPES.has(type)) droppedDynamicContent = true
+      node.remove()
+      continue
+    }
+    const panelType = node.children('ac\\:adf-attribute[key="panel-type"]').text().trim()
+    node.children('ac\\:adf-attribute, ac\\:adf-fallback').remove()
+    const body = extractBlockJoinedText($, node)
+    const label =
+      type === 'panel'
+        ? (CALLOUT_LABELS[panelType === 'info' ? 'information' : panelType] ?? '[CALLOUT]')
+        : ''
+    node.replaceWith($('<p></p>').text([label, body].filter(Boolean).join(' ')))
+  }
 
   $(STORAGE_MACRO_SELECTOR).each((_, element) => {
     if (!LOCAL_STORAGE_MACROS.has($(element).attr('ac:name') ?? '')) {
+      droppedDynamicContent = true
       $(element).remove()
     }
   })
@@ -246,13 +342,23 @@ export function confluenceStorageToPlainText(storage: string): string {
         ? title
           ? `[CALLOUT: ${title}]`
           : '[CALLOUT]'
-        : CALLOUT_LABELS[name === 'info' ? 'information' : name]
+        : LOCAL_CALLOUT_MACROS.has(name)
+          ? CALLOUT_LABELS[name === 'info' ? 'information' : name]
+          : ''
     const text = [label, name === 'panel' ? '' : title, body].filter(Boolean).join(' ')
     macro.replaceWith($('<p></p>').text(text))
   }
 
-  $('ac\\:parameter, ac\\:default-parameter, script, style').remove()
-  return extractBlockJoinedText($, $.root()).replace(/\s+/g, ' ').trim()
+  $(STORAGE_NOISE_SELECTOR).remove()
+  return {
+    text: extractBlockJoinedText($, $.root()).replace(/\s+/g, ' ').trim(),
+    droppedDynamicContent,
+  }
+}
+
+/** Plain text of a storage-format body; see {@link extractConfluenceStorageText}. */
+export function confluenceStorageToPlainText(storage: string): string {
+  return extractConfluenceStorageText(storage).text
 }
 
 function usesPermissionScopedContent(syncContext?: Record<string, unknown>): boolean {
@@ -311,7 +417,7 @@ export function readIncludedLabels(page: Record<string, unknown>): string[] {
  * ordinary knowledge bases retain their existing rendered representation.
  */
 const CONTENT_REPRESENTATION = 'view-callouts'
-const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v1'
+const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v2'
 
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
@@ -410,9 +516,16 @@ async function resolveCloudId(
   syncContext?: Record<string, unknown>,
   retryOptions?: RetryOptions
 ): Promise<string> {
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  const credentialDomain = syncContext?.credentialDomain
+  if (
+    typeof credentialDomain === 'string' &&
+    normalizeConfluenceDomainHost(credentialDomain) !== domain
+  ) {
+    throw new Error('Confluence domain must match the selected service account')
+  }
   const cached = syncContext?.cloudId
   if (typeof cached === 'string' && cached) return cached
-  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
   const cloudId = await getConfluenceCloudId(domain, accessToken, retryOptions)
   if (syncContext) syncContext.cloudId = cloudId
   return cloudId
@@ -462,9 +575,8 @@ interface ContentLocation {
  * configured space: a connector over two spaces must not let a reader of one
  * into the unrestricted pages of the other.
  *
- * A page whose restrictions could not be read this run is omitted, which the
- * engine stores as readable by nobody, and the rest of the batch still
- * resolves — the same per-document containment Drive has.
+ * Unresolved pages are omitted while the rest of the batch completes. The engine
+ * hides them unless another observation verified their ACL during the same crawl.
  */
 async function resolveConfluenceAcls(
   accessToken: string,
@@ -524,7 +636,7 @@ async function resolveConfluenceAcls(
       resolved.set(externalId, { spaceId: location.spaceId, chain })
     } catch (error) {
       unreadable += 1
-      logger.warn("Could not read a page's permissions; it stays readable by nobody", {
+      logger.warn("Could not verify a page's permissions", {
         cloudId,
         externalId,
         error: getErrorMessage(error),
@@ -547,7 +659,7 @@ async function resolveConfluenceAcls(
   }
 
   if (unreadable > 0) {
-    logger.warn('Some Confluence pages had unreadable permissions and stay readable by nobody', {
+    logger.warn('Some Confluence pages had unresolved permissions', {
       cloudId,
       unreadable,
     })
@@ -587,7 +699,7 @@ export const confluenceConnector: ConnectorConfig = {
      * `lastModified`.
      */
     if (labelFilter.trim() || spaceKeys.length > 1 || lastSyncAt) {
-      return listDocumentsViaCql(
+      return listSpaceBatchesViaCql(
         cloudId,
         accessToken,
         domain,
@@ -682,9 +794,8 @@ export const confluenceConnector: ConnectorConfig = {
       throw new Error(`Confluence content is missing its ${bodyFormat} body`)
     }
     const rawContent = representation.value
-    const plainText = scopedContent
-      ? confluenceStorageToPlainText(rawContent)
-      : htmlToPlainText(preserveConfluenceCallouts(rawContent))
+    const scoped = scopedContent ? extractConfluenceStorageText(rawContent) : null
+    const plainText = scoped ? scoped.text : htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const links = page._links as Record<string, unknown> | undefined
     const stub = pageToStub(
@@ -699,7 +810,12 @@ export const confluenceConnector: ConnectorConfig = {
 
     if (!plainText.trim()) {
       return {
-        ...markSkipped(stub, 'Document contains no extractable text'),
+        ...markSkipped(
+          stub,
+          scoped?.droppedDynamicContent
+            ? DYNAMIC_CONTENT_SKIP_REASON
+            : 'Document contains no extractable text'
+        ),
         skippedExistingDisposition: 'replace',
       }
     }
@@ -729,39 +845,76 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await resolveCloudId(
-        accessToken,
-        sourceConfig,
-        syncContext,
-        VALIDATE_RETRY_OPTIONS
-      )
-      const params = new URLSearchParams()
-      for (const key of spaceKeys) params.append('keys', key)
-      params.append('limit', String(Math.max(spaceKeys.length, 1)))
-      const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?${params.toString()}`
-      const response = await fetchWithRetry(
-        spaceUrl,
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
-        VALIDATE_RETRY_OPTIONS
-      )
-      if (!response.ok) {
-        return { valid: false, error: `Failed to validate spaces: ${response.status}` }
-      }
-      const data = await response.json()
-      const results = (data.results as Array<Record<string, unknown>> | undefined) ?? []
-      const foundKeys = new Set(results.map((r) => String(r.key)))
-      const missing = spaceKeys.filter((k) => !foundKeys.has(k))
-      if (missing.length > 0) {
-        return {
-          valid: false,
-          error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
+      const retryOptions =
+        syncContext?.mirrorsSourceAcls === true
+          ? {
+              ...VALIDATE_RETRY_OPTIONS,
+              retryBudgetMs: PERMISSION_VALIDATION_TIMEOUT_MS,
+              signal: AbortSignal.timeout(PERMISSION_VALIDATION_TIMEOUT_MS),
+            }
+          : VALIDATE_RETRY_OPTIONS
+      const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext, retryOptions)
+      let permissionSpaceId: string | undefined
+      for (const batch of spaceKeyBatches(spaceKeys)) {
+        const remainingKeys = new Set(batch)
+        const seenCursors = new Set<string>()
+        let cursor: string | undefined
+        do {
+          const params = new URLSearchParams()
+          for (const key of batch) params.append('keys', key)
+          params.set('limit', String(batch.length))
+          if (cursor) params.set('cursor', cursor)
+          const response = await fetchWithRetry(
+            `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?${params}`,
+            {
+              method: 'GET',
+              headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+            },
+            retryOptions
+          )
+          if (!response.ok) {
+            return { valid: false, error: `Failed to validate spaces: ${response.status}` }
+          }
+          const data = await response.json()
+          if (!Array.isArray(data.results)) {
+            throw new Error('Confluence returned an invalid space list. Try again.')
+          }
+          for (const space of data.results) {
+            if (
+              remainingKeys.delete(space.key) &&
+              !permissionSpaceId &&
+              typeof space.id === 'string'
+            ) {
+              permissionSpaceId = space.id
+            }
+          }
+          if (remainingKeys.size === 0) break
+          const next = data._links?.next
+          cursor = extractCursor(next)
+          if (next && (!cursor || seenCursors.has(cursor) || seenCursors.size >= batch.length)) {
+            throw new Error('Confluence returned an incomplete space list. Try again.')
+          }
+          if (cursor) seenCursors.add(cursor)
+        } while (cursor)
+        if (remainingKeys.size > 0) {
+          const missing = [...remainingKeys]
+          return {
+            valid: false,
+            error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
+          }
         }
+      }
+      if (syncContext?.mirrorsSourceAcls === true) {
+        if (!permissionSpaceId) {
+          return { valid: false, error: 'Confluence returned a space without an ID. Try again.' }
+        }
+        await validateConfluencePermissionAccess({
+          cloudId,
+          accessToken,
+          spaceId: permissionSpaceId,
+          contentType: (sourceConfig.contentType as string) || 'page',
+          retryOptions,
+        })
       }
       return { valid: true }
     } catch (error) {
@@ -849,7 +1002,7 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+  const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
     .map((page) => {
       const links = page._links as Record<string, string> | undefined
@@ -867,16 +1020,20 @@ async function listDocumentsV2(
 
   const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
 
-  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
+  const remaining = maxPages > 0 ? Math.max(0, maxPages - fetchedSoFar) : Number.POSITIVE_INFINITY
+  const documents =
+    allDocuments.length > remaining ? allDocuments.slice(0, remaining) : allDocuments
+  const trimmedByCap = documents.length < allDocuments.length
+  const totalFetched = fetchedSoFar + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
   /**
    * Only a cap that actually truncates a listing may suppress deletion
-   * reconciliation. When the source is exhausted (no next cursor) the listing is
-   * complete even though the count reached `maxPages`, and flagging it would
-   * permanently strand documents deleted upstream.
+   * reconciliation: either a tail trimmed from this page or an unread cursor.
+   * Reaching the cap exactly at source exhaustion still reconciles deletions.
    */
-  if (hitLimit && nextCursor && syncContext) syncContext.listingCapped = true
+  if (hitLimit && (trimmedByCap || nextCursor) && syncContext) syncContext.listingCapped = true
 
   return {
     documents,
@@ -897,7 +1054,7 @@ async function listAllContentTypes(
   spaceKey: string,
   maxPages: number,
   cursor?: string,
-  syncContext?: Record<string, unknown>
+  syncContext: Record<string, unknown> = {}
 ): Promise<ExternalDocumentList> {
   let pageCursor: string | undefined
   let blogCursor: string | undefined
@@ -957,6 +1114,10 @@ async function listAllContentTypes(
   }
 
   results.hasMore = !pagesDone || !blogsDone
+  if (maxPages > 0 && Number(syncContext.totalDocsFetched) >= maxPages && results.hasMore) {
+    syncContext.listingCapped = true
+    results.hasMore = false
+  }
 
   if (results.hasMore) {
     results.nextCursor = JSON.stringify({
@@ -1004,6 +1165,86 @@ export function resolveLastModifiedClause(
  * about rather than mirroring the v2 endpoints' 250.
  */
 const CQL_PAGE_SIZE = 50
+
+/** Walks one bounded space batch at a time without discarding a provider continuation. */
+async function listSpaceBatchesViaCql(
+  cloudId: string,
+  accessToken: string,
+  domain: string,
+  spaceKeys: string[],
+  contentType: string,
+  labelFilter: string,
+  maxPages: number,
+  cursor?: string,
+  syncContext: Record<string, unknown> = {},
+  lastSyncAt?: Date
+): Promise<ExternalDocumentList> {
+  const batches = spaceKeyBatches(spaceKeys)
+  if (batches.length === 1) {
+    return listDocumentsViaCql(
+      cloudId,
+      accessToken,
+      domain,
+      batches[0],
+      contentType,
+      labelFilter,
+      maxPages,
+      cursor,
+      syncContext,
+      lastSyncAt
+    )
+  }
+
+  let batchIndex = 0
+  let providerCursor: string | undefined
+  if (cursor) {
+    const invalidCursor = new Error('Invalid Confluence space continuation. Restart the sync.')
+    if (!cursor.startsWith(SPACE_BATCH_CURSOR_PREFIX)) throw invalidCursor
+    const state: unknown = JSON.parse(cursor.slice(SPACE_BATCH_CURSOR_PREFIX.length))
+    if (
+      typeof state !== 'object' ||
+      state === null ||
+      !('batch' in state) ||
+      typeof state.batch !== 'number' ||
+      !Number.isSafeInteger(state.batch) ||
+      state.batch < 0 ||
+      state.batch >= batches.length ||
+      ('cursor' in state && typeof state.cursor !== 'string')
+    )
+      throw invalidCursor
+    batchIndex = state.batch
+    providerCursor = 'cursor' in state ? (state.cursor as string) : undefined
+  }
+
+  const result = await listDocumentsViaCql(
+    cloudId,
+    accessToken,
+    domain,
+    batches[batchIndex],
+    contentType,
+    labelFilter,
+    maxPages,
+    providerCursor,
+    syncContext,
+    lastSyncAt
+  )
+  const hasMoreBatches = batchIndex + 1 < batches.length
+  if (maxPages > 0 && Number(syncContext.totalDocsFetched) >= maxPages) {
+    if (hasMoreBatches) syncContext.listingCapped = true
+    return { ...result, hasMore: false, nextCursor: undefined }
+  }
+  if (!result.hasMore && !hasMoreBatches) return result
+  return {
+    ...result,
+    hasMore: true,
+    nextCursor:
+      SPACE_BATCH_CURSOR_PREFIX +
+      JSON.stringify({
+        batch: result.hasMore ? batchIndex : batchIndex + 1,
+        ...(result.hasMore ? { cursor: result.nextCursor } : {}),
+      }),
+  }
+}
 
 /**
  * Lists documents using CQL search via the v1 API (used when label filtering is enabled).

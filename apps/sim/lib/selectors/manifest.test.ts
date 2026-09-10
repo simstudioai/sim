@@ -9,8 +9,8 @@ describe('selector manifest', () => {
     const count = (classification: (typeof classifications)[number]) =>
       classifications.filter((value) => value === classification).length
 
-    expect(Object.keys(selectorManifest)).toHaveLength(95)
-    expect(count('provider-server')).toBe(82)
+    expect(Object.keys(selectorManifest)).toHaveLength(97)
+    expect(count('provider-server')).toBe(84)
     expect(count('internal-server')).toBe(12)
     expect(count('local')).toBe(1)
     expect(classifications).not.toContain('provider-legacy')
@@ -36,11 +36,12 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(82)
+    expect(providerKeys).toHaveLength(84)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',
       'imap.mailboxes',
+      'mcp.tools',
     ])
   })
 
@@ -98,7 +99,7 @@ describe('selector manifest', () => {
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(13)
+    expect(preparedDestinations).toHaveLength(14)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({
@@ -109,7 +110,7 @@ describe('selector manifest', () => {
     }
   })
 
-  it('preserves credential-use auditing only for the seven legacy-audited selectors', () => {
+  it('preserves credential-use auditing for the declared selectors', () => {
     const auditedKeys = Object.entries(serverSelectorRegistry)
       .flatMap(([key, attachment]) => (attachment.auditCredentialUse ? [key] : []))
       .sort()
@@ -117,6 +118,7 @@ describe('selector manifest', () => {
     expect(auditedKeys).toEqual([
       'confluence.pages',
       'jira.issues',
+      'jira.projectKeys',
       'jira.projects',
       'managedAgent.agents',
       'managedAgent.environments',

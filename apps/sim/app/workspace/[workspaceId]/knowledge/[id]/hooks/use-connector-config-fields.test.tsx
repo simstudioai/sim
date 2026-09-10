@@ -5,7 +5,13 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/components/icons', () => ({ GmailIcon: () => null, GoogleDriveIcon: () => null }))
+vi.mock('@/components/icons', () => ({
+  GmailIcon: () => null,
+  GoogleCalendarIcon: () => null,
+  GoogleDriveIcon: () => null,
+  JiraIcon: () => null,
+  ConfluenceIcon: () => null,
+}))
 
 import { describeSearchSource, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
 import {
@@ -13,8 +19,11 @@ import {
   type UseConnectorConfigFieldsResult,
   useConnectorConfigFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
+import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
+import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorMeta } from '@/connectors/types'
 
 describe('useConnectorConfigFields member configuration', () => {
@@ -49,13 +58,16 @@ describe('useConnectorConfigFields member configuration', () => {
     container.remove()
   })
 
-  it('offers only manual label names for member Gmail setup', () => {
-    render({ accessMode: 'members' })
+  it.each(['members', 'admin'] as const)(
+    'offers manual label names for %s Gmail setup',
+    (accessMode) => {
+      render({ accessMode })
 
-    expect(visibleLabelFields()).toEqual(['label'])
-    expect(current!.canonicalModes.label).toBe('advanced')
-    expect(current!.canonicalGroups.get('label')?.map((field) => field.id)).toEqual(['label'])
-  })
+      expect(visibleLabelFields()).toEqual(['label'])
+      expect(current!.canonicalModes.label).toBe('advanced')
+      expect(current!.canonicalGroups.get('label')?.map((field) => field.id)).toEqual(['label'])
+    }
+  )
 
   it('resolves manual names and system IDs through the existing canonical label field', () => {
     render({ accessMode: 'members' })
@@ -85,17 +97,20 @@ describe('useConnectorConfigFields member configuration', () => {
     expect(current!.resolveSourceConfig()).toMatchObject({ label: ['INBOX', 'Label_7'] })
   })
 
-  it('keeps a visible manual field when a saved member draft selected basic mode', () => {
-    render({
-      accessMode: 'members',
-      initialCanonicalModes: { label: 'basic' },
-      initialSourceConfig: { labelSelector: ['Label_7'], label: ['Engineering'] },
-    })
+  it.each(['members', 'admin'] as const)(
+    'keeps a visible manual field when a saved %s draft selected basic mode',
+    (accessMode) => {
+      render({
+        accessMode,
+        initialCanonicalModes: { label: 'basic' },
+        initialSourceConfig: { labelSelector: ['Label_7'], label: ['Engineering'] },
+      })
 
-    expect(visibleLabelFields()).toEqual(['label'])
-    expect(current!.canonicalModes.label).toBe('advanced')
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering'] })
-  })
+      expect(visibleLabelFields()).toEqual(['label'])
+      expect(current!.canonicalModes.label).toBe('advanced')
+      expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering'] })
+    }
+  )
 
   it('keeps fields visible and preserves edits when switching access modes without remounting', () => {
     render({
@@ -170,6 +185,56 @@ describe('useConnectorConfigFields member configuration', () => {
     expect(current!.resolveSourceConfig()).toMatchObject({ openSharing: 'domain' })
   })
 
+  it.each([googleDriveConnectorMeta, googleCalendarConnectorMeta, gmailConnectorMeta])(
+    'offers directory user selection only for central $name crawls',
+    (connectorConfig) => {
+      const field = connectorConfig.configFields.find((field) => field.id === 'userEmails')!
+      render({ connectorConfig, accessMode: 'admin' })
+      expect(current.isFieldVisible(field)).toBe(true)
+      act(() => current.handleFieldChange('userEmails', 'first@example.com, second@example.com'))
+      expect(current.resolveSourceConfig().userEmails).toEqual([
+        'first@example.com',
+        'second@example.com',
+      ])
+
+      render({ connectorConfig, accessMode: 'members' })
+      expect(current.isFieldVisible(field)).toBe(false)
+      render({ connectorConfig, accessMode: 'workspace' })
+      expect(current.isFieldVisible(field)).toBe(false)
+      render({ connectorConfig, accessMode: 'admin' })
+      expect(current.isFieldVisible(field)).toBe(true)
+      expect(current.resolveSourceConfig().userEmails).toEqual([
+        'first@example.com',
+        'second@example.com',
+      ])
+    }
+  )
+
+  it('uses manual calendar IDs centrally without reusing a saved administrator calendar selection', () => {
+    render({
+      connectorConfig: googleCalendarConnectorMeta,
+      accessMode: 'admin',
+      initialCanonicalModes: { calendarId: 'basic' },
+      initialSourceConfig: {
+        calendarSelector: ['administrator@example.com'],
+        calendarId: ['primary', 'shared@group.calendar.google.com'],
+      },
+    })
+    const visibleCalendars = () =>
+      googleCalendarConnectorMeta.configFields
+        .filter((field) => field.canonicalParamId === 'calendarId' && current.isFieldVisible(field))
+        .map((field) => field.id)
+    expect(visibleCalendars()).toEqual(['calendarId'])
+    expect(current.resolveSourceConfig().calendarId).toEqual([
+      'primary',
+      'shared@group.calendar.google.com',
+    ])
+
+    render({ connectorConfig: googleCalendarConnectorMeta, accessMode: 'members' })
+    expect(visibleCalendars()).toEqual(['calendarSelector'])
+    expect(current.resolveSourceConfig().calendarId).toEqual(['administrator@example.com'])
+  })
+
   it('persists selector labels with the canonical IDs without changing provider values', () => {
     render({ connectorConfig: googleDriveConnectorMeta })
     act(() =>
@@ -215,6 +280,36 @@ describe('useConnectorConfigFields member configuration', () => {
     act(() => current.setSourceConfig({}))
     expect(current.selectionLabels).toEqual({})
   })
+
+  it.each([
+    [jiraConnectorMeta, 'projectKey', 'projectSelector'],
+    [confluenceConnectorMeta, 'spaceKey', 'spaceSelector'],
+  ] as const)(
+    'carries the current $0.name keys between picker and manual entry',
+    (meta, canonicalId, selectorId) => {
+      render({ connectorConfig: meta, accessMode: 'members' })
+      act(() => current.handleFieldChange('domain', 'team.atlassian.net'))
+      act(() =>
+        current.handleFieldChange(
+          selectorId,
+          ['ENG', 'SUPPORT'],
+          [{ id: 'ENG', label: 'Engineering' }]
+        )
+      )
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'SUPPORT'])
+      expect(current.selectionLabels[canonicalId]).toEqual([{ id: 'ENG', label: 'Engineering' }])
+      act(() => current.handleFieldChange(canonicalId, 'ENG, PRODUCT'))
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.sourceConfig[selectorId]).toEqual(['ENG', 'PRODUCT'])
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'PRODUCT'])
+      expect(current.selectionLabels).toEqual({})
+      act(() => current.handleFieldChange('domain', 'other.atlassian.net'))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
+    }
+  )
 
   it('clears dependent selector labels together with their values', () => {
     const meta: ConnectorMeta = {

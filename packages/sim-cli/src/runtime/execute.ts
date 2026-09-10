@@ -1,7 +1,14 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Command } from 'commander'
+import {
+  assertWorkspaceOperationOutcome,
+  readWorkspaceOperation,
+  waitWorkspaceOperation,
+  workspaceWaitTimeout,
+} from '../commands/protocol/workspace-operation-wait'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
-import type { V2OperationName } from '../generated/v2-api'
+import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
 import { safeOneLine } from '../output/render'
 import { camel } from './derive'
@@ -16,6 +23,15 @@ import {
 } from './request'
 import { foldPageEnvelope, renderPage, renderResult } from './result'
 import type { OperationSpec } from './types'
+
+const WORKSPACE_OPERATION_KINDS: Readonly<
+  Partial<Record<V2OperationName, GetWorkspaceOperationResponse['data']['kind']>>
+> = {
+  importWorkflow: 'workflow_import',
+  forkWorkspace: 'workspace_fork',
+  pushWorkspace: 'workspace_push',
+  pullWorkspace: 'workspace_pull',
+}
 
 /**
  * Operations that report the outcome of the work they did in band.
@@ -385,12 +401,26 @@ export async function executeOperation(
    * on the caller knowing.
    */
   const pagedLimit = paging ? readPagedLimit(requestFlags.limit, operation) : 0
-  const request = buildRequest(
-    operation,
-    positional,
-    requestFlags,
-    needsWorkspace ? client.requireWorkspace() : profile.workspaceId
-  )
+  const requestWorkspaceId = needsWorkspace ? client.requireWorkspace() : profile.workspaceId
+  const request = buildRequest(operation, positional, requestFlags, requestWorkspaceId)
+
+  if (commandSpec.workspaceOperation) {
+    if (!WORKSPACE_OPERATION_KINDS[operation])
+      throw new SimApiError('This command has no workspace operation identity configured', 0)
+    workspaceWaitTimeout(requestFlags.waitTimeout)
+    if (requestFlags.waitTimeout !== undefined && requestFlags.wait !== true)
+      throw new SimApiError('--wait-timeout requires --wait', 0)
+    if (
+      requestFlags.wait === true &&
+      (!request.body?.requestId || !request.body?.previewFingerprint)
+    )
+      throw new SimApiError(
+        '--wait requires --request-id and --preview-fingerprint from the reviewed preview',
+        0
+      )
+    if (operationSpec.body?.confirm && requestFlags.yes === true && request.body)
+      request.body.confirm = true
+  }
 
   if (paging) {
     const initialCursor = request[paging]?.cursor
@@ -442,13 +472,86 @@ export async function executeOperation(
     return
   }
 
-  const result = await client.request<{ data?: unknown }>(request.path, {
-    method: operationSpec.method,
-    headers: request.headers,
-    query: request.query,
-    body: request.body,
-  })
-  const payload = result?.data ?? result
+  let result: { data?: unknown }
+  try {
+    result = await client.request<{ data?: unknown }>(request.path, {
+      method: operationSpec.method,
+      headers: request.headers,
+      query: request.query,
+      body: request.body,
+    })
+  } catch (error) {
+    if (
+      commandSpec.workspaceOperation &&
+      request.body?.requestId &&
+      (!(error instanceof SimApiError) ||
+        error.status === 0 ||
+        error.status >= 500 ||
+        (error.status >= 200 && error.status < 300))
+    ) {
+      const failure =
+        error instanceof SimApiError
+          ? error
+          : new SimApiError(getErrorMessage(error, 'Unable to read the mutation response'), 0)
+      throw new SimApiError(
+        failure.message,
+        failure.status,
+        'MUTATION_OUTCOME_UNKNOWN',
+        {
+          cause: failure.details,
+          requestId: request.body.requestId,
+          workspaceId: requestWorkspaceId,
+          applied: 'unknown',
+          reconciliation:
+            'Find the operation using this requestId, or retry identical inputs with the same requestId.',
+        },
+        failure.exitCode
+      )
+    }
+    throw error
+  }
+  let payload = result?.data ?? result
+  if (
+    commandSpec.workspaceOperation &&
+    (Boolean(request.body?.requestId) ||
+      requestFlags.wait === true ||
+      (payload && typeof payload === 'object' && 'operationId' in payload))
+  ) {
+    let report
+    try {
+      report = readWorkspaceOperation(payload)
+      const expectedRequestId =
+        operation !== 'importWorkflow' && typeof request.body?.requestId === 'string'
+          ? request.body.requestId.trim()
+          : request.body?.requestId
+      if (
+        report.requestId !== expectedRequestId ||
+        report.workspaceId !== requestWorkspaceId ||
+        report.kind !== WORKSPACE_OPERATION_KINDS[operation]
+      )
+        throw new SimApiError('The operation receipt does not match the submitted mutation', 0)
+    } catch {
+      throw new SimApiError(
+        'The mutation response did not contain a matching operation receipt; reconcile using the same request ID',
+        0,
+        'MUTATION_OUTCOME_UNKNOWN',
+        { requestId: request.body?.requestId, workspaceId: requestWorkspaceId, applied: 'unknown' }
+      )
+    }
+    let timedOut = false
+    if (requestFlags.wait === true)
+      ({ report, timedOut } = await waitWorkspaceOperation(
+        client,
+        report.workspaceId,
+        report.operationId,
+        workspaceWaitTimeout(requestFlags.waitTimeout),
+        report
+      ))
+    payload = report
+    renderResult(operation, profile.output, payload, commandSpec)
+    assertWorkspaceOperationOutcome(report, timedOut)
+    return
+  }
   renderResult(
     operation,
     profile.output,

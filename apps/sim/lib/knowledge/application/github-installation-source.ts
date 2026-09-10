@@ -1,6 +1,8 @@
+import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
+import { requireConnectorCredential } from '@/lib/knowledge/application/connector-credential'
 import {
   parseGitHubInstallationBinding,
   resolveGitHubInstallationRepository,
@@ -8,6 +10,9 @@ import {
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 
 interface GitHubInstallationSourceInput {
+  principal: Principal
+  requestId: string
+  workspaceId?: string
   connectorType: string
   credentialId?: string | null
   organizationId?: string
@@ -32,10 +37,13 @@ export async function prepareGitHubInstallationSource(
       )
     return input.sourceConfig
   }
-  const access = input.credentialId
-    ? await getCredentialActorContext(input.credentialId, input.actingUserId)
+  const contentCredential = input.credentialId
+    ? await requireConnectorCredential({
+        ...input,
+        credentialId: input.credentialId,
+        scope: resourceScopeFromOwner(input),
+      })
     : null
-  const contentCredential = access?.credential
   if (contentCredential?.providerId !== GITHUB_INSTALLATION_PROVIDER_ID) {
     if (wasInstallation || assertedId !== undefined)
       throw new OrchestrationError(
@@ -50,8 +58,6 @@ export async function prepareGitHubInstallationSource(
       'GitHub installations require organization Search with connected member access'
     )
   if (
-    !access ||
-    !canUseCredential(access) ||
     contentCredential.organizationId !== input.organizationId ||
     contentCredential.workspaceId !== null ||
     contentCredential.type !== 'service_account' ||

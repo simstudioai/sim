@@ -117,16 +117,16 @@ Once MCP servers are configured, their tools become available within your agent 
   />
 </div>
 
-4. Select individual tools, or choose **Use all N tools** to add every tool from that server
+4. Select individual tools, or choose **Configure operations access** for a dynamic server attachment
 5. The agent can now access these tools during execution
 
 <Callout type="info">
 If you haven't configured a server yet, click **Add MCP Server** at the top of the dropdown to open the setup modal without leaving the block.
 </Callout>
 
-## Standalone MCP Tool Block
+## Standalone MCP Block
 
-For more granular control, you can use the dedicated MCP Tool block to execute specific MCP tools:
+Use the MCP block to discover operations or run one operation with explicit inputs:
 
 <div className="flex justify-center">
   <Image
@@ -138,7 +138,34 @@ For more granular control, you can use the dedicated MCP Tool block to execute s
   />
 </div>
 
-The MCP Tool block runs one configured tool with parameters you set explicitly, and its output is readable by later blocks like any other.
+Choose an **Action**:
+
+- **List operations** discovers authorized operation names, descriptions, and input schemas without executing provider operations. Filter by name or description, set a page size from 1 to 100, and pass `nextCursor` into the next request while `hasMore` is true. An authorized list can be empty.
+- **Run operation** executes one exact operation name. Configured operations keep their generated argument fields. For an operation name resolved at runtime, supply a JSON arguments object; Sim validates it against the operation's discovered schema before execution.
+
+**MCP Server** takes one shared-server ID or managed-connection ID. Sim resolves a managed connection's parent server internally and verifies workspace and credential access. Both actions accept the same ID; List operations returns that ID as `serverId`, alongside the discovered `operations` and pagination metadata.
+
+The standalone block's Basic fields select a configured connection and discovered operation. Advanced fields accept literal IDs/names or upstream references. A runtime server reference requires JSON arguments. Listing hides the operation and argument fields.
+
+### Operations access
+
+The **MCP Server (Advanced)** Agent attachment takes a server/connection ID or upstream reference in a plain input. Its **Tool IDs** field accepts exact MCP tool names, such as `search_docs`, entered directly. These are the names returned by List operations, without a Sim server prefix. Neither field uses a server or operation catalog picker.
+
+Agent attachments have three access modes:
+
+| Mode | Behavior |
+| --- | --- |
+| **Only selected** | Allows only selected exact operation names. An empty selection allows nothing. Newly discovered names stay excluded. |
+| **All except selected** | Denies selected exact names. An empty selection allows everything otherwise permitted. Denied names stay saved if they temporarily disappear. |
+| **All permitted** | Allows every operation available to the authorized credential. |
+
+New restricted configurations start with an empty explicit selection. Existing saved workflows retain their prior access through normalization, while current organization and credential authorization still apply.
+
+Operation restrictions are saved in workflow state on the Agent attachment. Tool IDs are literal configuration, not upstream references or model arguments. An operation must be available to the resolved, authorized connection and permitted by the saved restriction. The standalone block runs its explicitly specified operation and has no separate access policy.
+
+Discovery filters the tools exposed to the Agent. Execution checks the actual server, connection, and saved restriction again before calling the provider. Missing or forbidden operations, unverifiable schemas, malformed arguments, and incorrect connection scopes fail the call. An Agent attachment with no permitted operations fails clearly.
+
+Policies match exact, case-sensitive MCP tool names on whichever authorized connection resolves at runtime. They do not inspect operation arguments: allowing a generic `execute_sql` operation does not limit which SQL it can execute.
 
 ## When to Use MCP Tool vs Agent
 

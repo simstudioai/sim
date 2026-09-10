@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
-import { executeSelectorRequest } from '@/lib/selectors/client/execute-selector'
+import { requestJson } from '@/lib/api/client/request'
+import { personalSourceSetupContract } from '@/lib/api/contracts/knowledge/personal-source-setup'
+import {
+  type ExecuteSelectorClientInput,
+  executeSelectorRequest,
+} from '@/lib/selectors/client/execute-selector'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { MAX_SELECTOR_OPTIONS, MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
 import {
@@ -16,12 +21,12 @@ import type {
   SelectorOption,
   SelectorPage,
   SelectorScope,
+  SelectorSurface,
 } from '@/lib/selectors/types'
 import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
 type SelectorListResult = Extract<SelectorExecutionResult, { kind: 'list' }>
 
-const EMPTY_PAGE: SelectorListResult = { kind: 'list', items: [] }
 let nextOpaqueRevision = 1
 
 export type SelectorClientContext = SelectorContext & {
@@ -35,6 +40,38 @@ interface SelectorHookArgs {
   search?: string
   enabled?: boolean
   surfaceId?: string
+  surface?: SelectorSurface
+}
+
+async function executeForSurface(
+  input: ExecuteSelectorClientInput,
+  surface?: SelectorSurface
+): Promise<SelectorExecutionResult> {
+  if (!surface) return executeSelectorRequest(input)
+  const expectedKey = surface.connectorType === 'jira' ? 'jira.projectKeys' : 'confluence.spaces'
+  if (
+    input.selectorKey !== expectedKey ||
+    input.scope?.kind !== 'organization' ||
+    input.scope.organizationId !== surface.organizationId ||
+    !input.context.oauthCredential ||
+    !input.context.domain
+  )
+    throw new Error('This selector is not available during personal source setup')
+  const result = await requestJson(personalSourceSetupContract, {
+    body: {
+      action: 'options',
+      organizationId: surface.organizationId,
+      connectorType: surface.connectorType,
+      credentialId: input.context.oauthCredential,
+      domain: input.context.domain,
+      request: input.request,
+    },
+    signal: input.signal,
+  })
+  if (result.data.kind !== 'list' && result.data.kind !== 'detail') {
+    throw new Error('Personal source setup returned an unexpected selector result')
+  }
+  return result.data
 }
 
 export interface SelectorOptionsResult {
@@ -48,9 +85,13 @@ export interface SelectorOptionsResult {
   error: Error | null
   isSuccess: boolean
   loadMore(): void
-  loadAll(): void
+  loadAll(): Promise<SelectorLoadAllResult>
   refetch(): void
 }
+
+export type SelectorLoadAllResult =
+  | { status: 'complete'; options: SelectorOption[] }
+  | { status: 'partial' | 'error' | 'cancelled' }
 
 interface CollectedSelectorOptions {
   options: SelectorOption[]
@@ -140,7 +181,13 @@ function usePreparedSelector(
   const context = projectSelectorContext(key, args.context)
   const scope = selectorScopeFromContext(args.context, args.scope)
   const contextValues = manifest.context.allowed.map((field) => context[field])
-  const revision = useOpaqueRevision([...contextValues, ...requestValues])
+  const revision = useOpaqueRevision([
+    ...contextValues,
+    ...requestValues,
+    args.surface?.kind,
+    args.surface?.organizationId,
+    args.surface?.connectorType,
+  ])
   const ready =
     args.enabled !== false &&
     isSelectorReady(key, context) &&
@@ -152,6 +199,7 @@ function usePreparedSelector(
     revision,
     ready,
     surfaceId: args.surfaceId ?? generatedSurfaceId,
+    surface: args.surface,
   }
 }
 
@@ -174,16 +222,19 @@ export function useSelectorOptions(
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: baseKey,
     queryFn: async ({ signal }) => {
-      const result = await executeSelectorRequest({
-        selectorKey: key,
-        scope: prepared.scope,
-        context: prepared.context,
-        request: {
-          kind: 'list',
-          ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
+      const result = await executeForSurface(
+        {
+          selectorKey: key,
+          scope: prepared.scope,
+          context: prepared.context,
+          request: {
+            kind: 'list',
+            ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
+          },
+          signal,
         },
-        signal,
-      })
+        prepared.surface
+      )
       if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
       return result
     },
@@ -196,18 +247,21 @@ export function useSelectorOptions(
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: [...baseKey, 'paged'],
     queryFn: async ({ pageParam, signal }) => {
-      const result = await executeSelectorRequest({
-        selectorKey: key,
-        scope: prepared.scope,
-        context: prepared.context,
-        request: {
-          kind: 'list',
-          ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
-          ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
+      const result = await executeForSurface(
+        {
+          selectorKey: key,
+          scope: prepared.scope,
+          context: prepared.context,
+          request: {
+            kind: 'list',
+            ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
+            ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
+          },
+          signal,
         },
-        signal,
-      })
-      if (result.kind !== 'list') return EMPTY_PAGE
+        prepared.surface
+      )
+      if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
       return result
     },
     getNextPageParam: (last) => last.nextCursor,
@@ -231,73 +285,88 @@ export function useSelectorOptions(
   const loadGenerationRef = useRef(0)
   const pageFetchInFlightRef = useRef(false)
   const [isLoadingAll, setIsLoadingAll] = useState(false)
+  const requestIdentity = JSON.stringify(baseKey)
 
   useEffect(() => {
     loadGenerationRef.current += 1
     pageFetchInFlightRef.current = false
     setIsLoadingAll(false)
-  }, [key, prepared.revision])
+    return () => {
+      loadGenerationRef.current += 1
+      pageFetchInFlightRef.current = false
+    }
+  }, [requestIdentity, prepared.ready])
 
   const loadMore = useCallback(() => {
     if (!canLoadMore || pageFetchInFlightRef.current) return
+    const generation = ++loadGenerationRef.current
     pageFetchInFlightRef.current = true
     void (async () => {
       if (pagedQuery.isFetchNextPageError) {
         const refreshed = await pagedQuery.refetch()
+        if (loadGenerationRef.current !== generation) return
         const refreshedPages = refreshed.data?.pages
         const refreshedLastPage = refreshedPages?.[refreshedPages.length - 1]
         if (refreshed.isError || !refreshedLastPage?.nextCursor) return
       }
       await pagedQuery.fetchNextPage()
     })().finally(() => {
-      pageFetchInFlightRef.current = false
+      if (loadGenerationRef.current === generation) pageFetchInFlightRef.current = false
     })
   }, [canLoadMore, pagedQuery.fetchNextPage, pagedQuery.isFetchNextPageError, pagedQuery.refetch])
 
-  const loadAll = useCallback(() => {
-    if (!canLoadMore || pageFetchInFlightRef.current) return
-    const generation = loadGenerationRef.current + 1
-    loadGenerationRef.current = generation
+  const loadAll = useCallback(async (): Promise<SelectorLoadAllResult> => {
+    if (!prepared.ready || pageFetchInFlightRef.current || pagedQuery.isFetching) {
+      return { status: 'cancelled' }
+    }
+    const generation = ++loadGenerationRef.current
     pageFetchInFlightRef.current = true
     setIsLoadingAll(true)
 
-    void (async () => {
-      let hasNextPage = Boolean(pagedQuery.hasNextPage)
-      let pages = pagedQuery.data?.pages
-      try {
-        if (pagedQuery.isFetchNextPageError) {
-          const refreshed = await pagedQuery.refetch()
-          if (loadGenerationRef.current !== generation || refreshed.isError) return
-          pages = refreshed.data?.pages
-          const refreshedLastPage = pages?.[pages.length - 1]
-          hasNextPage = Boolean(refreshedLastPage?.nextCursor)
-        }
-        while (hasNextPage) {
-          if (
-            (pages?.length ?? 0) >= MAX_SELECTOR_PAGES ||
-            collectSelectorOptions(pages).options.length >= MAX_SELECTOR_OPTIONS
-          ) {
-            break
-          }
-          const result = await pagedQuery.fetchNextPage()
-          if (loadGenerationRef.current !== generation) return
-          if (result.isError) break
-          hasNextPage = Boolean(result.hasNextPage)
-          pages = result.data?.pages
-        }
-      } finally {
-        if (loadGenerationRef.current === generation) {
-          pageFetchInFlightRef.current = false
-          setIsLoadingAll(false)
-        }
+    let hasNextPage = Boolean(pagedQuery.hasNextPage)
+    let pages = pagedQuery.data?.pages
+    try {
+      if (pagedQuery.isError || !pages) {
+        const refreshed = await pagedQuery.refetch()
+        if (loadGenerationRef.current !== generation) return { status: 'cancelled' }
+        if (refreshed.isError) return { status: 'error' }
+        pages = refreshed.data?.pages
+        const refreshedLastPage = pages?.[pages.length - 1]
+        hasNextPage = Boolean(refreshedLastPage?.nextCursor)
       }
-    })()
+      while (hasNextPage) {
+        const collected = collectSelectorOptions(pages)
+        if (
+          (pages?.length ?? 0) >= MAX_SELECTOR_PAGES ||
+          collected.options.length >= MAX_SELECTOR_OPTIONS ||
+          pages?.some((page) => page.truncated)
+        )
+          return { status: 'partial' }
+        const result = await pagedQuery.fetchNextPage()
+        if (loadGenerationRef.current !== generation) return { status: 'cancelled' }
+        if (result.isError) return { status: 'error' }
+        hasNextPage = Boolean(result.hasNextPage)
+        pages = result.data?.pages
+      }
+      const collected = collectSelectorOptions(pages)
+      return collected.overflowed || pages?.some((page) => page.truncated)
+        ? { status: 'partial' }
+        : { status: 'complete', options: collected.options }
+    } catch {
+      return { status: loadGenerationRef.current === generation ? 'error' : 'cancelled' }
+    } finally {
+      if (loadGenerationRef.current === generation) {
+        pageFetchInFlightRef.current = false
+        setIsLoadingAll(false)
+      }
+    }
   }, [
-    canLoadMore,
+    prepared.ready,
     pagedQuery.data?.pages,
     pagedQuery.fetchNextPage,
     pagedQuery.hasNextPage,
-    pagedQuery.isFetchNextPageError,
+    pagedQuery.isError,
+    pagedQuery.isFetching,
     pagedQuery.refetch,
   ])
 
@@ -337,7 +406,14 @@ export function useSelectorOptions(
     error: (flatQuery.error as Error | null) ?? null,
     isSuccess: flatQuery.isSuccess,
     loadMore: () => undefined,
-    loadAll: () => undefined,
+    loadAll: async () => {
+      if (!prepared.ready || flatQuery.isFetching) return { status: 'cancelled' }
+      if (flatQuery.isError || !flatQuery.data) return { status: 'error' }
+      const collected = collectSelectorOptions([flatQuery.data])
+      return flatQuery.data.truncated || collected.overflowed
+        ? { status: 'partial' }
+        : { status: 'complete', options: collected.options }
+    },
     refetch: () => {
       if (!prepared.ready) return
       void flatQuery.refetch()
@@ -365,13 +441,16 @@ export function useSelectorOptionDetail(
       prepared.revision
     ),
     queryFn: async ({ signal }) => {
-      const result = await executeSelectorRequest({
-        selectorKey: key,
-        scope: prepared.scope,
-        context: prepared.context,
-        request: { kind: 'detail', id: args.detailId! },
-        signal,
-      })
+      const result = await executeForSurface(
+        {
+          selectorKey: key,
+          scope: prepared.scope,
+          context: prepared.context,
+          request: { kind: 'detail', id: args.detailId! },
+          signal,
+        },
+        prepared.surface
+      )
       if (result.kind !== 'detail') throw new Error('Selector returned an unexpected list result')
       return result.item
     },
@@ -399,13 +478,16 @@ export function useSelectorOptionDetails(
         ordinal
       ),
       queryFn: async ({ signal }: { signal: AbortSignal }) => {
-        const result = await executeSelectorRequest({
-          selectorKey: key,
-          scope: prepared.scope,
-          context: prepared.context,
-          request: { kind: 'detail', id: detailId },
-          signal,
-        })
+        const result = await executeForSurface(
+          {
+            selectorKey: key,
+            scope: prepared.scope,
+            context: prepared.context,
+            request: { kind: 'detail', id: detailId },
+            signal,
+          },
+          prepared.surface
+        )
         if (result.kind !== 'detail') throw new Error('Selector returned an unexpected list result')
         return result.item
       },

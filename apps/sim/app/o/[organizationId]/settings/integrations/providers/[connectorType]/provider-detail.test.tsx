@@ -39,6 +39,8 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
   canConnectPersonally: () => mocks.personal,
+  canConnectWithDefaults: (meta: { name: string }) =>
+    ['Gmail', 'Google Calendar', 'Google Drive'].includes(meta.name),
   getConnectorAccessAvailability: () => mocks.access,
 }))
 vi.mock('@/lib/oauth', () => ({
@@ -51,8 +53,18 @@ vi.mock('@/lib/credential-groups/providers', () => ({
 }))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
-    google_drive: { name: 'Google Drive', auth: { mode: 'oauth', provider: 'google-drive' } },
-    gmail: { name: 'Gmail', auth: { mode: 'oauth', provider: 'google-email' } },
+    google_drive: {
+      name: 'Google Drive',
+      auth: { mode: 'oauth', provider: 'google-drive', adminCredentialType: 'service_account' },
+    },
+    gmail: {
+      name: 'Gmail',
+      auth: { mode: 'oauth', provider: 'google-email', adminCredentialType: 'service_account' },
+    },
+    google_calendar: {
+      name: 'Google Calendar',
+      auth: { mode: 'oauth', provider: 'google-calendar', adminCredentialType: 'service_account' },
+    },
     slack: { name: 'Slack', auth: { mode: 'oauth', provider: 'slack' } },
     gitlab: { name: 'GitLab', auth: { mode: 'apiKey' } },
   },
@@ -104,12 +116,19 @@ vi.mock('@/app/o/[organizationId]/settings/components/integrations/slack-account
 
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationProviderDetail } from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
-const provider = { connectorType: 'google_drive', approved: true, status: 'active' }
+const provider = {
+  connectorType: 'google_drive',
+  approved: true,
+  status: 'active',
+  sourceCount: 0,
+}
 const source = {
   connectorId: 'source-one',
   connectorType: 'google_drive',
   sourceDescription: 'Engineering handbook',
+  accessMode: 'admin',
   enabled: true,
   hasSyncError: false,
   isSyncing: false,
@@ -202,12 +221,131 @@ describe('organization provider management', () => {
     })
   }
 
+  it.each(['gmail', 'google_calendar', 'google_drive'])(
+    'offers configuration setup directly for %s without an Accounts or Advanced tab',
+    async (connectorType) => {
+      mocks.overview.mockReturnValue({
+        data: { providers: [{ ...provider, connectorType, status: 'waiting_for_connections' }] },
+      })
+      mocks.sources.mockReturnValue({ data: [], isPending: false })
+      await render(connectorType)
+      expect(container.textContent).toContain('Waiting for connections')
+      expect(container.textContent).toContain(
+        `No ${CONNECTOR_META_REGISTRY[connectorType]?.name} connections yet.`
+      )
+      expect(container.querySelector('[role="radio"]')).toBeNull()
+      await click('Connect service account')
+      await vi.waitFor(() => {
+        expect(mocks.updateUrl.mock.calls.at(-1)?.[0].searchParams.get('addConnector')).toBe(
+          connectorType
+        )
+      })
+    }
+  )
+
+  it.each(['gmail', 'google_calendar', 'google_drive'])(
+    'does not ask for personal connections when %s already has a central source',
+    async (connectorType) => {
+      mocks.overview.mockReturnValue({
+        data: {
+          providers: [{ ...provider, connectorType, sourceCount: 1 }],
+        },
+      })
+      mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
+      mocks.access = { admin: true, members: true }
+      await render(connectorType)
+
+      expect(container.textContent).toContain('Engineering handbook')
+      expect(container.textContent).not.toContain('No connected member accounts.')
+      expect(container.textContent).not.toContain(
+        'Members connect their accounts from Integrations.'
+      )
+      await click('Connect service account')
+      await vi.waitFor(() => {
+        const params = mocks.updateUrl.mock.calls.at(-1)![0].searchParams
+        expect(params.get('addConnector')).toBe(connectorType)
+        expect(params.get('source-access')).toBeNull()
+      })
+    }
+  )
+
+  describe.each(['gmail', 'google_calendar', 'google_drive'])(
+    '%s default management view',
+    (connectorType) => {
+      function withSources(accessModes: string[]) {
+        mocks.overview.mockReturnValue({
+          data: { providers: [{ ...provider, connectorType, sourceCount: accessModes.length }] },
+          isPending: false,
+        })
+        mocks.sources.mockReturnValue({
+          data: accessModes.map((accessMode, index) => ({
+            ...source,
+            connectorType,
+            accessMode,
+            connectorId: `source-${index}`,
+          })),
+          isPending: false,
+        })
+      }
+
+      it.each([
+        { name: 'member-only', modes: ['members'] },
+        { name: 'central-only', modes: ['admin'] },
+        { name: 'mixed', modes: ['admin', 'members'] },
+        { name: 'not configured', modes: [] },
+      ])('opens configurations for the $name setup', async ({ modes }) => {
+        withSources(modes)
+        await render(connectorType)
+        expect(container.querySelector('[role="radio"]')).toBeNull()
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: true })
+        )
+        expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+        expect(container.textContent).toContain('Connect service account')
+        if (modes.length === 0)
+          expect(container.textContent).toContain(
+            `No ${CONNECTOR_META_REGISTRY[connectorType]?.name} connections yet.`
+          )
+      })
+
+      it('loads the configuration list in parallel with its overview and retains the default', async () => {
+        mocks.overview.mockReturnValue({ isPending: true })
+        await render(connectorType)
+        expect(container.textContent).toContain('Loading integration…')
+        expect(container.textContent).not.toContain('No connected member accounts.')
+        expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: true })
+        )
+        withSources(['members'])
+        await render(connectorType)
+        expect(container.querySelector('[role="radio"]')).toBeNull()
+        expect(container.textContent).toContain('Engineering handbook')
+        expect(mocks.sources).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({ enabled: true })
+        )
+        expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+      })
+    }
+  )
+
   it.each(['active', 'disabled'])(
     'removes only Slack account setup after confirmation, including a %s option',
     async (status) => {
       withSlackAccounts(true, status)
       await render('slack')
-      await click('Remove account setup')
+      const headerRemove = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Remove app setup'
+      )
+      const deactivate = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Deactivate'
+      )
+      expect(headerRemove?.className).toBe(deactivate?.className)
+      expect(headerRemove?.querySelector('[class*="text-error"]')).toBeNull()
+      await click('Remove app setup')
       expect(mocks.removeAccounts).not.toHaveBeenCalled()
       expect(document.querySelector('[role="dialog"]')).toHaveTextContent('saved app configuration')
       await click('Remove')
@@ -229,7 +367,7 @@ describe('organization provider management', () => {
   it('offers removal when Slack is deactivated and allows cancelling without a mutation', async () => {
     withSlackAccounts(false)
     await render('slack')
-    await click('Remove account setup')
+    await click('Remove app setup')
     await click('Cancel')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.removeAccounts).not.toHaveBeenCalled()
@@ -239,23 +377,10 @@ describe('organization provider management', () => {
     withSlackAccounts()
     mocks.accountRemovalError = new Error('Remove the source using these accounts first.')
     await render('slack')
-    await click('Remove account setup')
+    await click('Remove app setup')
     await click('Remove')
     expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
       'Remove the source using these accounts first.'
-    )
-  })
-
-  it('passes the removal action to the Slack Accounts tab header', async () => {
-    withSlackAccounts()
-    await render('slack', '?view=accounts')
-    const actions = mocks.people.mock.calls.at(-1)![0].panel.actions
-    expect(actions).toEqual([
-      expect.objectContaining({ text: 'Remove account setup', onSelect: expect.any(Function) }),
-    ])
-    await act(async () => actions[0].onSelect())
-    expect(document.querySelector('[role="dialog"]')).toHaveTextContent(
-      'Remove Slack account setup?'
     )
   })
 
@@ -264,12 +389,12 @@ describe('organization provider management', () => {
     mocks.personal = false
     await render('slack')
     expect(mocks.accounts).toHaveBeenCalledWith('org-one')
-    await click('Remove account setup')
+    await click('Remove app setup')
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
   })
 
   it('uses named source links even when the admin has not reconnected their own account', async () => {
-    await render()
+    await render('google_drive', '?view=sources')
     expect(mocks.sources).toHaveBeenCalledWith(
       { kind: 'organization', organizationId: 'org-one' },
       { connectorType: 'google_drive', search: '', enabled: true }
@@ -301,7 +426,7 @@ describe('organization provider management', () => {
   it('does not claim a provider is empty before paginated source discovery finishes', async () => {
     const fetchNextPage = vi.fn()
     mocks.sources.mockReturnValue({ data: [], isPending: false, hasNextPage: true, fetchNextPage })
-    await render()
+    await render('google_drive', '?view=sources')
     expect(container.textContent).not.toContain('No sources yet')
     await click('Load more')
     expect(fetchNextPage).toHaveBeenCalledOnce()
@@ -317,14 +442,14 @@ describe('organization provider management', () => {
       hasNextPage: true,
       fetchNextPage,
     })
-    await render()
+    await render('google_drive', '?view=sources')
     expect(container.textContent).toContain('Engineering handbook')
     expect(container.textContent).toContain('More sources unavailable')
     await click('Try again')
     expect(fetchNextPage).toHaveBeenCalledOnce()
   })
 
-  it.each(['', '?view=accounts'])(
+  it.each(['', '?view=accounts', '?view=sources'])(
     'renders overview loading without presenting missing configuration at %s',
     async (params) => {
       mocks.overview.mockReturnValue({ isPending: true })
@@ -333,14 +458,12 @@ describe('organization provider management', () => {
       expect(container.textContent).not.toContain('Activate this integration')
       expect(mocks.people).not.toHaveBeenCalled()
       expect(
-        container.querySelector(
-          `input[placeholder="${params ? 'Search people...' : 'Search sources...'}"]`
-        )
+        container.querySelector('input[placeholder="Search Google Drive connections..."]')
       ).toBeEnabled()
     }
   )
 
-  it('hides cached account content and retries when overview access is revoked', async () => {
+  it('hides cached source content and retries when overview access is revoked', async () => {
     const refetch = vi.fn()
     mocks.overview.mockReturnValue({
       data: { providers: [provider] },
@@ -348,21 +471,29 @@ describe('organization provider management', () => {
       error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
       refetch,
     })
-    await render('google_drive', '?view=accounts&credential-group-people=alex')
+    await render('google_drive', '?search=alex')
     expect(container.textContent).toContain('Access denied')
     expect(mocks.people).not.toHaveBeenCalled()
-    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
-    expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
+    expect(
+      container.querySelector('input[placeholder="Search Google Drive connections..."]')
+    ).toHaveValue('alex')
+    expect(
+      container.querySelector('input[placeholder="Search Google Drive connections..."]')
+    ).toBeEnabled()
     await click('Try again')
     expect(refetch).toHaveBeenCalledOnce()
   })
 
-  it('offers activation from the accounts tab when an existing provider is deactivated', async () => {
+  it('offers activation when an existing provider is deactivated', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [{ ...provider, approved: false }] } })
-    await render('google_drive', '?view=accounts&credential-group-people=alex')
+    await render('google_drive', '?search=alex')
     expect(mocks.people).not.toHaveBeenCalled()
-    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
-    expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
+    expect(
+      container.querySelector('input[placeholder="Search Google Drive connections..."]')
+    ).toHaveValue('alex')
+    expect(
+      container.querySelector('input[placeholder="Search Google Drive connections..."]')
+    ).toBeEnabled()
     await click('Activate')
     expect(mocks.activate).toHaveBeenCalledWith({
       organizationId: 'org-one',
@@ -371,7 +502,7 @@ describe('organization provider management', () => {
     })
   })
 
-  it('shows activation failures on Accounts and keeps activation available for retry', async () => {
+  it('shows activation failures and keeps activation available for retry', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [{ ...provider, approved: false }] } })
     mocks.approvalError = new Error('Activation could not be saved')
     await render('google_drive', '?view=accounts')
@@ -385,53 +516,9 @@ describe('organization provider management', () => {
     })
   })
 
-  it.each([
-    ['loading', 'Loading accounts…'],
-    ['error', 'Accounts unavailable'],
-    ['missing group', 'Add a source to set up account connections.'],
-    ['missing provider option', 'Add a source to set up account connections.'],
-  ])('preserves Accounts search while %s', async (state, message) => {
-    const refetch = vi.fn()
-    mocks.accounts.mockReturnValue(
-      state === 'loading'
-        ? { isPending: true }
-        : state === 'error'
-          ? { isError: true, error: new Error(message), refetch }
-          : {
-              data: {
-                credentialGroup:
-                  state === 'missing group' ? null : { ...credentialGroup, options: [] },
-              },
-              isPending: false,
-            }
-    )
-    await render('google_drive', '?view=accounts&credential-group-people=alex&search=handbook')
-
-    expect(container.textContent).toContain(message)
-    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
-    expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
-    expect(container.querySelector('input[placeholder="Search sources..."]')).toBeNull()
-    expect(mocks.people).not.toHaveBeenCalled()
-    if (state === 'error') {
-      await click('Try again')
-      expect(refetch).toHaveBeenCalledOnce()
-    }
-
-    const sourcesTab = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-    ).find((item) => item.textContent === 'Sources')
-    expect(sourcesTab).toBeDefined()
-    await act(async () => sourcesTab!.click())
-    expect(container.querySelector('input[placeholder="Search sources..."]')).toHaveValue(
-      'handbook'
-    )
-    await click('Accounts')
-    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
-  })
-
   it('preserves source navigation and retries connection availability failures', async () => {
     mocks.availabilityError = new Error('Connection availability could not be loaded')
-    await render()
+    await render('google_drive', '?view=sources')
     expect(container.textContent).toContain('Connection availability could not be loaded')
     expect(container.querySelector('a[aria-label="Open Engineering handbook"]')).toHaveAttribute(
       'href',
@@ -442,6 +529,19 @@ describe('organization provider management', () => {
     await click('Deactivate')
     expect(document.body.textContent).toContain('Deactivate Google Drive?')
     expect(mocks.activate).not.toHaveBeenCalled()
+  })
+
+  it('explains unavailable integrations instead of showing an empty setup dead end', async () => {
+    mocks.access = { admin: false, members: false }
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...provider, connectorType: 'gitlab' }] },
+    })
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    await render('gitlab')
+    expect(container.textContent).toContain('Unavailable in this deployment')
+    expect(container.textContent).toContain('GitLab must be configured for this deployment')
+    expect(container.textContent).not.toContain('No GitLab projects added')
+    expect(container.textContent).not.toContain('Add project')
   })
 
   it('explains and retries Slack account lookup failures without hiding its sources', async () => {
@@ -466,20 +566,6 @@ describe('organization provider management', () => {
     expect(refetch).toHaveBeenCalledOnce()
   })
 
-  it('scopes account management and connection requests to the current provider option', async () => {
-    await render('google_drive', '?view=accounts')
-    expect(mocks.sources).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ enabled: false })
-    )
-    expect(mocks.people).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org-one',
-        searchConnection: { optionId: 'google-option', providerName: 'Google Drive' },
-      })
-    )
-  })
-
   it.each([
     { type: 'google_drive', access: { admin: true, members: true }, memberParam: false },
     { type: 'gmail', access: { admin: false, members: true }, memberParam: true },
@@ -491,10 +577,13 @@ describe('organization provider management', () => {
         data: { providers: [{ ...provider, connectorType: type }] },
       })
       await render(type)
-      await click('Add source')
-      const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
-      expect(query.get('addConnector')).toBe(type)
-      expect(query.get('source-access')).toBe(memberParam ? 'members' : null)
+      await click(memberParam ? 'Set up member accounts' : 'Connect service account')
+      await vi.waitFor(() => {
+        expect(mocks.updateUrl).toHaveBeenCalled()
+        const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
+        expect(query.get('addConnector')).toBe(type)
+        expect(query.get('source-access')).toBe(memberParam ? 'members' : null)
+      })
     }
   )
 
@@ -506,10 +595,12 @@ describe('organization provider management', () => {
     mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
     await render('slack')
     await click('Set up Slack app')
-    await vi.waitFor(() => expect(mocks.updateUrl).toHaveBeenCalled())
-    const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
-    expect(query.get('connectedAccounts')).toBe('slack')
-    expect(query.has('addConnector')).toBe(false)
+    await vi.waitFor(() => {
+      expect(mocks.updateUrl).toHaveBeenCalled()
+      const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
+      expect(query.get('connectedAccounts')).toBe('slack')
+      expect(query.has('addConnector')).toBe(false)
+    })
   })
 
   it.each([
@@ -523,7 +614,7 @@ describe('organization provider management', () => {
       slackBotCredentialId: 'slack-bot',
       configurationStatus: 'needs_update',
     },
-  ])('offers Slack Accounts recovery for an active option with $name', async (option) => {
+  ])('offers Slack app recovery for an active option with $name', async (option) => {
     mocks.access = { admin: false, members: true }
     mocks.overview.mockReturnValue({
       data: { providers: [{ ...provider, connectorType: 'slack' }] },
@@ -545,24 +636,21 @@ describe('organization provider management', () => {
       },
       isPending: false,
     })
-    await render('slack', '?view=accounts&credential-group-people=alex')
+    await render('slack')
 
     expect(mocks.people).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Set up the Slack app to connect accounts.')
-    expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
+    expect(container.textContent).toContain('Set up Slack app')
     await click('Set up Slack app')
     await act(async () => {
       await vi.waitFor(() => expect(mocks.updateUrl).toHaveBeenCalled())
     })
     const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
     expect(query.get('connectedAccounts')).toBe('slack')
-    expect(query.get('view')).toBe('accounts')
-    expect(query.get('credential-group-people')).toBe('alex')
     expect(query.has('addConnector')).toBe(false)
   })
 
   it.each([undefined, 'slack-bot'])(
-    'uses verified configuration for account management with bot credential %s',
+    'allows source setup with verified Slack configuration and bot credential %s',
     async (slackBotCredentialId) => {
       mocks.access = { admin: false, members: true }
       mocks.overview.mockReturnValue({
@@ -587,11 +675,8 @@ describe('organization provider management', () => {
       })
       await render('slack', '?view=accounts')
 
-      expect(mocks.people).toHaveBeenCalledWith(
-        expect.objectContaining({
-          searchConnection: { optionId: 'slack-option', providerName: 'Slack' },
-        })
-      )
+      expect(container.textContent).toContain('Add channels or DMs')
+      expect(mocks.people).not.toHaveBeenCalled()
       expect(container.textContent).not.toContain('Set up the Slack app to connect accounts.')
     }
   )

@@ -52,7 +52,10 @@ describe('account settings legacy links', () => {
     )
   })
 
-  it('still rejects unknown sections', async () => {
-    await expect(AccountSettingsSectionPage(pageProps('unknown'))).rejects.toThrow('NEXT_NOT_FOUND')
-  })
+  it.each(['unknown', 'connected-accounts'])(
+    'rejects unavailable sections: %s',
+    async (section) => {
+      await expect(AccountSettingsSectionPage(pageProps(section))).rejects.toThrow('NEXT_NOT_FOUND')
+    }
+  )
 })

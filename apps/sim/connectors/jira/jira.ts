@@ -64,6 +64,56 @@ type JiraIssue = z.infer<typeof jiraIssueSchema>
 class JiraCredentialInvalidError extends Error {}
 class JiraListingCursorInvalidError extends Error {}
 
+const memberProjectCursorSchema = z.object({
+  version: z.literal(1),
+  projectIndex: z.number().int().nonnegative(),
+  projectKey: z.string().min(1),
+  deniedProjects: z.number().int().nonnegative(),
+  pageToken: z.string().min(1).optional(),
+})
+
+/** Project position must survive checkpoints without binding Jira's opaque token to another JQL. */
+function readMemberProjectCursor(
+  cursor: string | undefined,
+  projectKeys: string[]
+): z.output<typeof memberProjectCursorSchema> {
+  if (!cursor) return { version: 1, projectIndex: 0, projectKey: projectKeys[0], deniedProjects: 0 }
+  try {
+    const position = memberProjectCursorSchema.parse(JSON.parse(cursor))
+    if (
+      projectKeys[position.projectIndex] === position.projectKey &&
+      position.deniedProjects <= position.projectIndex
+    )
+      return position
+  } catch {
+    /** Old combined-project cursors restart with a fresh observation generation. */
+  }
+  throw new JiraListingCursorInvalidError('Jira project listing must be restarted')
+}
+
+/** Only an explicit denial of the queried project proves its issue scope is empty. */
+function isProjectUnavailableResponse(errorText: string, projectKey: string): boolean {
+  try {
+    const data = z
+      .object({
+        errorMessages: z.array(z.string()).min(1),
+        errors: z.record(z.string(), z.unknown()).optional(),
+      })
+      .parse(JSON.parse(errorText))
+    return (
+      Object.keys(data.errors ?? {}).length === 0 &&
+      data.errorMessages.every((message) => {
+        const match = message.match(
+          /^(?:The value|A value with ID) '([^']+)' does not exist for the field 'project'\.?$/i
+        )
+        return match?.[1].toUpperCase() === projectKey.toUpperCase()
+      })
+    )
+  } catch {
+    return false
+  }
+}
+
 async function resolveCloudId(
   accessToken: string,
   domain: string,
@@ -266,9 +316,23 @@ export const jiraConnector: ConnectorConfig = {
       throw new Error('At least one project key is required')
     }
 
+    /** A combined JQL fails in its entirety when the member cannot browse just one project. */
+    const projectPosition =
+      perMember && projectKeys.length > 1 ? readMemberProjectCursor(cursor, projectKeys) : undefined
+    const queriedProjectKeys = projectPosition ? [projectPosition.projectKey] : projectKeys
+    const nextProjectIndex = projectPosition ? projectPosition.projectIndex + 1 : projectKeys.length
+    const nextProjectCursor =
+      nextProjectIndex < projectKeys.length
+        ? JSON.stringify({
+            version: 1,
+            projectIndex: nextProjectIndex,
+            projectKey: projectKeys[nextProjectIndex],
+            deniedProjects: projectPosition?.deniedProjects ?? 0,
+          })
+        : undefined
     const cloudId = await resolveCloudId(accessToken, domain, syncContext)
 
-    const projectClause = buildProjectClause(projectKeys)
+    const projectClause = buildProjectClause(queriedProjectKeys)
     let jql = `${projectClause} ORDER BY updated DESC`
     if (jqlFilter.trim()) {
       jql = `${projectClause} AND (${jqlFilter.trim()}) ORDER BY updated DESC`
@@ -280,9 +344,9 @@ export const jiraConnector: ConnectorConfig = {
      * syncContext. Falls back to syncContext.collectedCount for backwards
      * compatibility with cursors emitted before this format existed.
      */
-    let pageToken: string | undefined
+    let pageToken: string | undefined = projectPosition?.pageToken
     let collectedSoFar = cursor ? ((syncContext?.collectedCount as number | undefined) ?? 0) : 0
-    if (cursor) {
+    if (cursor && !projectPosition) {
       const sep = cursor.lastIndexOf('|')
       if (sep > 0) {
         pageToken = cursor.slice(0, sep)
@@ -343,11 +407,39 @@ export const jiraConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
+      const projectUnavailable =
+        response.status === 400 &&
+        queriedProjectKeys.length === 1 &&
+        isProjectUnavailableResponse(errorText, queriedProjectKeys[0])
+      if (projectPosition && projectUnavailable) {
+        if (pageToken) {
+          throw new JiraListingCursorInvalidError('Jira project access changed during pagination')
+        }
+        const deniedProjects = projectPosition.deniedProjects + 1
+        if (deniedProjects === projectKeys.length) {
+          throw listingRequestError(
+            'No configured Jira project is accessible',
+            response.status,
+            true
+          )
+        }
+        return {
+          documents: [],
+          nextCursor: nextProjectCursor
+            ? JSON.stringify({
+                version: 1,
+                projectIndex: nextProjectIndex,
+                projectKey: projectKeys[nextProjectIndex],
+                deniedProjects,
+              })
+            : undefined,
+          hasMore: Boolean(nextProjectCursor),
+        }
+      }
       throw listingRequestError(
         'Failed to search Jira issues',
         response.status,
-        response.status === 404 ||
-          (response.status === 400 && /does not exist for the field 'project'/i.test(errorText))
+        response.status === 404 || projectUnavailable
       )
     }
 
@@ -389,7 +481,7 @@ export const jiraConnector: ConnectorConfig = {
       logger.warn('Jira search returned warnings; skipping deletion reconciliation', { warnings })
     }
 
-    const scopedIssues = issues.filter((issue) => isInConfiguredProject(issue, projectKeys))
+    const scopedIssues = issues.filter((issue) => isInConfiguredProject(issue, queriedProjectKeys))
     const documents: ExternalDocument[] = perMember
       ? await Promise.all(
           scopedIssues.map((issue) => issueToMemberDocument(issue, siteUrl, cloudId, syncContext))
@@ -400,7 +492,7 @@ export const jiraConnector: ConnectorConfig = {
     if (syncContext) syncContext.collectedCount = newCollected
 
     const reachedCap = maxIssues > 0 && newCollected >= maxIssues
-    const hasMore = !isLast && !reachedCap
+    const hasMore = (!isLast || Boolean(nextProjectCursor)) && !reachedCap
 
     /**
      * The sync engine hard-deletes stored documents absent from a complete
@@ -416,7 +508,13 @@ export const jiraConnector: ConnectorConfig = {
 
     return {
       documents,
-      nextCursor: hasMore && nextPageToken ? `${nextPageToken}|${newCollected}` : undefined,
+      nextCursor: projectPosition
+        ? nextPageToken
+          ? JSON.stringify({ ...projectPosition, pageToken: nextPageToken })
+          : nextProjectCursor
+        : hasMore && nextPageToken
+          ? `${nextPageToken}|${newCollected}`
+          : undefined,
       hasMore,
     }
   },

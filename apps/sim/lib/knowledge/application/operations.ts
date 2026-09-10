@@ -692,13 +692,33 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  connectPersonalSearchIntegration: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listPersonalSearchIntegrations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
+  ),
   listSearchSources: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.sources.list',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
     })
   ),
   readSearchSourceOverview: defineKnowledgeOperation(
@@ -707,7 +727,8 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
     })
   ),
   readSearchSourceProgress: defineKnowledgeOperation(
@@ -731,6 +752,15 @@ export const knowledgeOperations = {
   readOrganizationSearchOverview: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.overview',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readOrganizationSearchStats: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.stats.read',
       minimumRole: 'admin',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
@@ -778,6 +808,24 @@ export const knowledgeOperations = {
   simSearchConnect: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.simSearch.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listPersonalSourceSetupAccounts: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personalSetup.accounts.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  personalSourceSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personalSetup',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',

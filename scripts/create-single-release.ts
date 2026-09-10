@@ -1,24 +1,16 @@
 #!/usr/bin/env bun
 
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { Octokit } from '@octokit/rest'
+import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 
+const logger = createLogger('CreateRelease')
 const GITHUB_TOKEN = process.env.GH_PAT
 const REPO_OWNER = 'simstudioai'
 const REPO_NAME = 'sim'
 
-if (!GITHUB_TOKEN) {
-  console.error('❌ GH_PAT environment variable is required')
-  process.exit(1)
-}
-
 const targetVersion = process.argv[2]
-if (!targetVersion) {
-  console.error('❌ Version argument is required')
-  console.error('Usage: bun run scripts/create-single-release.ts v0.3.XX')
-  process.exit(1)
-}
 
 const octokit = new Octokit({
   auth: GITHUB_TOKEN,
@@ -40,70 +32,79 @@ interface CommitDetail {
   prNumber?: string
 }
 
-function execCommand(command: string): string {
+function execGit(args: string[]): string {
   try {
-    return execSync(command, { encoding: 'utf8' }).trim()
+    return execFileSync('git', args, { encoding: 'utf8' }).trim()
   } catch (error) {
-    console.error(`❌ Command failed: ${command}`)
+    logger.error('Git command failed', { args })
     throw error
   }
 }
 
-function findVersionCommit(version: string): VersionCommit | null {
-  console.log(`🔍 Finding commit for version ${version}...`)
+const VERSION_COMMIT_FORMAT = '--format=%H%x00%s%x00%aI%x00%an'
 
-  const gitLog = execCommand('git log --oneline --format="%H|%s|%ai|%an" main')
-  const lines = gitLog.split('\n').filter((line) => line.trim())
+function parseVersionCommit(line: string): VersionCommit | null {
+  if (!line) return null
 
-  for (const line of lines) {
-    const [hash, message, date, author] = line.split('|')
+  const [hash, message, date, author] = line.split('\0')
+  const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
+  if (!versionMatch) return null
 
-    const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
-    if (versionMatch && versionMatch[1] === version) {
-      return {
-        hash,
-        version,
-        title: versionMatch[2],
-        date: new Date(date).toISOString(),
-        author,
-      }
-    }
+  return {
+    hash,
+    version: versionMatch[1],
+    title: versionMatch[2],
+    date: new Date(date).toISOString(),
+    author,
   }
-
-  return null
 }
 
-function findPreviousVersionCommit(currentVersion: string): VersionCommit | null {
-  console.log(`🔍 Finding previous version before ${currentVersion}...`)
+/** Reads one release candidate at a time, stopping at the first matching subject. */
+function findReleaseCommit(ref: string, version?: string, skip = 0): VersionCommit | null {
+  const versionPattern = version ? version.replaceAll('.', '[.]') : 'v[0-9]+[.][0-9]+[.]?[0-9]*'
 
-  const gitLog = execCommand('git log --oneline --format="%H|%s|%ai|%an" main')
-  const lines = gitLog.split('\n').filter((line) => line.trim())
+  while (true) {
+    const line = execGit([
+      'log',
+      '--first-parent',
+      '--max-count=1',
+      `--skip=${skip}`,
+      '--extended-regexp',
+      `--grep=^[[:space:]]*${versionPattern}:[[:space:]]*.+`,
+      VERSION_COMMIT_FORMAT,
+      ref,
+      '--',
+    ])
+    if (!line) return null
 
-  let foundCurrent = false
+    const commit = parseVersionCommit(line)
+    if (commit && (!version || commit.version === version)) return commit
 
-  for (const line of lines) {
-    const [hash, message, date, author] = line.split('|')
+    /** Git's grep also matches commit bodies; only release subjects are boundaries. */
+    skip++
+  }
+}
 
-    const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
-    if (versionMatch) {
-      if (versionMatch[1] === currentVersion) {
-        foundCurrent = true
-        continue
-      }
+export function findVersionCommit(
+  version: string,
+  commitSha = process.env.GITHUB_SHA
+): VersionCommit | null {
+  logger.info(`Finding commit for version ${version}`)
+  if (!/^v\d+\.\d+\.?\d*$/.test(version)) return null
 
-      if (foundCurrent) {
-        return {
-          hash,
-          version: versionMatch[1],
-          title: versionMatch[2],
-          date: new Date(date).toISOString(),
-          author,
-        }
-      }
-    }
+  if (commitSha) {
+    const commit = parseVersionCommit(
+      execGit(['log', '-1', VERSION_COMMIT_FORMAT, commitSha, '--'])
+    )
+    return commit?.version === version ? commit : null
   }
 
-  return null
+  return findReleaseCommit('main', version)
+}
+
+export function findPreviousVersionCommit(currentCommit: VersionCommit): VersionCommit | null {
+  logger.info(`Finding previous version before ${currentCommit.version}`)
+  return findReleaseCommit(currentCommit.hash, undefined, 1)
 }
 
 async function fetchGitHubCommitDetails(
@@ -145,7 +146,7 @@ async function fetchGitHubCommitDetails(
       console.warn(`⚠️ Could not fetch commit ${hash.substring(0, 7)}: ${error?.message || error}`)
 
       try {
-        const gitData = execCommand(`git log --format="%s|%an" -1 ${hash}`).split('|')
+        const gitData = execGit(['log', '--format=%s|%an', '-1', hash, '--']).split('|')
         let message = gitData[0] || 'Unknown commit'
 
         const prMatch = message.match(/\(#(\d+)\)/)
@@ -188,7 +189,7 @@ async function getCommitsBetweenVersions(
       console.log(`🔍 Getting commits before first version ${currentCommit.version}`)
     }
 
-    const gitLog = execCommand(`git log --oneline --format="%H|%s" ${range}`)
+    const gitLog = execGit(['log', '--format=%H|%s', range, '--'])
 
     if (!gitLog.trim()) {
       console.log(`⚠️ No commits found in range ${range}`)
@@ -350,6 +351,17 @@ async function generateReleaseBody(
 }
 
 async function main() {
+  if (!GITHUB_TOKEN) {
+    logger.error('GH_PAT environment variable is required')
+    process.exit(1)
+  }
+  if (!targetVersion) {
+    logger.error(
+      'Version argument is required. Usage: bun run scripts/create-single-release.ts vX.Y.Z'
+    )
+    process.exit(1)
+  }
+
   try {
     console.log(`🚀 Creating single release for ${targetVersion}...`)
 
@@ -363,7 +375,7 @@ async function main() {
       `✅ Found version commit: ${versionCommit.hash.substring(0, 7)} - ${versionCommit.title}`
     )
 
-    const previousCommit = findPreviousVersionCommit(targetVersion)
+    const previousCommit = findPreviousVersionCommit(versionCommit)
     if (previousCommit) {
       console.log(`✅ Found previous version: ${previousCommit.version}`)
     } else {
@@ -414,4 +426,6 @@ async function main() {
   }
 }
 
-main()
+if (import.meta.main) {
+  main()
+}

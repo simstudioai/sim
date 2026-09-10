@@ -42,6 +42,7 @@ import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { mistralParseInputSchema } from '@/lib/internal/mistral/input'
 import { executeMistralParse } from '@/lib/internal/mistral/operations'
 import {
+  isPermanentDocumentProcessingError,
   MAX_DOCUMENT_CHUNKS,
   OcrRequestRejectedError,
   PermanentDocumentProcessingError,
@@ -260,6 +261,13 @@ export async function processDocument(
     access.signal?.throwIfAborted()
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
+    if (parseResult.metadata?.detectedType || parseResult.metadata?.warning) {
+      logger.info('Parser reported a warning for the document', {
+        filename,
+        detectedType: parseResult.metadata.detectedType,
+        warning: parseResult.metadata.warning,
+      })
+    }
 
     /**
      * Guards every parser, not just the file parsers: OCR reads a scanned page
@@ -410,6 +418,18 @@ async function readEmbeddedPdfText(
       signal: access.signal,
       pdfTextMode: 'complete',
     })
+    /**
+     * The parser re-routes by sniffed bytes, so an HTML error page or plain text
+     * saved as `.pdf` comes back as its decoded text. That would pass the text
+     * layer check and be indexed as the "PDF"; it is not one, and OCR would only
+     * fail on it terminally, so it is rejected here as an invalid file.
+     */
+    if (parsed.metadata?.detectedType) {
+      throw new PermanentDocumentProcessingError(
+        'invalid_file',
+        `This file is named as a PDF but contains ${parsed.metadata.detectedType} content. Upload the actual PDF and retry.`
+      )
+    }
     if (parsed.metadata?.truncated) {
       throw new FileParserError(
         'complexity_limit',
@@ -444,6 +464,7 @@ async function readEmbeddedPdfText(
     }
   } catch (error) {
     access.signal?.throwIfAborted()
+    if (isPermanentDocumentProcessingError(error)) throw error
     if (
       (error instanceof Error && error.name === 'PasswordException') ||
       (isFileParserError(error) && error.code === 'encrypted_file')
@@ -1256,10 +1277,9 @@ async function processMistralOCRInBatches(
 /**
  * Why a document could not be read, phrased for whoever has to act on it.
  *
- * The `doc` and `ppt` parsers never throw: on a legacy OLE binary or a deck with
- * no text they return a placeholder sentence or scraped archive bytes, which an
- * interactive upload can show a user but an automated sync must never embed. They
- * report that as `degraded`, and it is treated here exactly like empty output.
+ * A parser that could only produce a placeholder (today an all-blank workbook)
+ * reports `degraded`, which an interactive upload can show a user but an
+ * automated sync must never embed; it is treated here exactly like empty output.
  * Legacy formats get the concrete remedy, since re-saving genuinely fixes them —
  * the modern container is one the bundled parsers read.
  */

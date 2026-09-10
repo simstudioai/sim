@@ -8,6 +8,10 @@ import {
   isEncryptedOfficeParserError,
   toFileParserError,
 } from '@/lib/file-parsers/errors'
+import {
+  normalizeSheetDisplayText,
+  SHEET_DISPLAY_READ_OPTIONS,
+} from '@/lib/file-parsers/sheet-display-text'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -78,6 +82,7 @@ export class XlsxParser implements FileParser {
         type: 'buffer',
         dense: true, // Use dense mode for better memory efficiency
         sheetStubs: false, // Don't create stub cells
+        ...SHEET_DISPLAY_READ_OPTIONS,
       })
 
       return this.processWorkbook(workbook)
@@ -162,13 +167,27 @@ export class XlsxParser implements FileParser {
        */
       const lastPreviewRow = Math.min(range.e.r, range.s.r + CONFIG.MAX_PREVIEW_ROWS - 1)
       const lastPreviewColumn = Math.min(range.e.c, range.s.c + CONFIG.MAX_PREVIEW_COLUMNS - 1)
+      const previewRange = {
+        s: { r: range.s.r, c: range.s.c },
+        e: { r: lastPreviewRow, c: lastPreviewColumn },
+      }
+
+      /**
+       * Indexed as the text a user sees, not the value Excel stores: `raw: false`
+       * emits each cell's formatted text, so `$1,250.00` and `20%` survive
+       * instead of `1250` and `0.2` — the same currency and percent text the
+       * Google Sheets and Excel connectors request, so a Drive export of a sheet
+       * indexes its numbers the way the connectors do. Dates and General numbers
+       * are rewritten first because their file-formatted text is locale-shaped
+       * or loses digits; dates therefore index as ISO text here where the
+       * connectors carry the locale text.
+       */
+      normalizeSheetDisplayText(worksheet, previewRange, XLSX.utils)
       const sheetData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
         header: 1,
         blankrows: false, // Skip blank rows
-        range: {
-          s: { r: range.s.r, c: range.s.c },
-          e: { r: lastPreviewRow, c: lastPreviewColumn },
-        },
+        raw: false,
+        range: previewRange,
       })
 
       // Reported from the declared range, as before, so bounding the conversion
@@ -291,7 +310,11 @@ export class XlsxParser implements FileParser {
       return ''
     }
 
-    let cellStr = String(cell)
+    /**
+     * A cell is one column: a tab or line break inside it (LibreOffice writes
+     * rendered text with embedded newlines) would otherwise split the row.
+     */
+    let cellStr = String(cell).replace(/[\t\r\n]+/g, ' ')
 
     /**
      * Samples are previews; canonical content is bounded only by the aggregate

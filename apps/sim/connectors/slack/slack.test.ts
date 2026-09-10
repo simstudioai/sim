@@ -360,6 +360,114 @@ describe('Slack thread indexing through provider APIs', () => {
     expect(document?.content).toContain('PR approved')
     expect(document?.content).toContain('Deploy tonight')
   })
+
+  it('indexes a rich-text message once when Slack also provides its plain-text fallback', async () => {
+    const text = 'Project Lantern is coordinated by Avery Reed.'
+    channels[0].replies[ROOT] = [
+      {
+        ...root(text),
+        attachments: [{ text: 'Review Friday at 09:30 UTC' }],
+        blocks: [
+          {
+            type: 'rich_text',
+            elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text }] }],
+          },
+        ],
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content.split(text)).toHaveLength(2)
+    expect(document?.content).toContain('Review Friday at 09:30 UTC')
+  })
+
+  it('does not repeat a fallback containing the complete block body', async () => {
+    channels[0].replies[ROOT] = [
+      {
+        ...root('First paragraph\nSecond paragraph'),
+        blocks: ['First paragraph', 'Second paragraph'].map((text) => ({
+          type: 'section',
+          text: { type: 'plain_text', text },
+        })),
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content.split('First paragraph')).toHaveLength(2)
+    expect(document?.content.split('Second paragraph')).toHaveLength(2)
+  })
+
+  it('preserves repeated blocks and distinct fallback information', async () => {
+    channels[0].replies[ROOT] = [
+      {
+        ...root('Deployment status changed'),
+        blocks: ['Ready', 'Ready'].map((text) => ({
+          type: 'section',
+          text: { type: 'plain_text', text },
+        })),
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content).toContain('Deployment status changed\nReady\nReady')
+  })
+})
+
+describe('Slack threads without indexable text', () => {
+  beforeEach(() => {
+    pageSize = 1
+    channels = [
+      {
+        channel: GENERAL,
+        readers: ['alice'],
+        messages: [{ ...root(''), thread_ts: ROOT }],
+        replies: { [ROOT]: [{ ...root(''), thread_ts: ROOT }, reply('')] },
+      },
+    ]
+  })
+
+  it('explicitly skips a listed thread only after reading all its reply pages', async () => {
+    const listed = await listAll('alice')
+    expect(listed.documents).toHaveLength(1)
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id), listed.context)
+    expect(document).toMatchObject({
+      externalId: listed.documents[0].externalId,
+      content: '',
+      contentDeferred: false,
+      skippedReason: 'Document contains no extractable text',
+      skippedExistingDisposition: 'replace',
+      metadata: { messageCount: 0, rootTs: ROOT, channelId: GENERAL.id, teamId: TEAM },
+    })
+    expect(calls.filter((call) => call.method === 'conversations.replies')).toHaveLength(2)
+    expect(calls.some((call) => call.method === 'chat.getPermalink')).toBe(false)
+  })
+
+  it('indexes a later reply edit even when the root and reply count have not changed', async () => {
+    const empty = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    channels[0].replies[ROOT][1] = reply('Orion has a launch date')
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.externalId).toBe(empty?.externalId)
+    expect(document?.content).toContain('Orion has a launch date')
+    expect(document?.contentHash).not.toBe(empty?.contentHash)
+    expect(document?.skippedReason).toBeUndefined()
+  })
+
+  it('does not classify a missing root as verified empty content', async () => {
+    replacement = (call) =>
+      call.method === 'conversations.replies' ? { ok: true, messages: [] } : undefined
+    expect(await slackConnector.getDocument('alice', {}, id(GENERAL.id))).toBeNull()
+  })
+
+  it.each([
+    [{ ok: true, messages: [reply('')], is_limited: true }, 'only part'],
+    [{ ok: true, messages: [reply('')], has_more: true }, 'continuation cursor'],
+    [{ ok: false, error: 'missing_scope' }, 'missing_scope'],
+    [{ ok: true }, 'invalid message page'],
+  ])(
+    'does not skip an empty thread when a later page is incomplete: %j',
+    async (response, error) => {
+      replacement = (call) =>
+        call.method === 'conversations.replies' && call.params.has('cursor') ? response : undefined
+      await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toThrow(error)
+    }
+  )
 })
 
 describe('Slack incomplete and unsafe provider responses', () => {
@@ -441,6 +549,31 @@ describe('Slack incomplete and unsafe provider responses', () => {
       expect(slackConnector.isCredentialInvalidError?.(error)).toBe(false)
     }
   )
+
+  it.each([
+    { code: 'ratelimited', status: 429, category: 'rate_limit' },
+    { code: 'token_revoked', status: 401, category: 'authorization' },
+    { code: 'missing_scope', status: 403, category: 'authorization' },
+    { code: 'internal_error', status: 503, category: 'provider_unavailable' },
+    { code: 'invalid_arguments', status: 400, category: 'request_rejected' },
+  ])('classifies the $code envelope as HTTP $status $category', async ({ code, ...expected }) => {
+    failure = (call) =>
+      call.method === 'conversations.replies' ? { ok: false, error: code } : undefined
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toMatchObject({
+      name: 'SlackApiError',
+      code,
+      ...expected,
+    })
+  })
+
+  it('keeps the HTTP status of a non-OK response for failure classification', async () => {
+    fetchMock.mockImplementationOnce(async () => new Response('forbidden', { status: 403 }))
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toMatchObject({
+      name: 'ConnectorSourceError',
+      status: 403,
+      message: expect.stringMatching(/^Slack [a-z.]+ failed with HTTP 403$/),
+    })
+  })
 
   it('propagates Slack envelope throttling so the sync scheduler can cool down', async () => {
     failure = (call) =>

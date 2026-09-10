@@ -38,6 +38,31 @@ describe('knowledgeAccessCondition', () => {
     for (const param of params) expect(Array.isArray(param)).toBe(false)
   })
 
+  it('binds central Confluence evidence to scalar source, crawler, reader, subject, and site values', () => {
+    const { sql, params } = render(
+      knowledgeAccessCondition({
+        kind: 'user',
+        userId: 'user-1',
+        tokens: ['s:confluence:-:alice'],
+        confluenceSiteGrants: [
+          {
+            connectorId: 'source-1',
+            contentCredentialId: 'crawler-1',
+            readerCredentialId: 'reader-1',
+            readerSubjectToken: 's:confluence:-:alice',
+            domain: 'company.atlassian.net',
+            cloudId: 'cloud-1',
+          },
+        ],
+      })
+    )
+    expect(sql).toContain('confluence_read_grant')
+    expect(params).toEqual(
+      expect.arrayContaining(['source-1', 'crawler-1', 'reader-1', 'company.atlassian.net'])
+    )
+    for (const param of params) expect(Array.isArray(param)).toBe(false)
+  })
+
   it('renders the workspace pair for actorless callers', () => {
     const { sql, params } = render(
       knowledgeAccessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })

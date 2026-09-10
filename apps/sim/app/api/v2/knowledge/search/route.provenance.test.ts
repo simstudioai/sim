@@ -48,7 +48,8 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
-  getActiveKnowledgeBaseReference: mocks.getKnowledgeBase,
+  getActiveKnowledgeBaseReferences: (ids: string[]) =>
+    Promise.all(ids.map((id) => mocks.getKnowledgeBase(id))),
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -63,7 +64,8 @@ vi.mock('@/lib/knowledge/search/queries', () => ({
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mocks.getTagDefinitions,
+  getDocumentTagDefinitionsByKnowledgeBaseIds: async (ids: string[]) =>
+    new Map(await Promise.all(ids.map(async (id) => [id, await mocks.getTagDefinitions(id)]))),
 }))
 
 vi.mock('@/lib/knowledge/tags/utils', () => ({

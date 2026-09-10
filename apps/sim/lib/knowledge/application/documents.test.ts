@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   resolveSystemBilling: vi.fn(),
   checkUsage: vi.fn(),
   getDocuments: vi.fn(),
+  bulkDocumentOperation: vi.fn(),
+  bulkDocumentOperationByFilter: vi.fn(),
   createDocument: vi.fn(),
   deleteDocument: vi.fn(),
   updateDocument: vi.fn(),
@@ -68,6 +70,8 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   getDocuments: mocks.getDocuments,
+  bulkDocumentOperation: mocks.bulkDocumentOperation,
+  bulkDocumentOperationByFilter: mocks.bulkDocumentOperationByFilter,
   createSingleDocument: mocks.createDocument,
   createDocumentRecords: mocks.createDocumentRecords,
   deleteDocument: mocks.deleteDocumentById,
@@ -79,6 +83,10 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
   getDocumentTagDefinitions: mocks.getDocumentTagDefinitions,
+  getDocumentTagDefinitionsByKnowledgeBaseIds: async (ids: string[]) =>
+    new Map(
+      await Promise.all(ids.map(async (id) => [id, await mocks.getDocumentTagDefinitions(id)]))
+    ),
 }))
 
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
@@ -106,6 +114,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   bulkDeleteKnowledgeDocuments,
+  bulkUpdateKnowledgeDocuments,
   createKnowledgeDocuments,
   deleteKnowledgeDocument,
   listKnowledgeDocuments,
@@ -339,6 +348,90 @@ describe('knowledge document application use cases', () => {
     )
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getDocuments.mock.invocationCallOrder[0]
+    )
+    expect(mocks.getDocuments).toHaveBeenCalledWith(
+      'knowledge-1',
+      expect.any(Object),
+      expect.any(String),
+      knowledgeAccess
+    )
+  })
+
+  it.each([true, false])(
+    'retains live workspace access for bulk document selection (all=%s)',
+    async (selectAll) => {
+      const result = { success: true, successCount: 1, updatedDocuments: [{ id: 'document-1' }] }
+      mocks.bulkDocumentOperation.mockResolvedValue(result)
+      mocks.bulkDocumentOperationByFilter.mockResolvedValue(result)
+      await bulkUpdateKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          operation: 'enable',
+          selectAll,
+          documentIds: ['document-1'],
+        },
+      })
+      if (selectAll) {
+        expect(mocks.bulkDocumentOperationByFilter).toHaveBeenCalledWith(
+          'knowledge-1',
+          'enable',
+          undefined,
+          knowledgeAccess,
+          expect.any(String)
+        )
+      } else {
+        expect(mocks.bulkDocumentOperation).toHaveBeenCalledWith(
+          'knowledge-1',
+          'enable',
+          ['document-1'],
+          knowledgeAccess,
+          expect.any(String)
+        )
+      }
+    }
+  )
+
+  it('finds a workspace upsert replacement after live candidate authorization', async () => {
+    const scope = { kind: 'user' as const, userId: 'reader', tokens: ['reader-token'] }
+    const getForConnectors = vi.fn().mockResolvedValue(scope)
+    const getForDocuments = vi.fn().mockResolvedValue(scope)
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      ...context,
+      access: {
+        get: async () => scope,
+        getForConnectors,
+        getForDocuments,
+      },
+    })
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.document, [{ id: 'existing-1' }])
+    const result = await upsertKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'reader', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+        resolveBillingAttribution: async () => ({
+          actorUserId: 'reader',
+          workspaceId: 'workspace-1',
+        }),
+        resolveSecretProvenances: () => undefined,
+      },
+    })
+    expect(result).toMatchObject({ isUpdate: true, previousDocumentId: 'existing-1' })
+    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['confluence-source'], undefined)
+    expect(getForDocuments).toHaveBeenCalledExactlyOnceWith(['existing-1'])
+    expect(mocks.deleteDocument).toHaveBeenCalledWith(
+      'knowledge-1',
+      'existing-1',
+      expect.any(String),
+      scope
     )
   })
 

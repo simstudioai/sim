@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleCheck, CircleX, Loader, TriangleAlert, Users } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn'
 import { format } from 'date-fns'
 import type {
   ConnectorData,
@@ -95,22 +95,27 @@ interface SyncHistoryRowProps {
 }
 
 function SyncHistoryRow({ startedAt, state, description }: SyncHistoryRowProps) {
-  const icon =
-    state === 'running' ? (
-      <Loader animate />
-    ) : state === 'interrupted' || state === 'partial' ? (
-      <TriangleAlert />
-    ) : state === 'failed' ? (
-      <CircleX />
-    ) : (
-      <CircleCheck />
-    )
   return (
     <SettingsResourceRow
-      icon={icon}
-      iconVariant='plain'
-      title={`${format(new Date(startedAt), 'MMM d, h:mm a')} · ${SYNC_LOG_LABELS[state]}`}
+      title={
+        <time dateTime={startedAt}>
+          {format(new Date(startedAt), 'MMM d, h:mm a')}
+          {state === 'completed' && <span className='sr-only'> · {SYNC_LOG_LABELS[state]}</span>}
+        </time>
+      }
       description={description}
+      badge={
+        state === 'completed' ? undefined : (
+          <span
+            className={cn(
+              'text-caption',
+              state === 'failed' ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
+            )}
+          >
+            {SYNC_LOG_LABELS[state]}
+          </span>
+        )
+      }
     />
   )
 }
@@ -171,29 +176,24 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
     return <SettingsEmptyState variant='inline'>Loading member sync history…</SettingsEmptyState>
 
   const now = Date.now()
+  const accountWarnings = [
+    members &&
+      members.suspended > 0 &&
+      `${members.suspended} ${members.suspended === 1 ? 'account needs' : 'accounts need'} reconnecting`,
+    members &&
+      members.stale > 0 &&
+      `${members.stale} ${members.stale === 1 ? 'account' : 'accounts'} not synced recently`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <div className={RESOURCE_LIST_STACK}>
-      {members && (
-        <SettingsResourceRow
-          icon={<Users />}
-          iconVariant='plain'
-          title={`${members.active} connected`}
-          description={
-            [
-              members.suspended > 0 && `${members.suspended} need reconnecting`,
-              members.stale > 0 && `${members.stale} not synced recently`,
-            ]
-              .filter(Boolean)
-              .join(' · ') || undefined
-          }
-        />
-      )}
+      {accountWarnings && <SettingsResourceRow title={accountWarnings} />}
       {logs.length === 0 ? (
         <SettingsEmptyState variant='inline'>No member sync history yet.</SettingsEmptyState>
       ) : (
         logs.map((log) => {
           const state = getSyncLogState(log, MEMBER_SYNC_STALE_LOCK_TTL_MS, now)
-          const processed = log.membersCompleted + log.membersIncomplete + log.membersFailed
           const changes = [
             log.docsAdded > 0 && `${log.docsAdded} added`,
             log.docsUpdated > 0 && `${log.docsUpdated} updated`,
@@ -203,9 +203,11 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
             .filter(Boolean)
             .join(' · ')
           const description = [
-            `${processed} ${processed === 1 ? 'member' : 'members'}`,
-            log.membersFailed > 0 && `${log.membersFailed} failed`,
             changes || 'No changes',
+            log.membersFailed > 0 &&
+              `${log.membersFailed} ${log.membersFailed === 1 ? 'account' : 'accounts'} failed`,
+            log.membersIncomplete > 0 &&
+              `${log.membersIncomplete} ${log.membersIncomplete === 1 ? 'account' : 'accounts'} incomplete`,
           ]
             .filter(Boolean)
             .join(' · ')

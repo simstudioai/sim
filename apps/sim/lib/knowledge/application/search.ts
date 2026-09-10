@@ -39,6 +39,7 @@ import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
+import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
@@ -49,13 +50,13 @@ import {
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import {
   type ActiveKnowledgeBaseReference,
-  getActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReferences,
 } from '@/lib/knowledge/service'
 import {
   type KnowledgeTagNameFilter,
   resolveKnowledgeTagFilters,
 } from '@/lib/knowledge/tags/filter-resolution'
-import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { getDocumentTagDefinitionsByKnowledgeBaseIds } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
@@ -189,9 +190,7 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
-  const knowledgeBases = await Promise.all(
-    input.knowledgeBaseIds.map(getActiveKnowledgeBaseReference)
-  )
+  const knowledgeBases = await getActiveKnowledgeBaseReferences(input.knowledgeBaseIds)
   const missingIds = input.knowledgeBaseIds.filter((_, index) => {
     const knowledgeBase = knowledgeBases[index]
     return !knowledgeBase || (!knowledgeBase.workspaceId && !knowledgeBase.organizationId)
@@ -374,7 +373,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       topK: candidateTopK,
       filters: input.filters,
       access,
-      accessProvider: context.organizationId ? context.access : undefined,
+      accessProvider: context.access,
       signal: input.signal,
       searchMode: searchDefaults.searchMode,
       boostRecency: searchDefaults.boostRecency,
@@ -558,18 +557,16 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       }
     }
 
-    const tagDefinitionEntries = await Promise.all(
-      knowledgeBaseIds.map(async (knowledgeBaseId) => {
-        const definitions =
-          definitionsByKnowledgeBase.get(knowledgeBaseId) ??
-          (await getDocumentTagDefinitions(knowledgeBaseId))
-        return [
-          knowledgeBaseId,
-          new Map(definitions.map((definition) => [definition.tagSlot, definition.displayName])),
-        ] as const
-      })
+    if (filters.length === 0) {
+      definitionsByKnowledgeBase =
+        await getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+    }
+    const tagMaps = new Map(
+      [...definitionsByKnowledgeBase].map(([knowledgeBaseId, definitions]) => [
+        knowledgeBaseId,
+        new Map(definitions.map((definition) => [definition.tagSlot, definition.displayName])),
+      ])
     )
-    const tagMaps = new Map(tagDefinitionEntries)
     /**
      * Always read: the provenance snapshot vouches for the name, URL, and tags
      * a model may see, but the source card's modified time and connector type
@@ -578,7 +575,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const basicDocumentMetadata = await getDocumentMetadataByIds(
       rows.map((row) => row.documentId),
       access,
-      context.organizationId ? context.access : undefined,
+      context.access,
       input.signal
     )
     const results = rows
@@ -691,7 +688,16 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       resultSecretRegistry: registry,
     }
   },
-  afterSuccess: ({ principal, context, input, result }) => {
+  afterSuccess: async ({ principal, context, input, result }) => {
+    const actorUserId = resolvePrincipalSubjectUserId(principal)
+    if (context.organizationId && actorUserId) {
+      await recordOrganizationSearchActivity({
+        organizationId: context.organizationId,
+        userId: actorUserId,
+        surface: input.surface ?? 'other',
+        results: result.results,
+      })
+    }
     PlatformEvents.knowledgeBaseSearched({
       knowledgeBaseId: result.knowledgeBaseId,
       knowledgeBaseIds: result.knowledgeBaseIds,

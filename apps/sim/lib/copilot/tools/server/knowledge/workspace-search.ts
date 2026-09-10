@@ -17,6 +17,7 @@ import {
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkspaceSearchTool')
@@ -52,7 +53,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
         query: projected.value,
         topK,
         filters: intersectWorkspaceSearchFilters(requestedFilters, context?.assistantSearch),
-        surface: 'copilot',
+        surface: context?.searchSurface ?? 'copilot',
         resultSecretRegistry: registry,
         signal: context?.abortSignal,
       } as const
@@ -76,6 +77,9 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             documentId: item.documentId,
             knowledgeBaseId: item.knowledgeBaseId,
             knowledgeBaseName: names.get(item.knowledgeBaseId) ?? '',
+            siteName: item.connectorType
+              ? connectorDisplayName(item.connectorType)
+              : names.get(item.knowledgeBaseId),
             documentName: item.documentName,
             sourceUrl: item.sourceUrl,
             connectorType: item.connectorType,

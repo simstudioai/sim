@@ -6,10 +6,13 @@ import {
   hasMockCondition,
   permissionsMock,
   permissionsMockFns,
+  queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
+import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 
 const {
   mockApplyStorageUsageDeltasInTx,
@@ -29,8 +32,10 @@ vi.mock('@/lib/billing/storage', () => ({
 }))
 
 import {
+  attachKnowledgeBaseConnectors,
   findActiveKnowledgeBasesByExactName,
   getActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReferences,
   getKnowledgeBaseById,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
@@ -79,6 +84,71 @@ describe('knowledge base references', () => {
 
   it('reports a missing or archived reference as absent', async () => {
     await expect(getActiveKnowledgeBaseReference('missing')).resolves.toBeNull()
+  })
+
+  it('loads twenty references in one query without changing their projection or input order', async () => {
+    const ids = Array.from({ length: 20 }, (_, index) => `kb-${index}`)
+    const references = ids.map((id) => ({ id, chunkingConfig: { maxSize: 512 } }))
+    queueTableRows(schemaMock.knowledgeBase, [...references].reverse())
+
+    await expect(getActiveKnowledgeBaseReferences(ids)).resolves.toEqual(references)
+
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.from).toHaveBeenCalledOnce()
+    const projection = dbChainMockFns.select.mock.calls[0][0]
+    const [condition] = dbChainMockFns.where.mock.calls[0]
+    expect(
+      hasMockCondition(
+        condition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.deletedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.knowledgeBase.id &&
+          JSON.stringify(node.values) === JSON.stringify(ids)
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
+
+    await getActiveKnowledgeBaseReference(ids[0])
+    expect(dbChainMockFns.select.mock.calls[1][0]).toEqual(projection)
+  })
+
+  it('preserves duplicate and absent reference positions without querying duplicate ids', async () => {
+    const reference = { id: 'kb-1', chunkingConfig: {} }
+    queueTableRows(schemaMock.knowledgeBase, [reference])
+
+    await expect(
+      getActiveKnowledgeBaseReferences(['missing', 'kb-1', 'missing', 'kb-1'])
+    ).resolves.toEqual([null, reference, null, reference])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0][0],
+        (node) =>
+          node.type === 'inArray' &&
+          JSON.stringify(node.values) === JSON.stringify(['missing', 'kb-1'])
+      )
+    ).toBe(true)
+  })
+
+  it('does not query an empty reference batch and retains the singleton query shape', async () => {
+    await expect(getActiveKnowledgeBaseReferences([])).resolves.toEqual([])
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    await expect(getActiveKnowledgeBaseReferences(['missing'])).resolves.toEqual([null])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+  })
+
+  it('propagates reference batch database failures', async () => {
+    const failure = new Error('reference database unavailable')
+    dbChainMockFns.where.mockRejectedValueOnce(failure)
+    await expect(getActiveKnowledgeBaseReferences(['kb-1', 'kb-2'])).rejects.toBe(failure)
   })
 
   it('preserves aggregate counts for knowledge-base detail consumers', async () => {
@@ -442,5 +512,91 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
     await runIgnoringReadBack(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1'))
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('knowledge base counts with live source permissions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  function reader() {
+    const scope = { kind: 'user' as const, userId: 'reader', tokens: ['reader-token'] }
+    const getForConnectors = vi.fn().mockResolvedValue({
+      ...scope,
+      confluenceSiteGrants: [
+        {
+          cloudId: 'cloud-1',
+          connectorId: 'confluence-source',
+          contentCredentialId: 'crawler',
+          readerCredentialId: 'reader-credential',
+          readerSubjectToken: 'reader-token',
+          domain: 'team.atlassian.net',
+        },
+      ],
+    })
+    const access: KnowledgeAccessProvider = {
+      get: async () => scope,
+      getForConnectors,
+      getForDocuments: async () => scope,
+    }
+    return { access, getForConnectors }
+  }
+
+  it('sums ordinary and live-authorized documents once in a paginated list', async () => {
+    const { access, getForConnectors } = reader()
+    queueTableRows(schemaMock.knowledgeBase, [
+      {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        chunkingConfig: {},
+        docCount: 99,
+        tokenCount: 999,
+        createdAt: new Date('2026-01-01'),
+      },
+    ])
+    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 }])
+    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 3, tokenCount: 20 }])
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'active', { access, limit: 2 })
+    expect(result.data).toHaveLength(1)
+    expect(result.data[0]).toMatchObject({ docCount: 5, tokenCount: 30 })
+    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['confluence-source'], undefined)
+    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledWith({
+      connectorId: schemaMock.document.connectorId,
+    })
+    expect(
+      dbChainMockFns.where.mock.calls.every(
+        ([condition]) =>
+          hasMockCondition(
+            condition,
+            (node) => node.type === 'inArray' && node.column === schemaMock.knowledgeBase.id
+          ) ||
+          hasMockCondition(
+            condition,
+            (node) => node.type === 'eq' && node.left === schemaMock.knowledgeBase.workspaceId
+          ) ||
+          hasMockCondition(
+            condition,
+            (node) =>
+              node.type === 'inArray' &&
+              node.column === schemaMock.knowledgeConnector.knowledgeBaseId
+          )
+      )
+    ).toBe(true)
+  })
+
+  it('does not retain stale totals when a live source no longer authorizes its documents', async () => {
+    const { access, getForConnectors } = reader()
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.document, [])
+    const base = { id: 'kb-1', docCount: 5, tokenCount: 50 } as KnowledgeBaseWithCounts
+    await expect(attachKnowledgeBaseConnectors(base, access)).resolves.toMatchObject({
+      docCount: 0,
+      tokenCount: 0,
+    })
+    expect(getForConnectors).toHaveBeenCalledOnce()
   })
 })

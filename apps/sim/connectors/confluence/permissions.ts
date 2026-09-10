@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   type ConfluencePrincipal,
   type ConfluenceRestriction,
   confluenceSubjectToken,
 } from '@/lib/knowledge/access/confluence-permissions'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry, type RetryOptions } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
 import type {
   ConnectorDirectory,
@@ -19,35 +20,54 @@ const GROUP_PAGE_SIZE = 200
 
 /** Bounds provider pagination, including malformed continuation responses. */
 const MAX_PAGES = 100
+const PREFLIGHT_RESPONSE_MAX_BYTES = 256 * 1024
 
 function apiBase(cloudId: string): string {
   return `https://api.atlassian.com/ex/confluence/${cloudId}/wiki`
+}
+
+interface ConfluenceGetOptions {
+  retryOptions?: RetryOptions
+  maxResponseBytes?: number
 }
 
 /**
  * A GET with the same transient-error retry every other Confluence call gets.
  * With `allowNotFound`, a 404 resolves to null instead of throwing.
  */
-async function getJson<T>(url: string, accessToken: string): Promise<T>
 async function getJson<T>(
   url: string,
   accessToken: string,
-  options: { allowNotFound: true }
+  options?: ConfluenceGetOptions & { allowNotFound?: false }
+): Promise<T>
+async function getJson<T>(
+  url: string,
+  accessToken: string,
+  options: ConfluenceGetOptions & { allowNotFound: true }
 ): Promise<T | null>
 async function getJson<T>(
   url: string,
   accessToken: string,
-  options?: { allowNotFound: true }
+  options?: ConfluenceGetOptions & { allowNotFound?: boolean }
 ): Promise<T | null> {
-  const response = await fetchWithRetry(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  })
+  const response = await fetchWithRetry(
+    url,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    },
+    options?.retryOptions
+  )
   if (response.status === 404 && options?.allowNotFound) return null
   if (!response.ok) {
     throw new Error(`Confluence request failed: ${response.status} ${response.statusText}`)
   }
-  return (await response.json()) as T
+  return options?.maxResponseBytes
+    ? readResponseJsonWithLimit<T>(response, {
+        maxBytes: options.maxResponseBytes,
+        label: 'Confluence permission check',
+      })
+    : ((await response.json()) as T)
 }
 
 /**
@@ -104,6 +124,114 @@ interface SpacePermissionEntry {
 
 interface SpaceRoleAssignment {
   principal?: { principalType?: string; principalId?: string }
+}
+
+/**
+ * Checks mirrored-permission capabilities on one selected space, one site group,
+ * and one item of each requested content type. Every collection is a single
+ * bounded request; continuations are deliberately ignored. Empty collections
+ * remain valid, but cannot prove access to an endpoint requiring an item ID.
+ * This does not certify every document's ACL: the crawl verifies each separately.
+ */
+export async function validateConfluencePermissionAccess(input: {
+  cloudId: string
+  accessToken: string
+  spaceId: string
+  contentType: string
+  retryOptions: RetryOptions
+}): Promise<void> {
+  const { cloudId, accessToken, spaceId, contentType, retryOptions } = input
+  const base = apiBase(cloudId)
+  const read = async <T>(path: string, capability: string, scopes: string): Promise<T> => {
+    try {
+      return await getJson<T>(`${base}${path}`, accessToken, {
+        retryOptions,
+        maxResponseBytes: PREFLIGHT_RESPONSE_MAX_BYTES,
+      })
+    } catch {
+      if (retryOptions.signal?.aborted) {
+        throw new Error('Confluence permission checks timed out. Try again.')
+      }
+      throw new Error(
+        `Could not verify Confluence ${capability}. Check the service account's access and API token scopes (${scopes}), then try again.`
+      )
+    }
+  }
+  const collection = async <T>(path: string, capability: string, scopes: string): Promise<T[]> => {
+    const body = await read<{ results?: T[] }>(path, capability, scopes)
+    if (!Array.isArray(body?.results)) {
+      throw new Error(`Confluence returned an invalid ${capability} response. Try again.`)
+    }
+    return body.results
+  }
+
+  const groups = await collection<{ id?: string }>(
+    '/rest/api/group?limit=1',
+    'group directory',
+    'read:group:confluence'
+  )
+  if (groups.length > 0) {
+    const groupId = groups[0]?.id
+    if (!groupId) throw new Error('Confluence returned a group without an ID. Try again.')
+    await collection(
+      `/rest/api/group/${encodeURIComponent(groupId)}/membersByGroupId?limit=1`,
+      'group membership',
+      'read:group:confluence and read:user:confluence'
+    )
+  }
+
+  const encodedSpaceId = encodeURIComponent(spaceId)
+  const permissions = await collection<SpacePermissionEntry>(
+    `/api/v2/spaces/${encodedSpaceId}/permissions?limit=${PAGE_SIZE}`,
+    'space permissions',
+    'read:space:confluence'
+  )
+  if (
+    permissions.some(
+      (entry) =>
+        entry?.operation?.key === 'read' &&
+        entry.operation.targetType === 'space' &&
+        entry.principal?.type?.toLowerCase() === 'role'
+    )
+  ) {
+    await collection(
+      `/api/v2/spaces/${encodedSpaceId}/role-assignments?limit=1`,
+      'space role assignments',
+      'read:space.permission:confluence'
+    )
+  }
+
+  const contentTypes = contentType === 'all' ? ['page', 'blogpost'] : [contentType]
+  for (const type of contentTypes) {
+    const collectionName = type === 'blogpost' ? 'blogposts' : 'pages'
+    const content = await collection<{ id?: string }>(
+      `/api/v2/spaces/${encodedSpaceId}/${collectionName}?limit=1&status=current`,
+      `${collectionName} for the permission check`,
+      type === 'blogpost' ? 'read:blogpost:confluence' : 'read:page:confluence'
+    )
+    if (content.length === 0) continue
+    const contentId = content[0]?.id
+    if (!contentId) throw new Error('Confluence returned content without an ID. Try again.')
+    const encodedContentId = encodeURIComponent(contentId)
+    const restriction = await read<RestrictionResponse>(
+      `/rest/api/content/${encodedContentId}/restriction/byOperation/read?expand=restrictions.user,restrictions.group&limit=1`,
+      'content restrictions',
+      'read:confluence-content.all'
+    )
+    if (
+      !Array.isArray(restriction?.restrictions?.user?.results) ||
+      !Array.isArray(restriction.restrictions.group?.results)
+    ) {
+      throw new Error('Confluence returned invalid content restrictions. Try again.')
+    }
+    if (type !== 'blogpost') {
+      await collection(
+        `/api/v2/pages/${encodedContentId}/ancestors?limit=1`,
+        'ancestor metadata',
+        'read:content.metadata:confluence'
+      )
+    }
+  }
 }
 
 /**
@@ -196,11 +324,54 @@ export async function listSpaceReadPrincipals(
   ]
 }
 
+interface RestrictionPage<T> {
+  results?: T[]
+  start?: number
+  limit?: number
+  size?: number
+  totalSize?: number
+  _links?: { next?: string }
+}
+
 interface RestrictionResponse {
   restrictions?: {
-    user?: { results?: { accountId?: string }[]; size?: number }
-    group?: { results?: { id?: string }[]; size?: number }
+    user?: RestrictionPage<{ accountId?: string }>
+    group?: RestrictionPage<{ id?: string }>
   }
+}
+
+/** Uses the provider's effective page size; requested limits may be capped. */
+function restrictionNextStart(page: RestrictionPage<unknown>, start: number): number | null {
+  const count = page.results!.length
+  for (const value of [page.start, page.size, page.limit, page.totalSize]) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+      throw new Error('Confluence returned invalid read-restriction pagination')
+    }
+  }
+  /** UserArray defaults totalSize to zero when a total count was not requested. */
+  const totalSize = page.totalSize === 0 ? undefined : page.totalSize
+  if (
+    (page.start !== undefined && page.start !== start) ||
+    (page.size !== undefined && page.size !== count) ||
+    (page.limit !== undefined && (page.limit === 0 || count > page.limit)) ||
+    (totalSize !== undefined && count > 0 && start + count > totalSize)
+  ) {
+    throw new Error('Confluence returned inconsistent read-restriction pagination')
+  }
+
+  const next = page._links?.next
+  if (next) {
+    const nextStart = new URL(next, 'https://api.atlassian.com').searchParams.get('start')
+    if (!nextStart || !/^\d+$/.test(nextStart) || Number(nextStart) <= start) {
+      throw new Error('Confluence read-restriction pagination did not advance')
+    }
+  }
+  const hasMore =
+    Boolean(next) ||
+    (totalSize !== undefined ? start + count < totalSize : count >= (page.limit ?? PAGE_SIZE))
+  if (!hasMore) return null
+  if (count === 0) throw new Error('Confluence returned an empty read-restriction continuation')
+  return start + count
 }
 
 /**
@@ -212,19 +383,20 @@ interface RestrictionResponse {
  * ACL mapper draws between `null` and `[]` is defensive rather than reachable
  * from the product.
  *
- * The user and group lists page independently under one `start`; a
- * restriction naming more people than one page holds is read until both lists
- * come back short.
+ * The user and group lists may have different effective limits under one
+ * `start`. Advance by the shorter unfinished collection and deduplicate the
+ * overlap in the other collection so neither list skips principals.
  */
 export async function getReadRestriction(
   cloudId: string,
   accessToken: string,
   contentId: string
 ): Promise<ConfluenceRestriction> {
-  const principals: ConfluencePrincipal[] = []
+  const principals = new Map<string, ConfluencePrincipal>()
+  let start = 0
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const body = await getJson<RestrictionResponse>(
-      `${apiBase(cloudId)}/rest/api/content/${encodeURIComponent(contentId)}/restriction/byOperation/read?expand=restrictions.user,restrictions.group&start=${page * PAGE_SIZE}&limit=${PAGE_SIZE}`,
+      `${apiBase(cloudId)}/rest/api/content/${encodeURIComponent(contentId)}/restriction/byOperation/read?expand=restrictions.user,restrictions.group&start=${start}&limit=${PAGE_SIZE}`,
       accessToken
     )
     const users = body?.restrictions?.user?.results
@@ -234,15 +406,20 @@ export async function getReadRestriction(
     }
     for (const user of users) {
       if (!user.accountId) throw new Error('Confluence read restriction is missing an account id')
-      principals.push({ kind: 'user', id: user.accountId })
+      principals.set(`user:${user.accountId}`, { kind: 'user', id: user.accountId })
     }
     for (const group of groups) {
       if (!group.id) throw new Error('Confluence read restriction is missing a group id')
-      principals.push({ kind: 'group', id: group.id })
+      principals.set(`group:${group.id}`, { kind: 'group', id: group.id })
     }
-    if (users.length < PAGE_SIZE && groups.length < PAGE_SIZE) {
-      return principals.length === 0 ? null : principals
+    const nextStarts = [
+      restrictionNextStart(body.restrictions!.user!, start),
+      restrictionNextStart(body.restrictions!.group!, start),
+    ].filter((next): next is number => next !== null)
+    if (nextStarts.length === 0) {
+      return principals.size === 0 ? null : [...principals.values()]
     }
+    start = Math.min(...nextStarts)
   }
   throw new Error(`Confluence restriction on ${contentId} exceeded ${MAX_PAGES} pages`)
 }

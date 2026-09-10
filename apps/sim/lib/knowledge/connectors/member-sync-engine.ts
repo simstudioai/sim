@@ -1300,16 +1300,13 @@ async function applyMemberListing(
   return affected
 }
 
+/** Exclusion pauses content ingestion, while observations must still track source access for restoration. */
 async function loadDocumentIdsByExternalId(
   connectorId: string,
   externalIds: readonly string[]
 ): Promise<Map<string, string>> {
   const corpus = await loadPageCorpus(connectorId, externalIds)
-  return new Map(
-    [...corpus.priorByExternalId]
-      .filter(([, row]) => !row.userExcluded)
-      .map(([externalId, row]) => [externalId, row.id])
-  )
+  return new Map([...corpus.priorByExternalId].map(([externalId, row]) => [externalId, row.id]))
 }
 
 /**
@@ -1337,6 +1334,7 @@ async function syncDedicatedMemberContent(input: {
   const resolveToken = async () => {
     const token = await resolveConnectorAccessToken({
       auth: connectorConfig.auth,
+      accessMode: 'members',
       connector,
       userId,
       requestId: run.runId,

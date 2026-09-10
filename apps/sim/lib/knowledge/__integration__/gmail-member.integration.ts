@@ -121,6 +121,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
     }
     if (url.pathname === '/gmail/v1/users/me/threads') {
       expect(url.searchParams.get('maxResults')).toBe('100')
+      expect(url.searchParams.get('q')).toContain('subject:Orion')
       if (cursor === 'empty' && mailbox.failSecondPage) {
         return Promise.resolve(
           Response.json(
@@ -237,7 +238,8 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       .update(knowledgeConnector)
       .set({
         connectorType: 'gmail',
-        sourceConfig: { maxThreads: 0 },
+        /** A fixed query keeps this full-listing suite separate from history-feed ingestion. */
+        sourceConfig: { maxThreads: 0, query: 'subject:Orion' },
         status: 'active',
         memberSyncStatus: 'idle',
         memberSyncLockToken: null,
@@ -464,7 +466,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
     const alice = rows.find(
       (row) => row.externalId === `member:${fixture.members[0].id}:shared-thread-id`
     )!
-    expect(alice.contentHash).toBe('gmail:shared-thread-id:101')
+    expect(alice.contentHash).toBe('gmail:shared-thread-id:101:body-v2')
     const after = await vectors()
     expect(after.filter((row) => row.documentId !== alice.id)).toEqual(
       before.filter((row) => row.documentId !== alice.id)

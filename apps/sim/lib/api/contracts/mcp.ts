@@ -98,6 +98,7 @@ export const mcpToolSchema = z.object({
   description: z.string().optional(),
   inputSchema: mcpToolInputSchema,
   serverId: z.string(),
+  canonicalServerId: z.string().optional(),
   serverName: z.string(),
   managedConnectorId: managedMcpConnectorIdSchema.optional(),
 })
@@ -114,6 +115,8 @@ export const storedMcpToolSchema = z.object({
 export const mcpServerSchema = z
   .object({
     id: z.string(),
+    canonicalServerId: z.string().optional(),
+    canonicalServerName: z.string().optional(),
     workspaceId: z.string(),
     name: z.string(),
     description: optionalStringFromNullableSchema,

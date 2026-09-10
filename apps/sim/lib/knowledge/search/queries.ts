@@ -428,7 +428,7 @@ interface SearchReadCandidate {
   id: string
   documentId: string
   connectorId: string | null
-  installationSource: boolean
+  liveAuthorizationSource: boolean
 }
 
 /** Only opaque identifiers leave candidate ranking; content stays behind the full read predicate. */
@@ -436,11 +436,15 @@ const SEARCH_READ_CANDIDATE_FIELDS = {
   id: embedding.id,
   documentId: document.id,
   connectorId: document.connectorId,
-  installationSource: sql<boolean>`EXISTS (
+  liveAuthorizationSource: sql<boolean>`EXISTS (
     SELECT 1 FROM ${knowledgeConnector}
     WHERE ${knowledgeConnector.id} = ${document.connectorId}
-      AND ${knowledgeConnector.connectorType} = 'github'
-      AND ${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId'
+      AND (
+        (${knowledgeConnector.connectorType} = 'github'
+          AND ${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId')
+        OR (${knowledgeConnector.connectorType} = 'confluence'
+          AND ${knowledgeConnector.accessMode} = 'admin')
+      )
   )`,
 }
 
@@ -449,11 +453,12 @@ const LIVE_SEARCH_BUDGET_MS = 8000
 
 /**
  * Verification follows ranked candidates, never the organization's source order. Denied
- * repositories are excluded on refill, so many matches from one revoked source cannot
+ * sources are excluded on refill, so many matches from one revoked source cannot
  * consume every result slot. The existing vector tuple budget also bounds candidate work.
  */
 async function selectAuthorizedSearchResults(input: {
   accessProvider: KnowledgeAccessProvider
+  filters?: WorkspaceSearchFilters
   signal?: AbortSignal
   topK: number
   selectPage: (
@@ -478,22 +483,33 @@ async function selectAuthorizedSearchResults(input: {
     const candidates = await input.selectPage(pageSize, offset, [...excludedSources])
     if (!candidates.length) break
     scanned += candidates.length
-    const connectorIds = [
-      ...new Set(
-        candidates.flatMap((candidate) => (candidate.connectorId ? [candidate.connectorId] : []))
-      ),
-    ]
+    /** Candidate and hydration queries enforce this source filter; connector types are immutable. */
+    const connectorIds =
+      input.filters?.source &&
+      input.filters.source !== 'github' &&
+      input.filters.source !== 'confluence'
+        ? []
+        : [
+            ...new Set(
+              candidates.flatMap((candidate) =>
+                candidate.connectorId ? [candidate.connectorId] : []
+              )
+            ),
+          ]
     const access = await input.accessProvider.getForConnectors(connectorIds, input.signal)
     input.signal?.throwIfAborted()
     const grantedSources = new Set(
       access.kind === 'user'
-        ? (access.githubInstallationGrants?.map((grant) => grant.connectorId) ?? [])
+        ? [
+            ...(access.githubInstallationGrants?.map((grant) => grant.connectorId) ?? []),
+            ...(access.confluenceSiteGrants?.map((grant) => grant.connectorId) ?? []),
+          ]
         : []
     )
     const excludedBefore = excludedSources.size
     for (const candidate of candidates) {
       if (
-        candidate.installationSource &&
+        candidate.liveAuthorizationSource &&
         candidate.connectorId &&
         !grantedSources.has(candidate.connectorId)
       )
@@ -578,6 +594,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     ]
     return selectAuthorizedSearchResults({
       accessProvider: params.accessProvider,
+      filters: params.filters,
       signal: params.signal,
       topK,
       selectPage: (limit, offset, excludedSources) =>
@@ -705,6 +722,7 @@ function selectLiveVectorResults(
   const conditions = [inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...filters]
   return selectAuthorizedSearchResults({
     accessProvider,
+    filters: params.filters,
     signal: params.signal,
     topK: params.topK,
     selectPage: (limit, offset, excludedSources) =>
@@ -818,6 +836,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     ]
     return selectAuthorizedSearchResults({
       accessProvider: params.accessProvider,
+      filters: params.filters,
       signal: params.signal,
       topK,
       selectPage: (limit, offset, excludedSources) =>

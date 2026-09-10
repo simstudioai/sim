@@ -1,11 +1,12 @@
 /**
  * @vitest-environment node
  */
+import { load } from 'js-yaml'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec } from '../contract/types'
 import { encodeFolderPath } from './request'
-import { decodeFolderPath, renderPage, renderResult } from './result'
+import { decodeFolderPath, foldPageEnvelope, renderPage, renderResult } from './result'
 
 let logged: string[]
 
@@ -321,6 +322,63 @@ describe('folder paths are shown by name, but piped in wire form', () => {
 })
 
 describe('paginated JSON output', () => {
+  it.each([
+    { format: 'json', truncated: true },
+    { format: 'json', truncated: false },
+    { format: 'yaml', truncated: true },
+    { format: 'yaml', truncated: false },
+  ] as const)(
+    'preserves truncated=$truncated in $format without carrying stale page data',
+    ({ format, truncated }) => {
+      vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+      const page = { data: [{ id: 'a' }, { id: 'b' }], nextCursor: null }
+      renderPage(format, page, {}, { data: [{ id: 'a' }], nextCursor: 'stale', truncated })
+
+      const result = format === 'json' ? JSON.parse(logged.join('\n')) : load(logged.join('\n'))
+      expect(result).toEqual({ ...page, truncated })
+    }
+  )
+
+  it.each([
+    { first: false, last: true },
+    { first: true, last: false },
+    { first: undefined, last: false },
+  ])('preserves truncation across pages with first=$first and last=$last', ({ first, last }) => {
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const envelope = foldPageEnvelope(
+      {
+        data: [{ id: 'a' }],
+        nextCursor: 'next',
+        ...(first === undefined ? {} : { toolNamesTruncated: first }),
+      },
+      { data: [{ id: 'b' }], nextCursor: null, toolNamesTruncated: last }
+    )
+    const page = { data: [{ id: 'a' }, { id: 'b' }], nextCursor: null }
+    renderPage('json', page, {}, envelope)
+
+    expect(JSON.parse(logged.join('\n'))).toEqual({
+      ...page,
+      toolNamesTruncated: first === true || last,
+    })
+  })
+
+  it('projects only boolean truncation metadata from the envelope', () => {
+    const page = { data: [{ id: 'a' }], nextCursor: null }
+    renderPage(
+      'json',
+      page,
+      {},
+      {
+        truncated: 'true',
+        notTruncated: true,
+        isNotTruncated: true,
+        nested: { truncated: true },
+        scope: 'unrelated metadata',
+      }
+    )
+    expect(JSON.parse(logged.join('\n'))).toEqual(page)
+  })
+
   it('includes the cursor without a pagination notice', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
     const page = { data: [{ id: 'a' }], nextCursor: 'c1' }

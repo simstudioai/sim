@@ -13,6 +13,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'confluence',
+    adminCredentialType: 'service_account',
     requiredScopes: [
       'read:confluence-content.all',
       'read:page:confluence',
@@ -63,7 +64,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   configFields: [
     {
       id: 'domain',
-      title: 'Confluence Domain',
+      title: 'Confluence site',
       type: 'short-input',
       placeholder: 'yoursite.atlassian.net',
       required: true,
@@ -76,6 +77,8 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       canonicalParamId: 'spaceKey',
       mode: 'basic',
       multi: true,
+      allowSelectAll: true,
+      preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more spaces',
       required: true,

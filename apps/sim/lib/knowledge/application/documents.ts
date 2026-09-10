@@ -329,7 +329,7 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
       },
       generateRequestId(),
-      context.organizationId ? context.access : await context.access.get()
+      context.access
     )
     return {
       ...result,
@@ -682,7 +682,7 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     ]
     let existingDocumentId: string | null = null
     for await (const accessCondition of knowledgeReadAccessBatches(
-      context.organizationId ? context.access : await context.access.get(),
+      context.access,
       lookupConditions
     )) {
       const [existing] = await db
@@ -1027,7 +1027,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           context.knowledgeBaseId,
           input.operation,
           input.enabledFilter,
-          context.organizationId ? context.access : await context.access.get(),
+          context.access,
           generateRequestId()
         )
       : input.documentIds?.length
@@ -1035,7 +1035,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
             context.knowledgeBaseId,
             input.operation,
             input.documentIds,
-            context.organizationId ? context.access : await context.access.get(),
+            context.access,
             generateRequestId()
           )
         : null

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatQuotedNameList } from '@sim/utils/string'
+import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -263,9 +263,11 @@ function codeFromStatus(status: number): InviteErrorCode {
 }
 
 function codeFromApiClientError(error: ApiClientError): string {
+  if (error.code && getInviteError(error.code).code !== 'unknown') return error.code
+
   if (error.body && typeof error.body === 'object') {
     const code = (error.body as { error?: unknown }).error
-    if (typeof code === 'string' && code.length > 0) return code
+    if (typeof code === 'string' && getInviteError(code).code !== 'unknown') return code
   }
 
   return codeFromStatus(error.status)
@@ -316,6 +318,11 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
+  const isWrongAccount = Boolean(
+    invitation &&
+      session?.user &&
+      normalizeEmail(session.user.email || '') !== normalizeEmail(invitation.email)
+  )
   const isDisclosureMissing = invitation?.membershipIntent === 'internal' && !joinPreview
   const isLoading = Boolean(session?.user) && (!isTokenResolved || invitationQuery.isPending)
 
@@ -330,10 +337,15 @@ export default function Invite({ registrationDisabled }: InviteProps) {
    * Action errors (accept failures) outrank fetch errors; the URL error param
    * only shows until the invitation loads successfully.
    */
-  const error = actionError ?? fetchError ?? (invitationQuery.data ? null : urlError)
+  const error =
+    actionError ??
+    fetchError ??
+    (isWrongAccount ? getInviteError('email-mismatch') : null) ??
+    (invitationQuery.data ? null : urlError)
 
   const handleAcceptInvitation = async () => {
-    if (!session?.user || !invitation || isDisclosureMissing || isAccepting) return
+    if (!session?.user || !invitation || isWrongAccount || isDisclosureMissing || isAccepting)
+      return
     setIsAccepting(true)
 
     try {

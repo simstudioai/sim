@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { document, member } from '@sim/db/schema'
+import { document, knowledgeConnector, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   resolveBilling: vi.fn(),
   getCredentialActorContext: vi.fn(),
   canUseCredential: vi.fn(),
+  authorizeOrganizationCredentialUse: vi.fn(),
   resolveTokenIdentity: vi.fn(),
   resolveTokenBundle: vi.fn(),
   validateConnectorConfig: vi.fn(),
@@ -26,6 +27,10 @@ const mocks = vi.hoisted(() => ({
   provision: vi.fn(),
   decryptApiKey: vi.fn(),
   requireApproval: vi.fn(),
+  resolveWorkspace: vi.fn(),
+  viewerMemberships: vi.fn(),
+  getAccess: vi.fn(),
+  getForConnectors: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -56,6 +61,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
+  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeConnectorContext: mocks.resolveConnector,
@@ -66,10 +72,17 @@ vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   provisionKnowledgeConnectorMembersBinding: mocks.provision,
-  resolveViewerConnectorMemberships: async () => new Map(),
+  resolveViewerConnectorMemberships: mocks.viewerMemberships,
 }))
 vi.mock('@/lib/knowledge/connectors/mirrored-access', () => ({
   assertConnectorMirrorsSourceAcls: async () => undefined,
+}))
+vi.mock('@/lib/knowledge/access/scope', () => ({
+  WORKSPACE_ACCESS_SCOPE: { kind: 'workspace', tokens: ['pub', 'ws'] },
+  createKnowledgeAccessProvider: () => ({
+    get: mocks.getAccess,
+    getForConnectors: mocks.getForConnectors,
+  }),
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireKnowledgeMemberAccessAvailable: async () => undefined,
@@ -88,8 +101,14 @@ vi.mock('@/lib/credentials/access', () => ({
   resolveCredentialTokenIdentity: mocks.resolveTokenIdentity,
 }))
 
+vi.mock('@/lib/credentials/application/organization-credentials', () => ({
+  authorizeOrganizationCredentialUse: mocks.authorizeOrganizationCredentialUse,
+}))
+
 vi.mock('@/lib/oauth/credential-service', () => ({
   resolveCredentialTokenBundle: mocks.resolveTokenBundle,
+  resolveOAuthAccountId: vi.fn(async () => null),
+  getServiceAccountToken: vi.fn(),
 }))
 vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mocks.decryptApiKey }))
 
@@ -119,6 +138,12 @@ vi.mock('@/connectors/registry.server', () => ({
         provider: 'google-drive',
         adminCredentialType: 'service_account',
         serviceAccountScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        adminServiceAccountScopes: [
+          'https://www.googleapis.com/auth/drive.readonly',
+          'https://www.googleapis.com/auth/admin.directory.user.readonly',
+          'https://www.googleapis.com/auth/admin.directory.group.readonly',
+          'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+        ],
         serviceAccountSubjectFieldId: 'adminEmail',
       },
       validateConfig: mocks.validateConnectorConfig,
@@ -126,11 +151,13 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createApprovedSearchSource,
   createKnowledgeConnector,
   deleteKnowledgeConnector,
   listKnowledgeConnectorDocuments,
+  listWorkspaceMemberConnectors,
   resolveConnectorCredentialAccessToken,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
@@ -140,6 +167,7 @@ import {
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH } from '@/lib/knowledge/constants'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 const crossWorkspaceContext = {
@@ -208,6 +236,8 @@ describe('knowledge connector application use cases', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolvePermission.mockResolvedValue('write')
+    mocks.resolveWorkspace.mockResolvedValue(crossWorkspaceContext)
+    mocks.viewerMemberships.mockResolvedValue(new Map())
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveConnector.mockResolvedValue(connectorContext)
     mocks.getCredentialActorContext.mockResolvedValue({
@@ -230,6 +260,55 @@ describe('knowledge connector application use cases', () => {
   })
 
   afterAll(resetDbChainMock)
+
+  it('counts workspace central Confluence documents only after candidate site admission', async () => {
+    const identity = {
+      kind: 'user' as const,
+      userId: 'reader',
+      tokens: ['ws', 's:confluence:-:alice'],
+    }
+    mocks.getAccess.mockResolvedValue(identity)
+    mocks.getForConnectors.mockResolvedValue({
+      ...identity,
+      confluenceSiteGrants: [
+        {
+          connectorId: 'cf-source',
+          contentCredentialId: 'crawler',
+          readerCredentialId: 'personal',
+          readerSubjectToken: 's:confluence:-:alice',
+          domain: 'company.atlassian.net',
+          cloudId: 'cloud-1',
+        },
+      ],
+    })
+    mocks.viewerMemberships.mockResolvedValue(new Map([['cf-source', 'connected']]))
+    queueTableRows(knowledgeConnector, [
+      {
+        id: 'cf-source',
+        knowledgeBaseId: 'knowledge-b',
+        knowledgeBaseName: 'Search',
+        knowledgeBaseIsSearchIndex: true,
+        connectorType: 'confluence',
+        accessMode: 'admin',
+        sourceConfig: { domain: 'company.atlassian.net', spaceKey: ['DEMO'] },
+        memberSyncStatus: 'idle',
+      },
+    ])
+    queueTableRows(document, [])
+    queueTableRows(document, [{ connectorId: 'cf-source' }])
+    queueTableRows(document, [{ connectorId: 'cf-source', count: 2 }])
+    const result = await listWorkspaceMemberConnectors.execute({
+      principal: { kind: 'session', userId: 'reader', sessionId: 'test' },
+      input: { workspaceId: 'workspace-b' },
+    })
+    expect(mocks.getForConnectors).toHaveBeenCalledWith(['cf-source'], undefined)
+    expect(result.connectors).toEqual([
+      expect.objectContaining({ connectorId: 'cf-source', viewerDocumentCount: 2 }),
+    ])
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])).toContain(
+      'confluence_read_grant'
+    )
+  })
 
   it('rejects a forged OAuth credential for central Drive creation before using its token', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
@@ -268,6 +347,7 @@ describe('knowledge connector application use cases', () => {
     async (accessMode) => {
       await expect(
         resolveConnectorCredentialAccessToken({
+          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
           credentialId: 'credential-1',
           workspaceId: 'workspace-a',
           actingUserId: 'admin',
@@ -281,31 +361,80 @@ describe('knowledge connector application use cases', () => {
     }
   )
 
-  it('mints delegated Drive tokens for an eligible canonical service account', async () => {
-    mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
+  it('rejects a personal Confluence OAuth credential before central token use', async () => {
     await expect(
       resolveConnectorCredentialAccessToken({
+        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
         credentialId: 'credential-1',
         workspaceId: 'workspace-a',
         actingUserId: 'admin',
         requestId: 'request',
-        auth: googleDriveConnectorMeta.auth,
+        auth: confluenceConnectorMeta.auth,
         accessMode: 'admin',
-        sourceConfig: { adminEmail: 'Admin@corp.com' },
+        sourceConfig: { domain: 'team.atlassian.net', spaceKey: ['ENG'] },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('requires a service account'),
+    })
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('resolves a Confluence service account with content and permission scopes', async () => {
+    mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
+    await expect(
+      resolveConnectorCredentialAccessToken({
+        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+        credentialId: 'credential-1',
+        workspaceId: 'workspace-a',
+        actingUserId: 'admin',
+        requestId: 'request',
+        auth: confluenceConnectorMeta.auth,
+        accessMode: 'admin',
+        sourceConfig: { domain: 'team.atlassian.net', spaceKey: ['ENG'] },
       })
     ).resolves.toEqual({ accessToken: 'access-token' })
     expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
       'credential-1',
       'admin',
       'request',
-      [
-        'https://www.googleapis.com/auth/drive.readonly',
-        'https://www.googleapis.com/auth/admin.directory.group.readonly',
-        'https://www.googleapis.com/auth/admin.directory.domain.readonly',
-      ],
-      'admin@corp.com'
+      expect.arrayContaining(['read:confluence-content.all', 'read:space.permission:confluence']),
+      undefined
     )
   })
+
+  it.each(['workspace', 'members', 'admin'] as const)(
+    'mints only the Drive scopes needed by an eligible service account in %s mode',
+    async (accessMode) => {
+      mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
+      await expect(
+        resolveConnectorCredentialAccessToken({
+          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          credentialId: 'credential-1',
+          workspaceId: 'workspace-a',
+          actingUserId: 'admin',
+          requestId: 'request',
+          auth: googleDriveConnectorMeta.auth,
+          accessMode,
+          sourceConfig: { adminEmail: 'Admin@corp.com' },
+        })
+      ).resolves.toEqual({ accessToken: 'access-token' })
+      expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
+        'credential-1',
+        'admin',
+        'request',
+        accessMode === 'admin'
+          ? [
+              'https://www.googleapis.com/auth/drive.readonly',
+              'https://www.googleapis.com/auth/admin.directory.user.readonly',
+              'https://www.googleapis.com/auth/admin.directory.group.readonly',
+              'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+            ]
+          : ['https://www.googleapis.com/auth/drive.readonly'],
+        'admin@corp.com'
+      )
+    }
+  )
 
   it('rejects an old central Drive OAuth source during settings validation before provider access', async () => {
     const connector = {
@@ -316,6 +445,7 @@ describe('knowledge connector application use cases', () => {
     } as Parameters<typeof validateConnectorSourceConfig>[0]['connector']
     await expect(
       validateConnectorSourceConfig({
+        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
         connector,
         sourceConfig: { adminEmail: 'admin@corp.com' },
         workspaceId: 'workspace-a',
@@ -556,6 +686,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: string
           credentialId: string
           encryptedApiKey: null
+          accessMode: 'workspace'
         },
         sourceConfig: Record<string, unknown>
       ) => Promise<unknown>
@@ -573,6 +704,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: 'confluence',
           credentialId: 'credential-1',
           encryptedApiKey: null,
+          accessMode: 'workspace',
         },
         { space: 'ENG' }
       )
@@ -684,6 +816,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: string
           credentialId: string
           encryptedApiKey: null
+          accessMode: 'workspace'
         },
         sourceConfig: Record<string, unknown>
       ) => Promise<unknown>
@@ -705,6 +838,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: 'confluence',
           credentialId: 'credential-1',
           encryptedApiKey: null,
+          accessMode: 'workspace',
         },
         { space: 'ENG' }
       )
@@ -1258,6 +1392,33 @@ describe('approved organization member source creation', () => {
     expect(mocks.createConnector).not.toHaveBeenCalled()
   })
 
+  it('starts a personal source from the connector Search defaults and accepts their fields', async () => {
+    mocks.createConnector.mockResolvedValue({
+      success: true,
+      connector: { id: 'connector', connectorType: 'gmail', accessMode: 'members' },
+    })
+    await createApprovedSearchSource.execute({
+      principal,
+      input: { ...input, connectorType: 'gmail', sourceConfig: {} },
+    })
+    expect(mocks.createConnector).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceConfig: expect.objectContaining({ dateRange: '6m' }),
+      })
+    )
+
+    queueTableRows(member, [{ role: 'member' }])
+    await createApprovedSearchSource.execute({
+      principal,
+      input: { ...input, connectorType: 'gmail', sourceConfig: { dateRange: 'all' } },
+    })
+    expect(mocks.createConnector).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceConfig: expect.objectContaining({ dateRange: 'all' }),
+      })
+    )
+  })
+
   it('refuses custom configuration outside the personal setup fields', async () => {
     await expect(
       createApprovedSearchSource.execute({
@@ -1278,5 +1439,198 @@ describe('approved organization member source creation', () => {
       code: 'forbidden',
     })
     expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization connector credential authorization', () => {
+  const principal = { kind: 'session', userId: 'org-admin', sessionId: 'session' } as const
+  const credential = {
+    id: 'org-service-account',
+    organizationId: 'org',
+    workspaceId: null,
+    type: 'service_account',
+    providerId: 'google-service-account',
+    createdBy: 'org-admin',
+  }
+  const input = {
+    principal,
+    credentialId: credential.id,
+    organizationId: 'org',
+    actingUserId: principal.userId,
+    requestId: 'request',
+    auth: googleDriveConnectorMeta.auth,
+    accessMode: 'admin' as const,
+    sourceConfig: { adminEmail: 'admin@corp.com' },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.getCredentialActorContext.mockResolvedValue({
+      credential: null,
+      member: null,
+      hasWorkspaceAccess: false,
+      canWriteWorkspace: false,
+      isAdmin: false,
+    })
+    mocks.authorizeOrganizationCredentialUse.mockResolvedValue({
+      credential,
+      userId: principal.userId,
+    })
+    mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'service_account' })
+    mocks.resolveTokenBundle.mockResolvedValue({ accessToken: 'organization-token' })
+    mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
+  })
+
+  it('uses organization credential policy without requiring a workspace membership', async () => {
+    await expect(resolveConnectorCredentialAccessToken(input)).resolves.toEqual({
+      accessToken: 'organization-token',
+    })
+    expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        organizationId: 'org',
+        credentialId: credential.id,
+        requestId: 'request',
+      })
+    )
+    expect(mocks.getCredentialActorContext).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith(credential.id, {
+      kind: 'organization',
+      organizationId: 'org',
+    })
+    expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
+      credential.id,
+      principal.userId,
+      'request',
+      googleDriveConnectorMeta.auth.mode === 'oauth'
+        ? googleDriveConnectorMeta.auth.adminServiceAccountScopes
+        : undefined,
+      'admin@corp.com'
+    )
+  })
+
+  it('passes the real principal through organization source creation', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(member, [{ role: 'admin' }])
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      organizationId: 'org',
+      knowledgeBaseId: 'org-index',
+      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
+    })
+    mocks.createConnector.mockImplementationOnce(
+      async (createInput: { resolveAccessToken(id: string): Promise<unknown> }) => {
+        await createInput.resolveAccessToken(credential.id)
+        return {
+          success: true,
+          connector: {
+            id: 'source',
+            connectorType: 'google_drive',
+            credentialId: credential.id,
+            accessMode: 'admin',
+            syncIntervalMinutes: 60,
+          },
+        }
+      }
+    )
+    await expect(
+      createKnowledgeConnector.execute({
+        principal,
+        input: {
+          knowledgeBaseId: 'org-index',
+          assertedOrganizationId: 'org',
+          connectorType: 'google_drive',
+          credentialId: credential.id,
+          accessMode: 'admin',
+          sourceConfig: input.sourceConfig,
+          syncIntervalMinutes: 60,
+        },
+      })
+    ).resolves.toMatchObject({ connector: { id: 'source' } })
+    expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
+      expect.objectContaining({ principal, organizationId: 'org' })
+    )
+  })
+
+  it.each(['workspace', 'members', 'admin'] as const)(
+    'uses the saved %s mode and organization credential policy during config validation',
+    async (accessMode) => {
+      await expect(
+        validateConnectorSourceConfig({
+          principal,
+          organizationId: 'org',
+          actingUserId: principal.userId,
+          requestId: 'request',
+          sourceConfig: input.sourceConfig,
+          connector: {
+            connectorType: 'google_drive',
+            credentialId: credential.id,
+            encryptedApiKey: null,
+            accessMode,
+          } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+        })
+      ).resolves.toBeNull()
+      expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
+        expect.objectContaining({ principal, organizationId: 'org' })
+      )
+      expect(mocks.validateConnectorConfig).toHaveBeenCalledWith(
+        'organization-token',
+        input.sourceConfig,
+        expect.objectContaining({ mirrorsSourceAcls: accessMode === 'admin' })
+      )
+      expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
+        credential.id,
+        principal.userId,
+        'request',
+        accessMode === 'admin'
+          ? [
+              'https://www.googleapis.com/auth/drive.readonly',
+              'https://www.googleapis.com/auth/admin.directory.user.readonly',
+              'https://www.googleapis.com/auth/admin.directory.group.readonly',
+              'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+            ]
+          : ['https://www.googleapis.com/auth/drive.readonly'],
+        'admin@corp.com'
+      )
+    }
+  )
+
+  it('propagates canonical organization credential refusals before token resolution', async () => {
+    const rejection = new OrchestrationError('not_found', 'Credential not found')
+    mocks.authorizeOrganizationCredentialUse.mockRejectedValueOnce(rejection)
+    await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(rejection)
+    expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('does not mint a token after the credential creator leaves the organization', async () => {
+    mocks.resolveTokenIdentity.mockResolvedValueOnce(null)
+    await expect(resolveConnectorCredentialAccessToken(input)).resolves.toBeNull()
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('rejects organization config edits after credential identity is revoked', async () => {
+    mocks.resolveTokenIdentity.mockResolvedValueOnce(null)
+    await expect(
+      validateConnectorSourceConfig({
+        principal,
+        organizationId: 'org',
+        actingUserId: principal.userId,
+        requestId: 'request',
+        sourceConfig: input.sourceConfig,
+        connector: {
+          connectorType: 'google_drive',
+          credentialId: credential.id,
+          encryptedApiKey: null,
+          accessMode: 'admin',
+        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+      })
+    ).resolves.toEqual({
+      errorCode: 'validation',
+      message: 'Credential is no longer usable in this organization. Please reconnect it.',
+    })
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+    expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
   })
 })

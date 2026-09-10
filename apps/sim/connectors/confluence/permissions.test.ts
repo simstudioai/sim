@@ -315,6 +315,223 @@ describe('getReadRestriction', () => {
     ])
   })
 
+  it.each([150, 0, undefined])(
+    'drains capped user restrictions with totalSize %s',
+    async (totalSize) => {
+      const users = Array.from({ length: 150 }, (_, i) => ({ accountId: `user-${i}` }))
+      for (const start of [0, 100]) {
+        const results = users.slice(start, start + 100)
+        mockFetch.mockResolvedValueOnce(
+          jsonResponse({
+            restrictions: {
+              user: { results, start, limit: 100, size: results.length, totalSize },
+              group: { results: [] },
+            },
+          })
+        )
+      }
+
+      await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toEqual(
+        users.map((user) => ({ kind: 'user', id: user.accountId }))
+      )
+      expect(
+        mockFetch.mock.calls.map(([url]) => new URL(String(url)).searchParams.get('start'))
+      ).toEqual(['0', '100'])
+    }
+  )
+
+  it('rejects a positive totalSize smaller than the returned restrictions', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        restrictions: {
+          user: {
+            results: [{ accountId: 'a' }, { accountId: 'b' }],
+            start: 0,
+            limit: 100,
+            size: 2,
+            totalSize: 1,
+          },
+          group: { results: [] },
+        },
+      })
+    )
+
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
+      'inconsistent read-restriction pagination'
+    )
+  })
+
+  it('drains capped group restrictions without totalSize or next links', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: { results: [] },
+            group: { results: [{ id: 'a' }, { id: 'b' }], start: 0, limit: 2, size: 2 },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: { results: [] },
+            group: { results: [{ id: 'c' }], start: 2, limit: 2, size: 1 },
+          },
+        })
+      )
+
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toEqual([
+      { kind: 'group', id: 'a' },
+      { kind: 'group', id: 'b' },
+      { kind: 'group', id: 'c' },
+    ])
+    expect(new URL(String(mockFetch.mock.calls[1][0])).searchParams.get('start')).toBe('2')
+  })
+
+  it('deduplicates overlapping pages when user and group caps differ', async () => {
+    const users = Array.from({ length: 5 }, (_, i) => ({ accountId: `user-${i}` }))
+    const groups = Array.from({ length: 6 }, (_, i) => ({ id: `group-${i}` }))
+    for (const start of [0, 2, 4]) {
+      const userResults = users.slice(start, start + 2)
+      const groupResults = groups.slice(start, start + 4)
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: {
+              results: userResults,
+              start,
+              limit: 2,
+              size: userResults.length,
+              totalSize: users.length,
+            },
+            group: { results: groupResults, start, limit: 4, size: groupResults.length },
+          },
+        })
+      )
+    }
+
+    const result = await getReadRestriction(CLOUD, 'token', 'page-1')
+    expect(result).toHaveLength(users.length + groups.length)
+    expect(result).toEqual(
+      expect.arrayContaining([
+        ...users.map((user) => ({ kind: 'user', id: user.accountId })),
+        ...groups.map((group) => ({ kind: 'group', id: group.id })),
+      ])
+    )
+    expect(
+      mockFetch.mock.calls.map(([url]) => new URL(String(url)).searchParams.get('start'))
+    ).toEqual(['0', '2', '4'])
+  })
+
+  it('continues a short user page when its next link reports more restrictions', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: {
+              results: [{ accountId: 'a' }],
+              start: 0,
+              limit: 3,
+              size: 1,
+              _links: { next: '/rest/api/content/page-1/restriction/byOperation/read?start=1' },
+            },
+            group: { results: [] },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: { results: [{ accountId: 'b' }], start: 1, limit: 3, size: 1 },
+            group: { results: [] },
+          },
+        })
+      )
+
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toEqual([
+      { kind: 'user', id: 'a' },
+      { kind: 'user', id: 'b' },
+    ])
+    expect(new URL(String(mockFetch.mock.calls[1][0])).searchParams.get('start')).toBe('1')
+  })
+
+  it.each([
+    { results: [], start: 1, limit: 1, size: 0, totalSize: 3 },
+    {
+      results: [],
+      start: 1,
+      limit: 1,
+      size: 0,
+      _links: { next: '/restriction?start=2' },
+    },
+  ])('rejects an empty collection claiming a continuation: %j', async (continuation) => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: { results: [{ accountId: 'a' }], start: 0, limit: 1, size: 1 },
+            group: { results: [] },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ restrictions: { user: continuation, group: { results: [] } } })
+      )
+
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
+      'empty read-restriction continuation'
+    )
+  })
+
+  it('rejects a provider that repeats the prior offset', async () => {
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({
+        restrictions: {
+          user: { results: [{ accountId: 'a' }], start: 0, limit: 1, size: 1 },
+          group: { results: [] },
+        },
+      })
+    )
+
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
+      'inconsistent read-restriction pagination'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['/restriction?start=0', '/restriction?start=invalid', '/restriction'])(
+    'rejects a nonadvancing or malformed next link: %s',
+    async (next) => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: { results: [{ accountId: 'a' }], _links: { next } },
+            group: { results: [] },
+          },
+        })
+      )
+
+      await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
+        'read-restriction pagination did not advance'
+      )
+    }
+  )
+
+  it('bounds a provider that never finishes restriction pagination', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      const start = Number(new URL(url).searchParams.get('start'))
+      return jsonResponse({
+        restrictions: {
+          user: { results: [{ accountId: `user-${start}` }], start, limit: 1, size: 1 },
+          group: { results: [] },
+        },
+      })
+    })
+
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow('exceeded 100 pages')
+    expect(mockFetch).toHaveBeenCalledTimes(100)
+  })
+
   it.each([
     {},
     { restrictions: {} },

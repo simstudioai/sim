@@ -10,6 +10,10 @@ import type {
   ServiceAccountConnectTarget,
   useServiceAccountConnectTarget,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import {
+  ConnectorConfigFields as ActualConnectorConfigFields,
+  type ConnectorConfigFieldsProps,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
 import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
 import type { ConnectorMeta } from '@/connectors/types'
 
@@ -18,14 +22,33 @@ const mocks = vi.hoisted(() => ({
   serviceAccountModal: vi.fn(),
   serviceAccountTarget: vi.fn(),
   selectCredential: vi.fn(),
+  credentialOptions: vi.fn(),
+  configFields: vi.fn(),
+  renderConfigFields: false,
+  selectorOptions: vi.fn(),
+  accessField: vi.fn(),
+}))
+
+vi.mock('next/navigation', () => ({ useParams: () => ({}) }))
+vi.mock('@/hooks/use-debounce', () => ({ useDebounce: (value: string) => value }))
+vi.mock('@/hooks/queries/selectors', () => ({
+  useSelectorOptions: (...args: unknown[]) => {
+    mocks.selectorOptions(...args)
+    return { data: [], error: null, truncated: false }
+  },
+  useSelectorOptionDetails: () => ({ data: [] }),
+  useSelectorOptionDetail: () => ({}),
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
-  useOAuthCredentials: () => ({
-    data: mocks.credentials,
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
+  useOAuthCredentials: (...args: unknown[]) => {
+    mocks.credentialOptions(...args)
+    return {
+      data: mocks.credentials,
+      isLoading: false,
+      refetch: vi.fn(),
+    }
+  },
 }))
 vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
   useCredentialRefreshTriggers: vi.fn(),
@@ -57,12 +80,18 @@ vi.mock(
   })
 )
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields', () => ({
-  ConnectorConfigFields: () => null,
+  ConnectorConfigFields: (props: ConnectorConfigFieldsProps) => {
+    mocks.configFields(props)
+    return mocks.renderConfigFields ? <ActualConnectorConfigFields {...props} /> : null
+  },
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field',
   () => ({
-    ConnectorAccessField: () => null,
+    ConnectorAccessField: (props: unknown) => {
+      mocks.accessField(props)
+      return null
+    },
     ConnectorContentCredentialField: () => null,
   })
 )
@@ -73,7 +102,7 @@ import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 function fieldProps(connectorConfig: ConnectorMeta): ConnectorSettingsFieldsProps {
   return {
-    availability: { error: null, isFetching: false, refetch: vi.fn() },
+    availability: { error: null, isFetching: false, isReady: true, refetch: vi.fn() },
     isSearchIndex: true,
     connectorConfig,
     selectionLabels: {},
@@ -119,6 +148,7 @@ describe('connector settings service-account choices', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.credentials = []
+    mocks.renderConfigFields = false
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -155,6 +185,149 @@ describe('connector settings service-account choices', () => {
     })
   }
 
+  it.each([true, false])(
+    'locks the sync method only for Search settings (%s)',
+    async (isSearchIndex) => {
+      await render(confluenceConnectorMeta, { isSearchIndex })
+      expect(mocks.accessField).toHaveBeenLastCalledWith(
+        expect.objectContaining({ lockAccessMode: isSearchIndex })
+      )
+    }
+  )
+
+  it('keeps a failed availability check actionable before methods are known', async () => {
+    const refetch = vi.fn()
+    await render(confluenceConnectorMeta, {
+      availability: {
+        error: new Error('Could not load connection availability'),
+        isFetching: false,
+        isReady: false,
+        refetch,
+      },
+      allowAdmin: false,
+    })
+    expect(container.textContent).toContain('Could not load connection availability')
+    expect(mocks.accessField).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isAvailabilityReady: false, allowAdmin: false })
+    )
+    const retry = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Try again'
+    )
+    expect(retry).toBeEnabled()
+    await act(async () => retry!.click())
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+
+  it('shows the acting user’s managed connection for browsing member sources', async () => {
+    mocks.credentials = [
+      { id: 'managed-1', name: 'My Confluence', provider: 'confluence', type: 'managed_oauth' },
+    ]
+    await render(confluenceConnectorMeta, {
+      access: { accessMode: 'members' },
+      needsWorkspaceCredential: false,
+      isFieldVisible: () => true,
+    })
+    expect(mocks.credentialOptions).toHaveBeenCalledWith(
+      'confluence',
+      expect.objectContaining({ organizationId: 'org-1', purpose: 'browsing' })
+    )
+    await openAccountChoices()
+    await choose('My Confluence')
+    expect(mocks.configFields).toHaveBeenLastCalledWith(
+      expect.objectContaining({ credentialId: 'managed-1' })
+    )
+    expect(mocks.selectCredential).not.toHaveBeenCalled()
+  })
+
+  it('never offers a managed connection for central indexing', async () => {
+    mocks.credentials = [
+      { id: 'managed-1', name: 'My Confluence', provider: 'confluence', type: 'managed_oauth' },
+    ]
+    await render(confluenceConnectorMeta)
+    expect(mocks.credentialOptions).toHaveBeenCalledWith(
+      'confluence',
+      expect.objectContaining({ purpose: undefined })
+    )
+    await openAccountChoices()
+    expect(document.body.textContent).not.toContain('My Confluence')
+  })
+
+  it.each(['managed_oauth', 'oauth', 'service_account'] as const)(
+    'uses the %s browsing identity independently of a delegated Drive content account',
+    async (type) => {
+      mocks.renderConfigFields = true
+      mocks.credentials = [
+        { id: 'browsing-account', name: 'Browse Drive', provider: 'google-drive', type },
+        {
+          id: 'indexing-account',
+          name: 'Content indexing',
+          provider: 'google-drive',
+          type: 'service_account',
+        },
+      ]
+      await render(googleDriveConnectorMeta, {
+        access: { accessMode: 'members' },
+        contentCredentialId: 'indexing-account',
+        sourceConfig: { adminEmail: 'crawl-admin@example.com' },
+        needsWorkspaceCredential: false,
+        isFieldVisible: (field) => field.id === 'folderSelector',
+      })
+      await openAccountChoices()
+      await choose('Browse Drive')
+
+      expect(mocks.selectorOptions).toHaveBeenLastCalledWith(
+        'google.drive',
+        expect.objectContaining({
+          enabled: true,
+          scope: { kind: 'organization', organizationId: 'org-1' },
+          context: {
+            oauthCredential: 'browsing-account',
+            mimeType: 'application/vnd.google-apps.folder',
+            ...(type === 'service_account'
+              ? { impersonateUserEmail: 'crawl-admin@example.com' }
+              : {}),
+          },
+        })
+      )
+      expect(mocks.selectCredential).not.toHaveBeenCalled()
+    }
+  )
+
+  it('waits for the selected account metadata before browsing a saved delegated source', async () => {
+    mocks.renderConfigFields = true
+    const overrides: Partial<ConnectorSettingsFieldsProps> = {
+      credentialId: 'indexing-account',
+      sourceConfig: { adminEmail: 'crawl-admin@example.com' },
+      isFieldVisible: (field) => field.id === 'folderSelector',
+    }
+    await render(googleDriveConnectorMeta, overrides)
+    expect(mocks.selectorOptions).toHaveBeenLastCalledWith(
+      'google.drive',
+      expect.objectContaining({ enabled: false })
+    )
+
+    mocks.credentials = [
+      {
+        id: 'indexing-account',
+        name: 'Content indexing',
+        provider: 'google-drive',
+        type: 'service_account',
+      },
+    ]
+    await render(googleDriveConnectorMeta, overrides)
+    expect(mocks.selectorOptions).toHaveBeenLastCalledWith(
+      'google.drive',
+      expect.objectContaining({
+        enabled: true,
+        context: {
+          oauthCredential: 'indexing-account',
+          mimeType: 'application/vnd.google-apps.folder',
+          impersonateUserEmail: 'crawl-admin@example.com',
+        },
+      })
+    )
+  })
+
   it.each([
     {
       meta: confluenceConnectorMeta,
@@ -177,6 +350,10 @@ describe('connector settings service-account choices', () => {
           organizationId: 'org-1',
           serviceAccountProviderId: provider,
           atlassianProduct: product,
+          atlassianSetupGuideUrl:
+            product === 'confluence'
+              ? 'https://docs.sim.ai/search/confluence#using-a-service-account'
+              : undefined,
         })
       )
 
@@ -205,6 +382,28 @@ describe('connector settings service-account choices', () => {
     expect(mocks.serviceAccountModal).not.toHaveBeenCalled()
   })
 
+  it('only offers service accounts when replacing a central Confluence credential', async () => {
+    mocks.credentials = [
+      { id: 'personal', name: 'Personal Confluence', provider: 'confluence', type: 'oauth' },
+      {
+        id: 'service',
+        name: 'Confluence indexing',
+        provider: 'atlassian-service-account',
+        type: 'service_account',
+      },
+    ]
+    await render(confluenceConnectorMeta)
+    expect(container.textContent).toContain('Service account')
+    await openAccountChoices()
+    expect(
+      Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map((node) =>
+        node.textContent?.trim()
+      )
+    ).toEqual(['Confluence indexing', 'Add service account'])
+    await choose('Confluence indexing')
+    expect(mocks.selectCredential).toHaveBeenCalledExactlyOnceWith('service')
+  })
+
   it('preserves the regular knowledge-base Confluence account choices', async () => {
     mocks.credentials = [
       {
@@ -216,6 +415,7 @@ describe('connector settings service-account choices', () => {
     ]
     await render(confluenceConnectorMeta, {
       isSearchIndex: false,
+      access: { accessMode: 'workspace' },
       allowWorkspace: true,
       scope: { kind: 'workspace', workspaceId: 'workspace-1' },
     })

@@ -1,4 +1,4 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import type { CredentialAccessResult } from '@/lib/auth/credential-access'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { SelectorKey, ServerSelectorKey } from '@/lib/selectors/manifest'
@@ -9,6 +9,11 @@ import type {
   SelectorRequest,
   SelectorScope,
 } from '@/lib/selectors/types'
+
+export type SelectorPrincipal = Extract<
+  Principal,
+  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
+>
 
 export type SelectorDestinationPolicy = 'fixed' | 'credential-bound' | 'user-controlled'
 
@@ -46,6 +51,11 @@ export type SelectorCredentialPolicy =
 export interface AuthorizedSelectorCredential {
   suppliedId: string
   organization?: { principal: SessionPrincipal; organizationId: string }
+  personalSearchSetup?: {
+    principal: SessionPrincipal
+    organizationId: string
+    connectorType: 'jira' | 'confluence'
+  }
   access?: CredentialAccessResult
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */
@@ -74,7 +84,7 @@ export interface ExecuteServerSelectorArgs {
   scope: SelectorScope
   workspaceId?: string
   organizationId?: string
-  principal: SessionPrincipal
+  principal: SelectorPrincipal
   requesterUserId: string
   credential?: AuthorizedSelectorCredential
   references: ReadonlyMap<string, ResolvedSelectorReference>

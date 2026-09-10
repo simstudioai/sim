@@ -298,6 +298,12 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
+  'jira.projectKeys': providerSelector(['domain'], {
+    readiness: { all: ['oauthCredential', 'domain'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'linear.projects': providerSelector(['teamId'], {
     readiness: { all: ['oauthCredential', 'teamId'] },
     listMode: 'paginated',
@@ -345,6 +351,14 @@ export const selectorManifest = {
   'imap.mailboxes': rawProviderSelector(['host', 'port', 'secure', 'username', 'password'], {
     readiness: { all: ['host', 'username', 'password'] },
     sensitive: ['username', 'password'],
+  }),
+  'mcp.tools': rawProviderSelector(['mcpServerId'], {
+    readiness: { all: ['mcpServerId'] },
+    sourceFields: { mcpServerId: ['serverId', 'server'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    staleTime: 0,
   }),
   'managedAgent.agents': providerSelector(),
   'managedAgent.environments': providerSelector(['environmentType']),

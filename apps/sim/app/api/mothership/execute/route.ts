@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { verifyInternalDelegationToken } from '@/lib/auth/internal'
 import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
@@ -33,6 +34,8 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -160,6 +163,29 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       secretScope,
       mountedSecrets,
     } = validation.data.body
+    const mcpDelegationToken = validation.data.headers['x-sim-mcp-delegation']
+    if (!mcpDelegationToken) throw new Error('Mothership requires signed workflow provenance')
+    const delegation = await verifyInternalDelegationToken(mcpDelegationToken)
+    if (!delegation.mcpBlockId) throw new Error('Mothership requires signed block provenance')
+    if (
+      workflowId !== (delegation.currentWorkflow?.workflowId ?? delegation.workflowId) ||
+      executionId !== delegation.executionId
+    )
+      throw new Error('Mothership workflow scope does not match signed provenance')
+    const mcpContext = {
+      userId: auth.userId,
+      workflowId: workflowId ?? delegation.workflowId,
+      workspaceId,
+      executionId,
+      executorDelegationOrigin: delegation,
+      mcpBlockId: delegation.mcpBlockId,
+    }
+    const mcpPrincipal = await createExecutorPrincipalFromExecutionContext({
+      context: mcpContext,
+      audience: MCP_SERVER_DELEGATION_AUDIENCE,
+    })
+    if (mcpPrincipal.workspaceId !== workspaceId)
+      throw new Error('MCP workspace scope does not match')
     const secretMountPolicy = normalizeSecretMountPolicy({ secretScope, mountedSecrets })
 
     /**
@@ -221,8 +247,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
     const userPermission = workspaceAccess.permission
     const mothershipToolsPromise = Promise.allSettled([
-      buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
-      buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
+      buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? [], mcpContext),
+      buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds, mcpContext),
     ]).then((results) => {
       const groups = results.map((result) => {
         if (result.status === 'rejected') throw result.reason
@@ -344,6 +370,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         simRequestId: requestId,
         goRoute: '/api/mothership/execute',
         autoExecuteTools: true,
+        mcpBlockId: delegation.mcpBlockId,
+        executorDelegationOrigin: delegation,
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
         billingAttribution,

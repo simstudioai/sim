@@ -22,7 +22,6 @@ import {
 import { startOrganizationSlackConfigurationContract } from '@/lib/api/contracts/organization-accounts'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { mcpKeys } from '@/hooks/queries/mcp'
 import {
   CREDENTIAL_GROUP_ACCESS_STALE_TIME,
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
@@ -30,6 +29,7 @@ import {
   fetchWorkspaceAccounts,
   WORKSPACE_ACCOUNTS_STALE_TIME,
 } from '@/hooks/queries/utils/credential-group-queries'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 export function useWorkspaceAccounts(workspaceId?: string) {
@@ -288,8 +288,6 @@ export function useStartSlackCredentialGroupConfiguration() {
         return requestJson(startOrganizationSlackConfigurationContract, {
           params: { id: scope.organizationId, groupId: credentialGroupId },
           body: {
-            clientId: body.clientId,
-            clientSecret: body.clientSecret,
             appId: body.appId,
             teamId: body.teamId,
             requiredScopes: body.requiredScopes,

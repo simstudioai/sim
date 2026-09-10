@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import {
   areModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -113,15 +115,14 @@ function selectIndexedMothershipMcpTools(tools: unknown): IndexedMothershipMcpTo
 
   return tools.flatMap((candidate, inputIndex) => {
     if (!isPlainRecord(candidate) || candidate.type !== 'mcp') return []
-    if (candidate.usageControl === 'none' || !isPlainRecord(candidate.params)) return []
+    if (candidate.usageControl === 'none') return []
 
-    const { serverId, toolName } = candidate.params
-    if (typeof serverId !== 'string' || !serverId || typeof toolName !== 'string' || !toolName) {
-      return []
-    }
+    const { serverId, toolName } = resolveMcpToolBinding(candidate)
 
     const serverName =
-      typeof candidate.params.serverName === 'string' ? candidate.params.serverName : undefined
+      isPlainRecord(candidate.params) && typeof candidate.params.serverName === 'string'
+        ? candidate.params.serverName
+        : undefined
     const schema = isPlainRecord(candidate.schema) ? candidate.schema : undefined
 
     const usageControl =
@@ -153,22 +154,23 @@ async function expandMothershipMcpTools(
   if (!Array.isArray(tools)) return []
   assertValidMcpServerToolBindings(tools)
   const individual = selectMothershipMcpTools(tools)
-  const advanced: Array<{ serverId: string; usageControl: 'auto' | 'force' }> = tools.flatMap(
-    (candidate) => {
-      if (!isPlainRecord(candidate) || candidate.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return []
-      if (candidate.usageControl === 'none') return []
-      if (!isPlainRecord(candidate.params)) {
-        throw new Error('MCP Server (Advanced) requires params.serverId')
-      }
-      const serverId = candidate.params.serverId
-      if (typeof serverId !== 'string') {
-        throw new Error('MCP Server (Advanced) requires params.serverId')
-      }
-      if (!serverId.trim()) return []
-      const usageControl: 'auto' | 'force' = candidate.usageControl === 'force' ? 'force' : 'auto'
-      return [{ serverId, usageControl }]
+  const advanced: Array<{
+    serverId: string
+    usageControl: 'auto' | 'force'
+  }> = tools.flatMap((candidate) => {
+    if (!isPlainRecord(candidate) || candidate.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return []
+    if (candidate.usageControl === 'none') return []
+    if (!isPlainRecord(candidate.params)) {
+      throw new Error('MCP Server (Advanced) requires params.serverId')
     }
-  )
+    const serverId = candidate.params.serverId
+    if (typeof serverId !== 'string') {
+      throw new Error('MCP Server (Advanced) requires params.serverId')
+    }
+    if (!serverId.trim()) throw new Error('MCP Server (Advanced) requires params.serverId')
+    const usageControl: 'auto' | 'force' = candidate.usageControl === 'force' ? 'force' : 'auto'
+    return [{ serverId, usageControl }]
+  })
   if (advanced.length === 0) return individual
   if (!ctx.workspaceId || !ctx.workflowId) {
     throw new Error('Workspace and workflow context are required for MCP Server (Advanced)')
@@ -186,10 +188,13 @@ async function expandMothershipMcpTools(
           executionId: ctx.executionId,
           userId: ctx.userId,
           executorDelegationOrigin: ctx.executorDelegationOrigin,
+          mcpBlockId: ctx.mcpBlockId,
         },
         serverId,
         signal: ctx.abortSignal,
       })
+      if (!discovered.length)
+        throw new Error(`No permitted MCP operations are available for ${serverId}`)
       return discovered.map((tool) => ({
         type: 'mcp' as const,
         usageControl,
@@ -894,6 +899,7 @@ export class MothershipBlockHandler implements BlockHandler {
       secretScope: inputs.secretScope,
       mountedSecrets: inputs.mountedSecrets,
     })
+    ctx.mcpBlockId = block.id
     const mcpTools = await expandMothershipMcpTools(ctx, modelInputProjection.value.tools)
     const skillContexts = selectMothershipSkillContexts(
       modelInputProjection.value.skills,
@@ -908,6 +914,12 @@ export class MothershipBlockHandler implements BlockHandler {
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)
+    if (!ctx.executorDelegationOrigin)
+      throw new Error('Mothership requires workflow delegation provenance')
+    headers['X-Sim-Mcp-Delegation'] = await generateInternalDelegationToken({
+      ...ctx.executorDelegationOrigin,
+      mcpBlockId: block.id,
+    })
     headers.Accept = 'application/x-ndjson'
     headers[MOTHERSHIP_EXECUTE_STREAM_HEADER] = MOTHERSHIP_EXECUTE_STREAM_VALUE
     if (ctx.resolvedSecretTraceRegistry) {

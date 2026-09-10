@@ -14,15 +14,15 @@ import { and, asc, eq, exists, gt, inArray, isNull, notExists, sql } from 'drizz
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { invalidateDeployedStateCache } from '@/lib/workflows/persistence/utils'
 import {
+  clearDependentsOnRemap,
+  type ForkRemapKind,
+  remapForkSubBlocks,
+} from '@/lib/workflows/references/remap-references'
+import {
   FORK_DOCUMENT_ID_PATTERN,
   type ForkFailedResource,
 } from '@/ee/workspace-forking/lib/copy/copy-resources'
 import type { ForkCopyResolver } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
-import {
-  clearDependentsOnRemap,
-  type ForkRemapKind,
-  remapForkSubBlocks,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const logger = createLogger('WorkspaceForkCleanupFailed')
 

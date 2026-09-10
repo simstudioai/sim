@@ -7,6 +7,8 @@ import {
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { authorizePersonalSearchSetup } from '@/lib/knowledge/application/personal-search-account'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { selectorOperations } from '@/lib/selectors/application/operations'
 import {
@@ -29,7 +31,7 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
 import { getServerSelectorAttachment } from '@/lib/selectors/server/registry'
 import { sanitizeSelectorResult } from '@/lib/selectors/server/sanitize'
-import type { ResolvedSelectorReference } from '@/lib/selectors/server/types'
+import type { ResolvedSelectorReference, SelectorPrincipal } from '@/lib/selectors/server/types'
 import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
@@ -38,6 +40,8 @@ const logger = createLogger('ExecuteSelector')
 export interface ExecuteSelectorInput extends ExecuteSelectorRequest {
   signal?: AbortSignal
   auditRequest?: CredentialAuditRequest
+  /** Set only by the personal Search setup use case; excluded from the public selector contract. */
+  personalSearchSetup?: 'jira' | 'confluence'
 }
 
 function validateAuthorizedInput(
@@ -124,7 +128,7 @@ function getReferencedDetailResolvedId(input: {
 }
 
 async function executeAuthorizedSelector(args: {
-  principal: { kind: 'session'; userId: string; sessionId: string }
+  principal: SelectorPrincipal
   input: ExecuteSelectorInput
   context: SelectorApplicationContext
 }): Promise<SelectorExecutionResult> {
@@ -163,6 +167,7 @@ async function executeAuthorizedSelector(args: {
             scope: args.input.scope,
             workspaceId: args.context.workspaceId,
             organizationId,
+            personalSearchSetup: args.input.personalSearchSetup,
             policy: attachment.credential,
             protectedValues,
             references: resolved.references,
@@ -193,19 +198,24 @@ async function executeAuthorizedSelector(args: {
     })
 
     const credentialAccess = credential?.access
+    const credentialResourceId = credential?.personalSearchSetup
+      ? credential.suppliedId
+      : credentialAccess?.resolvedCredentialId
     let credentialUseRecorded = false
     const recordCredentialUse =
-      attachment.auditCredentialUse && credentialAccess?.resolvedCredentialId
+      attachment.auditCredentialUse && credentialResourceId
         ? (providerId: string) => {
             if (credentialUseRecorded) return
             credentialUseRecorded = true
             recordCredentialAccess({
               actorId: args.principal.userId,
               workspaceId: args.context.workspaceId ?? null,
-              resourceId: credentialAccess.resolvedCredentialId!,
+              resourceId: credentialResourceId,
               providerId: credential?.providerId ?? providerId,
               credentialType:
-                credentialAccess.credentialType === 'service_account' ? 'service_account' : 'oauth',
+                credentialAccess?.credentialType === 'service_account'
+                  ? 'service_account'
+                  : 'oauth',
               auditRequest: args.input.auditRequest,
             })
           }
@@ -280,7 +290,8 @@ async function executeAuthorizedSelector(args: {
       error instanceof SelectorOptionsUnavailableError ||
       // A refusal, not a provider failure: it reaches the caller as its own 403
       // rather than being folded into "Options unavailable".
-      error instanceof IntegrationNotAllowedError
+      error instanceof IntegrationNotAllowedError ||
+      error instanceof OrchestrationError
     ) {
       throw error
     }
@@ -327,14 +338,34 @@ export const executeSelector: OperationUseCase<
 > = {
   operation: selectorOperations.execute,
   async execute(args) {
-    if (args.input.scope.kind !== 'organization') return executeWorkspaceSelector.execute(args)
+    args = {
+      ...args,
+      input: {
+        ...args.input,
+        signal: args.input.signal ?? args.request?.signal,
+        auditRequest: args.input.auditRequest ?? args.request,
+      },
+    }
+    if (args.input.scope.kind !== 'organization') {
+      if (args.input.personalSearchSetup) throw new SelectorContextUnavailableError()
+      return executeWorkspaceSelector.execute(args)
+    }
     if (args.principal.kind !== 'session') throw new SelectorContextUnavailableError()
-    await requireOrganizationMembership(
-      args.principal,
-      args.input.scope.organizationId,
-      'admin',
-      'knowledge.use'
-    )
+    if (args.input.personalSearchSetup) {
+      const selectorKey =
+        args.input.personalSearchSetup === 'jira' ? 'jira.projectKeys' : 'confluence.spaces'
+      if (args.input.selectorKey !== selectorKey) throw new SelectorContextUnavailableError()
+      await authorizePersonalSearchSetup(args.principal, {
+        organizationId: args.input.scope.organizationId,
+        connectorType: args.input.personalSearchSetup,
+      })
+    } else
+      await requireOrganizationMembership(
+        args.principal,
+        args.input.scope.organizationId,
+        'admin',
+        'knowledge.use'
+      )
     const context = await resolveSelectorApplicationContext({
       selectorKey: args.input.selectorKey as ServerSelectorKey,
       scope: args.input.scope,
