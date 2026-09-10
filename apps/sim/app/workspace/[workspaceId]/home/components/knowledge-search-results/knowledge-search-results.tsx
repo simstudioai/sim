@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
+import { ShimmerText } from '@/components/ui/shimmer-text'
 import type {
   WorkspaceKnowledgeSearchResult,
   WorkspaceSearchFilters,
@@ -188,7 +189,11 @@ export function KnowledgeSearchResults({
     )
   }
   if (isPending || (isFetching && !results)) {
-    return <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
+    return (
+      <p role='status' className='px-2 py-2 text-[var(--text-muted)] text-caption'>
+        <ShimmerText className='[--shimmer-rest:var(--text-muted)]'>Searching…</ShimmerText>
+      </p>
+    )
   }
 
   const indexingNote =

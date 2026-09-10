@@ -283,12 +283,10 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     return last?.type === 'agent_group' && last.agentName === 'mothership' ? last : null
   }
 
-  // Top-level (mothership) tool calls render in a collapsible group. Reuse that
-  // group only while it is still the most recent segment so consecutive tools
-  // stay together; once another visible segment (main text or a spawned
-  // subagent) breaks the run, the next tool opens a fresh group below it
-  // instead of jumping back up into the original one. This keeps the mothership's
-  // tools and prose interleaved in the order they actually happened.
+  /**
+   * Reuse only the latest main activity segment so tools remain interleaved
+   * with prose and subagents in stream order.
+   */
   const ensureMothership = (): AgentGroupSegment => {
     const existing = tailMothershipGroup()
     if (existing) return existing
@@ -1024,7 +1022,6 @@ function MessageContentInner({
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}
-                    isCurrentSection={i === segments.length - 1}
                     isLaneOpen={segment.isOpen}
                   />
                 </div>

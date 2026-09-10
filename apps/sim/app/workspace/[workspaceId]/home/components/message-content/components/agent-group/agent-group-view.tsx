@@ -12,6 +12,7 @@ import {
 import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { Terminal as TerminalTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
@@ -47,11 +48,9 @@ export interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  /** This group is the latest section in its parent sequence (drives collapse). */
-  isCurrentSection?: boolean
   /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
   isLaneOpen?: boolean
-  /** Opens the group on first render without changing production's automatic collapse rules. */
+  /** Opens a subagent group on first render. */
   defaultExpanded?: boolean
   /** Keeps the activity viewport anchored at the top while new rows stream in. */
   autoScrollActivity?: boolean
@@ -151,7 +150,6 @@ export function AgentGroupView({
   items,
   isDelegating = false,
   isStreaming = false,
-  isCurrentSection = false,
   isLaneOpen = false,
   defaultExpanded = false,
   autoScrollActivity = true,
@@ -192,16 +190,7 @@ export function AgentGroupView({
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
 
-  // SUBAGENT groups never auto-expand: the collapsed row IS the live view —
-  // label plus latest running tool title. Expanding is a deliberate user
-  // action; only a pending permission prompt or a browser hand-back forces
-  // one open. The MAIN lane ("Sim") is not a delegation card: its narration
-  // and tool calls are the turn itself, so it keeps the original live-expand
-  // behavior (open while streaming/current, settles when superseded).
-  const autoExpanded = isMainAgent && isStreaming && (isCurrentSection || isLaneOpen || !resolved)
-  const [manualExpanded, setManualExpanded] = useState<boolean | null>(
-    defaultExpanded ? true : null
-  )
+  const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
   // cannot proceed until it is answered, so hiding it would deadlock the chat
@@ -209,9 +198,7 @@ export function AgentGroupView({
   const expanded =
     hasAwaitingApproval(items) ||
     nestedBrowserTakeover ||
-    (activeBrowserTakeover
-      ? expandedTakeoverId === activeBrowserTakeover.id
-      : (manualExpanded ?? autoExpanded))
+    (activeBrowserTakeover ? expandedTakeoverId === activeBrowserTakeover.id : manualExpanded)
 
   const toggleExpanded = () => {
     if (activeBrowserTakeover) {
@@ -221,9 +208,74 @@ export function AgentGroupView({
     setManualExpanded(!expanded)
   }
 
+  let latestTool: AgentGroupItem | undefined
+  if (isMainAgent) {
+    for (let index = items.length - 1; index >= 0; index--) {
+      if (items[index].type === 'tool') {
+        latestTool = items[index]
+        break
+      }
+    }
+  }
+  /** Keep blocking controls visible even when a newer tool replaces the activity text. */
+  const visibleItems = isMainAgent
+    ? items.filter(
+        (item) =>
+          item.type !== 'tool' ||
+          item === latestTool ||
+          item.data.status === ToolCallStatus.awaiting_approval ||
+          (item.data.status === ToolCallStatus.executing &&
+            item.data.toolName === TerminalTool.id &&
+            item.data.params?.operation === 'handoff')
+      )
+    : items
+  const activity = (
+    <div className={cn('flex min-w-0 flex-col gap-1.5', !isMainAgent && 'py-0.5 pl-6')}>
+      {visibleItems.map((item, idx) => {
+        if (item.type === 'tool') {
+          return (
+            <ToolCallComponent
+              key={item.data.id}
+              toolCallId={item.data.id}
+              toolName={item.data.toolName}
+              displayTitle={item.data.displayTitle}
+              status={item.data.status}
+              params={item.data.params}
+              result={item.data.result}
+              streamingArgs={item.data.streamingArgs}
+              startedAt={item.data.startedAt}
+            />
+          )
+        }
+        if (item.type === 'agent_group') {
+          return (
+            <AgentGroupView
+              key={item.group.id}
+              ToolCallComponent={ToolCallComponent}
+              renderBrowserTakeover={renderBrowserTakeover}
+              agentName={item.group.agentName}
+              agentLabel={item.group.agentLabel}
+              items={item.group.items}
+              isDelegating={item.group.isDelegating}
+              isStreaming={isStreaming}
+              isLaneOpen={item.group.isOpen}
+            />
+          )
+        }
+        return (
+          <NarrationText
+            key={`text-${idx}`}
+            content={item.content}
+            isStreaming={isStreaming && idx === visibleItems.length - 1}
+          />
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className='flex flex-col gap-1.5'>
-      {hasItems ? (
+      {isMainAgent ? null : hasItems ? (
         <button
           type='button'
           onClick={toggleExpanded}
@@ -256,60 +308,20 @@ export function AgentGroupView({
           )}
         </div>
       )}
-      {hasItems && (
+      {isMainAgent ? (
+        activity
+      ) : hasItems ? (
         <Expandable expanded={expanded}>
           <ExpandableContent>
             <BoundedViewport
               isStreaming={isStreaming && autoScrollActivity}
               unbounded={nestedBrowserTakeover}
             >
-              <div className='flex flex-col gap-1.5 py-0.5'>
-                {items.map((item, idx) => {
-                  if (item.type === 'tool') {
-                    return (
-                      <ToolCallComponent
-                        key={item.data.id}
-                        toolCallId={item.data.id}
-                        toolName={item.data.toolName}
-                        displayTitle={item.data.displayTitle}
-                        status={item.data.status}
-                        params={item.data.params}
-                        result={item.data.result}
-                        streamingArgs={item.data.streamingArgs}
-                        startedAt={item.data.startedAt}
-                      />
-                    )
-                  }
-                  if (item.type === 'agent_group') {
-                    return (
-                      <div key={item.group.id} className='pl-6'>
-                        <AgentGroupView
-                          ToolCallComponent={ToolCallComponent}
-                          renderBrowserTakeover={renderBrowserTakeover}
-                          agentName={item.group.agentName}
-                          agentLabel={item.group.agentLabel}
-                          items={item.group.items}
-                          isDelegating={item.group.isDelegating}
-                          isStreaming={isStreaming}
-                          isCurrentSection={idx === items.length - 1}
-                          isLaneOpen={item.group.isOpen}
-                        />
-                      </div>
-                    )
-                  }
-                  return (
-                    <NarrationText
-                      key={`text-${idx}`}
-                      content={item.content}
-                      isStreaming={isStreaming && idx === items.length - 1}
-                    />
-                  )
-                })}
-              </div>
+              {activity}
             </BoundedViewport>
           </ExpandableContent>
         </Expandable>
-      )}
+      ) : null}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
           {renderBrowserTakeover?.(activeBrowserTakeover.reason)}
@@ -334,7 +346,7 @@ function NarrationText({ content, isStreaming }: NarrationTextProps) {
   const revealed = useSmoothText(content, isStreaming)
 
   return (
-    <span className='pl-6 text-[13px] text-[var(--text-muted)] leading-[18px]'>
+    <span className='text-[13px] text-[var(--text-muted)] leading-[18px]'>
       {renderInlineMarkdown(revealed.trim())}
     </span>
   )
