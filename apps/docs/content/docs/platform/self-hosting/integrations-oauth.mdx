@@ -199,6 +199,8 @@ The private key must include its PEM header, footer, and contents. Sim accepts a
 
 Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
 
+If you run Search indexing on Trigger.dev, configure the same five variables in its matching environment. The app server and indexing worker both need the App credentials; updating the app's secret store alone does not update a separately configured worker.
+
 The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
 
 Keep **Expire user authorization tokens** enabled so Sim receives the refresh token it needs to [renew personal connections](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens).
