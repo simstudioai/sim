@@ -37,6 +37,7 @@ import {
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { slackSearchKeys } from '@/hooks/queries/slack-search'
+import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
@@ -51,9 +52,7 @@ export function useDisconnectPersonalOrganizationAccount(organizationId: string)
       }),
     onSuccess: () =>
       Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: searchSourceKeys.list({ kind: 'organization', organizationId }),
-        }),
+        resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
