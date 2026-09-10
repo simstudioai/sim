@@ -42,6 +42,7 @@ The unit you configure is a **group**: something that runs once per row, fed by 
   alt="The New column menu: Enrichments at the top, the plain column types, and Workflow at the bottom"
   width={340}
   height={351}
+  className="mx-auto h-auto w-full max-w-[340px]"
 />
 
 ### Enrichments
@@ -57,6 +58,7 @@ A **workflow group** runs one of your own [workflows](/workflows) per row — us
   alt="The Configure workflow panel for Lead Score Enrichment: a preview of the LeadScorer workflow, the workflow picker, three output columns selected, Auto-run on, and six Run after dependencies"
   width={400}
   height={634}
+  className="mx-auto h-auto w-full max-w-[360px]"
 />
 
 - **Workflow** picks which workflow runs per row; here, *Lead Score Enrichment*.
@@ -75,6 +77,7 @@ Everything from here applies to both kinds. A group's configuration is a set of 
   alt="A group's bindings: the required Company domain input bound to the domain column, and the employee count and description outputs bound to their column names"
   width={380}
   height={499}
+  className="mx-auto h-auto w-full max-w-[380px]"
 />
 
 When a group runs a row, the bound column values become its inputs; it only sees the columns you mapped, the rest of the row is untouched, and inputs are read-only during the run. Every output you selected is written to its column, and outputs you didn't select are discarded.
@@ -126,6 +129,7 @@ Every value in a workflow column comes from a real workflow run, and each one is
   alt="A lead_score cell's menu: View execution, Re-run cell, insert and duplicate row actions, and Delete row"
   width={800}
   height={369}
+  className="mx-auto h-auto w-full max-w-xl"
 />
 
 **View execution** opens the run's trace: each block with its status, timing, and credit cost, the same view as the [Logs](/logs-debugging) page. Here, the row's score came from a 1.86s run of the LeadScorer workflow:
@@ -135,6 +139,7 @@ Every value in a workflow column comes from a real workflow run, and each one is
   alt="The Log Details trace for one row's run: Workflow Execution at 1.86s with Start and LeadScorer spans, marked Success"
   width={650}
   height={386}
+  className="mx-auto h-auto w-full max-w-xl"
 />
 
 **Re-run cell** runs the group again for just that row, replacing its values when the run finishes.
