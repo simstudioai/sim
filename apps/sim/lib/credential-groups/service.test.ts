@@ -105,7 +105,7 @@ describe('Credential Group service', () => {
     }
   )
 
-  it('validates provider policy through the active update transaction', async () => {
+  it('preserves stored scopes while validating provider policy in the update transaction', async () => {
     const option = {
       id: 'option-1',
       provider: 'slack' as const,
@@ -156,8 +156,12 @@ describe('Credential Group service', () => {
       })
     ).resolves.toMatchObject({ id: 'group-1' })
 
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ options: [option] }))
     expect(mockGetPolicy).toHaveBeenCalledWith(
-      expect.objectContaining({ slackBotCredentialId: 'bot-1' }),
+      expect.objectContaining({
+        slackBotCredentialId: 'bot-1',
+        requiredScopes: option.requiredScopes,
+      }),
       {
         workspaceId: 'workspace-1',
         credentialGroupId: 'group-1',

@@ -8,11 +8,13 @@
  *
  * @vitest-environment node
  */
+import { user } from '@sim/db/schema'
 import { auditMock, authMockFns, createMockRequest, type MockUser } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FolderCollectionFullError } from '@/lib/folders/errors'
 
-const { mockLogger, mockPromoteFork, mockAssertCanPromote } = vi.hoisted(() => ({
+const { mockLogger, mockPromoteFork, mockAuthorizeWorkspaceOperation } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -23,7 +25,7 @@ const { mockLogger, mockPromoteFork, mockAssertCanPromote } = vi.hoisted(() => (
     child: vi.fn(),
   },
   mockPromoteFork: vi.fn(),
-  mockAssertCanPromote: vi.fn(),
+  mockAuthorizeWorkspaceOperation: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -34,7 +36,27 @@ vi.mock('@sim/logger', () => ({
 }))
 vi.mock('@/ee/workspace-forking/lib/promote/promote', () => ({ promoteFork: mockPromoteFork }))
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertCanPromote: mockAssertCanPromote,
+  assertForkingEnabled: vi.fn(),
+  ForkError: class extends Error {},
+}))
+
+vi.mock('@/lib/core/application/workspace-authorization', () => ({
+  authorizeWorkspaceOperation: mockAuthorizeWorkspaceOperation,
+  requireAllowedWorkspacePrincipal: vi.fn(),
+}))
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
+    id,
+    name: id === 'ws-child' ? 'Child' : 'Parent',
+    organizationId: null,
+    allowPersonalApiKeys: true,
+  })),
+}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
+  resolveForkEdge: vi.fn(async () => ({
+    childWorkspaceId: 'ws-child',
+    parentWorkspaceId: 'ws-parent',
+  })),
 }))
 
 import { POST } from '@/app/api/workspaces/[id]/fork/promote/route'
@@ -58,19 +80,15 @@ function promoteRequest() {
 describe('POST /api/workspaces/[id]/fork/promote', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER })
-    mockAssertCanPromote.mockResolvedValue({
-      edge: { childWorkspaceId: WORKSPACE_ID },
-      sourceWorkspaceId: WORKSPACE_ID,
-      targetWorkspaceId: 'ws-parent',
-      source: { name: 'Child' },
-      target: { name: 'Parent' },
-    })
+    authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER, session: { id: 'session-1' } })
+    resetDbChainMock()
+    queueTableRows(user, [{ name: TEST_USER.name }])
+    mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
   })
 
   /**
-   * The sync's Activity row is recorded by the use case, not here, so the route's job is to
-   * hand it the one thing only the route knows: the display name of the edge's other side.
+   * The shared application use case resolves the other side's name and the actor attribution
+   * before the manager records the sync activity.
    */
   it('names the other side of the edge for promoteFork to record the sync', async () => {
     mockPromoteFork.mockResolvedValue({
@@ -80,6 +98,7 @@ describe('POST /api/workspaces/[id]/fork/promote', () => {
       archived: 0,
       redeployed: 1,
       deployFailed: 0,
+      deployWarnings: [],
       unmappedRequired: [],
       blockers: [],
       blocked: null,

@@ -56,6 +56,22 @@ function request(query: string) {
 }
 
 describe('credential group OAuth callback', () => {
+  it.each([
+    ['code=code-1', undefined],
+    ['error=access_denied', 'denied'],
+  ])(
+    'correlates direct OAuth completion without returning to enrollment: %s',
+    async (query, failure) => {
+      const completionId = '550e8400-e29b-41d4-a716-446655440000'
+      mocks.consumeAttempt.mockResolvedValue({ ...attempt, completionRedirect: true, completionId })
+      const response = await GET(request(`state=state-1&${query}`), context)
+      const location = new URL(response.headers.get('location')!, 'https://sim.test')
+      expect(response.status).toBe(303)
+      expect(location.pathname).toBe('/credential-groups/complete')
+      expect(location.searchParams.get('completionId')).toBe(completionId)
+      expect(location.searchParams.get('oauth')).toBe(failure ?? null)
+    }
+  )
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.rateLimit.mockResolvedValue(null)

@@ -694,7 +694,64 @@ export const CLI_CONTRACT: CliContract = {
     variants: [moveResource('workflows mv', 'workflow')],
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
-  importWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  importWorkflow: { workspaceOperation: true, flags: { folderPath: FOLDER_PATH_FLAG } },
+  previewWorkflowImport: {
+    command: 'workflows import-preview',
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  previewWorkspaceFork: { command: 'workspaces fork-preview', profileWorkspacePath: true },
+  forkWorkspace: {
+    command: 'workspaces fork',
+    profileWorkspacePath: true,
+    workspaceOperation: true,
+  },
+  previewWorkspacePush: { command: 'workspaces push-preview', profileWorkspacePath: true },
+  pushWorkspace: {
+    command: 'workspaces push',
+    profileWorkspacePath: true,
+    workspaceOperation: true,
+    confirm: 'This replaces target workflows and may archive targets whose sources were deleted.',
+    flags: { confirm: { omit: true } },
+  },
+  previewWorkspacePull: { command: 'workspaces pull-preview', profileWorkspacePath: true },
+  pullWorkspace: {
+    command: 'workspaces pull',
+    profileWorkspacePath: true,
+    workspaceOperation: true,
+    confirm: 'This replaces target workflows and may archive targets whose sources were deleted.',
+    flags: { confirm: { omit: true } },
+  },
+  getWorkspaceForkAvailability: {
+    command: 'workspaces fork-availability',
+    profileWorkspacePath: true,
+  },
+  getWorkspaceForkLineage: { command: 'workspaces lineage', profileWorkspacePath: true },
+  listWorkspaceForkChildren: { command: 'workspaces children', profileWorkspacePath: true },
+  listWorkspaceForkResources: { command: 'workspaces fork-resources', profileWorkspacePath: true },
+  getWorkspaceForkMappings: { command: 'workspaces mappings get', profileWorkspacePath: true },
+  updateWorkspaceForkMappings: {
+    command: 'workspaces mappings update',
+    profileWorkspacePath: true,
+  },
+  rollbackWorkspaceFork: {
+    command: 'workspaces fork-rollback',
+    profileWorkspacePath: true,
+    confirm: 'This restores the latest sync using its prior deployed versions.',
+  },
+  unlinkWorkspaceFork: {
+    command: 'workspaces unlink',
+    profileWorkspacePath: true,
+    confirm: 'This removes the fork relationship and its persisted mappings.',
+  },
+  updateWorkspaceForkExclusions: {
+    command: 'workspaces sync-exclusions',
+    profileWorkspacePath: true,
+    flags: { workflowIds: { name: 'workflow', list: true } },
+  },
+  getWorkspaceOperation: { command: 'workspaces operations get', profileWorkspacePath: true },
+  listWorkspaceOperations: { command: 'workspaces operations list', profileWorkspacePath: true },
+  listSelector: { command: 'selectors list' },
+  getSelector: { command: 'selectors get' },
   createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   // A dependency set is typed one specifier at a time or pasted from a
@@ -1473,6 +1530,12 @@ export const CLI_CONTRACT: CliContract = {
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
+    flags: {
+      includeReferences: {
+        boolean: true,
+        describe: 'Include non-secret resource identities for mapped import',
+      },
+    },
     document: true,
   },
 

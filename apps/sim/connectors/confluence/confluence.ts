@@ -410,9 +410,16 @@ async function resolveCloudId(
   syncContext?: Record<string, unknown>,
   retryOptions?: RetryOptions
 ): Promise<string> {
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  const credentialDomain = syncContext?.credentialDomain
+  if (
+    typeof credentialDomain === 'string' &&
+    normalizeConfluenceDomainHost(credentialDomain) !== domain
+  ) {
+    throw new Error('Confluence domain must match the selected service account')
+  }
   const cached = syncContext?.cloudId
   if (typeof cached === 'string' && cached) return cached
-  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
   const cloudId = await getConfluenceCloudId(domain, accessToken, retryOptions)
   if (syncContext) syncContext.cloudId = cloudId
   return cloudId
@@ -849,7 +856,7 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+  const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
     .map((page) => {
       const links = page._links as Record<string, string> | undefined
@@ -867,16 +874,20 @@ async function listDocumentsV2(
 
   const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
 
-  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
+  const remaining = maxPages > 0 ? Math.max(0, maxPages - fetchedSoFar) : Number.POSITIVE_INFINITY
+  const documents =
+    allDocuments.length > remaining ? allDocuments.slice(0, remaining) : allDocuments
+  const trimmedByCap = documents.length < allDocuments.length
+  const totalFetched = fetchedSoFar + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
   /**
    * Only a cap that actually truncates a listing may suppress deletion
-   * reconciliation. When the source is exhausted (no next cursor) the listing is
-   * complete even though the count reached `maxPages`, and flagging it would
-   * permanently strand documents deleted upstream.
+   * reconciliation: either a tail trimmed from this page or an unread cursor.
+   * Reaching the cap exactly at source exhaustion still reconciles deletions.
    */
-  if (hitLimit && nextCursor && syncContext) syncContext.listingCapped = true
+  if (hitLimit && (trimmedByCap || nextCursor) && syncContext) syncContext.listingCapped = true
 
   return {
     documents,
@@ -897,7 +908,7 @@ async function listAllContentTypes(
   spaceKey: string,
   maxPages: number,
   cursor?: string,
-  syncContext?: Record<string, unknown>
+  syncContext: Record<string, unknown> = {}
 ): Promise<ExternalDocumentList> {
   let pageCursor: string | undefined
   let blogCursor: string | undefined
@@ -957,6 +968,10 @@ async function listAllContentTypes(
   }
 
   results.hasMore = !pagesDone || !blogsDone
+  if (maxPages > 0 && Number(syncContext.totalDocsFetched) >= maxPages && results.hasMore) {
+    syncContext.listingCapped = true
+    results.hasMore = false
+  }
 
   if (results.hasMore) {
     results.nextCursor = JSON.stringify({

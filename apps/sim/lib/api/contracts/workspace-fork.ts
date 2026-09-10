@@ -2,26 +2,11 @@ import { z } from 'zod'
 import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceSchema } from '@/lib/api/contracts/workspaces'
+import { WORKFLOW_RESOURCE_KINDS } from '@/lib/workflows/references/types'
 
 const workspaceIdParamsSchema = z.object({ id: nonEmptyIdSchema })
 
-export const forkRemapKindSchema = z.enum([
-  'credential',
-  'env-var',
-  'knowledge-base',
-  'knowledge-document',
-  'table',
-  'file',
-  'file-folder',
-  'mcp-server',
-  'custom-tool',
-  /**
-   * A published custom block, referenced by the placed block's `type` rather than by any
-   * sub-block value — the only remap kind that rewrites the block itself.
-   */
-  'custom-block',
-  'skill',
-])
+export const forkRemapKindSchema = z.enum(WORKFLOW_RESOURCE_KINDS)
 
 export const forkResourceTypeSchema = z.enum([
   'workflow',
@@ -48,6 +33,7 @@ export const forkResourceTypeSchema = z.enum([
   'custom_block',
   'custom_tool',
   'skill',
+  'sandbox',
 ])
 
 /**
@@ -164,6 +150,7 @@ export const forkWorkspaceContract = defineRouteContract({
   body: forkWorkspaceBodySchema,
   response: {
     mode: 'json',
+    status: 201,
     schema: z.object({
       // Full workspace row so the client can merge it into the workspace-list cache
       // (parity with create), not just the lineage node.
@@ -347,7 +334,7 @@ export const forkDependentReconfigSchema = z.object({
    * block makes EVERY one of its inputs reconfigurable, not the `dependsOn` subset a
    * credential/KB/table swap invalidates.
    */
-  parentKind: z.enum(['credential', 'knowledge-base', 'table', 'custom-block']),
+  parentKind: z.enum(['credential', 'knowledge-base', 'table', 'custom-block', 'mcp-server']),
   /** Source id of that parent (matches a mapping entry's `sourceId`). */
   parentSourceId: z.string(),
   /**
@@ -362,6 +349,7 @@ export const forkDependentReconfigSchema = z.object({
   subBlockKey: z.string(),
   /** Absent for `custom-block` fields, which are typed inputs rather than selectors. */
   selectorKey: z.string().optional(),
+  multiSelect: z.boolean().optional(),
   /**
    * A `custom-block` input's declared field type (`string` | `number` | `boolean` | `object` |
    * `array` | ...), so the modal renders the matching control instead of a selector.
@@ -540,9 +528,12 @@ export const getForkDiffQuerySchema = z.object({
  * subscription - has to be repointed by hand afterwards.
  */
 export const forkTriggerUrlChangeSchema = z.object({
-  workflowName: z.string(),
+  workflowName: z
+    .string()
+    .max(1024)
+    .describe('Name of the workflow whose public trigger path stops serving.'),
   /** The path that stops being served. A URL an arriving trigger adopts is not reported here. */
-  path: z.string(),
+  path: z.string().max(4096).describe('Public trigger path that stops serving after this sync.'),
 })
 export type ForkTriggerUrlChange = z.output<typeof forkTriggerUrlChangeSchema>
 
@@ -741,6 +732,7 @@ export const promoteForkContract = defineRouteContract({
       archived: z.number().int(),
       redeployed: z.number().int(),
       deployFailed: z.number().int(),
+      deployWarnings: z.array(z.string().max(2048)).max(1000).default([]),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
       /**
        * References the sync would have cleared, so it was blocked without writing (the

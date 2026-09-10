@@ -85,6 +85,9 @@ describe('Confluence server selector adapters', () => {
       'https://api.atlassian.com/ex/confluence/cloud-1/wiki/api/v2/pages/page-1'
     )
     expect(requestedUrl).not.toContain('body-format')
+    expect(mockResolveCredentialBundle).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: ['read:page:confluence'] })
+    )
   })
 
   it('rejects an oversized page detail response before parsing it', async () => {
@@ -125,6 +128,9 @@ describe('Confluence server selector adapters', () => {
       item: { id: '12345', label: 'Engineering (ENG)' },
     })
     expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/wiki/api/v2/spaces/12345')
+    expect(mockResolveCredentialBundle).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: ['read:space:confluence'] })
+    )
   })
 
   it('hydrates a legacy numeric value in the key selector without rewriting it', async () => {

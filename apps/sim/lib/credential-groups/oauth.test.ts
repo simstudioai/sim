@@ -116,7 +116,11 @@ describe('credential group OAuth persistence', () => {
     })
     createAttempt.mockResolvedValue({ state: 'state', nonce: 'nonce' })
     await expect(
-      startCredentialGroupOAuth(CONTEXT, 'invitation', { returnTo: 'search' })
+      startCredentialGroupOAuth(CONTEXT, 'invitation', {
+        returnTo: 'search',
+        completionRedirect: true,
+        completionId: '550e8400-e29b-41d4-a716-446655440000',
+      })
     ).resolves.toBe('https://provider.test/authorize')
     expect(createAttempt).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -128,6 +132,8 @@ describe('credential group OAuth persistence', () => {
         scopeVersion: POLICY.scopeVersion,
         requiredScopes: POLICY.requiredScopes,
         returnTo: 'search',
+        completionRedirect: true,
+        completionId: '550e8400-e29b-41d4-a716-446655440000',
         invitationToken: 'invitation',
       })
     )

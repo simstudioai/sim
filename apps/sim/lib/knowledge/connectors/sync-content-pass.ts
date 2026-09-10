@@ -68,7 +68,8 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       return fn(tx)
     })
   let checkpoint = readListingCheckpoint(input.connector.listingCheckpoint, input.fingerprint)
-  if (!checkpoint) {
+  /** A Full resync must revisit documents before an ordinary listing's saved cursor. */
+  if (!checkpoint || (input.forceRehydrate && !checkpoint.forceRehydrate)) {
     checkpoint = beginListingCheckpoint({
       fingerprint: input.fingerprint,
       generationId: input.runId,
@@ -224,7 +225,11 @@ async function reconcileCompletedListing(
   type Cursor = { id: string; seenAt: string }
   const loadBatch = (condition: SQL | undefined, limit: number, after?: Cursor) =>
     db
-      .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })
+      .select({
+        id: document.id,
+        seenAt: sql<string>`${seenOrder}::text`,
+        deletedAt: document.deletedAt,
+      })
       .from(document)
       .where(
         and(
@@ -299,7 +304,7 @@ async function reconcileCompletedListing(
       await input.lease.beatIfDue()
       const rows = await loadBatch(soft, 500, after)
       if (rows.length === 0) break
-      await withLease((tx) =>
+      const removed = await withLease((tx) =>
         tx
           .update(document)
           .set({ deletedAt: new Date() })
@@ -312,7 +317,9 @@ async function reconcileCompletedListing(
               )
             )
           )
+          .returning({ id: document.id })
       )
+      input.result.docsDeleted += removed.length
       after = rows.at(-1)
     }
   }
@@ -323,18 +330,26 @@ async function reconcileCompletedListing(
       await input.lease.beatIfDue()
       const rows = await loadBatch(hard, 25, after)
       if (rows.length === 0) break
-      input.result.docsDeleted += await hardDeleteDocuments(
-        rows.map((row) => row.id),
-        input.runId,
-        input.connectorId,
-        input.connector.knowledgeBaseId,
-        {
-          connectorId: input.connectorId,
-          knowledgeBaseId: input.connector.knowledgeBaseId,
-          syncLockToken: input.runId,
-          lease: input.leaseKind,
-        }
-      )
+      /** Report newly removed documents once; purging existing tombstones is storage cleanup. */
+      for (const tombstoned of [false, true]) {
+        const ids = rows
+          .filter((row) => (row.deletedAt !== null) === tombstoned)
+          .map((row) => row.id)
+        if (ids.length === 0) continue
+        const removed = await hardDeleteDocuments(
+          ids,
+          input.runId,
+          input.connectorId,
+          input.connector.knowledgeBaseId,
+          {
+            connectorId: input.connectorId,
+            knowledgeBaseId: input.connector.knowledgeBaseId,
+            syncLockToken: input.runId,
+            lease: input.leaseKind,
+          }
+        )
+        if (!tombstoned) input.result.docsDeleted += removed
+      }
       after = rows.at(-1)
     }
   }

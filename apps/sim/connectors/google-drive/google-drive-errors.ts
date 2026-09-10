@@ -5,6 +5,10 @@ import {
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
+import {
+  ConnectorSourceError,
+  type ConnectorSourceFailureCategory,
+} from '@/connectors/source-error'
 import { readBodyWithLimit } from '@/connectors/utils'
 
 const GOOGLE_ERROR_BODY_MAX_BYTES = 64 * 1024
@@ -103,22 +107,47 @@ function classifyGoogleDriveError(
   return 'unknown'
 }
 
-export class GoogleDriveApiError extends Error {
+function diagnosticCategory(
+  kind: GoogleDriveErrorKind,
+  status: number
+): ConnectorSourceFailureCategory | undefined {
+  switch (kind) {
+    case 'authorization':
+    case 'permission':
+      return 'authorization'
+    case 'not_found':
+      return 'source_unavailable'
+    case 'export_too_large':
+    case 'unsupported_export':
+    case 'policy':
+      return 'request_rejected'
+    case 'quota':
+      return 'rate_limit'
+    case 'transient':
+      return status === 429 || status === 403 ? 'rate_limit' : 'provider_unavailable'
+    default:
+      return undefined
+  }
+}
+
+export class GoogleDriveApiError extends ConnectorSourceError {
   retryAfterMs?: number
   readonly reasons: readonly string[]
   readonly kind: GoogleDriveErrorKind
   readonly rateLimited: boolean
 
-  constructor(
-    readonly status: number,
-    normalizedReasons: readonly string[]
-  ) {
+  constructor(status: number, normalizedReasons: readonly string[]) {
     const diagnosticReasons = normalizedReasons.slice(0, GOOGLE_ERROR_REASON_MAX_COUNT)
     const reasonSuffix = diagnosticReasons.length > 0 ? ` (${diagnosticReasons.join(', ')})` : ''
-    super(`Google Drive API request failed with HTTP ${status}${reasonSuffix}`)
+    const kind = classifyGoogleDriveError(status, normalizedReasons)
+    super(
+      `Google Drive API request failed with HTTP ${status}${reasonSuffix}`,
+      status,
+      diagnosticCategory(kind, status)
+    )
     this.name = 'GoogleDriveApiError'
     this.reasons = diagnosticReasons
-    this.kind = classifyGoogleDriveError(status, normalizedReasons)
+    this.kind = kind
     this.rateLimited =
       status === 429 || normalizedReasons.some((reason) => RATE_LIMIT_REASONS.has(reason))
   }

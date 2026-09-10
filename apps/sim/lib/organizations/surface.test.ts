@@ -63,6 +63,7 @@ describe('getOrganizationSurfaceContext', () => {
         isAdmin: true,
         canInviteMembers: true,
         canUsePersonalApiKeys: true,
+        canUseSearchMcp: true,
       },
       connectedAccountsAvailable: true,
       searchAccess: { memberScoped: true, sourceMirrored: false },
@@ -128,6 +129,44 @@ describe('getOrganizationSurfaceContext', () => {
       expect(mockPermissionConfig).toHaveBeenCalledWith('org-1')
     }
   )
+
+  it.each([
+    { disablePersonalApiKeys: false, disableOAuthAppAccess: false, allowed: true },
+    { disablePersonalApiKeys: true, disableOAuthAppAccess: false, allowed: false },
+    { disablePersonalApiKeys: false, disableOAuthAppAccess: true, allowed: false },
+    { disablePersonalApiKeys: true, disableOAuthAppAccess: true, allowed: false },
+  ])(
+    'projects Search MCP policy as $allowed for %j',
+    async ({ disablePersonalApiKeys, disableOAuthAppAccess, allowed }) => {
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+      queueTableRows(member, [{ memberCount: 1 }])
+      mockPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disablePersonalApiKeys,
+        disableOAuthAppAccess,
+      })
+
+      await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+        viewer: { canUseSearchMcp: allowed },
+      })
+      expect(mockPermissionConfig).toHaveBeenCalledWith('org-1')
+    }
+  )
+
+  it('permits Search MCP when only managing API keys is disabled', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+    queueTableRows(member, [{ memberCount: 1 }])
+    mockPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideApiKeysTab: true,
+    })
+
+    await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+      viewer: { canUsePersonalApiKeys: false, canUseSearchMcp: true },
+    })
+  })
 
   it('denies a viewer who is not a member without reading the organization', async () => {
     queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])

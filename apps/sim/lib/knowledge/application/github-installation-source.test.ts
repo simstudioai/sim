@@ -3,14 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
   access: vi.fn(),
-  canUse: vi.fn(),
   decrypt: vi.fn(),
   parse: vi.fn(),
   repository: vi.fn(),
 }))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: m.access,
-  canUseCredential: m.canUse,
+vi.mock('@/lib/knowledge/application/connector-credential', () => ({
+  requireConnectorCredential: m.access,
 }))
 vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: m.decrypt }))
 vi.mock('@/lib/oauth/github-installation', () => ({
@@ -18,6 +16,7 @@ vi.mock('@/lib/oauth/github-installation', () => ({
   resolveGitHubInstallationRepository: m.repository,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
 
 const installed = {
@@ -32,6 +31,8 @@ const installed = {
   providerTenantId: '7',
 }
 const input = {
+  principal: { kind: 'session' as const, userId: 'admin', sessionId: 'session' },
+  requestId: 'request',
   connectorType: 'github',
   credentialId: installed.id,
   organizationId: 'org',
@@ -43,8 +44,7 @@ const input = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  m.access.mockResolvedValue({ credential: installed })
-  m.canUse.mockReturnValue(true)
+  m.access.mockResolvedValue(installed)
   m.decrypt.mockResolvedValue({ decrypted: '{}' })
   m.parse.mockReturnValue({ installationId: '42', accountId: '7' })
   m.repository.mockResolvedValue({ id: '123', fullName: 'example/private', defaultBranch: 'main' })
@@ -58,10 +58,16 @@ describe('GitHub installation source identity', () => {
         sourceConfig: { ...input.sourceConfig, githubRepositoryId: '999' },
       })
     ).resolves.toEqual({ repository: 'example/private', githubRepositoryId: '123' })
-    expect(m.access).toHaveBeenCalledWith(installed.id, 'admin')
+    expect(m.access).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: input.principal,
+        credentialId: installed.id,
+        scope: { kind: 'organization', organizationId: 'org' },
+      })
+    )
   })
   it.each([
-    { organizationId: undefined },
+    { organizationId: undefined, workspaceId: 'workspace' },
     { isSearchIndex: false },
     { accessMode: 'admin' },
     { accessMode: 'workspace' },
@@ -78,22 +84,20 @@ describe('GitHub installation source identity', () => {
     { revokedAt: new Date() },
     { encryptedServiceAccountKey: null },
   ])('refuses unusable or cross-scope installation credentials: %j', async (change) => {
-    m.access.mockResolvedValue({ credential: { ...installed, ...change } })
+    m.access.mockResolvedValue({ ...installed, ...change })
     await expect(prepareGitHubInstallationSource(input)).rejects.toMatchObject({
       code: 'forbidden',
     })
     expect(m.decrypt).not.toHaveBeenCalled()
   })
   it('refuses credentials the acting user cannot use', async () => {
-    m.canUse.mockReturnValue(false)
+    m.access.mockRejectedValue(new OrchestrationError('forbidden', 'Credential access denied'))
     await expect(prepareGitHubInstallationSource(input)).rejects.toMatchObject({
       code: 'forbidden',
     })
   })
   it('bounds encrypted binding data before decryption', async () => {
-    m.access.mockResolvedValue({
-      credential: { ...installed, encryptedServiceAccountKey: 'x'.repeat(16_385) },
-    })
+    m.access.mockResolvedValue({ ...installed, encryptedServiceAccountKey: 'x'.repeat(16_385) })
     await expect(prepareGitHubInstallationSource(input)).rejects.toMatchObject({
       code: 'validation',
     })
@@ -122,7 +126,7 @@ describe('GitHub installation source identity', () => {
       prepareGitHubInstallationSource({ ...input, previousConfig: { githubRepositoryId: '123' } })
     ).resolves.toMatchObject({ githubRepositoryId: '123' })
   })
-  it.each([null, { credential: { providerId: 'github-repositories' } }])(
+  it.each([null, { providerId: 'github-repositories' }])(
     'cannot downgrade an existing installation by replacing or deleting its credential',
     async (access) => {
       m.access.mockResolvedValue(access)

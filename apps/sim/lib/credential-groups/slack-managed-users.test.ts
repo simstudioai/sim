@@ -147,6 +147,127 @@ describe('Slack managed-user authorization', () => {
 
   it.each([
     {
+      name: 'new Search pool',
+      existing: false,
+      existingScopes: undefined,
+      requestedScopes: SLACK_MANAGED_USER_SCOPES,
+      scopes: SLACK_SEARCH_USER_SCOPES,
+    },
+    {
+      name: 'existing workflow pool',
+      existing: true,
+      existingScopes: SLACK_MANAGED_USER_SCOPES,
+      requestedScopes: SLACK_SEARCH_USER_SCOPES,
+      scopes: SLACK_MANAGED_USER_SCOPES,
+    },
+    {
+      name: 'legacy workflow pool without explicit scopes',
+      existing: true,
+      existingScopes: undefined,
+      requestedScopes: SLACK_SEARCH_USER_SCOPES,
+      scopes: SLACK_MANAGED_USER_SCOPES,
+    },
+    {
+      name: 'existing Search pool',
+      existing: true,
+      existingScopes: SLACK_SEARCH_USER_SCOPES,
+      requestedScopes: SLACK_MANAGED_USER_SCOPES,
+      scopes: SLACK_SEARCH_USER_SCOPES,
+    },
+  ])(
+    'verifies an organization $name without replacing its scope policy or disconnecting members',
+    async ({ existing, existingScopes, requestedScopes, scopes }) => {
+      const updatedAt = new Date('2026-08-12T00:00:00Z')
+      const group = {
+        id: 'group-1',
+        organizationId: 'org-1',
+        name: 'Organization accounts',
+        options: existing
+          ? [
+              {
+                id: 'slack-option',
+                provider: 'slack',
+                label: 'Slack',
+                status: 'active',
+                required: true,
+                authorizationAppId: 'slack:A123:T123',
+                requiredScopes: existingScopes,
+                scopeVersion: credentialGroupScopePolicyVersion([...scopes]),
+              },
+            ]
+          : [],
+        encryptedProviderConfiguration: null,
+        updatedAt,
+      }
+      const app = {
+        id: 'A123',
+        clientId: 'client-1',
+        encryptedClientSecret: `encrypted:${Buffer.from('client-secret').toString('base64')}`,
+        revision: 'app-revision',
+      }
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([group])
+        .mockResolvedValueOnce([{ app, teamId: 'T123' }])
+
+      const created = await createSlackManagedUsersAttempt({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        credentialGroupId: group.id,
+        appId: app.id,
+        teamId: 'T123',
+        requiredScopes: [...requestedScopes],
+      })
+      expect(new URL(created.authorizationUrl).searchParams.get('user_scope')?.split(',')).toEqual([
+        ...scopes,
+      ])
+      const attempt = await consumeSlackManagedUsersAttempt(created.state)
+      expect(attempt?.requiredScopes).toEqual([...scopes])
+      if (!attempt) throw new Error('Expected an organization authorization attempt')
+      if (!existing) expect(attempt.requiredScopes).toHaveLength(10)
+
+      queueTableRows(schemaMock.slackApp, [app])
+      queueTableRows(schemaMock.credentialGroup, [group])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: group.id }])
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            slackResponse({
+              ok: true,
+              app_id: app.id,
+              team: { id: 'T123', name: 'Sim' },
+              authed_user: {
+                id: 'U123',
+                access_token: 'xoxp-token',
+                token_type: 'user',
+                scope: scopes.join(','),
+              },
+            })
+          )
+          .mockResolvedValueOnce(slackResponse({ ok: true, team_id: 'T123', user_id: 'U123' }))
+          .mockResolvedValueOnce(
+            slackResponse({ ok: true, user: { id: 'U123', profile: { email: 'theo@sim.ai' } } })
+          )
+          .mockResolvedValueOnce(slackResponse({ ok: true, revoked: true }))
+      )
+
+      await expect(
+        exchangeAndConfigureSlackManagedUsers({ attempt, code: 'single-use-code' })
+      ).resolves.toMatchObject({ requiredScopes: [...scopes] })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: [expect.objectContaining({ requiredScopes: [...scopes] })],
+        })
+      )
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
+      )
+    }
+  )
+
+  it.each([
+    {
       name: 'new search',
       existingScopes: undefined,
       requestedScopes: undefined,

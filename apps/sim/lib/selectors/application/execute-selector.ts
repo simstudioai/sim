@@ -7,6 +7,7 @@ import {
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { selectorOperations } from '@/lib/selectors/application/operations'
 import {
@@ -29,7 +30,7 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
 import { getServerSelectorAttachment } from '@/lib/selectors/server/registry'
 import { sanitizeSelectorResult } from '@/lib/selectors/server/sanitize'
-import type { ResolvedSelectorReference } from '@/lib/selectors/server/types'
+import type { ResolvedSelectorReference, SelectorPrincipal } from '@/lib/selectors/server/types'
 import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
@@ -124,7 +125,7 @@ function getReferencedDetailResolvedId(input: {
 }
 
 async function executeAuthorizedSelector(args: {
-  principal: { kind: 'session'; userId: string; sessionId: string }
+  principal: SelectorPrincipal
   input: ExecuteSelectorInput
   context: SelectorApplicationContext
 }): Promise<SelectorExecutionResult> {
@@ -280,7 +281,8 @@ async function executeAuthorizedSelector(args: {
       error instanceof SelectorOptionsUnavailableError ||
       // A refusal, not a provider failure: it reaches the caller as its own 403
       // rather than being folded into "Options unavailable".
-      error instanceof IntegrationNotAllowedError
+      error instanceof IntegrationNotAllowedError ||
+      error instanceof OrchestrationError
     ) {
       throw error
     }
@@ -327,6 +329,14 @@ export const executeSelector: OperationUseCase<
 > = {
   operation: selectorOperations.execute,
   async execute(args) {
+    args = {
+      ...args,
+      input: {
+        ...args.input,
+        signal: args.input.signal ?? args.request?.signal,
+        auditRequest: args.input.auditRequest ?? args.request,
+      },
+    }
     if (args.input.scope.kind !== 'organization') return executeWorkspaceSelector.execute(args)
     if (args.principal.kind !== 'session') throw new SelectorContextUnavailableError()
     await requireOrganizationMembership(

@@ -420,6 +420,7 @@ export async function resolveActiveKnowledgeTagContext(
     {
       knowledgeBaseId: tagDefinition.knowledgeBaseId,
       assertedWorkspaceId: input.assertedWorkspaceId,
+      assertedOrganizationId: input.assertedOrganizationId,
     },
     principal
   )

@@ -8,6 +8,7 @@ import {
   driveFileAcl,
   type OpenSharingPolicy,
 } from '@/lib/knowledge/access/drive-permissions'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { OCR_IMAGE_MIME_TYPES } from '@/lib/knowledge/documents/ocr-request-policy'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { drainGooglePagedList } from '@/lib/oauth/google-pagination'
@@ -61,6 +62,13 @@ const GOOGLE_WORKSPACE_EXPORTS: Record<string, string> = {
   'application/vnd.google-apps.spreadsheet': XLSX_MIME_TYPE,
   'application/vnd.google-apps.presentation': 'text/plain',
 }
+const SHORTCUT_MIME_TYPE = 'application/vnd.google-apps.shortcut'
+const SHORTCUT_FETCH_CONCURRENCY = 8
+const DRIVE_METADATA_MAX_BYTES = 1024 * 1024
+const DRIVE_PAGE_MAX_BYTES = 16 * 1024 * 1024
+const DRIVE_FILE_FIELDS =
+  'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed,parents,shortcutDetails(targetId,targetMimeType,targetResourceKey)'
+
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 
 const SUPPORTED_TEXT_MIME_TYPES = [
@@ -101,6 +109,7 @@ function isSupportedTextFile(mimeType: string): boolean {
 }
 
 function rawFileType(file: DriveFile): { mimeType: string; fileName: string } | undefined {
+  if (file.mimeType.startsWith('application/vnd.google-apps.')) return undefined
   const byName = pipelineParsedMimeType(file.name)
   if (byName) return { mimeType: byName, fileName: file.name }
   if (OCR_IMAGE_MIME_TYPES.has(file.mimeType)) {
@@ -125,7 +134,8 @@ function isSupportedFile(file: DriveFile): boolean {
 async function exportGoogleWorkspaceFile(
   accessToken: string,
   fileId: string,
-  sourceMimeType: string
+  sourceMimeType: string,
+  resourceKey?: string
 ): Promise<Buffer> {
   const exportMimeType = GOOGLE_WORKSPACE_EXPORTS[sourceMimeType]
   if (!exportMimeType) {
@@ -138,7 +148,7 @@ async function exportGoogleWorkspaceFile(
   try {
     response = await fetchGoogleDriveWithRetry(url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: driveRequestHeaders(accessToken, fileId, resourceKey),
     })
   } catch (error) {
     if (error instanceof GoogleDriveApiError && error.kind === 'export_too_large') {
@@ -154,7 +164,11 @@ async function exportGoogleWorkspaceFile(
   return buffer
 }
 
-async function downloadFile(accessToken: string, fileId: string): Promise<Buffer> {
+async function downloadFile(
+  accessToken: string,
+  fileId: string,
+  resourceKey?: string
+): Promise<Buffer> {
   // Listing runs with `includeItemsFromAllDrives`, so ids here can belong to a shared
   // drive; `supportsAllDrives` declares that support to `files.get` the same way the
   // metadata fetch in getDocument already does. (`files.export` takes no such param.)
@@ -162,7 +176,7 @@ async function downloadFile(accessToken: string, fileId: string): Promise<Buffer
 
   const response = await fetchGoogleDriveWithRetry(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: driveRequestHeaders(accessToken, fileId, resourceKey),
   })
 
   // Stream with a hard byte cap so a file with missing/under-reported listing
@@ -181,9 +195,13 @@ function xlsxFileName(name: string): string {
   return name.toLowerCase().endsWith('.xlsx') ? name : `${name}.xlsx`
 }
 
-async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<FilePayload> {
+async function fetchFilePayload(
+  accessToken: string,
+  file: DriveFile,
+  resourceKey?: string
+): Promise<FilePayload> {
   if (GOOGLE_WORKSPACE_EXPORTS[file.mimeType]) {
-    const bytes = await exportGoogleWorkspaceFile(accessToken, file.id, file.mimeType)
+    const bytes = await exportGoogleWorkspaceFile(accessToken, file.id, file.mimeType, resourceKey)
     if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
       return {
         content: '',
@@ -198,7 +216,7 @@ async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<F
     return { content: decodeTextBuffer(bytes).text, mimeType: 'text/plain' }
   }
   if (file.mimeType === 'text/html') {
-    const html = decodeTextBuffer(await downloadFile(accessToken, file.id)).text
+    const html = decodeTextBuffer(await downloadFile(accessToken, file.id, resourceKey)).text
     return { content: htmlToPlainText(html), mimeType: 'text/plain' }
   }
   const raw = rawFileType(file)
@@ -206,12 +224,12 @@ async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<F
     return {
       content: '',
       mimeType: raw.mimeType,
-      sourceFile: { ...raw, bytes: await downloadFile(accessToken, file.id) },
+      sourceFile: { ...raw, bytes: await downloadFile(accessToken, file.id, resourceKey) },
     }
   }
   if (isSupportedTextFile(file.mimeType)) {
     return {
-      content: decodeTextBuffer(await downloadFile(accessToken, file.id)).text,
+      content: decodeTextBuffer(await downloadFile(accessToken, file.id, resourceKey)).text,
       mimeType: 'text/plain',
     }
   }
@@ -231,6 +249,7 @@ interface DriveFile {
   starred?: boolean
   trashed?: boolean
   parents?: string[]
+  shortcutDetails?: { targetId: string; targetMimeType?: string; targetResourceKey?: string }
   /**
    * Absent for a file on a shared drive, and for any file the impersonated
    * administrator cannot share: Drive serves those only through
@@ -437,7 +456,12 @@ function buildQuery(
   const parentsClause = buildDriveParentsClause(parseMultiValue(sourceConfig.folderId))
   if (parentsClause) parts.push(parentsClause)
 
-  if (lastSyncAt) parts.push(`modifiedTime > '${lastSyncAt.toISOString()}'`)
+  if (lastSyncAt) {
+    /** Target edits do not modify the shortcut itself. */
+    parts.push(
+      `(modifiedTime > '${lastSyncAt.toISOString()}' or mimeType = '${SHORTCUT_MIME_TYPE}')`
+    )
+  }
 
   const fileType = (sourceConfig.fileType as string) || 'all'
   const mimeParts: string[] = []
@@ -461,6 +485,8 @@ function buildQuery(
     }
   }
   if (mimeParts.length > 0) {
+    /** Resolve the current target type: shortcutDetails.targetMimeType can be stale. */
+    mimeParts.push(`mimeType = '${SHORTCUT_MIME_TYPE}'`)
     if (includeFolders) mimeParts.push(`mimeType = '${FOLDER_MIME_TYPE}'`)
     parts.push(`(${mimeParts.join(' or ')})`)
   }
@@ -541,7 +567,8 @@ const DRIVE_PERMISSION_FIELDS = 'id,type,emailAddress,domain,role,allowFileDisco
  */
 async function listFilePermissions(
   accessToken: string,
-  fileId: string
+  fileId: string,
+  resourceKey?: string
 ): Promise<DrivePermission[]> {
   const { items, truncated } = await drainGooglePagedList<
     DrivePermission,
@@ -559,7 +586,7 @@ async function listFilePermissions(
     fetch: (url) =>
       fetchGoogleDriveWithRetry(url, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+        headers: driveRequestHeaders(accessToken, fileId, resourceKey),
       }),
     parseError: (response) => response.json().catch(() => null),
     getItems: (body) => body.permissions,
@@ -584,15 +611,36 @@ async function listFilePermissions(
 async function resolveDriveAcls(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
-  externalIds: string[],
+  documents: readonly ExternalDocument[],
   syncContext?: Record<string, unknown>
-): Promise<Record<string, string[]>> {
+): Promise<Record<string, MirroredDocumentAcl>> {
   const context = driveAclContext(sourceConfig, syncContext)
   if (!context) return {}
 
-  const acls: Record<string, string[]> = {}
-  await mapWithConcurrency(externalIds, PERMISSION_FETCH_CONCURRENCY, async (fileId) => {
+  const acls: Record<string, MirroredDocumentAcl> = {}
+  await mapWithConcurrency(documents, PERMISSION_FETCH_CONCURRENCY, async (document) => {
+    const fileId = document.externalId
     try {
+      if (document.metadata?.shortcutTargetId) {
+        const file = await readDriveFile(accessToken, fileId, undefined, true)
+        if (file.trashed) {
+          acls[fileId] = []
+          return
+        }
+        if (file.mimeType === SHORTCUT_MIME_TYPE) {
+          const target = await readShortcutTarget(accessToken, file, true)
+          acls[fileId] =
+            target && isSupportedFile(target.file)
+              ? await shortcutAcl(accessToken, file, target.file, context, target.resourceKey)
+              : []
+          return
+        }
+        const listedAcl = fileAcl(file, context)
+        if (listedAcl) {
+          acls[fileId] = listedAcl
+          return
+        }
+      }
       const permissions = await listFilePermissions(accessToken, fileId)
       acls[fileId] = driveFileAcl({ ...context, permissions })
     } catch (error) {
@@ -605,7 +653,11 @@ async function resolveDriveAcls(
   return acls
 }
 
-function fileToStub(file: DriveFile, acl?: string[]): ExternalDocument {
+function fileToStub(
+  file: DriveFile,
+  acl?: MirroredDocumentAcl,
+  target?: DriveFile
+): ExternalDocument {
   /**
    * Sheets moved from a first-sheet-only CSV export to the complete XLSX source.
    * The namespace forces one rehydration for existing rows whose old hash would
@@ -622,15 +674,257 @@ function fileToStub(file: DriveFile, acl?: string[]): ExternalDocument {
     ...(acl ? { acl } : {}),
     mimeType: 'text/plain',
     sourceUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
-    contentHash: `${hashNamespace}:${file.id}:${file.modifiedTime ?? ''}`,
+    contentHash: target
+      ? `gdrive:shortcut:v1:${file.id}:${file.modifiedTime ?? ''}:${target.id}:${target.modifiedTime ?? ''}:${target.mimeType}`
+      : `${hashNamespace}:${file.id}:${file.modifiedTime ?? ''}`,
     metadata: {
-      originalMimeType: file.mimeType,
-      modifiedTime: file.modifiedTime,
+      originalMimeType: target?.mimeType ?? file.mimeType,
+      ...(target ? { shortcutTargetId: target.id } : {}),
+      modifiedTime: target?.modifiedTime ?? file.modifiedTime,
       createdTime: file.createdTime,
       owners: file.owners?.map((o) => o.displayName || o.emailAddress).filter(Boolean),
       starred: file.starred,
-      fileSize: file.size ? Number(file.size) : undefined,
+      fileSize: (target ?? file).size ? Number((target ?? file).size) : undefined,
     },
+  }
+}
+
+/** Resource keys are capabilities: send only to Drive, never persist them in document metadata. */
+function driveRequestHeaders(
+  accessToken: string,
+  fileId: string,
+  resourceKey?: string
+): Record<string, string> {
+  if (
+    resourceKey !== undefined &&
+    (!/^[A-Za-z0-9_-]{1,1024}$/.test(resourceKey) || !/^[A-Za-z0-9_-]{1,1024}$/.test(fileId))
+  ) {
+    throw new Error('Google Drive returned malformed resource-key metadata')
+  }
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    ...(resourceKey ? { 'X-Goog-Drive-Resource-Keys': `${fileId}/${resourceKey}` } : {}),
+  }
+}
+
+async function readDriveJson(response: Response, limitBytes: number): Promise<unknown> {
+  const body = await readBodyWithLimit(response, limitBytes)
+  if (!body) throw new Error('Google Drive metadata exceeded its size limit')
+  try {
+    return JSON.parse(body.toString('utf8'))
+  } catch {
+    throw new Error('Google Drive returned malformed metadata')
+  }
+}
+
+async function readDriveFile(
+  accessToken: string,
+  fileId: string,
+  resourceKey?: string,
+  permissions = false
+): Promise<DriveFile> {
+  const fields = `${DRIVE_FILE_FIELDS}${permissions ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''}`
+  const response = await fetchGoogleDriveWithRetry(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`,
+    { method: 'GET', headers: driveRequestHeaders(accessToken, fileId, resourceKey) }
+  )
+  return parseDriveFileMetadata(await readDriveJson(response, DRIVE_METADATA_MAX_BYTES), fileId)
+}
+
+/** Resolve one current file target; folder traversal and shortcut chains are not expanded. */
+async function readShortcutTarget(
+  accessToken: string,
+  shortcut: DriveFile,
+  permissions = false
+): Promise<{ file: DriveFile; resourceKey?: string } | null> {
+  const details = shortcut.shortcutDetails
+  if (
+    !details ||
+    typeof details.targetId !== 'string' ||
+    !/^[A-Za-z0-9_-]{1,1024}$/.test(details.targetId) ||
+    (details.targetResourceKey !== undefined && typeof details.targetResourceKey !== 'string')
+  ) {
+    throw new Error('Google Drive returned malformed shortcut metadata')
+  }
+  if (details.targetId === shortcut.id) throw new Error('Google Drive returned a cyclic shortcut')
+  try {
+    const file = await readDriveFile(
+      accessToken,
+      details.targetId,
+      details.targetResourceKey,
+      permissions
+    )
+    if (!file.trashed && !isDriveFileListItem(file)) {
+      throw new Error('Google Drive returned malformed shortcut target metadata')
+    }
+    return file.trashed ? null : { file, resourceKey: details.targetResourceKey }
+  } catch (error) {
+    if (
+      error instanceof GoogleDriveApiError &&
+      (error.kind === 'not_found' || error.kind === 'permission')
+    )
+      return null
+    throw error
+  }
+}
+
+function unavailableShortcut(file: DriveFile): ExternalDocument {
+  return {
+    ...markSkipped(
+      fileToStub(file, []),
+      'Shortcut target is unavailable or the connector account cannot access it'
+    ),
+    skippedExistingDisposition: 'replace',
+  }
+}
+
+/** A shortcut's own grants never grant access to its target's content. */
+async function shortcutAcl(
+  accessToken: string,
+  shortcut: DriveFile,
+  target: DriveFile,
+  context: DriveAclContext,
+  resourceKey?: string
+): Promise<MirroredDocumentAcl> {
+  return {
+    acl:
+      fileAcl(shortcut, context) ??
+      driveFileAcl({
+        ...context,
+        permissions: await listFilePermissions(accessToken, shortcut.id),
+      }),
+    requirements: [
+      fileAcl(target, context) ??
+        driveFileAcl({
+          ...context,
+          permissions: await listFilePermissions(accessToken, target.id, resourceKey),
+        }),
+    ],
+  }
+}
+
+async function listedFileToDocument(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  file: DriveFile,
+  syncContext?: Record<string, unknown>
+): Promise<ExternalDocument | null> {
+  if (file.trashed || file.mimeType === FOLDER_MIME_TYPE) return null
+  const context = driveAclContext(sourceConfig, syncContext)
+  let target: DriveFile | undefined
+  let acl: MirroredDocumentAcl | undefined = fileAcl(file, context)
+  if (file.mimeType === SHORTCUT_MIME_TYPE) {
+    let resolved: Awaited<ReturnType<typeof readShortcutTarget>>
+    try {
+      resolved = await readShortcutTarget(accessToken, file, Boolean(context))
+    } catch (error) {
+      /** Member visibility requires verified target access; a failed page never grants it. */
+      if (isPerMemberListing(syncContext)) throw error
+      logger.warn(
+        'Could not resolve shortcut target; deferring to content hydration',
+        googleDriveErrorLogFields(error)
+      )
+      return fileToStub(file, [])
+    }
+    if (!resolved) return isPerMemberListing(syncContext) ? null : unavailableShortcut(file)
+    target = resolved.file
+    if (context) {
+      try {
+        acl = await shortcutAcl(accessToken, file, target, context, resolved.resourceKey)
+      } catch (error) {
+        logger.warn(
+          'Could not verify shortcut and target permissions',
+          googleDriveErrorLogFields(error)
+        )
+        acl = []
+      }
+    }
+  }
+  const contentFile = target ?? file
+  if (!matchesFileType((sourceConfig.fileType as string) || 'all', contentFile)) return null
+  return stubOrSkipBySize(
+    fileToStub(file, acl, target),
+    Number(contentFile.size) || undefined,
+    CONNECTOR_MAX_FILE_BYTES
+  )
+}
+
+const SHORTCUT_CHANGE_CURSOR_PREFIX = 'gdrive-shortcuts:v1:'
+interface ShortcutChangeCursor {
+  resume: string
+  pageToken?: string
+}
+
+function writeShortcutChangeCursor(cursor: ShortcutChangeCursor): string {
+  return `${SHORTCUT_CHANGE_CURSOR_PREFIX}${Buffer.from(JSON.stringify(cursor)).toString('base64url')}`
+}
+
+function readShortcutChangeCursor(cursor: string): ShortcutChangeCursor | undefined {
+  if (!cursor.startsWith(SHORTCUT_CHANGE_CURSOR_PREFIX)) return undefined
+  try {
+    if (cursor.length > 65536) throw new Error()
+    const value: unknown = JSON.parse(
+      Buffer.from(cursor.slice(SHORTCUT_CHANGE_CURSOR_PREFIX.length), 'base64url').toString('utf8')
+    )
+    if (
+      !isPlainRecord(value) ||
+      typeof value.resume !== 'string' ||
+      !value.resume ||
+      value.resume.length > 16384 ||
+      (value.pageToken !== undefined &&
+        (typeof value.pageToken !== 'string' || !value.pageToken || value.pageToken.length > 16384))
+    )
+      throw new Error()
+    return { resume: value.resume, pageToken: value.pageToken }
+  } catch {
+    throw new InvalidDriveListingCursor('Google Drive shortcut listing must restart')
+  }
+}
+
+/** Target edits and revocations need not emit a change for their shortcuts. */
+async function listShortcutChanges(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  cursor: ShortcutChangeCursor
+): Promise<ExternalChangeList> {
+  const params = new URLSearchParams({
+    q: `trashed = false and mimeType = '${SHORTCUT_MIME_TYPE}'`,
+    orderBy: 'createdTime',
+    fields: `kind,nextPageToken,incompleteSearch,files(${DRIVE_FILE_FIELDS})`,
+    pageSize: '100',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  })
+  if (cursor.pageToken) params.set('pageToken', cursor.pageToken)
+  const response = await fetchGoogleDriveWithRetry(
+    `https://www.googleapis.com/drive/v3/files?${params}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    }
+  )
+  const page = parseDriveFileListResponse(await readDriveJson(response, DRIVE_PAGE_MAX_BYTES))
+  if (page.incompleteSearch) throw new Error('Google Drive shortcut search was incomplete')
+  if (page.nextPageToken && page.nextPageToken === cursor.pageToken)
+    throw new Error('Google Drive repeated a shortcut continuation token')
+  const changes = await mapWithConcurrency(
+    page.files,
+    SHORTCUT_FETCH_CONCURRENCY,
+    async (file): Promise<ExternalChange> => {
+      const document = await listedFileToDocument(accessToken, sourceConfig, file, {
+        perMemberListing: true,
+      })
+      return document
+        ? { kind: 'upsert', externalId: file.id, document }
+        : { kind: 'removed', externalId: file.id }
+    }
+  )
+  return {
+    changes,
+    nextCursor: page.nextPageToken
+      ? writeShortcutChangeCursor({ ...cursor, pageToken: page.nextPageToken })
+      : cursor.resume,
+    hasMore: Boolean(page.nextPageToken),
   }
 }
 
@@ -755,7 +1049,7 @@ export const googleDriveConnector: ConnectorConfig = {
        * Permissions ride along only where the run mirrors them. Every other
        * crawl would pull a permission array per file and discard it.
        */
-      fields: `kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents${
+      fields: `kind,nextPageToken,incompleteSearch,files(${DRIVE_FILE_FIELDS}${
         aclContext ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''
       })`,
       supportsAllDrives: 'true',
@@ -797,7 +1091,7 @@ export const googleDriveConnector: ConnectorConfig = {
       throw error
     }
 
-    const data = parseDriveFileListResponse(await response.json())
+    const data = parseDriveFileListResponse(await readDriveJson(response, DRIVE_PAGE_MAX_BYTES))
     const files = data.files
 
     /**
@@ -830,19 +1124,10 @@ export const googleDriveConnector: ConnectorConfig = {
       }
     }
 
-    const pageDocuments = files
-      .filter(
-        (f) =>
-          f.mimeType !== FOLDER_MIME_TYPE &&
-          matchesFileType((sourceConfig.fileType as string) || 'all', f)
-      )
-      .map((f) =>
-        stubOrSkipBySize(
-          fileToStub(f, fileAcl(f, aclContext)),
-          Number(f.size) || undefined,
-          CONNECTOR_MAX_FILE_BYTES
-        )
-      )
+    const resolved = await mapWithConcurrency(files, SHORTCUT_FETCH_CONCURRENCY, (file) =>
+      listedFileToDocument(accessToken, sourceConfig, file, syncContext)
+    )
+    const pageDocuments = resolved.filter((doc): doc is ExternalDocument => doc !== null)
 
     const page = takeIndexableWithinCap(
       pageDocuments,
@@ -892,74 +1177,60 @@ export const googleDriveConnector: ConnectorConfig = {
     ),
 
   getDocumentAcls: (accessToken, sourceConfig, documents, syncContext) =>
-    resolveDriveAcls(
-      accessToken,
-      sourceConfig,
-      documents.map((doc) => doc.externalId),
-      syncContext
-    ),
+    resolveDriveAcls(accessToken, sourceConfig, documents, syncContext),
 
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const fields =
-      'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed'
-    const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(externalId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
-
-    let response: Response
+    let file: DriveFile
     try {
-      response = await fetchGoogleDriveWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
+      file = await readDriveFile(accessToken, externalId)
     } catch (error) {
-      if (!(error instanceof GoogleDriveApiError)) throw error
-      if (error.kind === 'not_found') return null
+      if (error instanceof GoogleDriveApiError && error.kind === 'not_found') return null
       throw error
     }
-
-    const file = parseDriveFileMetadata(await response.json(), externalId)
-
     if (file.trashed) return null
+    let contentFile = file
+    let resourceKey: string | undefined
+    if (file.mimeType === SHORTCUT_MIME_TYPE) {
+      const resolved = await readShortcutTarget(accessToken, file)
+      if (!resolved) return unavailableShortcut(file)
+      contentFile = resolved.file
+      resourceKey = resolved.resourceKey
+    }
+    const stub = fileToStub(file, undefined, contentFile === file ? undefined : contentFile)
 
     /**
      * Mirrors the listing filter. The marker distinguishes a successfully
      * verified unindexable file from an ambiguous null hydration.
      */
-    if (!isSupportedFile(file)) {
+    if (!matchesFileType((sourceConfig.fileType as string) || 'all', contentFile)) {
       logger.info('Google Drive file has no extractable text type', {
         fileId: file.id,
         mimeType: file.mimeType,
       })
       return {
-        ...markSkipped(fileToStub(file), 'File is no longer an indexable document'),
+        ...markSkipped(stub, 'File is no longer an indexable document'),
         skippedExistingDisposition: 'replace',
       }
     }
 
     try {
-      const payload = await fetchFilePayload(accessToken, file)
+      const payload = await fetchFilePayload(accessToken, contentFile, resourceKey)
       if (!payload.content.trim() && !payload.sourceFile?.bytes.length) {
         return {
-          ...markSkipped(
-            { ...fileToStub(file), ...payload },
-            'Document contains no extractable text'
-          ),
+          ...markSkipped({ ...stub, ...payload }, 'Document contains no extractable text'),
           skippedExistingDisposition: 'replace',
         }
       }
 
-      const stub = fileToStub(file)
       return { ...stub, ...payload, contentDeferred: false }
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         logger.info('Skipping oversized Google Drive file', { fileId: file.id, name: file.name })
-        return markSkipped(fileToStub(file), sizeLimitSkipReason(error.limitBytes))
+        return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
       }
       /**
        * The file exists but its content could not be read. Propagate so the engine
@@ -1120,6 +1391,10 @@ export const googleDriveConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     cursor: string
   ): Promise<ExternalChangeList> => {
+    const shortcutCursor = readShortcutChangeCursor(cursor)
+    if (shortcutCursor) {
+      return listShortcutChanges(accessToken, sourceConfig, shortcutCursor)
+    }
     const queryParams = new URLSearchParams({
       pageToken: cursor,
       pageSize: '100',
@@ -1128,8 +1403,7 @@ export const googleDriveConnector: ConnectorConfig = {
       includeItemsFromAllDrives: 'true',
       restrictToMyDrive: 'false',
       spaces: 'drive',
-      fields:
-        'nextPageToken,newStartPageToken,changes(changeType,removed,fileId,file(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed,parents))',
+      fields: `nextPageToken,newStartPageToken,changes(changeType,removed,fileId,file(${DRIVE_FILE_FIELDS}))`,
     })
     const url = `https://www.googleapis.com/drive/v3/changes?${queryParams.toString()}`
 
@@ -1144,20 +1418,36 @@ export const googleDriveConnector: ConnectorConfig = {
       throw error
     }
 
-    const data = parseDriveChangeListResponse(await response.json())
-    const changes: ExternalChange[] = []
-    for (const change of data.changes) {
-      const mapped = driveChangeToExternal(change, sourceConfig)
-      if (mapped) changes.push(mapped)
-    }
+    const data = parseDriveChangeListResponse(await readDriveJson(response, DRIVE_PAGE_MAX_BYTES))
+    const mappedChanges = await mapWithConcurrency(
+      data.changes,
+      SHORTCUT_FETCH_CONCURRENCY,
+      async (change) => {
+        if (!change.removed && change.file?.mimeType === SHORTCUT_MIME_TYPE) {
+          const document = await listedFileToDocument(accessToken, sourceConfig, change.file, {
+            perMemberListing: true,
+          })
+          return document
+            ? { kind: 'upsert' as const, externalId: change.fileId!, document }
+            : { kind: 'removed' as const, externalId: change.fileId! }
+        }
+        return driveChangeToExternal(change, sourceConfig)
+      }
+    )
+    const changes = mappedChanges.filter((change): change is ExternalChange => change !== null)
     const nextCursor = data.nextPageToken ?? data.newStartPageToken
     if (!nextCursor) {
       throw new Error('Google Drive API returned malformed change-list metadata')
     }
-    return { changes, nextCursor, hasMore: Boolean(data.nextPageToken) }
+    return {
+      changes,
+      nextCursor: data.nextPageToken ?? writeShortcutChangeCursor({ resume: nextCursor }),
+      hasMore: true,
+    }
   },
 
-  isChangeCursorInvalidError: isDriveChangeCursorInvalidError,
+  isChangeCursorInvalidError: (error) =>
+    error instanceof InvalidDriveListingCursor || isDriveChangeCursorInvalidError(error),
   isListingCursorInvalidError: (error) =>
     error instanceof InvalidDriveListingCursor || isDriveChangeCursorInvalidError(error),
 }

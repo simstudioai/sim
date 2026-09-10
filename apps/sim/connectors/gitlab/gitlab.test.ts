@@ -273,6 +273,51 @@ describe('GitLab connector provider lifecycle', () => {
     expect(context.listingCapped).toBe(true)
   })
 
+  it.each([
+    ['repo', 1],
+    ['wiki', 1],
+    ['issues', 2],
+    ['merge_requests', 2],
+    ['all', 6],
+  ])(
+    'allows deletion reconciliation when %s ends exactly at its cap',
+    async (contentTypes, maxItems) => {
+      const context: Record<string, unknown> = {}
+      const docs = await list({ ...config, contentTypes, maxItems }, context)
+      expect(docs).toHaveLength(Number(maxItems))
+      expect(context.listingCapped).not.toBe(true)
+    }
+  )
+
+  it('keeps a listing incomplete when the cap leaves another provider page unread', async () => {
+    const context: Record<string, unknown> = {}
+    const docs = await list({ ...config, contentTypes: 'issues', maxItems: 1 }, context)
+    expect(docs).toHaveLength(1)
+    expect(context.listingCapped).toBe(true)
+    expect(calls.filter((call) => call.url.pathname.endsWith('/issues'))).toHaveLength(1)
+  })
+
+  it('keeps a listing incomplete when the cap trims the current provider page', async () => {
+    const context: Record<string, unknown> = {}
+    wikiPages.push({ slug: 'second', title: 'Second page', content: 'Another page' })
+    const docs = await list({ ...config, contentTypes: 'wiki', maxItems: 1 }, context)
+    expect(docs).toHaveLength(1)
+    expect(context.listingCapped).toBe(true)
+  })
+
+  it.each(['1.5', 'Infinity', '9007199254740992', '0', '-1', 'invalid'])(
+    'rejects an invalid item limit %s before contacting GitLab',
+    async (maxItems) => {
+      await expect(gitlabConnector.validateConfig('pat', { ...config, maxItems })).resolves.toEqual(
+        {
+          valid: false,
+          error: 'Max items must be a positive whole number',
+        }
+      )
+      expect(fetchSource).not.toHaveBeenCalled()
+    }
+  )
+
   it('fails hydration if comment access changes or a continuation leaves the collection', async () => {
     override = ({ url }) =>
       url.pathname.endsWith('/notes') && url.searchParams.get('page') === '2'

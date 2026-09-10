@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   provision: vi.fn(),
   memberAccess: vi.fn(),
   sourceAccess: vi.fn(),
+  oauthContext: vi.fn(),
+  startOAuth: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({ AuditAction: {}, AuditResourceType: {}, recordAudit: vi.fn() }))
@@ -65,8 +67,13 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
 vi.mock('@/lib/credential-groups/self-enrollment', () => ({
   createViewerCredentialGroupEnrollment: async (...args: unknown[]) => ({
     invitationLink: await mocks.enrollment(...args),
+    enrollment: { id: 'enrollment', email: 'person@example.test' },
   }),
 }))
+vi.mock('@/lib/credential-groups/enrollments', () => ({
+  getCredentialGroupOAuthContextForEnrollment: mocks.oauthContext,
+}))
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: mocks.startOAuth }))
 
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   sourceIdentityBinding: mocks.identityBinding,
@@ -122,9 +129,69 @@ beforeEach(() => {
   mocks.identityBinding.mockReturnValue(null)
   mocks.memberAccess.mockResolvedValue(undefined)
   mocks.sourceAccess.mockResolvedValue(undefined)
+  mocks.oauthContext.mockResolvedValue({ credentialOwnerId: 'admin', option: { id: 'option' } })
+  mocks.startOAuth.mockResolvedValue('https://provider.example.test/authorize')
 })
 
 describe('source member enrollment', () => {
+  it.each(['admin', 'members'])(
+    'starts provider OAuth directly for a Search %s source',
+    async (accessMode) => {
+      const completionId = '550e8400-e29b-41d4-a716-446655440000'
+      mocks.context.mockResolvedValue({
+        workspaceId: 'workspace',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        knowledgeBaseId: 'kb',
+        connectorId: 'source',
+        knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search', isSearchIndex: true },
+      })
+      mocks.connector.mockResolvedValue({
+        ...row,
+        accessMode,
+        credentialGroupId: 'group',
+        credentialGroupOptionId: 'option',
+      })
+      mocks.meta.mockReturnValue({ name: 'Confluence', search: true, requiresMemberIdentity: true })
+      mocks.identityBinding.mockReturnValue({
+        credentialGroupId: 'group',
+        credentialGroupOptionId: 'option',
+      })
+      await expect(
+        startKnowledgeConnectorMemberEnrollment.execute({
+          principal,
+          input: { ...input, oauthCompletionId: completionId },
+        })
+      ).resolves.toEqual({ url: 'https://provider.example.test/authorize' })
+      expect(mocks.oauthContext).toHaveBeenCalledWith(
+        {
+          workspaceId: 'workspace',
+          credentialGroupId: 'group',
+          enrollmentId: 'enrollment',
+          email: 'person@example.test',
+          userId: 'admin',
+        },
+        'option'
+      )
+      expect(mocks.startOAuth).toHaveBeenCalledWith(
+        { credentialOwnerId: 'admin', option: { id: 'option' } },
+        'enroll',
+        { completionRedirect: true, returnTo: 'search', completionId }
+      )
+    }
+  )
+
+  it('rejects direct OAuth for a non-Search source before creating an enrollment', async () => {
+    await expect(
+      startKnowledgeConnectorMemberEnrollment.execute({
+        principal,
+        input: { ...input, oauthCompletionId: '550e8400-e29b-41d4-a716-446655440000' },
+      })
+    ).rejects.toThrow('requires a Search source')
+    expect(mocks.enrollment).not.toHaveBeenCalled()
+    expect(mocks.startOAuth).not.toHaveBeenCalled()
+  })
+
   it.each(['admin', 'members'])(
     'focuses a Search %s source on its exact validated account option',
     async (accessMode) => {

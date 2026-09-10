@@ -71,14 +71,29 @@ describe('driveFileAcl', () => {
 
   describe('open sharing, once an admin opts in', () => {
     it('grants a whole-domain share to a synthetic domain group', () => {
-      expect(acl([{ type: 'domain', domain: 'Corp.com' }], OPEN)).toEqual([
-        `g:${PROVIDER}:${TENANT}:domain:corp.com`,
-      ])
+      expect(acl([{ type: 'domain', domain: 'Corp.com', allowFileDiscovery: true }], OPEN)).toEqual(
+        [`g:${PROVIDER}:${TENANT}:domain:corp.com`]
+      )
     })
 
     it('grants a discoverable anyone share to everyone', () => {
-      expect(acl([{ type: 'anyone' }], OPEN)).toEqual(['pub'])
       expect(acl([{ type: 'anyone', allowFileDiscovery: true }], OPEN)).toEqual(['pub'])
+    })
+
+    it.each([undefined, null])('does not infer discoverability from %s', (allowFileDiscovery) => {
+      expect(acl([{ type: 'anyone', allowFileDiscovery }], OPEN)).toEqual(['link'])
+      expect(acl([{ type: 'domain', domain: 'corp.com', allowFileDiscovery }], OPEN)).toEqual([
+        'link',
+      ])
+      expect(
+        acl(
+          [
+            { type: 'user', emailAddress: 'alice@corp.com' },
+            { type: 'anyone', allowFileDiscovery },
+          ],
+          OPEN
+        )
+      ).toEqual(['u:alice@corp.com'])
     })
 
     /**

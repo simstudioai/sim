@@ -928,8 +928,12 @@ describe('Google Drive change feed', () => {
       { kind: 'removed', externalId: 'moved-out' },
       { kind: 'removed', externalId: 'video' },
     ])
-    expect(result.nextCursor).toBe('5000')
-    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toMatch(/^gdrive-shortcuts:v1:/)
+    expect(result.hasMore).toBe(true)
+    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
+    await expect(
+      googleDriveConnector.listChanges!('token', {}, result.nextCursor!)
+    ).resolves.toEqual({ changes: [], nextCursor: '5000', hasMore: false })
     const url = new URL(String(mockFetch.mock.calls[0][0]))
     expect(url.searchParams.get('pageToken')).toBe('4821')
     expect(url.searchParams.get('includeRemoved')).toBe('true')
@@ -1054,7 +1058,9 @@ describe('mirroring Drive permissions onto listed documents', () => {
   })
 
   it('keeps an openly shared file out of search until the admin opts in', async () => {
-    const shared = driveFile({ permissions: [{ id: 'p1', type: 'domain', domain: 'corp.com' }] })
+    const shared = driveFile({
+      permissions: [{ id: 'p1', type: 'domain', domain: 'corp.com', allowFileDiscovery: true }],
+    })
 
     await expect(listWith(shared, ADMIN)).resolves.toMatchObject({ acl: ['link'] })
     await expect(listWith(shared, { ...ADMIN, openSharing: 'domain' })).resolves.toMatchObject({
@@ -1069,6 +1075,21 @@ describe('mirroring Drive permissions onto listed documents', () => {
     )
 
     expect(doc.acl).toEqual(['link'])
+  })
+
+  it('requires explicit discoverability before mirroring broad search access', async () => {
+    const doc = await listWith(
+      driveFile({
+        permissions: [
+          { id: 'p1', type: 'anyone' },
+          { id: 'p2', type: 'domain', domain: 'corp.com' },
+          { id: 'p3', type: 'user', emailAddress: 'alice@corp.com' },
+        ],
+      }),
+      { ...ADMIN, openSharing: 'anyone' }
+    )
+
+    expect(doc.acl).toEqual(['u:alice@corp.com'])
   })
 
   /**

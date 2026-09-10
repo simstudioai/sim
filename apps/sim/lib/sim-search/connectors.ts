@@ -115,6 +115,11 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
   )
 }
 
+/** Personal sources use defaults even when they also support central indexing. Slack needs a custom app first. */
+export function canConnectWithDefaults(meta: ConnectorMeta): boolean {
+  return canConnectPersonally(meta) && meta.id !== 'slack' && personalSetupFields(meta).length === 0
+}
+
 /** The setup fields a source config leaves empty. */
 export function missingSetupFields(
   meta: ConnectorMeta,

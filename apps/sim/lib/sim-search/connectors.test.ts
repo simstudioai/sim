@@ -117,13 +117,16 @@ vi.mock('@/lib/credential-groups/providers', () => ({
 
 import {
   canConnectPersonally,
+  canConnectWithDefaults,
   getConnectorAccessAvailability,
   isSearchConnectorAvailable,
   missingSetupFields,
   personalSetupFields,
   SEARCH_CONNECTORS,
 } from '@/lib/sim-search/connectors'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { slackConnectorMeta } from '@/connectors/slack/meta'
 import type { ConnectorMeta } from '@/connectors/types'
 
 describe('SEARCH_CONNECTORS', () => {
@@ -161,6 +164,21 @@ describe('canConnectPersonally', () => {
 })
 
 describe('personalSetupFields', () => {
+  it('does not require central indexing setup for a personal Drive connection', () => {
+    const defaults = CONNECTOR_META_REGISTRY.google_drive
+    expect(canConnectWithDefaults(defaults)).toBe(true)
+    expect(canConnectWithDefaults(googleDriveConnectorMeta)).toBe(true)
+    expect(canConnectWithDefaults(slackConnectorMeta)).toBe(false)
+    expect(
+      canConnectWithDefaults({
+        ...defaults,
+        permissionScopedListing: undefined,
+        mirrorsSourceAcls: true,
+      })
+    ).toBe(false)
+    expect(canConnectWithDefaults(CONNECTOR_META_REGISTRY.jira)).toBe(false)
+    expect(canConnectWithDefaults(CONNECTOR_META_REGISTRY.unreviewed)).toBe(false)
+  })
   it('asks for required config beyond the listing caps, never a selector', () => {
     const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!

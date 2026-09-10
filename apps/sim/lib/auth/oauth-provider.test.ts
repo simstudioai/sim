@@ -24,7 +24,9 @@ describe('oauthScopeSatisfies', () => {
     expect(oauthScopeSatisfies(['search:read'], 'api:write')).toBe(false)
     expect(oauthScopeSatisfies(['api:read'], 'search:read')).toBe(true)
     expect(oauthScopeSatisfies(['api:write'], 'search:read')).toBe(true)
-    expect(summarizeOAuthAccess(['search:read'])).toBe('Read-only access to Sim Search')
+    expect(summarizeOAuthAccess(['search:read'])).toBe(
+      'Search documents and start private conversations'
+    )
     expect(visibleOAuthScopes(['api:read', 'search:read'])).toEqual(['api:read'])
   })
 

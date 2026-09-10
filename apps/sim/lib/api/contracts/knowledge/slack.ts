@@ -97,7 +97,7 @@ export const slackSearchOAuthCallbackContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/slack/oauth/callback',
   query: slackSearchOAuthCallbackQuerySchema,
-  response: { mode: 'json', schema: z.object({ organizationId: organizationIdSchema }) },
+  response: { mode: 'redirect' },
 })
 
 export const slackSearchOnboardingInputSchema = z.object({ token: z.string().uuid() })

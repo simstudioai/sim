@@ -509,7 +509,11 @@ describe('organization Search setup', () => {
     await expect(
       connectSimSearchConnector.execute({
         principal,
-        input: { ...owner, connectorType: 'google_drive' },
+        input: {
+          ...owner,
+          connectorType: 'google_drive',
+          oauthCompletionId: '550e8400-e29b-41d4-a716-446655440000',
+        },
       })
     ).resolves.toMatchObject(existingConnector)
     expect(mocks.enroll).toHaveBeenCalledWith(
@@ -518,6 +522,7 @@ describe('organization Search setup', () => {
         input: expect.objectContaining({
           assertedOrganizationId: 'org-1',
           connectorId: 'connector-drive',
+          oauthCompletionId: '550e8400-e29b-41d4-a716-446655440000',
         }),
       })
     )

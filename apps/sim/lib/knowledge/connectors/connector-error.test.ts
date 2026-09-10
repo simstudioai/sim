@@ -2,6 +2,7 @@
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 
 describe('connector failure diagnostics', () => {
   it('retains the SQLSTATE while discarding SQL, bound values and driver detail', () => {
@@ -66,6 +67,22 @@ describe('connector failure diagnostics', () => {
     expect(diagnostic).toMatchObject({ status, category })
     expect(diagnostic?.message).toContain(`HTTP ${status}`)
     expect(JSON.stringify(diagnostic)).not.toContain('private')
+  })
+
+  it.each([
+    ['fileNotDownloadable', 'request_rejected'],
+    ['fileNotExportable', 'request_rejected'],
+    ['exportSizeLimitExceeded', 'request_rejected'],
+    ['domainPolicy', 'request_rejected'],
+    ['userRateLimitExceeded', 'rate_limit'],
+    ['dailyLimitExceeded', 'rate_limit'],
+    ['insufficientFilePermissions', 'authorization'],
+  ])('preserves provider classification for HTTP 403 %s', (reason, category) => {
+    const error = new Error('private wrapper', { cause: new GoogleDriveApiError(403, [reason]) })
+    expect(getConnectorFailureDiagnostic(error)).toMatchObject({ status: 403, category })
+    expect(JSON.stringify(getConnectorFailureDiagnostic(error))).not.toContain('private')
+    if (category !== 'authorization')
+      expect(getConnectorFailureDiagnostic(error)?.message).not.toContain('access was denied')
   })
 
   it('does not infer status or permanence from a free-form message', () => {

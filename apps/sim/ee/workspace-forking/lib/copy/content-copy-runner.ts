@@ -12,6 +12,10 @@ import type {
   ForkFailedResource,
 } from '@/ee/workspace-forking/lib/copy/copy-resources'
 import { copyForkResourceContent } from '@/ee/workspace-forking/lib/copy/copy-resources'
+import {
+  type ForkCopyControl,
+  rethrowForkCopyInterruption,
+} from '@/ee/workspace-forking/lib/copy/progress'
 import type { ForkContentRefMaps } from '@/ee/workspace-forking/lib/remap/remap-content-refs'
 
 const logger = createLogger('WorkspaceForkContentCopy')
@@ -129,16 +133,35 @@ function deserializeContentRefMaps(
 /**
  * Copy the heavy fork content after the fork transaction has committed: table
  * rows, KB documents + embeddings (keyset-paginated), and file blobs. Best-effort
- * and idempotency-unsafe (per-row inserts use fresh ids), so it must run at most
- * once - never blindly retried. Per-resource failures are counted (not thrown), so
+ * with deterministic target identities and optional durable copy checkpoints. Per-resource failures are counted (not thrown), so
  * the run finishes `completed_with_warnings` rather than failing the whole copy.
  */
-export async function runForkContentCopy(payload: ForkContentCopyPayload): Promise<void> {
+export async function runForkContentCopy(
+  payload: ForkContentCopyPayload,
+  options?: {
+    preserveSnapshots?: boolean
+    signal?: AbortSignal
+    control?: ForkCopyControl
+    onComplete?: (result: { copied: number; failed: number }) => Promise<void>
+  }
+): Promise<void> {
   const { contentPlan, blobTasks, statusId, requestId } = payload
   try {
     const contentRefMaps = deserializeContentRefMaps(payload.contentRefMaps)
-    const resourceCounts = await copyForkResourceContent({ contentPlan, contentRefMaps, requestId })
-    const fileCounts = await executeForkFileBlobCopies(blobTasks, requestId, contentRefMaps)
+    const resourceCounts = await copyForkResourceContent({
+      contentPlan,
+      contentRefMaps,
+      requestId,
+      control: options?.control ?? { signal: options?.signal },
+    })
+    options?.signal?.throwIfAborted()
+    const fileCounts = await executeForkFileBlobCopies(
+      blobTasks,
+      requestId,
+      contentRefMaps,
+      options?.control ?? { signal: options?.signal }
+    )
+    options?.signal?.throwIfAborted()
     // A resource whose content fill failed leaves a dangling reference: a table/KB/doc placeholder
     // its workflows still point at, or a `file-upload` whose copied blob is missing. Clear those
     // references (draft + deployed versions) and drop the table/KB/doc placeholder so nothing
@@ -147,12 +170,14 @@ export async function runForkContentCopy(payload: ForkContentCopyPayload): Promi
       kind: 'file',
       childKey,
     }))
-    const { cleared, clearingFailed } = await clearFailedForkResourceReferences({
-      childWorkspaceId: contentPlan.childWorkspaceId,
-      failures: [...resourceCounts.failures, ...fileFailures],
-      deployedTargetWorkflowIds: payload.deployedTargetWorkflowIds,
-      requestId,
-    })
+    const { cleared, clearingFailed } = options?.preserveSnapshots
+      ? { cleared: 0, clearingFailed: false }
+      : await clearFailedForkResourceReferences({
+          childWorkspaceId: contentPlan.childWorkspaceId,
+          failures: [...resourceCounts.failures, ...fileFailures],
+          deployedTargetWorkflowIds: payload.deployedTargetWorkflowIds,
+          requestId,
+        })
     const copied = resourceCounts.copied + fileCounts.copied
     const failed = resourceCounts.failed + fileCounts.failed
     if (statusId) {
@@ -170,7 +195,9 @@ export async function runForkContentCopy(payload: ForkContentCopyPayload): Promi
         },
       })
     }
+    await options?.onComplete?.({ copied, failed })
   } catch (error) {
+    rethrowForkCopyInterruption(error, options?.control ?? { signal: options?.signal })
     if (statusId) {
       await finishBackgroundWork(db, statusId, {
         status: 'failed',

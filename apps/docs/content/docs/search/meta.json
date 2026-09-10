@@ -2,6 +2,7 @@
   "title": "Search",
   "pages": [
     "connect-your-account",
+    "mcp",
     "confluence",
     "github",
     "gitlab",

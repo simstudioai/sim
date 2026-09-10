@@ -169,11 +169,13 @@ export function ConnectorSettingsFields({
     refetch: refetchCredentials,
   } = useOAuthCredentials(providerId ?? undefined, {
     enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
+    purpose: syncsPerMember ? 'browsing' : undefined,
     ...resourceScopeFields(scope),
   })
   useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', scope)
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
   const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
+  const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
   const credentialOptions = useMemo<ComboboxOption[]>(
     () =>
       rawCredentials
@@ -222,6 +224,7 @@ export function ConnectorSettingsFields({
           value={access}
           onChange={onAccessChange}
           canAdmin={canAdmin}
+          lockAccessMode={isSearchIndex}
           allowMembers={allowMembers}
           allowAdmin={allowAdmin}
           allowWorkspace={allowWorkspace}
@@ -331,7 +334,10 @@ export function ConnectorSettingsFields({
         ) && (
           <ChipModalField type='custom' title='Account for browsing'>
             <ChipCombobox
-              options={credentialOptions}
+              options={rawCredentials.map((credential) => ({
+                label: credential.name || credential.provider,
+                value: credential.id,
+              }))}
               value={browseCredentialId ?? undefined}
               onChange={setBrowseCredentialId}
               placeholder={`Select your ${connectorConfig.name} account`}
@@ -348,7 +354,8 @@ export function ConnectorSettingsFields({
           connectorConfig={connectorConfig}
           sourceConfig={sourceConfig}
           selectionLabels={selectionLabels}
-          credentialId={selectorCredentialId}
+          credentialId={selectorCredential?.id ?? null}
+          credentialType={selectorCredential?.type}
           canonicalGroups={canonicalGroups}
           canonicalModes={canonicalModes}
           isFieldVisible={isFieldVisible}

@@ -1,4 +1,3 @@
-import { getScopesForService } from '@/lib/oauth/utils'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
   SelectorConnectionUnavailableError,
@@ -20,7 +19,6 @@ type ConfluenceSelectorKey = Extract<
   'confluence.spaces' | 'confluence.spacesById' | 'confluence.pages'
 >
 
-const CONFLUENCE_SCOPES = getScopesForService('confluence')
 const SPACE_PAGE_LIMIT = 250
 const PAGE_LIST_LIMIT = 50
 
@@ -82,13 +80,16 @@ function spaceOption(
   }
 }
 
-async function resolveConfluenceAuth(args: ExecuteServerSelectorArgs) {
+async function resolveConfluenceAuth(
+  args: ExecuteServerSelectorArgs,
+  scope: 'read:space:confluence' | 'read:page:confluence'
+) {
   const domain = args.context.domain
   if (!domain) throw new SelectorContextUnavailableError()
 
   const bundle = await resolveSelectorCredentialBundle({
     credential: args.credential,
-    scopes: CONFLUENCE_SCOPES,
+    scopes: [scope],
     protectedValues: args.protectedValues,
     recordCredentialUse: args.recordCredentialUse,
     providerId: 'confluence',
@@ -119,7 +120,7 @@ async function requestSpaces(input: {
 }
 
 async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' | 'id') {
-  const auth = await resolveConfluenceAuth(args)
+  const auth = await resolveConfluenceAuth(args, 'read:space:confluence')
 
   if (args.request.kind === 'detail') {
     const requestedId = args.request.id.trim()
@@ -203,7 +204,7 @@ async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' 
 }
 
 async function executePages(args: ExecuteServerSelectorArgs) {
-  const auth = await resolveConfluenceAuth(args)
+  const auth = await resolveConfluenceAuth(args, 'read:page:confluence')
   if (args.request.kind === 'detail') {
     const pageId = args.request.id.trim()
     if (!/^[A-Za-z0-9_-]{1,255}$/.test(pageId)) {

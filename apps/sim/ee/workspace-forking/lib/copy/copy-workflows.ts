@@ -16,18 +16,19 @@ import {
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
-import {
-  deriveForkBlockId,
-  type ForkBlockIdResolver,
-} from '@/ee/workspace-forking/lib/remap/block-identity'
+import { finalizeBlockToolPositions } from '@/lib/workflows/references/finalize-tool-positions'
 import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
   replaceCustomBlockInputs,
   type SubBlockTransform,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import {
+  deriveForkBlockId,
+  type ForkBlockIdResolver,
+} from '@/ee/workspace-forking/lib/remap/block-identity'
 import type {
   BlockData,
   BlockState,
@@ -570,7 +571,8 @@ export async function copyWorkflowStateIntoTarget(
           activeCanonicalModes = next
           updatedData = { ...updatedData, canonicalModes: next } as BlockData
         },
-        blockTriggerMode
+        blockTriggerMode,
+        true
       )
     }
     if (varIdMapping.size > 0) {
@@ -580,6 +582,7 @@ export async function copyWorkflowStateIntoTarget(
     // rather than leave them pointing at the source workspace.
     subBlocks = remapWorkflowReferencesInSubBlocks(subBlocks, workflowIdMap, {
       clearUnmapped: true,
+      preserveToolIndices: true,
       canonicalModes: activeCanonicalModes,
     })
     subBlocks = remapConditionIdsInSubBlocks(
@@ -598,24 +601,6 @@ export async function copyWorkflowStateIntoTarget(
     const blockOverrides = dependentOverrides?.get(newBlockId)
     if (blockOverrides && blockOverrides.size > 0) {
       subBlocks = applyDependentOverrides(subBlocks, block.type, blockOverrides)
-    }
-
-    // Dependents the TARGET had configured that the parent change cleared and nothing
-    // restored: the target must re-pick required ones (promote skips this workflow's
-    // redeploy) and is told about optional ones. Keyed on the target draft so a field the
-    // source carried but the target never set isn't flagged.
-    if (mode === 'replace' && targetCurrent) {
-      clearedDependents.push(
-        ...collectClearedDependents(
-          block.type,
-          newBlockId,
-          block.name,
-          targetCurrent.subBlocks,
-          subBlocks,
-          activeCanonicalModes,
-          blockTriggerMode
-        )
-      )
     }
 
     const nextBlockType = transformBlockType
@@ -638,6 +623,21 @@ export async function copyWorkflowStateIntoTarget(
       // double-cast-allowed: remap helpers return SubBlockRecord; the entries retain the SubBlockState shape this block requires
       subBlocks: subBlocks as unknown as Record<string, SubBlockState>,
       data: updatedData,
+    }
+    finalizeBlockToolPositions(newBlocks[newBlockId])
+    /** Compare the final tool positions with the target draft when reporting cleared selections. */
+    if (mode === 'replace' && targetCurrent) {
+      clearedDependents.push(
+        ...collectClearedDependents(
+          block.type,
+          newBlockId,
+          block.name,
+          targetCurrent.subBlocks,
+          subBlocks,
+          newBlocks[newBlockId].data?.canonicalModes,
+          blockTriggerMode
+        )
+      )
     }
   }
 

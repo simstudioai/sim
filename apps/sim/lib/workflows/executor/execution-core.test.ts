@@ -8,7 +8,14 @@ import {
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as retention from '@/lib/billing/retention'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const {
   mergeSubblockStateWithValuesMock,
@@ -32,6 +39,9 @@ const {
   projectDisplayContentMock,
   projectDiagnosticErrorMock,
   decryptSecretMock,
+  downloadFileMock,
+  uploadFileMock,
+  maskBatchMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -54,6 +64,9 @@ const {
   projectDisplayContentMock: vi.fn(),
   projectDiagnosticErrorMock: vi.fn(),
   decryptSecretMock: vi.fn(),
+  downloadFileMock: vi.fn(),
+  uploadFileMock: vi.fn(),
+  maskBatchMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
@@ -66,6 +79,19 @@ const loadDeployedWorkflowStateMock = workflowsPersistenceUtilsMockFns.mockLoadD
 const loadWorkflowDeploymentVersionStateMock =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
 const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: { downloadFile: downloadFileMock, uploadFile: uploadFileMock },
+}))
+
+vi.mock('@/lib/guardrails/mask-client', () => ({
+  maskPIIBatchViaHttp: maskBatchMock,
+}))
+
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
+  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
@@ -120,7 +146,7 @@ import {
   executeWorkflowCore,
   FINALIZED_EXECUTION_ID_TTL_MS,
   wasExecutionFinalizedByCore,
-} from './execution-core'
+} from '@/lib/workflows/executor/execution-core'
 
 const executionCoreLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'ExecutionCore'
@@ -991,6 +1017,172 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     ).rejects.toThrow('Draft resume cannot carry deployment version authority')
     expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
     expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
+  })
+
+  describe('PII redaction of restored large values', () => {
+    const sourceItems = [{ email: 'alice@example.com', count: 7 }]
+    const maskedItems = [{ email: '<EMAIL_ADDRESS>', count: 7 }]
+    const sourceBytes = Buffer.from(JSON.stringify(sourceItems))
+
+    function createManifest(
+      workspaceId = 'workspace-1',
+      workflowId = 'workflow-1',
+      executionId = 'source-execution'
+    ): LargeArrayManifest {
+      const ref: LargeValueRef = {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_123456789012',
+        kind: 'array',
+        size: sourceBytes.length,
+        executionId,
+        key: `execution/${workspaceId}/${workflowId}/${executionId}/large-value-lv_123456789012.json`,
+      }
+      return {
+        __simLargeArrayManifest: true,
+        version: 2,
+        kind: 'array',
+        totalCount: 1,
+        chunkCount: 1,
+        byteSize: sourceBytes.length,
+        chunks: [{ ref, count: 1, byteSize: sourceBytes.length }],
+        preview: sourceItems,
+      }
+    }
+
+    function createRestoredState(manifest: LargeArrayManifest): SerializableExecutionState {
+      return {
+        blockStates: { previous: { output: { result: manifest } } },
+        executedBlocks: ['previous'],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+        trustedLargeValueAccess: { executionIds: [], largeValueKeys: [], fileKeys: [] },
+      }
+    }
+
+    function createPiiSnapshot(state?: SerializableExecutionState, input: unknown = {}) {
+      const base = createSnapshot()
+      return new ExecutionSnapshot(
+        { ...base.metadata, resumeFromSnapshot: state !== undefined },
+        base.workflow,
+        input,
+        {},
+        [],
+        state
+      )
+    }
+
+    beforeEach(() => {
+      clearLargeValueCacheForTests()
+      vi.spyOn(retention, 'resolveEffectivePiiRedaction').mockReturnValue({
+        ...retention.DEFAULT_PII_REDACTION,
+        input: {
+          enabled: true,
+          entityTypes: ['EMAIL_ADDRESS'],
+          language: 'en',
+          customPatterns: [],
+        },
+        blockOutputs: {
+          enabled: true,
+          entityTypes: ['EMAIL_ADDRESS'],
+          language: 'en',
+          customPatterns: [],
+        },
+      })
+      downloadFileMock.mockResolvedValue(sourceBytes)
+      uploadFileMock.mockImplementation(async ({ customKey }: { customKey: string }) => ({
+        key: customKey,
+      }))
+      maskBatchMock.mockImplementation(async (texts: string[]) =>
+        texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
+      )
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+      })
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      clearLargeValueCacheForTests()
+    })
+
+    it.each(['source execution', 'trusted key', 'resume', 'input'] as const)(
+      'masks cached manifest content with %s access and stores it under the new execution',
+      async (mode) => {
+        const manifest = createManifest()
+        const state = createRestoredState(manifest)
+        if (mode === 'trusted key')
+          state.trustedLargeValueAccess!.largeValueKeys = [manifest.chunks[0].ref.key!]
+        const snapshot = createPiiSnapshot(
+          mode === 'resume' ? state : undefined,
+          mode === 'input' ? { result: manifest } : {}
+        )
+        if (mode === 'input') snapshot.metadata.largeValueExecutionIds = ['source-execution']
+        const result = await executeWorkflowCore({
+          snapshot,
+          callbacks: {},
+          loggingSession: loggingSession as unknown as LoggingSession,
+          ...(mode === 'resume' || mode === 'input'
+            ? {}
+            : {
+                runFromBlock: {
+                  startBlockId: 'start-block',
+                  sourceSnapshot: state,
+                  sourceExecutionId:
+                    mode === 'trusted key' ? 'intermediate-execution' : 'source-execution',
+                },
+              }),
+        })
+        await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+        expect(result.success).toBe(true)
+        expect(executorExecuteMock).toHaveBeenCalledOnce()
+        expect(downloadFileMock).toHaveBeenCalledWith(
+          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: 64 * 1024 * 1024 })
+        )
+        expect(uploadFileMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            customKey: expect.stringContaining('execution/workspace-1/workflow-1/execution-1/'),
+            file: Buffer.from(JSON.stringify(maskedItems)),
+          })
+        )
+        if (mode !== 'input')
+          expect(state.blockStates.previous.output).toMatchObject({
+            result: { preview: maskedItems },
+          })
+      }
+    )
+
+    it.each([
+      ['another workspace', 'workspace-2', 'workflow-1', 'source-execution'],
+      ['another workflow', 'workspace-1', 'workflow-2', 'source-execution'],
+      ['an unauthorized execution', 'workspace-1', 'workflow-1', 'unrelated-execution'],
+    ])(
+      'refuses cached manifest content from %s before reading storage',
+      async (_, workspaceId, workflowId, executionId) => {
+        const state = createRestoredState(createManifest(workspaceId, workflowId, executionId))
+        await expect(
+          executeWorkflowCore({
+            snapshot: createPiiSnapshot(),
+            callbacks: {},
+            loggingSession: loggingSession as unknown as LoggingSession,
+            runFromBlock: {
+              startBlockId: 'start-block',
+              sourceExecutionId: 'source-execution',
+              sourceSnapshot: state,
+            },
+          })
+        ).rejects.toThrow('Large execution value is not available in this execution.')
+        expect(downloadFileMock).not.toHaveBeenCalled()
+        expect(uploadFileMock).not.toHaveBeenCalled()
+        expect(executorExecuteMock).not.toHaveBeenCalled()
+      }
+    )
   })
 
   it('marks inherited client run-from-block provenance incomplete', async () => {

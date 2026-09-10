@@ -1,9 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import {
+  CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES,
+  credentialGroupOAuthCompletionChannel,
+  isCredentialGroupOAuthFailure,
+} from '@/lib/credential-groups/oauth-completion'
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 import {
@@ -93,6 +99,7 @@ interface AwaitingEnrollment {
    * can be told it is awaited before its membership row exists to look it up by.
    */
   connectorType: string | null
+  oauthCompletionId?: string
 }
 
 interface UseMemberEnrollmentProps {
@@ -100,6 +107,8 @@ interface UseMemberEnrollmentProps {
   membershipQueryKeys: readonly QueryKey[]
   /** Connector ids the viewer is now connected to; awaiting stops for them. */
   connectedConnectorIds: ReadonlySet<string>
+  /** Main Integrations skips the invitation page; invitation-based surfaces keep their flow. */
+  directOAuth?: boolean
 }
 
 /**
@@ -116,8 +125,12 @@ interface UseMemberEnrollmentProps {
 export function useMemberEnrollment({
   membershipQueryKeys,
   connectedConnectorIds,
+  directOAuth = false,
 }: UseMemberEnrollmentProps) {
   const connectedRef = useRef(connectedConnectorIds)
+  const oauthPopups = useRef(
+    new Map<string, { channel: BroadcastChannel; timer: ReturnType<typeof setTimeout> }>()
+  )
   const queryClient = useQueryClient()
   const enrollment = useStartConnectorMemberEnrollment()
   const sourceConnection = useConnectSimSearchConnector()
@@ -125,6 +138,39 @@ export function useMemberEnrollment({
     () => new Map()
   )
   const [popupBlocked, setPopupBlocked] = useState(false)
+  const [oauthError, setOAuthError] = useState<string | null>(null)
+
+  const refreshMemberships = useCallback(() => {
+    for (const queryKey of membershipQueryKeys) {
+      void queryClient.invalidateQueries({ queryKey })
+    }
+    void queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+  }, [membershipQueryKeys, queryClient])
+
+  const finishOAuth = (completionId: string, error: string | null) => {
+    const popup = oauthPopups.current.get(completionId)
+    if (!popup) return
+    clearTimeout(popup.timer)
+    popup.channel.close()
+    oauthPopups.current.delete(completionId)
+    setAwaitingSince(
+      (current) =>
+        new Map([...current].filter(([, entry]) => entry.oauthCompletionId !== completionId))
+    )
+    setOAuthError(error)
+    refreshMemberships()
+  }
+
+  useEffect(() => {
+    const popups = oauthPopups.current
+    return () => {
+      for (const popup of popups.values()) {
+        clearTimeout(popup.timer)
+        popup.channel.close()
+      }
+      popups.clear()
+    }
+  }, [])
 
   useEffect(() => {
     connectedRef.current = connectedConnectorIds
@@ -134,6 +180,8 @@ export function useMemberEnrollment({
    * Polls while any connection is awaited, and once more after the last one
    * connects: that tick drops the connected ids, so a token that later needs
    * reauthorization is not mistaken for a connection still being awaited.
+   * Direct OAuth waits for its completion message: provider window isolation
+   * can report a closed handle while authorization is still in progress.
    */
   const awaiting = awaitingSince.size > 0
   useEffect(() => {
@@ -143,25 +191,23 @@ export function useMemberEnrollment({
       setAwaitingSince((current) => {
         const next = new Map(
           [...current].filter(
-            ([id, { since, tab }]) =>
-              !tab.closed &&
-              !connectedRef.current.has(id) &&
+            ([id, { since, tab, oauthCompletionId }]) =>
+              (Boolean(oauthCompletionId) || !tab.closed) &&
+              (Boolean(oauthCompletionId) || !connectedRef.current.has(id)) &&
               now - since < AWAITING_CONNECTION_TIMEOUT_MS
           )
         )
         return next.size === current.size ? current : next
       })
-      for (const queryKey of membershipQueryKeys) {
-        void queryClient.invalidateQueries({ queryKey })
-      }
-      void queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      refreshMemberships()
     }, AWAITING_CONNECTION_POLL_MS)
     return () => clearInterval(timer)
-  }, [awaiting, membershipQueryKeys, queryClient])
+  }, [awaiting, refreshMemberships])
 
   /** Opens the tab inside the click, then sends it wherever `start` mints. */
   const openEnrollment = (
     start: (handlers: {
+      oauthCompletionId?: string
       onSuccess: (url: string, connectorId: string, connectorType?: string) => boolean
       onError: () => void
     }) => void
@@ -173,27 +219,50 @@ export function useMemberEnrollment({
     }
     tab.opener = null
     setPopupBlocked(false)
+    setOAuthError(null)
+    const oauthCompletionId = directOAuth ? generateId() : undefined
+    if (oauthCompletionId) {
+      const channel = new BroadcastChannel(credentialGroupOAuthCompletionChannel(oauthCompletionId))
+      channel.onmessage = ({ data }: MessageEvent<unknown>) => {
+        if (data === 'connected') finishOAuth(oauthCompletionId, null)
+        else if (isCredentialGroupOAuthFailure(data))
+          finishOAuth(oauthCompletionId, CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES[data])
+      }
+      const timer = setTimeout(() => {
+        finishOAuth(oauthCompletionId, CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES.expired)
+      }, AWAITING_CONNECTION_TIMEOUT_MS)
+      oauthPopups.current.set(oauthCompletionId, { channel, timer })
+    }
     start({
+      ...(oauthCompletionId ? { oauthCompletionId } : {}),
       onSuccess: (url, connectorId, connectorType) => {
-        if (tab.closed) return false
+        if (tab.closed || (oauthCompletionId && !oauthPopups.current.has(oauthCompletionId))) {
+          if (oauthCompletionId)
+            finishOAuth(oauthCompletionId, CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES.denied)
+          return false
+        }
         tab.location.href = url
         setAwaitingSince((current) =>
           new Map(current).set(connectorId, {
             since: Date.now(),
             tab,
             connectorType: connectorType ?? null,
+            ...(oauthCompletionId ? { oauthCompletionId } : {}),
           })
         )
         return true
       },
-      onError: () => tab.close(),
+      onError: () => {
+        if (oauthCompletionId) finishOAuth(oauthCompletionId, null)
+        tab.close()
+      },
     })
   }
 
   const connect = (knowledgeBaseId: string, connectorId: string) =>
-    openEnrollment(({ onSuccess, onError }) => {
+    openEnrollment(({ onSuccess, onError, oauthCompletionId }) => {
       enrollment.mutate(
-        { knowledgeBaseId, connectorId },
+        { knowledgeBaseId, connectorId, ...(oauthCompletionId ? { oauthCompletionId } : {}) },
         {
           onSuccess: ({ url }) => onSuccess(url, connectorId),
           onError: (err) => {
@@ -214,12 +283,13 @@ export function useMemberEnrollment({
     connectorType: string,
     sourceConfig?: Record<string, string>
   ) =>
-    openEnrollment(({ onSuccess, onError }) => {
+    openEnrollment(({ onSuccess, onError, oauthCompletionId }) => {
       sourceConnection.mutate(
         {
           ...(typeof owner === 'string' ? { workspaceId: owner } : resourceScopeFields(owner)),
           connectorType,
           sourceConfig,
+          ...(oauthCompletionId ? { oauthCompletionId } : {}),
         },
         {
           onSuccess: ({ url, connectorId }) => {
@@ -257,7 +327,9 @@ export function useMemberEnrollment({
   }
 
   const isAwaiting = (connectorId: string) =>
-    awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId)
+    awaitingSince.has(connectorId) &&
+    (Boolean(awaitingSince.get(connectorId)?.oauthCompletionId) ||
+      !connectedConnectorIds.has(connectorId))
 
   /**
    * Whether a Sim Search source is awaited by the connect that created its
@@ -266,7 +338,9 @@ export function useMemberEnrollment({
    */
   const isAwaitingSource = (connectorType: string) =>
     [...awaitingSince].some(
-      ([id, awaiting]) => awaiting.connectorType === connectorType && !connectedConnectorIds.has(id)
+      ([id, awaiting]) =>
+        awaiting.connectorType === connectorType &&
+        (Boolean(awaiting.oauthCompletionId) || !connectedConnectorIds.has(id))
     )
 
   /** The surface reports the latest attempt, whichever path made it. */
@@ -281,6 +355,6 @@ export function useMemberEnrollment({
     isAwaiting,
     isAwaitingSource,
     isPending: enrollment.isPending || sourceConnection.isPending,
-    error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (latest.error?.message ?? null),
+    error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (oauthError ?? latest.error?.message ?? null),
   }
 }

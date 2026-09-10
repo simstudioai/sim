@@ -1,15 +1,13 @@
-import { type InfiniteData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
-import type { SearchSourcePage } from '@/lib/api/contracts/knowledge/connectors'
 import {
   listSearchIntegrationsContract,
   type UpdateSearchIntegrationBody,
   updateSearchIntegrationContract,
 } from '@/lib/api/contracts/knowledge/search-integrations'
-import { resourceScopeKey } from '@/lib/core/resource-scope'
-import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
-import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const SEARCH_INTEGRATIONS_STALE_TIME = 30_000
 
@@ -25,32 +23,16 @@ export function useSearchIntegrations(organizationId: string) {
 
 export function useUpdateSearchIntegration() {
   const queryClient = useQueryClient()
+  const router = useRouter()
   return useMutation({
     mutationFn: async (body: UpdateSearchIntegrationBody) =>
       (await requestJson(updateSearchIntegrationContract, { body })).data,
     onSuccess: async (_data, { organizationId }) => {
-      const scope = { kind: 'organization', organizationId } as const
-      const pages = queryClient.getQueriesData<InfiniteData<SearchSourcePage>>({
-        queryKey: searchSourceKeys.list(scope),
-        predicate: (query) => query.queryKey[3] === 'pages',
-      })
-      const knowledgeBaseIds = new Set(
-        pages.flatMap(
-          ([, data]) =>
-            data?.pages.flatMap((page) => page.sources.map((source) => source.knowledgeBaseId)) ??
-            []
-        )
-      )
       await Promise.all([
+        resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.list(organizationId) }),
-        queryClient.invalidateQueries({ queryKey: searchSourceKeys.list(scope) }),
-        queryClient.resetQueries({
-          queryKey: [...knowledgeKeys.searches(), resourceScopeKey(scope)],
-        }),
-        ...[...knowledgeBaseIds].map((id) =>
-          queryClient.resetQueries({ queryKey: knowledgeKeys.detail(id) })
-        ),
       ])
+      router.refresh()
     },
   })
 }

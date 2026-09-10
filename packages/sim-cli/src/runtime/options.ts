@@ -294,6 +294,17 @@ export function addOperationOptions(
     }
   }
 
+  if (commandSpec.workspaceOperation) {
+    command.option(
+      '--wait',
+      'Wait for the committed operation to finish; missing configuration and failure exit nonzero'
+    )
+    command.option(
+      '--wait-timeout <seconds>',
+      'Maximum operation wait in seconds (default 3600; 0 waits indefinitely)'
+    )
+  }
+
   if (commandSpec.confirm) {
     // There is no prompt to skip: a `confirm` command refuses outright when the
     // flag is absent, in a TTY or not. Calling it "Skip the confirmation" sent
