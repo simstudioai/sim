@@ -53,7 +53,11 @@ export function assertYamlWithinLimits(root: unknown): number {
  * Parse a YAML value into the shared `FileParseResult` shape after validating
  * that its expanded form stays within safe complexity limits.
  */
-function buildYamlResult(yamlData: unknown, decoded: DecodedText): FileParseResult {
+function buildYamlResult(
+  yamlData: unknown,
+  decoded: DecodedText,
+  documentCount: number
+): FileParseResult {
   if (yamlData === undefined) {
     throw new FileParserError('empty_input', 'Empty YAML input provided')
   }
@@ -67,6 +71,7 @@ function buildYamlResult(yamlData: unknown, decoded: DecodedText): FileParseResu
     keys: Array.isArray(yamlData) ? [] : Object.keys((yamlData as Record<string, unknown>) || {}),
     itemCount: Array.isArray(yamlData) ? yamlData.length : undefined,
     depth,
+    documentCount,
     encoding: decoded.encoding,
     ...(decoded.warning ? { warning: decoded.warning } : {}),
   }
@@ -96,8 +101,18 @@ export async function parseYAMLBuffer(buffer: Buffer): Promise<FileParseResult> 
   const decoded = decodeTextBuffer(buffer)
 
   try {
-    const yamlData = yaml.load(decoded.text)
-    return buildYamlResult(yamlData, decoded)
+    /**
+     * A YAML file is a stream: Kubernetes manifests, Helm output and CI
+     * fixtures routinely hold several documents separated by `---`. A single
+     * document keeps its own shape; a multi-document stream becomes an array of
+     * documents, which the JSON/YAML chunker then splits one document per item.
+     */
+    const documents = yaml
+      .loadAll(decoded.text)
+      .filter((document) => document !== undefined && document !== null)
+    const yamlData =
+      documents.length === 1 ? documents[0] : documents.length === 0 ? undefined : documents
+    return buildYamlResult(yamlData, decoded, documents.length)
   } catch (error) {
     if (error instanceof FileParserError) throw error
     throw new FileParserError(

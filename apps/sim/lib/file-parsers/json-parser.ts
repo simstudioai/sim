@@ -174,6 +174,45 @@ function buildJsonResult(jsonData: unknown, decoded: DecodedText): FileParseResu
  * `toString('utf-8')` read used to reject every BOM-prefixed file from Windows
  * editors, and a Windows-1252 file silently lost its accented characters.
  */
+const JSONC_WARNING = 'File is JSON with comments or trailing commas; parsed leniently'
+
+/**
+ * Removes `//` and `/* *\/` comments and trailing commas outside string
+ * literals, so a `tsconfig.json`, `.vscode` settings file or `devcontainer.json`
+ * — JSON with comments, which editors accept — parses like plain JSON. Runs
+ * only after strict parsing has failed, so valid JSON never goes through it.
+ */
+export function stripJsonComments(text: string): string {
+  let out = ''
+  let index = 0
+  while (index < text.length) {
+    const char = text[index]
+    if (char === '"') {
+      let end = index + 1
+      while (end < text.length && text[end] !== '"') {
+        if (text[end] === '\\') end++
+        end++
+      }
+      out += text.slice(index, end + 1)
+      index = end + 1
+      continue
+    }
+    if (char === '/' && text[index + 1] === '/') {
+      const end = text.indexOf('\n', index)
+      index = end === -1 ? text.length : end
+      continue
+    }
+    if (char === '/' && text[index + 1] === '*') {
+      const end = text.indexOf('*/', index + 2)
+      index = end === -1 ? text.length : end + 2
+      continue
+    }
+    out += char
+    index++
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1')
+}
+
 function parseJsonContent(buffer: Uint8Array): FileParseResult {
   const decoded = decodeTextBuffer(buffer)
   try {
@@ -183,12 +222,26 @@ function parseJsonContent(buffer: Uint8Array): FileParseResult {
     if (!(error instanceof SyntaxError)) {
       throw new FileParserError('runtime_failure', 'JSON processing failed unexpectedly', error)
     }
+    const lenient = parseJsonWithComments(decoded)
+    if (lenient) return lenient
     throw new FileParserError(
       'invalid_format',
       `Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`,
       error
     )
   }
+}
+
+function parseJsonWithComments(decoded: DecodedText): FileParseResult | undefined {
+  let value: unknown
+  try {
+    value = JSON.parse(stripJsonComments(decoded.text))
+  } catch {
+    return undefined
+  }
+  const result = buildJsonResult(value, decoded)
+  const warning = [decoded.warning, JSONC_WARNING].filter(Boolean).join('; ')
+  return { ...result, metadata: { ...result.metadata, warning } }
 }
 
 /** Parse a JSON file. */
