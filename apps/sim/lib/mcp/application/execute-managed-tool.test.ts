@@ -266,12 +266,17 @@ describe('executeManagedMcpToolUseCase', () => {
       workspaceId: context.workspaceId,
       blocks: {
         'block-1': {
-          type: 'mcp',
+          type: 'agent',
           subBlocks: {
-            server: { value: context.mcpServerId },
-            connection: { value: context.credentialId },
-            tool: { value: '<upstream.operation>' },
-            operationPolicy: { value: { mode: 'allow', operations: [] } },
+            tools: {
+              value: [
+                {
+                  type: 'mcp-server-advanced',
+                  params: { serverId: context.credentialId },
+                  operationPolicy: { mode: 'allow', operations: [] },
+                },
+              ],
+            },
           },
         },
       },

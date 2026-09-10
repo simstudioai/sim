@@ -3032,7 +3032,6 @@ export const v2AgentCustomToolSchema = z
 /** An MCP server tool attached directly to an Agent block. */
 export const v2AgentMcpToolSchema = z
   .object({
-    operationPolicy: mcpOperationPolicySchema.optional(),
     type: z.literal('mcp').describe('MCP-tool discriminator.'),
     params: z
       .intersection(
@@ -3090,14 +3089,6 @@ export const v2AgentMcpServerAdvancedSchema = z
     operationPolicy: mcpOperationPolicySchema.optional(),
     params: z
       .object({
-        connectionId: z
-          .string()
-          .min(1)
-          .max(MAX_ID_LENGTH)
-          .optional()
-          .describe(
-            'Optional managed connection ID or upstream reference bound to the canonical server.'
-          ),
         serverId: z
           .string()
           .trim()
@@ -3109,7 +3100,7 @@ export const v2AgentMcpServerAdvancedSchema = z
       })
       .strict()
       .describe(
-        'Server and optional connection identity for authorized operation discovery and execution.'
+        'Executable server or connection identity for authorized operation discovery and execution.'
       ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
   })

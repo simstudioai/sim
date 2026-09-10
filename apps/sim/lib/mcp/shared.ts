@@ -12,7 +12,6 @@ export interface McpServerAdvancedToolBinding {
   type: typeof MCP_SERVER_ADVANCED_TOOL_TYPE
   params: {
     serverId: string
-    connectionId?: string
   }
   operationPolicy?: McpOperationPolicy
   usageControl?: 'auto' | 'force' | 'none'
@@ -41,7 +40,7 @@ export function assertValidMcpServerToolBindings(value: unknown): void {
     const tool = candidate as {
       type?: unknown
       usageControl?: unknown
-      params?: { serverId?: unknown; connectionId?: unknown }
+      params?: { serverId?: unknown }
     }
     if (tool.usageControl === 'none') continue
     if (tool.type === 'mcp') {
@@ -57,12 +56,6 @@ export function assertValidMcpServerToolBindings(value: unknown): void {
       throw new Error('MCP Server (Advanced) requires params.serverId')
     }
     if (!serverId.trim()) throw new Error('MCP Server (Advanced) requires params.serverId')
-    if (
-      tool.params?.connectionId !== undefined &&
-      (typeof tool.params.connectionId !== 'string' || !tool.params.connectionId.trim())
-    ) {
-      throw new Error('MCP Server (Advanced) connection must be a nonempty string')
-    }
     if (advancedServerIds.has(serverId)) {
       throw new Error(`Duplicate MCP Server (Advanced) binding for ${serverId}`)
     }

@@ -10,7 +10,6 @@ import {
 } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
-import { McpBlockOperationPolicy } from '@/components/mcp/block-operation-policy'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
   CheckboxList,
@@ -1136,16 +1135,6 @@ function SubBlockComponent({
             previewValue={previewValue as string[] | null | undefined}
             disabled={isDisabled}
             placeholder={config.placeholder}
-          />
-        )
-
-      case 'mcp-operation-policy':
-        return (
-          <McpBlockOperationPolicy
-            blockId={blockId}
-            disabled={isDisabled}
-            isPreview={isPreview}
-            previewValue={previewValue}
           />
         )
 

@@ -2,14 +2,38 @@
  * @vitest-environment node
  */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { createBlock } from '@sim/testing/factories'
+import {
+  blocksMock,
+  createMockGetBlock,
+  toolsMetadataMock,
+  toolsUtilsMock,
+} from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { listMcpOperations } from '@/lib/internal/mcp/list-operations'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { McpBlock } from '@/blocks/blocks/mcp'
+import { ExecutionState } from '@/executor/execution/state'
+import type { ExecutionContext } from '@/executor/types'
+import { VariableResolver } from '@/executor/variables/resolver'
+import { Serializer } from '@/serializer'
+import { mcpListOperationsTool } from '@/tools/mcp/list-operations'
+import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
+import type { McpListOperationsResponse } from '@/tools/mcp/types'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  discover: vi.fn(),
   executeUseCase: vi.fn(),
   executeManagedUseCase: vi.fn(),
+}))
+
+vi.mock('@/blocks', () => ({ ...blocksMock, getBlock: createMockGetBlock({ mcp: McpBlock }) }))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
+vi.mock('@/tools/metadata', () => toolsMetadataMock)
+vi.mock('@/lib/internal/mcp/discover-tools', () => ({
+  discoverMcpServerToolsAsExecutor: mocks.discover,
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
@@ -162,12 +186,12 @@ describe('executeMcpTool', () => {
     })
   })
 
-  it('passes resolved connection-to-server binding into the managed application boundary', async () => {
+  it('resolves a connection ID directly through the managed application boundary', async () => {
     const credentialId = 'mcp-cg-123456789012345678901'
     mocks.executeManagedUseCase.mockResolvedValue({ success: true, output: { content: [] } })
     const response = await executeMcpTool({
       toolId: 'mcp_run_operation',
-      input: { server: 'canonical-server', connection: credentialId, tool: 'read', arguments: {} },
+      input: { server: credentialId, tool: 'read', arguments: {} },
       headers: new Headers(),
       context: CONTEXT,
       requestId: 'request-1',
@@ -177,19 +201,17 @@ describe('executeMcpTool', () => {
       principal: PRINCIPAL,
       input: expect.objectContaining({
         credentialId,
-        assertedServerId: 'canonical-server',
         toolName: 'read',
       }),
     })
     expect(mocks.executeUseCase).not.toHaveBeenCalled()
   })
 
-  it('rejects an empty resolved connection without choosing the server credential', async () => {
+  it('rejects an empty resolved server without choosing a credential', async () => {
     const response = await executeMcpTool({
       toolId: 'mcp_run_operation',
       input: {
-        server: 'mcp-cg-123456789012345678901',
-        connection: '',
+        server: '',
         tool: 'read',
         arguments: {},
       },
@@ -366,4 +388,116 @@ describe('executeMcpTool', () => {
       { trusted: true, origin: 'tool.mcp-server-lookup' }
     )
   })
+  it.each(['server-1', 'mcp-cg-123456789012345678901'])(
+    'executes connection lookup → List → Run using only %s and the returned name',
+    async (targetId) => {
+      mocks.executeManagedUseCase.mockResolvedValue({ success: true, output: { content: [] } })
+      mocks.discover.mockResolvedValue([
+        {
+          name: 'exact_operation',
+          description: 'Discovered',
+          serverId: targetId,
+          canonicalServerId: 'internal-parent',
+          inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+        },
+      ])
+      const list = createBlock({
+        id: 'list',
+        name: 'List',
+        type: 'mcp',
+        data: { canonicalModes: { server: 'advanced', tool: 'advanced' } },
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'list' },
+          serverReference: { id: 'serverReference', type: 'short-input', value: '<lookup.id>' },
+        },
+      })
+      const run = createBlock({
+        id: 'run',
+        name: 'Run',
+        type: 'mcp',
+        data: { canonicalModes: { server: 'advanced', tool: 'advanced' } },
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'run' },
+          serverReference: { id: 'serverReference', type: 'short-input', value: '<list.serverId>' },
+          toolReference: {
+            id: 'toolReference',
+            type: 'short-input',
+            value: '<list.operations.0.name>',
+          },
+          arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '<lookup.arguments>' },
+        },
+      })
+      const lookup = createBlock({ id: 'lookup', name: 'Lookup', type: 'starter' })
+      const workflow = new Serializer().serializeWorkflow({ lookup, list, run }, [], {})
+      const listBlock = workflow.blocks.find((block) => block.id === 'list')!
+      const runBlock = workflow.blocks.find((block) => block.id === 'run')!
+      expect(listBlock.config.tool).toBe('mcp_list_operations')
+      expect(runBlock.config.tool).toBe('mcp_run_operation')
+      const state = new ExecutionState()
+      state.setBlockOutput('lookup', { id: targetId, arguments: { query: 'sim' } })
+      const ctx: ExecutionContext = {
+        workflowId: CONTEXT.workflowId,
+        blockStates: state.getBlockStates(),
+        blockLogs: [],
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopExecutions: new Map(),
+        executedBlocks: new Set(),
+        completedLoops: new Set(),
+        activeExecutionPath: new Set(),
+        metadata: { duration: 0 },
+      }
+      const resolver = new VariableResolver(workflow, {}, state)
+      const listParams = await resolver.resolveInputs(
+        ctx,
+        'list',
+        listBlock.config.params,
+        listBlock
+      )
+      const listResponse = await listMcpOperations({
+        toolId: listBlock.config.tool,
+        context: { ...CONTEXT, mcpBlockId: 'list' },
+        headers: new Headers(),
+        requestId: 'list-request',
+        input: mcpListOperationsTool.operation.input({ server: listParams.server }),
+      })
+      const catalog = (await listResponse.json()) as McpListOperationsResponse
+      expect(catalog.output.serverId).toBe(targetId)
+      expect(catalog.output.operations[0]).toEqual({
+        name: 'exact_operation',
+        description: 'Discovered',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+      })
+      expect(mocks.executeUseCase).not.toHaveBeenCalled()
+      expect(mocks.executeManagedUseCase).not.toHaveBeenCalled()
+      state.setBlockOutput('list', catalog.output)
+      const runParams = await resolver.resolveInputs(ctx, 'run', runBlock.config.params, runBlock)
+      const response = await executeMcpTool({
+        toolId: runBlock.config.tool,
+        context: { ...CONTEXT, mcpBlockId: 'run' },
+        headers: new Headers(),
+        requestId: 'run-request',
+        input: mcpRunOperationTool.operation.input({
+          server: runParams.server,
+          tool: runParams.tool,
+          arguments: runParams.arguments,
+        }),
+      })
+      expect(response.status).toBe(200)
+      const execute = targetId.startsWith('mcp-cg-')
+        ? mocks.executeManagedUseCase
+        : mocks.executeUseCase
+      expect(execute).toHaveBeenCalledWith({
+        principal: PRINCIPAL,
+        input: expect.objectContaining({
+          ...(targetId.startsWith('mcp-cg-') ? { credentialId: targetId } : { serverId: targetId }),
+          toolName: 'exact_operation',
+          arguments: { query: 'sim' },
+        }),
+      })
+      expect(mocks.createPrincipal).toHaveBeenCalledWith(
+        expect.objectContaining({ context: expect.objectContaining({ mcpBlockId: 'run' }) })
+      )
+    }
+  )
 })

@@ -110,7 +110,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
   try {
     if (request.toolId === 'mcp_run_operation') {
       if (!isPlainRecord(request.input)) throw new Error('MCP operation input is required')
-      const { server, connection, tool } = request.input
+      const { server, tool } = request.input
       if (
         typeof server !== 'string' ||
         !server.trim() ||
@@ -119,11 +119,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       ) {
         throw new Error('MCP server and operation name are required')
       }
-      if (connection !== undefined && (typeof connection !== 'string' || !connection.trim()))
-        throw new Error('Invalid managed connection')
-      const targetId = typeof connection === 'string' && connection ? connection : server
-      if (connection && !isManagedMcpConnectionId(targetId))
-        throw new Error('Expected a managed MCP connection ID')
+      const targetId = server
       if (targetId.startsWith(MANAGED_MCP_CONNECTION_PREFIX) && !isManagedMcpConnectionId(targetId))
         throw new Error('Invalid managed MCP connection ID')
       target = isManagedMcpConnectionId(targetId)
@@ -226,9 +222,6 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       const input = {
         ...commonInput,
         credentialId: target.credentialId,
-        ...(isPlainRecord(request.input) && request.input.connection
-          ? { assertedServerId: String(request.input.server) }
-          : {}),
       }
       result = principal
         ? await executeManagedMcpToolUseCase.execute({ principal, input })

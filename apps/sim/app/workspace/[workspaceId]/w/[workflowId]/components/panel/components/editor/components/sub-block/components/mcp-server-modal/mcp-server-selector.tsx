@@ -32,12 +32,7 @@ export function McpServerSelector({
   const workspaceId = params.workspaceId as string
 
   const { data: servers = [], isLoading, error } = useMcpToolServers(workspaceId)
-  const [configuredServer] = useSubBlockValue(blockId, 'server')
-  const targetOptions = getMcpTargetOptions(
-    servers,
-    subBlock.id === 'connection' ? 'connection' : 'server',
-    configuredServer
-  )
+  const targetOptions = getMcpTargetOptions(servers)
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
@@ -77,15 +72,15 @@ export function McpServerSelector({
       onChange={handleComboboxChange}
       placeholder={label}
       disabled={disabled}
-      editable={true}
-      filterOptions={true}
+      editable={false}
+      searchable
+      filterOptions={false}
       isLoading={isLoading}
       error={error instanceof Error ? error.message : null}
+      overlayLabel={inputValue || undefined}
       overlayContent={
         workflowSearchHighlight ? (
-          <span className='block truncate'>
-            {formatDisplayText(inputValue, { workflowSearchHighlight })}
-          </span>
+          <span>{formatDisplayText(inputValue, { workflowSearchHighlight })}</span>
         ) : undefined
       }
     />

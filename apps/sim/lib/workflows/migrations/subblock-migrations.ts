@@ -112,6 +112,13 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  /** MCP normalization selects the active replacement before this rename pass. */
+  mcp: [
+    { from: 'server', to: 'serverSelector' },
+    { from: 'tool', to: 'toolSelector' },
+    { from: 'connection', to: '_removed_connection' },
+    { from: 'operationPolicy', to: '_removed_operationPolicy' },
+  ],
   /** List Channels now returns one page and a cursor; automatic page limits are retired. */
   slack: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
@@ -558,16 +565,18 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
+    const normalized = migrateMcpOperationControls(block)
     const migrations = SUBBLOCK_ID_MIGRATIONS[block.type]
     const renamed = migrations
-      ? migrateBlockSubblockIds(block.type, block.subBlocks, migrations)
-      : { subBlocks: block.subBlocks, migrated: false }
+      ? migrateBlockSubblockIds(block.type, normalized.subBlocks, migrations)
+      : { subBlocks: normalized.subBlocks, migrated: false }
     const purged = dropParkedSubblocks(renamed.subBlocks)
     const changedSubBlocks = renamed.migrated || purged.dropped
-    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
-    const mcpMigrated = migrateMcpOperationControls(renamedBlock)
-    const sanitized = sanitizeMalformedSubBlocks(mcpMigrated)
-    const blockMigrated = changedSubBlocks || sanitized.changed || mcpMigrated !== renamedBlock
+    const renamedBlock = changedSubBlocks
+      ? { ...normalized, subBlocks: purged.subBlocks }
+      : normalized
+    const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
+    const blockMigrated = changedSubBlocks || sanitized.changed || normalized !== block
 
     if (blockMigrated) {
       if (purged.dropped) {

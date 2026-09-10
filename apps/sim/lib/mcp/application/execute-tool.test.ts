@@ -385,11 +385,17 @@ describe('executeMcpToolUseCase', () => {
       workspaceId: WORKSPACE.workspaceId,
       blocks: {
         'block-1': {
-          type: 'mcp',
+          type: 'agent',
           subBlocks: {
-            server: { value: SERVER.id },
-            tool: { value: 'lookup' },
-            operationPolicy: { value: { mode: 'allow', operations: [] } },
+            tools: {
+              value: [
+                {
+                  type: 'mcp-server-advanced',
+                  params: { serverId: SERVER.id },
+                  operationPolicy: { mode: 'allow', operations: [] },
+                },
+              ],
+            },
           },
         },
       },
@@ -416,37 +422,41 @@ describe('executeMcpToolUseCase', () => {
     expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 
-  it('validates dynamic JSON arguments without generated-field coercion', async () => {
-    mocks.loadWorkflow.mockResolvedValue({
-      workspaceId: WORKSPACE.workspaceId,
-      blocks: {
-        'block-1': {
-          type: 'mcp',
-          subBlocks: {
-            server: { value: SERVER.id },
-            operation: { value: 'run' },
-            tool: { value: '<upstream.operation>' },
+  it.each(['<upstream.operation>', 'lookup'])(
+    'validates Advanced JSON arguments for %s without generated-field coercion',
+    async (tool) => {
+      mocks.loadWorkflow.mockResolvedValue({
+        workspaceId: WORKSPACE.workspaceId,
+        blocks: {
+          'block-1': {
+            type: 'mcp',
+            data: { canonicalModes: { server: 'basic', tool: 'advanced' } },
+            subBlocks: {
+              serverSelector: { value: SERVER.id },
+              operation: { value: 'run' },
+              toolReference: { value: tool },
+            },
           },
         },
-      },
-    })
-    const input = {
-      workspaceId: WORKSPACE.workspaceId,
-      serverId: SERVER.id,
-      toolName: 'lookup',
-      arguments: { count: '2' },
-    }
-    await expect(executeMcpToolUseCase.execute({ principal: PRINCIPAL, input })).rejects.toThrow(
-      'Invalid MCP operation arguments'
-    )
-    expect(mocks.executeTool).not.toHaveBeenCalled()
-    await expect(
-      executeMcpToolUseCase.execute({
-        principal: PRINCIPAL,
-        input: { ...input, arguments: { count: 2 } },
       })
-    ).resolves.toMatchObject({ success: true })
-  })
+      const input = {
+        workspaceId: WORKSPACE.workspaceId,
+        serverId: SERVER.id,
+        toolName: 'lookup',
+        arguments: { count: '2' },
+      }
+      await expect(executeMcpToolUseCase.execute({ principal: PRINCIPAL, input })).rejects.toThrow(
+        'Invalid MCP operation arguments'
+      )
+      expect(mocks.executeTool).not.toHaveBeenCalled()
+      await expect(
+        executeMcpToolUseCase.execute({
+          principal: PRINCIPAL,
+          input: { ...input, arguments: { count: 2 } },
+        })
+      ).resolves.toMatchObject({ success: true })
+    }
+  )
 
   it('rejects restricted calls before discovery and rejects forged block scope', async () => {
     const input = {
@@ -459,15 +469,19 @@ describe('executeMcpToolUseCase', () => {
       workspaceId: WORKSPACE.workspaceId,
       blocks: {
         'block-1': {
-          type: 'mcp',
+          type: 'agent',
           subBlocks: {
-            server: { value: SERVER.id },
-            tool: { value: 'lookup' },
-            operationPolicy: {
-              value: {
-                mode: 'deny',
-                operations: [{ serverId: SERVER.id, name: 'lookup' }],
-              },
+            tools: {
+              value: [
+                {
+                  type: 'mcp-server-advanced',
+                  params: { serverId: SERVER.id },
+                  operationPolicy: {
+                    mode: 'deny',
+                    operations: [{ serverId: SERVER.id, name: 'lookup' }],
+                  },
+                },
+              ],
             },
           },
         },

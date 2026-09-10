@@ -1,29 +1,37 @@
-import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import { normalizeSavedMcpOperationName } from '@/lib/mcp/operation-policy'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import { isEqual } from 'es-toolkit'
+import { normalizeMcpBlockValues, normalizeMcpToolAttachments } from '@/lib/mcp/workflow-config'
+import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
-/** Backfills existing standalone blocks before editor defaults can turn them into new restrictions. */
+/** Upgrades saved MCP fields in workflow state; no database schema change is required. */
 export function migrateMcpOperationControls(block: BlockState): BlockState {
-  if (block.type !== 'mcp' || block.subBlocks.operationPolicy?.value != null) return block
-  const values = Object.fromEntries(
+  if (block.type === 'agent' || block.type === 'mothership') {
+    const tools = block.subBlocks.tools
+    if (!tools) return block
+    const value = normalizeMcpToolAttachments(tools.value) as SubBlockState['value']
+    if (isEqual(value, tools.value)) return block
+    return { ...block, subBlocks: { ...block.subBlocks, tools: { ...tools, value } } }
+  }
+  if (block.type !== 'mcp') return block
+  const saved = Object.fromEntries(
     Object.entries(block.subBlocks).map(([id, field]) => [id, field.value])
   )
-  const tool = normalizeSavedMcpOperationName(values)
-  const migrated: BlockState = {
-    ...block,
-    subBlocks: {
-      ...block.subBlocks,
-      operationPolicy: { id: 'operationPolicy', type: 'mcp-operation-policy', value: null },
-      operation: block.subBlocks.operation?.value
-        ? block.subBlocks.operation
-        : { id: 'operation', type: 'dropdown', value: 'run' },
-      ...(typeof tool === 'string'
-        ? { tool: { id: 'tool', type: 'mcp-tool-selector', value: tool } }
-        : {}),
-    },
+  const { values, canonicalModes } = normalizeMcpBlockValues(saved, block.data?.canonicalModes)
+  const subBlocks: BlockState['subBlocks'] = {}
+  for (const [id, value] of Object.entries(values)) {
+    const type =
+      id === 'serverSelector'
+        ? 'mcp-server-selector'
+        : id === 'toolSelector'
+          ? 'mcp-tool-selector'
+          : id === 'operation'
+            ? 'dropdown'
+            : 'short-input'
+    subBlocks[id] = {
+      ...(block.subBlocks[id] ?? { id, type }),
+      value: value as SubBlockState['value'],
+    }
   }
-  return mergeSubblockStateWithValues(
-    { [block.id]: migrated },
-    { [block.id]: { operationPolicy: { mode: 'all' } } }
-  )[block.id]
+  if (isEqual(block.subBlocks, subBlocks) && isEqual(block.data?.canonicalModes, canonicalModes))
+    return block
+  return { ...block, subBlocks, data: { ...block.data, canonicalModes } }
 }

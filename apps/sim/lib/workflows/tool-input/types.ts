@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
+import { normalizeMcpToolAttachments } from '@/lib/mcp/workflow-config'
 
 interface StoredToolSchema {
   description?: string
@@ -36,6 +37,7 @@ export interface ParsedStoredTool extends Omit<StoredTool, 'params'> {
 }
 
 export function parseStoredToolInputValue(value: unknown): ParsedStoredTool[] {
+  value = normalizeMcpToolAttachments(value)
   if (!Array.isArray(value)) return []
 
   return value.flatMap((tool) => {
@@ -50,7 +52,7 @@ export function parseStoredToolInputValue(value: unknown): ParsedStoredTool[] {
     return [
       {
         type: record.type,
-        ...(record.operationPolicy !== undefined
+        ...(record.type === 'mcp-server-advanced' && record.operationPolicy !== undefined
           ? { operationPolicy: normalizeMcpOperationPolicy(record.operationPolicy) }
           : {}),
         title: typeof record.title === 'string' ? record.title : undefined,

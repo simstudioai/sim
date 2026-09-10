@@ -8,16 +8,17 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   isMcpRuntimeReference,
   normalizeMcpOperationPolicy,
-  normalizeSavedMcpOperationName,
   permitsMcpOperation,
 } from '@/lib/mcp/operation-policy'
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
+import { normalizeMcpToolAttachments, resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 
-function matchesTarget(value: unknown, targetId: string, serverId: string): boolean {
+function matchesTarget(value: unknown, targetId: string): boolean {
   return (
     typeof value === 'string' &&
     value.length > 0 &&
-    (isMcpRuntimeReference(value) || value === targetId || value === serverId)
+    (isMcpRuntimeReference(value) || value === targetId)
   )
 }
 
@@ -90,39 +91,37 @@ export async function loadMcpOperationAccess(
   const candidates: Array<{
     policy: ReturnType<typeof normalizeMcpOperationPolicy>
     toolName?: string
-    dynamicTarget: boolean
+    argumentsMode: McpOperationAccess['argumentsMode']
   }> = []
   if (block.type === 'mcp') {
-    const server = value('server')
-    const connection = value('connection')
-    if (
-      !matchesTarget(server, targetId, target.serverId) ||
-      (connection && !matchesTarget(connection, targetId, targetId))
-    ) {
+    const modes =
+      isPlainRecord(block.data) && isPlainRecord(block.data.canonicalModes)
+        ? (block.data.canonicalModes as CanonicalModeOverrides)
+        : undefined
+    const config = resolveMcpBlockConfig(
+      Object.fromEntries(Object.keys(subBlocks).map((id) => [id, value(id)])),
+      modes
+    )
+    if (!matchesTarget(config.server, targetId)) {
       throw new OrchestrationError('forbidden', 'MCP target does not match the saved block')
     }
-    const action = value('operation') ?? 'run'
-    if (action !== 'run' && action !== 'list')
+    if (config.action !== 'run' && config.action !== 'list')
       throw new OrchestrationError('validation', 'Invalid saved MCP action')
-    if (purpose === 'execute' && action === 'list')
+    if (purpose === 'execute' && config.action === 'list')
       throw new OrchestrationError('forbidden', 'List operations blocks cannot execute operations')
-    const tool = normalizeSavedMcpOperationName({
-      server,
-      tool: value('tool'),
-      operation: value('operation'),
-      operationPolicy: value('operationPolicy'),
-    })
-    if (action === 'run' && (typeof tool !== 'string' || !tool.trim()))
+    if (config.action === 'run' && (typeof config.tool !== 'string' || !config.tool.trim()))
       throw new OrchestrationError('validation', 'Saved MCP block requires an operation name')
     candidates.push({
-      policy: normalizeMcpOperationPolicy(value('operationPolicy')),
-      dynamicTarget: isMcpRuntimeReference(server) || isMcpRuntimeReference(connection),
-      ...(value('operation') !== 'list' && typeof tool === 'string' && !isMcpRuntimeReference(tool)
-        ? { toolName: tool }
+      policy: { mode: 'all' },
+      argumentsMode: config.argumentsMode,
+      ...(config.action === 'run' &&
+      typeof config.tool === 'string' &&
+      !isMcpRuntimeReference(config.tool)
+        ? { toolName: config.tool }
         : {}),
     })
   } else if (block.type === 'agent' || block.type === 'mothership') {
-    const tools = value('tools')
+    const tools = normalizeMcpToolAttachments(value('tools'))
     if (!Array.isArray(tools))
       throw new OrchestrationError('forbidden', 'MCP attachments must be saved configuration')
     for (const tool of tools) {
@@ -131,12 +130,14 @@ export async function loadMcpOperationAccess(
       const binding = tool.type === 'mcp' ? resolveMcpToolBinding(tool) : tool.params
       if (!isPlainRecord(binding))
         throw new OrchestrationError('validation', 'Saved MCP attachment requires a server')
-      if (!matchesTarget(binding.serverId, targetId, target.serverId)) continue
-      if (binding.connectionId && !matchesTarget(binding.connectionId, targetId, targetId)) continue
+      if (!matchesTarget(binding.serverId, targetId)) continue
       candidates.push({
-        policy: normalizeMcpOperationPolicy(tool.operationPolicy),
-        dynamicTarget:
-          isMcpRuntimeReference(binding.serverId) || isMcpRuntimeReference(binding.connectionId),
+        policy:
+          tool.type === 'mcp-server-advanced'
+            ? normalizeMcpOperationPolicy(tool.operationPolicy)
+            : { mode: 'all' },
+        argumentsMode:
+          tool.type === 'mcp' && !isMcpRuntimeReference(binding.serverId) ? 'generated' : 'json',
         ...(tool.type === 'mcp' ? { toolName: binding.toolName as string } : {}),
       })
     }
@@ -150,10 +151,7 @@ export async function loadMcpOperationAccess(
     )
   }
   return {
-    argumentsMode: candidates.every(
-      ({ toolName, dynamicTarget }) =>
-        !dynamicTarget && toolName !== undefined && !isMcpRuntimeReference(toolName)
-    )
+    argumentsMode: candidates.every(({ argumentsMode }) => argumentsMode === 'generated')
       ? 'generated'
       : 'json',
     allows: (name) =>

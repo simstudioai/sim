@@ -10,6 +10,33 @@ const mocks = vi.hoisted(() => ({
   longInput: vi.fn(() => null),
   shortInput: vi.fn(() => null),
   values: {} as Record<string, unknown>,
+  modes: { server: 'basic', tool: 'basic' } as Record<string, 'basic' | 'advanced'>,
+  baselineModes: undefined as Record<string, 'basic' | 'advanced'> | undefined,
+}))
+vi.mock('@/stores/workflows/workflow/store', () => ({
+  useWorkflowStore: (
+    selector: (state: {
+      blocks: Record<string, { data: { canonicalModes: typeof mocks.modes } }>
+    }) => unknown
+  ) => selector({ blocks: { 'block-1': { data: { canonicalModes: mocks.modes } } } }),
+}))
+vi.mock('@/stores/workflow-diff/store', () => ({
+  useWorkflowDiffStore: (
+    selector: (state: {
+      hasActiveDiff: boolean
+      isShowingDiff: boolean
+      baselineWorkflow: {
+        blocks: Record<string, { data: { canonicalModes: typeof mocks.baselineModes } }>
+      }
+    }) => unknown
+  ) =>
+    selector({
+      hasActiveDiff: !!mocks.baselineModes,
+      isShowingDiff: false,
+      baselineWorkflow: {
+        blocks: { 'block-1': { data: { canonicalModes: mocks.baselineModes } } },
+      },
+    }),
 }))
 vi.mock('@sim/emcn', () => ({ ChipCombobox: mocks.combobox, Label: () => null }))
 vi.mock(
@@ -75,58 +102,117 @@ import { McpToolSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 describe('MCP selectors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.values = { server: 'server-1', operationPolicy: { mode: 'all' } }
+    mocks.values = { serverSelector: 'server-1', toolSelector: 'read' }
+    mocks.modes = { server: 'basic', tool: 'basic' }
+    mocks.baselineModes = undefined
   })
 
-  it('persists a runtime server reference instead of only changing display text', () => {
+  it('uses a searchable configured connection picker in Basic mode', () => {
     renderToStaticMarkup(
       <McpServerSelector
         blockId='block-1'
-        subBlock={{ id: 'server', type: 'mcp-server-selector' }}
+        subBlock={{ id: 'serverSelector', type: 'mcp-server-selector' }}
       />
     )
-    expect(mocks.combobox.mock.calls[0][0].value).toBe('Server one')
-    mocks.combobox.mock.calls[0][0].onChange?.('<upstream.server>')
-    expect(mocks.setValue).toHaveBeenCalledWith('server', '<upstream.server>')
+    const props = mocks.combobox.mock.calls[0][0]
+    expect(props.value).toBe('Server one')
+    expect(props.editable).toBe(false)
+    expect(props.searchable).toBe(true)
+    expect(props.filterOptions).toBe(false)
+    props.onChange?.('server-1')
+    expect(mocks.setValue).toHaveBeenCalledWith('serverSelector', 'server-1')
   })
 
-  it('persists a runtime operation reference and clears the fixed schema cache', () => {
-    mocks.values.tool = '<saved.operation>'
+  it('lists all authorized operations on the selected connection and caches the selected schema', () => {
+    mocks.values.operationPolicy = { mode: 'allow', operations: [] }
     renderToStaticMarkup(
-      <McpToolSelector blockId='block-1' subBlock={{ id: 'tool', type: 'mcp-tool-selector' }} />
+      <McpToolSelector
+        blockId='block-1'
+        subBlock={{ id: 'toolSelector', type: 'mcp-tool-selector' }}
+      />
     )
-    expect(mocks.combobox.mock.calls[0][0].value).toBe('<saved.operation>')
-    mocks.combobox.mock.calls[0][0].onChange?.('<upstream.operation>')
-    expect(mocks.setValue).toHaveBeenCalledWith('tool', '<upstream.operation>')
-    expect(mocks.setValue).toHaveBeenCalledWith('_toolSchema', null)
-  })
-
-  it('lists only operations allowed by the block on the canonical server', () => {
-    mocks.values.operationPolicy = {
-      mode: 'allow',
-      operations: [{ serverId: 'canonical-1', name: 'read' }],
-    }
-    renderToStaticMarkup(
-      <McpToolSelector blockId='block-1' subBlock={{ id: 'tool', type: 'mcp-tool-selector' }} />
-    )
-    expect(mocks.combobox.mock.calls[0][0].options.map((option) => option.value)).toEqual(['read'])
-    mocks.combobox.mock.calls[0][0].onChange?.('read')
-    expect(mocks.setValue).toHaveBeenCalledWith('tool', 'read')
+    const props = mocks.combobox.mock.calls[0][0]
+    expect(props.options.map((option) => option.value)).toEqual(['read', 'write'])
+    expect(props.searchable).toBe(true)
+    expect(props.filterOptions).toBe(false)
+    props.onChange?.('read')
+    expect(mocks.setValue).toHaveBeenCalledWith('toolSelector', 'read')
     expect(mocks.setValue).toHaveBeenCalledWith('_toolSchema', { type: 'object', properties: {} })
   })
 
-  it.each(['server', 'connection', 'tool'])('uses JSON arguments for a dynamic %s', (field) => {
-    mocks.values.tool = 'read'
-    mocks.values[field] = '<upstream.value>'
+  it('keeps missing selections visible without filtering out replacement operations', () => {
+    mocks.values.toolSelector = 'disappeared'
+    renderToStaticMarkup(
+      <McpToolSelector
+        blockId='block-1'
+        subBlock={{ id: 'toolSelector', type: 'mcp-tool-selector' }}
+      />
+    )
+    const props = mocks.combobox.mock.calls[0][0]
+    expect(props.overlayLabel).toBe('disappeared')
+    expect(props.filterOptions).toBe(false)
+    expect(props.options).toHaveLength(2)
+  })
+
+  it.each(['server', 'tool'] as const)('uses JSON arguments for a dynamic %s', (field) => {
+    mocks.values[field === 'server' ? 'serverReference' : 'toolReference'] = '<upstream.value>'
+    mocks.modes[field] = 'advanced'
     renderToStaticMarkup(<McpDynamicArgs blockId='block-1' subBlockId='arguments' />)
     expect(mocks.longInput).toHaveBeenCalled()
     expect(mocks.shortInput).not.toHaveBeenCalled()
   })
 
-  it('keeps generated fields for fixed operations with a saved schema', () => {
-    mocks.values.tool = 'fixed_operation'
+  it('uses JSON arguments for an Advanced literal operation with a discovered schema', () => {
+    mocks.values.toolReference = 'read'
+    mocks.modes.tool = 'advanced'
+    renderToStaticMarkup(<McpDynamicArgs blockId='block-1' subBlockId='arguments' />)
+    expect(mocks.longInput).toHaveBeenCalled()
+    expect(mocks.shortInput).not.toHaveBeenCalled()
+  })
+
+  it('keeps generated fields for Basic operations with a saved schema', () => {
+    mocks.values.toolSelector = 'fixed_operation'
     mocks.values._toolSchema = { type: 'object', properties: { query: { type: 'string' } } }
     renderToStaticMarkup(<McpDynamicArgs blockId='block-1' subBlockId='arguments' />)
     expect(mocks.shortInput).toHaveBeenCalled()
+    expect(mocks.longInput).not.toHaveBeenCalled()
+  })
+
+  it('uses snapshot modes for previews with populated dormant Basic fields', () => {
+    const previewContextValues = {
+      serverSelector: { value: 'wrong-server' },
+      serverReference: { value: 'server-1' },
+      toolSelector: { value: 'wrong-operation' },
+      toolReference: { value: 'read' },
+      __canonicalModes: { server: 'advanced', tool: 'advanced' },
+    }
+    renderToStaticMarkup(
+      <McpToolSelector
+        blockId='block-1'
+        subBlock={{ id: 'toolSelector', type: 'mcp-tool-selector' }}
+        isPreview
+        previewContextValues={previewContextValues}
+      />
+    )
+    expect(mocks.combobox.mock.calls[0][0].options).toHaveLength(2)
+    renderToStaticMarkup(
+      <McpDynamicArgs
+        blockId='block-1'
+        subBlockId='arguments'
+        isPreview
+        previewContextValues={previewContextValues}
+      />
+    )
+    expect(mocks.longInput).toHaveBeenCalled()
+    expect(mocks.shortInput).not.toHaveBeenCalled()
+  })
+
+  it('uses baseline modes with baseline diff values', () => {
+    mocks.baselineModes = { server: 'advanced', tool: 'advanced' }
+    mocks.values.serverReference = 'server-1'
+    mocks.values.toolReference = 'read'
+    renderToStaticMarkup(<McpDynamicArgs blockId='block-1' subBlockId='arguments' />)
+    expect(mocks.longInput).toHaveBeenCalled()
+    expect(mocks.shortInput).not.toHaveBeenCalled()
   })
 })

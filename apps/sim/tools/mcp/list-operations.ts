@@ -17,12 +17,6 @@ export const mcpListOperationsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'MCP server or managed connection ID',
     },
-    connection: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Optional managed connection bound to the server',
-    },
     search: {
       type: 'string',
       required: false,
@@ -45,20 +39,19 @@ export const mcpListOperationsTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       server: params.server,
-      connection: params.connection,
       search: params.search,
       limit: params.limit,
       cursor: params.cursor,
     }),
   },
   outputs: {
+    serverId: { type: 'string', description: 'The supplied MCP server or connection ID' },
     operations: {
       type: 'array',
       description: 'Authorized operations',
       items: {
         type: 'object',
         properties: {
-          serverId: { type: 'string', description: 'Canonical MCP server identity' },
           name: { type: 'string', description: 'Exact operation name' },
           description: { type: 'string', description: 'Operation description' },
           inputSchema: { type: 'json', description: 'Provider-defined JSON Schema for arguments' },

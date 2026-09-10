@@ -23,18 +23,10 @@ export const listMcpOperations: InternalToolOperationHandler = async (request) =
     throw new Error('Invalid MCP search')
   if (input.cursor !== undefined && (typeof input.cursor !== 'string' || input.cursor.length > 256))
     throw new Error('Invalid MCP cursor')
-  if (
-    input.connection !== undefined &&
-    (typeof input.connection !== 'string' || !input.connection.trim())
-  )
-    throw new Error('Invalid managed connection')
-  const connection =
-    typeof input.connection === 'string' && input.connection ? input.connection : undefined
   const tools = await discoverMcpServerToolsAsExecutor({
     workspaceId: request.context.workspaceId,
     context: request.context,
-    serverId: connection ?? input.server,
-    assertedServerId: connection ? input.server : undefined,
+    serverId: input.server,
     signal: request.signal,
   })
   const search = typeof input.search === 'string' ? input.search.toLowerCase() : ''
@@ -46,11 +38,15 @@ export const listMcpOperations: InternalToolOperationHandler = async (request) =
     name: tool.name,
     description: tool.description ?? '',
     inputSchema: tool.inputSchema,
-    serverId: tool.canonicalServerId ?? tool.serverId,
   }))
   const hasMore = remaining.length > limit
   return Response.json({
     success: true,
-    output: { operations, hasMore, nextCursor: hasMore ? operations.at(-1)!.name : null },
+    output: {
+      serverId: input.server,
+      operations,
+      hasMore,
+      nextCursor: hasMore ? operations.at(-1)!.name : null,
+    },
   })
 }

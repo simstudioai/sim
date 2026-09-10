@@ -1059,17 +1059,13 @@ export class AgentBlockHandler implements BlockHandler {
       entries.map(async (entry) => {
         const serverId = entry.tool.params?.serverId
         if (!serverId) throw new Error('MCP Server (Advanced) requires params.serverId')
-        const tools = await this.discoverMcpToolsForServer(
-          ctx,
-          entry.tool.params?.connectionId || serverId,
-          entry.tool.params?.connectionId ? serverId : undefined
-        )
+        const tools = await this.discoverMcpToolsForServer(ctx, serverId)
         if (!tools.length)
           throw new Error(`No permitted MCP operations are available for ${serverId}`)
         return Promise.all(
           tools.map(async (tool) => {
             const created = await this.buildMcpTool({
-              serverId: entry.tool.params?.connectionId || serverId,
+              serverId: serverId,
               toolName: tool.name,
               description: tool.description || `MCP tool ${tool.name} from ${tool.serverName}`,
               schema: tool.inputSchema,
@@ -1085,11 +1081,7 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   /** Discovers one server's tools through the authorized MCP operation. */
-  private async discoverMcpToolsForServer(
-    ctx: ExecutionContext,
-    serverId: string,
-    assertedServerId?: string
-  ) {
+  private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string) {
     if (!ctx.workspaceId) {
       throw new Error('workspaceId is required for MCP tool discovery')
     }
@@ -1108,7 +1100,6 @@ export class AgentBlockHandler implements BlockHandler {
         mcpBlockId: ctx.mcpBlockId,
       },
       serverId,
-      assertedServerId,
       signal: ctx.abortSignal,
     })
   }

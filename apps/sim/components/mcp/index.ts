@@ -1,4 +1,3 @@
-export { McpBlockOperationPolicy } from '@/components/mcp/block-operation-policy'
 export {
   type McpOperationChoice,
   McpOperationPolicyEditor,

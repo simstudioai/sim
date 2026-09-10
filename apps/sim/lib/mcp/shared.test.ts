@@ -60,12 +60,4 @@ describe('assertValidMcpServerToolBindings', () => {
       assertValidMcpServerToolBindings([{ type: 'mcp-server-advanced', params: {} }])
     ).toThrow('requires params.serverId')
   })
-
-  it.each([123, {}, '   '])('rejects an invalid connection binding', (connectionId) => {
-    expect(() =>
-      assertValidMcpServerToolBindings([
-        { type: 'mcp-server-advanced', params: { serverId: 'server-1', connectionId } },
-      ])
-    ).toThrow('connection must be a nonempty string')
-  })
 })

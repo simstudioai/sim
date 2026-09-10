@@ -31,17 +31,17 @@ describe('List MCP operations', () => {
   it('returns bounded, sorted authorized metadata with a next-page cursor', async () => {
     const first = await listMcpOperations({
       ...call,
-      input: { server: 'server-1', connection: 'connection-1', search: 'read', limit: 1 },
+      input: { server: 'connection-1', search: 'read', limit: 1 },
     })
     expect(await first.json()).toEqual({
       success: true,
       output: {
+        serverId: 'connection-1',
         operations: [
           {
             name: 'read',
             description: 'Operation read',
             inputSchema: { type: 'object' },
-            serverId: 'server-1',
           },
         ],
         hasMore: true,
@@ -58,7 +58,6 @@ describe('List MCP operations', () => {
     expect(discover.mock.calls[0][0]).toMatchObject({
       context,
       serverId: 'connection-1',
-      assertedServerId: 'server-1',
     })
   })
 
@@ -83,10 +82,10 @@ describe('List MCP operations', () => {
     }
   )
 
-  it('rejects an empty resolved connection without substituting the server input', async () => {
-    await expect(
-      listMcpOperations({ ...call, input: { server: 'server-1', connection: '' } })
-    ).rejects.toThrow('Invalid managed connection')
+  it('rejects an empty resolved server without selecting a credential', async () => {
+    await expect(listMcpOperations({ ...call, input: { server: '' } })).rejects.toThrow(
+      'MCP server is required'
+    )
     expect(discover).not.toHaveBeenCalled()
   })
 })

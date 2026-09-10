@@ -16,12 +16,6 @@ export const mcpRunOperationTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'MCP server or managed connection ID',
     },
-    connection: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Optional managed connection bound to the server',
-    },
     tool: {
       type: 'string',
       required: true,
@@ -38,7 +32,6 @@ export const mcpRunOperationTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       server: params.server,
-      connection: params.connection,
       tool: params.tool,
       arguments: params.arguments ?? {},
     }),

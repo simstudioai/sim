@@ -10,7 +10,6 @@ export interface DiscoverMcpServerToolsAsExecutorInput {
   workspaceId: string
   context: InternalToolOperationContext
   serverId: string
-  assertedServerId?: string
   signal?: AbortSignal
 }
 
@@ -18,7 +17,6 @@ export async function discoverMcpServerToolsAsExecutor({
   workspaceId,
   context,
   serverId,
-  assertedServerId,
   signal,
 }: DiscoverMcpServerToolsAsExecutorInput) {
   signal?.throwIfAborted()
@@ -34,13 +32,12 @@ export async function discoverMcpServerToolsAsExecutor({
     signal?.throwIfAborted()
     const result = await discoverManagedMcpToolsUseCase.execute({
       principal,
-      input: { workspaceId, credentialId: serverId, assertedServerId, signal },
+      input: { workspaceId, credentialId: serverId, signal },
     })
     signal?.throwIfAborted()
     return result.tools
   }
 
-  if (assertedServerId) throw new Error('Expected a managed MCP connection ID')
   const principal = await createExecutorPrincipalFromExecutionContext({
     context,
     audience: MCP_SERVER_DELEGATION_AUDIENCE,

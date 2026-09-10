@@ -40,7 +40,6 @@ export type SubBlockType =
   | 'mcp-server-selector'
   | 'mcp-tool-selector'
   | 'mcp-dynamic-args'
-  | 'mcp-operation-policy'
   | 'input-format'
   | 'response-format'
   | 'filter-builder'

@@ -419,24 +419,6 @@ type ApplyWorkflowOperationsBodyRef4 =
     }
 
 type ApplyWorkflowOperationsBodyRef5 = {
-  operationPolicy?:
-    | {
-        mode: 'all'
-      }
-    | {
-        mode: 'allow'
-        operations: Array<{
-          serverId: string
-          name: string
-        }>
-      }
-    | {
-        mode: 'deny'
-        operations: Array<{
-          serverId: string
-          name: string
-        }>
-      }
   type: 'mcp'
   params: {
     serverId: string
@@ -466,7 +448,6 @@ type ApplyWorkflowOperationsBodyRef6 = {
         }>
       }
   params: {
-    connectionId?: string
     serverId: string
   }
   usageControl?: 'auto' | 'force' | 'none'

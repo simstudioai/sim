@@ -257,7 +257,7 @@ function validateAgentToolEntry(item: any, index: number): string | null {
   }
 
   if (
-    (type === 'mcp' || type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+    type === MCP_SERVER_ADVANCED_TOOL_TYPE &&
     item.operationPolicy !== undefined &&
     !mcpOperationPolicySchema.safeParse(item.operationPolicy).success
   ) {
@@ -297,12 +297,6 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     const serverId = item.params?.serverId
     if (typeof serverId !== 'string' || !serverId.trim()) {
       return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) must include params.serverId`
-    }
-    if (
-      item.params?.connectionId !== undefined &&
-      (typeof item.params.connectionId !== 'string' || !item.params.connectionId.trim())
-    ) {
-      return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) connection must be a nonempty string`
     }
     return null
   }
@@ -737,22 +731,6 @@ export function validateValueForSubBlockType(
           error: `Invalid selector value for field "${fieldName}" - expected a string${subBlockConfig.multiSelect ? ' or array of strings' : ''}`,
         },
       }
-    }
-
-    case 'mcp-operation-policy': {
-      const parsed = mcpOperationPolicySchema.safeParse(value)
-      return parsed.success
-        ? { valid: true, value: parsed.data }
-        : {
-            valid: false,
-            error: {
-              blockId,
-              blockType,
-              field: fieldName,
-              value,
-              error: 'Invalid MCP operations access policy',
-            },
-          }
     }
 
     default:

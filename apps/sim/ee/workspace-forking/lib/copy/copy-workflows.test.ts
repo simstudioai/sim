@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createBlock } from '@sim/testing/factories'
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -475,6 +476,51 @@ describe('copyWorkflowStateIntoTarget source tool identities', () => {
       )
     }
   )
+})
+
+describe('copied MCP configuration normalization', () => {
+  it('normalizes an explicit connection before resource remapping and persistence', async () => {
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    const source = createBlock({
+      id: 'mcp',
+      type: 'mcp',
+      subBlocks: {
+        server: { id: 'server', type: 'mcp-server-selector', value: 'canonical-parent' },
+        connection: { id: 'connection', type: 'mcp-server-selector', value: 'explicit-connection' },
+        operation: { id: 'operation', type: 'dropdown', value: 'run' },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'read' },
+      },
+    })
+    await copyWorkflowStateIntoTarget({
+      tx: { insert: () => ({ values: () => Promise.resolve() }) } as unknown as DbOrTx,
+      targetWorkflowId: 'wf-child',
+      targetWorkspaceId: 'ws-target',
+      userId: 'target-user',
+      mode: 'create',
+      now: new Date('2026-07-01'),
+      sourceState: { blocks: { mcp: source }, edges: [], loops: {}, parallels: {}, variables: {} },
+      sourceMeta: { name: 'MCP', description: null, folderId: null, sortOrder: 0 },
+      workflowIdMap: new Map(),
+      folderIdMap: new Map(),
+      nameRegistry: buildWorkflowNameRegistry([]),
+      transformSubBlocks: (subBlocks, _type, modes) => {
+        expect(subBlocks.serverSelector.value).toBe('explicit-connection')
+        expect(subBlocks.connection).toBeUndefined()
+        expect(subBlocks.server).toBeUndefined()
+        expect(modes).toEqual({ server: 'basic', tool: 'basic' })
+        return { ...subBlocks, serverSelector: { ...subBlocks.serverSelector, value: '' } }
+      },
+    })
+    const [, state] = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)!
+    const persisted = Object.values(state.blocks)[0] as {
+      subBlocks: Record<string, { value: unknown }>
+      data: { canonicalModes: unknown }
+    }
+    expect(persisted.subBlocks.serverSelector.value).toBe('')
+    expect(persisted.subBlocks.server).toBeUndefined()
+    expect(persisted.subBlocks.connection).toBeUndefined()
+    expect(persisted.data.canonicalModes).toEqual({ server: 'basic', tool: 'basic' })
+  })
 })
 
 describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () => {

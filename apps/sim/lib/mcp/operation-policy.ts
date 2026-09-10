@@ -56,23 +56,6 @@ export function isMcpRuntimeReference(value: unknown): value is string {
   return typeof value === 'string' && (/^<[^<>]+>$/.test(value) || /^\{\{[^{}]+\}\}$/.test(value))
 }
 
-/** Pre-action MCP blocks stored server-prefixed selections; current blocks store exact names. */
-export function normalizeSavedMcpOperationName(values: {
-  server?: unknown
-  tool?: unknown
-  operation?: unknown
-  operationPolicy?: unknown
-}): unknown {
-  const { server, tool } = values
-  return !values.operation &&
-    !values.operationPolicy &&
-    typeof server === 'string' &&
-    typeof tool === 'string' &&
-    tool.startsWith(`${server}-`)
-    ? tool.slice(server.length + 1)
-    : tool
-}
-
 /** Saved configurations predating operation controls normalize once to all otherwise permitted tools. */
 export function normalizeMcpOperationPolicy(value: unknown): McpOperationPolicy {
   if (value === undefined || value === null) return { mode: 'all' }

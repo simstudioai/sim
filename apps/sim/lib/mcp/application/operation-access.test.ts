@@ -48,11 +48,14 @@ describe('trusted MCP operation access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    save('mcp', {
-      server: 'server-1',
-      operation: 'run',
-      tool: '<previous.operation>',
-      operationPolicy: allowRead,
+    save('agent', {
+      tools: [
+        {
+          type: 'mcp-server-advanced',
+          params: { serverId: 'server-1' },
+          operationPolicy: allowRead,
+        },
+      ],
     })
   })
 
@@ -80,10 +83,9 @@ describe('trusted MCP operation access', () => {
     expect(loadWorkflow).not.toHaveBeenCalled()
   })
 
-  it('binds dynamic server, connection and operation references to resolved canonical identity', async () => {
+  it('resolves a dynamic connection and operation without a parent input', async () => {
     save('mcp', {
-      server: '<previous.server>',
-      connection: '<previous.connection>',
+      server: '<previous.connection>',
       tool: '{{operation}}',
       operation: 'run',
       operationPolicy: allowRead,
@@ -102,7 +104,7 @@ describe('trusted MCP operation access', () => {
           connectionId: 'connection-2',
         })
       ).allows('read')
-    ).toBe(false)
+    ).toBe(true)
     await expect(
       loadMcpOperationAccess(principal, {
         ...target,
@@ -113,6 +115,7 @@ describe('trusted MCP operation access', () => {
   })
 
   it('rejects a different saved server or connection', async () => {
+    save('mcp', { server: 'server-1', tool: 'read', operation: 'run' })
     await expect(
       loadMcpOperationAccess(principal, { ...target, serverId: 'server-2' })
     ).rejects.toThrow('saved block')
@@ -186,7 +189,15 @@ describe('trusted MCP operation access', () => {
   it('does not accept attachment configuration from upstream inputs', async () => {
     save('agent', { tools: '<upstream.tools>' })
     await expect(loadMcpOperationAccess(principal, target)).rejects.toThrow('saved configuration')
-    save('mcp', { server: 'server-1', tool: 'read', operationPolicy: '<upstream.policy>' })
+    save('agent', {
+      tools: [
+        {
+          type: 'mcp-server-advanced',
+          params: { serverId: 'server-1' },
+          operationPolicy: '<upstream.policy>',
+        },
+      ],
+    })
     await expect(loadMcpOperationAccess(principal, target)).rejects.toThrow('Invalid MCP')
   })
 
@@ -245,9 +256,42 @@ describe('trusted MCP operation access', () => {
       operation: 'list',
       operationPolicy: { mode: 'allow', operations: [] },
     })
-    expect((await loadMcpOperationAccess(principal, target)).allows('read')).toBe(false)
+    expect((await loadMcpOperationAccess(principal, target)).allows('read')).toBe(true)
     await expect(loadMcpOperationAccess(principal, target, 'execute')).rejects.toThrow(
       'cannot execute'
     )
+  })
+  it('enforces active field values and advanced literal argument validation', async () => {
+    const block = savedBlock('mcp', {
+      operation: 'run',
+      serverSelector: 'wrong-server',
+      serverReference: 'server-1',
+      toolSelector: 'wrong-operation',
+      toolReference: 'read',
+    })
+    loadWorkflow.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      blocks: {
+        'block-1': { ...block, data: { canonicalModes: { server: 'advanced', tool: 'advanced' } } },
+      },
+    })
+    const allowed = await loadMcpOperationAccess(principal, target, 'execute')
+    expect(allowed.argumentsMode).toBe('json')
+    expect(allowed.allows('read')).toBe(true)
+    expect(allowed.allows('wrong-operation')).toBe(false)
+    await expect(
+      loadMcpOperationAccess(principal, { ...target, serverId: 'wrong-server' })
+    ).rejects.toThrow('saved block')
+  })
+
+  it('does not treat a managed parent as authority to select any contributed credential', async () => {
+    save('mcp', { server: 'server-1', operation: 'list' })
+    await expect(
+      loadMcpOperationAccess(principal, { ...target, connectionId: 'connection-1' })
+    ).rejects.toThrow('saved block')
+    save('agent', { tools: [{ type: 'mcp-server-advanced', params: { serverId: 'server-1' } }] })
+    await expect(
+      loadMcpOperationAccess(principal, { ...target, connectionId: 'connection-1' })
+    ).rejects.toThrow('not configured')
   })
 })

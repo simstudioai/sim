@@ -156,7 +156,6 @@ async function expandMothershipMcpTools(
   const individual = selectMothershipMcpTools(tools)
   const advanced: Array<{
     serverId: string
-    connectionId?: string
     usageControl: 'auto' | 'force'
   }> = tools.flatMap((candidate) => {
     if (!isPlainRecord(candidate) || candidate.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return []
@@ -170,11 +169,7 @@ async function expandMothershipMcpTools(
     }
     if (!serverId.trim()) throw new Error('MCP Server (Advanced) requires params.serverId')
     const usageControl: 'auto' | 'force' = candidate.usageControl === 'force' ? 'force' : 'auto'
-    const connectionId =
-      typeof candidate.params.connectionId === 'string' && candidate.params.connectionId
-        ? candidate.params.connectionId
-        : undefined
-    return [{ serverId, connectionId, usageControl }]
+    return [{ serverId, usageControl }]
   })
   if (advanced.length === 0) return individual
   if (!ctx.workspaceId || !ctx.workflowId) {
@@ -184,7 +179,7 @@ async function expandMothershipMcpTools(
   const workflowId = ctx.workflowId
 
   const expanded = await Promise.all(
-    advanced.map(async ({ serverId, connectionId, usageControl }) => {
+    advanced.map(async ({ serverId, usageControl }) => {
       const discovered = await discoverMcpServerToolsAsExecutor({
         workspaceId,
         context: {
@@ -195,8 +190,7 @@ async function expandMothershipMcpTools(
           executorDelegationOrigin: ctx.executorDelegationOrigin,
           mcpBlockId: ctx.mcpBlockId,
         },
-        serverId: connectionId ?? serverId,
-        assertedServerId: connectionId ? serverId : undefined,
+        serverId,
         signal: ctx.abortSignal,
       })
       if (!discovered.length)
@@ -206,7 +200,7 @@ async function expandMothershipMcpTools(
         usageControl,
         schema: tool.inputSchema,
         params: {
-          serverId: connectionId ?? serverId,
+          serverId,
           toolName: tool.name,
           serverName: tool.serverName,
         },

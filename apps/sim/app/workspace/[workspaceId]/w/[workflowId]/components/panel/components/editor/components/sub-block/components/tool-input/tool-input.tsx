@@ -15,7 +15,6 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
@@ -114,11 +113,6 @@ const logger = createLogger('ToolInput')
 const ADVANCED_MCP_SERVER_TOOL_SCHEMA: McpToolSchema = {
   type: 'object',
   properties: {
-    connectionId: {
-      type: 'string',
-      description:
-        'Optional managed connection ID or upstream reference, bound to the canonical server',
-    },
     serverId: {
       type: 'string',
       description: 'MCP server or managed connection ID, or upstream reference',
@@ -933,13 +927,6 @@ export const ToolInput = memo(function ToolInput({
             { ...tool.params, [paramId]: paramValue },
             paramId
           )
-          if (
-            tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE &&
-            paramId === 'connectionId' &&
-            paramValue === ''
-          ) {
-            return { ...tool, params: omit(params, ['connectionId']) }
-          }
           return { ...tool, params }
         })
       )
@@ -1836,8 +1823,7 @@ export const ToolInput = memo(function ToolInput({
                             !tool.params?.serverId ||
                             String(tool.params.serverId).includes('<') ||
                             String(tool.params.serverId).includes('{{') ||
-                            candidate.serverId === tool.params.serverId ||
-                            candidate.canonicalServerId === tool.params.serverId
+                            candidate.serverId === tool.params.serverId
                         )
                         .map((candidate) => ({
                           ...candidate,
@@ -1889,17 +1875,11 @@ export const ToolInput = memo(function ToolInput({
                   {(() => {
                     const renderSubBlock = (sb: BlockSubBlockConfig): React.ReactNode => {
                       if (isAdvancedMcpServer) {
-                        const options = getMcpTargetOptions(
-                          mcpServers,
-                          sb.id === 'connectionId' ? 'connection' : 'server',
-                          tool.params?.serverId
-                        )
+                        const options = getMcpTargetOptions(mcpServers)
                         const value = tool.params?.[sb.id] ?? ''
                         return (
                           <div key={sb.id} className='flex flex-col gap-[9px]'>
-                            <span className='text-[var(--text-muted)] text-small'>
-                              {sb.id === 'connectionId' ? 'Managed connection' : 'MCP server'}
-                            </span>
+                            <span className='text-[var(--text-muted)] text-small'>MCP Server</span>
                             <ChipCombobox
                               options={options}
                               value={

@@ -12,7 +12,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   name: 'MCP',
   description: 'Discover and run authorized MCP operations',
   longDescription:
-    'List or run operations from configured MCP servers and managed connections. Resolve servers, connections, operation names, and JSON arguments from upstream blocks, with exact-name operation access controls.',
+    'List or run operations from configured MCP servers and managed connections. Use a server or managed connection ID and an exact operation name, including references from upstream blocks.',
   docsLink: 'https://docs.sim.ai/agents/mcp',
   category: 'blocks',
   integrationType: IntegrationType.DevOps,
@@ -22,8 +22,12 @@ export const McpBlock: BlockConfig<McpResponse> = {
     defaultTitle: 'MCP',
     sentences: {
       byOperation: {
-        run: ['Run operation', { field: 'tool' }, { text: 'on', field: 'server' }],
-        list: ['List operations', { text: 'on', field: 'server' }],
+        run: [
+          'Run operation',
+          { field: ['toolSelector', 'toolReference'] },
+          { text: 'on', field: ['serverSelector', 'serverReference'] },
+        ],
+        list: ['List operations', { text: 'on', field: ['serverSelector', 'serverReference'] }],
       },
     },
   },
@@ -39,7 +43,9 @@ export const McpBlock: BlockConfig<McpResponse> = {
       value: () => 'run',
     },
     {
-      id: 'server',
+      id: 'serverSelector',
+      canonicalParamId: 'server',
+      mode: 'basic',
       title: 'MCP Server',
       canvasNoun: 'an MCP server',
       type: 'mcp-server-selector',
@@ -48,17 +54,13 @@ export const McpBlock: BlockConfig<McpResponse> = {
       description: 'Choose from configured MCP servers in your workspace',
     },
     {
-      id: 'connection',
-      title: 'Managed connection',
-      type: 'mcp-server-selector',
-      placeholder: 'Optional connection ID or upstream reference',
-      description: 'When provided, the connection must belong to the selected canonical server.',
-    },
-    {
-      id: 'operationPolicy',
-      title: 'Operations access',
-      type: 'mcp-operation-policy',
-      defaultValue: { mode: 'allow', operations: [] },
+      id: 'serverReference',
+      canonicalParamId: 'server',
+      mode: 'advanced',
+      title: 'MCP Server',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter a server or connection ID, or reference',
     },
     {
       id: 'search',
@@ -82,19 +84,30 @@ export const McpBlock: BlockConfig<McpResponse> = {
       condition: { field: 'operation', value: 'list' },
     },
     {
-      id: 'tool',
+      id: 'toolSelector',
+      canonicalParamId: 'tool',
+      mode: 'basic',
       title: 'Operation',
       type: 'mcp-tool-selector',
       selectorKey: 'mcp.tools',
       required: { field: 'operation', value: 'list', not: true },
-      placeholder: 'Select an operation or enter a reference',
+      placeholder: 'Select an operation',
       description: 'Available tools from the selected MCP server',
-      dependsOn: ['server'],
       condition: {
         field: 'operation',
         value: 'list',
         not: true,
       },
+    },
+    {
+      id: 'toolReference',
+      canonicalParamId: 'tool',
+      mode: 'advanced',
+      title: 'Operation',
+      type: 'short-input',
+      required: { field: 'operation', value: 'list', not: true },
+      placeholder: 'Enter an exact operation name or reference',
+      condition: { field: 'operation', value: 'list', not: true },
     },
     {
       id: 'arguments',
@@ -118,10 +131,6 @@ export const McpBlock: BlockConfig<McpResponse> = {
     },
   },
   inputs: {
-    connection: {
-      type: 'string',
-      description: 'Optional managed connection bound to the canonical server',
-    },
     search: { type: 'string', description: 'Filter operation names and descriptions' },
     limit: { type: 'number', description: 'Page size from 1 to 100' },
     cursor: { type: 'string', description: 'Cursor from the previous page' },
@@ -144,9 +153,10 @@ export const McpBlock: BlockConfig<McpResponse> = {
     },
   },
   outputs: {
+    serverId: { type: 'string', description: 'The supplied MCP server or connection ID' },
     operations: {
       type: 'json',
-      description: 'Authorized operations (name, description, inputSchema, serverId)',
+      description: 'Authorized operations (name, description, inputSchema)',
     },
     nextCursor: { type: 'string', description: 'Cursor for the next page, or null' },
     hasMore: { type: 'boolean', description: 'Whether more authorized operations are available' },

@@ -16,19 +16,20 @@ const server: McpServer = {
 }
 
 describe('MCP configured targets', () => {
-  it('offers one canonical server and each explicit managed connection', () => {
+  it('offers executable account connections without their non-executable parent', () => {
     expect(
-      getMcpTargetOptions([server, { ...server, id: 'mcp-cg-two' }], 'server').map(
-        (option) => option.value
-      )
-    ).toEqual(['canonical-1', 'mcp-cg-one', 'mcp-cg-two'])
+      getMcpTargetOptions([server, { ...server, id: 'mcp-cg-two' }]).map((option) => option.value)
+    ).toEqual(['mcp-cg-one', 'mcp-cg-two'])
+    expect(getMcpTargetOptions([server])[0].label).toBe(server.name)
   })
-  it('offers only connections belonging to the selected canonical server', () => {
-    const servers = [server, { ...server, id: 'mcp-cg-other', canonicalServerId: 'canonical-2' }]
+  it('includes shared servers and excludes disabled or deleted connections', () => {
+    const shared = { ...server, id: 'shared', name: 'Shared', canonicalServerId: undefined }
     expect(
-      getMcpTargetOptions(servers, 'connection', 'canonical-1').map((option) => option.value)
-    ).toEqual(['mcp-cg-one'])
-    expect(getMcpTargetOptions(servers, 'connection', '<upstream.server>')).toHaveLength(2)
-    expect(getMcpTargetOptions([{ ...server, enabled: false }], 'connection')).toEqual([])
+      getMcpTargetOptions([
+        shared,
+        { ...server, enabled: false },
+        { ...server, deletedAt: '2026-09-01' },
+      ]).map((option) => option.value)
+    ).toEqual(['shared'])
   })
 })

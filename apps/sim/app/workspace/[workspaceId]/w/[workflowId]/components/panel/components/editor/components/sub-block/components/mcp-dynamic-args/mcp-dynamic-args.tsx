@@ -2,11 +2,11 @@ import { useCallback, useState } from 'react'
 import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useMcpBlockConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -111,19 +111,12 @@ export function McpDynamicArgs({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading } = useMcpTools(workspaceId)
-  const [toolFromStore] = useSubBlockValue(blockId, 'tool')
-  const [serverFromStore] = useSubBlockValue(blockId, 'server')
-  const [connectionFromStore] = useSubBlockValue(blockId, 'connection')
-  const selectedConnection = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.connection)
-    : connectionFromStore
-  const selectedServer = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.server)
-    : serverFromStore
-  const selectedTool = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.tool)
-    : toolFromStore
   const [schemaFromStore] = useSubBlockValue(blockId, '_toolSchema')
+  const {
+    server: selectedServer,
+    tool: selectedTool,
+    argumentsMode,
+  } = useMcpBlockConfig({ blockId, previewContextValues })
   const cachedSchema = previewContextValues
     ? resolvePreviewContextValue(previewContextValues._toolSchema)
     : schemaFromStore
@@ -131,8 +124,7 @@ export function McpDynamicArgs({
 
   const selectedToolConfig = mcpTools.find(
     (tool) =>
-      tool.serverId === (selectedConnection || selectedServer) &&
-      (tool.id === selectedTool || tool.name === selectedTool)
+      tool.serverId === selectedServer && (tool.id === selectedTool || tool.name === selectedTool)
   )
   const toolSchema = selectedToolConfig?.inputSchema || cachedSchema
 
@@ -463,26 +455,24 @@ export function McpDynamicArgs({
     }
   }
 
-  if (
-    isMcpRuntimeReference(selectedTool) ||
-    isMcpRuntimeReference(selectedServer) ||
-    isMcpRuntimeReference(selectedConnection) ||
-    (selectedTool && !toolSchema && !isLoading)
-  ) {
+  if (argumentsMode === 'json') {
     return (
-      <LongInput
-        blockId={blockId}
-        subBlockId={subBlockId}
-        config={{
-          id: subBlockId,
-          type: 'long-input',
-          title: 'Arguments',
-          placeholder: 'JSON arguments or an upstream reference',
-        }}
-        disabled={disabled}
-        isPreview={isPreview}
-        previewValue={previewValue}
-      />
+      <div className='flex flex-col gap-[9px]'>
+        <Label>JSON arguments</Label>
+        <LongInput
+          blockId={blockId}
+          subBlockId={subBlockId}
+          config={{
+            id: subBlockId,
+            type: 'long-input',
+            title: 'JSON arguments',
+            placeholder: 'JSON arguments or an upstream reference',
+          }}
+          disabled={disabled}
+          isPreview={isPreview}
+          previewValue={previewValue}
+        />
+      </div>
     )
   }
 
@@ -494,16 +484,19 @@ export function McpDynamicArgs({
     )
   }
 
-  if (
-    selectedTool &&
-    !cachedSchema &&
-    !selectedToolConfig &&
-    (isLoading || mcpTools.length === 0)
-  ) {
+  if (selectedTool && !cachedSchema && !selectedToolConfig && isLoading) {
     return (
       <div className='rounded-lg border p-8 text-center'>
         <p className='text-muted-foreground text-sm'>Loading tool schema…</p>
       </div>
+    )
+  }
+
+  if (!toolSchema) {
+    return (
+      <p className='text-[var(--text-error)] text-small'>
+        Operation schema unavailable. Refresh or select an available operation.
+      </p>
     )
   }
 

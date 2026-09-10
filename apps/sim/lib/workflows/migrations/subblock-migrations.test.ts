@@ -126,6 +126,31 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it('preserves MCP canonical modes through the full normalization pipeline', () => {
+    const block = makeBlock({
+      type: 'mcp',
+      advancedMode: true,
+      subBlocks: {
+        server: { id: 'server', type: 'mcp-server-selector', value: 'parent-server' },
+        connection: { id: 'connection', type: 'mcp-server-selector', value: '<lookup.id>' },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'read' },
+        operation: { id: 'operation', type: 'dropdown', value: 'run' },
+        arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"sim"}' },
+      },
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.migrated).toBe(true)
+    expect(result.blocks['block-1'].data?.canonicalModes).toEqual({
+      server: 'advanced',
+      tool: 'advanced',
+    })
+    expect(result.blocks['block-1'].subBlocks.serverReference.value).toBe('<lookup.id>')
+    expect(result.blocks['block-1'].subBlocks.toolReference.value).toBe('read')
+    expect(result.blocks['block-1'].subBlocks.connection).toBeUndefined()
+    expect(result.blocks['block-1'].subBlocks.arguments.value).toBe('{"query":"sim"}')
+    expect(migrateSubblockIds(result.blocks).migrated).toBe(false)
+  })
+
   it('discards group selectors while preserving connected-account operation settings', () => {
     const email = { id: 'email', type: 'short-input' as const, value: 'person@example.com' }
     const operation = { id: 'operation', type: 'dropdown' as const, value: 'list_credentials' }
