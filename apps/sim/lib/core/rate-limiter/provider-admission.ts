@@ -12,10 +12,20 @@ export interface ProviderIdentity {
   operation: 'embedding' | 'ocr' | 'rerank'
 }
 
+/**
+ * Share of a credential's budget the bulk lane may use. Every caller reserves
+ * from the aggregate buckets, so the budget is never exceeded; bulk callers
+ * also reserve from buckets capped at this share, which leaves an interactive
+ * caller headroom instead of a queue behind a crawl's batches.
+ */
+const BULK_LANE_SHARE = 0.9
+
 interface ProviderAdmissionInput extends ProviderIdentity {
   inputTokens?: number
   signal?: AbortSignal
   maxWaitMs: number
+  /** Bulk work is capped at {@link BULK_LANE_SHARE}; cooldown and quota gates still stop every caller. */
+  bulk?: boolean
 }
 
 /**
@@ -55,36 +65,47 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       : input.operation === 'ocr'
         ? envNumber(env.KB_CONFIG_OCR_REQUESTS_PER_MINUTE, 60, { min: 1 })
         : envNumber(env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE, 60, { min: 1 })
+  const tokenBudget =
+    input.operation === 'embedding' && input.inputTokens
+      ? {
+          cost: input.inputTokens,
+          perMinute: envNumber(env.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE, 600_000, { min: 1 }),
+        }
+      : undefined
+  const laneShare = input.bulk ? BULK_LANE_SHARE : 1
+  if (tokenBudget && tokenBudget.cost > Math.floor(tokenBudget.perMinute * laneShare)) {
+    throw new Error('Embedding request exceeds the configured per-credential token budget')
+  }
+  const requestBurst = Math.min(
+    input.operation === 'embedding' ? EMBEDDING_REQUEST_BURST : DEFAULT_REQUEST_BURST,
+    requestsPerMinute
+  )
   const reservations: TokenBucketReservation[] = []
-  if (input.operation === 'embedding' && input.inputTokens) {
-    const tokensPerMinute = envNumber(env.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE, 600_000, {
-      min: 1,
-    })
-    if (input.inputTokens > tokensPerMinute) {
-      throw new Error('Embedding request exceeds the configured per-credential token budget')
+  const reserveBuckets = (bucketKey: string, share: number) => {
+    if (tokenBudget) {
+      reservations.push({
+        key: `${bucketKey}:tokens`,
+        cost: tokenBudget.cost,
+        config: {
+          maxTokens: Math.floor(tokenBudget.perMinute * share),
+          refillRate: (tokenBudget.perMinute * share) / 60,
+          refillIntervalMs: 1000,
+        },
+      })
     }
     reservations.push({
-      key: `${key}:tokens`,
-      cost: input.inputTokens,
+      key: `${bucketKey}:requests`,
+      cost: 1,
       config: {
-        maxTokens: tokensPerMinute,
-        refillRate: tokensPerMinute / 60,
+        /** A burst of one leaves no share to carve out, so the lane then matches the aggregate. */
+        maxTokens: Math.max(1, Math.floor(requestBurst * share)),
+        refillRate: (requestsPerMinute * share) / 60,
         refillIntervalMs: 1000,
       },
     })
   }
-  reservations.push({
-    key: `${key}:requests`,
-    cost: 1,
-    config: {
-      maxTokens: Math.min(
-        input.operation === 'embedding' ? EMBEDDING_REQUEST_BURST : DEFAULT_REQUEST_BURST,
-        requestsPerMinute
-      ),
-      refillRate: requestsPerMinute / 60,
-      refillIntervalMs: 1000,
-    },
-  })
+  reserveBuckets(key, 1)
+  if (input.bulk) reserveBuckets(`${key}:bulk`, BULK_LANE_SHARE)
 
   /** When the bucket last said capacity returns, so a deadline hit after a sleep reports the wait still left. */
   let capacityAvailableAt: number | undefined
