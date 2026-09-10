@@ -112,88 +112,90 @@ export function GitHubInstallationModal({
       <ChipModalBody>
         <ChipModalField
           type='custom'
-          title='GitHub App'
-          hint='The app indexes selected repositories. Each person connects their own GitHub account to search only content they can access.'
+          title={data?.needsUserConnection ? 'GitHub account' : 'Installation'}
+          hint={
+            data?.available && !data.needsUserConnection && choices.length === 0
+              ? 'Install the app, then refresh.'
+              : undefined
+          }
         >
-          {installations.isError ? (
-            <SettingsQueryErrorState
-              error={installations.error}
-              fallback='Could not load GitHub installations'
-              isRetrying={installations.isFetching}
-              onRetry={() => void installations.refetch()}
-              variant='inline'
-            />
-          ) : !data ? (
-            <SettingsEmptyState variant='inline'>Loading GitHub setup…</SettingsEmptyState>
-          ) : !data.available ? (
-            <SettingsEmptyState variant='inline'>
-              GitHub App indexing is unavailable in this deployment.
-            </SettingsEmptyState>
-          ) : data.needsUserConnection ? (
-            <div className='flex flex-col gap-3'>
-              <p className='text-[var(--text-body)] text-small'>
-                {waitingForAccount
-                  ? 'Finish connecting your account in the other tab, then refresh.'
-                  : 'Connect your GitHub account to verify the installations you can manage.'}
-              </p>
-              <div className='flex flex-wrap gap-2'>
-                <Chip variant='primary' disabled={pending} onClick={connectGitHubAccount}>
-                  {waitingForAccount ? 'Open account connection' : 'Connect your GitHub account'}
-                </Chip>
-                <Chip
-                  disabled={pending || installations.isFetching}
-                  onClick={() => void installations.refetch()}
-                >
-                  Refresh
-                </Chip>
-              </div>
-            </div>
-          ) : (
-            <div className='flex flex-col gap-3'>
-              <p className='text-[var(--text-body)] text-small'>
-                Install the app on your account or organization and choose its repositories, then
-                refresh.
-              </p>
-              <div className='flex flex-wrap gap-2'>
-                {data.installUrl && (
-                  <ChipLink href={data.installUrl} target='_blank' rel='noopener noreferrer'>
-                    Install GitHub App
-                  </ChipLink>
-                )}
-                <Chip
-                  disabled={pending || installations.isFetching}
-                  onClick={() => void installations.refetch()}
-                >
-                  Refresh
-                </Chip>
-              </div>
-            </div>
-          )}
-        </ChipModalField>
-        {data?.available && !data.needsUserConnection && (
-          <ChipModalField
-            type='custom'
-            title='Installation'
-            hint='Only installations on your account or organizations you administer appear here.'
-          >
-            {choices.length > 0 ? (
-              <ChipCombobox
-                options={choices.map((item) => ({
-                  value: item.installationId,
-                  label: item.accountLogin,
-                }))}
-                value={selected?.installationId}
-                onChange={setInstallationId}
-                placeholder='Select an installation'
-                disabled={pending || installations.isFetching}
+          {(aria) =>
+            installations.isError ? (
+              <SettingsQueryErrorState
+                error={installations.error}
+                fallback='Could not load GitHub installations'
+                isRetrying={installations.isFetching}
+                onRetry={() => void installations.refetch()}
+                variant='inline'
               />
-            ) : (
+            ) : !data ? (
+              <SettingsEmptyState variant='inline'>Loading GitHub setup…</SettingsEmptyState>
+            ) : !data.available ? (
               <SettingsEmptyState variant='inline'>
-                No eligible installations found.
+                GitHub App indexing is unavailable in this deployment.
               </SettingsEmptyState>
-            )}
-          </ChipModalField>
-        )}
+            ) : data.needsUserConnection ? (
+              <div className='flex flex-col gap-3'>
+                <p className='text-[var(--text-body)] text-small'>
+                  {waitingForAccount
+                    ? 'Finish connecting your account in the other tab, then refresh.'
+                    : 'Connect your GitHub account to verify the installations you can manage.'}
+                </p>
+                <div className='flex flex-wrap gap-2'>
+                  <Chip variant='primary' disabled={pending} onClick={connectGitHubAccount}>
+                    {waitingForAccount ? 'Open account connection' : 'Connect your GitHub account'}
+                  </Chip>
+                  <Chip
+                    disabled={pending || installations.isFetching}
+                    onClick={() => void installations.refetch()}
+                  >
+                    Refresh
+                  </Chip>
+                </div>
+              </div>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {choices.length > 0 ? (
+                  <ChipCombobox
+                    {...aria}
+                    aria-label='Installation'
+                    options={choices.map((item) => ({
+                      value: item.installationId,
+                      label: item.accountLogin,
+                    }))}
+                    value={selected?.installationId}
+                    onChange={setInstallationId}
+                    placeholder='Select an installation'
+                    disabled={pending || installations.isFetching}
+                  />
+                ) : (
+                  <SettingsEmptyState variant='inline'>
+                    No eligible installations found.
+                  </SettingsEmptyState>
+                )}
+                <div className='flex flex-wrap gap-2'>
+                  {data.installUrl && (
+                    <ChipLink
+                      {...aria}
+                      href={data.installUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      Install GitHub App
+                    </ChipLink>
+                  )}
+                  <Chip
+                    {...aria}
+                    disabled={pending || installations.isFetching}
+                    onClick={() => void installations.refetch()}
+                  >
+                    Refresh
+                  </Chip>
+                </div>
+              </div>
+            )
+          }
+        </ChipModalField>
         <ChipModalError>
           {connectionError ??
             ensureAccounts.error?.message ??
