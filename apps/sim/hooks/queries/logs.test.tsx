@@ -6,7 +6,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
+const { mockFetch, mockRequestJson } = vi.hoisted(() => ({
+  mockFetch: vi.fn(),
   mockRequestJson: vi.fn(),
 }))
 
@@ -16,7 +17,7 @@ vi.mock('@/lib/api/client/request', () => ({
 
 import { getLogByExecutionIdContract } from '@/lib/api/contracts/logs'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import { useCancelExecution } from '@/hooks/queries/logs'
+import { useCancelExecution, useRetryExecution } from '@/hooks/queries/logs'
 
 function renderHookWithClient<T>(useHook: () => T): {
   result: () => T
@@ -194,6 +195,158 @@ describe('useCancelExecution', () => {
       await assertion
     })
     expect(result().isError).toBe(true)
+
+    unmount()
+  })
+})
+
+function failedLogDetail(
+  children = [
+    {
+      id: 'failed-span',
+      name: 'Failed block',
+      type: 'function',
+      status: 'error',
+      blockId: 'failed-block',
+    },
+  ]
+) {
+  return {
+    data: {
+      executionData: {
+        workflowInput: { prompt: 'original input' },
+        traceSpans: [
+          {
+            id: 'workflow-execution',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            status: 'error',
+            children,
+          },
+        ],
+      },
+    },
+  }
+}
+
+function executionStream(events: object[]): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      for (const event of events) {
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
+      }
+      controller.close()
+    },
+  })
+}
+
+describe('useRetryExecution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('starts the retry from the failed block using the source execution state', async () => {
+    mockRequestJson.mockResolvedValue(failedLogDetail())
+    mockFetch.mockResolvedValue({
+      ok: true,
+      body: executionStream([
+        { type: 'execution:started', data: { startTime: '2026-08-31T00:00:00.000Z' } },
+        { type: 'block:started', data: { blockId: 'different-block' } },
+        { type: 'block:started', data: { blockId: 'failed-block' } },
+      ]),
+    })
+
+    const { result, unmount } = renderHookWithClient(() => useRetryExecution('workspace-1'))
+
+    await act(async () => {
+      await result().mutateAsync({ workflowId: 'workflow-1', executionId: 'execution-1' })
+    })
+
+    expect(mockRequestJson).toHaveBeenCalledWith(getLogByExecutionIdContract, {
+      params: { executionId: 'execution-1' },
+      query: { workspaceId: 'workspace-1' },
+      signal: undefined,
+    })
+    expect(mockFetch).toHaveBeenCalledWith('/api/workflows/workflow-1/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputFromExecutionId: 'execution-1',
+        triggerType: 'manual',
+        stream: true,
+        runFromBlock: { startBlockId: 'failed-block', executionId: 'execution-1' },
+      }),
+    })
+
+    unmount()
+  })
+
+  it('surfaces a streamed run-from-block validation error', async () => {
+    mockRequestJson.mockResolvedValue(failedLogDetail())
+    mockFetch.mockResolvedValue({
+      ok: true,
+      body: executionStream([
+        { type: 'execution:started', data: { startTime: '2026-08-31T00:00:00.000Z' } },
+        {
+          type: 'execution:error',
+          data: { error: 'The failed block no longer exists in the current workflow' },
+        },
+      ]),
+    })
+
+    const { result, unmount } = renderHookWithClient(() => useRetryExecution('workspace-1'))
+
+    await act(async () => {
+      await expect(
+        result().mutateAsync({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      ).rejects.toThrow('The failed block no longer exists in the current workflow')
+    })
+
+    unmount()
+  })
+
+  it('does not report success when the selected failed block never starts', async () => {
+    mockRequestJson.mockResolvedValue(failedLogDetail())
+    mockFetch.mockResolvedValue({
+      ok: true,
+      body: executionStream([
+        { type: 'execution:started', data: { startTime: '2026-08-31T00:00:00.000Z' } },
+        { type: 'execution:completed', data: { success: true } },
+      ]),
+    })
+
+    const { result, unmount } = renderHookWithClient(() => useRetryExecution('workspace-1'))
+
+    await act(async () => {
+      await expect(
+        result().mutateAsync({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      ).rejects.toThrow('Retry execution ended before the failed block could start')
+    })
+
+    unmount()
+  })
+
+  it('does not execute when the source run has multiple terminating failures', async () => {
+    mockRequestJson.mockResolvedValue(
+      failedLogDetail([
+        { id: 'failure-1', name: 'One', type: 'function', status: 'error', blockId: 'one' },
+        { id: 'failure-2', name: 'Two', type: 'function', status: 'error', blockId: 'two' },
+      ])
+    )
+
+    const { result, unmount } = renderHookWithClient(() => useRetryExecution('workspace-1'))
+
+    await act(async () => {
+      await expect(
+        result().mutateAsync({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      ).rejects.toThrow('multiple terminating failures')
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
 
     unmount()
   })

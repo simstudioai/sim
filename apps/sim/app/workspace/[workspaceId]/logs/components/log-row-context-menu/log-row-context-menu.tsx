@@ -32,6 +32,7 @@ interface LogRowContextMenuProps {
   onCancelExecution: () => void
   onRetryExecution: () => void
   canCancelExecution: boolean
+  canRetryExecution: boolean
   isCancelPending?: boolean
   cancelPendingExecutionId?: string
   isRetryPending?: boolean
@@ -57,6 +58,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onCancelExecution,
   onRetryExecution,
   canCancelExecution,
+  canRetryExecution,
   isCancelPending = false,
   cancelPendingExecutionId,
   isRetryPending = false,
@@ -78,7 +80,8 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
     (isCancelPending && cancelPendingExecutionId === log?.executionId)
   const showCancelAction =
     canCancelExecution && hasExecutionId && hasWorkflow && (isCancellable || isStopping)
-  const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
+  const isRetryable =
+    canRetryExecution && log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>

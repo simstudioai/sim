@@ -89,6 +89,7 @@ function renderMenu(
   props: Partial<{
     log: WorkflowLogSummary
     canCancelExecution: boolean
+    canRetryExecution: boolean
     isCancelPending: boolean
     cancelPendingExecutionId: string
   }> = {}
@@ -100,6 +101,7 @@ function renderMenu(
         position={{ x: 0, y: 0 }}
         log={props.log ?? LOG}
         canCancelExecution={props.canCancelExecution ?? true}
+        canRetryExecution={props.canRetryExecution ?? true}
         isCancelPending={props.isCancelPending}
         cancelPendingExecutionId={props.cancelPendingExecutionId}
         isFilteredByThisWorkflow={false}
@@ -150,5 +152,13 @@ describe('LogRowContextMenu cancellation action', () => {
 
     renderMenu({ isCancelPending: true, cancelPendingExecutionId: 'execution-1' })
     expect(findButton('Stopping…')?.disabled).toBe(true)
+  })
+})
+
+describe('LogRowContextMenu retry action', () => {
+  it('hides Retry without edit permission', () => {
+    renderMenu({ log: { ...LOG, status: 'failed' }, canRetryExecution: false })
+
+    expect(findButton('Retry')).toBeUndefined()
   })
 })
