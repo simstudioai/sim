@@ -5,6 +5,7 @@ import {
   findSlackSearchInstallation,
   loadSlackSearchCredential,
 } from '@/lib/knowledge/application/slack-search/repository'
+import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
 
 export function requireSlackInstallationPrincipal(
   principal: Principal
@@ -38,6 +39,7 @@ export async function authorizeSlackSearchInstallation(
     throw new OrchestrationError('forbidden', 'Slack Search binding is no longer valid')
   }
   await requireOrganizationSearchAvailable(installation.organizationId)
+  await requireSlackSearchAppAvailable(installation.appId)
   const secret = await loadSlackSearchCredential(
     installation.credentialId,
     installation.organizationId

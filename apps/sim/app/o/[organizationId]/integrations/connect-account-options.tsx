@@ -23,6 +23,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSearchSourceOverview, useSearchSources } from '@/hooks/queries/kb/connectors'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { usePersonalSearchIntegrations } from '@/hooks/queries/personal-search-integrations'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member-enrollment'
@@ -43,6 +44,14 @@ export function ConnectAccountOptions({
   const sources = useSearchSources(scope, { search })
   const overview = useSearchSourceOverview(scope)
   const integrations = useSearchIntegrations(organization.id)
+  const slackInventory = usePersonalSearchIntegrations({
+    organizationId: organization.id,
+    connectorType: 'slack',
+  })
+  const canConnectSharedSlack =
+    slackInventory.data?.available.some(
+      (entry) => entry.target.connectorType === 'slack' && !entry.target.connectorId
+    ) === true
   const availability = usePermissionConfig()
   const membershipQueryKeys = useMemo(
     () => [
@@ -90,7 +99,7 @@ export function ConnectAccountOptions({
   )
   const sourceChoices = SEARCH_CONNECTORS.filter((connector) => {
     if (
-      connector.type === 'slack' ||
+      (connector.type === 'slack' && !canConnectSharedSlack) ||
       !approvedTypes.has(connector.type) ||
       !connector.meta.name.toLowerCase().includes(search.toLowerCase()) ||
       (configuredTypes.has(connector.type) && connector.setupFields.length === 0)
@@ -124,7 +133,9 @@ export function ConnectAccountOptions({
         ? overview
         : integrations.isError
           ? integrations
-          : null
+          : slackInventory.isError
+            ? slackInventory
+            : null
 
   return (
     <>
@@ -148,6 +159,7 @@ export function ConnectAccountOptions({
         ) : sources.isPending ||
           overview.isPending ||
           integrations.isPending ||
+          slackInventory.isPending ||
           !availability.isIntegrationAvailabilityReady ? (
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visibleSources.length > 0 || sourceChoices.length > 0 || sources.hasNextPage ? (

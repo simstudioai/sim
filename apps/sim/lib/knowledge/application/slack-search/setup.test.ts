@@ -13,7 +13,9 @@ const m = vi.hoisted(() => ({
   set: vi.fn(),
   audit: vi.fn(),
   baseUrl: vi.fn(),
+  shared: vi.fn(),
 }))
+vi.mock('@/lib/slack-search/shared-app', () => ({ readSharedSlackSearchApp: m.shared }))
 vi.mock('@sim/audit', () => ({
   AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
   AuditResourceType: { ORGANIZATION: 'organization' },
@@ -84,6 +86,7 @@ const complete = () =>
   completeSlackSearchSetup.execute({ principal, input: { state: 'state', code: 'code' } })
 beforeEach(() => {
   vi.clearAllMocks()
+  m.shared.mockResolvedValue(null)
   m.baseUrl.mockReturnValue('https://sim.test')
   m.membership.mockResolvedValue([{ role: 'admin' }])
   m.rows.mockReset().mockResolvedValue([])
@@ -273,4 +276,13 @@ describe('Search OAuth installation', () => {
     )
     expect(new URL(result.authorizationUrl).searchParams.has('user_scope')).toBe(false)
   })
+})
+
+it('rejects a shared-app callback if the global configuration was disabled or rotated', async () => {
+  m.consume.mockResolvedValue({ ...attempt, sharedApp: { id: 'ASHARED', revision: 'app-rev' } })
+  await expect(complete()).rejects.toThrow('configuration changed')
+  expect(m.exchange).not.toHaveBeenCalled()
+  m.shared.mockResolvedValue({ id: 'ASHARED', revision: 'new-rev' })
+  await expect(complete()).rejects.toThrow()
+  expect(m.exchange).not.toHaveBeenCalled()
 })

@@ -98,3 +98,48 @@ describe('private Slack mention roots', () => {
     }
   )
 })
+
+it('creates a real DM root for a slash command and never uses its trigger ID as a timestamp', async () => {
+  const job = slackSearchJobSchema.parse({
+    installationId: 'i1',
+    revision: 'r1',
+    credentialId: 'c1',
+    credentialVersion: 'v1',
+    receivedAt: principal.receivedAt.getTime(),
+    message: {
+      appId: 'A1',
+      teamId: 'T1',
+      eventId: 'Ev1',
+      channelId: 'C1',
+      userId: 'U1',
+      messageTs: null,
+      command: '/sim-search',
+      query: 'Find release notes',
+      queryTooLong: false,
+    },
+  })
+  queueTableRows(schemaMock.slackSearchInstallation, [
+    { enabled: true, revision: 'r1', credentialVersion: 'v1' },
+  ])
+  queueTableRows(schemaMock.slackSearchTurn, [
+    {
+      status: 'running',
+      leaseId: 'lease1',
+      leaseExpiresAt: new Date(Date.now() + 60000),
+      payload: job,
+    },
+  ])
+  const routed = await routeSlackSearchMentionToDm(principal, {
+    job,
+    turnId: 'turn1',
+    leaseId: 'lease1',
+    signal: new AbortController().signal,
+  })
+  expect(routed.message).toMatchObject({
+    channelId: 'D1',
+    messageTs: '1800000000.2',
+    threadTs: '1800000000.2',
+  })
+  expect(mocks.post).toHaveBeenCalledOnce()
+  expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ payload: routed }))
+})

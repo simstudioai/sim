@@ -1,7 +1,10 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { createSlackSearchManifest } from '@/lib/slack-search/manifest'
+import {
+  createSharedSlackSearchManifest,
+  createSlackSearchManifest,
+} from '@/lib/slack-search/manifest'
 
 describe('Search app manifest', () => {
   it('combines bot conversations and member indexing in one app with separate grants', () => {
@@ -87,4 +90,34 @@ describe('Search app manifest', () => {
       createSlackSearchManifest('Sim Search', 'Search', 'http://localhost:3003')
     ).toThrow(OrchestrationError)
   })
+})
+
+it('official app uses the existing personal indexing grants with bot commands', () => {
+  const manifest = createSharedSlackSearchManifest('https://www.sim.ai')
+  expect(manifest.oauth_config.scopes.user).toEqual([
+    'channels:history',
+    'channels:read',
+    'groups:history',
+    'groups:read',
+    'im:history',
+    'im:read',
+    'mpim:history',
+    'mpim:read',
+    'users:read',
+    'users:read.email',
+  ])
+  expect(manifest.oauth_config.scopes.bot).toContain('commands')
+  expect(manifest.oauth_config.scopes.bot).not.toContain('groups:history')
+  expect(manifest.features.slash_commands.map((command) => command.command)).toEqual([
+    '/sim-search',
+    '/sim-connect',
+  ])
+  expect(
+    manifest.features.slash_commands.every(
+      (command) => command.url === 'https://www.sim.ai/api/webhooks/slack'
+    )
+  ).toBe(true)
+  expect(manifest.settings.event_subscriptions.bot_events).toContain('tokens_revoked')
+  expect(manifest.settings.event_subscriptions.bot_events).not.toContain('message.channels')
+  expect(manifest.settings.event_subscriptions).not.toHaveProperty('user_events')
 })

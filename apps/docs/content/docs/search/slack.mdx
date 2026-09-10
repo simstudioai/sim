@@ -8,6 +8,23 @@ import { Image } from '@/components/ui/image'
 
 Slack Search indexes messages and threads each connected member can access. Public and private channels are included by default; one-to-one and group DMs are opt-in. A Sim organization admin installs the organization's Slack app, then each teammate authorizes their own account for indexing.
 
+## Install the official app
+
+When the shared-app rollout is enabled for Sim Search, an organization admin can open **Settings → Sim Search in Slack → Install Sim Search**, select a Slack workspace, and approve the bot installation. Slack may require workspace-admin approval. Each organization connects one Slack workspace; Enterprise Grid-wide installations are not supported yet.
+
+Each member then opens **Integrations → Slack → Connect**, chooses what to index, and authorizes their own Slack account. Use the same email for Slack and your verified Sim account. Public and private channels are included by default; direct messages and group DMs are opt-in. The bot installation alone does not authorize access to members' messages.
+
+Slack uses the same indexing pipeline as other connected sources. Both the Sim web Assistant and Slack bot search the organization's knowledge base, applying the current person's access permissions. Newly connected content becomes searchable after indexing completes. Connection and sync status appear in Integrations.
+
+- DM **Sim Search**, or mention it in a channel it has joined.
+- Use **/sim-search [question]** to start a private DM thread. Channel invocations keep personalized answers and account details in DMs.
+- Use **/sim-connect [provider]**, or **Home → Connect sources**, to open your personal Integrations in Sim. OAuth begins only after you click Connect there.
+- Follow source links to the original messages. Use Slack's Stop control to cancel the active answer and queued follow-ups.
+
+Existing custom-app installations are not silently converted. To switch to the official app, remove the old Slack Search binding and source app configuration explicitly, install the official app, and have members authorize it afresh. Workflow integrations keep their existing app configuration.
+
+The instructions below describe setting up a custom app when the official app is unavailable.
+
 ## Before you start
 
 You need a Sim organization admin and permission to create and install an app in the target Slack workspace. Ask a Slack workspace admin for approval when app installation is restricted. Use the same email address for Slack and your verified Sim account.

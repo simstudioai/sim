@@ -11,6 +11,7 @@ import {
   adoptOrganizationSlackMemberApp,
   loadOrganizationSlackMemberApps,
 } from '@/lib/credential-groups/organization-slack-app'
+import { configureSharedSlackMemberApp } from '@/lib/credential-groups/shared-slack-app'
 import { exchangeSlackBotAuthorization } from '@/lib/internal/slack/oauth'
 import {
   SlackSearchConfigurationError,
@@ -23,12 +24,13 @@ import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 import { slackBotCredentialVersion } from '@/lib/slack-search/app-configuration'
-import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
+import { SLACK_SEARCH_SCOPES, SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 import { createSlackSearchManifest, SLACK_SEARCH_CALLBACK_PATH } from '@/lib/slack-search/manifest'
 import {
   consumeSlackSearchOAuthAttempt,
   storeSlackSearchOAuthAttempt,
 } from '@/lib/slack-search/oauth-state'
+import { readSharedSlackSearchApp } from '@/lib/slack-search/shared-app'
 
 interface PrepareInput {
   organizationId: string
@@ -36,6 +38,7 @@ interface PrepareInput {
   description: string
 }
 interface StartInput extends PrepareInput {
+  mode?: 'custom' | 'shared'
   installationId?: string
   clientId?: string
   clientSecret?: string
@@ -83,7 +86,9 @@ export const prepareSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       getBaseUrl(),
       member.scopes
     )
+    const sharedApp = await readSharedSlackSearchApp()
     return {
+      sharedAppId: sharedApp?.id ?? null,
       manifest: JSON.stringify(manifest, null, 2),
       existingApp: member.app,
       createAppUrl: `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(JSON.stringify(manifest))}`,
@@ -114,19 +119,32 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       : []
     if (input.installationId && !installation)
       throw new OrchestrationError('not_found', 'Slack Search installation not found')
-    const [app] = installation?.slackAppId
+    const [savedApp] = installation?.slackAppId
       ? await db
           .select()
           .from(slackApp)
-          .where(
-            and(
-              eq(slackApp.id, installation.slackAppId),
-              eq(slackApp.organizationId, context.organizationId),
-              eq(slackApp.kind, 'custom')
-            )
-          )
+          .where(and(eq(slackApp.id, installation.slackAppId)))
           .limit(1)
       : []
+    const shared = input.mode === 'shared'
+    if (savedApp && (savedApp.kind === 'shared') !== shared)
+      throw new OrchestrationError(
+        'conflict',
+        'Remove the existing installation before switching Slack apps'
+      )
+    if (savedApp?.kind === 'custom' && savedApp.organizationId !== context.organizationId)
+      throw new OrchestrationError('forbidden', 'Slack app ownership changed')
+    const app = shared ? await readSharedSlackSearchApp() : savedApp
+    if (shared && (!app || input.clientId || input.clientSecret || input.signingSecret))
+      throw new OrchestrationError(
+        'validation',
+        'Shared Slack app setup is unavailable or contains custom credentials'
+      )
+    if (shared && member.app && member.app.appId !== app?.id)
+      throw new OrchestrationError(
+        'conflict',
+        'Remove the previous Slack source configuration before switching apps; members must reconnect'
+      )
     const clientId = input.clientId ?? app?.clientId
     const encryptedClientSecret = input.clientSecret
       ? (await encryptSecret(input.clientSecret)).encrypted
@@ -141,6 +159,7 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       )
     const redirectUri = new URL(SLACK_SEARCH_CALLBACK_PATH, origin).href
     const state = await storeSlackSearchOAuthAttempt({
+      ...(shared && app ? { sharedApp: { id: app.id, revision: app.revision } } : {}),
       userId: principal.userId,
       sessionId: principal.sessionId,
       organizationId: context.organizationId,
@@ -168,7 +187,7 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
     const url = new URL('https://slack.com/oauth/v2/authorize')
     url.search = new URLSearchParams({
       client_id: clientId,
-      scope: SLACK_SEARCH_SCOPES.join(','),
+      scope: (shared ? SLACK_SHARED_SEARCH_BOT_SCOPES : SLACK_SEARCH_SCOPES).join(','),
       redirect_uri: redirectUri,
       state,
       ...(installation ? { team: installation.teamId } : {}),
@@ -200,6 +219,14 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       )
     await requireOrganizationSearchAvailable(context.organizationId)
     const { attempt } = context
+    if (attempt.sharedApp) {
+      const app = await readSharedSlackSearchApp()
+      if (app?.id !== attempt.sharedApp.id || app.revision !== attempt.sharedApp.revision)
+        throw new OrchestrationError(
+          'conflict',
+          'Shared Slack app configuration changed. Start again.'
+        )
+    }
     const { decrypted: clientSecret } = await decryptSecret(attempt.encryptedClientSecret)
     const grant = await exchangeSlackBotAuthorization({
       clientId: attempt.clientId,
@@ -209,7 +236,11 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
     })
     let identity: Awaited<ReturnType<typeof verifySlackSearchBot>>
     try {
-      identity = await verifySlackSearchBot(grant.access_token, AbortSignal.timeout(10_000))
+      identity = await verifySlackSearchBot(
+        grant.access_token,
+        AbortSignal.timeout(10_000),
+        attempt.sharedApp ? SLACK_SHARED_SEARCH_BOT_SCOPES : SLACK_SEARCH_SCOPES
+      )
     } catch (error) {
       if (
         error instanceof SlackSearchConfigurationError ||
@@ -219,6 +250,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       throw error
     }
     if (
+      (attempt.sharedApp && identity.appId !== attempt.sharedApp.id) ||
       identity.appId !== grant.app_id ||
       identity.teamId !== grant.team.id ||
       identity.botUserId !== grant.bot_user_id
@@ -270,8 +302,13 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
         .for('update')
         .limit(1)
       if (
-        existingApp &&
-        (existingApp.kind !== 'custom' || existingApp.organizationId !== context.organizationId)
+        attempt.sharedApp
+          ? !existingApp ||
+            existingApp.kind !== 'shared' ||
+            existingApp.organizationId !== null ||
+            existingApp.revision !== attempt.sharedApp.revision
+          : existingApp &&
+            (existingApp.kind !== 'custom' || existingApp.organizationId !== context.organizationId)
       )
         throw new OrchestrationError(
           'conflict',
@@ -329,7 +366,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
           'conflict',
           'This Slack workspace already has an active Search installation'
         )
-      const appRevision = generateId()
+      const appRevision = attempt.sharedApp?.revision ?? generateId()
       const appValues = {
         id: identity.appId,
         kind: 'custom' as const,
@@ -340,10 +377,11 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
         revision: appRevision,
         updatedAt: new Date(),
       }
-      await tx
-        .insert(slackApp)
-        .values(appValues)
-        .onConflictDoUpdate({ target: slackApp.id, set: appValues })
+      if (!attempt.sharedApp)
+        await tx
+          .insert(slackApp)
+          .values(appValues)
+          .onConflictDoUpdate({ target: slackApp.id, set: appValues })
       await adoptOrganizationSlackMemberApp(
         tx,
         context.organizationId,
@@ -351,6 +389,13 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
         identity.teamId,
         attempt.clientId
       )
+      if (attempt.sharedApp)
+        await configureSharedSlackMemberApp(tx, {
+          organizationId: context.organizationId,
+          userId: principal.userId,
+          appId: identity.appId,
+          teamId: identity.teamId,
+        })
       const credentialId = existing?.credentialId ?? generateId()
       const credentialValues = {
         slackAppId: identity.appId,

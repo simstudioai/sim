@@ -63,6 +63,19 @@ export function SlackSearchSetupWizard({
     }
   }
 
+  const shared = Boolean(
+    prepare.data?.sharedAppId && (!configuredAppId || configuredAppId === prepare.data.sharedAppId)
+  )
+
+  function installShared() {
+    oauth.mutate(
+      { organizationId, installationId, name, description, mode: 'shared' },
+      {
+        onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
+      }
+    )
+  }
+
   function advance() {
     if (step === 'manifest') {
       setStep('credentials')
@@ -85,6 +98,39 @@ export function SlackSearchSetupWizard({
       )
     }
   }
+
+  if (shared)
+    return (
+      <ChipModal
+        open
+        dismissDisabled={busy}
+        onOpenChange={(open) => {
+          if (!open) onClose()
+        }}
+        srTitle='Install Sim Search'
+      >
+        <ChipModalHeader icon={SlackIcon} onClose={onClose}>
+          Install Sim Search
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField type='custom' title='Connect your Slack workspace'>
+            <p className='text-[var(--text-secondary)] text-sm'>
+              Ask Sim in DMs or mention it in a channel. Each member connects their own Slack
+              account to index the channels and direct messages they choose to connect.
+            </p>
+          </ChipModalField>
+          <ChipModalError>{error?.message}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={onClose}
+          primaryAction={{
+            label: busy ? 'Connecting…' : 'Install Sim Search',
+            disabled: busy,
+            onClick: installShared,
+          }}
+        />
+      </ChipModal>
+    )
 
   return (
     <ChipModal

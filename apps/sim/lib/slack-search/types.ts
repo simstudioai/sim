@@ -1,27 +1,37 @@
 import { z } from 'zod'
 
 const id = z.string().min(1).max(200)
-export const slackSearchMessageSchema = z.object({
-  appId: id,
-  teamId: id,
-  eventId: id,
-  userId: id,
-  channelId: z.string().regex(/^[CGD][A-Z0-9]+$/),
-  origin: z
-    .object({
-      channelId: z.string().regex(/^[CG][A-Z0-9]+$/),
-      threadTs: z.string().regex(/^\d+\.\d+$/),
-      messageTs: z.string().regex(/^\d+\.\d+$/),
-    })
-    .optional(),
-  messageTs: z.string().regex(/^\d+\.\d+$/),
-  threadTs: z
-    .string()
-    .regex(/^\d+\.\d+$/)
-    .optional(),
-  query: z.string().trim().max(2000),
-  queryTooLong: z.boolean(),
-})
+export const slackSearchMessageSchema = z
+  .object({
+    appId: id,
+    teamId: id,
+    eventId: id,
+    userId: id,
+    channelId: z.string().regex(/^[CGD][A-Z0-9]+$/),
+    origin: z
+      .object({
+        channelId: z.string().regex(/^[CG][A-Z0-9]+$/),
+        threadTs: z.string().regex(/^\d+\.\d+$/),
+        messageTs: z.string().regex(/^\d+\.\d+$/),
+      })
+      .optional(),
+    messageTs: z
+      .string()
+      .regex(/^\d+\.\d+$/)
+      .nullable(),
+    command: z.literal('/sim-search').optional(),
+    threadTs: z
+      .string()
+      .regex(/^\d+\.\d+$/)
+      .optional(),
+    query: z.string().trim().max(2000),
+    queryTooLong: z.boolean(),
+  })
+  .refine(
+    (message) =>
+      message.messageTs !== null || (message.command === '/sim-search' && !message.threadTs),
+    'Only a queued slash command may lack a Slack message timestamp'
+  )
 export type SlackSearchMessage = z.infer<typeof slackSearchMessageSchema>
 
 /** Queue-only contract; no secrets, results, or caller-supplied Sim user identity. */
@@ -101,4 +111,11 @@ export function parseSlackSearchMessage(
     query: query.length > 2000 ? '' : query,
     queryTooLong: query.length > 2000,
   })
+}
+
+/** A command obtains this identity only after Slack acknowledges its private root message. */
+export function slackSearchThreadTimestamp(message: SlackSearchMessage): string {
+  const timestamp = message.threadTs ?? message.messageTs
+  if (!timestamp) throw new Error('Slack command has not created its private thread yet')
+  return timestamp
 }
