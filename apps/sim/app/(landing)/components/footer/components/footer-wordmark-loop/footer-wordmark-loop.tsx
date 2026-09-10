@@ -356,8 +356,7 @@ interface StageNode {
 
 interface GooFilterNodes {
   blur: SVGFEGaussianBlurElement
-  group: SVGGElement
-  url: string
+  matrix: SVGFEColorMatrixElement
 }
 
 /**
@@ -415,13 +414,17 @@ function paintFrame(
     smooth(T_LOGO_HOLD_END, T_INTRO_END, t),
     1 - smooth(T_OUTRO_START, T_OUTRO_END, t)
   )
-  const deviation = round(GOO_LO + (GOO_HI - GOO_LO) * liquid)
+  /** Ease the filter to identity at rest without overlaying the unfiltered shapes. */
+  const strength = Math.min(
+    smooth(T_LOGO_HOLD_END, T_LOGO_HOLD_END + MORPH, t),
+    1 - smooth(T_OUTRO_END - MORPH, T_OUTRO_END, t)
+  )
+  const deviation = round((GOO_LO + (GOO_HI - GOO_LO) * liquid) * strength)
   if (goo.blur.getAttribute('stdDeviation') !== deviation) {
     goo.blur.setAttribute('stdDeviation', deviation)
   }
-  /** Resting vectors retain native antialiasing; only the liquid morph needs raster filtering. */
-  const filter = liquid > 0 ? goo.url : 'none'
-  if (goo.group.getAttribute('filter') !== filter) goo.group.setAttribute('filter', filter)
+  const matrix = `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${round(1 + 39 * strength)} ${round(-19 * strength)}`
+  if (goo.matrix.getAttribute('values') !== matrix) goo.matrix.setAttribute('values', matrix)
 }
 
 interface FooterWordmarkLoopProps {
@@ -463,9 +466,9 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
     const svg = svgRef.current
     if (!svg) return
     const blur = svg.querySelector<SVGFEGaussianBlurElement>('[data-goo]')
-    const group = svg.querySelector<SVGGElement>('[data-goo-group]')
-    if (!blur || !group) return
-    const goo: GooFilterNodes = { blur, group, url: `url(#${gooId})` }
+    const matrix = svg.querySelector<SVGFEColorMatrixElement>('[data-goo-matrix]')
+    if (!blur || !matrix) return
+    const goo: GooFilterNodes = { blur, matrix }
 
     const stages: StageNode[] = Array.from(
       svg.querySelectorAll<SVGGElement>('[data-stage]'),
@@ -528,7 +531,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
       observer?.disconnect()
       reducedMotion?.removeEventListener('change', onMotionPreference)
     }
-  }, [gooId])
+  }, [])
 
   return (
     <div className={cn('relative mx-auto aspect-[5/3] w-[clamp(180px,17vw,320px)]', className)}>
@@ -547,13 +550,14 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
             height='160%'
             colorInterpolationFilters='sRGB'
           >
-            <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={GOO_LO} result='blur' />
+            <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={0} result='blur' />
             {/* A steep threshold: the melt between shapes keeps its liquid
                 merges, but every edge resolves within a pixel, so the mark
                 stays crisp at the cycle's full blur. */}
             <feColorMatrix
+              data-goo-matrix=''
               in='blur'
-              values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -19'
+              values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0'
               result='goo'
             />
           </filter>
@@ -581,8 +585,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
         </defs>
 
         <g
-          data-goo-group=''
-          filter='none'
+          filter={`url(#${gooId})`}
           fill={`url(#${inkId})`}
           stroke={`url(#${inkId})`}
           strokeWidth={0}
