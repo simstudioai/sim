@@ -6,7 +6,7 @@ date: 2026-09-10
 updated: 2026-09-10
 authors:
   - andrew
-readingTime: 8
+readingTime: 7
 tags: [AI Agents, Coding Agents, Workflow Automation, Sim]
 ogImage: /library/ai-coding-agents-vs-ai-workflow-agents/cover.jpg
 canonical: https://www.sim.ai/library/ai-coding-agents-vs-ai-workflow-agents
@@ -68,7 +68,7 @@ Coding agents usually start inside a development environment. Cursor's [product 
 
 Devin uses a different operating model. [Cognition presents Devin](https://www.cognition.ai/) as an autonomous software engineer that works inside a team's codebase and tools. Evaluators should verify current access, repository permissions, and environment requirements instead of treating a product's launch conditions as a present limit.
 
-The workflow agents compared here use managed services, self-hosted services, or both. Zapier and Make provide web-based automation products through their [pricing](https://zapier.com/pricing) and [product](https://www.make.com/en/product) pages. n8n documents both [n8n Cloud and self-hosted deployment](https://docs.n8n.io/choose-how-to-use-n8n). Sim offers a hosted service and an Apache 2.0 codebase; its [self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers Docker and Kubernetes deployments.
+The workflow agents compared here use managed services, self-hosted services, or both. Zapier and Make provide web-based automation products through their [pricing](https://zapier.com/pricing) and [product](https://www.make.com/en/product) pages. n8n documents both [n8n Cloud and self-hosted deployment](https://docs.n8n.io/choose-how-to-use-n8n). Sim offers a hosted service and an Apache 2.0-licensed core alongside separately licensed enterprise features; its [self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers Docker and Kubernetes deployments.
 
 Fixed setup-time comparisons can mislead because the work varies with repository size, system credentials, and deployment choices. Compare the required starting environment instead. Coding agents need codebase access, while workflow agents need connections to the business systems they will operate. Teams considering deployment tradeoffs can also compare [open-source AI agent frameworks](https://www.sim.ai/library/best-open-source-ai-agent-frameworks).
 
@@ -92,7 +92,7 @@ Each category places oversight at a different stage of execution. Cursor focuses
 
 The categories overlap when an agent crosses the boundary between codebase work and external orchestration. A coding agent may receive work through an issue, modify a repository, and hand the result to another process as a pull request. GitHub Copilot supports this pattern through [cloud agents that work on GitHub issues](https://code.visualstudio.com/docs/copilot/copilot-cloud-agent). Repository events can then trigger testing, review, or deployment workflows.
 
-A workflow agent can include code execution within a process whose final outcome spans other systems. Sim's Function block executes JavaScript, Python, or shell code within a larger graph that can also contain model reasoning and deterministic steps such as conditions or API calls. The code block serves one stage of a cross-system process rather than treating the repository change as the final output.
+A workflow agent can include code execution within a process whose final outcome spans other systems. Sim's Function block executes JavaScript without imports locally, while JavaScript with imports, Python, and shell code require a configured remote sandbox. These modes can run within a larger graph that also contains model reasoning and deterministic steps such as conditions or API calls. The code block serves one stage of a cross-system process rather than treating the repository change as the final output.
 
 The primary completion target still identifies the category. Coding agents usually finish with validated code or a pull request. Workflow agents finish when the broader business process reaches its defined outcome.
 
