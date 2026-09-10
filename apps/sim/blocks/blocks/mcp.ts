@@ -90,6 +90,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
       title: 'Operation',
       type: 'mcp-tool-selector',
       selectorKey: 'mcp.tools',
+      dependsOn: ['server'],
       required: { field: 'operation', value: 'list', not: true },
       placeholder: 'Select an operation',
       description: 'Available tools from the selected MCP server',

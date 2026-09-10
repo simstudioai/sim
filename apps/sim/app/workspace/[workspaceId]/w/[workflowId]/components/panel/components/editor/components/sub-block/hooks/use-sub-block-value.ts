@@ -112,7 +112,6 @@ export function useSubBlockValue<T = any>(
   // Emit the value to socket/DB and update local store
   const emitValue = useCallback(
     (value: T) => {
-      collaborativeSetSubblockValue(blockId, subBlockId, value)
       if (
         blockType === 'mcp' &&
         (subBlockId === 'serverSelector' || subBlockId === 'serverReference')
@@ -127,6 +126,7 @@ export function useSubBlockValue<T = any>(
           }
         }
       }
+      collaborativeSetSubblockValue(blockId, subBlockId, value)
       lastEmittedValueRef.current = value
     },
     [
