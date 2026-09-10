@@ -114,15 +114,13 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
       vi.useRealTimers()
       const ids = createKnowledgeAclFixtureIds()
       seeded.push(ids)
-      await seedKnowledgeAclFixture(ids)
+      await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
       let connectorId = ids.connectorId
-      let connectorType = 'confluence'
       let lease = createContentSyncLease(connectorId, ids.lockId)
       let memberFixture: Awaited<ReturnType<typeof seedKnowledgeMemberFixture>> | undefined
       if (scope === 'member source') {
         memberFixture = await seedKnowledgeMemberFixture(ids)
         connectorId = memberFixture.connectorId
-        connectorType = 'google_drive'
         lease = createMemberSyncLease(connectorId, memberFixture.runId)
       }
       const orgOwned = scope === 'organization Search'
@@ -150,7 +148,7 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
       const file = await addDocument(
         ids.knowledgeBaseId,
         connectorId,
-        connectorType,
+        'google_drive',
         {
           externalId: 'orion-scan',
           title: 'Orion scan.png',

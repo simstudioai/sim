@@ -3,6 +3,7 @@
  */
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -14,7 +15,7 @@ const {
   mockDownloadServableFileFromStorage,
   mockRedis,
   mockVerifyFileAccess,
-  mockResolveKnowledgeAccessScope,
+  mockCreateKnowledgeAccessProvider,
 } = vi.hoisted(() => {
   const mockRedis = {
     get: vi.fn(),
@@ -32,7 +33,7 @@ const {
     mockDownloadServableFileFromStorage: vi.fn(),
     mockRedis,
     mockVerifyFileAccess: vi.fn(),
-    mockResolveKnowledgeAccessScope: vi.fn(),
+    mockCreateKnowledgeAccessProvider: vi.fn(),
   }
 })
 
@@ -60,12 +61,14 @@ vi.mock('@/app/api/files/authorization', () => ({
 }))
 
 vi.mock('@/lib/knowledge/access/scope', () => ({
-  resolveKnowledgeAccessScope: mockResolveKnowledgeAccessScope,
+  createKnowledgeAccessProvider: mockCreateKnowledgeAccessProvider,
 }))
 
 describe('hydrateUserFilesWithBase64', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDownloadFile.mockReset()
+    mockDownloadServableFileFromStorage.mockReset()
     mockGetRedisClient.mockReturnValue(null)
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
@@ -250,45 +253,59 @@ describe('hydrateUserFilesWithBase64', () => {
     expect(hydrated.file).not.toHaveProperty('base64')
   })
 
-  it('reads a knowledge-base file as the principal behind the run', async () => {
-    mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))
-    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-    const scope = { kind: 'user' as const, tokens: ['user:user-1'] }
-    mockResolveKnowledgeAccessScope.mockResolvedValue(scope)
-    const file: UserFile = {
-      id: 'file-1',
-      name: 'shared.txt',
-      key: 'kb/workspace/shared.txt',
-      url: '/api/files/serve/kb/workspace/shared.txt?context=knowledge-base',
-      size: 5,
-      type: 'text/plain',
-      context: 'knowledge-base',
-    }
-
-    const hydrated = await hydrateUserFilesWithBase64(
-      { file },
-      {
-        workspaceId: 'workspace',
-        workflowId: 'workflow',
-        userId: 'user-1',
-        principal,
-        maxBytes: 10,
+  it.each([true, false])(
+    'retains the run principal and knowledge reader when file access is %s',
+    async (allowed) => {
+      mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))
+      const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+      const scope = { kind: 'user' as const, userId: 'user-1', tokens: ['user:user-1'] }
+      const access: KnowledgeAccessProvider = {
+        get: vi.fn().mockResolvedValue(scope),
+        getForConnectors: vi.fn().mockResolvedValue(scope),
+        getForDocuments: vi.fn().mockResolvedValue(scope),
       }
-    )
+      mockCreateKnowledgeAccessProvider.mockReturnValue(access)
+      mockVerifyFileAccess.mockResolvedValue(allowed)
+      const file: UserFile = {
+        id: 'file-1',
+        name: 'shared.txt',
+        key: 'kb/workspace/shared.txt',
+        url: '/api/files/serve/kb/workspace/shared.txt?context=knowledge-base',
+        size: 5,
+        type: 'text/plain',
+        context: 'knowledge-base',
+      }
 
-    expect(hydrated.file.base64).toBe(Buffer.from('hello').toString('base64'))
-    expect(mockResolveKnowledgeAccessScope).toHaveBeenCalledWith(principal, {
-      workspaceId: 'workspace',
-    })
-    expect(mockVerifyFileAccess).toHaveBeenCalledWith(
-      file.key,
-      'user-1',
-      undefined,
-      'knowledge-base',
-      false,
-      { knowledgeAccess: scope }
-    )
-  })
+      const hydrated = await hydrateUserFilesWithBase64(
+        { file },
+        {
+          workspaceId: 'workspace',
+          workflowId: 'workflow',
+          userId: 'user-1',
+          principal,
+          maxBytes: 10,
+        }
+      )
+
+      if (allowed) {
+        expect(hydrated.file.base64).toBe(Buffer.from('hello').toString('base64'))
+      } else {
+        expect(hydrated.file).not.toHaveProperty('base64')
+        expect(mockDownloadFile).not.toHaveBeenCalled()
+      }
+      expect(mockCreateKnowledgeAccessProvider).toHaveBeenCalledWith(principal, {
+        workspaceId: 'workspace',
+      })
+      expect(mockVerifyFileAccess).toHaveBeenCalledWith(
+        file.key,
+        'user-1',
+        undefined,
+        'knowledge-base',
+        false,
+        { knowledgeAccess: access }
+      )
+    }
+  )
 
   it('hydrates prior-execution files when workflow-scoped reads are enabled', async () => {
     mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))

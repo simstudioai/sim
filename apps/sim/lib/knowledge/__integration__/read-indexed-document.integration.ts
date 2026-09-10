@@ -72,7 +72,7 @@ describe('indexed document references', () => {
     const doc = await addDocument(
       ids.knowledgeBaseId,
       ids.connectorId,
-      'confluence',
+      'google_drive',
       {
         externalId,
         mimeType: 'text/plain',
@@ -117,8 +117,8 @@ describe('indexed document references', () => {
     vi.stubGlobal('fetch', async () => {
       throw new Error('Indexed document reads must never fetch provider URLs')
     })
-    await seedKnowledgeAclFixture(ids)
-    await seedKnowledgeAclFixture(other)
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
+    await seedKnowledgeAclFixture(other, { connectorType: 'google_drive' })
     await db
       .update(knowledgeBase)
       .set({ workspaceId: null, organizationId: ids.organizationId, isSearchIndex: true })
@@ -133,11 +133,11 @@ describe('indexed document references', () => {
       .where(inArray(knowledgeExternalGroup.id, ids.groupIds))
     await db
       .insert(organizationSearchIntegration)
-      .values({ organizationId: ids.organizationId, connectorType: 'confluence', approved: true })
+      .values({ organizationId: ids.organizationId, connectorType: 'google_drive', approved: true })
     documentId = await ingest('visible-target')
     hiddenDocumentId = await ingest('hidden-target')
     const sourceAcl = confluencePageAcl({
-      providerId: 'confluence',
+      providerId: 'google-drive',
       tenantId: 'fixture-tenant',
       spacePrincipals: [{ kind: 'group', id: 'space' }],
       restrictionChain: [[{ kind: 'group', id: 'page' }]],

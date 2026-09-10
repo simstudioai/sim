@@ -2,9 +2,10 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CONFLUENCE_READ_ATTEMPT_TIMEOUT_MS,
   CONFLUENCE_READ_CONCURRENCY,
+  CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES,
   CONFLUENCE_READ_RESPONSE_MAX_BYTES,
-  CONFLUENCE_READ_SOURCE_TIMEOUT_MS,
   CONFLUENCE_READ_TIMEOUT_MS,
   resolveConfluenceSiteReadGrants,
 } from '@/lib/knowledge/access/confluence-site'
@@ -256,6 +257,132 @@ describe('current Confluence site access', () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
   })
 
+  it.each(['refresh', 'site request'])(
+    'uses a working same-subject credential while an older %s stalls for all 400 same-site sources',
+    async (stall) => {
+      const rows = Array.from({ length: MAX_KNOWLEDGE_ACCESS_CANDIDATES }, (_, index) => ({
+        ...source,
+        connectorId: `source-${index}`,
+      }))
+      queueTableRows(schemaMock.knowledgeConnector, rows)
+      queueTableRows(schemaMock.credential, [
+        { id: 'old-credential', providerSubjectId: 'alice' },
+        { id: 'working-credential', providerSubjectId: 'alice' },
+      ])
+      queueTableRows(schemaMock.credential, [contentCredential])
+      mocks.token.mockImplementation(async ({ credentialId }: { credentialId: string }) => {
+        if (stall === 'refresh' && credentialId === 'old-credential') return new Promise(() => {})
+        return { accessToken: credentialId }
+      })
+      let stalledSignal: AbortSignal | undefined
+      mocks.fetch.mockImplementation(async (_url: string, options: RequestInit) => {
+        if (new Headers(options.headers).get('Authorization') === 'Bearer old-credential') {
+          stalledSignal = options.signal ?? undefined
+          return new Promise<Response>(() => {})
+        }
+        return Response.json({ accountId: 'alice', type: 'known' })
+      })
+      const grants = await resolveConfluenceSiteReadGrants({
+        ...input,
+        connectorIds: rows.map((row) => row.connectorId),
+        readers: ['old-credential', 'working-credential'].map((credentialId) => ({
+          credentialId,
+          subjectToken: 's:confluence:-:alice',
+        })),
+      })
+      expect(grants).toHaveLength(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      expect(
+        grants.every(
+          (entry) =>
+            entry.readerCredentialId === 'working-credential' && entry.cloudId === 'cloud-1'
+        )
+      ).toBe(true)
+      expect(grants.map((entry) => entry.connectorId)).toContain('source-399')
+      expect(mocks.fetch).toHaveBeenCalledTimes(stall === 'refresh' ? 1 : 2)
+      expect(mocks.token).toHaveBeenCalledTimes(2)
+      if (stall === 'site request') expect(stalledSignal?.aborted).toBe(true)
+    }
+  )
+
+  it('bounds same-subject alternatives without trying unrelated or unlimited credentials', async () => {
+    const credentials = Array.from(
+      { length: CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES + 2 },
+      (_, index) => ({ id: `reader-${index}`, providerSubjectId: 'alice' })
+    )
+    queueTableRows(schemaMock.knowledgeConnector, [source])
+    queueTableRows(schemaMock.credential, credentials)
+    queueTableRows(schemaMock.credential, [contentCredential])
+    mocks.fetch.mockImplementation(async () => new Response(null, { status: 403 }))
+    await expect(
+      resolveConfluenceSiteReadGrants({
+        ...input,
+        connectorIds: [source.connectorId],
+        readers: credentials.map((reader) => ({
+          credentialId: reader.id,
+          subjectToken: 's:confluence:-:alice',
+        })),
+      })
+    ).resolves.toEqual([])
+    expect(mocks.fetch).toHaveBeenCalledTimes(CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES)
+    expect(mocks.token).toHaveBeenCalledTimes(CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES)
+  })
+
+  it('keeps concurrent credential alternatives bounded while later sites still make progress', async () => {
+    const rows = Array.from({ length: 6 }, (_, index) => ({
+      ...source,
+      connectorId: `source-${index}`,
+      contentCredentialId: `crawler-${index}`,
+    }))
+    queueTableRows(schemaMock.knowledgeConnector, rows)
+    queueTableRows(schemaMock.credential, [
+      { id: 'old-credential', providerSubjectId: 'alice' },
+      { id: 'working-credential', providerSubjectId: 'alice' },
+    ])
+    queueTableRows(
+      schemaMock.credential,
+      rows.map((row, index) => ({ id: row.contentCredentialId, key: `cloud-${index}` }))
+    )
+    mocks.decrypt.mockImplementation(async (key: string) => ({
+      decrypted: JSON.stringify({ ...binding, cloudId: key }),
+    }))
+    mocks.token.mockImplementation(async ({ credentialId }: { credentialId: string }) => ({
+      accessToken: credentialId,
+    }))
+    let active = 0
+    let peak = 0
+    mocks.fetch.mockImplementation(async (_url: string, options: RequestInit) => {
+      active += 1
+      peak = Math.max(peak, active)
+      if (new Headers(options.headers).get('Authorization') === 'Bearer old-credential')
+        return new Promise<Response>((_resolve, reject) =>
+          options.signal?.addEventListener(
+            'abort',
+            () => {
+              active -= 1
+              reject(options.signal?.reason)
+            },
+            { once: true }
+          )
+        )
+      await Promise.resolve()
+      active -= 1
+      return Response.json({ accountId: 'alice', type: 'known' })
+    })
+    const grants = await resolveConfluenceSiteReadGrants({
+      ...input,
+      connectorIds: rows.map((row) => row.connectorId),
+      readers: ['old-credential', 'working-credential'].map((credentialId) => ({
+        credentialId,
+        subjectToken: 's:confluence:-:alice',
+      })),
+    })
+    expect(grants).toHaveLength(6)
+    expect(grants.map((entry) => entry.connectorId)).toContain('source-5')
+    expect(grants.every((entry) => entry.readerCredentialId === 'working-credential')).toBe(true)
+    expect(peak).toBeLessThanOrEqual(CONFLUENCE_READ_CONCURRENCY)
+    expect(active).toBe(0)
+  })
+
   it('rejects oversized provider responses', async () => {
     queueSources()
     mocks.fetch.mockResolvedValueOnce(
@@ -271,7 +398,7 @@ describe('current Confluence site access', () => {
       const timers: AbortController[] = []
       vi.spyOn(AbortSignal, 'timeout').mockImplementation((duration) => {
         if (duration === CONFLUENCE_READ_TIMEOUT_MS) return overall.signal
-        expect(duration).toBe(CONFLUENCE_READ_SOURCE_TIMEOUT_MS)
+        expect(duration).toBe(CONFLUENCE_READ_ATTEMPT_TIMEOUT_MS)
         const timer = new AbortController()
         timers.push(timer)
         return timer.signal

@@ -27,8 +27,9 @@ const failedId = generateId()
 const pendingId = generateId()
 const input = { workspaceId: ids.workspaceId, connectorIds: [ids.connectorId] }
 
+/** Drive models the mirrored email grants exercised by these provider-independent progress tests. */
 beforeAll(async () => {
-  await seedKnowledgeAclFixture(ids)
+  await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
   await db
     .update(knowledgeBase)
     .set({ isSearchIndex: true })
@@ -144,7 +145,7 @@ describe('connector document filename search and document sets', () => {
   const scope = { knowledgeBaseId: fixture.knowledgeBaseId, connectorId: fixture.connectorId }
 
   beforeAll(async () => {
-    await seedKnowledgeAclFixture(fixture)
+    await seedKnowledgeAclFixture(fixture, { connectorType: 'google_drive' })
     const rows: Array<Partial<typeof document.$inferInsert> & { id: string; filename: string }> = [
       ...Array.from({ length: 221 }, (_, index) => ({
         id: generateId(),

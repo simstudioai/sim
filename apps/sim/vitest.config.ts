@@ -23,7 +23,13 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'node',
       include: integration ? ['**/*.integration.ts'] : ['**/*.test.{ts,tsx}'],
-      exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
+      exclude: [
+        ...configDefaults.exclude,
+        '**/node_modules/**',
+        '**/dist/**',
+        /** Workspace suites require their dedicated database and realtime setup. */
+        ...(integration ? ['lib/workspaces/__integration__/*.integration.ts'] : []),
+      ],
       setupFiles: integration
         ? ['./lib/knowledge/__integration__/setup.ts']
         : ['./vitest.setup.ts'],

@@ -312,11 +312,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const documentIds = results.map((r) => r.documentId)
     const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access, accessProvider)
+    const readableResults = results.filter((result) => documentMetadataMap[result.documentId])
 
     return NextResponse.json({
       success: true,
       data: {
-        results: results.map((result) => {
+        results: readableResults.map((result) => {
           const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
           const tags: Record<string, string | number | boolean | Date | null> = {}
 
@@ -342,7 +343,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         query: query || '',
         knowledgeBaseIds: accessibleKbIds,
         topK,
-        totalResults: results.length,
+        totalResults: readableResults.length,
       },
     })
   } catch (error) {

@@ -665,40 +665,43 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(refillPredicate).toContain('revoked-source')
   })
 
-  it('refills a denied Confluence site and hydrates the allowed site under its exact reader proof', async () => {
-    getForConnectors.mockResolvedValueOnce(identity).mockResolvedValueOnce({
-      ...identity,
-      confluenceSiteGrants: [
-        {
-          connectorId: 'allowed-site',
-          contentCredentialId: 'crawler',
-          readerCredentialId: 'confluence-reader',
-          readerSubjectToken: 's:confluence:-:alice',
-          domain: 'company.atlassian.net',
-          cloudId: 'cloud-1',
-        },
-      ],
-    })
-    queueTableRows(schemaMock.embedding, [candidate('denied', 'revoked-site')])
-    queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-site')])
-    queueTableRows(schemaMock.embedding, [
-      { id: 'selected', content: 'authorized Confluence page' },
-    ])
-    expect(await handleTagOnlySearch(params)).toEqual([
-      { id: 'selected', content: 'authorized Confluence page' },
-    ])
-    expect(getForConnectors.mock.calls.map(([ids]) => ids)).toEqual([
-      ['revoked-site'],
-      ['allowed-site'],
-    ])
-    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [0]])
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls[2][0])).toContain('revoked-site')
-    const readPredicate = JSON.stringify(dbChainMockFns.where.mock.calls[3][0])
-    expect(readPredicate).toContain('confluence_read_grant')
-    expect(readPredicate).toContain('confluence-reader')
-    expect(readPredicate).toContain('company.atlassian.net')
-  })
+  it.each([undefined, 'confluence'])(
+    'refills a denied Confluence site under its exact reader proof with source filter %s',
+    async (source) => {
+      getForConnectors.mockResolvedValueOnce(identity).mockResolvedValueOnce({
+        ...identity,
+        confluenceSiteGrants: [
+          {
+            connectorId: 'allowed-site',
+            contentCredentialId: 'crawler',
+            readerCredentialId: 'confluence-reader',
+            readerSubjectToken: 's:confluence:-:alice',
+            domain: 'company.atlassian.net',
+            cloudId: 'cloud-1',
+          },
+        ],
+      })
+      queueTableRows(schemaMock.embedding, [candidate('denied', 'revoked-site')])
+      queueTableRows(schemaMock.embedding, [])
+      queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-site')])
+      queueTableRows(schemaMock.embedding, [
+        { id: 'selected', content: 'authorized Confluence page' },
+      ])
+      expect(await handleTagOnlySearch({ ...params, filters: { source } })).toEqual([
+        { id: 'selected', content: 'authorized Confluence page' },
+      ])
+      expect(getForConnectors.mock.calls.map(([ids]) => ids)).toEqual([
+        ['revoked-site'],
+        ['allowed-site'],
+      ])
+      expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [0]])
+      expect(JSON.stringify(dbChainMockFns.where.mock.calls[2][0])).toContain('revoked-site')
+      const readPredicate = JSON.stringify(dbChainMockFns.where.mock.calls[3][0])
+      expect(readPredicate).toContain('confluence_read_grant')
+      expect(readPredicate).toContain('confluence-reader')
+      expect(readPredicate).toContain('company.atlassian.net')
+    }
+  )
   it('retains a completed authorized result when the next candidate page exhausts its deadline', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(10000))

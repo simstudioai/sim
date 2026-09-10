@@ -451,14 +451,14 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
 
   it('isolates owner and reader projections across two calendars and follows empty pages', async () => {
     const rows = await stored()
-    expect(rows).toHaveLength(6)
+    expect(rows).toHaveLength(5)
     const expected = [
       'primary:collision',
       `${SHARED_CALENDAR}:collision`,
       `${SHARED_CALENDAR}:planning`,
     ]
     await assertAccess(alice, expected)
-    await assertAccess(bob, expected)
+    await assertAccess(bob, ['primary:collision', `${SHARED_CALENDAR}:planning`])
     for (const person of people) {
       const pages = requests.filter((request) => request.token === person.accessToken)
       expect(pages.map(({ calendarId, page }) => [calendarId, page])).toEqual([
@@ -479,7 +479,7 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
           rows.map((row) => row.id)
         )
       )
-    expect(observations).toHaveLength(6)
+    expect(observations).toHaveLength(5)
     for (const row of rows) {
       const evidence = observations.filter((observation) => observation.documentId === row.id)
       expect(evidence).toHaveLength(1)
@@ -489,16 +489,10 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
     const own = await content(alice, `${SHARED_CALENDAR}:collision`)
     expect(own).toContain('Confidential renewal terms')
     expect(own).not.toContain('<p>')
-    const reader = await content(bob, `${SHARED_CALENDAR}:collision`)
-    for (const hidden of [
-      'Confidential renewal',
-      'confidential renewal',
-      'organizer@fixture.test',
-      'Provider Attendee',
-      'Private meeting room',
-    ])
-      expect(reader).not.toContain(hidden)
-    expect(reader).toContain('Date:')
+    const reader = await member(bob)
+    expect(
+      rows.some((row) => row.externalId === `member:${reader.id}:${SHARED_CALENDAR}:collision`)
+    ).toBe(false)
     expect(await content(alice, 'primary:collision')).not.toContain('Bob personal notes')
     expect(await content(bob, 'primary:collision')).not.toContain('Alice personal notes')
     const search = await searchKnowledge.execute({
@@ -541,7 +535,7 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
     return chunks.chunks.map((chunk) => chunk.content).join('\n')
   }
 
-  it('replaces a reader projection with provider-redacted free/busy data without an event update', async () => {
+  it('withdraws a reader projection reduced to free/busy data without an event update', async () => {
     const previous = await rowFor(bob, `${SHARED_CALENDAR}:planning`)
     readerRole = 'freeBusyReader'
     listing
@@ -551,14 +545,17 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
         redactedEvent(planningEvent),
       ])
     await sync()
-    const current = await rowFor(bob, `${SHARED_CALENDAR}:planning`)
-    expect(current.id).toBe(previous.id)
-    expect(current.contentHash).not.toBe(previous.contentHash)
-    const redacted = await content(bob, `${SHARED_CALENDAR}:planning`)
-    expect(redacted).not.toContain('Planning roadmap')
-    expect(redacted).not.toContain('Provider Organizer')
-    expect(redacted).not.toContain('Private meeting room')
-    expect(redacted).toContain('Date:')
+    await assertAccess(bob, ['primary:collision'])
+    const withdrawn = await rowFor(bob, `${SHARED_CALENDAR}:planning`)
+    expect(withdrawn.acl).toEqual([])
+    expect(withdrawn.contentHash).toBe(previous.contentHash)
+    expect(withdrawn.deletedAt).not.toBeNull()
+    expect(
+      await db
+        .select()
+        .from(knowledgeDocumentObservation)
+        .where(eq(knowledgeDocumentObservation.documentId, previous.id))
+    ).toEqual([])
     expect(await content(alice, `${SHARED_CALENDAR}:planning`)).toContain('Planning roadmap')
   })
 
@@ -582,7 +579,7 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
       .set(SHARED_CALENDAR, [listing.get(bob.accessToken)!.get(SHARED_CALENDAR)![0], cancelled])
     await sync()
     await assertAccess(alice, [`${SHARED_CALENDAR}:collision`])
-    await assertAccess(bob, ['primary:collision', `${SHARED_CALENDAR}:collision`])
+    await assertAccess(bob, ['primary:collision'])
     expect(await content(alice, `${SHARED_CALENDAR}:collision`)).toContain(
       'Updated confidential renewal'
     )
@@ -596,7 +593,7 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
           rows.map((row) => row.id)
         )
       )
-    expect(observations).toHaveLength(3)
+    expect(observations).toHaveLength(2)
   })
 
   it('withdraws a lost shared calendar while preserving the member primary calendar', async () => {
@@ -652,6 +649,6 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
         .select()
         .from(document)
         .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
-    ).toHaveLength(6)
+    ).toHaveLength(5)
   })
 })

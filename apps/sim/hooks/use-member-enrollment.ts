@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
-import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import {
   CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES,
   credentialGroupOAuthCompletionChannel,
@@ -133,7 +137,12 @@ export function useMemberEnrollment({
   const oauthPopups = useRef(
     new Map<
       string,
-      { channel: BroadcastChannel; timer: ReturnType<typeof setTimeout>; connectorId?: string }
+      {
+        channel: BroadcastChannel
+        timer: ReturnType<typeof setTimeout>
+        attemptKey: string
+        connectorId?: string
+      }
     >()
   )
   const queryClient = useQueryClient()
@@ -152,9 +161,9 @@ export function useMemberEnrollment({
     void queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
   }, [membershipQueryKeys, queryClient])
 
-  const finishOAuth = (completionId: string, error: string | null) => {
+  const clearOAuth = (completionId: string) => {
     const popup = oauthPopups.current.get(completionId)
-    if (!popup) return
+    if (!popup) return false
     clearTimeout(popup.timer)
     popup.channel.close()
     oauthPopups.current.delete(completionId)
@@ -162,6 +171,11 @@ export function useMemberEnrollment({
       (current) =>
         new Map([...current].filter(([, entry]) => entry.oauthCompletionId !== completionId))
     )
+    return true
+  }
+
+  const finishOAuth = (completionId: string, error: string | null) => {
+    if (!clearOAuth(completionId)) return
     setOAuthError(error)
     if (error) onConnectionError?.(error)
     refreshMemberships()
@@ -212,10 +226,11 @@ export function useMemberEnrollment({
 
   /** Opens the tab inside the click, then sends it wherever `start` mints. */
   const openEnrollment = (
+    attemptKey: string,
     start: (handlers: {
       oauthCompletionId?: string
       onSuccess: (url: string, connectorId: string, connectorType?: string) => boolean
-      onError: () => void
+      onError: () => boolean
     }) => void
   ) => {
     const tab = window.open('about:blank', '_blank')
@@ -229,6 +244,14 @@ export function useMemberEnrollment({
     setOAuthError(null)
     const oauthCompletionId = directOAuth ? generateId() : undefined
     if (oauthCompletionId) {
+      for (const [previousId, previous] of oauthPopups.current) {
+        if (
+          previous.attemptKey === attemptKey ||
+          (previous.connectorId && `connector:${previous.connectorId}` === attemptKey)
+        ) {
+          clearOAuth(previousId)
+        }
+      }
       const channel = new BroadcastChannel(credentialGroupOAuthCompletionChannel(oauthCompletionId))
       channel.onmessage = ({ data }: MessageEvent<unknown>) => {
         if (data === 'connected') finishOAuth(oauthCompletionId, null)
@@ -238,7 +261,7 @@ export function useMemberEnrollment({
       const timer = setTimeout(() => {
         finishOAuth(oauthCompletionId, CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES.expired)
       }, AWAITING_CONNECTION_TIMEOUT_MS)
-      oauthPopups.current.set(oauthCompletionId, { channel, timer })
+      oauthPopups.current.set(oauthCompletionId, { channel, timer, attemptKey })
     }
     start({
       ...(oauthCompletionId ? { oauthCompletionId } : {}),
@@ -250,11 +273,26 @@ export function useMemberEnrollment({
         }
         if (oauthCompletionId) {
           const popup = oauthPopups.current.get(oauthCompletionId)!
+          const connectorAttemptKey = `connector:${connectorId}`
+          const latestAttempt = [...oauthPopups.current]
+            .reverse()
+            .find(
+              ([id, entry]) =>
+                id === oauthCompletionId ||
+                entry.connectorId === connectorId ||
+                entry.attemptKey === connectorAttemptKey
+            )
+          if (latestAttempt?.[0] !== oauthCompletionId) {
+            clearOAuth(oauthCompletionId)
+            return false
+          }
           for (const [previousId, previous] of oauthPopups.current) {
-            if (previousId === oauthCompletionId || previous.connectorId !== connectorId) continue
-            clearTimeout(previous.timer)
-            previous.channel.close()
-            oauthPopups.current.delete(previousId)
+            if (
+              previousId === oauthCompletionId ||
+              (previous.connectorId !== connectorId && previous.attemptKey !== connectorAttemptKey)
+            )
+              continue
+            clearOAuth(previousId)
           }
           popup.connectorId = connectorId
         }
@@ -270,20 +308,22 @@ export function useMemberEnrollment({
         return true
       },
       onError: () => {
+        const active = !oauthCompletionId || oauthPopups.current.has(oauthCompletionId)
         if (oauthCompletionId) finishOAuth(oauthCompletionId, null)
         tab.close()
+        return active
       },
     })
   }
 
   const connect = (knowledgeBaseId: string, connectorId: string) =>
-    openEnrollment(({ onSuccess, onError, oauthCompletionId }) => {
+    openEnrollment(`connector:${connectorId}`, ({ onSuccess, onError, oauthCompletionId }) => {
       enrollment.mutate(
         { knowledgeBaseId, connectorId, ...(oauthCompletionId ? { oauthCompletionId } : {}) },
         {
           onSuccess: ({ url }) => onSuccess(url, connectorId),
           onError: (err) => {
-            onError()
+            if (!onError()) return
             onConnectionError?.(err.message)
             logger.error('Failed to start member enrollment', { error: err.message })
           },
@@ -300,27 +340,36 @@ export function useMemberEnrollment({
     owner: string | ResourceScope,
     connectorType: string,
     sourceConfig?: Record<string, string>
-  ) =>
-    openEnrollment(({ onSuccess, onError, oauthCompletionId }) => {
-      sourceConnection.mutate(
-        {
-          ...(typeof owner === 'string' ? { workspaceId: owner } : resourceScopeFields(owner)),
-          connectorType,
-          sourceConfig,
-          ...(oauthCompletionId ? { oauthCompletionId } : {}),
-        },
-        {
-          onSuccess: ({ url, connectorId }) => {
-            if (onSuccess(url, connectorId, connectorType)) setSetupConnector(null)
+  ) => {
+    const scope =
+      typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+    const configKey = JSON.stringify(
+      Object.entries(sourceConfig ?? {}).sort(([left], [right]) => left.localeCompare(right))
+    )
+    openEnrollment(
+      `source:${resourceScopeKey(scope)}:${connectorType}:${configKey}`,
+      ({ onSuccess, onError, oauthCompletionId }) => {
+        sourceConnection.mutate(
+          {
+            ...resourceScopeFields(scope),
+            connectorType,
+            sourceConfig,
+            ...(oauthCompletionId ? { oauthCompletionId } : {}),
           },
-          onError: (err) => {
-            onError()
-            onConnectionError?.(err.message)
-            logger.error('Failed to connect a Sim Search source', { error: err.message })
-          },
-        }
-      )
-    })
+          {
+            onSuccess: ({ url, connectorId }) => {
+              if (onSuccess(url, connectorId, connectorType)) setSetupConnector(null)
+            },
+            onError: (err) => {
+              if (!onError()) return
+              onConnectionError?.(err.message)
+              logger.error('Failed to connect a Sim Search source', { error: err.message })
+            },
+          }
+        )
+      }
+    )
+  }
 
   const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
 

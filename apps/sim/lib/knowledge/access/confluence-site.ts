@@ -22,7 +22,9 @@ import {
 const logger = createLogger('ConfluenceSiteReadAccess')
 export const CONFLUENCE_READ_CONCURRENCY = 4
 export const CONFLUENCE_READ_TIMEOUT_MS = 8000
-export const CONFLUENCE_READ_SOURCE_TIMEOUT_MS = 4000
+export const CONFLUENCE_READ_ATTEMPT_TIMEOUT_MS = 4000
+export const CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES = 4
+const CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY = 2
 export const CONFLUENCE_READ_RESPONSE_MAX_BYTES = 64 * 1024
 const SITE_BINDING_MAX_BYTES = 32 * 1024
 
@@ -40,6 +42,24 @@ interface ConfluenceReadSource {
 interface SiteBinding {
   cloudId: string
   domain: string
+}
+
+interface BoundConfluenceSource {
+  connectorId: string
+  contentCredentialId: string
+  domain: string
+  cloudId: string
+}
+
+interface ConfluenceReaderIdentity {
+  accountId: string
+  subjectToken: string
+  credentialIds: string[]
+}
+
+interface ConfirmedConfluenceReader {
+  credentialId: string
+  subjectToken: string
 }
 
 /** A pending token refresh must not hold the caller after its authorization deadline. */
@@ -100,7 +120,10 @@ async function verifySite(
  * Checks only candidate central sources with credentials already bound to the current reader.
  * Site identity comes from the scoped indexing credential, but its token never authenticates
  * a reader. Sources, readers, provider proofs, and returned grants each have a 400-row cap.
- * Pairs are processed lazily; proofs and token reuse last only for this admission.
+ * Sources share proofs by site and Atlassian subject, with bounded concurrent credential
+ * alternatives. A subject tries at most four credentials; an admission issues at most 400
+ * site requests. Additional site/subject combinations fail closed when those budgets or the
+ * deadline are exhausted. Proofs and token reuse last only for this admission.
  */
 export async function resolveConfluenceSiteReadGrants(input: {
   scope: ResourceScope
@@ -178,93 +201,166 @@ export async function resolveConfluenceSiteReadGrants(input: {
       )
     )
     .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
-  const contentById = new Map(credentials.map((entry) => [entry.id, entry]))
   const timeout = AbortSignal.timeout(CONFLUENCE_READ_TIMEOUT_MS)
   const admissionSignal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout
-  const sourceSignals = new Map<string, AbortSignal>()
-  const bindings = new Map<string, Promise<SiteBinding>>()
-  const tokens = new Map<string, Promise<string>>()
-  const proofs = new Map<string, Promise<boolean>>()
-  const grants = new Map<string, ConfluenceSiteReadGrant>()
-  const warnedSources = new Set<string>()
-  let nextPair = 0
-  const pairCount = sources.length * readerCredentials.length
-  const worker = async () => {
-    while (
-      nextPair < pairCount &&
-      grants.size < MAX_KNOWLEDGE_ACCESS_CANDIDATES &&
-      !admissionSignal.aborted
-    ) {
-      const pair = nextPair++
-      const source = sources[pair % sources.length]
-      const reader = readerCredentials[Math.floor(pair / sources.length)]
-      if (!source.domain || source.domain.length > 255 || !reader.providerSubjectId) continue
-      const content = source.contentCredentialId
-        ? contentById.get(source.contentCredentialId)
-        : undefined
-      if (!content?.key) continue
-      let signal = sourceSignals.get(source.connectorId)
-      if (!signal) {
-        signal = AbortSignal.any([
-          admissionSignal,
-          AbortSignal.timeout(CONFLUENCE_READ_SOURCE_TIMEOUT_MS),
-        ])
-        sourceSignals.set(source.connectorId, signal)
+  const bindings = new Map<string, SiteBinding>()
+  for (const content of credentials) {
+    if (!content.key || admissionSignal.aborted) continue
+    try {
+      bindings.set(content.id, await withinAdmission(readSiteBinding(content.key), admissionSignal))
+    } catch {
+      logger.warn('Confluence Search site binding is unavailable', { credentialId: content.id })
+    }
+  }
+  const boundSources: BoundConfluenceSource[] = []
+  const sites = new Map<string, SiteBinding>()
+  for (const source of sources) {
+    if (!source.contentCredentialId || !source.domain || source.domain.length > 255) continue
+    const binding = bindings.get(source.contentCredentialId)
+    if (
+      !binding ||
+      normalizeAtlassianSiteUrl(binding.domain) !== normalizeAtlassianSiteUrl(source.domain)
+    )
+      continue
+    sites.set(binding.cloudId, binding)
+    boundSources.push({
+      connectorId: source.connectorId,
+      contentCredentialId: source.contentCredentialId,
+      domain: source.domain,
+      cloudId: binding.cloudId,
+    })
+  }
+  const identities = new Map<string, ConfluenceReaderIdentity>()
+  for (const reader of readerCredentials) {
+    if (!reader.providerSubjectId) continue
+    try {
+      const subjectToken = confluenceSubjectToken(reader.providerSubjectId)
+      if (readers.get(reader.id) !== subjectToken) continue
+      let identity = identities.get(subjectToken)
+      if (!identity) {
+        identity = { accountId: reader.providerSubjectId, subjectToken, credentialIds: [] }
+        identities.set(subjectToken, identity)
       }
-      if (signal.aborted) continue
+      if (identity.credentialIds.length < CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES)
+        identity.credentialIds.push(reader.id)
+    } catch {
+      logger.warn('Confluence Search reader identity is unavailable', { credentialId: reader.id })
+    }
+  }
+  const siteList = [...sites.values()]
+  const identityList = [...identities.values()]
+  const proofCount = Math.min(
+    MAX_KNOWLEDGE_ACCESS_CANDIDATES,
+    siteList.length * identityList.length
+  )
+  const tokens = new Map<string, Promise<string>>()
+  const confirmed = new Map<string, ConfirmedConfluenceReader[]>()
+  let requests = 0
+  let nextProof = 0
+  const attempt = async (
+    binding: SiteBinding,
+    identity: ConfluenceReaderIdentity,
+    credentialId: string,
+    cancellation: AbortSignal
+  ): Promise<ConfirmedConfluenceReader> => {
+    const signal = AbortSignal.any([
+      admissionSignal,
+      cancellation,
+      AbortSignal.timeout(CONFLUENCE_READ_ATTEMPT_TIMEOUT_MS),
+    ])
+    signal.throwIfAborted()
+    let token = tokens.get(credentialId)
+    if (!token) {
+      const tokenSignal = AbortSignal.any([
+        admissionSignal,
+        AbortSignal.timeout(CONFLUENCE_READ_ATTEMPT_TIMEOUT_MS),
+      ])
+      token = withinAdmission(
+        resolveManagedOAuthToken({
+          credentialId,
+          ...resourceScopeFields(input.scope),
+          expectedProviderId: 'confluence',
+          requiredScopes: ['read:confluence-user'],
+        }).then(({ accessToken }) => accessToken),
+        tokenSignal
+      )
+      tokens.set(credentialId, token)
+    }
+    const accessToken = await withinAdmission(token, signal)
+    signal.throwIfAborted()
+    if (requests >= MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      throw new Error('Confluence read verification budget exhausted')
+    requests += 1
+    if (
+      !(await withinAdmission(verifySite(binding, identity.accountId, accessToken, signal), signal))
+    )
+      throw new Error('Confluence did not confirm current site access')
+    return { credentialId, subjectToken: identity.subjectToken }
+  }
+  const verifyIdentity = async (binding: SiteBinding, identity: ConfluenceReaderIdentity) => {
+    for (
+      let offset = 0;
+      offset < identity.credentialIds.length && !admissionSignal.aborted;
+      offset += CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY
+    ) {
+      const cancellation = new AbortController()
       try {
-        const subjectToken = confluenceSubjectToken(reader.providerSubjectId)
-        if (readers.get(reader.id) !== subjectToken) continue
-        let bindingPromise = bindings.get(content.id)
-        if (!bindingPromise) {
-          bindingPromise = readSiteBinding(content.key)
-          bindings.set(content.id, bindingPromise)
-        }
-        const binding = await withinAdmission(bindingPromise, signal)
-        if (normalizeAtlassianSiteUrl(binding.domain) !== normalizeAtlassianSiteUrl(source.domain))
-          continue
-        signal.throwIfAborted()
-        let token = tokens.get(reader.id)
-        if (!token) {
-          token = resolveManagedOAuthToken({
-            credentialId: reader.id,
-            ...resourceScopeFields(input.scope),
-            expectedProviderId: 'confluence',
-            requiredScopes: ['read:confluence-user'],
-          }).then(({ accessToken }) => accessToken)
-          tokens.set(reader.id, token)
-        }
-        const accessToken = await withinAdmission(token, signal)
-        signal.throwIfAborted()
-        const key = JSON.stringify([binding.cloudId, reader.id, subjectToken])
-        let proof = proofs.get(key)
-        if (!proof) {
-          if (proofs.size >= MAX_KNOWLEDGE_ACCESS_CANDIDATES) continue
-          proof = verifySite(binding, reader.providerSubjectId, accessToken, signal)
-          proofs.set(key, proof)
-        }
-        if ((await withinAdmission(proof, signal)) && grants.size < MAX_KNOWLEDGE_ACCESS_CANDIDATES)
-          grants.set(JSON.stringify([source.connectorId, reader.id]), {
-            connectorId: source.connectorId,
-            contentCredentialId: content.id,
-            readerCredentialId: reader.id,
-            readerSubjectToken: subjectToken,
-            domain: source.domain,
-            cloudId: binding.cloudId,
-          })
+        return await Promise.any(
+          identity.credentialIds
+            .slice(offset, offset + CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY)
+            .map((credentialId) => attempt(binding, identity, credentialId, cancellation.signal))
+        )
       } catch {
-        if (!warnedSources.has(source.connectorId)) {
-          warnedSources.add(source.connectorId)
-          logger.warn('Confluence did not confirm current Search access', {
-            connectorId: source.connectorId,
-          })
-        }
+        if (requests >= MAX_KNOWLEDGE_ACCESS_CANDIDATES) return undefined
+      } finally {
+        cancellation.abort()
+      }
+    }
+    return undefined
+  }
+  const worker = async () => {
+    while (nextProof < proofCount && !admissionSignal.aborted) {
+      const index = nextProof++
+      const siteIndex = index % siteList.length
+      /** Rotate subjects across sites before revisiting either dimension under the proof budget. */
+      const identityIndex = (Math.floor(index / siteList.length) + siteIndex) % identityList.length
+      const binding = siteList[siteIndex]
+      const reader = await verifyIdentity(binding, identityList[identityIndex])
+      if (reader) {
+        const siteReaders = confirmed.get(binding.cloudId) ?? []
+        siteReaders.push(reader)
+        confirmed.set(binding.cloudId, siteReaders)
       }
     }
   }
   await Promise.all(
-    Array.from({ length: Math.min(CONFLUENCE_READ_CONCURRENCY, sources.length) }, worker)
+    Array.from(
+      {
+        length: Math.min(
+          proofCount,
+          CONFLUENCE_READ_CONCURRENCY / CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY
+        ),
+      },
+      worker
+    )
   )
   input.signal?.throwIfAborted()
-  return [...grants.values()]
+  const grants: ConfluenceSiteReadGrant[] = []
+  for (
+    let round = 0;
+    round < identityList.length && grants.length < MAX_KNOWLEDGE_ACCESS_CANDIDATES;
+    round++
+  ) {
+    for (const source of boundSources) {
+      const reader = confirmed.get(source.cloudId)?.[round]
+      if (!reader) continue
+      grants.push({
+        ...source,
+        readerCredentialId: reader.credentialId,
+        readerSubjectToken: reader.subjectToken,
+      })
+      if (grants.length === MAX_KNOWLEDGE_ACCESS_CANDIDATES) break
+    }
+  }
+  return grants
 }

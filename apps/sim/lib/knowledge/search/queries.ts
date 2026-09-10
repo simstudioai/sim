@@ -485,7 +485,9 @@ async function selectAuthorizedSearchResults(input: {
     scanned += candidates.length
     /** Candidate and hydration queries enforce this source filter; connector types are immutable. */
     const connectorIds =
-      input.filters?.source && input.filters.source !== 'github'
+      input.filters?.source &&
+      input.filters.source !== 'github' &&
+      input.filters.source !== 'confluence'
         ? []
         : [
             ...new Set(

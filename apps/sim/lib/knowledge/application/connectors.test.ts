@@ -1283,8 +1283,6 @@ describe('members-mode connector creation', () => {
 
   it('refuses members mode to a member below admin', async () => {
     mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveWorkspace.mockResolvedValue(crossWorkspaceContext)
-    mocks.viewerMemberships.mockResolvedValue(new Map())
 
     await expect(
       createKnowledgeConnector.execute({ principal: sessionPrincipal, input: membersInput })

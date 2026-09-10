@@ -211,6 +211,201 @@ describe('useMemberEnrollment', () => {
     )
   })
 
+  it.each([
+    ['existing', 'account_mismatch'],
+    ['existing', 'denied'],
+    ['existing', 'expired'],
+    ['new', 'account_mismatch'],
+    ['new', 'denied'],
+    ['new', 'expired'],
+  ] as const)(
+    'ignores the previous %s source’s %s while its retry request is pending',
+    (source, failure) => {
+      mount(new Set(), true, mocks.connectionError)
+      const mutation = source === 'existing' ? mocks.enrollmentMutate : mocks.sourceConnectionMutate
+      const connect = () => {
+        if (source === 'existing') enrollment().connect('kb-1', 'connector-1')
+        else enrollment().connectSource('workspace-1', 'jira', { projectKey: 'ENG' })
+      }
+      act(connect)
+      act(() =>
+        mutation.mock.calls[0][1].onSuccess({
+          url: 'https://provider.test/previous',
+          connectorId: 'connector-1',
+        })
+      )
+      act(() => vi.advanceTimersByTime(9 * 60_000))
+      act(connect)
+      if (failure !== 'expired') {
+        act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: failure })))
+      }
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(mocks.connectionError).not.toHaveBeenCalled()
+      expect(enrollment().error).toBeNull()
+      act(() =>
+        mutation.mock.calls[1][1].onSuccess({
+          url: 'https://provider.test/retry',
+          connectorId: 'connector-1',
+        })
+      )
+      expect(enrollment().isAwaiting('connector-1')).toBe(true)
+      expect(mocks.channels[1].close).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['existing', 'success'],
+    ['existing', 'failure'],
+    ['new', 'success'],
+    ['new', 'failure'],
+  ] as const)('ignores a superseded %s source request’s late %s', (source, outcome) => {
+    mount(new Set(), true, mocks.connectionError)
+    const mutation = source === 'existing' ? mocks.enrollmentMutate : mocks.sourceConnectionMutate
+    const retryTab = { location: { href: '' }, closed: false, close: vi.fn() }
+    vi.mocked(window.open)
+      .mockReturnValueOnce(enrollmentTab as unknown as Window)
+      .mockReturnValueOnce(retryTab as unknown as Window)
+    for (let index = 0; index < 2; index += 1) {
+      act(() => {
+        if (source === 'existing') enrollment().connect('kb-1', 'connector-1')
+        else enrollment().connectSource('workspace-1', 'jira', { projectKey: 'ENG' })
+      })
+    }
+    act(() =>
+      mutation.mock.calls[1][1].onSuccess({
+        url: 'https://provider.test/retry',
+        connectorId: 'connector-1',
+      })
+    )
+    act(() => {
+      if (outcome === 'failure') {
+        mutation.mock.calls[0][1].onError(new Error('Previous request failed'))
+      } else {
+        mutation.mock.calls[0][1].onSuccess({
+          url: 'https://provider.test/previous',
+          connectorId: 'connector-1',
+        })
+      }
+    })
+    expect(enrollmentTab.location.href).toBe('')
+    expect(retryTab.location.href).toBe('https://provider.test/retry')
+    expect(retryTab.close).not.toHaveBeenCalled()
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(mocks.channels[1].close).not.toHaveBeenCalled()
+    expect(mocks.connectionError).not.toHaveBeenCalled()
+    expect(enrollment().error).toBeNull()
+  })
+
+  it('retires a first-source authorization when retrying its resolved connector', () => {
+    mount(new Set(), true, mocks.connectionError)
+    act(() => enrollment().connectSource('workspace-1', 'jira', { projectKey: 'ENG' }))
+    act(() =>
+      mocks.sourceConnectionMutate.mock.calls[0][1].onSuccess({
+        url: 'https://provider.test/previous',
+        connectorId: 'connector-1',
+      })
+    )
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'denied' })))
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+    expect(mocks.connectionError).not.toHaveBeenCalled()
+  })
+
+  it('does not let a delayed first-source response replace its newer connector authorization', () => {
+    mount(new Set(), true, mocks.connectionError)
+    act(() => enrollment().connectSource('workspace-1', 'jira', { projectKey: 'ENG' }))
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({ url: 'https://provider.test/retry' })
+    )
+    act(() =>
+      mocks.sourceConnectionMutate.mock.calls[0][1].onSuccess({
+        url: 'https://provider.test/previous',
+        connectorId: 'connector-1',
+      })
+    )
+    expect(enrollmentTab.location.href).toBe('https://provider.test/retry')
+    expect(mocks.channels[1].close).not.toHaveBeenCalled()
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+  })
+
+  it('ignores first-source success while a newer request for its connector is still pending', () => {
+    mount(new Set(), true, mocks.connectionError)
+    const retryTab = { location: { href: '' }, closed: false, close: vi.fn() }
+    vi.mocked(window.open)
+      .mockReturnValueOnce(enrollmentTab as unknown as Window)
+      .mockReturnValueOnce(retryTab as unknown as Window)
+    act(() => enrollment().connectSource('workspace-1', 'jira', { projectKey: 'ENG' }))
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.sourceConnectionMutate.mock.calls[0][1].onSuccess({
+        url: 'https://provider.test/previous',
+        connectorId: 'connector-1',
+      })
+    )
+    expect(enrollmentTab.location.href).toBe('')
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+    act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'denied' })))
+    expect(mocks.connectionError).not.toHaveBeenCalled()
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({ url: 'https://provider.test/retry' })
+    )
+    expect(retryTab.location.href).toBe('https://provider.test/retry')
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(mocks.channels[1].close).not.toHaveBeenCalled()
+  })
+
+  it('retires a pending connector request when a newer first-source request resolves to it', () => {
+    mount(new Set(), true, mocks.connectionError)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() => enrollment().connectSource('workspace-1', 'jira', { projectKey: 'ENG' }))
+    act(() =>
+      mocks.sourceConnectionMutate.mock.calls[0][1].onSuccess({
+        url: 'https://provider.test/retry',
+        connectorId: 'connector-1',
+      })
+    )
+    act(() => mocks.enrollmentMutate.mock.calls[0][1].onError(new Error('Previous request failed')))
+    expect(mocks.connectionError).not.toHaveBeenCalled()
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+    expect(mocks.channels[1].close).not.toHaveBeenCalled()
+  })
+
+  it('keeps the previous authorization active when the retry popup is blocked', () => {
+    mount(new Set(), true, mocks.connectionError)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({ url: 'https://provider.test/previous' })
+    )
+    vi.mocked(window.open).mockReturnValueOnce(null)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    expect(mocks.channels[0].close).not.toHaveBeenCalled()
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(mocks.enrollmentMutate).toHaveBeenCalledOnce()
+  })
+
+  it('keeps pending source requests with different scopes or configurations independent', () => {
+    mount(new Set(), true, mocks.connectionError)
+    for (const [owner, projectKey] of [
+      ['workspace-1', 'ENG'],
+      ['workspace-1', 'SUPPORT'],
+      ['workspace-2', 'ENG'],
+    ]) {
+      act(() => enrollment().connectSource(owner, 'jira', { projectKey }))
+    }
+    for (let index = 0; index < 3; index += 1) {
+      act(() =>
+        mocks.sourceConnectionMutate.mock.calls[index][1].onSuccess({
+          url: `https://provider.test/attempt-${index}`,
+          connectorId: `connector-${index}`,
+        })
+      )
+      expect(enrollment().isAwaiting(`connector-${index}`)).toBe(true)
+      expect(mocks.channels[index].close).not.toHaveBeenCalled()
+    }
+  })
+
   it('reports a blocked popup once without starting a connection', () => {
     mount(new Set(), true, mocks.connectionError)
     vi.mocked(window.open).mockReturnValueOnce(null)
