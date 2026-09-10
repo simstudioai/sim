@@ -83,20 +83,24 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     requestsPerMinute
   )
   const reservations: TokenBucketReservation[] = []
+  /** A lane bucket always holds at least one valid reservation, so a tiny budget cannot lock the lane. */
   const reserveBuckets = (bucketKey: string, share: number) => {
     if (tokenBudget) {
-      const maxTokens = Math.floor(tokenBudget.perMinute * share)
       reservations.push({
         key: `${bucketKey}:tokens`,
         cost: tokenBudget.cost,
-        config: { maxTokens, refillRate: maxTokens / 60, refillIntervalMs: 1000 },
+        config: {
+          maxTokens: Math.max(tokenBudget.cost, Math.floor(tokenBudget.perMinute * share)),
+          refillRate: (tokenBudget.perMinute * share) / 60,
+          refillIntervalMs: 1000,
+        },
       })
     }
     reservations.push({
       key: `${bucketKey}:requests`,
       cost: 1,
       config: {
-        maxTokens: Math.floor(requestBurst * share),
+        maxTokens: Math.max(1, Math.floor(requestBurst * share)),
         refillRate: (requestsPerMinute * share) / 60,
         refillIntervalMs: 1000,
       },

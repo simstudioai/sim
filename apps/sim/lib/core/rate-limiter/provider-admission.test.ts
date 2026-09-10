@@ -3,10 +3,16 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { consumeTokens, getCooldownUntil, setCooldownUntil } = vi.hoisted(() => ({
+const { consumeTokens, getCooldownUntil, setCooldownUntil, mockEnv } = vi.hoisted(() => ({
   consumeTokens: vi.fn(),
   getCooldownUntil: vi.fn(),
   setCooldownUntil: vi.fn(),
+  mockEnv: {} as Record<string, string | undefined>,
+}))
+vi.mock('@/lib/core/config/env', () => ({
+  env: mockEnv,
+  envNumber: (value: string | undefined, fallback: number) =>
+    value === undefined ? fallback : Number(value),
 }))
 vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
   createStorageAdapter: () => ({
@@ -116,6 +122,26 @@ describe('provider admission', () => {
       'provider:embedding:openai:hashed-credential:requests',
     ])
     expect(interactiveOptions.cooldownKeys).toEqual(bulkOptions.cooldownKeys)
+  })
+
+  it('never shrinks a bulk bucket below one valid reservation', async () => {
+    mockEnv.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE = '1'
+    mockEnv.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE = '100'
+    try {
+      await waitForProviderAdmission({ ...INPUT, inputTokens: 95, lane: 'bulk' })
+    } finally {
+      mockEnv.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE = undefined
+      mockEnv.KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE = undefined
+    }
+    expect(consumeTokens.mock.calls[0][0]).toMatchObject([
+      { key: 'provider:embedding:openai:hashed-credential:tokens', config: { maxTokens: 100 } },
+      { key: 'provider:embedding:openai:hashed-credential:requests', config: { maxTokens: 1 } },
+      { key: 'provider:embedding:openai:hashed-credential:bulk:tokens', config: { maxTokens: 95 } },
+      {
+        key: 'provider:embedding:openai:hashed-credential:bulk:requests',
+        config: { maxTokens: 1 },
+      },
+    ])
   })
 
   it('isolates another credential and does not impose token costs on OCR', async () => {
