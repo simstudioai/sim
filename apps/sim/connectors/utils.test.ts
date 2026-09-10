@@ -1498,17 +1498,13 @@ describe('htmlToPlainText entity decoding', () => {
 
 describe('isIndexableConnectorFile', () => {
   it('accepts the Office and PDF formats the knowledge base can parse', () => {
-    for (const name of [
-      'sop.pdf',
-      'sop.doc',
-      'sop.docx',
-      'sheet.xls',
-      'sheet.xlsx',
-      'deck.ppt',
-      'deck.pptx',
-    ]) {
+    for (const name of ['sop.pdf', 'sop.doc', 'sop.docx', 'sheet.xls', 'sheet.xlsx', 'deck.pptx']) {
       expect(isIndexableConnectorFile(name)).toBe(true)
     }
+  })
+
+  it('refuses legacy .ppt up front because no parser reads it', () => {
+    expect(isIndexableConnectorFile('deck.ppt')).toBe(false)
   })
 
   it('still accepts the plain-text formats connectors already synced', () => {
@@ -1577,6 +1573,30 @@ describe('extractConnectorText', () => {
 
   it('leaves whitespace-only content alone for the caller to reject', () => {
     expect(extractConnectorText(Buffer.from('   '), 'blank.txt')).toBe('   ')
+  })
+
+  it('decodes a Latin-1 file as Windows-1252 instead of indexing mojibake', () => {
+    expect(extractConnectorText(Buffer.from('Caf\xe9 \xa3 42', 'latin1'), 'notes.txt')).toBe(
+      'Café £ 42'
+    )
+  })
+
+  it('strips a UTF-8 BOM', () => {
+    expect(
+      extractConnectorText(
+        Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('a,b')]),
+        'data.csv'
+      )
+    ).toBe('a,b')
+  })
+
+  it('decodes UTF-16 with a BOM', () => {
+    expect(
+      extractConnectorText(
+        Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('<p>Hällo</p>', 'utf16le')]),
+        'page.html'
+      )
+    ).toBe('Hällo')
   })
 })
 

@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
@@ -435,7 +436,7 @@ function fileToDocument(
     return skipped(sizeLimitSkipReason(MAX_FILE_SIZE), buffer.byteLength)
   }
 
-  const content = buffer.toString('utf8')
+  const content = decodeTextBuffer(buffer).text
   const body = composeBody(title, content)
   if (!body.trim()) return null
 

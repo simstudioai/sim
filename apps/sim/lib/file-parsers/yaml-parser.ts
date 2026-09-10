@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import * as yaml from 'js-yaml'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
+import { type DecodedText, decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { measureYamlExpansion, type YamlExpansionLimits } from '@/lib/file-parsers/yaml-limits'
 
 /**
@@ -52,7 +53,11 @@ export function assertYamlWithinLimits(root: unknown): number {
  * Parse a YAML value into the shared `FileParseResult` shape after validating
  * that its expanded form stays within safe complexity limits.
  */
-function buildYamlResult(yamlData: unknown): FileParseResult {
+function buildYamlResult(
+  yamlData: unknown,
+  decoded: DecodedText,
+  documentCount: number
+): FileParseResult {
   if (yamlData === undefined) {
     throw new FileParserError('empty_input', 'Empty YAML input provided')
   }
@@ -66,6 +71,9 @@ function buildYamlResult(yamlData: unknown): FileParseResult {
     keys: Array.isArray(yamlData) ? [] : Object.keys((yamlData as Record<string, unknown>) || {}),
     itemCount: Array.isArray(yamlData) ? yamlData.length : undefined,
     depth,
+    documentCount,
+    encoding: decoded.encoding,
+    ...(decoded.warning ? { warning: decoded.warning } : {}),
   }
 
   return {
@@ -79,19 +87,7 @@ function buildYamlResult(yamlData: unknown): FileParseResult {
  */
 export async function parseYAML(filePath: string): Promise<FileParseResult> {
   const fs = await import('fs/promises')
-  const content = await fs.readFile(filePath, 'utf-8')
-
-  try {
-    const yamlData = yaml.load(content)
-    return buildYamlResult(yamlData)
-  } catch (error) {
-    if (error instanceof FileParserError) throw error
-    throw new FileParserError(
-      'invalid_format',
-      `Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`,
-      error
-    )
-  }
+  return parseYAMLBuffer(await fs.readFile(filePath))
 }
 
 /**
@@ -102,11 +98,21 @@ export async function parseYAMLBuffer(buffer: Buffer): Promise<FileParseResult> 
     throw new FileParserError('empty_input', 'Empty buffer provided')
   }
 
-  const content = buffer.toString('utf-8')
+  const decoded = decodeTextBuffer(buffer)
 
   try {
-    const yamlData = yaml.load(content)
-    return buildYamlResult(yamlData)
+    /**
+     * A YAML file is a stream: Kubernetes manifests, Helm output and CI
+     * fixtures routinely hold several documents separated by `---`. A single
+     * document keeps its own shape; a multi-document stream becomes an array of
+     * documents, which the JSON/YAML chunker then splits one document per item.
+     */
+    const documents = yaml
+      .loadAll(decoded.text)
+      .filter((document) => document !== undefined && document !== null)
+    const yamlData =
+      documents.length === 1 ? documents[0] : documents.length === 0 ? undefined : documents
+    return buildYamlResult(yamlData, decoded, documents.length)
   } catch (error) {
     if (error instanceof FileParserError) throw error
     throw new FileParserError(

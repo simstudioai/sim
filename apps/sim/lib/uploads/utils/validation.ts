@@ -23,7 +23,6 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'md',
   'xlsx',
   'xls',
-  'ppt',
   'pptx',
   'html',
   'htm',
@@ -155,7 +154,6 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
     'application/x-excel',
     'application/x-msexcel',
   ],
-  ppt: ['application/vnd.ms-powerpoint', 'application/powerpoint', 'application/x-mspowerpoint'],
   pptx: [
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/octet-stream',

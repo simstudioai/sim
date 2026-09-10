@@ -893,6 +893,13 @@ async function handleLocalFile(
     })
     const extension = path.extname(filename).toLowerCase().substring(1)
     const result = await parseBuffer(fileBuffer, extension, { signal })
+    if (result.metadata?.degraded === true) {
+      return {
+        success: false,
+        error: degradedParseMessage(filename, result.metadata.warning),
+        filePath,
+      }
+    }
     const content = assertParsedContentWithinLimit(result.content, maxParsedOutputBytes)
     signal?.throwIfAborted()
     const hash = createHash('md5').update(fileBuffer).digest('hex')
@@ -1085,6 +1092,13 @@ async function handleGenericTextBuffer(
 
       if (isSupportedFileType(extension)) {
         const result = await parseBuffer(fileBuffer, extension, { signal })
+        if (result.metadata?.degraded === true) {
+          return {
+            success: false,
+            error: degradedParseMessage(filename, result.metadata.warning),
+            filePath: originalPath || filename,
+          }
+        }
 
         return {
           success: true,
@@ -1189,6 +1203,15 @@ async function parseBufferAsPdf(buffer: Buffer, signal?: AbortSignal) {
 /**
  * Format bytes to human readable size
  */
+/**
+ * A parser that could not read the document but returned scraped bytes or a
+ * placeholder sentence flags the result `degraded`; that must reach the model
+ * as a failure, never as the file's content.
+ */
+function degradedParseMessage(filename: string, warning: string | undefined): string {
+  return `Could not extract text from ${filename}${warning ? `: ${warning}` : ''}`
+}
+
 function prettySize(bytes: number): string {
   if (bytes === 0) return '0 Bytes'
 

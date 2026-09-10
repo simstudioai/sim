@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { azureDevopsConnectorMeta } from '@/connectors/azure-devops/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -1182,7 +1183,7 @@ async function getFileDocument(
     return null
   }
 
-  const content = buffer.toString('utf8')
+  const content = decodeTextBuffer(buffer).text
   if (!content.trim()) return null
 
   const title = path.split('/').filter(Boolean).pop() || path
