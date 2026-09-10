@@ -2380,11 +2380,10 @@ function ServiceAccountConnectDisplay({
     () => (data.provider ? resolveServiceAccountIntegration(data.provider) : null),
     [data.provider]
   )
-  const service = useMemo(() => (match ? resolveOAuthServiceForSlug(match.slug) : null), [match])
   const target = useServiceAccountConnectTarget({
     serviceAccountProviderId: match?.serviceAccountProviderId,
     serviceName: match?.serviceName,
-    serviceIcon: service?.serviceIcon,
+    serviceIcon: match?.serviceIcon,
   })
 
   // A credentialId reconnects (rotates the secret on) that existing service

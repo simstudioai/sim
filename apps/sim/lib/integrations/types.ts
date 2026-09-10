@@ -63,6 +63,8 @@ export interface Integration {
    * `OAUTH_PROVIDERS`). Present exactly when `authType` is `'oauth'`.
    */
   oauthServiceId?: string
+  /** Canonical stored service-account service for a non-OAuth integration. */
+  serviceAccountServiceId?: string
   /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
 }

@@ -13,6 +13,7 @@ import {
 import {
   getIntegrationTypesForOAuthServiceId,
   type IntegrationAvailability,
+  isDeploymentGatedIntegrationType,
   isOAuthServiceAllowedByIntegrationTypes,
   resolveIntegrationAvailability,
   resolveIntegrationAvailabilityStateForVisibility,
@@ -31,6 +32,19 @@ import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 
 const integrations = integrationsJson.integrations as readonly Integration[]
 
+/**
+ * Integrations whose only credential is a stored service account, each paired
+ * with the block type the catalog gates it by. The two differ for Claude
+ * Platform (`claude-platform` / `managed_agent`), so a parameterization keyed
+ * on the service id alone silently omits it.
+ */
+const STORED_CREDENTIAL_INTEGRATIONS = [
+  { serviceId: 'netsuite', blockType: 'netsuite' },
+  { serviceId: 'snowflake', blockType: 'snowflake' },
+  { serviceId: 'harmonic', blockType: 'harmonic' },
+  { serviceId: 'claude-platform', blockType: 'managed_agent' },
+]
+
 function availabilityFor(
   type: string,
   values: Parameters<typeof resolveIntegrationAvailability>[0] = {}
@@ -41,6 +55,31 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
+  it.each(STORED_CREDENTIAL_INTEGRATIONS)(
+    'makes $serviceId stored credentials available without configuring an OAuth client',
+    ({ serviceId, blockType }) => {
+      expect(availabilityFor(blockType)).toMatchObject({
+        state: 'ready',
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
+        missingFields: [],
+      })
+      expect(getIntegrationTypesForOAuthServiceId(serviceId)).toEqual([blockType])
+      /**
+       * Joining the deployment-gated set cannot hide these blocks: `isBlockAllowed`
+       * drops a gated type only at `unavailable`/`misconfigured`, and the `ready`
+       * asserted above holds for every deployment because none of these services
+       * carries a `deploymentRequirement`.
+       */
+      expect(isDeploymentGatedIntegrationType(blockType)).toBe(true)
+      expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set([blockType]))).toBe(true)
+      expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set(['jira']))).toBe(false)
+      expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[serviceId]?.providerId).toBe(
+        `${serviceId}-service-account`
+      )
+      expect(CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS).not.toContain(serviceId)
+    }
+  )
   it('does not infer GitHub repository OAuth readiness from its API-key workflow block', () => {
     expect(availabilityFor('github_v2')).toMatchObject({ state: 'ready', oauthAvailable: false })
     expect(
@@ -187,24 +226,26 @@ describe('integration availability', () => {
   })
 
   it('keeps service-account metadata in parity with canonical OAuth services', () => {
-    const oauthServiceIds = [
+    const credentialServiceIds = [
       ...new Set(
-        integrations.flatMap((integration) =>
-          integration.authType === 'oauth' && integration.oauthServiceId
-            ? [integration.oauthServiceId]
-            : []
-        )
+        integrations.flatMap((integration) => {
+          const serviceId = integration.serviceAccountServiceId ?? integration.oauthServiceId
+          return serviceId ? [serviceId] : []
+        })
       ),
     ]
     const expectedServiceAccountIds: Record<string, string> = {}
     const expectedCredentialConfiguredServiceIds: string[] = []
 
-    for (const oauthServiceId of oauthServiceIds) {
+    for (const oauthServiceId of credentialServiceIds) {
       const canonical = getServiceConfigByServiceId(oauthServiceId)
       if (!canonical) throw new Error(`Missing canonical OAuth service ${oauthServiceId}`)
       const projected = SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[oauthServiceId]
       expect(projected?.providerId, oauthServiceId).toBe(canonical.serviceAccountProviderId)
-      if (canonical.clientConfiguration) {
+      if (
+        canonical.clientConfiguration &&
+        integrations.some((integration) => integration.oauthServiceId === oauthServiceId)
+      ) {
         expectedCredentialConfiguredServiceIds.push(oauthServiceId)
       }
       if (canonical.serviceAccountProviderId) {

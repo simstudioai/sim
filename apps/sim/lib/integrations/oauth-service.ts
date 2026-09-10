@@ -49,6 +49,27 @@ export function resolveOAuthServiceForIntegration(
   }
 }
 
+interface ServiceAccountServiceMatch extends Omit<OAuthServiceMatch, 'requiredScopes'> {
+  serviceAccountProviderId: ServiceAccountProviderId
+}
+
+/** Resolves a stored service-account connection independently of the OAuth catalog marker. */
+export function resolveServiceAccountServiceForIntegration(
+  integration: Integration
+): ServiceAccountServiceMatch | null {
+  const serviceId = integration.serviceAccountServiceId ?? integration.oauthServiceId
+  if (!serviceId) return null
+  const service = getServiceConfigByServiceId(serviceId)
+  const serviceAccountProviderId = asServiceAccountProviderId(service?.serviceAccountProviderId)
+  if (!service || !serviceAccountProviderId) return null
+  return {
+    providerId: service.providerId,
+    serviceName: service.name,
+    serviceIcon: service.icon as ComponentType<{ className?: string }>,
+    serviceAccountProviderId,
+  }
+}
+
 /**
  * Resolves the integration entry for a catalog slug, then derives its OAuth
  * service match. Returns `null` when the slug is unknown or the matching
@@ -68,6 +89,7 @@ export interface ServiceAccountIntegrationMatch {
   slug: string
   serviceAccountProviderId: ServiceAccountProviderId
   serviceName: string
+  serviceIcon: ComponentType<{ className?: string }>
   providerId: string
 }
 
@@ -93,18 +115,19 @@ export const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> =
 
 /**
  * Every integration that offers a service-account flow, in catalog order.
- * Built once — `resolveOAuthServiceForIntegration` walks `OAUTH_PROVIDERS` per
+ * Built once — `resolveServiceAccountServiceForIntegration` walks `OAUTH_PROVIDERS` per
  * entry, which is wasted work to repeat on each lookup.
  */
 const SERVICE_ACCOUNT_INTEGRATIONS: readonly ServiceAccountIntegrationMatch[] =
   INTEGRATIONS_DATA.flatMap((integration) => {
-    const match = resolveOAuthServiceForIntegration(integration)
+    const match = resolveServiceAccountServiceForIntegration(integration)
     if (!match?.serviceAccountProviderId) return []
     return [
       {
         slug: integration.slug,
         serviceAccountProviderId: match.serviceAccountProviderId,
         serviceName: integration.name,
+        serviceIcon: match.serviceIcon,
         providerId: match.providerId,
       },
     ]

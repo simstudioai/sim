@@ -4353,6 +4353,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "claude-platform",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["agentic", "llm"]
@@ -11178,6 +11179,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "harmonic",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "automation", "agentic"]
@@ -16625,6 +16627,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "netsuite",
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics", "payments"]
@@ -22788,6 +22791,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "snowflake",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"]

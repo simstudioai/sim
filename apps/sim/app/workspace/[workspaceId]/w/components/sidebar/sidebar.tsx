@@ -1042,11 +1042,28 @@ export const Sidebar = memo(function Sidebar() {
     () =>
       permissionConfig.hideIntegrationsTab
         ? []
-        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
+        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType, catalogMode) => {
             const availability = integrationAvailability.get(blockType.toLowerCase())
-            if (!availability) return CONNECT_MODE.oauth
-            if (availability?.oauthAvailable) return CONNECT_MODE.oauth
-            if (availability?.state === 'limited') return CONNECT_MODE.serviceAccount
+            /**
+             * Availability is unknown while it loads and after a failed fetch,
+             * so keep the catalog's own flow rather than assuming OAuth — that
+             * assumption sends a service-account-only integration to a page with
+             * no OAuth modal to open, costing the search result its one click.
+             */
+            if (!availability) return catalogMode
+            if (availability.oauthAvailable) return CONNECT_MODE.oauth
+            /**
+             * Anything still connectable once OAuth is out is the stored
+             * service account, which is the detail page's own test for offering
+             * it. Matching only `limited` misses an integration whose *only*
+             * credential is a service account: it is plain `ready`, and would
+             * open the detail page with no modal. The caller only asks about
+             * integrations that have a credential service, so an ordinary
+             * API-key block never reaches this.
+             */
+            if (availability.state === 'ready' || availability.state === 'limited') {
+              return CONNECT_MODE.serviceAccount
+            }
             return null
           }),
     [workspaceId, permissionConfig.hideIntegrationsTab, isBlockAllowed, integrationAvailability]

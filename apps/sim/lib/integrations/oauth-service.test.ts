@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
+  resolveServiceAccountServiceForIntegration,
 } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 
@@ -136,6 +137,58 @@ describe('resolveOAuthServiceForSlug', () => {
 })
 
 describe('resolveServiceAccountIntegration', () => {
+  it.each(['netsuite', 'snowflake', 'harmonic', 'claude-platform'])(
+    'resolves %s without offering OAuth',
+    (serviceId) => {
+      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
+      expect(integration).toBeDefined()
+      expect(integration.authType).toBe('api-key')
+      expect(resolveOAuthServiceForSlug(integration.slug)).toBeNull()
+      expect(
+        resolveServiceAccountServiceForIntegration(integration)?.serviceAccountProviderId
+      ).toBe(`${serviceId}-service-account`)
+      expect(resolveServiceAccountIntegration(serviceId)?.slug).toBe(integration.slug)
+    }
+  )
+
+  /**
+   * The match carries its own icon because the connect control cannot recover
+   * one for these four: `resolveOAuthServiceForSlug` answers `null` for a
+   * non-OAuth catalog entry, and a missing icon makes
+   * `useServiceAccountConnectTarget` return `null` — rendering nothing at all
+   * rather than a broken chip, which is why the gap was invisible.
+   */
+  it('carries a service icon on every service-account match', () => {
+    const matches = INTEGRATIONS.map((entry) => ({
+      slug: entry.slug,
+      match: resolveServiceAccountIntegration(entry.slug),
+    })).filter(({ match }) => match)
+    expect(matches.length).toBeGreaterThan(0)
+    for (const { slug, match } of matches) {
+      expect(typeof match?.serviceIcon, slug).toBe('function')
+    }
+    for (const serviceId of ['netsuite', 'snowflake', 'harmonic', 'claude-platform']) {
+      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
+      expect(resolveServiceAccountIntegration(integration.slug)?.serviceIcon, serviceId).toBe(
+        resolveServiceAccountServiceForIntegration(integration)?.serviceIcon
+      )
+    }
+  })
+
+  it('only offers the OAuth fallback when the canonical service supports stored accounts', () => {
+    const jira = INTEGRATIONS.find((entry) => entry.slug === 'jira')!
+    const x = INTEGRATIONS.find((entry) => entry.type === 'x')!
+    expect(resolveServiceAccountServiceForIntegration(jira)?.serviceAccountProviderId).toBe(
+      'atlassian-service-account'
+    )
+    expect(resolveServiceAccountServiceForIntegration(x)).toBeNull()
+    expect(
+      resolveServiceAccountServiceForIntegration({
+        ...x,
+        serviceAccountServiceId: 'unknown-service',
+      })
+    ).toBeNull()
+  })
   it.concurrent('keeps a named service instead of collapsing to the family default', () => {
     // Every Google integration issues the same google-service-account
     // credential, so a fuzzy matcher can silently answer Drive for all of

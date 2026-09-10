@@ -15,7 +15,10 @@ import {
   isFamilyServiceAccount,
   resolveCredentialDisplay,
 } from '@/lib/integrations/credential-display'
-import { resolveOAuthServiceForIntegration } from '@/lib/integrations/oauth-service'
+import {
+  resolveOAuthServiceForIntegration,
+  resolveServiceAccountServiceForIntegration,
+} from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { credentialProviderMatchesService } from '@/lib/oauth/utils'
@@ -47,7 +50,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'attio-service-account': ['attio'],
   'box-service-account': ['box'],
   'calcom-service-account': ['cal-com'],
-  'claude-platform-service-account': [],
+  'claude-platform-service-account': ['claude-managed-agents'],
   'clickup-service-account': ['clickup'],
   'github-app-installation': ['github'],
   'google-service-account': [
@@ -65,21 +68,17 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
     'google-tasks',
     'google-vault',
   ],
-  'harmonic-service-account': [],
+  'harmonic-service-account': ['harmonic'],
   'hubspot-service-account': ['hubspot'],
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
-  // NetSuite remains an API-key catalog integration, like Snowflake, while its
-  // block uses the shared reusable-credential selector.
-  'netsuite-service-account': [],
+  'netsuite-service-account': ['oracle-netsuite'],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
   'slack-custom-bot': ['slack'],
-  // Snowflake's catalog entry is api-key (there is no Snowflake OAuth client),
-  // so its credential is offered on the block rather than an integration page.
-  'snowflake-service-account': [],
+  'snowflake-service-account': ['snowflake'],
   'trello-service-account': ['trello'],
   'wealthbox-service-account': ['wealthbox'],
   'webflow-service-account': ['webflow'],
@@ -170,7 +169,9 @@ describe('service-account coverage', () => {
       const covered = new Set(getIntegrationsForCredentialProvider(providerId).map((i) => i.slug))
 
       for (const integration of INTEGRATIONS) {
-        const service = resolveOAuthServiceForIntegration(integration)
+        const service =
+          resolveOAuthServiceForIntegration(integration) ??
+          resolveServiceAccountServiceForIntegration(integration)
         if (!service) continue
         expect(
           credentialProviderMatchesService(providerId, service),

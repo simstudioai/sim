@@ -23,13 +23,16 @@ interface DeploymentIntegration {
   name: string
   authType: 'oauth' | 'api-key' | 'none'
   oauthServiceId?: string
+  serviceAccountServiceId?: string
 }
 
 const integrations = integrationsJson.integrations as readonly DeploymentIntegration[]
 const credentialConfiguredOAuthServiceIds = new Set<string>(CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS)
 const deploymentGatedIntegrationTypes = new Set(
   integrations
-    .filter((integration) => integration.authType === 'oauth')
+    .filter(
+      (integration) => integration.authType === 'oauth' || integration.serviceAccountServiceId
+    )
     .map((integration) => integration.type.toLowerCase())
 )
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
@@ -37,8 +40,9 @@ const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
 integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
 const previewServiceAccountProvidersByIntegrationType = new Map<string, string>()
 for (const integration of integrations) {
-  if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
-  const serviceId = integration.oauthServiceId.toLowerCase()
+  const credentialServiceId = integration.serviceAccountServiceId ?? integration.oauthServiceId
+  if (!credentialServiceId) continue
+  const serviceId = credentialServiceId.toLowerCase()
   const current = integrationTypesByOAuthServiceId.get(serviceId) ?? []
   const integrationType = integration.type.toLowerCase()
   integrationTypesByOAuthServiceId.set(serviceId, [...current, integrationType])
@@ -52,7 +56,7 @@ export function isDeploymentGatedIntegrationType(blockType: string): boolean {
   return deploymentGatedIntegrationTypes.has(blockType.toLowerCase())
 }
 
-/** Returns the generated integration block types authenticated by one OAuth service entry. */
+/** Returns block types using a canonical credential service, including stored service accounts. */
 export function getIntegrationTypesForOAuthServiceId(serviceId: string): readonly string[] {
   return integrationTypesByOAuthServiceId.get(serviceId.toLowerCase()) ?? []
 }
@@ -142,6 +146,29 @@ export function resolveIntegrationAvailability(
   return integrations.map((integration) => {
     if (integration.authType === 'oauth') {
       return resolveOAuthIntegrationAvailability(integration, values)
+    }
+
+    if (integration.serviceAccountServiceId) {
+      const serviceAccount = getServiceAccountMetadata(integration.serviceAccountServiceId)
+      if (!serviceAccount) {
+        throw new Error(`Integration ${integration.slug} is missing service-account metadata`)
+      }
+      const capabilityId = resolveOAuthClientCapabilityId(integration.serviceAccountServiceId)
+      const serviceAccountAvailable =
+        serviceAccount.deploymentRequirement !== 'preview-gated' &&
+        (serviceAccount.deploymentRequirement !== 'oauth-client' ||
+          Boolean(
+            capabilityId && inspectOAuthClientCapability(capabilityId, values).state === 'ready'
+          ))
+      return {
+        type: integration.type,
+        slug: integration.slug,
+        name: integration.name,
+        state: serviceAccountAvailable ? 'ready' : 'unavailable',
+        oauthAvailable: false,
+        serviceAccountAvailable,
+        missingFields: [],
+      }
     }
 
     return {
