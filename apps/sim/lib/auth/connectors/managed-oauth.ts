@@ -11,7 +11,7 @@ import { verifyGitHubRepositoriesIdentity } from '@/lib/oauth/github-repositorie
 import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { getCanonicalScopesForProvider, isScopeSatisfiedBy } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
 
 const GOOGLE_OPENID_SCOPE = 'openid'
@@ -93,7 +93,7 @@ function hasRequiredGoogleScopes(
   const granted = new Set(grantedScopes.map(canonicalGoogleScope))
   return requiredScopes.every((requestedScope) => {
     const required = canonicalGoogleScope(requestedScope)
-    if (granted.has(required)) return true
+    if (granted.has(required) || isScopeSatisfiedBy(required, granted)) return true
     return (
       providerId === 'google-email' &&
       granted.has(GMAIL_MODIFY_SCOPE) &&

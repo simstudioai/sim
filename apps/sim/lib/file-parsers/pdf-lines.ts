@@ -1,0 +1,484 @@
+/**
+ * Rebuilds lines and paragraphs from pdf.js text items.
+ *
+ * pdf.js only flags `hasEOL` when its own heuristics notice a line change; it
+ * resets that state when it recurses into a Form XObject and stays silent on a
+ * backwards x-move along one baseline, so items glue together without a
+ * separator. The builder here derives separators from item geometry instead and
+ * keeps each line's baseline and height so paragraph breaks, same-row cells,
+ * headings, and running furniture can be recovered afterwards.
+ */
+
+/** One text item as pdf.js streams it; every field is untrusted. */
+export interface PdfTextItem {
+  str?: unknown
+  hasEOL?: unknown
+  transform?: unknown
+  width?: unknown
+  height?: unknown
+  dir?: unknown
+}
+
+/** Horizontal, left-to-right placement of one item in PDF user space. */
+export interface PdfItemGeometry {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** A reconstructed line of one page. */
+export interface PdfLine {
+  text: string
+  /** Baseline in PDF user space (origin bottom-left); absent when the source carried no geometry. */
+  y?: number
+  /** Height of the line's dominant item; 0 when unknown. */
+  height: number
+}
+
+export type PdfLineSeparator = '' | ' ' | '\n'
+
+export interface JoinLinesOptions {
+  /** Lowercase `a-b` compounds seen intact in the document; a line break on their hyphen keeps it. */
+  compounds?: ReadonlySet<string>
+  /**
+   * Lowercase words seen in the document. A line-end hyphen is dropped only when
+   * the joined word occurs elsewhere, so `high-` / `quality` keeps its hyphen
+   * while `Infra-` / `structure` rejoins when `Infrastructure` appears intact.
+   */
+  words?: ReadonlySet<string>
+  /** Dominant body-text height for the document; enables heading markers and heading pitch scaling. */
+  bodyHeight?: number
+  /** Prefixes short, oversized lines with `## ` so Markdown-aware chunkers split on them. */
+  headingMarkers?: boolean
+}
+
+/**
+ * Whether `## ` heading prefixes are emitted by default. Off: on documents
+ * dominated by footnote, table, or form text the estimated body height is too
+ * small and prose becomes headings, which `TextChunker` then splits per line.
+ * The code path stays available through `JoinLinesOptions.headingMarkers`.
+ */
+export const PDF_HEADING_MARKERS_ENABLED = false
+
+/**
+ * Ceiling on reconstructed lines per page. Past it the builder stops splitting
+ * and appends to the last line, so a page of one-character lines cannot turn
+ * the per-line bookkeeping into hundreds of megabytes.
+ */
+export const MAX_PDF_LINES = 500_000
+
+/** Ceiling on the document word set used for dehyphenation. */
+const MAX_COLLECTED_WORDS = 200_000
+
+/** Words longer than this are noise (base64, hashes) and never hyphenation halves. */
+const MAX_COLLECTED_WORD_CHARS = 40
+
+/** Prose-like lines (long, several words) alone decide the body text height. */
+const PROSE_MIN_CHARS = 40
+const PROSE_MIN_WORDS = 6
+
+/** A heading candidate inside a longer run of same-height lines is body text, not a heading. */
+const MAX_HEADING_RUN = 3
+
+/** A line at least this many times taller than body text is a heading candidate. */
+const HEADING_HEIGHT_RATIO = 1.15
+
+/** Headings are short; longer oversized lines are pull quotes or callouts. */
+const HEADING_MAX_CHARS = 120
+
+/**
+ * When more than this share of a document's lines would become headings the
+ * "body" height is really a bullet or caption size (slide decks), so markers
+ * would only add noise.
+ */
+const MAX_HEADING_LINE_FRACTION = 0.3
+
+/** Line gap beyond this multiple of the page's line pitch is a paragraph break. */
+const PARAGRAPH_PITCH_RATIO = 1.3
+
+/** Height change between adjacent lines beyond this fraction marks a heading/body boundary. */
+const HEIGHT_CHANGE_RATIO = 0.2
+
+/** Lines whose baselines differ by less than this fraction of their height share a row. */
+const SAME_ROW_RATIO = 0.3
+
+/** An upward return of at most this many pitches rejoins a wrapped table cell to its row. */
+const ROW_RETURN_PITCHES = 3
+
+/** Baseline shift beyond this fraction of the reference height starts a new line. */
+const LINE_SHIFT_RATIO = 0.5
+
+/** Backwards x-move beyond this fraction of the reference height starts a new line or cell. */
+const BACKWARDS_MOVE_RATIO = 0.5
+
+/** Forward gap beyond this fraction of the reference height is an inter-word space. */
+const WORD_GAP_RATIO = 0.1
+
+const SOFT_HYPHEN = '\u00AD'
+const TRAILING_HYPHEN = /(\p{L}+)-$/u
+
+/**
+ * Only the tail of a line is inspected for a hyphenated word: an unanchored
+ * `(\p{L}+)-$` retried from every position of a megabyte-long line is
+ * quadratic, and no hyphenation half is longer than this.
+ */
+const HYPHEN_TAIL_CHARS = 64
+const LEADING_LOWERCASE_WORD = /^(\p{Ll}\p{L}*)/u
+const LETTER = /\p{L}/u
+const WORD_TOKEN = /\p{L}+/gu
+const LEADING_WHITESPACE = /^\s/
+const TRAILING_WHITESPACE = /\s$/
+
+/**
+ * Reads an item's placement, or undefined when the item is rotated, vertical,
+ * right-to-left, or carries no usable transform — those fall back to pdf.js's
+ * own `hasEOL` line breaks.
+ */
+export function readItemGeometry(item: PdfTextItem): PdfItemGeometry | undefined {
+  const transform = item.transform
+  if (!Array.isArray(transform) || transform.length < 6) return undefined
+  const [, skewY, skewX, , x, y] = transform as unknown[]
+  if (
+    !isFiniteNumber(skewY) ||
+    !isFiniteNumber(skewX) ||
+    !isFiniteNumber(x) ||
+    !isFiniteNumber(y)
+  ) {
+    return undefined
+  }
+  if (skewY !== 0 || skewX !== 0) return undefined
+  if (item.dir !== undefined && item.dir !== 'ltr') return undefined
+  return {
+    x,
+    y,
+    width: isFiniteNumber(item.width) ? item.width : 0,
+    height: isFiniteNumber(item.height) ? item.height : 0,
+  }
+}
+
+/** Accumulates positioned items into lines for one page. */
+export class PdfLineBuilder {
+  private readonly lines: PdfLine[] = []
+  private parts: string[] = []
+  private lineY: number | undefined
+  private dominantHeight = 0
+  private dominantLength = -1
+  private prevEndX: number | undefined
+  private prevY = 0
+  private lineHeight = 0
+
+  /**
+   * Separator the geometry rules call for before `str`; '' at line start or
+   * when either side lacks geometry.
+   */
+  separatorBefore(str: string, geometry: PdfItemGeometry | undefined): PdfLineSeparator {
+    if (!geometry || this.prevEndX === undefined) return ''
+    const height = geometry.height || this.lineHeight
+    const ref = Math.max(height, this.lineHeight, 1)
+    if (Math.abs(geometry.y - this.prevY) > LINE_SHIFT_RATIO * ref) return '\n'
+    const gap = geometry.x - this.prevEndX
+    if (gap < -BACKWARDS_MOVE_RATIO * ref) return '\n'
+    if (gap > WORD_GAP_RATIO * ref && !this.endsWithWhitespace() && !LEADING_WHITESPACE.test(str))
+      return ' '
+    return ''
+  }
+
+  append(str: string, geometry?: PdfItemGeometry): void {
+    if (str.length > 0) {
+      this.parts.push(str)
+      const visibleLength = str.trim().length
+      if (geometry && visibleLength > this.dominantLength) {
+        this.dominantLength = visibleLength
+        this.dominantHeight = geometry.height || this.lineHeight
+      }
+    }
+    if (!geometry) return
+    if (this.lineY === undefined && str.length > 0) this.lineY = geometry.y
+    this.prevEndX = geometry.x + geometry.width
+    this.prevY = geometry.y
+    this.lineHeight = geometry.height || this.lineHeight
+  }
+
+  /**
+   * Closes the current line; whitespace-only lines are dropped. Past
+   * `MAX_PDF_LINES` the line stays open and later text joins it with a space.
+   */
+  endLine(): void {
+    if (this.lines.length >= MAX_PDF_LINES) {
+      if (this.parts.length > 0) this.parts.push(' ')
+      return
+    }
+    const text = this.parts.join('')
+    if (text.trim().length > 0) {
+      this.lines.push({ text, y: this.lineY, height: this.dominantHeight })
+    }
+    this.parts = []
+    this.lineY = undefined
+    this.dominantHeight = 0
+    this.dominantLength = -1
+    this.prevEndX = undefined
+    this.prevY = 0
+    this.lineHeight = 0
+  }
+
+  finish(): PdfLine[] {
+    if (this.lines.length >= MAX_PDF_LINES && this.parts.length > 0) {
+      const last = this.lines[this.lines.length - 1]
+      last.text = `${last.text} ${this.parts.join('')}`
+      this.parts = []
+    }
+    this.endLine()
+    return this.lines
+  }
+
+  private endsWithWhitespace(): boolean {
+    const last = this.parts[this.parts.length - 1]
+    return last !== undefined && TRAILING_WHITESPACE.test(last)
+  }
+}
+
+/** Collapses runs of blanks without destroying line and paragraph breaks. */
+export function normalizePdfWhitespace(text: string): string {
+  return text
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+}
+
+/**
+ * Hyphenated compounds that appear intact inside a line, lowercased. Scans
+ * outward from each hyphen rather than matching `\p{L}+-\p{L}+`, which retries
+ * from every letter of a long hyphen-free line.
+ */
+export function collectCompounds(lines: Iterable<PdfLine>): Set<string> {
+  const compounds = new Set<string>()
+  for (const line of lines) {
+    const text = line.text
+    for (let at = text.indexOf('-'); at !== -1; at = text.indexOf('-', at + 1)) {
+      const start = letterRunStart(text, at)
+      const end = letterRunEnd(text, at + 1)
+      if (start < at && end > at + 1) compounds.add(text.slice(start, end).toLowerCase())
+    }
+  }
+  return compounds
+}
+
+/** Start index of the run of letters ending just before `index`, at most `HYPHEN_TAIL_CHARS` long. */
+function letterRunStart(text: string, index: number): number {
+  let start = index
+  while (start > 0 && index - start < HYPHEN_TAIL_CHARS && LETTER.test(text[start - 1])) start--
+  return start
+}
+
+/** End index (exclusive) of the run of letters starting at `index`, at most `HYPHEN_TAIL_CHARS` long. */
+function letterRunEnd(text: string, index: number): number {
+  let end = index
+  while (end < text.length && end - index < HYPHEN_TAIL_CHARS && LETTER.test(text[end])) end++
+  return end
+}
+
+/**
+ * Lowercase words of three to `MAX_COLLECTED_WORD_CHARS` letters seen anywhere
+ * in the document, capped at `MAX_COLLECTED_WORDS` entries.
+ */
+export function collectWords(lines: Iterable<PdfLine>): Set<string> {
+  const words = new Set<string>()
+  for (const line of lines) {
+    for (const match of line.text.matchAll(WORD_TOKEN)) {
+      const word = match[0]
+      if (word.length < 3 || word.length > MAX_COLLECTED_WORD_CHARS) continue
+      words.add(word.toLowerCase())
+      if (words.size >= MAX_COLLECTED_WORDS) return words
+    }
+  }
+  return words
+}
+
+/**
+ * Character-weighted modal height of the document's prose-like lines; falls
+ * back to every line when nothing reads as prose. 0 when unknown.
+ */
+export function dominantLineHeight(lines: Iterable<PdfLine>): number {
+  const prose = new Map<number, number>()
+  const all = new Map<number, number>()
+  for (const line of lines) {
+    if (line.height <= 0) continue
+    const key = Math.round(line.height * 10) / 10
+    const text = line.text.trim()
+    all.set(key, (all.get(key) ?? 0) + text.length)
+    if (isProseLike(text)) prose.set(key, (prose.get(key) ?? 0) + text.length)
+  }
+  const weights = prose.size > 0 ? prose : all
+  let best = 0
+  let bestWeight = 0
+  for (const [height, weight] of weights) {
+    if (weight > bestWeight) {
+      best = height
+      bestWeight = weight
+    }
+  }
+  return best
+}
+
+/**
+ * Joins one page's lines into text with `\n` between lines, `\n\n` between
+ * paragraphs, and a space between cells that share a row, dehyphenating words
+ * that a line break split.
+ */
+export function joinLines(lines: readonly PdfLine[], options: JoinLinesOptions = {}): string {
+  if (lines.length === 0) return ''
+  const pitch = medianPitch(lines)
+  const bodyHeight = options.bodyHeight ?? 0
+  const headingMarkers = options.headingMarkers ?? PDF_HEADING_MARKERS_ENABLED
+  const compounds = options.compounds
+  const words = options.words
+  const headingRuns = headingMarkers ? sameHeightRuns(lines) : undefined
+
+  /**
+   * Output segments; the last one is always the text of the line being
+   * built, so hyphen checks and joins only ever touch one line's worth of
+   * string instead of the whole page.
+   */
+  const parts: string[] = [decorate(lines[0], bodyHeight, headingRuns?.[0] ?? 0)]
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]
+    const separator = separatorBetween(lines, i, pitch, bodyHeight)
+    const last = parts[parts.length - 1]
+    if (last.endsWith(SOFT_HYPHEN)) {
+      parts[parts.length - 1] = last.slice(0, -1) + line.text
+      continue
+    }
+    if (separator === '\n') {
+      const joined = dehyphenate(last, line.text, compounds, words)
+      if (joined !== undefined) {
+        parts[parts.length - 1] = joined
+        continue
+      }
+    }
+    parts.push(separator)
+    parts.push(separator === ' ' ? line.text : decorate(line, bodyHeight, headingRuns?.[i] ?? 0))
+  }
+  return parts.join('')
+}
+
+/** Prefixes a heading candidate with `## `; `run` is 0 when markers are off. */
+function decorate(line: PdfLine, bodyHeight: number, run: number): string {
+  if (run > 0 && run <= MAX_HEADING_RUN && isHeadingCandidate(line, bodyHeight)) {
+    return `## ${line.text.trimStart()}`
+  }
+  return line.text
+}
+
+function isHeadingCandidate(line: PdfLine, bodyHeight: number): boolean {
+  return (
+    bodyHeight > 0 &&
+    line.height >= HEADING_HEIGHT_RATIO * bodyHeight &&
+    line.text.trim().length < HEADING_MAX_CHARS
+  )
+}
+
+function isProseLike(text: string): boolean {
+  return text.length >= PROSE_MIN_CHARS && text.split(/\s+/).length >= PROSE_MIN_WORDS
+}
+
+/** Length of the run of consecutive same-height lines each line belongs to. */
+function sameHeightRuns(lines: readonly PdfLine[]): number[] {
+  const runs = new Array<number>(lines.length)
+  let start = 0
+  for (let i = 1; i <= lines.length; i++) {
+    if (i < lines.length && Math.abs(lines[i].height - lines[start].height) < 0.05) continue
+    for (let j = start; j < i; j++) runs[j] = i - start
+    start = i
+  }
+  return runs
+}
+
+/**
+ * Whether heading markers make sense for a document: false when so many lines
+ * qualify that the dominant height is not the body text.
+ */
+export function headingMarkersViable(lines: Iterable<PdfLine>, bodyHeight: number): boolean {
+  let total = 0
+  let candidates = 0
+  for (const line of lines) {
+    if (line.height <= 0) continue
+    total++
+    if (isHeadingCandidate(line, bodyHeight)) candidates++
+  }
+  return total === 0 || candidates / total <= MAX_HEADING_LINE_FRACTION
+}
+
+/**
+ * Joins `next` onto `out` across a hyphen that ended the line, or undefined
+ * when the break is not a hyphenation. The hyphen is removed only when the
+ * document itself shows the joined word; a compound seen intact keeps it, and
+ * an unknown pair keeps it too, because `high-quality` split at a line end is
+ * far more common in real documents than a word the document never repeats.
+ */
+function dehyphenate(
+  out: string,
+  next: string,
+  compounds: ReadonlySet<string> | undefined,
+  words: ReadonlySet<string> | undefined
+): string | undefined {
+  if (!out.endsWith('-')) return undefined
+  const head = TRAILING_HYPHEN.exec(out.slice(-HYPHEN_TAIL_CHARS))
+  const tail = LEADING_LOWERCASE_WORD.exec(next)
+  if (!head || !tail) return undefined
+  const compound = `${head[1]}-${tail[1]}`.toLowerCase()
+  if (compounds?.has(compound)) return out + next
+  const joined = `${head[1]}${tail[1]}`.toLowerCase()
+  if (words?.has(joined)) return out.slice(0, -1) + next
+  return out + next
+}
+
+function separatorBetween(
+  lines: readonly PdfLine[],
+  index: number,
+  pitch: number,
+  bodyHeight: number
+): ' ' | '\n' | '\n\n' {
+  const a = lines[index - 1]
+  const b = lines[index]
+  if (a.y === undefined || b.y === undefined) return '\n'
+  const dy = a.y - b.y
+  const maxHeight = Math.max(a.height, b.height)
+  if (maxHeight > 0 ? Math.abs(dy) < SAME_ROW_RATIO * maxHeight : dy === 0) return ' '
+  if (dy < 0) return isRowReturn(dy, pitch) ? ' ' : '\n\n'
+  const next = lines[index + 1]
+  if (next?.y !== undefined && isRowReturn(b.y - next.y, pitch)) return ' '
+  if (maxHeight > 0 && Math.abs(a.height - b.height) > HEIGHT_CHANGE_RATIO * maxHeight)
+    return '\n\n'
+  const scale = bodyHeight > 0 ? Math.max(1, maxHeight / bodyHeight) : 1
+  if (pitch > 0 && dy > PARAGRAPH_PITCH_RATIO * pitch * scale) return '\n\n'
+  return '\n'
+}
+
+/** A short upward jump returns to a table row whose earlier cell wrapped onto extra lines. */
+function isRowReturn(dy: number, pitch: number): boolean {
+  return dy < 0 && pitch > 0 && -dy <= ROW_RETURN_PITCHES * pitch
+}
+
+/**
+ * Lower median of the downward baseline steps between consecutive lines; 0 when
+ * there is none. The lower median keeps a two-step page treating its larger
+ * step as the paragraph gap rather than the pitch.
+ */
+function medianPitch(lines: readonly PdfLine[]): number {
+  const steps: number[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const a = lines[i - 1].y
+    const b = lines[i].y
+    if (a === undefined || b === undefined) continue
+    const dy = a - b
+    if (dy > 0) steps.push(dy)
+  }
+  if (steps.length === 0) return 0
+  steps.sort((left, right) => left - right)
+  return steps[Math.floor((steps.length - 1) / 2)]
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}

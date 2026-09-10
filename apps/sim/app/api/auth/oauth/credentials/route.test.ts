@@ -38,6 +38,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
+import { getCanonicalScopesForProvider, getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/auth/oauth/credentials/route'
 
@@ -144,6 +145,100 @@ describe('OAuth Credentials API Route', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ credentials: [] })
+  })
+
+  describe.each(['list', 'detail'] as const)('OAuth grant scopes in %s responses', (mode) => {
+    const workspaceId = '3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+
+    beforeEach(() => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockReset().mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'session',
+      })
+      permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
+        exists: true,
+        hasAccess: true,
+        canWrite: true,
+        canAdmin: true,
+      })
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
+        DEFAULT_PERMISSION_GROUP_CONFIG
+      )
+    })
+
+    async function requestCredential(providerId: string, scope: string | null) {
+      const row = {
+        id: 'credential-1',
+        workspaceId,
+        type: 'oauth',
+        displayName: 'Connected account',
+        providerId,
+        accountId: 'account-1',
+        scope,
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        accountProviderId: providerId,
+        accountScope: scope,
+        accountUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+      }
+      if (mode === 'detail') {
+        dbChainMockFns.limit.mockResolvedValueOnce([row])
+      } else {
+        dbChainMockFns.where.mockResolvedValueOnce([row]).mockResolvedValueOnce([])
+      }
+      const query =
+        mode === 'detail'
+          ? '?credentialId=credential-1'
+          : `?provider=${providerId}&workspaceId=${workspaceId}`
+      const response = await GET(createMockRequestWithQuery('GET', query))
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.credentials).toHaveLength(1)
+      return data.credentials[0]
+    }
+
+    it.each([null, '', ' \t\n '])(
+      'does not synthesize a Confluence grant from missing scope metadata %j',
+      async (scope) => {
+        const credential = await requestCredential('confluence', scope)
+
+        expect(credential.scopes).toEqual([])
+        expect(
+          getMissingRequiredScopes(credential, getCanonicalScopesForProvider('confluence'))
+        ).toContain('read:group:confluence')
+      }
+    )
+
+    it('preserves the actual older Confluence grant and identifies missing group access', async () => {
+      const requiredScopes = getCanonicalScopesForProvider('confluence')
+      const previousGrant = requiredScopes.filter((scope) => scope !== 'read:group:confluence')
+      const credential = await requestCredential('confluence', previousGrant.join(','))
+
+      expect(credential.scopes).toEqual(previousGrant)
+      expect(getMissingRequiredScopes(credential, requiredScopes)).toEqual([
+        'read:group:confluence',
+      ])
+    })
+
+    it('preserves a complete Confluence grant without requesting another update', async () => {
+      const grantedScopes = getCanonicalScopesForProvider('confluence')
+      const credential = await requestCredential('confluence', grantedScopes.join(' '))
+
+      expect(credential.scopes).toEqual(grantedScopes)
+      expect(getMissingRequiredScopes(credential, grantedScopes)).toEqual([])
+    })
+
+    it.each([null, '', ' \t\n '])(
+      'preserves the Box omitted-scope fallback for %j',
+      async (scope) => {
+        const credential = await requestCredential('box', scope)
+        const requiredScopes = getCanonicalScopesForProvider('box')
+
+        expect(requiredScopes.length).toBeGreaterThan(0)
+        expect(credential.scopes).toEqual(requiredScopes)
+        expect(getMissingRequiredScopes(credential, requiredScopes)).toEqual([])
+      }
+    )
   })
 
   /** The session/executor split documented on {@link integrationsWithheldFromSession} in the route. */

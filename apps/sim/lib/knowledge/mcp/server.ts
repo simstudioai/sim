@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
+import { parseRetryAfter } from '@sim/utils/retry'
 import type { NextRequest } from 'next/server'
 import {
   chatSearchMcpSchema,
@@ -72,8 +73,17 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
   ): Promise<CallToolResult> {
     try {
       const limited = await v2RateLimits.publicApi.enforce(request, auth, operation)
-      if (limited)
-        return toolError('API rate limit exceeded. Retry after the response Retry-After interval.')
+      if (limited) {
+        const retryAfter = parseRetryAfter(
+          limited.headers.get('Retry-After'),
+          Number.MAX_SAFE_INTEGER
+        )
+        return toolError(
+          retryAfter === null
+            ? 'API rate limit exceeded. Please try again later.'
+            : `API rate limit exceeded. Retry in ${Math.ceil(retryAfter / 1000)} seconds.`
+        )
+      }
       request.signal.throwIfAborted()
       return await run(new ResolvedSecretTraceRegistry())
     } catch (error) {

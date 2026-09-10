@@ -76,7 +76,7 @@ describe('document processing failure taxonomy', () => {
     expect(toPermanentDocumentProcessingError(error, 'Contract.doc')).toBe(error)
   })
 
-  it.each(['Contract.doc', 'Budget.xls', 'Deck.ppt'])(
+  it.each(['Contract.doc', 'Budget.xls', 'Deck.pptx'])(
     'classifies an unreadable legacy Office file as repairable: %s',
     (filename) => {
       const failure = classifyDocumentProcessingFailure(

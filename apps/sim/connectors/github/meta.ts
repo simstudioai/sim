@@ -70,6 +70,5 @@ export const githubConnectorMeta: ConnectorMeta = {
     { id: 'repository', displayName: 'Repository', fieldType: 'text' },
     { id: 'branch', displayName: 'Branch', fieldType: 'text' },
     { id: 'size', displayName: 'File Size', fieldType: 'number' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
   ],
 }

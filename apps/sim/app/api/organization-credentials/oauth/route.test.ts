@@ -15,7 +15,7 @@ vi.mock('@/lib/credentials/application/organization-credentials', () => {
   } as const
   return {
     organizationCredentialOperations: { list: operation },
-    listOrganizationCredentials: { operation, execute: mocks.execute },
+    listOrganizationOAuthCredentials: { operation, execute: mocks.execute },
   }
 })
 
@@ -45,23 +45,26 @@ describe('GET /api/organization-credentials/oauth', () => {
       credentials: [
         {
           id: 'full-credential',
-          displayName: 'Full access',
-          providerId: 'google-drive',
+          type: 'oauth',
+          name: 'Full access',
+          provider: 'google-drive',
           scopes: [DRIVE_SCOPE, METADATA_SCOPE],
           accountId: 'private-account-full',
           encryptedValue: 'private-secret',
         },
         {
           id: 'limited-credential',
-          displayName: 'Limited access',
-          providerId: 'google-drive',
+          type: 'oauth',
+          name: 'Limited access',
+          provider: 'google-drive',
           scopes: [METADATA_SCOPE],
           accountId: 'private-account-limited',
         },
         {
           id: 'unknown-credential',
-          displayName: 'Unknown access',
-          providerId: 'google-drive',
+          type: 'oauth',
+          name: 'Unknown access',
+          provider: 'google-drive',
           scopes: [],
         },
       ],
@@ -108,6 +111,60 @@ describe('GET /api/organization-credentials/oauth', () => {
         input: { organizationId: 'org-1', providerId: 'google-drive', type: 'oauth' },
       })
     )
+  })
+
+  it('forwards browsing intent with the acting session and projects a managed choice safely', async () => {
+    mocks.execute.mockResolvedValue({
+      credentials: [
+        {
+          id: 'managed-1',
+          name: 'My Jira',
+          provider: 'jira',
+          type: 'managed_oauth',
+          scopes: ['read:jira-work'],
+          encryptedAccessToken: 'never-public',
+        },
+      ],
+    })
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/organization-credentials/oauth?organizationId=org-1&providerId=jira&purpose=browsing'
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      credentials: [
+        {
+          id: 'managed-1',
+          name: 'My Jira',
+          provider: 'jira',
+          type: 'managed_oauth',
+          scopes: ['read:jira-work'],
+        },
+      ],
+    })
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: { kind: 'session', userId: 'admin-1', sessionId: 'session-1' },
+        input: { organizationId: 'org-1', providerId: 'jira', type: 'oauth', purpose: 'browsing' },
+      })
+    )
+  })
+
+  it('rejects an unsupported listing purpose before the use case', async () => {
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/organization-credentials/oauth?organizationId=org-1&purpose=all-members'
+      )
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('still returns an empty authorized list without fabricating a credential', async () => {

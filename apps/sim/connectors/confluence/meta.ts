@@ -13,6 +13,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'confluence',
+    adminCredentialType: 'service_account',
     requiredScopes: [
       'read:confluence-content.all',
       'read:page:confluence',

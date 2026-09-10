@@ -464,7 +464,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
     const alice = rows.find(
       (row) => row.externalId === `member:${fixture.members[0].id}:shared-thread-id`
     )!
-    expect(alice.contentHash).toBe('gmail:shared-thread-id:101')
+    expect(alice.contentHash).toBe('gmail:shared-thread-id:101:body-v2')
     const after = await vectors()
     expect(after.filter((row) => row.documentId !== alice.id)).toEqual(
       before.filter((row) => row.documentId !== alice.id)

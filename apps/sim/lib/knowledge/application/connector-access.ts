@@ -12,6 +12,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
 import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import {
   requireKnowledgeMemberAccessAvailable,
@@ -58,6 +59,7 @@ export interface StartKnowledgeConnectorMemberEnrollmentInput {
   assertedWorkspaceId?: string
   assertedOrganizationId?: string
   /** Opens provider OAuth directly and correlates its completion with the initiating tab. */
+  connectionIntent?: CredentialGroupConnectionIntent
   oauthCompletionId?: string
 }
 
@@ -123,6 +125,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
           completionRedirect: true,
           returnTo: 'search',
           completionId: input.oauthCompletionId,
+          connectionIntent: input.connectionIntent,
         })
       }
       if (!context.knowledgeBase.isSearchIndex) return invitationLink
@@ -234,6 +237,9 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
     }
     const previousConfig = connector.sourceConfig as Record<string, unknown>
     const sourceConfig = await prepareGitHubInstallationSource({
+      principal,
+      requestId,
+      workspaceId: context.workspaceId,
       connectorType: connector.connectorType,
       credentialId:
         input.credentialId === undefined && input.accessMode === connector.accessMode
@@ -271,6 +277,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       }
       if (credentialId) {
         await requireUsableCredential({
+          principal,
           credentialId,
           connectorMeta,
           sourceConfig,
@@ -280,6 +287,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           accessMode: 'members',
         })
         const rejection = await validateConnectorSourceConfig({
+          principal,
           connector: { ...connector, accessMode: 'members', credentialId },
           sourceConfig,
           ...owner,
@@ -299,6 +307,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       target = {
         accessMode: input.accessMode,
         credentialId: await requireUsableCredential({
+          principal,
           credentialId: input.credentialId,
           connectorMeta,
           sourceConfig,
@@ -309,6 +318,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         }),
       }
       const rejection = await validateConnectorSourceConfig({
+        principal,
         connector: {
           ...connector,
           accessMode: target.accessMode,
@@ -372,6 +382,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
  * source validation verifies it against the target mode before any mutation.
  */
 async function requireUsableCredential(input: {
+  principal: Principal
   credentialId: string | null | undefined
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
   sourceConfig: Record<string, unknown>
@@ -403,6 +414,7 @@ async function requireUsableCredential(input: {
     )
   }
   const token = await resolveConnectorCredentialAccessToken({
+    principal: input.principal,
     credentialId: input.credentialId,
     ...resourceScopeFields(resourceScopeFromOwner(input)),
     actingUserId: input.actingUserId,

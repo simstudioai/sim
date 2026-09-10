@@ -21,6 +21,8 @@ export interface ConnectorAccessToken {
   accessToken: string
   /** Atlassian only — the Confluence/Jira cloud id the credential is bound to. */
   cloudId?: string
+  /** The trusted site domain belonging to the credential's cloud id. */
+  domain?: string
 }
 
 /**
@@ -126,7 +128,9 @@ export async function resolveConnectorAccessToken(params: {
 
   return {
     accessToken: bundle.accessToken,
-    ...(bundle.cloudId ? { cloudId: bundle.cloudId } : {}),
+    ...(bundle.cloudId
+      ? { cloudId: bundle.cloudId, ...(bundle.domain ? { domain: bundle.domain } : {}) }
+      : {}),
   }
 }
 
@@ -162,5 +166,10 @@ export async function resolveConnectorTokenUserId(input: {
  * way, so a connector behaves identically on all of them.
  */
 export function syncContextForToken(token: ConnectorAccessToken): Record<string, unknown> {
-  return token.cloudId ? { cloudId: token.cloudId } : {}
+  return token.cloudId
+    ? {
+        cloudId: token.cloudId,
+        ...(token.domain ? { credentialDomain: token.domain } : {}),
+      }
+    : {}
 }

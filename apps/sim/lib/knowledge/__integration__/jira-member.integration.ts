@@ -59,10 +59,10 @@ const CLOUD_ID = 'jira-fixture-cloud'
 const DOMAIN = 'fixture.atlassian.net'
 const UPDATED = '2026-09-01T12:00:00.000+0000'
 
-function issue(id: string, description: string) {
+function issue(id: string, description: string, projectKey = 'ENG') {
   return {
     id,
-    key: `ENG-${id}`,
+    key: `${projectKey}-${id}`,
     fields: {
       summary: `Orion issue ${id}`,
       description: {
@@ -70,7 +70,7 @@ function issue(id: string, description: string) {
         version: 1,
         content: [{ type: 'paragraph', content: [{ type: 'text', text: description }] }],
       },
-      project: { id: '10000', key: 'ENG' },
+      project: { id: projectKey === 'ENG' ? '10000' : '20000', key: projectKey },
       updated: UPDATED,
       created: UPDATED,
       labels: ['orion'],
@@ -97,7 +97,9 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
   const storageKeys = new Set<string>()
   const listing = new Map<string, ReturnType<typeof issue>[]>()
   const failures = new Map<string, 400 | 401>()
-  const requests: { token: string; page: string | null }[] = []
+  const projectFailures = new Map<string, Record<string, 400 | 403 | 500>>()
+  const revokeOnPage = new Map<string, { projectKey: string; page: string }>()
+  const requests: { token: string; projectKey: string; page: string | null }[] = []
   const refreshAttempts: string[] = []
   let refreshError: 'invalid_grant' | 'unauthorized_client' = 'invalid_grant'
   let billing: Awaited<ReturnType<typeof resolveBillingAttribution>>
@@ -140,24 +142,35 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
       if (url.pathname !== `/ex/jira/${CLOUD_ID}/rest/api/3/search/jql`)
         throw new Error('Unexpected Jira fixture endpoint')
       expect(init?.method).toBe('GET')
-      expect(url.searchParams.get('jql')).toBe('project = "ENG" ORDER BY updated DESC')
+      const projectMatch = url.searchParams
+        .get('jql')
+        ?.match(/^project = "([^"]+)" ORDER BY updated DESC$/)
+      if (!projectMatch) throw new Error('Unexpected Jira fixture project query')
+      const projectKey = projectMatch[1]
       expect(url.searchParams.get('fields')?.split(',')).toContain('description')
       expect(url.searchParams.get('fields')?.split(',')).not.toContain('comment')
       const page = url.searchParams.get('nextPageToken')
-      requests.push({ token, page })
-      const failure = failures.get(token)
+      requests.push({ token, projectKey, page })
+      const revocation = revokeOnPage.get(token)
+      if (revocation?.projectKey === projectKey && revocation.page === page) {
+        projectFailures.set(token, { ...projectFailures.get(token), [projectKey]: 400 })
+        revokeOnPage.delete(token)
+      }
+      const failure = failures.get(token) ?? projectFailures.get(token)?.[projectKey]
       if (failure)
         return Response.json(
           {
             errorMessages: [
               failure === 400
-                ? "The value 'ENG' does not exist for the field 'project'."
+                ? `The value '${projectKey}' does not exist for the field 'project'.`
                 : 'Unauthorized',
             ],
           },
           { status: failure }
         )
-      const visible = listing.get(token) ?? []
+      const visible = (listing.get(token) ?? []).filter(
+        (issue) => issue.fields.project.key === projectKey
+      )
       const offset = page === null ? 0 : Number(page)
       if (!Number.isSafeInteger(offset) || offset < 0)
         throw new Error('Unexpected Jira fixture continuation')
@@ -262,6 +275,8 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
   beforeEach(async () => {
     refreshError = 'invalid_grant'
     failures.clear()
+    projectFailures.clear()
+    revokeOnPage.clear()
     requests.length = 0
     refreshAttempts.length = 0
     listing.set(alice.accessToken, [
@@ -272,6 +287,10 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
       issue('1', 'Orion limited Bob projection'),
       issue('3', 'Orion private Bob issue'),
     ])
+    await db
+      .update(knowledgeConnector)
+      .set({ sourceConfig: { domain: DOMAIN, projectKey: 'ENG' } })
+      .where(eq(knowledgeConnector.id, connectorId))
     await db
       .update(credential)
       .set({ managedOauthStatus: 'active', accessTokenExpiresAt: new Date(Date.now() + 3_600_000) })
@@ -524,6 +543,95 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
     await assertAccess(bob, [])
     await assertAccess(alice, ['1', '2'])
   })
+
+  it('retains accessible projects while withdrawing either denied project in a multi-project source', async () => {
+    await db
+      .update(knowledgeConnector)
+      .set({ sourceConfig: { domain: DOMAIN, projectKey: ['ENG', 'SUPPORT'] } })
+      .where(eq(knowledgeConnector.id, connectorId))
+    listing.get(alice.accessToken)!.push(issue('4', 'Orion Alice support issue', 'SUPPORT'))
+    listing.get(bob.accessToken)!.push(issue('5', 'Orion Bob support issue', 'SUPPORT'))
+    await sync()
+    await assertAccess(bob, ['1', '3', '5'])
+
+    projectFailures.set(bob.accessToken, { SUPPORT: 400 })
+    expect((await sync()).membersFailed).toBe(0)
+    await assertAccess(alice, ['1', '2', '4'])
+    await assertAccess(bob, ['1', '3'])
+    const identity = await member(bob)
+    const withdrawn = (await stored()).find(
+      (row) => row.externalId === `member:${identity.id}:jira:${CLOUD_ID}:5`
+    )!
+    expect(
+      await db
+        .select()
+        .from(knowledgeDocumentObservation)
+        .where(eq(knowledgeDocumentObservation.documentId, withdrawn.id))
+    ).toEqual([])
+
+    projectFailures.set(bob.accessToken, { ENG: 400 })
+    expect((await sync()).membersFailed).toBe(0)
+    await assertAccess(bob, ['5'])
+    await assertAccess(alice, ['1', '2', '4'])
+
+    projectFailures.clear()
+    await sync()
+    await assertAccess(bob, ['1', '3', '5'])
+    projectFailures.set(bob.accessToken, { ENG: 400, SUPPORT: 400 })
+    expect((await sync()).membersFailed).toBe(0)
+    await assertAccess(bob, [])
+    await assertAccess(alice, ['1', '2', '4'])
+  })
+
+  it('withdraws earlier observations when project access is revoked during pagination', async () => {
+    await db
+      .update(knowledgeConnector)
+      .set({ sourceConfig: { domain: DOMAIN, projectKey: ['ENG', 'SUPPORT'] } })
+      .where(eq(knowledgeConnector.id, connectorId))
+    listing
+      .get(bob.accessToken)!
+      .push(
+        issue('5', 'Orion Bob support issue', 'SUPPORT'),
+        issue('6', 'Orion Bob second support issue', 'SUPPORT')
+      )
+    await sync()
+    await assertAccess(bob, ['1', '3', '5', '6'])
+    revokeOnPage.set(bob.accessToken, { projectKey: 'SUPPORT', page: '1' })
+    requests.length = 0
+
+    expect((await sync()).membersFailed).toBe(0)
+    await assertAccess(bob, ['1', '3'])
+    expect(
+      requests
+        .filter((request) => request.token === bob.accessToken)
+        .map(({ projectKey, page }) => ({ projectKey, page }))
+    ).toEqual([
+      { projectKey: 'ENG', page: null },
+      { projectKey: 'ENG', page: '1' },
+      { projectKey: 'SUPPORT', page: null },
+      { projectKey: 'SUPPORT', page: '1' },
+      { projectKey: 'ENG', page: null },
+      { projectKey: 'ENG', page: '1' },
+      { projectKey: 'SUPPORT', page: null },
+    ])
+  })
+
+  it.each([403, 500] as const)(
+    'preserves project observations after unconfirmed HTTP %s failure',
+    async (status) => {
+      await db
+        .update(knowledgeConnector)
+        .set({ sourceConfig: { domain: DOMAIN, projectKey: ['ENG', 'SUPPORT'] } })
+        .where(eq(knowledgeConnector.id, connectorId))
+      listing.get(bob.accessToken)!.push(issue('5', 'Orion Bob support issue', 'SUPPORT'))
+      await sync()
+      projectFailures.set(bob.accessToken, { SUPPORT: status })
+
+      expect((await sync()).membersFailed).toBe(1)
+      await assertAccess(bob, ['1', '3', '5'])
+      await assertAccess(alice, ['1', '2'])
+    }
+  )
 
   it.each(['invalid_grant', 'unauthorized_client'] as const)(
     'marks a %s refresh rejection for reconnect and immediately hides that member corpus',

@@ -25,14 +25,9 @@ import {
   type ResourceScope,
   resourceScopeFields,
   resourceScopeFromOwner,
-  sameResourceScope,
 } from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  canUseCredential,
-  getCredentialActorContext,
-  resolveCredentialTokenIdentity,
-} from '@/lib/credentials/access'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
@@ -42,6 +37,7 @@ import {
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
+import { requireConnectorCredential } from '@/lib/knowledge/application/connector-credential'
 import {
   type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
@@ -243,6 +239,8 @@ export function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBase
 }
 
 async function resolveAuthorizedConnectorCredentialIdentity(input: {
+  principal: Principal
+  requestId: string
   credentialId: string
   workspaceId?: string
   organizationId?: string
@@ -251,21 +249,14 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
   auth: ConnectorAuthConfig
   accessMode: string
 }) {
-  const access = await getCredentialActorContext(input.credentialId, input.actingUserId)
-  if (
-    !access.credential ||
-    !sameResourceScope(resourceScopeFromOwner(access.credential), resourceScopeFromOwner(input)) ||
-    !canUseCredential(access)
-  ) {
-    throw new OrchestrationError(
-      'validation',
-      'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
-    )
-  }
+  const credential = await requireConnectorCredential({
+    ...input,
+    scope: resourceScopeFromOwner(input),
+  })
   if (
     input.service &&
-    (!access.credential.providerId ||
-      !credentialProviderMatchesService(access.credential.providerId, input.service))
+    (!credential.providerId ||
+      !credentialProviderMatchesService(credential.providerId, input.service))
   ) {
     throw new OrchestrationError(
       'validation',
@@ -291,6 +282,7 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
  * of another provider.
  */
 export async function resolveConnectorCredentialAccessToken(input: {
+  principal: Principal
   credentialId: string
   workspaceId?: string
   organizationId?: string
@@ -315,6 +307,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
 }
 
 export async function validateConnectorSourceConfig(input: {
+  principal: Principal
   connector: KnowledgeConnectorRow
   sourceConfig: Record<string, unknown>
   workspaceId?: string
@@ -375,6 +368,8 @@ export async function validateConnectorSourceConfig(input: {
       }
     }
     const identity = await resolveAuthorizedConnectorCredentialIdentity({
+      principal: input.principal,
+      requestId: input.requestId,
       credentialId: input.connector.credentialId,
       workspaceId: input.workspaceId,
       organizationId: input.organizationId,
@@ -384,7 +379,9 @@ export async function validateConnectorSourceConfig(input: {
     })
     if (!identity) {
       return {
-        message: 'Credential is no longer usable in this workspace. Please reconnect it.',
+        message: input.organizationId
+          ? 'Credential is no longer usable in this organization. Please reconnect it.'
+          : 'Credential is no longer usable in this workspace. Please reconnect it.',
         errorCode: 'validation',
       }
     }
@@ -767,6 +764,9 @@ async function executeCreateKnowledgeConnector(
     }
   }
   const sourceConfig = await prepareGitHubInstallationSource({
+    principal,
+    requestId,
+    workspaceId: context.workspaceId,
     connectorType: input.connectorType,
     credentialId: input.credentialId,
     organizationId: context.organizationId,
@@ -792,6 +792,7 @@ async function executeCreateKnowledgeConnector(
       resolveKnowledgeBillingAttribution(principal, context),
     resolveAccessToken: (credentialId) =>
       resolveConnectorCredentialAccessToken({
+        principal,
         credentialId,
         ...owner,
         actingUserId,
@@ -941,6 +942,9 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       updates: input.updates,
       prepareSourceConfig: (connector, sourceConfig) =>
         prepareGitHubInstallationSource({
+          principal,
+          requestId,
+          workspaceId: context.workspaceId,
           connectorType: connector.connectorType,
           credentialId: connector.credentialId,
           organizationId: context.organizationId,
@@ -960,6 +964,7 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       validateSourceConfig: (connector, sourceConfig) => {
         const owner = resourceScopeFields(resourceScopeFromOwner(context))
         return validateConnectorSourceConfig({
+          principal,
           connector,
           sourceConfig,
           ...owner,

@@ -36,6 +36,7 @@ describe('XlsxParser preview bound', () => {
     const options = toJson.mock.calls[0][1] as {
       range?: { s: { r: number; c: number }; e: { r: number; c: number } }
       defval?: unknown
+      raw?: boolean
     }
 
     /**
@@ -61,6 +62,12 @@ describe('XlsxParser preview bound', () => {
      * silently defeated the `blankrows: false` sitting beside it.
      */
     expect(options.defval).toBeUndefined()
+
+    /**
+     * Display text, not stored values: without `raw: false` a date indexes as
+     * its serial and `20%` as `0.2`, unlike the Sheets and Excel connectors.
+     */
+    expect(options.raw).toBe(false)
   })
 
   it('caps a sheet with an inflated declared column range before conversion', async () => {

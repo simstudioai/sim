@@ -14,8 +14,9 @@ export function getConnectorRequiredScopes(
 export function isConnectorCredentialTypeAllowed(
   auth: ConnectorAuthConfig,
   accessMode: string,
-  credentialType: 'oauth' | 'service_account' | undefined
+  credentialType: 'oauth' | 'service_account' | 'managed_oauth' | undefined
 ): boolean {
+  if (credentialType === 'managed_oauth') return false
   return (
     auth.mode !== 'oauth' ||
     accessMode !== 'admin' ||

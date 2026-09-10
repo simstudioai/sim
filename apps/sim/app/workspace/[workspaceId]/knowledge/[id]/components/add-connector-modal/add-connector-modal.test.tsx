@@ -444,6 +444,7 @@ describe('Search methods requiring member identity', () => {
   it.each(['members', 'admin'] as const)(
     'honors the locked %s entry point over a draft for the other access mode',
     async (accessMode) => {
+      mocks.credentials = [{ id: 'credential-1', name: 'Source account', type: 'service_account' }]
       const setupDraftKey = `confluence:${accessMode}`
       useConnectorSetupStore.getState().saveDraft(setupDraftKey, {
         sourceConfig: {},
@@ -514,6 +515,7 @@ describe('Search methods requiring member identity', () => {
   })
 
   it('allows Confluence central syncing once both feature gates are available', async () => {
+    mocks.credentials = [{ id: 'credential-1', name: 'Source account', type: 'service_account' }]
     await render({ initialConnectorType: 'confluence', initialAccessMode: 'admin' })
     expect(button('Connect & Sync')).toBeEnabled()
     await act(async () => button('Connect & Sync').click())
@@ -532,7 +534,7 @@ describe('Search methods requiring member identity', () => {
       initialAccessMode: 'admin',
     })
     expect(button('Connect & Sync')).toBeDisabled()
-    expect(button('Admin or service account')).toBeDisabled()
+    expect(button('Service account')).toBeDisabled()
     expect(button('Workspace')).toBeEnabled()
   })
 })
@@ -805,6 +807,41 @@ describe('Search setup options', () => {
 })
 
 describe('Account connection dropdown', () => {
+  it('only offers service accounts when creating a central Confluence source', async () => {
+    mocks.credentials = [{ id: 'personal-account', name: 'Personal Confluence', type: 'oauth' }]
+    mocks.serviceAccountTarget = {
+      serviceAccountProviderId: 'atlassian-service-account',
+      serviceName: 'Atlassian',
+      serviceIcon: confluenceConnectorMeta.icon,
+      label: 'Add service account',
+      hidden: false,
+    }
+    await render({
+      initialConnectorType: 'confluence',
+      lockedAccessMode: 'admin',
+      scope: { kind: 'organization', organizationId: 'org-1' },
+    })
+    expect(button('Connect & Sync')).toBeDisabled()
+    await act(async () => combobox('Select a service account').click())
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+    expect(options.map((option) => option.textContent?.trim())).toEqual(['Add service account'])
+    await act(async () => options[0]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    expect(mocks.serviceAccountModal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        serviceAccountProviderId: 'atlassian-service-account',
+        atlassianProduct: 'confluence',
+      })
+    )
+    await act(async () => button('Finish service account setup').click())
+    expect(combobox('New service account')).toHaveAttribute('aria-disabled', 'false')
+    await act(async () => button('Connect & Sync').click())
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialId: 'new-service-account', accessMode: 'admin' }),
+      expect.any(Object)
+    )
+    expect(mocks.oauthModal).not.toHaveBeenCalled()
+  })
+
   it('offers GitHub indexing accounts directly without requiring a browsing credential', async () => {
     mocks.credentials = []
     await render({
@@ -846,7 +883,7 @@ describe('Account connection dropdown', () => {
     expect(mocks.refetchCredentials).toHaveBeenCalledOnce()
   })
 
-  it('offers both connection methods in the empty dropdown and preserves the OAuth setup draft', async () => {
+  it('preserves member OAuth setup drafts and optional service-account browsing', async () => {
     mocks.credentials = []
     mocks.serviceAccountTarget = {
       serviceAccountProviderId: 'atlassian-service-account',
@@ -864,13 +901,13 @@ describe('Account connection dropdown', () => {
     mocks.selectionLabels = { spaceKey: [{ id: 'ENG', label: 'Engineering' }] }
     await render({
       initialConnectorType: 'confluence',
-      initialAccessMode: 'admin',
+      initialAccessMode: 'members',
       scope: { kind: 'organization', organizationId: 'org-1' },
       setupDraftKey: 'confluence-direct',
     })
 
-    expect(document.body.textContent).toContain('Indexing account')
-    expect(button('Connect & Sync')).toBeDisabled()
+    expect(document.body.textContent).toContain('Account for browsing')
+    expect(button('Add source')).toBeEnabled()
     await act(async () => combobox('Select Confluence account').click())
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
     expect(options.map((option) => option.textContent?.trim())).toEqual([
@@ -883,7 +920,7 @@ describe('Account connection dropdown', () => {
       sourceConfig: mocks.sourceConfig,
       canonicalModes: mocks.canonicalModes,
       selectionLabels: mocks.selectionLabels,
-      accessMode: 'admin',
+      accessMode: 'members',
       credentialId: null,
       contentCredentialId: null,
       disabledTagIds: [],
@@ -914,11 +951,17 @@ describe('Account connection dropdown', () => {
     expect(mocks.refetchCredentials).toHaveBeenCalledOnce()
 
     mocks.credentialsState = 'ready'
-    mocks.credentials = [{ id: 'recovered-account', name: 'Recovered account', type: 'oauth' }]
+    mocks.credentials = [
+      { id: 'recovered-account', name: 'Recovered account', type: 'service_account' },
+    ]
     await render({ initialConnectorType: 'confluence', initialAccessMode: 'admin' })
 
     expect(document.body.textContent).not.toContain('Could not load accounts')
     expect(combobox('Recovered account')).toHaveAttribute('aria-disabled', 'false')
+    expect(configFieldsProps()).toMatchObject({
+      credentialId: 'recovered-account',
+      credentialType: 'service_account',
+    })
     expect(button('Connect & Sync')).toBeEnabled()
     await act(async () => button('Connect & Sync').click())
     expect(mocks.create).toHaveBeenCalledWith(
@@ -929,6 +972,7 @@ describe('Account connection dropdown', () => {
   })
 
   it('keeps cached accounts usable after a background account-list error', async () => {
+    mocks.credentials = [{ id: 'credential-1', name: 'Source account', type: 'service_account' }]
     mocks.credentialsState = 'error'
     await render({ initialConnectorType: 'confluence', initialAccessMode: 'admin' })
     expect(combobox('Source account')).toHaveAttribute('aria-disabled', 'false')
@@ -936,10 +980,10 @@ describe('Account connection dropdown', () => {
     expect(document.body.textContent).not.toContain('Could not load accounts')
   })
 
-  it('keeps existing-account selection and the connect-another action', async () => {
+  it('keeps member browsing-account selection and the connect-another action', async () => {
     await render({
       initialConnectorType: 'confluence',
-      initialAccessMode: 'admin',
+      initialAccessMode: 'members',
       setupDraftKey: 'another-account',
     })
     await act(async () => combobox('Source account').click())

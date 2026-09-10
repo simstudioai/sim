@@ -422,6 +422,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'search/google-calendar.mdx',
   'search/google-drive.mdx',
   'search/jira.mdx',
+  'search/mcp.mdx',
   'search/slack.mdx',
   'tables.mdx',
   'tables/using-in-workflows.mdx',

@@ -42,4 +42,50 @@ describe('JSON parser complexity limits', () => {
     expect(JSON.parse(result.content)).toEqual({ items: [1, 2], name: 'test' })
     expect(result.metadata).toMatchObject({ isArray: false, keys: ['items', 'name'], depth: 2 })
   })
+
+  it('parses a BOM-prefixed JSON file and reports its encoding', async () => {
+    const result = await parseJSONBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"name":"Café"}')])
+    )
+
+    expect(JSON.parse(result.content)).toEqual({ name: 'Café' })
+    expect(result.metadata?.encoding).toBe('utf-8')
+    expect(result.metadata?.warning).toBeUndefined()
+  })
+
+  it('decodes a Windows-1252 JSON file instead of rejecting or mangling it', async () => {
+    const result = await parseJSONBuffer(Buffer.from('{"city":"Z\xfcrich"}', 'latin1'))
+
+    expect(JSON.parse(result.content)).toEqual({ city: 'Zürich' })
+    expect(result.metadata?.encoding).toBe('windows-1252')
+    expect(result.metadata?.warning).toMatch(/Windows-1252/)
+  })
+
+  it('parses JSON with comments and trailing commas leniently with a warning', async () => {
+    const jsonc =
+      '{\n  // strict later\n  "compilerOptions": { "strict": true, /* todo */ "target": "esnext", },\n  "url": "http://example.com/a//b",\n}\n'
+    const result = await parseJSONBuffer(Buffer.from(jsonc))
+    const parsed = JSON.parse(result.content) as {
+      compilerOptions: { target: string }
+      url: string
+    }
+
+    expect(parsed.compilerOptions.target).toBe('esnext')
+    expect(parsed.url).toBe('http://example.com/a//b')
+    expect(result.metadata?.warning).toContain('comments')
+  })
+
+  it('still rejects JSON that is invalid even after comment stripping', async () => {
+    await expect(parseJSONBuffer(Buffer.from('{ "a": [1, 2 }'))).rejects.toMatchObject({
+      code: 'invalid_format',
+    })
+  })
+
+  it('parses BOM-prefixed JSON Lines', async () => {
+    const result = await parseJSONLBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"a":1}\n{"a":2}')])
+    )
+
+    expect(JSON.parse(result.content)).toEqual([{ a: 1 }, { a: 2 }])
+  })
 })

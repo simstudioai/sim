@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -37,6 +38,7 @@ import {
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { slackSearchKeys } from '@/hooks/queries/slack-search'
+import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
@@ -44,20 +46,21 @@ export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 /** Disconnects an owned grant; indexing and source setup do not gate this operation. */
 export function useDisconnectPersonalOrganizationAccount(organizationId: string) {
   const queryClient = useQueryClient()
+  const router = useRouter()
   return useMutation({
     mutationFn: (credentialId: string) =>
       requestJson(disconnectPersonalOrganizationAccountContract, {
         params: { credentialId },
       }),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: searchSourceKeys.list({ kind: 'organization', organizationId }),
-        }),
+    onSuccess: async () => {
+      await Promise.all([
+        resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
-      ]),
+      ])
+      router.refresh()
+    },
   })
 }
 

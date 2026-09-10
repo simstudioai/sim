@@ -30,6 +30,7 @@ export function compactRetrievalCitations(toolName: string, raw: unknown): unkno
     for (const key of [
       'documentName',
       'knowledgeBaseName',
+      'siteName',
       'connectorType',
       'author',
       'sourceModifiedAt',

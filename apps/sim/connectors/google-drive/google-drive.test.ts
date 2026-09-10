@@ -1058,7 +1058,9 @@ describe('mirroring Drive permissions onto listed documents', () => {
   })
 
   it('keeps an openly shared file out of search until the admin opts in', async () => {
-    const shared = driveFile({ permissions: [{ id: 'p1', type: 'domain', domain: 'corp.com' }] })
+    const shared = driveFile({
+      permissions: [{ id: 'p1', type: 'domain', domain: 'corp.com', allowFileDiscovery: true }],
+    })
 
     await expect(listWith(shared, ADMIN)).resolves.toMatchObject({ acl: ['link'] })
     await expect(listWith(shared, { ...ADMIN, openSharing: 'domain' })).resolves.toMatchObject({
@@ -1073,6 +1075,21 @@ describe('mirroring Drive permissions onto listed documents', () => {
     )
 
     expect(doc.acl).toEqual(['link'])
+  })
+
+  it('requires explicit discoverability before mirroring broad search access', async () => {
+    const doc = await listWith(
+      driveFile({
+        permissions: [
+          { id: 'p1', type: 'anyone' },
+          { id: 'p2', type: 'domain', domain: 'corp.com' },
+          { id: 'p3', type: 'user', emailAddress: 'alice@corp.com' },
+        ],
+      }),
+      { ...ADMIN, openSharing: 'anyone' }
+    )
+
+    expect(doc.acl).toEqual(['u:alice@corp.com'])
   })
 
   /**

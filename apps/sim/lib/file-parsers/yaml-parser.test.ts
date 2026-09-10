@@ -70,6 +70,28 @@ describe('parseYAMLBuffer', () => {
     await expect(parseYAMLBuffer(Buffer.from(bomb))).rejects.toBeInstanceOf(YamlComplexityError)
   })
 
+  it('parses a multi-document stream as one document per item', async () => {
+    const stream =
+      'apiVersion: v1\nkind: Service\nmetadata:\n  name: web\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n'
+    const result = await parseYAMLBuffer(Buffer.from(stream))
+    const parsed = JSON.parse(result.content) as Array<{ kind: string }>
+
+    expect(parsed.map((document) => document.kind)).toEqual(['Service', 'Deployment'])
+    expect(result.metadata).toMatchObject({
+      type: 'yaml',
+      isArray: true,
+      itemCount: 2,
+      documentCount: 2,
+    })
+  })
+
+  it('keeps a single document unwrapped and skips empty documents in a stream', async () => {
+    const result = await parseYAMLBuffer(Buffer.from('---\nname: solo\n---\n'))
+
+    expect(JSON.parse(result.content)).toEqual({ name: 'solo' })
+    expect(result.metadata).toMatchObject({ isArray: false, documentCount: 1 })
+  })
+
   it('surfaces malformed YAML as an Invalid YAML error', async () => {
     await expect(parseYAMLBuffer(Buffer.from('key: "unterminated\n'))).rejects.toThrow(
       /Invalid YAML/
@@ -127,5 +149,17 @@ describe('assertYamlWithinLimits', () => {
     // (~20M code units, ~20 MB) stays well under the cap.
     const astral = String.fromCodePoint(0x1f600).repeat(10 * 1024 * 1024)
     expect(() => assertYamlWithinLimits({ text: astral })).not.toThrow()
+  })
+
+  it('decodes a BOM-prefixed Latin-1 YAML file without losing accented characters', async () => {
+    const bom = await parseYAMLBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('name: Café')])
+    )
+    const latin1 = await parseYAMLBuffer(Buffer.from('name: Caf\xe9', 'latin1'))
+
+    expect(JSON.parse(bom.content)).toEqual({ name: 'Café' })
+    expect(bom.metadata?.encoding).toBe('utf-8')
+    expect(JSON.parse(latin1.content)).toEqual({ name: 'Café' })
+    expect(latin1.metadata?.encoding).toBe('windows-1252')
   })
 })

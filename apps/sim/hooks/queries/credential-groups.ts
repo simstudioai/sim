@@ -288,8 +288,6 @@ export function useStartSlackCredentialGroupConfiguration() {
         return requestJson(startOrganizationSlackConfigurationContract, {
           params: { id: scope.organizationId, groupId: credentialGroupId },
           body: {
-            clientId: body.clientId,
-            clientSecret: body.clientSecret,
             appId: body.appId,
             teamId: body.teamId,
             requiredScopes: body.requiredScopes,

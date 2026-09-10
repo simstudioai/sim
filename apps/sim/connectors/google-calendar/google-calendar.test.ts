@@ -332,7 +332,9 @@ describe('google-calendar attendee PII opt-out', () => {
   it('indexes attendee and organizer identifiers when unset (default on)', async () => {
     const doc = await listOne({})
     expect(doc.content).toContain(`Organizer: Grace Hopper (${ORGANIZER_EMAIL})`)
-    expect(doc.content).toContain(`Attendees: ${ATTENDEE_NAME}, second@example.com`)
+    expect(doc.content).toContain(
+      `Attendees: ${ATTENDEE_NAME} (${ATTENDEE_EMAIL}), second@example.com`
+    )
     expect(doc.contentHash).toBe('gcal:evt-1:2026-01-02T00:00:00Z')
 
     const tags = googleCalendarConnector.mapTags?.(doc.metadata ?? {}) ?? {}

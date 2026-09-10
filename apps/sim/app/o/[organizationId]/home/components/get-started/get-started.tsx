@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import Link from 'next/link'
+import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
+import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
 
 type StepId = 'connect-integration' | 'connect-sim-search'
 
@@ -66,14 +67,24 @@ function StepMark({ complete }: { complete: boolean }) {
  * the workspace home's suggested actions: a hover-revealed disclosure header
  * over hairline-separated rows. Each step leads to the page that completes it,
  * and reads as done from the organization's real state: a source the viewer can
- * search and a personal API key for the MCP server.
+ * search and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
   const { organization, viewer } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const { data: overview } = useSearchSourceOverview(scope)
-  const { data: apiKeys } = useApiKeys('', 'personal')
+  const {
+    data: authorizedApps,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isError,
+  } = useAuthorizedApps('', { enabled: viewer.canUseSearchMcp })
+  const hasSearchAuthorization =
+    authorizedApps?.pages.some((page) =>
+      page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
+    ) ?? false
 
   const hrefs: Record<StepId, string> = {
     'connect-integration': viewer.isAdmin
@@ -83,8 +94,9 @@ export function GetStarted() {
   }
   const completed: Record<StepId, boolean> = {
     'connect-integration': overview?.hasSearchableDocuments === true,
-    'connect-sim-search': (apiKeys?.personalKeys.length ?? 0) > 0,
+    'connect-sim-search': hasSearchAuthorization,
   }
+  const steps = STEPS.filter((step) => step.id !== 'connect-sim-search' || viewer.canUseSearchMcp)
 
   const [expanded, setExpanded] = useState(true)
   /**
@@ -94,6 +106,25 @@ export function GetStarted() {
    * above it.
    */
   const [animationsEnabled, setAnimationsEnabled] = useState(false)
+
+  useEffect(() => {
+    if (
+      viewer.canUseSearchMcp &&
+      !hasSearchAuthorization &&
+      hasNextPage &&
+      !isFetching &&
+      !isError
+    ) {
+      void fetchNextPage()
+    }
+  }, [
+    viewer.canUseSearchMcp,
+    hasSearchAuthorization,
+    hasNextPage,
+    isFetching,
+    isError,
+    fetchNextPage,
+  ])
 
   const handleToggleExpanded = () => {
     setAnimationsEnabled(true)
@@ -135,7 +166,7 @@ export function GetStarted() {
               would hold its full value through the close and then vanish on unmount,
               snapping the content below up. */}
           <div className='flex flex-col pt-1.5'>
-            {STEPS.map((step, i) => {
+            {steps.map((step, i) => {
               const complete = completed[step.id]
               return (
                 <Link

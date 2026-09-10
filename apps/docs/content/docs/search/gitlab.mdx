@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed GitLab email.
+GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed primary GitLab email.
 
 <Image className="mx-auto h-auto w-full max-w-md" src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={520} height={479} />
 
@@ -49,7 +49,7 @@ The token must read the project, users, inherited project membership, instance s
 
 ### Configure the source in Sim
 
-Open **Settings → Sources** and turn on **GitLab** under **Allowed in Sim Search**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Paste the **Personal Access Token**, enter your **Host** and **Project**, and choose the content to index.
+Open **Settings → Sources** and turn on **GitLab**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Paste the **Personal Access Token**, enter your **Host** and **Project**, and choose the content to index.
 
 | Field | What to enter |
 |---|---|
@@ -59,7 +59,7 @@ Open **Settings → Sources** and turn on **GitLab** under **Allowed in Sim Sear
 | Branch | Optional branch or tag for repository files; blank uses the project's default branch. |
 | Path Filter / File Extensions | Optional limits for repository files. |
 | Issue State / Labels / Milestone | Optional filters for issues. |
-| Max Items | Optional positive limit. Leave blank for all matching items. |
+| Max Items | Optional positive whole-number limit. Leave blank for all matching items. |
 
 **More options** contains the repository and issue filters, **Max Items**, and **Metadata tags**. Unlike member-account sources, GitLab retains this optional item limit.
 
@@ -72,7 +72,7 @@ Select **Connect & Sync**. Sim validates the token and source policy, then start
 
 ### Let teammates search
 
-Invite teammates to the Sim organization using their verified work email. Sim matches that email against the GitLab directory and applies project, feature, and confidential-issue permissions. No GitLab **Connect account** step is required.
+Invite teammates to the Sim organization using their verified work email. Sim matches that email against their confirmed primary GitLab email and applies project, feature, and confidential-issue permissions. Confirmed secondary addresses are not matched. No GitLab **Connect** step is required.
 
 Admins open **Settings → Sources**, select **Manage** beside **GitLab**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. GitLab has no personal **Accounts** tab. Permission and membership changes are picked up during background refreshes.
 
@@ -90,7 +90,7 @@ The connector supports text repository files, wiki pages, issues, merge requests
 | Administrator token required | Use an active instance administrator's PAT with `read_api`, plus `admin_mode` when required. A project or group token cannot replace it. |
 | Source permissions cannot be mirrored | Read the reported policy. Sim rejects unsupported external authorization, IP restrictions, download-ban policies, or session-specific step-up requirements. |
 | Project not found | Check the host, project path or ID, and token access. |
-| A teammate sees no results | Confirm both accounts' verified/confirmed email addresses match and the user has the required GitLab project or feature access. |
+| A teammate sees no results | Confirm their verified Sim email matches their confirmed primary GitLab email and the user has the required GitLab project or feature access. |
 | Token expired | Remove and add the source again with a new token. This connector does not support replacing its token in place or refreshing PATs automatically. |
 
 Custom GitLab roles may grant more access than Sim's conservative role mapping recognizes. A source requiring unsupported policies must remain unavailable until its access model can be represented accurately.

@@ -148,12 +148,19 @@ export async function stopSlackAgentStream(
   ts: string,
   sessionStatus: 'active' | 'processing' | 'suspended',
   signal?: AbortSignal,
-  blocks?: Record<string, unknown>[]
+  blocks?: Record<string, unknown>[],
+  chunks?: SlackStreamChunk[]
 ): Promise<void> {
   await callSlackAgentApi(
     'chat.stopStream',
     token,
-    { channel, ts, session_status: sessionStatus, ...(blocks?.length ? { blocks } : {}) },
+    {
+      channel,
+      ts,
+      session_status: sessionStatus,
+      ...(blocks?.length ? { blocks } : {}),
+      ...(chunks?.length ? { chunks } : {}),
+    },
     signal
   )
 }

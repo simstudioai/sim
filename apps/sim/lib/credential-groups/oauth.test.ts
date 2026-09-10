@@ -277,6 +277,42 @@ describe('credential group OAuth persistence', () => {
     }
   )
 
+  it.each([
+    { kind: 'create' as const },
+    { kind: 'reconnect' as const, credentialId: 'other-account' },
+  ])(
+    'rejects changing an active account through the wrong connection intent',
+    async (connectionIntent) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
+      queueTableRows(schemaMock.credentialGroup, [GROUP])
+      queueTableRows(schemaMock.credential, [{ id: 'credential-1', revokedAt: null }])
+      await expect(
+        completeCredentialGroupOAuth(
+          CONTEXT,
+          {
+            state: 'state',
+            userId: CONTEXT.credentialOwnerId,
+            provider: 'gmail',
+            nonceHash: 'nonce',
+            workspaceId: CONTEXT.workspaceId,
+            email: CONTEXT.email,
+            enrollmentId: CONTEXT.enrollmentId,
+            credentialGroupId: CONTEXT.credentialGroupId,
+            optionId: CONTEXT.option.id,
+            authorizationAppId: POLICY.authorizationAppId,
+            scopeVersion: POLICY.scopeVersion,
+            requiredScopes: POLICY.requiredScopes,
+            redirectUri: 'https://sim.test/callback',
+            invitationToken: 'token',
+            createdAt: Date.now(),
+            connectionIntent,
+          },
+          'code'
+        )
+      ).rejects.toThrow('account changed')
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
   it('preserves completed enrollment state when an account reconnects', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
     queueTableRows(schemaMock.credentialGroup, [GROUP])
@@ -295,6 +331,61 @@ describe('credential group OAuth persistence', () => {
     const result = await completeCredentialGroupOAuth(
       { ...CONTEXT, enrollmentStatus: 'completed' },
       {
+        state: 'state-1',
+        userId: 'person-1',
+        provider: 'gmail',
+        nonceHash: 'nonce-hash',
+        workspaceId: CONTEXT.workspaceId,
+        email: CONTEXT.email,
+        enrollmentId: CONTEXT.enrollmentId,
+        credentialGroupId: CONTEXT.credentialGroupId,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
+        codeVerifier: 'verifier',
+        invitationToken: 'invitation-token',
+        createdAt: Date.now(),
+      },
+      'authorization-code'
+    )
+
+    const enrollmentUpdate = dbChainMockFns.set.mock.calls[1]?.[0]
+    expect(enrollmentUpdate).toEqual(
+      expect.objectContaining({ status: 'completed', updatedAt: expect.any(Date) })
+    )
+    expect(enrollmentUpdate).not.toHaveProperty('completedAt')
+    expect(result).toEqual({
+      created: false,
+      credentialId: 'credential-1',
+      credentialGroupOptionId: 'option-1',
+      provider: 'gmail',
+      providerId: 'google-email',
+      displayName: 'person@example.com',
+      enrollmentStatus: 'completed',
+    })
+  })
+
+  it('preserves the exact credential requested by Search reconnect', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
+    queueTableRows(schemaMock.credentialGroup, [GROUP])
+    queueTableRows(schemaMock.credential, [
+      {
+        id: 'credential-1',
+        providerSubjectId: 'google-subject-1',
+        encryptedOauthTokenSet: null,
+        refreshTokenExpiresAt: null,
+      },
+    ])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'credential-1' }])
+      .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
+
+    const result = await completeCredentialGroupOAuth(
+      { ...CONTEXT, enrollmentStatus: 'completed' },
+      {
+        connectionIntent: { kind: 'reconnect', credentialId: 'credential-1' },
         state: 'state-1',
         userId: 'person-1',
         provider: 'gmail',
@@ -419,5 +510,60 @@ describe('credential group OAuth persistence', () => {
     )
     expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.email, CONTEXT.email)
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+  it('restores a personally disconnected grant without replacing any active account', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
+    queueTableRows(schemaMock.credentialGroup, [GROUP])
+    queueTableRows(schemaMock.credential, [
+      {
+        id: 'credential-1',
+        revokedAt: new Date(),
+        providerSubjectId: 'google-subject-1',
+        encryptedOauthTokenSet: null,
+        refreshTokenExpiresAt: null,
+      },
+    ])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'credential-1' }])
+      .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
+
+    const result = await completeCredentialGroupOAuth(
+      { ...CONTEXT, enrollmentStatus: 'completed' },
+      {
+        connectionIntent: { kind: 'create' },
+        state: 'state-1',
+        userId: 'person-1',
+        provider: 'gmail',
+        nonceHash: 'nonce-hash',
+        workspaceId: CONTEXT.workspaceId,
+        email: CONTEXT.email,
+        enrollmentId: CONTEXT.enrollmentId,
+        credentialGroupId: CONTEXT.credentialGroupId,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
+        codeVerifier: 'verifier',
+        invitationToken: 'invitation-token',
+        createdAt: Date.now(),
+      },
+      'authorization-code'
+    )
+
+    const enrollmentUpdate = dbChainMockFns.set.mock.calls[1]?.[0]
+    expect(enrollmentUpdate).toEqual(
+      expect.objectContaining({ status: 'completed', updatedAt: expect.any(Date) })
+    )
+    expect(enrollmentUpdate).not.toHaveProperty('completedAt')
+    expect(result).toEqual({
+      created: false,
+      credentialId: 'credential-1',
+      credentialGroupOptionId: 'option-1',
+      provider: 'gmail',
+      providerId: 'google-email',
+      displayName: 'person@example.com',
+      enrollmentStatus: 'completed',
+    })
   })
 })

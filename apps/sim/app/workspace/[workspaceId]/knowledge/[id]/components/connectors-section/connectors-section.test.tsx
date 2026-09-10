@@ -335,12 +335,6 @@ function renderSection(connector: ConnectorData, additionalConnectors: Connector
   return container
 }
 
-function icons(container: HTMLElement) {
-  return Array.from(container.querySelectorAll('[data-testid^="icon-"]')).map((node) =>
-    node.getAttribute('data-testid')
-  )
-}
-
 function renderComponent(component: ReactNode) {
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -931,7 +925,9 @@ describe('shared connector sync history', () => {
       )
       if (status === 'partial') {
         expect(container.textContent).toContain('Partial')
-        expect(container.textContent).toContain('3 members · 1 failed · 2 added · 3 deleted')
+        expect(container.textContent).toContain(
+          '2 added · 3 deleted · 1 account failed · 1 account incomplete'
+        )
       } else if (status === 'failed') {
         expect(container.textContent).toContain('The member account needs reconnecting')
       } else {
@@ -945,7 +941,7 @@ describe('shared connector sync history', () => {
     lifecycle.detail.current = {
       syncLogs: [makeLog({ status: 'completed', docsAdded: 999 })],
       memberSyncLogs: [],
-      members: { active: 2, suspended: 1, stale: 0 },
+      members: { active: 2, suspended: 1, stale: 2 },
     }
     const container = renderComponent(
       <ConnectorSyncHistory
@@ -953,10 +949,38 @@ describe('shared connector sync history', () => {
         knowledgeBaseId='knowledge-1'
       />
     )
-    expect(container.textContent).toContain('2 connected')
-    expect(container.textContent).toContain('1 need reconnecting')
+    expect(container.textContent).not.toContain('2 connected')
+    expect(container.textContent).toContain('1 account needs reconnecting')
+    expect(container.textContent).toContain('2 accounts not synced recently')
     expect(container.textContent).toContain('No member sync history yet.')
     expect(container.textContent).not.toContain('999')
+  })
+
+  it('shows member document changes without a redundant connected heading or healthy account count', () => {
+    lifecycle.detail.current = {
+      memberSyncLogs: [
+        {
+          ...makeLog({ status: 'completed', docsAdded: 3 }),
+          membersCompleted: 1,
+          membersIncomplete: 0,
+          membersFailed: 0,
+          docsTombstoned: 0,
+          docsPurged: 0,
+        },
+      ],
+      members: { active: 1, suspended: 0, stale: 0 },
+    }
+    const container = renderComponent(
+      <ConnectorSyncHistory
+        connector={makeConnector({ accessMode: 'members' })}
+        knowledgeBaseId='knowledge-1'
+      />
+    )
+    expect(container.textContent).toContain('3 added')
+    expect(container.textContent).not.toContain('1 connected')
+    expect(container.textContent).not.toContain('1 member')
+    expect(container.querySelector('.sr-only')?.textContent).toContain('Completed')
+    expect(container.querySelector('svg')).toBeNull()
   })
 
   it('offers retry on a failed history load instead of claiming the history is empty', () => {
@@ -975,24 +999,24 @@ describe('SyncHistory', () => {
   it('renders a fresh "started" row as in progress, not as a success', () => {
     const container = render(makeLog({ status: 'started' }))
 
-    expect(icons(container)).toEqual(['icon-loader'])
-    expect(icons(container)).not.toContain('icon-circle-check')
     expect(container.textContent).toContain('In progress…')
     expect(container.textContent).not.toContain('No changes')
   })
 
   it('renders a continued listing as partial with the work already completed', () => {
     const container = render(makeLog({ status: 'partial', docsAdded: 3 }))
-    expect(icons(container)).toEqual(['icon-triangle-alert'])
     expect(container.textContent).toContain('Partial')
     expect(container.textContent).toContain('3 added')
     expect(container.textContent).not.toContain('In progress…')
   })
 
-  it('renders a "completed" row as a success with its change counts', () => {
-    const container = render(makeLog({ status: 'completed', docsAdded: 3 }))
+  it('keeps completion accessible without repeating decorative status on every row', () => {
+    const log = makeLog({ status: 'completed', docsAdded: 3 })
+    const container = render(log)
 
-    expect(icons(container)).toEqual(['icon-circle-check'])
+    expect(container.querySelector('time')?.dateTime).toBe(log.startedAt)
+    expect(container.querySelector('.sr-only')?.textContent).toContain('Completed')
+    expect(container.querySelector('svg')).toBeNull()
     expect(container.textContent).toContain('3 added')
     expect(container.textContent).not.toContain('In progress…')
   })
@@ -1000,14 +1024,12 @@ describe('SyncHistory', () => {
   it('renders a "completed" row with no changes as "No changes"', () => {
     const container = render(makeLog({ status: 'completed' }))
 
-    expect(icons(container)).toEqual(['icon-circle-check'])
     expect(container.textContent).toContain('No changes')
   })
 
   it('renders a skipped-only completed row as a change', () => {
     const container = render(makeLog({ status: 'completed', docsSkipped: 4 }))
 
-    expect(icons(container)).toEqual(['icon-circle-check'])
     expect(container.textContent).toContain('4 skipped')
     expect(container.textContent).not.toContain('No changes')
   })
@@ -1033,8 +1055,15 @@ describe('SyncHistory', () => {
   it('renders a "failed" row as an error with its message', () => {
     const container = render(makeLog({ status: 'failed', errorMessage: 'token expired' }))
 
-    expect(icons(container)).toEqual(['icon-circle-x'])
     expect(container.textContent).toContain('token expired')
+    expect(container.textContent).not.toContain('No changes')
+  })
+
+  it('keeps a failed outcome explicit when the provider did not return an error message', () => {
+    const container = render(makeLog({ status: 'failed' }))
+
+    expect(container.textContent).toContain('Failed')
+    expect(container.textContent).not.toContain('Completed')
     expect(container.textContent).not.toContain('No changes')
   })
 
@@ -1045,7 +1074,6 @@ describe('SyncHistory', () => {
       ).toISOString()
       const container = render(makeLog({ status: 'started', startedAt }))
 
-      expect(icons(container)).toEqual(['icon-loader'])
       expect(container.textContent).toContain('In progress…')
       expect(container.textContent).not.toContain('Interrupted')
     })
@@ -1056,7 +1084,6 @@ describe('SyncHistory', () => {
       ).toISOString()
       const container = render(makeLog({ status: 'started', startedAt }))
 
-      expect(icons(container)).toEqual(['icon-triangle-alert'])
       expect(container.textContent).toContain('Interrupted')
       expect(container.textContent).not.toContain('In progress…')
       expect(container.textContent).not.toContain('No changes')
