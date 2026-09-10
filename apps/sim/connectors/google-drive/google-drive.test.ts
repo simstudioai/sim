@@ -41,7 +41,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
+import {
+  DOWNLOAD_RESTRICTED_SKIP_REASON,
+  googleDriveConnector,
+} from '@/connectors/google-drive/google-drive'
 import {
   GoogleDriveApiError,
   readGoogleDriveApiError,
@@ -458,6 +461,8 @@ describe('Google Drive API error parsing', () => {
     ['insufficientFilePermissions', 'permission'],
     ['appNotAuthorizedToFile', 'permission'],
     ['domainPolicy', 'policy'],
+    ['cannotDownloadFile', 'policy'],
+    ['cannotExportFile', 'policy'],
     ['fileNotExportable', 'unsupported_export'],
     ['dailyLimitExceeded', 'quota'],
     ['rateLimitExceeded', 'transient'],
@@ -564,6 +569,72 @@ describe('Google Drive API error parsing', () => {
   })
 })
 
+describe('Google Drive download-restricted files', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  const restricted = () => fileMetadata({ capabilities: { canDownload: false } })
+
+  it('always asks Drive whether the file can be downloaded', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
+    await googleDriveConnector.listDocuments('token', {}, undefined, {})
+
+    const fields = decodeURIComponent(String(mockFetch.mock.calls[0][0]))
+    expect(fields).toContain('capabilities(canDownload)')
+    expect(fields).not.toContain('permissions(')
+  })
+
+  it.each([
+    ['a workspace crawl', {}],
+    ['a per-member listing', { perMemberListing: true }],
+  ])('skips a restricted file at listing time in %s', async (_label, syncContext) => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [restricted()] }))
+    const page = await googleDriveConnector.listDocuments('token', {}, undefined, syncContext)
+
+    expect(page.documents).toHaveLength(1)
+    expect(page.documents[0].skippedReason).toBe(DOWNLOAD_RESTRICTED_SKIP_REASON)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('lists a downloadable file as an ordinary deferred stub', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ files: [fileMetadata({ capabilities: { canDownload: true } })] })
+    )
+    const page = await googleDriveConnector.listDocuments('token', {}, undefined, {})
+
+    expect(page.documents[0].skippedReason).toBeUndefined()
+    expect(page.documents[0].contentDeferred).toBe(true)
+  })
+
+  it('skips hydration without calling export when metadata says the file is restricted', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(restricted()))
+    const document = await googleDriveConnector.getDocument('token', {}, FILE_ID)
+
+    expect(document?.skippedReason).toBe(DOWNLOAD_RESTRICTED_SKIP_REASON)
+    expect(document?.contentDeferred).toBe(false)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a restricted file from the change feed as a skipped upsert', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        changes: [{ changeType: 'file', fileId: FILE_ID, file: restricted() }],
+        newStartPageToken: '2',
+      })
+    )
+    const page = await googleDriveConnector.listChanges?.('token', {}, '1', {})
+
+    expect(page?.changes).toHaveLength(1)
+    const change = page?.changes[0]
+    expect(change?.kind).toBe('upsert')
+    if (change?.kind === 'upsert') {
+      expect(change.document.skippedReason).toBe(DOWNLOAD_RESTRICTED_SKIP_REASON)
+    }
+  })
+})
+
 describe('Google Drive metadata hydration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -606,6 +677,8 @@ describe('Google Drive export failures', () => {
       403,
     ],
     ['domainPolicy', 'The domain administrators have disabled Drive apps.', 403],
+    ['cannotExportFile', 'This file cannot be exported by the user.', 403],
+    ['cannotDownloadFile', 'This file cannot be downloaded by the user.', 403],
     ['fileNotExportable', 'This file cannot be exported.', 403],
   ])(
     'propagates recoverable %s failures instead of persisting a sticky same-hash skip',
