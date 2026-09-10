@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   collectCompounds,
+  collectWords,
   dominantLineHeight,
   joinLines,
   normalizePdfWhitespace,
@@ -113,12 +114,23 @@ describe('joinLines', () => {
   })
 
   describe('dehyphenation', () => {
-    it('removes a line-end hyphen when the next line continues the word', () => {
+    it('removes a line-end hyphen when the document shows the joined word', () => {
       const lines = paragraph(['archived by the Infra-', 'structure team.'], 627.4)
+      const words = collectWords([{ text: 'The Infrastructure team owns it.', height: BODY }])
 
-      expect(joinLines(lines, { headingMarkers: false })).toBe(
+      expect(joinLines(lines, { words, headingMarkers: false })).toBe(
         'archived by the Infrastructure team.'
       )
+    })
+
+    it('keeps an unknown line-end hyphen rather than inventing a word', () => {
+      const lines = paragraph(['we ship high-', 'quality builds'], 627.4)
+      const words = collectWords(lines)
+
+      expect(joinLines(lines, { words, headingMarkers: false })).toBe(
+        'we ship high-quality builds'
+      )
+      expect(joinLines(lines, { headingMarkers: false })).toBe('we ship high-quality builds')
     })
 
     it('keeps the hyphen when the compound appears intact elsewhere in the document', () => {

@@ -115,6 +115,11 @@ describe('isoDateText', () => {
   it('renders an invalid date as empty text', () => {
     expect(isoDateText(new Date(Number.NaN))).toBe('')
   })
+
+  it('renders a duration or time-of-day cell without the 1899 epoch date', () => {
+    expect(isoDateText(new Date(Date.UTC(1899, 11, 30, 0, 30, 0)))).toBe('00:30:00')
+    expect(isoDateText(new Date(Date.UTC(1899, 11, 31, 13, 5, 9)))).toBe('13:05:09')
+  })
 })
 
 describe('normalizeSheetDisplayText', () => {

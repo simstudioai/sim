@@ -64,6 +64,9 @@ export function suppressFurniture(pages: readonly PdfPageLines[]): PdfLine[][] {
 
   pages.forEach((page, pageIndex) => {
     const seen = new Set<string>()
+    for (const index of edgeLineIndices(page)) {
+      if (isPageNumber(page.lines[index].text, pages.length)) drops[pageIndex].add(index)
+    }
     for (const group of bandGroups(page)) {
       if (isPageNumber(group.text, pages.length)) {
         for (const index of group.indices) drops[pageIndex].add(index)
@@ -135,6 +138,24 @@ export function furnitureThreshold(pageCount: number): number | undefined {
   if (pageCount < 2) return undefined
   if (pageCount === 2) return 2
   return Math.max(MIN_FURNITURE_REPEATS, Math.ceil(FURNITURE_PAGE_FRACTION * pageCount))
+}
+
+/**
+ * The first and last non-blank lines of a page. A folio printed inside a wide
+ * margin sits outside the band, but it is still the edge of the page's text.
+ */
+function edgeLineIndices(page: PdfPageLines): number[] {
+  const indices: number[] = []
+  let first = -1
+  let last = -1
+  page.lines.forEach((line, index) => {
+    if (line.text.trim().length === 0) return
+    if (first === -1) first = index
+    last = index
+  })
+  if (first !== -1) indices.push(first)
+  if (last !== -1 && last !== first) indices.push(last)
+  return indices
 }
 
 /** Groups consecutive band lines that share a baseline into one furniture row. */

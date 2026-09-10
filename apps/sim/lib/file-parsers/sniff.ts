@@ -289,6 +289,17 @@ export function reconcileParserRoute(extension: string, kind: SniffedKind): Pars
   }
   if (FAMILY_ACCEPTS[family].has(kind)) return { extension }
 
+  /**
+   * Ambiguous bytes stay on the declared route. An archive without a recognised
+   * layout may still be a workbook SheetJS reads (`xl/` is a convention, not a
+   * rule), and an unknown binary layout under a spreadsheet or legacy Word
+   * extension covers raw BIFF streams and other formats those parsers accept.
+   * Each of those parsers raises its own typed error when the bytes are not a
+   * document, so passing them through never yields scraped garbage.
+   */
+  if (kind === 'zip' && family !== 'pdf' && family !== 'text') return { extension }
+  if (kind === 'binary' && (family === 'sheet' || family === 'ole')) return { extension }
+
   if (kind === 'text') return override(family === 'sheet' ? 'csv' : 'txt')
   if (kind === 'ole2') {
     if (family === 'word') return override('doc')

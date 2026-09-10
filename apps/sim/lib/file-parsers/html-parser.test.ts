@@ -9,6 +9,15 @@ import { HtmlComplexityError, HtmlParser } from '@/lib/file-parsers/html-parser'
 
 const parser = new HtmlParser()
 
+describe('table cells with several paragraphs', () => {
+  it('separates block children inside a cell with a space', async () => {
+    const html = '<table><tr><td><p>Заказчик</p><p>Исполняющий</p></td><td>ok</td></tr></table>'
+    const result = await new HtmlParser().parseBuffer(Buffer.from(html))
+
+    expect(result.content).toContain('| Заказчик Исполняющий | ok |')
+  })
+})
+
 describe('HtmlParser', () => {
   it('reports empty input with the typed parser taxonomy', async () => {
     await expect(parser.parseBuffer(Buffer.alloc(0))).rejects.toMatchObject({

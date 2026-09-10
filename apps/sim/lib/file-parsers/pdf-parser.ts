@@ -5,6 +5,7 @@ import { FileParserError } from '@/lib/file-parsers/errors'
 import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
 import {
   collectCompounds,
+  collectWords,
   dominantLineHeight,
   joinLines,
   normalizePdfWhitespace,
@@ -278,6 +279,7 @@ function assemblePages(pages: readonly PdfPageLines[], complete: boolean): strin
   const allLines = filteredPages.flat()
   const options = {
     compounds: collectCompounds(allLines),
+    words: collectWords(allLines),
     bodyHeight: dominantLineHeight(allLines),
   }
   const pageTexts: string[] = []

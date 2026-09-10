@@ -103,7 +103,7 @@ describe('PdfParser structure reconstruction', () => {
       'review the attached appendix before the next checkpoint, and the owning',
       'team retains sign-off authority for scope changes above five percent.',
       'Exceptions require written approval from a director or above. This',
-      'supersedes the guidance circulated on 14 March and applies immediately.',
+      'supersedes the guidance the Infrastructure team circulated on 14 March.',
     ]
     const p1Top = 676.6
     const p2Top = p1Top - 5 * PITCH - PARAGRAPH_GAP

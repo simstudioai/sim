@@ -183,14 +183,10 @@ describe('reconcileParserRoute', () => {
     ['txt', 'binary'],
     ['csv', 'zip'],
     ['txt', 'ole2'],
-    ['doc', 'binary'],
     ['docx', 'binary'],
-    ['docx', 'zip'],
-    ['xlsx', 'binary'],
     ['pdf', 'binary'],
     ['pdf', 'ole2'],
     ['odt', 'ole2'],
-    ['odt', 'zip'],
   ])('rejects .%s holding %s as invalid_format', (extension, kind) => {
     const error = (() => {
       try {
@@ -208,6 +204,22 @@ describe('reconcileParserRoute', () => {
   it('rejects a legacy OLE binary under a PowerPoint extension as unsupported_type', () => {
     expect(() => reconcileParserRoute('pptx', 'ole2')).toThrow(
       expect.objectContaining({ code: 'unsupported_type' })
+    )
+  })
+
+  it('keeps an unrecognised archive on a spreadsheet or Word route for the parser to judge', () => {
+    expect(reconcileParserRoute('xlsx', 'zip')).toEqual({ extension: 'xlsx' })
+    expect(reconcileParserRoute('docx', 'zip')).toEqual({ extension: 'docx' })
+    expect(() => reconcileParserRoute('txt', 'zip')).toThrow(
+      expect.objectContaining({ code: 'invalid_format' })
+    )
+  })
+
+  it('keeps an unknown binary layout on the SheetJS and legacy Word routes', () => {
+    expect(reconcileParserRoute('xls', 'binary')).toEqual({ extension: 'xls' })
+    expect(reconcileParserRoute('doc', 'binary')).toEqual({ extension: 'doc' })
+    expect(() => reconcileParserRoute('docx', 'binary')).toThrow(
+      expect.objectContaining({ code: 'invalid_format' })
     )
   })
 

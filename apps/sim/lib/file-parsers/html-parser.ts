@@ -105,6 +105,9 @@ export function assertHtmlStringWithinLimits(html: string): void {
 
 const NON_CONTENT_SELECTOR = 'script, style, noscript, meta, link, iframe, object, embed, svg'
 
+/** Block elements inside a table cell; `.text()` would otherwise glue their words together. */
+const CELL_BLOCK_SELECTOR = 'p, div, li, br, h1, h2, h3, h4, h5, h6, tr'
+
 /** mammoth renders a footnote's return link as `<a href="#footnote-ref-N">↑</a>`. */
 const FOOTNOTE_BACKLINK_SELECTOR = 'a[href^="#footnote-ref"]'
 
@@ -347,7 +350,9 @@ function processTable(
     const cells: string[] = []
 
     $row.find('td, th').each((_, cell) => {
-      const cellText = $(cell).text().replace(/\s+/g, ' ').trim()
+      const $cell = $(cell)
+      $cell.find(CELL_BLOCK_SELECTOR).after(' ')
+      const cellText = $cell.text().replace(/\s+/g, ' ').trim()
       cells.push(cellText || '')
     })
 

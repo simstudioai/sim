@@ -41,6 +41,12 @@ export type PdfLineSeparator = '' | ' ' | '\n'
 export interface JoinLinesOptions {
   /** Lowercase `a-b` compounds seen intact in the document; a line break on their hyphen keeps it. */
   compounds?: ReadonlySet<string>
+  /**
+   * Lowercase words seen in the document. A line-end hyphen is dropped only when
+   * the joined word occurs elsewhere, so `high-` / `quality` keeps its hyphen
+   * while `Infra-` / `structure` rejoins when `Infrastructure` appears intact.
+   */
+  words?: ReadonlySet<string>
   /** Dominant body-text height for the document; enables heading markers and heading pitch scaling. */
   bodyHeight?: number
   /** Prefixes short, oversized lines with `## ` so Markdown-aware chunkers split on them. */
@@ -81,6 +87,7 @@ const SOFT_HYPHEN = '\u00AD'
 const TRAILING_HYPHEN = /(\p{L}+)-$/u
 const LEADING_LOWERCASE_WORD = /^(\p{Ll}\p{L}*)/u
 const INTACT_COMPOUND = /\p{L}+-\p{L}+/gu
+const WORD_TOKEN = /\p{L}{3,}/gu
 
 /**
  * Reads an item's placement, or undefined when the item is rotated, vertical,
@@ -194,6 +201,15 @@ export function collectCompounds(lines: Iterable<PdfLine>): Set<string> {
   return compounds
 }
 
+/** Lowercase words of three or more letters seen anywhere in the document. */
+export function collectWords(lines: Iterable<PdfLine>): Set<string> {
+  const words = new Set<string>()
+  for (const line of lines) {
+    for (const match of line.text.matchAll(WORD_TOKEN)) words.add(match[0].toLowerCase())
+  }
+  return words
+}
+
 /** Character-weighted modal line height across the document; 0 when unknown. */
 export function dominantLineHeight(lines: Iterable<PdfLine>): number {
   const weights = new Map<number, number>()
@@ -224,6 +240,7 @@ export function joinLines(lines: readonly PdfLine[], options: JoinLinesOptions =
   const bodyHeight = options.bodyHeight ?? 0
   const headingMarkers = options.headingMarkers ?? PDF_HEADING_MARKERS_ENABLED
   const compounds = options.compounds
+  const words = options.words
 
   let out = decorate(lines[0], bodyHeight, headingMarkers)
   for (let i = 1; i < lines.length; i++) {
@@ -234,7 +251,7 @@ export function joinLines(lines: readonly PdfLine[], options: JoinLinesOptions =
       continue
     }
     if (separator === '\n') {
-      const joined = dehyphenate(out, line.text, compounds)
+      const joined = dehyphenate(out, line.text, compounds, words)
       if (joined !== undefined) {
         out = joined
         continue
@@ -260,20 +277,25 @@ function decorate(line: PdfLine, bodyHeight: number, headingMarkers: boolean): s
 
 /**
  * Joins `next` onto `out` across a hyphen that ended the line, or undefined
- * when the break is not a hyphenation. A compound seen intact elsewhere in the
- * document keeps its hyphen.
+ * when the break is not a hyphenation. The hyphen is removed only when the
+ * document itself shows the joined word; a compound seen intact keeps it, and
+ * an unknown pair keeps it too, because `high-quality` split at a line end is
+ * far more common in real documents than a word the document never repeats.
  */
 function dehyphenate(
   out: string,
   next: string,
-  compounds: ReadonlySet<string> | undefined
+  compounds: ReadonlySet<string> | undefined,
+  words: ReadonlySet<string> | undefined
 ): string | undefined {
   const head = TRAILING_HYPHEN.exec(out)
   const tail = LEADING_LOWERCASE_WORD.exec(next)
   if (!head || !tail) return undefined
   const compound = `${head[1]}-${tail[1]}`.toLowerCase()
   if (compounds?.has(compound)) return out + next
-  return out.slice(0, -1) + next
+  const joined = `${head[1]}${tail[1]}`.toLowerCase()
+  if (words?.has(joined)) return out.slice(0, -1) + next
+  return out + next
 }
 
 function separatorBetween(

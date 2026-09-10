@@ -33,6 +33,25 @@ function texts(pages: PdfLine[][]): string[][] {
   return pages.map((lines) => lines.map((entry) => entry.text))
 }
 
+describe('page numbers outside the band', () => {
+  it('drops a folio that is the last line of a page even inside a wide margin', () => {
+    const page = (n: number) => ({
+      pageHeight: 842,
+      lines: [
+        { text: 'Body text of the page.', y: 700, height: 10 },
+        { text: String(n), y: 189, height: 10 },
+      ],
+    })
+    const result = suppressFurniture([page(1), page(2), page(3)])
+
+    expect(result.map((lines) => lines.map((line) => line.text))).toEqual([
+      ['Body text of the page.'],
+      ['Body text of the page.'],
+      ['Body text of the page.'],
+    ])
+  })
+})
+
 describe('suppressFurniture', () => {
   it('drops a header repeated on enough pages but keeps its first occurrence', () => {
     const pages = [1, 2, 3, 4].map((i) => page(i, { header: 'ACME Corp — Internal Use Only' }))

@@ -25,6 +25,8 @@ interface CellLookup {
 export function isoDateText(date: Date): string {
   if (Number.isNaN(date.getTime())) return ''
   const iso = date.toISOString()
+  /** A serial below 1 is a duration or time of day; Excel shows it without the 1899 epoch date. */
+  if (date.getUTCFullYear() < 1900) return iso.slice(11, 19)
   return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 19)
 }
 
