@@ -126,6 +126,8 @@ export class SlackSearchAssistantStream {
   private pendingEvents: Promise<void> = Promise.resolve()
   private evidence = new Map<string, Record<string, unknown>>()
   private toolProgress = new Map<string, { toolName: string; chunk: ToolProgress }>()
+  private pendingProgress: { textEnd: number; chunk: ToolProgress }[] = []
+  private deliveredProgress = new Map<string, ToolProgress>()
   constructor(private readonly options: AssistantStreamOptions) {}
 
   private async deliver(action: () => Promise<void>) {
@@ -184,9 +186,10 @@ export class SlackSearchAssistantStream {
         'phase' in event.payload &&
         (event.payload.phase === 'call' || event.payload.phase === 'result')
       ) {
-        await this.updateToolProgress(event.payload)
+        this.queueToolProgress(event.payload)
       }
     }
+    if (event.type === 'tool' && this.pendingProgress.length) await this.flush(false)
     if (event.type !== 'text' || event.payload.channel !== 'assistant' || event.scope) return
     this.text += event.payload.text
     if (this.text.length > 128_000) throw new Error('Slack answer exceeds the supported size')
@@ -194,7 +197,7 @@ export class SlackSearchAssistantStream {
   }
 
   /** Only static labels reach Slack; arguments, account details, and backend errors stay private. */
-  private async updateToolProgress(
+  private queueToolProgress(
     payload: ToolCallStreamEvent['payload'] | ToolResultStreamEvent['payload']
   ) {
     const title = TOOL_PROGRESS_TITLES.get(payload.toolName)
@@ -212,9 +215,7 @@ export class SlackSearchAssistantStream {
         return
       /** Close the preceding text segment so batching cannot place its tail after the task. */
       if (this.text && !this.text.endsWith('\n\n')) this.text += '\n\n'
-      await this.flush(false)
       chunk = { type: 'task_update', id: generateId(), title, status: 'in_progress' }
-      this.toolProgress.set(payload.toolCallId, { toolName: payload.toolName, chunk })
     } else {
       if (!existing || existing.chunk.status !== 'in_progress') return
       if (existing.toolName !== payload.toolName)
@@ -227,24 +228,16 @@ export class SlackSearchAssistantStream {
             : 'error',
       }
     }
-    await this.deliver(async () => {
-      if (!this.stream || this.closed) throw new Error('Slack stream is not active')
-      await appendSlackAgentStream(
-        this.options.token,
-        this.stream.channel,
-        this.stream.ts,
-        [chunk],
-        this.options.controller.signal
-      )
-    })
     this.toolProgress.set(payload.toolCallId, { toolName: payload.toolName, chunk })
+    /** Updating an existing task does not introduce a new position in Slack's timeline. */
+    this.pendingProgress.push({ textEnd: payload.phase === 'call' ? this.text.length : 0, chunk })
   }
 
   /** Finalize interrupted tasks in the single stop request, including ambiguous progress sends. */
   private interruptedToolProgress(): ToolProgress[] {
-    return [...this.toolProgress.values()]
-      .filter(({ chunk }) => chunk.status === 'in_progress')
-      .map(({ chunk }) => ({ ...chunk, status: 'error' }))
+    return [...this.deliveredProgress.values()]
+      .filter((chunk) => chunk.status === 'in_progress')
+      .map((chunk) => ({ ...chunk, status: 'error' }))
   }
 
   private collectSources(blocks: readonly RetrievalCitationBlock[]) {
@@ -254,13 +247,10 @@ export class SlackSearchAssistantStream {
   }
 
   private async flush(complete: boolean) {
-    const { registry, token, controller } = this.options
+    const { registry } = this.options
     if (!registry.isComplete()) throw new Error('Answer secret provenance is unavailable')
     /** Active secret literals can straddle deltas; project their complete answer instead. */
     if (!complete && registry.getActiveMatches().length) return
-    const projection = projectResolvedSecretDiagnosticContent(this.text, registry, 512_000)
-    if (!projection.safe || typeof projection.value !== 'string')
-      throw new Error('Answer could not be safely projected')
     const sources = new Map<string, string>()
     for (const [id, source] of this.evidence) {
       const projected = projectResolvedSecretDiagnosticContent(source, registry)
@@ -271,8 +261,46 @@ export class SlackSearchAssistantStream {
           : ''
       )
     }
-    const text = publicSlackAnswer(redactSensitiveContent(projection.value), complete, sources)
+    const text = this.projectAnswer(this.text, complete, sources)
     if (!text.startsWith(this.sent)) throw new Error('The safe answer changed after delivery')
+    while (this.pendingProgress.length) {
+      const { textEnd, chunk } = this.pendingProgress[0]!
+      const preceding = this.text.slice(0, textEnd)
+      const prefix = this.projectAnswer(preceding, complete, sources)
+      /** A prefix must remain safe when projected as part of the complete answer. */
+      if (!text.startsWith(prefix)) throw new Error('The safe answer changed at a tool boundary')
+      await this.appendText(prefix)
+      /** Unresolved citations and partial markup must not let a task overtake withheld text. */
+      if (!complete && prefix !== this.projectAnswer(preceding, true, sources)) return
+      await this.deliver(async () => {
+        if (!this.stream || this.closed) throw new Error('Slack stream is not active')
+        /** Include an ambiguously started task in failure cleanup, but never an unsent task. */
+        if (!this.deliveredProgress.has(chunk.id)) this.deliveredProgress.set(chunk.id, chunk)
+        await appendSlackAgentStream(
+          this.options.token,
+          this.stream.channel,
+          this.stream.ts,
+          [chunk],
+          this.options.controller.signal
+        )
+      })
+      this.deliveredProgress.set(chunk.id, chunk)
+      this.pendingProgress.shift()
+    }
+    await this.appendText(text)
+  }
+
+  private projectAnswer(text: string, complete: boolean, sources: ReadonlyMap<string, string>) {
+    const projection = projectResolvedSecretDiagnosticContent(text, this.options.registry, 512_000)
+    if (!projection.safe || typeof projection.value !== 'string')
+      throw new Error('Answer could not be safely projected')
+    return publicSlackAnswer(redactSensitiveContent(projection.value), complete, sources)
+  }
+
+  private async appendText(text: string) {
+    if (this.sent.startsWith(text)) return
+    if (!text.startsWith(this.sent)) throw new Error('The safe answer changed after delivery')
+    const { token, controller } = this.options
     let pending = text.slice(this.sent.length)
     while (pending.length) {
       let end = Math.min(4000, pending.length)

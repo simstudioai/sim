@@ -69,6 +69,7 @@ function setup(deliverConnections = vi.fn().mockResolvedValue(undefined)) {
   } as unknown as ResolvedSecretTraceRegistry
   return {
     controller,
+    registry,
     beforeDelivery,
     beforeCleanup,
     stream: new SlackSearchAssistantStream({
@@ -111,6 +112,184 @@ function toolResult(
 }
 
 describe('Slack tool progress', () => {
+  it('preserves task positions when secret projection defers delivery until completion', async () => {
+    const { stream, registry } = setup()
+    vi.spyOn(registry, 'getActiveMatches').mockReturnValue([
+      { plaintext: 'private-token', replacement: '[REDACTED_SECRET]' },
+    ])
+    api.project.mockImplementation((value: unknown) => ({
+      safe: true,
+      value:
+        typeof value === 'string' ? value.replaceAll('private-token', '[REDACTED_SECRET]') : value,
+    }))
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'Checking private-token.' },
+    })
+    await stream.onEvent(toolCall('search_workspace'))
+    await stream.onEvent(toolResult('search_workspace'))
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'Found a result.' },
+    })
+    expect(api.append).not.toHaveBeenCalled()
+    await stream.finish(result)
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks).toEqual([
+      { type: 'markdown_text', text: 'Checking [REDACTED_SECRET].\n\n' },
+      {
+        type: 'task_update',
+        id: expect.any(String),
+        title: 'Searching documents…',
+        status: 'in_progress',
+      },
+      { type: 'task_update', id: chunks[1].id, title: 'Searching documents…', status: 'complete' },
+      { type: 'markdown_text', text: 'Found a result.' },
+    ])
+    expect(JSON.stringify(api.append.mock.calls)).not.toContain('private-token')
+  })
+
+  it('withholds tasks and following text until preceding citation evidence arrives', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Checking <source>{"id":"late"}</source> for details.',
+      },
+    })
+    await stream.onEvent(toolCall('search_workspace'))
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'Found a result. ' },
+    })
+    expect(api.append.mock.calls.flatMap((call) => call[3])).toEqual([
+      { type: 'markdown_text', text: 'Checking ' },
+    ])
+    const completed = toolResult('search_workspace')
+    await stream.onEvent({
+      ...completed,
+      payload: {
+        ...completed.payload,
+        output: {
+          data: {
+            results: [
+              {
+                citationId: 'late',
+                citationUrl: 'https://example.com/policy',
+                documentName: 'Policy',
+              },
+            ],
+          },
+        },
+      },
+    })
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks).toEqual([
+      { type: 'markdown_text', text: 'Checking ' },
+      { type: 'markdown_text', text: '[Policy](<https://example.com/policy>) for details.\n\n' },
+      {
+        type: 'task_update',
+        id: expect.any(String),
+        title: 'Searching documents…',
+        status: 'in_progress',
+      },
+      { type: 'task_update', id: chunks[2].id, title: 'Searching documents…', status: 'complete' },
+      { type: 'markdown_text', text: 'Found a result. ' },
+    ])
+    await stream.finish(result)
+    expect(api.append.mock.calls.flatMap((call) => call[3])).toEqual(chunks)
+  })
+
+  it('rejects a tool boundary whose prefix is unsafe in the complete secret projection', async () => {
+    const { stream, registry } = setup()
+    const secret = 'private-\n\ntoken'
+    vi.spyOn(registry, 'getActiveMatches').mockReturnValue([
+      { plaintext: secret, replacement: '[REDACTED_SECRET]' },
+    ])
+    api.project.mockImplementation((value: unknown) => ({
+      safe: true,
+      value: typeof value === 'string' ? value.replaceAll(secret, '[REDACTED_SECRET]') : value,
+    }))
+    await stream.start()
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'private-' } })
+    await stream.onEvent(toolCall('search_workspace'))
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'token' } })
+    await expect(stream.finish(result)).rejects.toThrow(
+      'The safe answer changed at a tool boundary'
+    )
+    expect(api.append).not.toHaveBeenCalled()
+  })
+
+  it('never retries a deferred task after its append fails ambiguously', async () => {
+    const { stream, registry, controller } = setup()
+    vi.spyOn(registry, 'getActiveMatches').mockReturnValue([
+      { plaintext: 'private-token', replacement: '[REDACTED_SECRET]' },
+    ])
+    await stream.start()
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Checking.' } })
+    await stream.onEvent(toolCall('search_workspace'))
+    expect(api.append).not.toHaveBeenCalled()
+    api.append.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('response lost'))
+    await expect(stream.finish(result)).rejects.toThrow('response lost')
+    expect(controller.signal.aborted).toBe(true)
+    await stream.terminateAfterFailure()
+    await stream.terminateAfterFailure()
+    expect(api.append).toHaveBeenCalledTimes(2)
+    expect(api.stop).toHaveBeenCalledOnce()
+    expect(api.stop.mock.calls[0][6]).toEqual([
+      { ...api.append.mock.calls[1][3][0], status: 'error' },
+    ])
+  })
+
+  it('omits unverified citations at completion without moving tasks ahead of their text', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Checking <source>{"id":"missing"}</source> for details.',
+      },
+    })
+    await stream.onEvent(toolCall('search_workspace'))
+    await stream.onEvent(toolResult('search_workspace'))
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Done.' } })
+    await stream.finish(result)
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'markdown_text',
+      'markdown_text',
+      'task_update',
+      'task_update',
+      'markdown_text',
+    ])
+    expect(chunks[1].text).toBe(' for details.\n\n')
+    expect(chunks[4].text).toBe('Done.')
+    expect(deliveredText()).not.toContain('missing')
+  })
+
+  it('does not introduce a withheld task when delivery is cancelled', async () => {
+    const { stream, controller } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: 'Checking <source>{"id":"missing"}</source> for details.',
+      },
+    })
+    await stream.onEvent(toolCall('search_workspace'))
+    controller.abort(new Error('stopped'))
+    await stream.terminateAfterFailure()
+    expect(api.stop.mock.calls[0][6]).toEqual([])
+    expect(api.append.mock.calls.flatMap((call) => call[3])).toEqual([
+      { type: 'markdown_text', text: 'Checking ' },
+    ])
+  })
+
   it('flushes a batched sentence before starting tool progress', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1000)
     try {
