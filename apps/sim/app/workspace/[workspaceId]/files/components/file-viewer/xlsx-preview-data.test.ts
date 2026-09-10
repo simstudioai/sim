@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import {
   readXlsxPreviewData,
+  readXlsxWorkbook,
   XLSX_MAX_COLUMNS,
   XLSX_MAX_ROWS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
@@ -75,19 +76,35 @@ describe('readXlsxPreviewData', () => {
   })
 
   /**
-   * The viewer reads the workbook without `cellDates`, so a date arrives as a
-   * number carrying the file's formatted text; `raw: false` shows that text
-   * instead of the serial, and a General number keeps its full digits.
+   * Built through the viewer's own read path rather than by hand-setting `z`,
+   * so the assertions cover the read options as well as the conversion.
    */
+  function typedWorkbook(): ArrayBuffer {
+    const sheet = XLSX.utils.aoa_to_sheet([['Issued', 'Rate', 'Card', 'Elapsed']])
+    sheet.A2 = { t: 'd', v: new Date(Date.UTC(2026, 2, 4)), z: 'm/d/yyyy' }
+    sheet.B2 = { t: 'n', v: 0.2, z: '0%' }
+    sheet.C2 = { t: 'n', v: 4111111111111111 }
+    sheet.D2 = { t: 'n', v: 1.25, z: '[h]:mm' }
+    sheet['!ref'] = 'A1:D2'
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, sheet, 'Ledger')
+    const bytes = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  }
+
   it('shows display text rather than stored values', () => {
-    const sheet = XLSX.utils.aoa_to_sheet([['Issued', 'Rate', 'Card']])
-    sheet.A2 = { t: 'n', v: 46085, z: 'yyyy-mm-dd', w: '2026-03-04' }
-    sheet.B2 = { t: 'n', v: 0.2, z: '0%', w: '20%' }
-    sheet.C2 = { t: 'n', v: 4111111111111111, z: 'General', w: '4.11111E+15' }
-    sheet['!ref'] = 'A1:C2'
+    const workbook = readXlsxWorkbook(XLSX, typedWorkbook())
 
-    const result = readXlsxPreviewData(XLSX, sheet)
+    const result = readXlsxPreviewData(XLSX, workbook.Sheets.Ledger)
 
-    expect(result.rows).toEqual([['2026-03-04', '20%', '4111111111111111']])
+    expect(result.rows).toEqual([['2026-03-04', '20%', '4111111111111111', '30:00']])
+  })
+
+  it('reads the workbook with the display-text options', () => {
+    const read = vi.fn(XLSX.read)
+
+    readXlsxWorkbook({ read, utils: XLSX.utils }, typedWorkbook())
+
+    expect(read.mock.calls[0][1]).toMatchObject({ type: 'array', cellDates: true, cellNF: true })
   })
 })

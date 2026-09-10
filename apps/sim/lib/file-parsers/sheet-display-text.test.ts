@@ -3,7 +3,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
-import { isoDateText, normalizeSheetDisplayText } from '@/lib/file-parsers/sheet-display-text'
+import {
+  generalNumberText,
+  isoDateText,
+  isTimeOnlyFormat,
+  normalizeSheetDisplayText,
+} from '@/lib/file-parsers/sheet-display-text'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
 
 /**
@@ -54,9 +59,8 @@ describe('XlsxParser display text', () => {
       'TRUE',
       '$2,500.00',
       '4111111111111111',
-      '0.30000000000000004',
-      'left',
-      'right',
+      '0.3',
+      'left right',
     ])
   })
 
@@ -64,6 +68,60 @@ describe('XlsxParser display text', () => {
     const result = await new XlsxParser().parseBuffer(typedWorkbook('xlsx', true))
 
     expect(dataRow(result.content).slice(0, 2)).toEqual(['2026-03-04', '2026-03-04T12:00:00'])
+  })
+
+  /**
+   * A time-of-day serial lands on 1899-12-31 in a 1900 workbook and on
+   * 1904-01-01 in a 1904 one, so the decision must come from the format, not
+   * the epoch date. Elapsed formats are durations Excel shows as `30:00`.
+   */
+  describe.each([
+    ['xlsx', false],
+    ['xlsx', true],
+    ['xls', false],
+    ['xls', true],
+    ['xlsb', false],
+    ['xlsb', true],
+  ] as const)('time cells in %s (date1904: %s)', (bookType, date1904) => {
+    function timeWorkbook(): Buffer {
+      const sheet = XLSX.utils.aoa_to_sheet([['Clock', 'Meridiem', 'Elapsed', 'Minutes', 'Month']])
+      sheet.A2 = { t: 'n', v: 0.520821759, z: 'h:mm:ss' }
+      sheet.B2 = { t: 'n', v: 0.75, z: 'hh:mm AM/PM' }
+      sheet.C2 = { t: 'n', v: 1.25, z: '[h]:mm' }
+      sheet.D2 = { t: 'n', v: 0.5, z: '[mm]:ss' }
+      sheet.E2 = { t: 'n', v: 46085, z: 'mmm' }
+      sheet['!ref'] = 'A1:E2'
+      const book = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(book, sheet, 'Times')
+      if (date1904) book.Workbook = { WBProps: { date1904: true } }
+      return XLSX.write(book, { type: 'buffer', bookType }) as Buffer
+    }
+
+    it('renders time-only cells as times and elapsed cells as durations', async () => {
+      const result = await new XlsxParser().parseBuffer(timeWorkbook())
+
+      const row = dataRow(result.content)
+      expect(row.slice(0, 4)).toEqual(['12:29:59', '18:00:00', '30:00', '720:00'])
+      expect(row[4]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    })
+  })
+
+  /**
+   * The SheetJS ODS writer stores each serial as the cell text, so an elapsed
+   * cell reads back its serial; time-only cells still come from the format.
+   */
+  it.each([false, true])('renders time-only cells from ods (date1904: %s)', async (date1904) => {
+    const sheet = XLSX.utils.aoa_to_sheet([['Clock']])
+    sheet.A2 = { t: 'n', v: 0.520821759, z: 'h:mm:ss' }
+    sheet['!ref'] = 'A1:A2'
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, sheet, 'Times')
+    if (date1904) book.Workbook = { WBProps: { date1904: true } }
+    const buffer = XLSX.write(book, { type: 'buffer', bookType: 'ods' }) as Buffer
+
+    const result = await new XlsxParser().parseBuffer(buffer)
+
+    expect(dataRow(result.content)).toEqual(['12:29:59'])
   })
 
   it.each(['xls', 'xlsb'] as const)('renders the same display text from %s', async (bookType) => {
@@ -116,9 +174,42 @@ describe('isoDateText', () => {
     expect(isoDateText(new Date(Number.NaN))).toBe('')
   })
 
-  it('renders a duration or time-of-day cell without the 1899 epoch date', () => {
+  it('renders a formatless date before 1900 as a time of day', () => {
     expect(isoDateText(new Date(Date.UTC(1899, 11, 30, 0, 30, 0)))).toBe('00:30:00')
     expect(isoDateText(new Date(Date.UTC(1899, 11, 31, 13, 5, 9)))).toBe('13:05:09')
+  })
+
+  it('decides time of day from the format whatever the epoch date', () => {
+    expect(isoDateText(new Date(Date.UTC(1904, 0, 1, 12, 29, 59)), 'h:mm:ss')).toBe('12:29:59')
+    expect(isoDateText(new Date(Date.UTC(1899, 11, 31, 12, 0, 0)), 'yyyy-mm-dd')).toBe(
+      '1899-12-31T12:00:00'
+    )
+  })
+})
+
+describe('isTimeOnlyFormat', () => {
+  it.each(['h:mm:ss', 'hh:mm AM/PM', 'h:mm', 'mm:ss', '[$-409]h:mm:ss', 'hh"h"mm'])(
+    'treats %s as time only',
+    (format) => {
+      expect(isTimeOnlyFormat(format)).toBe(true)
+    }
+  )
+
+  it.each(['m/d/yyyy', 'yyyy-mm-dd hh:mm', 'mmm', 'd-mmm', 'mmmm yyyy', 'General'])(
+    'treats %s as a date',
+    (format) => {
+      expect(isTimeOnlyFormat(format)).toBe(false)
+    }
+  )
+})
+
+describe('generalNumberText', () => {
+  it('keeps integers exact and rounds fractions to 15 significant digits', () => {
+    expect(generalNumberText(4111111111111111)).toBe('4111111111111111')
+    expect(generalNumberText(Number.MAX_SAFE_INTEGER)).toBe('9007199254740991')
+    expect(generalNumberText(0.1 + 0.2)).toBe('0.3')
+    expect(generalNumberText(1063.8425)).toBe('1063.8425')
+    expect(generalNumberText(1.22464679914735e-16)).toBe('1.22464679914735e-16')
   })
 })
 
@@ -137,6 +228,18 @@ describe('normalizeSheetDisplayText', () => {
     expect(sheet.B1.w).toBe('4111111111111111')
     expect(sheet.C1.w).toBe('$1,250.00')
     expect(sheet.D1.w).toBe('9')
+  })
+
+  it('keeps the rendered duration of an elapsed-time cell', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['a']])
+    sheet.A1 = { t: 'd', v: new Date(Date.UTC(1900, 0, 1, 6)), z: '[h]:mm', w: '30:00' }
+    sheet.B1 = { t: 'd', v: new Date(Date.UTC(1899, 11, 31, 12)), z: '[mm]:ss', w: '720:00' }
+    sheet['!ref'] = 'A1:B1'
+
+    normalizeSheetDisplayText(sheet, XLSX.utils.decode_range('A1:B1'), XLSX.utils)
+
+    expect(sheet.A1.w).toBe('30:00')
+    expect(sheet.B1.w).toBe('720:00')
   })
 
   it('touches only the window on a dense sheet', () => {

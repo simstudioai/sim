@@ -18,16 +18,68 @@ interface CellLookup {
   encode_cell: (address: CellAddress) => string
 }
 
+/** Excel shows 15 significant digits for a General-formatted number. */
+const GENERAL_SIGNIFICANT_DIGITS = 15
+
+const ELAPSED_TOKEN = /\[(h+|m+|s+)\]/i
+
+/**
+ * Strips the parts of a number format that carry no date tokens: quoted
+ * literals, backslash escapes, bracketed colour/condition/elapsed sections and
+ * the AM/PM markers whose `m` is not a month.
+ */
+function dateTokensOf(format: string): string {
+  return format
+    .replace(/"[^"]*"/g, '')
+    .replace(/\\./g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/am\/pm|a\/p/gi, '')
+    .toLowerCase()
+}
+
+/**
+ * Whether a date format shows a time of day and nothing else, such as
+ * `h:mm:ss` or `hh:mm AM/PM`. Any `y` or `d` token is a date, and so is an `m`
+ * run that is not next to hours or seconds, which is how Excel tells a month
+ * from minutes.
+ */
+export function isTimeOnlyFormat(format: string): boolean {
+  const tokens = dateTokensOf(format)
+  if (/[yd]/.test(tokens)) return false
+  if (!/[hms]/.test(tokens)) return false
+  for (const match of tokens.matchAll(/m+/g)) {
+    const before = tokens.slice(0, match.index).replace(/[:\s]+$/, '')
+    const after = tokens.slice(match.index + match[0].length).replace(/^[:\s]+/, '')
+    const isMinutes = before.endsWith('h') || after.startsWith('s')
+    if (!isMinutes) return false
+  }
+  return true
+}
+
 /**
  * Excel dates carry no zone. Emit the UTC fields SheetJS parsed the serial
  * into, without a trailing `Z`, and drop the time when it is midnight.
+ *
+ * A time-of-day cell is decided from its format, because the epoch date its
+ * serial lands on differs between 1900 and 1904 workbooks. Without a format,
+ * a date before 1900 can only be a fraction of a day and is shown as a time.
  */
-export function isoDateText(date: Date): string {
+export function isoDateText(date: Date, format?: string): string {
   if (Number.isNaN(date.getTime())) return ''
   const iso = date.toISOString()
-  /** A serial below 1 is a duration or time of day; Excel shows it without the 1899 epoch date. */
-  if (date.getUTCFullYear() < 1900) return iso.slice(11, 19)
+  const timeOnly = format === undefined ? date.getUTCFullYear() < 1900 : isTimeOnlyFormat(format)
+  if (timeOnly) return iso.slice(11, 19)
   return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 19)
+}
+
+/**
+ * Renders a General-formatted number the way Excel displays it: integers in
+ * full, so 16-digit identifiers keep every digit, and fractions rounded to 15
+ * significant digits, so `=0.1+0.2` reads `0.3`.
+ */
+export function generalNumberText(value: number): string {
+  if (Number.isInteger(value)) return String(value)
+  return String(Number(value.toPrecision(GENERAL_SIGNIFICANT_DIGITS)))
 }
 
 function isGeneralFormat(format: unknown): boolean {
@@ -42,7 +94,10 @@ function isGeneralFormat(format: unknown): boolean {
  * percent, boolean and text cells, but not for dates (locale-shaped, such as
  * `3/4/2026`) or General-formatted numbers (Excel's 11-character rendering
  * turns `4111111111111111` into `4.11111E+15`, losing digits of numeric IDs).
- * Dates become ISO text and General numbers print their full stored value.
+ * Dates become ISO text and General numbers print as Excel displays them.
+ *
+ * Elapsed-time formats (`[h]:mm`, `[mm]:ss`) are durations, not moments;
+ * `cellDates` still parses them into a `Date`, so their `w` (`30:00`) is kept.
  *
  * A number with no format at all is treated as General too. Every other
  * number keeps the text the file rendered for it, so a LibreOffice workbook
@@ -70,9 +125,11 @@ export function normalizeSheetDisplayText(
       if (!cell) continue
 
       if (cell.t === 'd' && cell.v instanceof Date) {
-        cell.w = isoDateText(cell.v)
+        const format = typeof cell.z === 'string' ? cell.z : undefined
+        if (format !== undefined && ELAPSED_TOKEN.test(format)) continue
+        cell.w = isoDateText(cell.v, format)
       } else if (cell.t === 'n' && typeof cell.v === 'number' && isGeneralFormat(cell.z)) {
-        cell.w = String(cell.v)
+        cell.w = generalNumberText(cell.v)
       }
     }
   }
