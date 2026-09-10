@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
@@ -10,6 +11,7 @@ import { ConnectAccountOptions } from '@/app/o/[organizationId]/integrations/con
 import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
 import { SlackSearchActions } from '@/app/o/[organizationId]/integrations/slack-search-actions'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -22,11 +24,15 @@ import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 interface OrganizationIntegrationsProps {
+  connectionRequest?: { target: SearchConnectionTarget; userId: string }
   slackOnboarding?: { token: string; userId: string }
 }
 
 /** The viewer's Search connections and ready integrations they can connect personally. */
-export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegrationsProps = {}) {
+export function OrganizationIntegrations({
+  slackOnboarding,
+  connectionRequest,
+}: OrganizationIntegrationsProps = {}) {
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
   const { organization, searchAccess } = useOrganizationContext()
@@ -68,6 +74,13 @@ export function OrganizationIntegrations({ slackOnboarding }: OrganizationIntegr
         )
       }
     >
+      {connectionRequest && (
+        <SearchIntegrationConnection
+          organizationId={organization.id}
+          {...connectionRequest}
+          controlId='integrations-link'
+        />
+      )}
       <div className={RESOURCE_LIST_STACK}>
         {sources.isError && !sources.isFetchNextPageError ? (
           <SettingsQueryErrorState

@@ -44,6 +44,7 @@ import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/worksp
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { listIntegrationsServerTool } from '@/lib/copilot/tools/server/knowledge/list-integrations'
 import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
 import {
   readDocumentServerTool,
@@ -182,6 +183,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getCredentialsServerTool.name]: getCredentialsServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [searchKnowledgeBaseServerTool.name]: searchKnowledgeBaseServerTool,
+  [listIntegrationsServerTool.name]: listIntegrationsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [readDocumentServerTool.name]: readDocumentServerTool,
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,

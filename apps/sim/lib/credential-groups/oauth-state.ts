@@ -6,6 +6,10 @@ import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
 import {
+  type CredentialGroupConnectionIntent,
+  credentialGroupConnectionIntentSchema,
+} from '@/lib/credential-groups/oauth-intent'
+import {
   type CredentialGroupProvider,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
@@ -38,6 +42,7 @@ interface StoredCredentialGroupOAuthAttempt {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
+  connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
   returnTo?: 'search' | 'accounts'
   nonceHash: string
@@ -62,6 +67,7 @@ export interface CredentialGroupOAuthAttempt {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
+  connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
   returnTo?: 'search' | 'accounts'
   codeVerifier?: string
@@ -83,6 +89,7 @@ interface CreateCredentialGroupOAuthAttemptParams {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
+  connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
   returnTo?: 'search' | 'accounts'
   codeVerifier?: string
@@ -136,6 +143,8 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
       (candidate.completionRedirect === true &&
         typeof candidate.completionId === 'string' &&
         isValidUuid(candidate.completionId))) &&
+    (candidate.connectionIntent === undefined ||
+      credentialGroupConnectionIntentSchema.safeParse(candidate.connectionIntent).success) &&
     (candidate.returnTo === undefined ||
       candidate.returnTo === 'search' ||
       candidate.returnTo === 'accounts') &&
@@ -157,6 +166,7 @@ export async function createCredentialGroupOAuthAttempt(
   ) {
     throw new Error('OAuth completion requires a valid correlation ID and completion redirect')
   }
+  if (params.connectionIntent) credentialGroupConnectionIntentSchema.parse(params.connectionIntent)
   const redis = requireRedis()
   const state = `${OAUTH_ATTEMPT_STATE_PREFIX}${generateId()}`
   const nonce = generateId()
@@ -178,6 +188,7 @@ export async function createCredentialGroupOAuthAttempt(
     requiredScopes: params.requiredScopes,
     redirectUri: params.redirectUri,
     ...(params.completionRedirect ? { completionRedirect: true } : {}),
+    ...(params.connectionIntent ? { connectionIntent: params.connectionIntent } : {}),
     ...(params.completionId ? { completionId: params.completionId } : {}),
     ...(params.returnTo ? { returnTo: params.returnTo } : {}),
     nonceHash: sha256Hex(nonce),
@@ -234,6 +245,7 @@ export async function consumeCredentialGroupOAuthAttempt(
     requiredScopes: parsed.requiredScopes,
     redirectUri: parsed.redirectUri,
     ...(parsed.completionRedirect ? { completionRedirect: true } : {}),
+    ...(parsed.connectionIntent ? { connectionIntent: parsed.connectionIntent } : {}),
     ...(parsed.completionId ? { completionId: parsed.completionId } : {}),
     ...(parsed.returnTo ? { returnTo: parsed.returnTo } : {}),
     ...(codeVerifier ? { codeVerifier: codeVerifier.decrypted } : {}),

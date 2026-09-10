@@ -19,6 +19,14 @@ import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
 } from '@/lib/integrations/oauth-service'
+import {
+  readSearchConnectionAttempt,
+  searchConnectionAttemptKey,
+} from '@/lib/knowledge/search/connection-attempt'
+import {
+  parseSearchConnectionBody,
+  searchConnectionTargetSchema,
+} from '@/lib/knowledge/search/connection-target'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
@@ -150,6 +158,9 @@ export interface CredentialItemData {
    * rotate the secret on this credential; absent = create a new one.
    */
   credentialId?: string
+  /** Canonical Search source requested by an organization connection control. */
+  connectorType?: string
+  connectorId?: string
 }
 
 /**
@@ -520,6 +531,8 @@ function isCredentialItemData(value: unknown): value is CredentialItemData {
     }
     return typeof value.provider === 'string' && value.provider.trim().length > 0
   }
+  if (value.type === 'link' && value.connectorType !== undefined)
+    return searchConnectionTargetSchema.safeParse(value).success
   if (value.type === 'link' && value.value === undefined) {
     return typeof value.provider === 'string' && value.provider.trim().length > 0
   }
@@ -538,6 +551,8 @@ export function parseCredentialTagBody(body: string): CredentialTagData | null {
   try {
     const parsed = JSON.parse(body) as unknown
     const items = Array.isArray(parsed) ? parsed : [parsed]
+    if (items.some((item) => isRecordLike(item) && item.connectorType !== undefined))
+      return parseSearchConnectionBody(body)
     return items.length > 0 && items.every(isCredentialItemData) ? items : null
   } catch {
     return null
@@ -2691,7 +2706,7 @@ export function credentialTagHasVisibleCard(
 function CredentialItemDisplay({
   data,
   requestMode,
-  controlId,
+  controlId = 'credential-link',
   embedded = false,
   divided = false,
   secretValue,
@@ -2699,6 +2714,9 @@ function CredentialItemDisplay({
   onSaved,
   onConnected,
 }: CredentialControlProps) {
+  const { organizationId } = useParams<{ organizationId?: string }>()
+  const { SearchConnectionComponent } = useChatSurface()
+  const { data: session } = useSession()
   if (
     requestMode === 'assistant' &&
     data.type !== 'link' &&
@@ -2738,6 +2756,23 @@ function CredentialItemDisplay({
 
   if (data.type === 'link') {
     if (requestMode === 'assistant') {
+      if (organizationId) {
+        const target = searchConnectionTargetSchema.safeParse(data)
+        if (!target.success || !session?.user?.id) return null
+        if (!SearchConnectionComponent)
+          throw new Error('Search connection controls require an organization chat surface')
+        return (
+          <SearchConnectionComponent
+            organizationId={organizationId}
+            userId={session.user.id}
+            target={target.data}
+            controlId={controlId}
+            embedded={embedded}
+            divided={divided}
+            onConnected={onConnected}
+          />
+        )
+      }
       return (
         <PersonalCredentialLinkDisplay
           data={data}
@@ -2795,7 +2830,11 @@ function CredentialInputCard({
   abandoned?: boolean
   onContinue?: (message: string) => void
 }) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { workspaceId, organizationId } = useParams<{
+    workspaceId: string
+    organizationId?: string
+  }>()
+  const { data: session } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
@@ -2829,6 +2868,19 @@ function CredentialInputCard({
       if (item.type !== 'link' && item.type !== 'service_account') continue
       const index = restoreIndex++
       if (item.type !== 'link') continue
+      if (requestMode === 'assistant' && organizationId && session?.user?.id) {
+        const target = searchConnectionTargetSchema.safeParse(item)
+        if (!target.success) continue
+        const attempt = readSearchConnectionAttempt(
+          searchConnectionAttemptKey(
+            organizationId,
+            session.user.id,
+            `${controlIdPrefix}:${dataIndex}:${JSON.stringify(target.data)}`
+          )
+        )
+        if (attempt?.status === 'connected') restored.add(index)
+        continue
+      }
       const { providerId, reconnectCredentialId } =
         requestMode === 'assistant'
           ? {
@@ -2851,7 +2903,15 @@ function CredentialInputCard({
       if (Array.from(restored).every((index) => current.has(index))) return current
       return new Set([...current, ...restored])
     })
-  }, [abandoned, controlIdPrefix, data, workspaceId, requestMode])
+  }, [
+    abandoned,
+    controlIdPrefix,
+    data,
+    workspaceId,
+    requestMode,
+    organizationId,
+    session?.user?.id,
+  ])
 
   let integrationIndex = 0
   let secretIndex = 0

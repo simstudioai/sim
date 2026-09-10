@@ -692,13 +692,33 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  connectPersonalSearchIntegration: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listPersonalSearchIntegrations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
+  ),
   listSearchSources: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.sources.list',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
     })
   ),
   readSearchSourceOverview: defineKnowledgeOperation(
@@ -707,7 +727,8 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
     })
   ),
   readSearchSourceProgress: defineKnowledgeOperation(

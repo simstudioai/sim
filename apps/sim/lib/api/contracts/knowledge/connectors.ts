@@ -354,6 +354,7 @@ const searchSourceSummaryFields = {
       z.object({
         credentialId: z.string().min(1).max(128),
         displayName: z.string(),
+        status: z.enum(['active', 'needs_reauth']).optional(),
       })
     )
     .max(SEARCH_SOURCE_CANDIDATE_PAGE_SIZE),

@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
 import { and, desc, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
@@ -27,6 +28,7 @@ import { getConnectorMeta } from '@/connectors/registry'
 
 export interface ListSearchSourcesInput extends ResourceOwner {
   cursor?: string
+  connectorId?: string
   connectorType?: string
   search?: string
   mine?: boolean
@@ -38,14 +40,16 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ListSearchSourcesInput }) =>
     resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context }) {
+    const userId = requirePrincipalSubjectUserId(principal)
     const search = input.search?.trim().toLowerCase() ?? ''
     const connectorType = input.connectorType?.trim()
     const cursorScope = cursorScopeKey(cursorRoute(listSearchSourcesContract), {
       workspaceId: context.workspaceId,
       organizationId: context.organizationId,
-      userId: principal.userId,
+      userId: userId,
       search,
       connectorType: connectorType ?? '',
+      connectorId: input.connectorId ?? '',
       mine: input.mine === true,
       order: 'newest',
     })
@@ -91,6 +95,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
           connectorType ? eq(knowledgeConnector.connectorType, connectorType) : undefined,
+          input.connectorId ? eq(knowledgeConnector.id, input.connectorId) : undefined,
           cursor
             ? or(
                 sql`${knowledgeConnector.createdAt} < ${cursor.createdAt}::timestamp`,
@@ -110,7 +115,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     const [availability, memberships, viewers, approvals, accounts] = await Promise.all([
       resolveKnowledgeAccessAvailability(context),
       resolveViewerConnectorMemberships({
-        userId: principal.userId,
+        userId: userId,
         workspaceId: context.workspaceId,
         organizationId: context.organizationId,
         connectors: scanned,
@@ -118,13 +123,13 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
       db
         .select({ emailVerified: user.emailVerified })
         .from(user)
-        .where(eq(user.id, principal.userId))
+        .where(eq(user.id, userId))
         .limit(1),
       context.organizationId ? listOrganizationSearchApprovals(context.organizationId) : null,
       context.organizationId
         ? resolveViewerSourceAccounts({
             organizationId: context.organizationId,
-            userId: principal.userId,
+            userId: userId,
             connectors: scanned,
           })
         : new Map<string, never[]>(),

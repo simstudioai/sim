@@ -21,7 +21,6 @@ import {
 } from '@/lib/knowledge/application/slack-search/identity'
 import { dispatchSlackSearchTurn } from '@/lib/knowledge/application/slack-search/outbox'
 import { recordSlackSearchOutcome } from '@/lib/knowledge/application/slack-search/repository'
-import { getSlackSearchSourceStatus } from '@/lib/knowledge/application/slack-search/source-status'
 import {
   persistSlackSearchTurn,
   requireSlackSearchTurnLease,
@@ -297,12 +296,8 @@ async function resolveOnboarding(principal: Principal, token: string) {
       )
     )
     .limit(1)
-  const sources = await getSlackSearchSourceStatus.execute({
-    principal,
-    input: { organizationId: context.installation.organizationId },
-  })
   const view: OnboardingReady = {
-    status: retried ? 'retried' : sources.hasSearchableDocuments ? 'ready' : 'needs_sources',
+    status: retried ? 'retried' : 'ready',
     organizationId: context.installation.organizationId,
     isAdmin: isOrgAdminRole(membership.role),
     question: job.message.query,
@@ -334,11 +329,6 @@ export const retrySlackSearchOnboarding: OperationUseCase<
     const resolved = await resolveOnboarding(principal, input.token)
     if (!resolved.job || !('slackUrl' in resolved.view))
       throw new OrchestrationError('forbidden', 'Complete your Sim account setup before retrying')
-    if (resolved.view.status === 'needs_sources')
-      throw new OrchestrationError(
-        'validation',
-        'Connect a source and wait for indexing before retrying'
-      )
     let turnId = resolved.retryTurnId
     if (!turnId) {
       const now = Date.now()
