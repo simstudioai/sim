@@ -259,7 +259,6 @@ describe('organization provider configuration UI', () => {
               label: slack.label,
               required: slack.required,
               slackBotCredentialId: slack.slackBotCredentialId,
-              requiredScopes: slack.requiredScopes,
             },
           ],
         },

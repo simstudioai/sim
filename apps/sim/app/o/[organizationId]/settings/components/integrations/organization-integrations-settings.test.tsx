@@ -170,7 +170,6 @@ describe('organization integration invitations', () => {
               label: 'Slack',
               required: false,
               slackBotCredentialId: 'slack-bot',
-              requiredScopes: ['search:read'],
             },
           ],
         },
