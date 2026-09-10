@@ -2,7 +2,6 @@ import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
-  ChipCombobox,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
@@ -18,7 +17,6 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
-import { getMcpTargetOptions } from '@/components/mcp/target-options'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
@@ -463,7 +461,7 @@ export const ToolInput = memo(function ToolInput({
   const shouldFetchCustomTools = !isPreview || hasReferenceOnlyCustomTools
   const { data: customTools = [] } = useCustomTools(shouldFetchCustomTools ? workspaceId : '')
 
-  const { mcpTools, isLoading: mcpLoading, error: mcpToolsError } = useMcpTools(workspaceId)
+  const { mcpTools, isLoading: mcpLoading } = useMcpTools(workspaceId)
   const mcpToolNamesById = useMemo(() => {
     const names = new Map<string, string>()
     for (const t of mcpTools) {
@@ -472,11 +470,7 @@ export const ToolInput = memo(function ToolInput({
     return names
   }, [mcpTools])
 
-  const {
-    data: mcpServers = [],
-    isLoading: mcpServersLoading,
-    error: mcpServersError,
-  } = useMcpToolServers(workspaceId)
+  const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpToolServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools().mutate
   const { navigateToSettings } = useSettingsNavigation()
@@ -1549,7 +1543,7 @@ export const ToolInput = memo(function ToolInput({
                 isAdvancedMcpServer
                   ? ADVANCED_MCP_SERVER_TOOL_SCHEMA
                   : (mcpToolSchema ?? undefined),
-                formatParameterLabel
+                isAdvancedMcpServer ? () => 'MCP Server' : formatParameterLabel
               )
             : (subBlocksResult?.subBlocks ?? []).filter(
                 (sb) =>
@@ -1817,21 +1811,7 @@ export const ToolInput = memo(function ToolInput({
                   {isAdvancedMcpServer && (
                     <McpOperationPolicyEditor
                       value={tool.operationPolicy}
-                      operations={mcpTools
-                        .filter(
-                          (candidate) =>
-                            !tool.params?.serverId ||
-                            String(tool.params.serverId).includes('<') ||
-                            String(tool.params.serverId).includes('{{') ||
-                            candidate.serverId === tool.params.serverId
-                        )
-                        .map((candidate) => ({
-                          ...candidate,
-                          serverId: candidate.canonicalServerId ?? candidate.serverId,
-                        }))}
                       disabled={disabled || isPreview}
-                      isLoading={mcpDataLoading}
-                      error={mcpToolsError ?? mcpServersError?.message ?? null}
                       onChange={(operationPolicy) =>
                         setStoreValue(
                           selectedTools.map((candidate, index) =>
@@ -1874,28 +1854,6 @@ export const ToolInput = memo(function ToolInput({
 
                   {(() => {
                     const renderSubBlock = (sb: BlockSubBlockConfig): React.ReactNode => {
-                      if (isAdvancedMcpServer) {
-                        const options = getMcpTargetOptions(mcpServers)
-                        const value = tool.params?.[sb.id] ?? ''
-                        return (
-                          <div key={sb.id} className='flex flex-col gap-[9px]'>
-                            <span className='text-[var(--text-muted)] text-small'>MCP Server</span>
-                            <ChipCombobox
-                              options={options}
-                              value={
-                                options.find((option) => option.value === value)?.label ?? value
-                              }
-                              selectedValue={value}
-                              editable
-                              disabled={disabled || isPreview}
-                              isLoading={mcpServersLoading}
-                              error={mcpServersError?.message ?? null}
-                              placeholder='Select or enter an upstream reference'
-                              onChange={(next) => handleParamChange(toolIndex, sb.id, next)}
-                            />
-                          </div>
-                        )
-                      }
                       const effectiveParamId = sb.id
                       const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
                       const canonicalGroup = canonicalId

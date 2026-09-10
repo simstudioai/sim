@@ -62,21 +62,6 @@ export type ForkRemapKind = WorkflowResourceKind
 
 const logger = createLogger('WorkspaceForkRemapReferences')
 
-/** Server mappings assert equivalence, so exact operation restrictions must follow that identity. */
-function remapMcpOperationPolicy(value: unknown, resolve: ForkReferenceResolver): unknown {
-  if (value == null) return value
-  const policy = normalizeMcpOperationPolicy(value)
-  if (policy.mode === 'all') return value
-  let changed = false
-  const operations = policy.operations.map((operation) => {
-    const target = resolve('mcp-server', operation.serverId)
-    if (!target || target === operation.serverId) return operation
-    changed = true
-    return { ...operation, serverId: target }
-  })
-  return changed ? { mode: policy.mode, operations } : value
-}
-
 /**
  * Reference kinds whose absence BLOCKS a sync (they gate `requiredComplete` and are resolved by
  * mapping), as opposed to optional kinds that silently clear. Exported so the cleared-ref preview
@@ -1048,7 +1033,7 @@ function remapForkToolInputValue(
   array.forEach((tool, toolIndex) => {
     const keep = (nextTool: unknown) => {
       if (isRecordLike(nextTool) && nextTool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
-        const operationPolicy = remapMcpOperationPolicy(nextTool.operationPolicy, resolve)
+        const operationPolicy = normalizeMcpOperationPolicy(nextTool.operationPolicy)
         if (operationPolicy !== nextTool.operationPolicy) {
           nextTool = { ...nextTool, operationPolicy }
           changed = true

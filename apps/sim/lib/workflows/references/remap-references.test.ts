@@ -521,7 +521,7 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
     expect(result.subBlocks.toolReference.value).toBe('')
   })
 
-  it('preserves dynamic Agent target references and remaps their saved restrictions', () => {
+  it('preserves dynamic Agent target references and their literal tool restrictions', () => {
     const result = remapForkSubBlocks(
       {
         tools: {
@@ -533,7 +533,7 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
               params: { serverId: '<lookup.id>' },
               operationPolicy: {
                 mode: 'deny',
-                operations: [{ serverId: 'mcp-src1', name: 'temporarily_missing' }],
+                operations: ['temporarily_missing'],
               },
             },
           ],
@@ -548,14 +548,14 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
         params: { serverId: '<lookup.id>' },
         operationPolicy: {
           mode: 'deny',
-          operations: [{ serverId: 'mcp-tgt9', name: 'temporarily_missing' }],
+          operations: ['temporarily_missing'],
         },
       },
     ])
   })
 
   it.each(['allow', 'deny'])(
-    'preserves %s restrictions when canonical server identities are remapped',
+    'normalizes interim %s restrictions to names when a workflow is copied',
     (mode) => {
       vi.mocked(getBlock).mockReturnValue(mcpBlock())
       const policy = {
@@ -585,10 +585,7 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
       )
       const expected = {
         mode,
-        operations: [
-          { serverId: 'mcp-tgt9', name: 'temporarily_missing' },
-          { serverId: 'other-server', name: 'read' },
-        ],
+        operations: ['temporarily_missing', 'read'],
       }
       expect(transformed.subBlocks.tools.value).toEqual([
         expect.objectContaining({ operationPolicy: expected }),

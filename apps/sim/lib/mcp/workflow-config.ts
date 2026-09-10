@@ -1,5 +1,5 @@
 import { filterUndefined, isPlainRecord, omit } from '@sim/utils/object'
-import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
+import { isMcpRuntimeReference, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import {
   type CanonicalGroup,
   type CanonicalModeOverrides,
@@ -80,10 +80,15 @@ export function normalizeMcpToolAttachments(value: unknown): unknown {
     if (!isPlainRecord(tool)) return tool
     if (tool.type === 'mcp') return omit(tool, ['operationPolicy'])
     if (tool.type !== 'mcp-server-advanced' || !isPlainRecord(tool.params)) return tool
+    const operationPolicy = normalizeMcpOperationPolicy(tool.operationPolicy)
     const { connectionId } = tool.params
     if (connectionId == null || connectionId === '')
-      return { ...tool, params: omit(tool.params, ['connectionId']) }
+      return { ...tool, operationPolicy, params: omit(tool.params, ['connectionId']) }
     if (typeof connectionId !== 'string') throw new Error('Invalid saved MCP connection')
-    return { ...tool, params: { ...omit(tool.params, ['connectionId']), serverId: connectionId } }
+    return {
+      ...tool,
+      operationPolicy,
+      params: { ...omit(tool.params, ['connectionId']), serverId: connectionId },
+    }
   })
 }

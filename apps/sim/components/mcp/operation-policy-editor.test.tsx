@@ -1,71 +1,76 @@
 /** @vitest-environment node */
 import type { ComponentProps } from 'react'
-import type { ChipCombobox, ChipDropdown } from '@sim/emcn'
+import type { ChipDropdown, TagInput } from '@sim/emcn'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { combobox, dropdown } = vi.hoisted(() => ({
-  combobox: vi.fn<(props: ComponentProps<typeof ChipCombobox>) => null>(() => null),
+const { tagInput, dropdown } = vi.hoisted(() => ({
+  tagInput: vi.fn<(props: ComponentProps<typeof TagInput>) => null>(() => null),
   dropdown: vi.fn<(props: ComponentProps<typeof ChipDropdown>) => null>(() => null),
 }))
-vi.mock('@sim/emcn', () => ({
-  ChipCombobox: combobox,
-  ChipDropdown: dropdown,
-  OverflowText: () => null,
-}))
+vi.mock('@sim/emcn', () => ({ TagInput: tagInput, ChipDropdown: dropdown }))
 
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 
 describe('MCP operations access editor', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('keeps absent deny entries while browsing the authorized catalog', () => {
+  it('accepts exact names without a catalog and preserves absent deny entries', () => {
     const onChange = vi.fn()
     renderToStaticMarkup(
       <McpOperationPolicyEditor
-        value={{
-          mode: 'deny',
-          operations: [{ serverId: 'server-1', name: 'temporarily_missing' }],
-        }}
-        operations={[{ serverId: 'server-1', name: 'read', description: 'Read documents' }]}
+        value={{ mode: 'deny', operations: ['temporarily_missing'] }}
         onChange={onChange}
       />
     )
-    const props = combobox.mock.calls[0][0]
-    expect(props.multiSelectValues).toEqual(['["server-1","temporarily_missing"]'])
-    expect(props.options.map((option) => option.label)).toEqual(['read', 'temporarily_missing'])
-    props.onMultiSelectChange?.(['["server-1","temporarily_missing"]', '["server-1","read"]'])
+    const props = tagInput.mock.calls[0][0]
+    expect(props.items).toEqual([{ value: 'temporarily_missing', isValid: true }])
+    expect(props.onAdd('read')).toBe(true)
     expect(onChange).toHaveBeenCalledWith({
       mode: 'deny',
-      operations: [
-        { serverId: 'server-1', name: 'temporarily_missing' },
-        { serverId: 'server-1', name: 'read' },
-      ],
+      operations: ['temporarily_missing', 'read'],
     })
   })
 
-  it('starts explicit selection with no operations and allows clearing the selection', () => {
+  it('adds multiple literal names in one update and deduplicates them', () => {
     const onChange = vi.fn()
     renderToStaticMarkup(
       <McpOperationPolicyEditor
-        value={{ mode: 'allow', operations: [] }}
-        operations={[{ serverId: 'server-1', name: 'read' }]}
+        value={{ mode: 'allow', operations: ['read'] }}
         onChange={onChange}
       />
     )
-    expect(combobox.mock.calls[0][0].multiSelectValues).toEqual([])
-    combobox.mock.calls[0][0].onMultiSelectChange?.([])
+    tagInput.mock.calls[0][0].onAddMany?.(['read', ' write ', 'write'])
+    expect(onChange).toHaveBeenCalledWith({ mode: 'allow', operations: ['read', 'write'] })
+  })
+
+  it('allows removing the last entry without switching to unrestricted access', () => {
+    const onChange = vi.fn()
+    renderToStaticMarkup(
+      <McpOperationPolicyEditor
+        value={{ mode: 'allow', operations: ['read'] }}
+        onChange={onChange}
+      />
+    )
+    tagInput.mock.calls[0][0].onRemove('read', 0, true)
     expect(onChange).toHaveBeenCalledWith({ mode: 'allow', operations: [] })
   })
 
-  it('shows all three modes and honors readonly chrome', () => {
+  it.each(['<upstream.tool>', '{{tool}}', '', 'x'.repeat(257)])(
+    'refuses invalid tool ID %s',
+    (name) => {
+      const onChange = vi.fn()
+      renderToStaticMarkup(
+        <McpOperationPolicyEditor value={{ mode: 'allow', operations: [] }} onChange={onChange} />
+      )
+      expect(tagInput.mock.calls[0][0].onAdd(name)).toBe(false)
+      expect(onChange).not.toHaveBeenCalled()
+    }
+  )
+
+  it('shows all three modes and hides tool IDs for all permitted', () => {
     renderToStaticMarkup(
-      <McpOperationPolicyEditor
-        value={{ mode: 'all' }}
-        operations={[]}
-        onChange={vi.fn()}
-        disabled
-      />
+      <McpOperationPolicyEditor value={{ mode: 'all' }} onChange={vi.fn()} disabled />
     )
     expect(dropdown.mock.calls[0][0].options.map((option) => option.label)).toEqual([
       'Only selected',
@@ -73,6 +78,6 @@ describe('MCP operations access editor', () => {
       'All permitted',
     ])
     expect(dropdown.mock.calls[0][0].disabled).toBe(true)
-    expect(combobox).not.toHaveBeenCalled()
+    expect(tagInput).not.toHaveBeenCalled()
   })
 })

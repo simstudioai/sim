@@ -158,7 +158,7 @@ export async function loadMcpOperationAccess(
       candidates.some(
         ({ policy, toolName }) =>
           (toolName === undefined || toolName === name || isMcpRuntimeReference(toolName)) &&
-          permitsMcpOperation(policy, target.serverId, name)
+          permitsMcpOperation(policy, name)
       ),
   }
 }

@@ -478,7 +478,7 @@ describe('executeMcpToolUseCase', () => {
                   params: { serverId: SERVER.id },
                   operationPolicy: {
                     mode: 'deny',
-                    operations: [{ serverId: SERVER.id, name: 'lookup' }],
+                    operations: ['lookup'],
                   },
                 },
               ],

@@ -11,6 +11,33 @@ import {
 import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
 
 describe('v2AgentToolInputSchema', () => {
+  it('accepts literal tool-name policies with a runtime server reference', () => {
+    const tools = [
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: '<lookup.credentialId>' },
+        operationPolicy: { mode: 'allow', operations: ['read', 'search_docs'] },
+      },
+    ]
+    expect(v2AgentToolInputSchema.parse(tools)).toEqual(tools)
+  })
+
+  it.each([
+    { mode: 'allow', operations: ['<upstream.tool>'] },
+    { mode: 'allow', operations: [{ serverId: 'server-1', name: 'read' }] },
+    '<upstream.policy>',
+  ])('rejects nonliteral or obsolete new policy input %j', (operationPolicy) => {
+    expect(
+      v2AgentToolInputSchema.safeParse([
+        {
+          type: 'mcp-server-advanced',
+          params: { serverId: '<lookup.credentialId>' },
+          operationPolicy,
+        },
+      ]).success
+    ).toBe(false)
+  })
+
   it('accepts catalog integration, custom-tool reference, and both MCP tool shapes', () => {
     const tools = [
       {

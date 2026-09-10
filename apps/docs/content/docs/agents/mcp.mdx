@@ -143,11 +143,15 @@ Choose an **Action**:
 - **List operations** discovers authorized operation names, descriptions, and input schemas without executing provider operations. Filter by name or description, set a page size from 1 to 100, and pass `nextCursor` into the next request while `hasMore` is true. An authorized list can be empty.
 - **Run operation** executes one exact operation name. Configured operations keep their generated argument fields. For an operation name resolved at runtime, supply a JSON arguments object; Sim validates it against the operation's discovered schema before execution.
 
-Server, managed connection, operation name, and arguments can use upstream block references. If you supply a managed connection separately, it must belong to the selected canonical server and be authorized for the workflow's workspace.
+**MCP Server** takes one shared-server ID or managed-connection ID. Sim resolves a managed connection's parent server internally and verifies workspace and credential access. Both actions accept the same ID; List operations returns that ID as `serverId`, alongside the discovered `operations` and pagination metadata.
+
+The standalone block's Basic fields select a configured connection and discovered operation. Advanced fields accept literal IDs/names or upstream references. A runtime server reference requires JSON arguments. Listing hides the operation and argument fields.
 
 ### Operations access
 
-The standalone MCP block and **MCP Server (Advanced)** Agent attachment share three access modes:
+The **MCP Server (Advanced)** Agent attachment takes a server/connection ID or upstream reference in a plain input. Its **Tool IDs** field accepts exact MCP tool names, such as `search_docs`, entered directly. These are the names returned by List operations, without a Sim server prefix. Neither field uses a server or operation catalog picker.
+
+Agent attachments have three access modes:
 
 | Mode | Behavior |
 | --- | --- |
@@ -157,11 +161,11 @@ The standalone MCP block and **MCP Server (Advanced)** Agent attachment share th
 
 New restricted configurations start with an empty explicit selection. Existing saved workflows retain their prior access through normalization, while current organization and credential authorization still apply.
 
-Operation restrictions are saved in workflow state, on the MCP block or Agent attachment. An operation must be available to the authorized credential and permitted by the saved restriction.
+Operation restrictions are saved in workflow state on the Agent attachment. Tool IDs are literal configuration, not upstream references or model arguments. An operation must be available to the resolved, authorized connection and permitted by the saved restriction. The standalone block runs its explicitly specified operation and has no separate access policy.
 
-Discovery filters the catalog shown to the editor and Agent. Execution checks the actual server, connection, and saved block restriction again before calling the provider. Missing or forbidden operations, unverifiable schemas, malformed arguments, and incorrect connection scopes fail the call. An Agent attachment with no permitted operations fails clearly.
+Discovery filters the tools exposed to the Agent. Execution checks the actual server, connection, and saved restriction again before calling the provider. Missing or forbidden operations, unverifiable schemas, malformed arguments, and incorrect connection scopes fail the call. An Agent attachment with no permitted operations fails clearly.
 
-Policies match exact MCP tool names on a canonical server. They do not inspect operation arguments: allowing a generic `execute_sql` operation does not limit which SQL it can execute.
+Policies match exact, case-sensitive MCP tool names on whichever authorized connection resolves at runtime. They do not inspect operation arguments: allowing a generic `execute_sql` operation does not limit which SQL it can execute.
 
 ## When to Use MCP Tool vs Agent
 

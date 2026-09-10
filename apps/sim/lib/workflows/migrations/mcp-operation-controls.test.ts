@@ -87,7 +87,7 @@ describe('MCP saved configuration normalization', () => {
       {
         type: 'mcp-server-advanced',
         params: { serverId: '<upstream.connection>' },
-        operationPolicy: policy,
+        operationPolicy: { mode: 'allow', operations: ['read'] },
       },
       { type: 'mcp', params: { serverId: 'other', toolName: 'read' } },
     ])

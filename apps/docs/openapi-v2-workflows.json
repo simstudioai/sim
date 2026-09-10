@@ -8227,25 +8227,12 @@
                     "maxItems": 1000,
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "serverId": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256,
-                          "description": "Canonical MCP server identity, independent of the selected credential."
-                        },
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256,
-                          "description": "Exact operation name returned by MCP discovery."
-                        }
-                      },
-                      "required": ["serverId", "name"],
-                      "additionalProperties": false
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "description": "Exact MCP tool name on the resolved connection, without a Sim server prefix."
                     },
-                    "description": "Allowed server-scoped operation identities; an empty list grants no access."
+                    "description": "Allowed exact MCP tool names; an empty list grants no access."
                   }
                 },
                 "required": ["mode", "operations"],
@@ -8263,25 +8250,12 @@
                     "maxItems": 1000,
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "serverId": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256,
-                          "description": "Canonical MCP server identity, independent of the selected credential."
-                        },
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256,
-                          "description": "Exact operation name returned by MCP discovery."
-                        }
-                      },
-                      "required": ["serverId", "name"],
-                      "additionalProperties": false
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "description": "Exact MCP tool name on the resolved connection, without a Sim server prefix."
                     },
-                    "description": "Denied server-scoped operation identities; an empty list allows otherwise permitted tools."
+                    "description": "Denied exact MCP tool names; an empty list allows otherwise permitted tools."
                   }
                 },
                 "required": ["mode", "operations"],

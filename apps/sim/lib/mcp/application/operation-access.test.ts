@@ -28,7 +28,7 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   },
 }
 const target = { workspaceId: 'workspace-1', serverId: 'server-1' }
-const allowRead = { mode: 'allow', operations: [{ serverId: 'server-1', name: 'read' }] }
+const allowRead = { mode: 'allow', operations: ['read'] }
 
 function savedBlock(type: string, values: Record<string, unknown>) {
   return {
@@ -65,6 +65,33 @@ describe('trusted MCP operation access', () => {
     expect(allowed.allows('write')).toBe(false)
     expect(() => requireMcpOperationAccess(allowed, 'write')).toThrow('not permitted')
   })
+
+  it.each(['agent', 'mothership'])(
+    'matches literal tool names on dynamically resolved %s connections',
+    async (type) => {
+      save(type, {
+        tools: [
+          {
+            type: 'mcp-server-advanced',
+            params: { serverId: '<lookup.credentialId>' },
+            operationPolicy: allowRead,
+          },
+        ],
+      })
+      for (const serverId of ['server-1', 'server-2']) {
+        for (const connectionId of [undefined, `connection-${serverId}`]) {
+          const access = await loadMcpOperationAccess(principal, {
+            ...target,
+            serverId,
+            connectionId,
+          })
+          expect(access.allows('read')).toBe(true)
+          expect(access.allows('write')).toBe(false)
+          expect(access.allows(`${serverId}-read`)).toBe(false)
+        }
+      }
+    }
+  )
 
   it('allows all discovered operations for an unrestricted block', async () => {
     save('mcp', { server: 'server-1', operation: 'list', operationPolicy: { mode: 'all' } })

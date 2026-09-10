@@ -435,17 +435,11 @@ type ApplyWorkflowOperationsBodyRef6 = {
       }
     | {
         mode: 'allow'
-        operations: Array<{
-          serverId: string
-          name: string
-        }>
+        operations: Array<string>
       }
     | {
         mode: 'deny'
-        operations: Array<{
-          serverId: string
-          name: string
-        }>
+        operations: Array<string>
       }
   params: {
     serverId: string
