@@ -110,7 +110,7 @@ describe('gmail listDocuments with maxThreads 0 (unlimited, a per-member sync)',
 describe('Gmail listing checkpoints', () => {
   it('keeps a resumed query fixed when a relative date range crosses midnight', async () => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 8, 1, 23, 59, 59))
+    vi.setSystemTime(new Date('2026-09-01T23:59:59Z'))
     const urls = mockPages([
       { threads: [{ id: 'thread-1', historyId: '10' }], nextPageToken: 'page-2' },
       { threads: [{ id: 'thread-2', historyId: '20' }], nextPageToken: 'page-3' },
@@ -124,9 +124,9 @@ describe('Gmail listing checkpoints', () => {
       memberContext('alice')
     )
     const initialQuery = new URL(urls[0]).searchParams.get('q')
-    expect(initialQuery).toContain('after:2026/08/25')
+    expect(initialQuery).toContain(`after:${Date.parse('2026-08-25T23:59:59Z') / 1000}`)
 
-    vi.setSystemTime(new Date(2026, 8, 2, 0, 0, 1))
+    vi.setSystemTime(new Date('2026-09-02T00:00:01Z'))
     const resumed = await gmailConnector.listDocuments(
       'token',
       sourceConfig,
@@ -141,7 +141,9 @@ describe('Gmail listing checkpoints', () => {
     })
 
     await gmailConnector.listDocuments('token', sourceConfig, undefined, memberContext('alice'))
-    expect(new URL(urls[2]).searchParams.get('q')).toContain('after:2026/08/26')
+    expect(new URL(urls[2]).searchParams.get('q')).toContain(
+      `after:${Date.parse('2026-08-26T00:00:01Z') / 1000}`
+    )
   })
 
   it('resumes with the saved label query rather than resolving a renamed label again', async () => {
@@ -179,6 +181,19 @@ describe('Gmail listing checkpoints', () => {
     await gmailConnector.listDocuments('token', sourceConfig, first.nextCursor)
     expect(new URL(urls[1]).searchParams.has('q')).toBe(false)
     expect(new URL(urls[1]).searchParams.get('pageToken')).toBe('page-2')
+  })
+
+  it('replays an existing date-based checkpoint without changing its provider query', async () => {
+    const urls = mockPages([{ threads: [] }])
+    const searchQuery = 'after:2026/08/25 -category:promotions -category:social'
+    await gmailConnector.listDocuments(
+      'token',
+      { dateRange: '7d' },
+      JSON.stringify({ pageToken: 'saved-page', searchQuery }),
+      memberContext('alice')
+    )
+    expect(new URL(urls[0]).searchParams.get('q')).toBe(searchQuery)
+    expect(new URL(urls[0]).searchParams.get('pageToken')).toBe('saved-page')
   })
 
   it('still accepts a legacy raw page token and upgrades the next checkpoint', async () => {
@@ -1306,6 +1321,107 @@ describe('Gmail change feed', () => {
       match: 'upsert',
     })
   })
+
+  it('uses the same timezone-independent cutoff for full listings and history', async () => {
+    vi.setSystemTime(new Date('2026-09-10T12:00:00.987Z'))
+    const cutoff = new Date('2026-09-03T12:00:00Z').getTime()
+    const config = { dateRange: '7d', maxThreads: 0 }
+    const urls = mockPages([{ threads: [{ id: 'recent', historyId: '77' }] }])
+    const listing = await gmailConnector.listDocuments(
+      'token',
+      config,
+      undefined,
+      memberContext('member-a')
+    )
+    expect(new URL(urls[0]).searchParams.get('q')).toContain(`after:${cutoff / 1000}`)
+
+    mockFeed([historyPage(['earlier-that-day', 'recent'])], {
+      'earlier-that-day': metadataThread('earlier-that-day', [
+        { labelIds: ['INBOX'], internalDate: String(cutoff - 2 * 60 * 60 * 1000) },
+      ]),
+      recent: metadataThread('recent', [
+        { labelIds: ['INBOX'], internalDate: String(cutoff + 1000) },
+      ]),
+    })
+    const history = await gmailConnector.listChanges!(
+      'token',
+      config,
+      '500',
+      memberContext('member-a')
+    )
+    expect(
+      history.changes.filter(({ kind }) => kind === 'upsert').map(({ externalId }) => externalId)
+    ).toEqual(listing.documents.map(({ externalId }) => externalId))
+    expect(history.changes).toContainEqual({
+      kind: 'removed',
+      externalId: 'member:member-a:earlier-that-day',
+    })
+  })
+
+  it('keeps a missing member label empty when moving from a full listing to history', async () => {
+    const config = { label: 'Engineering', maxThreads: 0 }
+    mockFetchWithRetry
+      .mockResolvedValueOnce(Response.json({ labels: [{ id: 'INBOX', name: 'INBOX' }] }))
+      .mockResolvedValueOnce(Response.json({ threads: [] }))
+    const listing = await gmailConnector.listDocuments(
+      'token',
+      config,
+      undefined,
+      memberContext('member-a')
+    )
+    expect(listing.documents).toEqual([])
+    expect(listing.hasMore).toBe(false)
+
+    mockFeed([historyPage(['unlabelled'])], {
+      unlabelled: metadataThread('unlabelled', [{ labelIds: ['INBOX'] }]),
+    })
+    const page = await gmailConnector.listChanges!(
+      'token',
+      config,
+      '500',
+      memberContext('member-a')
+    )
+    expect(page.changes).toEqual([{ kind: 'removed', externalId: 'member:member-a:unlabelled' }])
+    expect(JSON.parse(page.nextCursor)).toEqual({ historyId: '900' })
+    expect(page.hasMore).toBe(false)
+  })
+
+  it('matches existing labels in an OR filter even when another label is absent', async () => {
+    mockFeed(
+      [historyPage(['match', 'unlabelled'])],
+      {
+        match: metadataThread('match', [{ labelIds: ['Label_7'] }]),
+        unlabelled: metadataThread('unlabelled', [{ labelIds: ['INBOX'] }]),
+      },
+      [{ id: 'Label_7', name: 'Engineering' }]
+    )
+    const page = await gmailConnector.listChanges!(
+      'token',
+      { label: ['Engineering', 'Missing label'] },
+      '500',
+      memberContext('member-a')
+    )
+    expect(page.changes.map(({ kind, externalId }) => ({ kind, externalId }))).toEqual([
+      { kind: 'upsert', externalId: 'member:member-a:match' },
+      { kind: 'removed', externalId: 'member:member-a:unlabelled' },
+    ])
+  })
+
+  it.each([403, 503])(
+    'does not treat a failed label lookup (%i) as an empty history scope',
+    async (status) => {
+      mockFetchWithRetry.mockResolvedValueOnce(new Response(null, { status }))
+      await expect(
+        gmailConnector.listChanges!(
+          'token',
+          { label: 'Engineering' },
+          '500',
+          memberContext('member-a')
+        )
+      ).rejects.toThrow('cannot resolve the configured label filter')
+      expect(mockFetchWithRetry).toHaveBeenCalledOnce()
+    }
+  )
 
   it('keeps the start history id while paging and advances it once the feed drains', async () => {
     const requests = mockFeed(

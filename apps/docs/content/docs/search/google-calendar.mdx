@@ -29,7 +29,7 @@ These are alternative setup paths. When only a central Calendar source is config
 
 ### Allow and connect Google Calendar
 
-An admin opens **Settings → Sources** and turns on **Google Calendar**. Then each person opens **Integrations**, selects **Connect** beside Google Calendar, and authorizes their matching Google account. The first connection creates the default member-account sync configuration.
+An admin opens **Settings → Sources** and turns on **Google Calendar**. Each person joins the Sim organization, opens **Integrations**, selects **Connect** beside Google Calendar, and authorizes the Google account matching their verified Sim email. The first connection creates the default member-account sync configuration. Return to Integrations to see indexing status and your searchable document count.
 
 </Step>
 <Step>
@@ -49,6 +49,8 @@ The default date range covers the previous and next 30 days. Save any changes to
 
 </Step>
 </Steps>
+
+Admins can request member connections from **Manage → Accounts → Request connections**. These requests do not grant organization membership. Connecting Gmail or Drive does not replace the Calendar connection. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
 
 <Callout type="info">
   `primary` means the connected or impersonated person's main calendar. A calendar selected from the list is a specific calendar ID, even when it is your main calendar. That same ID applies to every selected user, and only users with access to it can search its events.
@@ -102,16 +104,6 @@ Sim verifies Directory access and selected users, then probes one selected user'
 </Step>
 </Steps>
 
-## Connect your account
-
-These steps apply to **Member accounts**. When only a central Calendar source is configured, teammates use Search or Home directly and are not offered a personal Calendar connection for that source.
-
-1. Join the Sim organization and verify your Sim email. Open **Integrations** and click **Connect** beside Google Calendar.
-2. In the connection tab, choose the Google account whose verified email matches your Sim email. Grant the requested permissions.
-3. Return to Integrations to see indexing status and your searchable document count.
-
-Teammates repeat only these connection steps after joining the organization. They do not need to configure the source. An admin can send connection requests from **Settings → Sources**: select **Manage** beside **Google Calendar**, then **Accounts → Request connections**. These requests do not grant organization membership. Connecting Gmail or Google Drive does not replace the Calendar connection.
-
 ## Source options
 
 An admin opens **Settings → Sources** and selects **Manage** beside **Google Calendar** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed events and **Sync history** shows recent runs.
@@ -127,13 +119,13 @@ An admin opens **Settings → Sources** and selects **Manage** beside **Google C
 | Search Query | Optional text filter applied by Google to event titles, descriptions, locations, and organizer or attendee names and emails. Leave empty to include all matching events in the date range. |
 | Include Attendees | **Yes** by default. **No** omits organizer and attendee identity fields and keeps the attendee count. It does not redact names written into titles or descriptions. |
 
-In the add-source form, **More options** contains optional **Metadata tags**. Search hides sync frequency and the general knowledge-base **Max Events** setting.
+In the add-source form, **More options** also contains optional **Metadata tags**.
 
 ## What gets indexed
 
-Sim indexes event titles, descriptions, times, locations, and the selected attendee information. All-day events and individual occurrences of recurring meetings are supported. An invitation you declined stays searchable and is marked `Response: declined`. Results link back to Google Calendar.
+Sim indexes event titles, descriptions, times, locations, and the selected attendee information. All-day events and individual occurrences of recurring meetings are supported. Declined invitations returned by Google stay searchable and are marked `Response: declined`; hidden invitations are not requested. Results link back to Google Calendar.
 
-Cancelled events, attachment contents, meeting recordings, and transcripts are not indexed. Status entries such as working location, out of office, focus time, and birthdays, and automatically generated reservation events from Gmail are not indexed. A shared calendar where you can see only free or busy times contributes nothing, since those blocks have no title or description. Events outside the selected date window are excluded. Private event details that Google withholds are not available in Search; see [Google's calendar sharing rules](https://developers.google.com/workspace/calendar/api/concepts/sharing).
+Cancelled events, attachment contents, meeting recordings, and transcripts are not indexed. Status entries such as working location, out of office, focus time, and birthdays, and automatically generated reservation events from Gmail are not indexed. Events Google returns only as free/busy blocks, without searchable details, are not indexed. Events outside the selected date window are excluded. Private event details that Google withholds are not available in Search; see [Google's calendar sharing rules](https://developers.google.com/workspace/calendar/api/concepts/sharing).
 
 Search schedules syncs hourly. Event edits, cancellations, access changes, inactive or removed users, and events moving outside the date window are reconciled during completed background syncs. Central crawls page through each selected user and resume unfinished work before removing documents no longer listed. Authorization, quota, and provider failures stop the sync rather than treating unread calendars as empty. The first sync may take longer, and results appear as indexing progresses; Search is not a live Calendar read.
 
@@ -148,6 +140,7 @@ Search schedules syncs hourly. Event edits, cancellations, access changes, inact
 | Reconnect | Click **Reconnect** and complete Google authorization again. Allow pop-ups if the connection tab does not open. |
 | Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 | Service-account authorization or Directory error | Confirm both delegated scopes, enabled APIs, and the Directory administrator's user-read privilege. Check whether delegation still awaits approval or propagation. |
+| Calendar is disabled for a selected user | An active Workspace user may have Calendar turned off. [Enable Calendar](https://knowledge.workspace.google.com/admin/users/access/turn-calendar-on-or-off-for-users) for them, or set **Users** to accounts with Calendar enabled. Leaving **Users** blank includes all active users and can stop sync on a service-access error. |
 | User not found or inactive | Use an active primary email in the same Workspace customer. Aliases, external or guest accounts, suspended users, and archived users cannot be selected. |
 | A central source has no results for a teammate | Confirm their primary Workspace email matches their verified Sim email, they belong to the Sim organization, and they are included in **Users**. Check calendar IDs and **Sync history**. |
 

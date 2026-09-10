@@ -150,6 +150,28 @@ describe('Google server selector adapters', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
+  it.each([
+    { files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: undefined },
+    { files: [], nextPageToken: undefined },
+    { files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: 'next' },
+  ])('reports incomplete Drive searches without inventing pagination: %j', async (page) => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify({ drives: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...page, incompleteSearch: true })))
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: page.files.map((file) => ({ id: file.id, label: file.name })),
+      ...(page.nextPageToken ? { nextCursor: `f:${page.nextPageToken}` } : {}),
+      diagnostics: { truncated: { reason: 'provider-cap' } },
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const fileUrl = new URL(String(mockFetch.mock.calls[1]?.[0]))
+    expect(fileUrl.searchParams.get('fields')).toContain('incompleteSearch')
+  })
+
   it('continues real folder pages after the final shared-drive page', async () => {
     mockFetch
       .mockResolvedValueOnce(

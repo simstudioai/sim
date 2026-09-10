@@ -211,7 +211,11 @@ describe('useTriggerSync optimistic state', () => {
   function capturedMutationOptions() {
     return mocks.useMutation.mock.calls.at(-1)?.[0] as {
       onMutate: (vars: { knowledgeBaseId: string; connectorId: string }) => Promise<unknown>
-      onSettled: () => Promise<unknown>
+      onSettled: (
+        data: undefined,
+        error: Error | null,
+        vars: { knowledgeBaseId: string; connectorId: string }
+      ) => Promise<unknown>
       onSuccess: (data: undefined, vars: { knowledgeBaseId: string; connectorId: string }) => void
       onError: (
         error: unknown,
@@ -297,7 +301,10 @@ describe('useTriggerSync optimistic state', () => {
 
   it('reconciles server source summaries after either sync outcome', async () => {
     useTriggerSync()
-    await capturedMutationOptions().onSettled()
+    await capturedMutationOptions().onSettled(undefined, null, {
+      knowledgeBaseId: KB_ID,
+      connectorId: 'connector-1',
+    })
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: searchSourceKeys.lists() })
   })
 

@@ -36,7 +36,7 @@ Open **Settings → Sources** and turn on **Gmail**. This allows personal connec
 
 ### Connect your account
 
-Open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The first connection creates the default sync configuration: the last 6 months across all labels, excluding Promotions, Social, Spam, and Trash.
+Join the Sim organization, then open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The first connection creates the default sync configuration: the last 6 months across all labels, excluding Promotions, Social, Spam, and Trash. Return to Integrations to see indexing status and your searchable document count.
 
 </Step>
 <Step>
@@ -51,6 +51,8 @@ Configurations are additive: a narrower one does not restrict an existing broade
 
 </Step>
 </Steps>
+
+Admins can request member connections from **Manage → Accounts → Request connections**. These requests do not invite recipients to the Sim organization. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
 
 ## Set up a central service account
 
@@ -100,16 +102,6 @@ Teammates join the Sim organization with their matching verified primary email. 
 </Step>
 </Steps>
 
-## Connect your account
-
-These steps apply to **Member accounts**. A central service-account source does not require a personal Gmail connection.
-
-1. Join the Sim organization and verify your Sim email address. Open **Integrations** and click **Connect** beside Gmail.
-2. Complete the connection in the tab that opens. Choose the Google account whose verified email matches your Sim email, and grant the requested permissions.
-3. Return to Integrations. The source shows its indexing status and the number of documents you can search.
-
-Teammates follow these same steps after joining the organization. Once an admin allows Gmail, the first connection can create its source with default filters. Admins can edit those filters afterward or request connections from **Manage → Accounts → Request connections**. A connection request does not invite the recipient to the Sim organization.
-
 ## Source options
 
 An admin opens **Settings → Sources** and selects **Manage** beside **Gmail** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. Filters apply separately to each mailbox in the source. **Documents** shows indexed threads and **Sync history** shows recent runs.
@@ -121,11 +113,11 @@ An admin opens **Settings → Sources** and selects **Manage** beside **Gmail** 
 | Labels | Optional comma-separated names or system IDs, such as `Engineering, INBOX`. A thread matching any listed label is included. Leave empty for all labels. Custom IDs such as `Label_7` belong to one mailbox and cannot be used for member or central setup. |
 | Directory administrator email | Required for central indexing. An active Workspace administrator who can read Directory users; this does not limit the crawl to the administrator's mailbox. |
 | Users | Central indexing only. Optional primary Workspace email addresses (up to 100); blank includes all active users in the customer. This selects which mailboxes to crawl. Each mailbox remains searchable only by its owner. |
-| Date Range | Last 6 months by default for Search sources. Choose the last 7, 30, or 90 days, a year, or all time. A knowledge-base connector outside Search defaults to all time. |
+| Date Range | Last 6 months (180 days) by default. Other options are rolling windows of 7, 30, or 90 days, 1 year (365 days), or all time. |
 | Exclude Promotions / Exclude Social | Both enabled by default. Choose **No** to include either category. |
 | Search Filter | Optional [Gmail query](https://developers.google.com/workspace/gmail/api/guides/filtering), such as `from:team@example.com subject:release`. This filters what is indexed; it is not a Sim Search query. Member-account sources with a search filter relist the mailbox on every sync instead of using Gmail's change history. |
 
-In the add-source form, **More options** contains optional **Metadata tags**. Sync frequency and the general knowledge-base **Max Threads** setting are hidden in Search.
+In the add-source form, **More options** also contains optional **Metadata tags**.
 
 ## What gets indexed
 
@@ -137,13 +129,9 @@ Search schedules syncs hourly. The first sync lists every thread in scope and ca
 
 **Member accounts:** later syncs use each mailbox's Gmail change history, unless the configuration has a search filter. A full relisting runs about weekly, or sooner if Gmail no longer retains the saved history.
 
-**Service account:** each sync revisits the selected active mailboxes and resumes unfinished listings. It does not reuse one mailbox's history cursor across the company. Only new or changed threads need their bodies fetched. Failed mailbox reads leave the crawl incomplete; they are not treated as an empty mailbox for deletion reconciliation.
+**Service account:** each sync revisits the selected active mailboxes and resumes unfinished listings. A failed mailbox read leaves the crawl incomplete; it does not cause existing indexed mail to be deleted from Search.
 
-Updates, removals, and access refresh in the background, rather than being checked live for each search.
-
-An empty mailbox or filters with no matching threads complete normally with zero documents.
-
-Threads that exceed indexing size limits are skipped and reconsidered when the thread changes.
+Updates, removals, and access refresh in the background. Empty mailboxes and filters with no matches complete normally with zero documents. Threads exceeding indexing size limits are skipped and reconsidered when they change.
 
 ## Troubleshooting
 
@@ -155,7 +143,7 @@ Threads that exceed indexing size limits are skipped and reconsidered when the t
 | Reconnect | Click **Reconnect** and authorize the same account again. |
 | Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 | Directory or delegation error | Check both central crawl scopes, the service-account key, and the Directory administrator's user-read privileges. A normal OAuth account cannot replace the central service account. |
-| Gmail access fails for a selected user | Verify Gmail is enabled for that primary Workspace account and delegation is authorized. Narrow **Users** to accounts with Gmail enabled. Aliases and external accounts cannot be selected. |
+| Gmail access fails for a selected user | Verify delegation is authorized and [Gmail is enabled](https://knowledge.workspace.google.com/admin/gmail/control-gmail-access-for-your-organizations-users) for that primary Workspace account. Set **Users** to accounts with Gmail enabled; leaving it blank includes all active users and can stop sync on a service-access error. Aliases and external accounts cannot be selected. |
 | A central source indexes mail but a teammate sees no results | Confirm their verified Sim email is the mailbox's primary email and they belong to the Sim organization. Administrators do not receive other people's mailbox access. |
 
 ## Self-hosted operator setup

@@ -807,7 +807,18 @@ export function useTriggerSync() {
         queryKey: connectorKeys.progresses(knowledgeBaseId, connectorId),
       })
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+    /** An early poll can read idle before dispatch marks pending; reconcile after the request settles. */
+    onSettled: (_data, error, { knowledgeBaseId, connectorId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+        queryClient.invalidateQueries({
+          queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
+          exact: true,
+        }),
+        ...(!error
+          ? [queryClient.invalidateQueries({ queryKey: connectorKeys.lists(knowledgeBaseId) })]
+          : []),
+      ]),
   })
 }
 

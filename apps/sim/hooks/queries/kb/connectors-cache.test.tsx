@@ -13,6 +13,16 @@ const mocks = vi.hoisted(() => ({ requestJson: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
 
 import {
+  type ConnectorDetailData,
+  getKnowledgeConnectorContract,
+  listKnowledgeConnectorsContract,
+  triggerKnowledgeConnectorSyncContract,
+} from '@/lib/api/contracts/knowledge/connectors'
+import {
+  CONNECTOR_SYNC_POLL_INTERVAL_MS,
+  connectorKeys,
+  useConnectorDetail,
+  useConnectorList,
   useConnectSimSearchConnector,
   useCreateConnector,
   useDeleteConnector,
@@ -20,6 +30,7 @@ import {
   usePrepareSearchSource,
   useRestoreConnectorDocument,
   useStartConnectorMemberEnrollment,
+  useTriggerSync,
   useUpdateConnector,
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
@@ -123,6 +134,117 @@ afterEach(() => {
     for (const root of mountedRoots.splice(0)) root.unmount()
   })
   for (const queryClient of queryClients.splice(0)) queryClient.clear()
+  vi.useRealTimers()
+})
+
+describe('manual sync history reconciliation', () => {
+  it.each([false, true])(
+    'resumes polling after an early idle response with connector list mounted=%s',
+    async (showList) => {
+      vi.useFakeTimers()
+      const client = createQueryClient()
+      const detailKey = connectorKeys.detail(KNOWLEDGE_BASE_ID, CONNECTOR_ID)
+      let serverDetail: ConnectorDetailData = {
+        id: CONNECTOR_ID,
+        knowledgeBaseId: KNOWLEDGE_BASE_ID,
+        connectorType: 'google_drive',
+        credentialId: 'credential-1',
+        sourceConfig: {},
+        syncMode: 'full',
+        syncIntervalMinutes: 60,
+        status: 'active',
+        lastSyncAt: null,
+        lastSyncError: null,
+        lastSyncDocCount: 0,
+        nextSyncAt: null,
+        consecutiveFailures: 0,
+        accessMode: 'admin',
+        viewerMembership: null,
+        credentialGroupId: null,
+        credentialGroupOptionId: null,
+        memberSyncStatus: 'idle',
+        lastMemberSyncAt: null,
+        nextMemberSyncAt: null,
+        lastMemberSyncError: null,
+        memberSyncConsecutiveFailures: 0,
+        accessRewritePending: false,
+        createdAt: '2026-09-09T00:00:00Z',
+        updatedAt: '2026-09-09T00:00:00Z',
+        syncLogs: [],
+        memberSyncLogs: [],
+        members: { active: 0, suspended: 0, stale: 0 },
+      }
+      client.setQueryData(detailKey, serverDetail)
+      client.setQueryData(connectorKeys.lists(KNOWLEDGE_BASE_ID), [serverDetail])
+      const trigger = Promise.withResolvers<object>()
+      mocks.requestJson.mockImplementation(async (contract) => {
+        if (contract === triggerKnowledgeConnectorSyncContract) return trigger.promise
+        if (contract === getKnowledgeConnectorContract) return { data: serverDetail }
+        if (contract === listKnowledgeConnectorsContract) return { data: [serverDetail] }
+        throw new Error('Unexpected request')
+      })
+      const current = renderMutation(client, () => ({
+        detail: useConnectorDetail(KNOWLEDGE_BASE_ID, CONNECTOR_ID),
+        list: useConnectorList(showList ? KNOWLEDGE_BASE_ID : undefined),
+        sync: useTriggerSync(),
+      }))
+      let mutation: Promise<void> | undefined
+      await act(async () => {
+        mutation = current().sync.mutateAsync({
+          knowledgeBaseId: KNOWLEDGE_BASE_ID,
+          connectorId: CONNECTOR_ID,
+        })
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(client.getQueryData<ConnectorDetailData>(detailKey)?.status).toBe('pending')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CONNECTOR_SYNC_POLL_INTERVAL_MS + 1)
+      })
+      expect(current().detail.data?.status).toBe('active')
+      expect(current().sync.isPending).toBe(true)
+      serverDetail = { ...serverDetail, status: 'pending' }
+      await act(async () => {
+        trigger.resolve({ success: true })
+        await mutation
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(current().detail.data?.status).toBe('pending')
+      if (showList) expect(current().list.data?.[0].status).toBe('pending')
+
+      serverDetail = {
+        ...serverDetail,
+        status: 'active',
+        syncLogs: [
+          {
+            id: 'new-run',
+            connectorId: CONNECTOR_ID,
+            status: 'completed',
+            startedAt: '2026-09-10T00:00:00Z',
+            completedAt: '2026-09-10T00:01:00Z',
+            docsAdded: 0,
+            docsUpdated: 0,
+            docsDeleted: 0,
+            docsUnchanged: 3,
+            docsSkipped: 0,
+            docsFailed: 0,
+            errorMessage: null,
+          },
+        ],
+      }
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CONNECTOR_SYNC_POLL_INTERVAL_MS + 1)
+      })
+      expect(current().detail.data?.syncLogs.map((log) => log.id)).toEqual(['new-run'])
+      expect(current().detail.data?.status).toBe('active')
+      const requestsAtCompletion = mocks.requestJson.mock.calls.length
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CONNECTOR_SYNC_POLL_INTERVAL_MS * 2)
+      })
+      expect(mocks.requestJson).toHaveBeenCalledTimes(requestsAtCompletion)
+      expectInvalidated(client, UNRELATED_KEY, false)
+    }
+  )
 })
 
 describe('connector account cache reconciliation', () => {

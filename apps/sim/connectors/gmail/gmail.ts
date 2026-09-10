@@ -308,7 +308,7 @@ function buildSearchQuery(
   }
 
   const after = dateRangeStart(sourceConfig, new Date())
-  if (after) parts.push(`after:${formatGmailDate(after)}`)
+  if (after) parts.push(`after:${after.getTime() / 1000}`)
 
   const excludePromotions = sourceConfig.excludePromotions !== 'false'
   if (excludePromotions) {
@@ -350,21 +350,12 @@ function isBoundedDateRange(value: unknown): value is keyof typeof DATE_RANGE_DA
   return typeof value === 'string' && Object.hasOwn(DATE_RANGE_DAYS, value)
 }
 
-/** The earliest message date the configured range admits, or undefined for all time. */
+/** Uses second precision so Gmail's epoch query and local history filtering share one cutoff. */
 function dateRangeStart(sourceConfig: Record<string, unknown>, now: Date): Date | undefined {
   const range = sourceConfig.dateRange
-  return isBoundedDateRange(range) ? daysAgo(now, DATE_RANGE_DAYS[range]) : undefined
-}
-
-function daysAgo(now: Date, days: number): Date {
-  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
-}
-
-function formatGmailDate(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}/${m}/${d}`
+  if (!isBoundedDateRange(range)) return undefined
+  const cutoffSeconds = Math.floor(now.getTime() / 1000) - DATE_RANGE_DAYS[range] * 24 * 60 * 60
+  return new Date(cutoffSeconds * 1000)
 }
 
 /**
@@ -766,8 +757,7 @@ function buildChangeScope(
     const labelIds = new Set<string>()
     for (const value of configuredLabels) {
       const id = labelIndex.byId[value] ? value : labelIndex.idByLowerName[value.toLowerCase()]
-      if (!id) throw new Error(`Gmail label "${value}" does not exist in this mailbox`)
-      labelIds.add(id)
+      if (id) labelIds.add(id)
     }
     scope.labelIds = labelIds
   }

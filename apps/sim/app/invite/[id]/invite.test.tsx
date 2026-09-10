@@ -276,6 +276,104 @@ afterEach(() => {
 })
 
 describe('Invite', () => {
+  it.each([
+    { status: 401, body: { error: 'Unauthorized' }, authRequired: true },
+    { status: 403, body: { error: 'Forbidden' }, authRequired: true },
+    {
+      status: 401,
+      code: 'UNRECOGNIZED_AUTH_CODE',
+      body: { error: 'Please authenticate' },
+      authRequired: true,
+    },
+    { status: 404, body: { error: 'Invitation not found' }, authRequired: false },
+  ])('uses HTTP $status when the response has no known invitation code', async (response) => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ ...response, message: 'Request failed' })
+    )
+    await renderInvite()
+
+    if (response.authRequired) {
+      expect(container.textContent).toContain('Authentication Required')
+      expect(container.textContent).not.toContain('Invitation Error')
+      await clickAction('Sign in to continue')
+      expect(mockPush).toHaveBeenCalledWith(
+        `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
+      )
+    } else {
+      expect(container.textContent).toContain('This invitation is invalid or no longer exists.')
+      expect(actionLabels()).not.toContain('Try Again')
+    }
+  })
+
+  it.each([
+    { code: 'disclosure-outdated', body: { error: 'Your workspaces changed' } },
+    { code: undefined, body: { error: 'disclosure-outdated' } },
+  ])('preserves a known invitation error before the HTTP fallback: %j', async (response) => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ ...response, status: 409, message: 'Review the updated disclosure' })
+    )
+    await renderInvite()
+
+    expect(container.textContent).toContain('Review the updated notice and accept again.')
+    expect(container.textContent).not.toContain('Already Part of a Team')
+    expect(actionLabels()).toContain('Try Again')
+  })
+
+  it('offers sign-in if the session expires while accepting an invitation', async () => {
+    await renderInvite()
+    mockRequestJson.mockRejectedValueOnce(
+      new ApiClientError({ status: 401, body: { error: 'Unauthorized' }, message: 'Unauthorized' })
+    )
+    await clickAction('Accept Invitation')
+
+    expect(container.textContent).toContain('Authentication Required')
+    expect(container.textContent).not.toContain('Welcome!')
+    expect(actionLabels()).not.toContain('Accept Invitation')
+    await clickAction('Sign in to continue')
+    expect(mockPush).toHaveBeenCalledWith(
+      `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
+    )
+  })
+
+  it.each(['internal', 'external'] as const)(
+    'offers an account switch to a token holder who is not the %s invitee',
+    async (intent) => {
+      membershipIntent = intent
+      joinPreview = null
+      mockUseSession.mockReturnValue({
+        data: { user: { id: 'other-user', email: 'other@example.com' } },
+        isPending: false,
+      })
+      await renderInvite()
+
+      expect(container.textContent).toContain('Wrong Account')
+      expect(container.textContent).not.toContain('We could not load how this invitation affects')
+      expect(actionLabels()).not.toContain('Accept Invitation')
+      expect(actionLabels()).not.toContain('Refresh invitation')
+      expect(mockRequestJson).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'POST' }),
+        expect.anything()
+      )
+      await clickAction('Sign in with a different account')
+      expect(mockSignOut).toHaveBeenCalledOnce()
+      expect(mockClearUserData).toHaveBeenCalledOnce()
+      expect(mockPush).toHaveBeenCalledWith(
+        `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
+      )
+    }
+  )
+
+  it('matches the invitation email with the same normalization as the server', async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: 'user-1', email: ' INVITEE@EXAMPLE.COM ' } },
+      isPending: false,
+    })
+    await renderInvite()
+
+    expect(container.textContent).not.toContain('Wrong Account')
+    expect(actionLabels()).toContain('Accept Invitation')
+  })
+
   it('clears the previous account cache before navigating to the invitation sign-in', async () => {
     mockRequestJson.mockRejectedValue(
       new ApiClientError({
