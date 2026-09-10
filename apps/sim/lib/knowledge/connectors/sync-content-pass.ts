@@ -57,7 +57,7 @@ interface ContentPassInput {
   forceRehydrate: boolean
   fullSync?: boolean
   deadlineAt: number
-  onPage?: (documents: ExternalDocument[]) => Promise<void>
+  onPage?: (documents: ExternalDocument[], generationStartedAt: Date) => Promise<void>
 }
 
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
@@ -67,23 +67,33 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
       return fn(tx)
     })
+  const readGenerationStartedAt = async (tx: DbOrTx): Promise<Date> => {
+    const [clock] = await tx.execute<{ startedAt: string }>(
+      sql`SELECT statement_timestamp()::text AS "startedAt"`
+    )
+    const startedAt = new Date(clock?.startedAt ?? '')
+    if (!Number.isFinite(startedAt.getTime()))
+      throw new Error('Could not read the sync database clock')
+    return startedAt
+  }
   let checkpoint = readListingCheckpoint(input.connector.listingCheckpoint, input.fingerprint)
   /** A Full resync must revisit documents before an ordinary listing's saved cursor. */
   if (!checkpoint || (input.forceRehydrate && !checkpoint.forceRehydrate)) {
-    checkpoint = beginListingCheckpoint({
-      fingerprint: input.fingerprint,
-      generationId: input.runId,
-      startedAt: new Date(),
-      incrementalSince: input.lastSyncAt,
-      forceRehydrate: input.forceRehydrate,
-      fullSync: input.fullSync,
-    })
-    await withLease((tx) =>
-      tx
+    checkpoint = await withLease(async (tx) => {
+      const next = beginListingCheckpoint({
+        fingerprint: input.fingerprint,
+        generationId: input.runId,
+        startedAt: await readGenerationStartedAt(tx),
+        incrementalSince: input.lastSyncAt,
+        forceRehydrate: input.forceRehydrate,
+        fullSync: input.fullSync,
+      })
+      await tx
         .update(knowledgeConnector)
-        .set({ listingCheckpoint: checkpoint })
+        .set({ listingCheckpoint: next })
         .where(input.lease.stillHeld())
-    )
+      return next
+    })
   }
   let hydratedCount = 0
   checkpoint = await runResumableListing({
@@ -93,6 +103,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     checkpoint,
     deadlineAt: input.deadlineAt,
     beforePage: input.lease.beatIfDue,
+    getGenerationStartedAt: () => withLease(readGenerationStartedAt),
     getAccessToken: input.getAccessToken,
     processPage: async (documents, cycle) => {
       const externalIds = documents.map((item) => item.externalId)
@@ -161,7 +172,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         },
       })
       if (!finished) return false
-      await input.onPage?.(documents)
+      await input.onPage?.(documents, startedAt)
       await withLease(async (tx) => {
         const verified = externalIds.filter((id) => !state.failedExternalIds.has(id))
         for (let offset = 0; offset < verified.length; offset += 500) {

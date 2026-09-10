@@ -241,9 +241,7 @@ describe('organization provider management', () => {
         expect.objectContaining({ enabled: false })
       )
       await click('Advanced')
-      expect(container.textContent).toContain(
-        'No accounts connected yet. A sync configuration will be created when someone connects.'
-      )
+      expect(container.textContent).toContain('No sync configurations yet.')
       expect(container.textContent).toContain('Add sync configuration')
       await click('Add sync configuration')
       await vi.waitFor(() => {
@@ -253,6 +251,30 @@ describe('organization provider management', () => {
         expect(mocks.updateUrl.mock.calls.at(-1)![0].searchParams.get('addConnector')).toBe(
           connectorType
         )
+      })
+    }
+  )
+
+  it.each(['gmail', 'google_calendar', 'google_drive'])(
+    'does not ask for personal connections when %s already has a central source',
+    async (connectorType) => {
+      mocks.overview.mockReturnValue({
+        data: { providers: [{ ...provider, connectorType, sourceCount: 1 }] },
+      })
+      mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
+      mocks.access = { admin: true, members: true }
+      await render(connectorType)
+
+      expect(container.textContent).toContain('No connected member accounts.')
+      expect(container.textContent).not.toContain(
+        'Members connect their accounts from Integrations.'
+      )
+      await click('Advanced')
+      await click('Add sync configuration')
+      await vi.waitFor(() => {
+        const params = mocks.updateUrl.mock.calls.at(-1)![0].searchParams
+        expect(params.get('addConnector')).toBe(connectorType)
+        expect(params.get('source-access')).toBeNull()
       })
     }
   )

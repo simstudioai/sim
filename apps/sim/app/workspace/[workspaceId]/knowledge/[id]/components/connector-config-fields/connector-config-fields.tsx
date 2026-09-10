@@ -70,6 +70,11 @@ export function ConnectorConfigFields({
       {connectorConfig.configFields.map((field) => {
         if (!isFieldVisible(field)) return null
 
+        const title = accessMode === 'admin' ? (field.titleInAdminMode ?? field.title) : field.title
+        const description =
+          accessMode === 'admin'
+            ? (field.descriptionInAdminMode ?? field.description)
+            : field.description
         const canonicalId = field.canonicalParamId
         const hasCanonicalPair =
           canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
@@ -91,24 +96,24 @@ export function ConnectorConfigFields({
               >
                 <span className='flex items-center gap-1'>
                   <span>
-                    {field.title}
+                    {title}
                     {isConnectorFieldRequired(field, connectorConfig, accessMode) && (
                       <span className='ml-0.5'>*</span>
                     )}
                   </span>
-                  {field.description && (
+                  {description && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
                         <Button
                           type='button'
                           variant='ghost'
                           size='icon'
-                          aria-label={`About ${field.title}`}
+                          aria-label={`About ${title}`}
                         >
                           <CircleInfo className='size-[14px]' />
                         </Button>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                      <Tooltip.Content side='top'>{description}</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 </span>
@@ -120,7 +125,7 @@ export function ConnectorConfigFields({
                         variant='quiet'
                         size='icon'
                         disabled={disabled}
-                        aria-label={`Switch ${field.title} to ${field.mode === 'basic' ? 'manual input' : 'selector'}`}
+                        aria-label={`Switch ${title} to ${field.mode === 'basic' ? 'manual input' : 'selector'}`}
                         onClick={() => onToggleCanonicalMode(canonicalId)}
                       >
                         <ArrowLeftRight className='size-[14px]' />
@@ -167,7 +172,7 @@ export function ConnectorConfigFields({
                     : undefined
                 }
                 onChange={(value) => onFieldChange(field.id, value)}
-                placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
+                placeholder={field.placeholder || `Select ${title.toLowerCase()}`}
               />
             ) : (
               <ChipInput

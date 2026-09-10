@@ -253,8 +253,8 @@ function parseDriveCursor(cursor: string | undefined): DriveCursor | undefined {
   return { source: source === 'd:' ? 'drives' : 'files', pageToken }
 }
 
-function driveCursor(source: DriveCursor['source'], pageToken?: string): string {
-  return `${source === 'drives' ? 'd' : 'f'}:${pageToken ?? ''}`
+function driveCursor(source: DriveCursor['source'], pageToken: string): string {
+  return `${source === 'drives' ? 'd' : 'f'}:${pageToken}`
 }
 
 async function listDriveFiles(
@@ -278,16 +278,16 @@ async function listDriveFiles(
     throw new SelectorContextUnavailableError()
   }
 
+  let sharedDrives: DriveFile[] = []
   if (includeSharedDrives && (!cursor || cursor.source === 'drives')) {
     const drives = await fetchSharedDrivePage(accessToken, cursor?.pageToken, search, args.signal)
-    if (drives.items.length > 0 || drives.nextCursor) {
+    if (drives.nextCursor) {
       return {
         items: drives.items,
-        nextCursor: drives.nextCursor
-          ? driveCursor('drives', drives.nextCursor)
-          : driveCursor('files'),
+        nextCursor: driveCursor('drives', drives.nextCursor),
       }
     }
+    sharedDrives = drives.items
   }
 
   const pageToken = cursor?.source === 'files' ? cursor.pageToken : undefined
@@ -306,7 +306,7 @@ async function listDriveFiles(
   const nextPageToken = data.nextPageToken?.trim()
 
   return {
-    items: data.files ?? [],
+    items: [...sharedDrives, ...(data.files ?? [])],
     ...(nextPageToken ? { nextCursor: driveCursor('files', nextPageToken) } : {}),
   }
 }

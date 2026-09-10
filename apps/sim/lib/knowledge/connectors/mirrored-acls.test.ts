@@ -21,6 +21,10 @@ function doc(externalId: string, acl?: readonly string[]): ExternalDocument {
 }
 
 describe('unansweredByListing', () => {
+  it('requests each unresolved ID once and honors inline answers from any duplicate', () => {
+    expect(unansweredByListing([doc('a'), doc('a', []), doc('b'), doc('b')])).toEqual([doc('b')])
+  })
+
   it('names exactly the documents the listing left without an ACL', () => {
     expect(
       unansweredByListing([doc('a', ['u:alice@corp.com']), doc('b'), doc('c', []), doc('d')]).map(
@@ -31,6 +35,15 @@ describe('unansweredByListing', () => {
 })
 
 describe('mergeMirroredAcls', () => {
+  it.each([{ acl: [] }, { acl: ['invalid'] }])(
+    'keeps an inline answer over fetched grants for an unresolved duplicate',
+    ({ acl }) => {
+      const result = mergeMirroredAcls([doc('a', acl), doc('a')], { a: ['pub'] })
+      expect(result.acls.get('a')).toEqual(acl)
+      expect(result.unresolvedExternalIds.size).toBe(0)
+    }
+  )
+
   it("keeps the listing's answer where it gave one", () => {
     const { acls, unattributed } = mergeMirroredAcls([doc('a', ['u:alice@corp.com'])], {
       a: ['u:bob@corp.com'],
@@ -50,11 +63,7 @@ describe('mergeMirroredAcls', () => {
     expect(unattributed).toBe(0)
   })
 
-  /**
-   * A document nobody answered for is hidden and counted — never skipped,
-   * because skipping would leave it under an ACL this run did not verify.
-   */
-  it('hides and counts a document neither source answered for', () => {
+  it('marks a document neither source answered for as unresolved', () => {
     const { acls, unattributed } = mergeMirroredAcls([doc('a'), doc('b')], { a: ['pub'] })
 
     expect(acls.get('b')).toEqual([])
@@ -66,6 +75,29 @@ describe('mergeMirroredAcls', () => {
 
     expect(acls.get('a')).toEqual([])
     expect(unattributed).toBe(0)
+  })
+
+  it.each([
+    { docs: [doc('a', ['pub']), doc('a')], expected: ['pub'] },
+    { docs: [doc('a'), doc('a', ['pub'])], expected: ['pub'] },
+    { docs: [doc('a', ['pub']), doc('a', []), doc('a')], expected: [] },
+    { docs: [doc('a', ['pub']), doc('a', ['invalid']), doc('a')], expected: ['invalid'] },
+  ])(
+    'retains the latest explicit same-page answer when a duplicate is unresolved',
+    ({ docs, expected }) => {
+      const result = mergeMirroredAcls(docs, {})
+      expect(result.acls.get('a')).toEqual(expected)
+      expect(result.unresolvedExternalIds.size).toBe(0)
+    }
+  )
+
+  it('distinguishes unresolved files from explicit empty responses', () => {
+    const result = mergeMirroredAcls(
+      [doc('unknown'), doc('inline-empty', []), doc('fetched-empty')],
+      { 'fetched-empty': [] }
+    )
+    expect([...result.unresolvedExternalIds]).toEqual(['unknown'])
+    expect(result.unattributed).toBe(1)
   })
 
   it('answers for every listed document, in listing order', () => {

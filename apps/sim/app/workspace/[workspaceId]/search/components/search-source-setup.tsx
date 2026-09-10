@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Chip,
   ChipInput,
@@ -102,8 +102,10 @@ export function SearchSourceSetup({
     managedSourceParam.parser.withOptions({ history: 'replace' })
   )
   const [search, setSearch] = useState('')
+  const attemptedPreparation = useRef<string | null>(null)
   const router = useRouter()
   const prepare = usePrepareSearchSource()
+  const { mutate: prepareSource, isPending: preparing } = prepare
   const selectedMeta = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : undefined
   const redirectPersonalSetup = Boolean(
     scope.kind === 'organization' &&
@@ -138,8 +140,6 @@ export function SearchSourceSetup({
   const connectors = useConnectorList(
     canAdmin && managedSource && !redirectManagement ? knowledgeBaseId : undefined
   )
-
-  if (!canAdmin || !open || redirectManagement || redirectPersonalSetup) return null
 
   const close = () => {
     if (prepare.isPending) return
@@ -177,6 +177,61 @@ export function SearchSourceSetup({
       return 'admin' as const
     return 'members' as const
   }
+
+  const selectedAccessMode = selectedType ? initialMode(selectedType) : undefined
+  const selectedAvailability = selectedMeta
+    ? getConnectorAccessAvailability(selectedMeta, integrationAvailability, {
+        memberAccessAvailable,
+        mirroredAccessAvailable,
+        oauthServiceAvailability,
+        isIntegrationAvailabilityReady,
+      })
+    : undefined
+  const selectedAvailable = selectedAvailability
+    ? scope.kind === 'organization'
+      ? selectedAccessMode === 'admin'
+        ? selectedAvailability.admin
+        : selectedAvailability.members
+      : selectedAvailability.admin || selectedAvailability.members
+    : false
+  const canPrepareSelected =
+    canAdmin &&
+    open &&
+    !redirectManagement &&
+    !redirectPersonalSetup &&
+    !index.isPending &&
+    !index.isError &&
+    !integrationAvailabilityError &&
+    selectedAvailable
+  const userId = session?.user?.id
+
+  /** A known provider only needs the canonical index prepared, not another selection step. */
+  useEffect(() => {
+    if (!selectedType || knowledgeBaseId) {
+      attemptedPreparation.current = null
+      return
+    }
+    if (!canPrepareSelected || !selectedAccessMode || !userId || preparing) return
+    const requestKey = `${userId}:${resourceScopeKey(scope)}:${selectedType}:${selectedAccessMode}`
+    if (attemptedPreparation.current === requestKey) return
+    attemptedPreparation.current = requestKey
+    prepareSource({
+      ...resourceScopeFields(scope),
+      connectorType: selectedType,
+      accessMode: selectedAccessMode,
+    })
+  }, [
+    selectedType,
+    knowledgeBaseId,
+    canPrepareSelected,
+    selectedAccessMode,
+    userId,
+    preparing,
+    scope,
+    prepareSource,
+  ])
+
+  if (!canAdmin || !open || redirectManagement || redirectPersonalSetup) return null
 
   if (
     !failedQuery &&
@@ -232,9 +287,7 @@ export function SearchSourceSetup({
         setup['source-access'] === 'members' ||
         meta.mirrorsSourceAcls ||
         type === 'slack') &&
-      (selectedType
-        ? type === selectedType
-        : `${meta.name} ${meta.description}`.toLowerCase().includes(normalizedSearch))
+      `${meta.name} ${meta.description}`.toLowerCase().includes(normalizedSearch)
   )
 
   return (
@@ -280,18 +333,41 @@ export function SearchSourceSetup({
               {index.isPending ? 'Loading source…' : 'This source is no longer available.'}
             </SettingsEmptyState>
           </ChipModalField>
+        ) : selectedType ? (
+          <ChipModalField type='custom' title='Source setup'>
+            {!selectedAvailable ? (
+              <SettingsEmptyState variant='inline'>
+                Not available in this {scope.kind}
+              </SettingsEmptyState>
+            ) : prepare.error ? (
+              <SettingsQueryErrorState
+                error={prepare.error}
+                fallback='Could not prepare source setup'
+                isRetrying={preparing}
+                onRetry={() => {
+                  if (!canPrepareSelected || !selectedAccessMode || !userId || preparing) return
+                  prepareSource({
+                    ...resourceScopeFields(scope),
+                    connectorType: selectedType,
+                    accessMode: selectedAccessMode,
+                  })
+                }}
+                variant='inline'
+              />
+            ) : (
+              <SettingsEmptyState variant='inline'>Loading source setup…</SettingsEmptyState>
+            )}
+          </ChipModalField>
         ) : (
           <>
-            {!selectedType && (
-              <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
-                <ChipInput
-                  icon={Search}
-                  placeholder='Find a source…'
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </ChipModalField>
-            )}
+            <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
+              <ChipInput
+                icon={Search}
+                placeholder='Find a source…'
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </ChipModalField>
             <ChipModalField type='custom' title='Sources'>
               <div className={RESOURCE_LIST_STACK}>
                 {visibleTypes.map(([type, meta]) => {
@@ -347,7 +423,7 @@ export function SearchSourceSetup({
                                 )
                             }}
                           >
-                            {selectedType ? 'Continue setup' : 'Set up'}
+                            Set up
                           </Chip>
                         ) : undefined
                       }

@@ -72,6 +72,8 @@ vi.mock('@/hooks/use-permission-config', () => ({
       ['slack', { oauthAvailable: true, state: 'ready' }],
       ['slack_v2', { oauthAvailable: true, state: 'ready' }],
       ['google_drive', { oauthAvailable: true, state: 'ready' }],
+      ['gmail_v2', { oauthAvailable: true, state: 'ready' }],
+      ['google_calendar_v2', { oauthAvailable: true, state: 'ready' }],
       ['confluence_v2', { oauthAvailable: true, state: 'ready' }],
     ]),
     oauthServiceAvailability: new Map(
@@ -807,6 +809,54 @@ describe('Search setup options', () => {
 })
 
 describe('Account connection dropdown', () => {
+  it.each(['google_drive', 'gmail', 'google_calendar'])(
+    'opens only service-account creation for a central %s source and submits that credential',
+    async (connectorType) => {
+      mocks.credentials = [
+        { id: 'personal-account', name: 'Personal Google account', type: 'oauth' },
+      ]
+      mocks.serviceAccountTarget = {
+        serviceAccountProviderId: 'google-service-account',
+        serviceName: 'Google',
+        serviceIcon: googleDriveConnectorMeta.icon,
+        label: 'Add service account',
+        hidden: false,
+      }
+      mocks.resolveSourceConfig.mockReturnValue({ adminEmail: 'admin@example.com' })
+      await render({
+        initialConnectorType: connectorType,
+        lockedAccessMode: 'admin',
+        scope: { kind: 'organization', organizationId: 'org-1' },
+      })
+      expect(button('Connect & Sync')).toBeDisabled()
+      await act(async () => combobox('Select a service account').click())
+      const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+      expect(options.map((option) => option.textContent?.trim())).toEqual(['Add service account'])
+      await act(async () =>
+        options[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      expect(mocks.serviceAccountModal).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-1',
+          serviceAccountProviderId: 'google-service-account',
+        })
+      )
+      await act(async () => button('Finish service account setup').click())
+      expect(combobox('New service account')).toHaveAttribute('aria-disabled', 'false')
+      await act(async () => button('Connect & Sync').click())
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectorType,
+          credentialId: 'new-service-account',
+          accessMode: 'admin',
+          sourceConfig: { adminEmail: 'admin@example.com' },
+        }),
+        expect.any(Object)
+      )
+      expect(mocks.oauthModal).not.toHaveBeenCalled()
+    }
+  )
+
   it('only offers service accounts when creating a central Confluence source', async () => {
     mocks.credentials = [{ id: 'personal-account', name: 'Personal Confluence', type: 'oauth' }]
     mocks.serviceAccountTarget = {

@@ -289,7 +289,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                 : !approved
                   ? 'Activate this integration to set up sources.'
                   : automaticSetup
-                    ? 'No accounts connected yet. A sync configuration will be created when someone connects.'
+                    ? 'No sync configurations yet.'
                     : 'No sources yet.'}
             </SettingsEmptyState>
           )}
@@ -363,7 +363,9 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                   ? needsSlackSetup
                     ? 'Set up the Slack app to connect accounts.'
                     : automaticSetup
-                      ? 'Members connect their accounts from Integrations. Indexing starts automatically.'
+                      ? provider && provider.sourceCount > 0
+                        ? 'No connected member accounts.'
+                        : 'Members connect their accounts from Integrations. Indexing starts automatically.'
                       : 'Add a source to set up account connections.'
                   : 'Activate this integration to set up account connections.'}
               </SettingsEmptyState>

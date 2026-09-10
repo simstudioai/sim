@@ -469,9 +469,8 @@ interface ContentLocation {
  * configured space: a connector over two spaces must not let a reader of one
  * into the unrestricted pages of the other.
  *
- * A page whose restrictions could not be read this run is omitted, which the
- * engine stores as readable by nobody, and the rest of the batch still
- * resolves — the same per-document containment Drive has.
+ * Unresolved pages are omitted while the rest of the batch completes. The engine
+ * hides them unless another observation verified their ACL during the same crawl.
  */
 async function resolveConfluenceAcls(
   accessToken: string,
@@ -531,7 +530,7 @@ async function resolveConfluenceAcls(
       resolved.set(externalId, { spaceId: location.spaceId, chain })
     } catch (error) {
       unreadable += 1
-      logger.warn("Could not read a page's permissions; it stays readable by nobody", {
+      logger.warn("Could not verify a page's permissions", {
         cloudId,
         externalId,
         error: getErrorMessage(error),
@@ -554,7 +553,7 @@ async function resolveConfluenceAcls(
   }
 
   if (unreadable > 0) {
-    logger.warn('Some Confluence pages had unreadable permissions and stay readable by nobody', {
+    logger.warn('Some Confluence pages had unresolved permissions', {
       cloudId,
       unreadable,
     })

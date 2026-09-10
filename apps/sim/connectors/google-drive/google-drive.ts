@@ -13,6 +13,12 @@ import { OCR_IMAGE_MIME_TYPES } from '@/lib/knowledge/documents/ocr-request-poli
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { drainGooglePagedList } from '@/lib/oauth/google-pagination'
 import {
+  googleDriveDocumentToken,
+  InvalidGoogleCompanyCursor,
+  listGoogleCompanyDocuments,
+  validateGoogleCompanyConfig,
+} from '@/connectors/google-drive/company-crawl'
+import {
   googleWorkspaceDomain,
   openGoogleDirectory,
   validateGoogleDirectoryAccess,
@@ -249,6 +255,7 @@ interface DriveFile {
   starred?: boolean
   trashed?: boolean
   parents?: string[]
+  capabilities?: { canDownload?: boolean }
   shortcutDetails?: { targetId: string; targetMimeType?: string; targetResourceKey?: string }
   /**
    * Absent for a file on a shared drive, and for any file the impersonated
@@ -539,9 +546,8 @@ function driveAclContext(
  * The file's mirrored ACL from its listing, or undefined when the listing
  * cannot speak for it and {@link resolveDriveAcls} must.
  *
- * Drive leaves `permissions` unpopulated for a file on a shared drive, and for
- * any file the requesting user cannot share. Those go to `permissions.list`,
- * the one endpoint that answers for every file.
+ * Drive can omit `permissions` from a listing, including on shared drives.
+ * Those files need `permissions.list`, which may also refuse the requesting user.
  */
 function fileAcl(file: DriveFile, context: DriveAclContext | null): string[] | undefined {
   if (!context || !file.permissions) return undefined
@@ -558,8 +564,7 @@ const MAX_PERMISSION_PAGES = 50
 const DRIVE_PERMISSION_FIELDS = 'id,type,emailAddress,domain,role,allowFileDiscovery,deleted'
 
 /**
- * A file's full permission list, from the one endpoint that serves it for every
- * file — including those on a shared drive, whose listing carries none.
+ * A file's full permission list, when the requesting user may read it.
  *
  * Throws rather than returning a partial list: a file mirrored under the
  * permissions that happened to arrive is a file whose missing grants nobody
@@ -604,9 +609,8 @@ async function listFilePermissions(
  * The ACLs of files whose listing could not describe them — every file on a
  * shared drive, whose listing carries no permissions at all.
  *
- * A file whose permissions cannot be read is omitted, which leaves it readable
- * by nobody until a run can read them: the failure is logged per file and the
- * rest of the batch still resolves.
+ * Omitted files have unresolved permissions. The sync engine keeps them hidden
+ * unless another observation verified their ACL during the same crawl.
  */
 async function resolveDriveAcls(
   accessToken: string,
@@ -621,17 +625,21 @@ async function resolveDriveAcls(
   await mapWithConcurrency(documents, PERMISSION_FETCH_CONCURRENCY, async (document) => {
     const fileId = document.externalId
     try {
-      if (document.metadata?.shortcutTargetId) {
-        const file = await readDriveFile(accessToken, fileId, undefined, true)
+      const documentToken = await googleDriveDocumentToken(accessToken, fileId, syncContext)
+      if (
+        document.metadata?.shortcutTargetId ||
+        document.metadata?.originalMimeType === SHORTCUT_MIME_TYPE
+      ) {
+        const file = await readDriveFile(documentToken, fileId, undefined, true)
         if (file.trashed) {
           acls[fileId] = []
           return
         }
         if (file.mimeType === SHORTCUT_MIME_TYPE) {
-          const target = await readShortcutTarget(accessToken, file, true)
+          const target = await readShortcutTarget(documentToken, file, true)
           acls[fileId] =
             target && isSupportedFile(target.file)
-              ? await shortcutAcl(accessToken, file, target.file, context, target.resourceKey)
+              ? await shortcutAcl(documentToken, file, target.file, context, target.resourceKey)
               : []
           return
         }
@@ -641,10 +649,10 @@ async function resolveDriveAcls(
           return
         }
       }
-      const permissions = await listFilePermissions(accessToken, fileId)
+      const permissions = await listFilePermissions(documentToken, fileId)
       acls[fileId] = driveFileAcl({ ...context, permissions })
     } catch (error) {
-      logger.warn("Could not read a file's permissions; it stays readable by nobody", {
+      logger.warn("Could not verify a file's permissions with the current account", {
         fileId,
         ...googleDriveErrorLogFields(error),
       })
@@ -723,7 +731,7 @@ async function readDriveFile(
   resourceKey?: string,
   permissions = false
 ): Promise<DriveFile> {
-  const fields = `${DRIVE_FILE_FIELDS}${permissions ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''}`
+  const fields = `${DRIVE_FILE_FIELDS}${permissions ? `,permissions(${DRIVE_PERMISSION_FIELDS}),capabilities(canDownload)` : ''}`
   const response = await fetchGoogleDriveWithRetry(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`,
     { method: 'GET', headers: driveRequestHeaders(accessToken, fileId, resourceKey) }
@@ -811,6 +819,14 @@ async function listedFileToDocument(
 ): Promise<ExternalDocument | null> {
   if (file.trashed || file.mimeType === FOLDER_MIME_TYPE) return null
   const context = driveAclContext(sourceConfig, syncContext)
+  const companyWide = syncContext?.mirrorsSourceAcls === true
+  /** A download-restricted reader must not reserve a file before a later owner can index it. */
+  if (
+    companyWide &&
+    file.mimeType !== SHORTCUT_MIME_TYPE &&
+    file.capabilities?.canDownload === false
+  )
+    return null
   let target: DriveFile | undefined
   let acl: MirroredDocumentAcl | undefined = fileAcl(file, context)
   if (file.mimeType === SHORTCUT_MIME_TYPE) {
@@ -824,10 +840,12 @@ async function listedFileToDocument(
         'Could not resolve shortcut target; deferring to content hydration',
         googleDriveErrorLogFields(error)
       )
-      return fileToStub(file, [])
+      return fileToStub(file, context ? undefined : [])
     }
-    if (!resolved) return isPerMemberListing(syncContext) ? null : unavailableShortcut(file)
+    if (!resolved)
+      return isPerMemberListing(syncContext) || companyWide ? null : unavailableShortcut(file)
     target = resolved.file
+    if (companyWide && target.capabilities?.canDownload === false) return null
     if (context) {
       try {
         acl = await shortcutAcl(accessToken, file, target, context, resolved.resourceKey)
@@ -836,7 +854,7 @@ async function listedFileToDocument(
           'Could not verify shortcut and target permissions',
           googleDriveErrorLogFields(error)
         )
-        acl = []
+        acl = undefined
       }
     }
   }
@@ -1003,171 +1021,186 @@ function writeTraversal(state: FolderTraversal): string {
   return cursor
 }
 
+const listGoogleDriveDocuments: ConnectorConfig['listDocuments'] = async (
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  cursor?: string,
+  syncContext?: Record<string, unknown>,
+  lastSyncAt?: Date
+): Promise<ExternalDocumentList> => {
+  const roots = [...new Set(parseMultiValue(sourceConfig.folderId))]
+  const traversal: FolderTraversal | undefined = roots.length
+    ? cursor
+      ? readTraversal(cursor, roots)
+      : { pending: roots.map((id) => ({ id, depth: 0 })), totalFetched: 0 }
+    : undefined
+  const folder = traversal?.pending.pop()
+  /** Folder moves affect descendants without changing their modified timestamps. */
+  const query = buildQuery(
+    folder ? { ...sourceConfig, folderId: folder.id } : sourceConfig,
+    folder ? undefined : lastSyncAt,
+    Boolean(folder)
+  )
+  const pageSize = 100
+
+  const maxFiles = parseMaxFiles(sourceConfig.maxFiles)
+  const previouslyFetched =
+    traversal?.totalFetched ?? (syncContext?.totalDocsFetched as number) ?? 0
+
+  if (maxFiles > 0 && previouslyFetched >= maxFiles) {
+    return { documents: [], hasMore: false }
+  }
+
+  const remaining = maxFiles > 0 ? maxFiles - previouslyFetched : 0
+  const effectivePageSize = maxFiles > 0 ? Math.min(pageSize, remaining) : pageSize
+
+  const aclContext = driveAclContext(sourceConfig, syncContext)
+  const sharedDriveId =
+    syncContext?.mirrorsSourceAcls === true &&
+    typeof syncContext.googleDriveSharedDriveId === 'string'
+      ? syncContext.googleDriveSharedDriveId
+      : undefined
+  const queryParams = new URLSearchParams({
+    q: query,
+    pageSize: String(effectivePageSize),
+    orderBy: 'modifiedTime desc',
+    /**
+     * Permissions ride along only where the run mirrors them. Every other
+     * crawl would pull a permission array per file and discard it.
+     */
+    fields: `kind,nextPageToken,incompleteSearch,files(${DRIVE_FILE_FIELDS}${
+      aclContext ? `,permissions(${DRIVE_PERMISSION_FIELDS}),capabilities(canDownload)` : ''
+    })`,
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+    ...(syncContext?.mirrorsSourceAcls === true
+      ? sharedDriveId
+        ? { corpora: 'drive', driveId: sharedDriveId }
+        : { corpora: 'user' }
+      : {}),
+  })
+
+  const pageToken = folder ? folder.pageToken : cursor
+  if (pageToken) {
+    queryParams.set('pageToken', pageToken)
+  }
+
+  const url = `https://www.googleapis.com/drive/v3/files?${queryParams.toString()}`
+
+  logger.info('Listing Google Drive files', { query, cursor: cursor ?? 'initial' })
+
+  let response: Response
+  try {
+    response = await fetchGoogleDriveWithRetry(url, {
+      method: 'GET',
+      signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+  } catch (error) {
+    if (
+      (traversal || sharedDriveId) &&
+      (isPerMemberListing(syncContext) || syncContext?.mirrorsSourceAcls === true) &&
+      error instanceof GoogleDriveApiError &&
+      (error.kind === 'not_found' || error.kind === 'permission')
+    ) {
+      return {
+        documents: [],
+        hasMore: Boolean(traversal?.pending.length),
+        nextCursor: traversal?.pending.length ? writeTraversal(traversal) : undefined,
+      }
+    }
+    logger.error('Failed to list Google Drive files', googleDriveErrorLogFields(error))
+    throw error
+  }
+
+  const data = parseDriveFileListResponse(await readDriveJson(response, DRIVE_PAGE_MAX_BYTES))
+  const files = data.files
+
+  /**
+   * Drive sets `incompleteSearch` when it could not finish searching the requested
+   * corpus, especially when searching multiple shared drives with `allDrives`.
+   * A partial listing drops still-existing files, so reconciliation must be
+   * suppressed to avoid hard-deleting valid documents.
+   */
+  const incompleteSearch = data.incompleteSearch === true
+
+  if (traversal && folder) {
+    if (data.nextPageToken) {
+      if (data.nextPageToken === folder.pageToken) {
+        throw new Error('Google Drive repeated a folder continuation token')
+      }
+      traversal.pending.push({ ...folder, pageToken: data.nextPageToken })
+    }
+    const children = [
+      ...new Set(files.filter((file) => file.mimeType === FOLDER_MIME_TYPE).map((file) => file.id)),
+    ]
+    for (const id of children) {
+      /** An explicitly selected descendant is walked as its own root. */
+      if (roots.includes(id)) continue
+      if (folder.depth >= MAX_FOLDER_DEPTH) {
+        throw new Error('Google Drive folder traversal exceeded its nesting-depth limit')
+      }
+      traversal.pending.push({ id, depth: folder.depth + 1 })
+    }
+  }
+
+  const resolved = await mapWithConcurrency(files, SHORTCUT_FETCH_CONCURRENCY, (file) =>
+    listedFileToDocument(accessToken, sourceConfig, file, syncContext)
+  )
+  const pageDocuments = resolved.filter((doc): doc is ExternalDocument => doc !== null)
+
+  const page = takeIndexableWithinCap(pageDocuments, isSkippedDocument, maxFiles, previouslyFetched)
+
+  const totalFetched = previouslyFetched + page.indexableCount
+  if (syncContext) syncContext.totalDocsFetched = totalFetched
+  if (traversal) traversal.totalFetched = totalFetched
+  const hitLimit = page.capReached
+
+  const nextPageToken = traversal
+    ? traversal.pending.length
+      ? writeTraversal(traversal)
+      : undefined
+    : data.nextPageToken
+
+  /**
+   * Suppress deletion reconciliation only when the listing really is partial.
+   * Drive omits `nextPageToken` once the end of the list is reached, so hitting
+   * `maxFiles` on the final page still represents the full source set and must
+   * stay reconcilable — otherwise a capped source can never drop deleted files.
+   */
+  if (
+    syncContext &&
+    ((hitLimit && (Boolean(nextPageToken) || page.documents.length < pageDocuments.length)) ||
+      incompleteSearch)
+  ) {
+    syncContext.listingCapped = true
+  }
+
+  return {
+    documents: page.documents,
+    nextCursor: hitLimit ? undefined : nextPageToken,
+    hasMore: hitLimit ? false : Boolean(nextPageToken),
+    reconciliationSafe: incompleteSearch ? false : undefined,
+  }
+}
+
 export const googleDriveConnector: ConnectorConfig = {
   isCredentialInvalidError: (error) => error instanceof GoogleDriveApiError && error.status === 401,
   ...googleDriveConnectorMeta,
 
-  listDocuments: async (
-    accessToken: string,
-    sourceConfig: Record<string, unknown>,
-    cursor?: string,
-    syncContext?: Record<string, unknown>,
-    lastSyncAt?: Date
-  ): Promise<ExternalDocumentList> => {
-    const roots = [...new Set(parseMultiValue(sourceConfig.folderId))]
-    const traversal: FolderTraversal | undefined = roots.length
-      ? cursor
-        ? readTraversal(cursor, roots)
-        : { pending: roots.map((id) => ({ id, depth: 0 })), totalFetched: 0 }
-      : undefined
-    const folder = traversal?.pending.pop()
-    /** Folder moves affect descendants without changing their modified timestamps. */
-    const query = buildQuery(
-      folder ? { ...sourceConfig, folderId: folder.id } : sourceConfig,
-      folder ? undefined : lastSyncAt,
-      Boolean(folder)
-    )
-    const pageSize = 100
-
-    const maxFiles = parseMaxFiles(sourceConfig.maxFiles)
-    const previouslyFetched =
-      traversal?.totalFetched ?? (syncContext?.totalDocsFetched as number) ?? 0
-
-    if (maxFiles > 0 && previouslyFetched >= maxFiles) {
-      return { documents: [], hasMore: false }
-    }
-
-    const remaining = maxFiles > 0 ? maxFiles - previouslyFetched : 0
-    const effectivePageSize = maxFiles > 0 ? Math.min(pageSize, remaining) : pageSize
-
-    const aclContext = driveAclContext(sourceConfig, syncContext)
-    const queryParams = new URLSearchParams({
-      q: query,
-      pageSize: String(effectivePageSize),
-      orderBy: 'modifiedTime desc',
-      /**
-       * Permissions ride along only where the run mirrors them. Every other
-       * crawl would pull a permission array per file and discard it.
-       */
-      fields: `kind,nextPageToken,incompleteSearch,files(${DRIVE_FILE_FIELDS}${
-        aclContext ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''
-      })`,
-      supportsAllDrives: 'true',
-      includeItemsFromAllDrives: 'true',
-    })
-
-    const pageToken = folder ? folder.pageToken : cursor
-    if (pageToken) {
-      queryParams.set('pageToken', pageToken)
-    }
-
-    const url = `https://www.googleapis.com/drive/v3/files?${queryParams.toString()}`
-
-    logger.info('Listing Google Drive files', { query, cursor: cursor ?? 'initial' })
-
-    let response: Response
-    try {
-      response = await fetchGoogleDriveWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
-    } catch (error) {
-      if (
-        traversal &&
-        isPerMemberListing(syncContext) &&
-        error instanceof GoogleDriveApiError &&
-        (error.kind === 'not_found' || error.kind === 'permission')
-      ) {
-        return {
-          documents: [],
-          hasMore: traversal.pending.length > 0,
-          nextCursor: traversal.pending.length ? writeTraversal(traversal) : undefined,
-        }
-      }
-      logger.error('Failed to list Google Drive files', googleDriveErrorLogFields(error))
-      throw error
-    }
-
-    const data = parseDriveFileListResponse(await readDriveJson(response, DRIVE_PAGE_MAX_BYTES))
-    const files = data.files
-
-    /**
-     * Drive sets `incompleteSearch` when it could not search every corpus (it
-     * arises with the `allDrives` scope enabled by `includeItemsFromAllDrives`).
-     * A partial listing drops still-existing files, so reconciliation must be
-     * suppressed to avoid hard-deleting valid documents.
-     */
-    const incompleteSearch = data.incompleteSearch === true
-
-    if (traversal && folder) {
-      if (data.nextPageToken) {
-        if (data.nextPageToken === folder.pageToken) {
-          throw new Error('Google Drive repeated a folder continuation token')
-        }
-        traversal.pending.push({ ...folder, pageToken: data.nextPageToken })
-      }
-      const children = [
-        ...new Set(
-          files.filter((file) => file.mimeType === FOLDER_MIME_TYPE).map((file) => file.id)
-        ),
-      ]
-      for (const id of children) {
-        /** An explicitly selected descendant is walked as its own root. */
-        if (roots.includes(id)) continue
-        if (folder.depth >= MAX_FOLDER_DEPTH) {
-          throw new Error('Google Drive folder traversal exceeded its nesting-depth limit')
-        }
-        traversal.pending.push({ id, depth: folder.depth + 1 })
-      }
-    }
-
-    const resolved = await mapWithConcurrency(files, SHORTCUT_FETCH_CONCURRENCY, (file) =>
-      listedFileToDocument(accessToken, sourceConfig, file, syncContext)
-    )
-    const pageDocuments = resolved.filter((doc): doc is ExternalDocument => doc !== null)
-
-    const page = takeIndexableWithinCap(
-      pageDocuments,
-      isSkippedDocument,
-      maxFiles,
-      previouslyFetched
-    )
-
-    const totalFetched = previouslyFetched + page.indexableCount
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
-    if (traversal) traversal.totalFetched = totalFetched
-    const hitLimit = page.capReached
-
-    const nextPageToken = traversal
-      ? traversal.pending.length
-        ? writeTraversal(traversal)
-        : undefined
-      : data.nextPageToken
-
-    /**
-     * Suppress deletion reconciliation only when the listing really is partial.
-     * Drive omits `nextPageToken` once the end of the list is reached, so hitting
-     * `maxFiles` on the final page still represents the full source set and must
-     * stay reconcilable — otherwise a capped source can never drop deleted files.
-     */
-    if (
-      syncContext &&
-      ((hitLimit && (Boolean(nextPageToken) || page.documents.length < pageDocuments.length)) ||
-        incompleteSearch)
-    ) {
-      syncContext.listingCapped = true
-    }
-
-    return {
-      documents: page.documents,
-      nextCursor: hitLimit ? undefined : nextPageToken,
-      hasMore: hitLimit ? false : Boolean(nextPageToken),
-      reconciliationSafe: incompleteSearch ? false : undefined,
-    }
-  },
+  listDocuments: (accessToken, sourceConfig, cursor, syncContext, lastSyncAt) =>
+    syncContext?.mirrorsSourceAcls === true
+      ? listGoogleCompanyDocuments({
+          accessToken,
+          sourceConfig,
+          cursor,
+          syncContext,
+          listUserDocuments: listGoogleDriveDocuments,
+        })
+      : listGoogleDriveDocuments(accessToken, sourceConfig, cursor, syncContext, lastSyncAt),
 
   openDirectory: async (accessToken, sourceConfig) =>
     openGoogleDirectory(
@@ -1182,8 +1215,10 @@ export const googleDriveConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
+    accessToken = await googleDriveDocumentToken(accessToken, externalId, syncContext)
     let file: DriveFile
     try {
       file = await readDriveFile(accessToken, externalId)
@@ -1255,10 +1290,20 @@ export const googleDriveConnector: ConnectorConfig = {
     try {
       parseMaxFiles(sourceConfig.maxFiles)
       if (syncContext?.mirrorsSourceAcls === true) {
+        const sampleUser = await validateGoogleCompanyConfig(accessToken, sourceConfig, syncContext)
         await validateGoogleDirectoryAccess(
           accessToken,
           sourceConfig[GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID]
         )
+        if (sampleUser && typeof syncContext.getDelegatedAccessToken === 'function') {
+          const sampleToken = await syncContext.getDelegatedAccessToken(sampleUser)
+          await fetchGoogleDriveWithRetry(
+            'https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)&corpora=user&supportsAllDrives=true&includeItemsFromAllDrives=true',
+            { headers: { Authorization: `Bearer ${sampleToken}`, Accept: 'application/json' } },
+            VALIDATE_RETRY_OPTIONS
+          )
+        }
+        return { valid: true }
       }
 
       if (folderIds.length > 0) {
@@ -1449,5 +1494,7 @@ export const googleDriveConnector: ConnectorConfig = {
   isChangeCursorInvalidError: (error) =>
     error instanceof InvalidDriveListingCursor || isDriveChangeCursorInvalidError(error),
   isListingCursorInvalidError: (error) =>
-    error instanceof InvalidDriveListingCursor || isDriveChangeCursorInvalidError(error),
+    error instanceof InvalidDriveListingCursor ||
+    error instanceof InvalidGoogleCompanyCursor ||
+    isDriveChangeCursorInvalidError(error),
 }

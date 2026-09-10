@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Your admin allows the integration and can configure shared source filters. You connect your own account so Sim can establish what you are allowed to search. Admins connect their own accounts through the same flow.
+Your admin allows the integration and configures its connection method. For member sources, connect your own account so Sim can establish what you are allowed to search. Admins use the same flow. For central Google sources, join Sim with your matching verified Google Workspace email; no personal Google connection is needed.
 
 <Steps>
 <Step>
@@ -15,6 +15,8 @@ Your admin allows the integration and can configure shared source filters. You c
 ## Join your organization
 
 Accept your Sim organization invitation or sign in through your organization's SSO. Use a verified Sim email that matches your account at the source. Organization Search does not require workspace access.
+
+For a central Google source, use your primary Workspace email and open **Search** or **Home** after joining. The authorization steps below apply to sources that require a personal connection.
 
 </Step>
 <Step>
@@ -55,10 +57,10 @@ For a source configured inside a workspace, join that workspace and connect thro
 | Member accounts | Connect your own account, including when you are the admin. |
 | GitHub App installation | Connect GitHub once for this Sim organization. The App handles indexing; your account establishes which repositories you may search. |
 | Confluence service account | Connect Confluence to verify your identity; the service account handles the crawl. |
-| Google Drive delegated service account | No personal connection is needed for that source. Your verified Sim email is matched to Drive permissions. |
+| Google Workspace service account (Gmail, Calendar, Drive) | No personal connection is needed for that source. Your verified Sim email identifies your mailbox and calendar view, or is matched to Drive permissions. |
 | GitLab instance administrator | No personal connection is needed. Your verified Sim email must match the confirmed primary GitLab email. |
 
-Connecting one Google service does not connect all of them. Gmail, Calendar, and Drive each have their own Search connection.
+Gmail, Calendar, and Drive are separate Search sources. Connecting one Google service does not connect all of them. A central source can be searchable without a personal connection row in **Integrations**.
 
 ## If you received a connection request
 
@@ -72,7 +74,7 @@ An account connection request does not invite you into the Sim organization. You
 
 On the main **Integrations** page, use **Reconnect** beside an expired connection to renew it. To withdraw an account, open its row's actions menu and select **Disconnect**, then confirm. If several accounts are connected, choose the account to disconnect. Disconnecting stops that account from being used for organization indexing and workflows, and removes Search access that depends on it.
 
-Admins manage setup from **Settings → Sources**. Select **Manage** beside the integration; Google providers have **Accounts** and **Advanced** tabs, while other providers with personal connections have **Sources** and **Accounts**. This does not grant the admin access to every document.
+Admins manage setup from **Settings → Sources**. Select **Manage** beside the integration. Providers with personal connections have **Accounts** and a source list under **Advanced** (Google) or **Sources**. Without personal connections, the source list opens directly. This does not grant the admin access to every document.
 
 ## If you get stuck
 
@@ -85,7 +87,7 @@ Admins manage setup from **Settings → Sources**. Select **Manage** beside the 
 | **Verify email** | Verify your Sim email to return to the connection page. Reopen the original link if you are not redirected. |
 | Expired or cancelled authorization | Return to the original connection page and start again. If the invitation itself expired, ask the admin for a new request. |
 | Access revoked | Ask the organization admin to restore your account contribution access before reconnecting. |
-| Needs admin attention | Ask your admin to open **Settings → Sources**, select **Manage** beside the integration, and open the source from **Advanced** (Google providers) or **Sources** to inspect its error. |
+| Needs admin attention | Ask your admin to open **Settings → Sources**, select **Manage** beside the integration, and open its source or sync configuration to inspect the error. |
 
 <Callout type="info">
   Your Sim role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.

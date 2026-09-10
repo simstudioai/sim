@@ -9,11 +9,12 @@ import {
   hasMockCondition,
   type MockCondition,
   queueTableRows,
-  resetDbChainMock,
+  resetDbChainMock as resetDatabaseMock,
   schemaMock,
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import {
   classifySuspectListing,
@@ -26,6 +27,11 @@ import {
   stuckDocumentSweepAgeAnchor,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalDocument } from '@/connectors/types'
+
+function resetDbChainMock() {
+  resetDatabaseMock()
+  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+}
 
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
@@ -2633,6 +2639,24 @@ describe('executeSync heartbeats during the listing phase', () => {
     // which is what makes the heartbeat below report a lost lock.
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1', accessMode: 'workspace' }])
   }
+
+  it.each(['workspace', 'admin'] as const)(
+    'uses the locked source mode %s when resolving its token',
+    async (accessMode) => {
+      primeSyncUpToListing()
+      dbChainMockFns.returning.mockReset()
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode }])
+      const resolveToken = vi
+        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
+        .mockRejectedValueOnce(new Error('Stop at token resolution'))
+      try {
+        await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
+        expect(resolveToken).toHaveBeenCalledWith(expect.objectContaining({ accessMode }))
+      } finally {
+        resolveToken.mockRestore()
+      }
+    }
+  )
 
   it('beats between pages and abandons the run when the lock was reclaimed', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')

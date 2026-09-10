@@ -1,8 +1,14 @@
-import { normalizeEmail } from '@sim/utils/string'
+import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
-import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  getServiceAccountToken,
+  resolveCredentialTokenBundle,
+  resolveOAuthAccountId,
+} from '@/lib/oauth/credential-service'
+import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getConnectorApiKeyConfig } from '@/connectors/auth'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 
@@ -23,6 +29,8 @@ export interface ConnectorAccessToken {
   cloudId?: string
   /** The trusted site domain belonging to the credential's cloud id. */
   domain?: string
+  /** Server-only capability bound to this credential and the connector's declared scopes. */
+  getDelegatedAccessToken?: (subject: string) => Promise<string>
 }
 
 /**
@@ -33,8 +41,14 @@ export interface ConnectorAccessToken {
  * screen needs no `serviceAccountScopes` of its own; declaring one is how a
  * connector says the two sets differ.
  */
-export function connectorServiceAccountScopes(auth: ConnectorAuthConfig): string[] | undefined {
+export function connectorServiceAccountScopes(
+  auth: ConnectorAuthConfig,
+  accessMode: ConnectorAccessMode = 'workspace'
+): string[] | undefined {
   if (auth.mode !== 'oauth') return undefined
+  if (accessMode === 'admin' && auth.adminServiceAccountScopes) {
+    return auth.adminServiceAccountScopes
+  }
   return auth.serviceAccountScopes ?? auth.requiredScopes
 }
 
@@ -67,11 +81,12 @@ export function connectorServiceAccountSubject(
  * account mints its own token and ignores the argument entirely.
  *
  * Returns `null` when an OAuth credential has no resolvable token, which is a
- * reconnect prompt rather than a fault. Throws only when the connector row and
- * its declared auth mode disagree, which is a bug or a corrupted row.
+ * reconnect prompt rather than a fault. Credential and token-exchange failures
+ * propagate to the caller.
  */
 export async function resolveConnectorAccessToken(params: {
   auth: ConnectorAuthConfig
+  accessMode?: ConnectorAccessMode
   connector: { credentialId: string | null; encryptedApiKey: string | null }
   userId: string
   requestId: string
@@ -120,14 +135,39 @@ export async function resolveConnectorAccessToken(params: {
     connector.credentialId,
     userId,
     requestId,
-    connectorServiceAccountScopes(auth),
+    connectorServiceAccountScopes(auth, params.accessMode),
     subject,
     ...(githubRepositoryScope ? [{ githubRepositoryScope }] : [])
   )
   if (!bundle?.accessToken) return null
 
+  let getDelegatedAccessToken: ConnectorAccessToken['getDelegatedAccessToken']
+  if (
+    params.accessMode === 'admin' &&
+    auth.mode === 'oauth' &&
+    auth.serviceAccountDelegationScopes?.length
+  ) {
+    const identity = await resolveOAuthAccountId(connector.credentialId)
+    if (
+      identity?.credentialType === 'service_account' &&
+      identity.providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID &&
+      identity.credentialId
+    ) {
+      const credentialId = identity.credentialId
+      const scopes = [...auth.serviceAccountDelegationScopes]
+      getDelegatedAccessToken = async (subject) => {
+        const email = normalizeEmail(subject)
+        if (!isValidEmailSyntax(email)) {
+          throw new Error('A valid Workspace user email is required for delegated access')
+        }
+        return getServiceAccountToken(credentialId, scopes, email)
+      }
+    }
+  }
+
   return {
     accessToken: bundle.accessToken,
+    ...(getDelegatedAccessToken ? { getDelegatedAccessToken } : {}),
     ...(bundle.cloudId
       ? { cloudId: bundle.cloudId, ...(bundle.domain ? { domain: bundle.domain } : {}) }
       : {}),
@@ -166,10 +206,15 @@ export async function resolveConnectorTokenUserId(input: {
  * way, so a connector behaves identically on all of them.
  */
 export function syncContextForToken(token: ConnectorAccessToken): Record<string, unknown> {
-  return token.cloudId
-    ? {
-        cloudId: token.cloudId,
-        ...(token.domain ? { credentialDomain: token.domain } : {}),
-      }
-    : {}
+  return {
+    ...(token.cloudId
+      ? {
+          cloudId: token.cloudId,
+          ...(token.domain ? { credentialDomain: token.domain } : {}),
+        }
+      : {}),
+    ...(token.getDelegatedAccessToken
+      ? { getDelegatedAccessToken: token.getDelegatedAccessToken }
+      : {}),
+  }
 }

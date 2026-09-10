@@ -70,7 +70,10 @@ describe('persistDocumentAcls', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       acl: ['u:alice@corp.com'],
       aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
     })
   })
 
@@ -108,12 +111,18 @@ describe('persistDocumentAcls', () => {
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
       acl: ['u:alice@corp.com'],
       aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
     })
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
       acl: ['u:bob@corp.com'],
       aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
     })
   })
 
@@ -132,7 +141,10 @@ describe('persistDocumentAcls', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       acl: ['u:alice@corp.com', 'u:bob@corp.com'],
       aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
     })
   })
 
@@ -164,12 +176,18 @@ describe('persistDocumentAcls', () => {
       expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
         acl: ['u:alice@corp.com'],
         aclRequirements: [['u:alice@corp.com'], []],
-        aclVerifiedAt: expect.any(Date),
+        aclVerifiedAt: expect.objectContaining({
+          strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+          values: [],
+        }),
       })
       expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
         acl: ['u:alice@corp.com'],
         aclRequirements: [['u:alice@corp.com'], ['g:confluence:site:team']],
-        aclVerifiedAt: expect.any(Date),
+        aclVerifiedAt: expect.objectContaining({
+          strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+          values: [],
+        }),
       })
     })
 
