@@ -5,6 +5,7 @@ description: Connect Microsoft Entra ID to Sim and verify user and group provisi
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
 
 Use a non-gallery enterprise application in Microsoft Entra ID to create, update, and deactivate Sim members. Configure [single sign-on](/platform/enterprise/sso) separately for authentication.
 
@@ -48,7 +49,7 @@ In the new application's **Provisioning** page, select **New configuration**. Ch
 
 Select **Test connection**, then **Create** after the test succeeds. Entra adds the bearer prefix itself. A successful connection test verifies connectivity and authentication; continue with a test assignment to verify provisioning.
 
-![Entra provisioning connection settings with the deployment URL redacted and secret token masked](/static/enterprise/entra/connection.png)
+<Image src="/static/enterprise/entra/connection.png" alt="Entra provisioning connection settings with the deployment URL redacted and secret token masked" width={808} height={305} className="mx-auto h-auto w-full max-w-xl" />
 
 <Callout type="info">
   These steps use Entra's current provisioning experience. In the legacy experience, choose **Automatic** provisioning, enter the same credentials under **Admin Credentials**, test the connection, and save. See [Microsoft's SCIM configuration guide](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/use-scim-to-provision-users-and-groups).
@@ -67,7 +68,7 @@ Under **Attribute mapping**, review the user mappings. The defaults map `userPri
 
 If **Mail** is empty, Entra omits the work email and Sim uses `userName` as the account email. That UPN must be a valid email address in a verified Sim domain.
 
-![Entra provisioning properties restricted to assigned users and groups](/static/enterprise/entra/scope.png)
+<Image src="/static/enterprise/entra/scope.png" alt="Entra provisioning properties restricted to assigned users and groups" width={810} height={250} className="mx-auto h-auto w-full max-w-xl" />
 </Step>
 
 </Steps>
@@ -76,7 +77,7 @@ If **Mail** is empty, Entra omits the work email and Sim uses `userName` as the 
 
 Open **Provision on demand**, search for the assigned test user, and select **Provision**. Review the import, scope, matching, and action results. In Sim, confirm that the member appears under **Organization → Members** and that **Single sign-on → Provisioning → Activity** shows successful requests.
 
-![Successful on-demand user provisioning in Entra with account details redacted](/static/enterprise/entra/provision-user.png)
+<Image src="/static/enterprise/entra/provision-user.png" alt="Successful on-demand user provisioning in Entra with account details redacted" width={812} height={626} className="mx-auto h-auto w-full max-w-xl" />
 
 Change the test user's display name in Entra and provision them again. Confirm the new name in Sim. Repeating provisioning without changes should report that the source and target already match.
 

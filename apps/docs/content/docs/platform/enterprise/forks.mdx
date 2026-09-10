@@ -44,7 +44,7 @@ You will see:
 
 Click **Create fork**. Name the child (defaults to `{workspace} (fork)`), then review **Copy resources**.
 
-<Image src="/static/enterprise/forks-create-modal.png" alt="Fork workspace modal with name field and Copy resources list fully selected" width={900} height={884} />
+<Image src="/static/enterprise/forks-create-modal.png" alt="Fork workspace modal with name field and Copy resources list fully selected" width={900} height={884} className="mx-auto h-auto w-full max-w-md" />
 
 Everything under **Copy resources** starts **selected**. That is usually what you want: tables, knowledge bases, files, custom tools, skills, and MCP servers the child will need.
 
@@ -52,7 +52,7 @@ Everything under **Copy resources** starts **selected**. That is usually what yo
   If you deselect a resource, references to it in the forked workflows are **cleared** in the child. You will see a warning before you confirm.
 </Callout>
 
-<Image src="/static/enterprise/forks-create-warning.png" alt="Fork workspace modal showing a warning that deselected resources will clear references in the fork" width={900} height={953} />
+<Image src="/static/enterprise/forks-create-warning.png" alt="Fork workspace modal showing a warning that deselected resources will clear references in the fork" width={900} height={953} className="mx-auto h-auto w-full max-w-md" />
 
 Click **Fork**. The child workspace is created immediately. Deployed workflows land as **drafts** in the child. Large content (table rows, knowledge base files, file blobs) may finish copying in the background — watch **Activity** on the source workspace.
 
@@ -94,11 +94,11 @@ On the sync page you will see direction (**Push** / **Pull**), deployed workflow
 
 Both are force operations. Confirm carefully.
 
-<Image src="/static/enterprise/forks-copy-resources.png" alt="Copy resources section showing resources used by workflows and a Not used by any workflow group" width={900} height={334} />
+<Image src="/static/enterprise/forks-copy-resources.png" alt="Copy resources section showing resources used by workflows and a Not used by any workflow group" width={900} height={334} className="mx-auto h-auto w-full max-w-xl" />
 
 Resources referenced by the workflows in the sync default to selected for copy. Unused ones sit under **Not used by any workflow** (off by default). If you **map** a resource, it leaves the copy list — maps win.
 
-<Image src="/static/enterprise/forks-reconfigure.png" alt="Dependent field reconfigure card under a mapped resource with a required field marked" width={900} height={242} />
+<Image src="/static/enterprise/forks-reconfigure.png" alt="Dependent field reconfigure card under a mapped resource with a required field marked" width={900} height={242} className="mx-auto h-auto w-full max-w-xl" />
 
 **Sync** stays disabled until:
 
@@ -111,7 +111,7 @@ Resources referenced by the workflows in the sync default to selected for copy. 
 
 Click **Sync**. You will get an overwrite confirmation.
 
-<Image src="/static/enterprise/forks-sync-confirm.png" alt="Overwrite target workspace confirmation dialog warning that syncing overwrites changes on the target" width={900} height={438} />
+<Image src="/static/enterprise/forks-sync-confirm.png" alt="Overwrite target workspace confirmation dialog warning that syncing overwrites changes on the target" width={900} height={438} className="mx-auto h-auto w-full max-w-md" />
 
 On success you will see a toast such as **Pushed to "…"** or **Pulled from "…"**. If some workflows fail to redeploy, you get a warning to open and redeploy them manually.
 
@@ -134,7 +134,7 @@ The setting belongs to **this workspace's copy** only. Excluding a workflow here
 
 **See activity** (or the Activity view from the Forks header) lists forks, pushes, pulls, and rollbacks that involve this workspace — including events recorded on the other side of the edge.
 
-<Image src="/static/enterprise/forks-activity.png" alt="Activity view showing Fork and Push events with expandable detail rows" width={900} height={614} />
+<Image src="/static/enterprise/forks-activity.png" alt="Activity view showing Fork and Push events with expandable detail rows" width={900} height={614} className="mx-auto h-auto w-full max-w-xl" />
 
 Expand a row for names of workflows and resources that were created, updated, or archived, and any warnings (for example failed background copies or deploy failures). A push or pull that copies resources fills their content in the background, and that progress and outcome show in the same row.
 

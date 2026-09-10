@@ -5,6 +5,7 @@ description: Connect a private Okta SCIM integration to Sim and verify user and 
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
 
 Use an Okta SCIM integration to create, update, and deactivate Sim members. This guide covers provisioning; configure [single sign-on](/platform/enterprise/sso) separately for authentication.
 
@@ -53,7 +54,7 @@ Select **Test API Credentials** and save after the test succeeds. A successful c
 
 The Header Auth template sends this field as the complete `Authorization` header. Entering only the token produces **A bearer token is required**.
 
-![Okta API integration with a successful credential test; the test deployment URL is redacted](/static/enterprise/okta/api-integration.png)
+<Image src="/static/enterprise/okta/api-integration.png" alt="Okta API integration with a successful credential test; the test deployment URL is redacted" width={1001} height={678} className="mx-auto h-auto w-full max-w-xl" />
 </Step>
 
 <Step>
@@ -63,7 +64,7 @@ Under **Provisioning → To App**, select **Edit**, enable **Create Users**, **U
 
 Use an email address from a verified Sim domain for the application username and primary email. Review the attribute mappings if your Okta usernames differ from users' email addresses.
 
-![Okta provisioning actions with Create Users, Update User Attributes, and Deactivate Users enabled, and Sync Password disabled](/static/enterprise/okta/provisioning-actions.png)
+<Image src="/static/enterprise/okta/provisioning-actions.png" alt="Okta provisioning actions with Create Users, Update User Attributes, and Deactivate Users enabled, and Sync Password disabled" width={1001} height={832} className="mx-auto h-auto w-full max-w-xl" />
 </Step>
 
 </Steps>
@@ -82,7 +83,7 @@ Okta deactivates users over SCIM; it does not send a SCIM DELETE. Sim suspends a
 
 Use separate groups for app assignment and Group Push. Okta does not support using the same group for both purposes. Assign the users to the app first. Under **Push Groups → Find groups by name**, select the group, leave **Push group memberships immediately** enabled, and save with **Create Group** selected for a new downstream group.
 
-![Okta Group Push selecting an engineering group and creating its downstream group in Sim](/static/enterprise/okta/group-push.png)
+<Image src="/static/enterprise/okta/group-push.png" alt="Okta Group Push selecting an engineering group and creating its downstream group in Sim" width={1001} height={927} className="mx-auto h-auto w-full max-w-xl" />
 
 Once the group appears under **Single sign-on → Provisioning → Group mappings** in Sim, map it to a workspace, permission group, or the organization admin role. Workspace access requires a workspace mapping. If name matching is enabled, Sim can automatically map matching permission groups.
 
