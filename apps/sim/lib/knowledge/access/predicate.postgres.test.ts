@@ -18,6 +18,9 @@ vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 const { drizzle } = await import('drizzle-orm/postgres-js')
 const schema = await import('@sim/db/schema')
 const { persistDocumentAcls } = await import('@/lib/knowledge/connectors/sync-persistence')
+const { mergeMirroredAcls, hideUnlistedDocuments } = await import(
+  '@/lib/knowledge/connectors/mirrored-acls'
+)
 const { PgDialect } = await import('drizzle-orm/pg-core')
 const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
@@ -351,6 +354,133 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       "SELECT jsonb_typeof(acl_requirements) AS shape, acl_requirements FROM document WHERE id = 'persisted'"
     )
     expect(stored).toEqual({ shape: 'array', acl_requirements: [[space], [page]] })
+  })
+
+  it.each([
+    {
+      name: 'owner then reader',
+      sequence: ['owner', 'unknown'],
+      expected: ['u:alice@corp.com', 'u:bob@corp.com'],
+    },
+    {
+      name: 'reader then owner',
+      sequence: ['unknown', 'owner'],
+      expected: ['u:alice@corp.com', 'u:bob@corp.com'],
+    },
+    {
+      name: 'resumed duplicate reader',
+      sequence: ['owner', 'unknown', 'unknown'],
+      expected: ['u:alice@corp.com', 'u:bob@corp.com'],
+    },
+    {
+      name: 'unknown in next generation',
+      sequence: ['owner', 'next-generation', 'unknown'],
+      expected: [],
+    },
+    {
+      name: 'explicit revocation then unknown',
+      sequence: ['owner', 'empty', 'unknown'],
+      expected: [],
+    },
+    { name: 'malformed ACL then unknown', sequence: ['owner', 'invalid', 'unknown'], expected: [] },
+    {
+      name: 'changed valid ACL then unknown',
+      sequence: ['owner', 'restricted', 'unknown'],
+      expected: ['u:alice@corp.com'],
+    },
+    { name: 'unlisted cleanup', sequence: ['owner', 'unlisted'], expected: [] },
+  ])('preserves only verified current-generation ACLs: $name', async ({ sequence, expected }) => {
+    await connection.unsafe(
+      "INSERT INTO document(id, external_id, connector_id, acl) VALUES ('shared', 'shared-file', 'admin', '{}')"
+    )
+    const executor = drizzle(connection, { schema })
+    const [clock] = await connection.unsafe('SELECT statement_timestamp()::text AS start')
+    let generationStartedAt = new Date(clock.start)
+    let lastVerifiedAt: string | undefined
+    for (const step of sequence) {
+      if (step === 'next-generation') {
+        await connection.unsafe(
+          "UPDATE document SET acl_verified_at = statement_timestamp() - interval '2 minutes' WHERE id = 'shared'"
+        )
+        const [nextClock] = await connection.unsafe('SELECT statement_timestamp()::text AS start')
+        generationStartedAt = new Date(nextClock.start)
+        continue
+      }
+      const acl =
+        step === 'owner'
+          ? ['u:alice@corp.com', 'u:bob@corp.com']
+          : step === 'restricted'
+            ? ['u:alice@corp.com']
+            : step === 'empty'
+              ? []
+              : step === 'invalid'
+                ? ['invalid']
+                : undefined
+      const merged = mergeMirroredAcls(
+        step === 'unlisted'
+          ? []
+          : [
+              {
+                externalId: 'shared-file',
+                title: 'Shared',
+                content: '',
+                mimeType: 'text/plain',
+                contentHash: 'same',
+                acl,
+              },
+            ],
+        {}
+      )
+      if (step === 'unlisted') hideUnlistedDocuments(merged.acls, ['shared-file'])
+      await persistDocumentAcls('admin', merged.acls, executor, {
+        unresolvedExternalIds: merged.unresolvedExternalIds,
+        generationStartedAt,
+      })
+      const [stored] = await connection.unsafe(
+        "SELECT to_jsonb(acl) AS acl, acl_verified_at FROM document WHERE id = 'shared'"
+      )
+      if (step === 'owner' || step === 'restricted') lastVerifiedAt = stored.acl_verified_at
+      if (step === 'unknown' && lastVerifiedAt && stored.acl.length > 0) {
+        expect(stored.acl_verified_at).toEqual(lastVerifiedAt)
+      }
+    }
+    expect(await readable(['u:alice@corp.com'], 'shared')).toBe(
+      expected.includes('u:alice@corp.com')
+    )
+    expect(await readable(['u:bob@corp.com'], 'shared')).toBe(expected.includes('u:bob@corp.com'))
+    const [stored] = await connection.unsafe(
+      "SELECT to_jsonb(acl) AS acl, acl_verified_at FROM document WHERE id = 'shared'"
+    )
+    expect(stored.acl).toEqual(expected)
+    if (expected.length === 0) expect(stored.acl_verified_at).toBeNull()
+  })
+
+  it.each([
+    { name: 'unverified', offsetMs: null, preserved: false },
+    { name: 'before generation', offsetMs: -1, preserved: false },
+    { name: 'at generation boundary', offsetMs: 0, preserved: true },
+    { name: 'within generation', offsetMs: 1, preserved: true },
+  ])('guards unresolved SQL writes against $name evidence', async ({ offsetMs, preserved }) => {
+    const [clock] = await connection.unsafe('SELECT statement_timestamp()::text AS start')
+    const generationStartedAt = new Date(new Date(clock.start).getTime() - 60_000)
+    const verifiedAt =
+      offsetMs === null ? null : new Date(generationStartedAt.getTime() + offsetMs).toISOString()
+    await connection.unsafe(
+      "INSERT INTO document(id, external_id, connector_id, acl, acl_verified_at) VALUES ('boundary', 'file', 'admin', '{u:alice@corp.com}', $1::timestamptz AT TIME ZONE 'UTC')",
+      [verifiedAt]
+    )
+    const executor = drizzle(connection, { schema })
+    const result = await persistDocumentAcls('admin', new Map([['file', []]]), executor, {
+      unresolvedExternalIds: new Set(['file']),
+      generationStartedAt,
+    })
+    expect(result.updated).toBe(preserved ? 0 : 1)
+    const [stored] = await connection.unsafe(
+      "SELECT to_jsonb(acl) AS acl, acl_verified_at FROM document WHERE id = 'boundary'"
+    )
+    expect(stored.acl).toEqual(preserved ? ['u:alice@corp.com'] : [])
+    if (!preserved) expect(stored.acl_verified_at).toBeNull()
+    expect(await readable(['u:alice@corp.com'], 'boundary')).toBe(preserved)
   })
 
   it('applies the same gate to direct document and joined chunk reads', async () => {

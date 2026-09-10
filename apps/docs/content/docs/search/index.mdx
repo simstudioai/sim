@@ -27,7 +27,7 @@ The switch saves immediately and permits the integration in your organization. I
 
 For personal Gmail, Calendar, or Drive, teammates can connect immediately from **Integrations**. The first account creates the default sync configuration. Admins can adjust it later under **Manage → Advanced** on the provider page.
 
-For other sources, select **Set up** or **Manage**, then **Add source**. For a central Drive service account, use **Manage → Advanced → Add sync configuration**. For Slack, complete **Set up Slack app** first. Follow the provider's **Setup guide** to choose the indexing account and content. **More options** contains secondary filters and **Metadata tags**.
+For other sources, select **Set up** or **Manage**, then **Add source**. For a central Gmail, Calendar, or Drive service account, use **Manage → Advanced → Add sync configuration**. For Slack, complete **Set up Slack app** first. Follow the provider's **Setup guide** to configure its connection and content. **More options** contains secondary filters and **Metadata tags**.
 
 In the source form, select **Connect & Sync** for a central account or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
 
@@ -36,7 +36,7 @@ In the source form, select **Connect & Sync** for a central account or **Add sou
 
 ### Connect and search
 
-Open **Integrations** in the main sidebar and select **Connect** if prompted—even if you created the source. Complete authorization in the new tab. Open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
+For member-account sources, open **Integrations** in the main sidebar and select **Connect** if prompted—even if you created the source. Complete authorization in the new tab. Central Google sources need no personal connection: join with a matching verified Workspace email and open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
 
 </Step>
 </Steps>
@@ -47,21 +47,22 @@ Source availability depends on the deployment and organization policy. An unavai
 
 ## Choose the right connection method
 
-Most sources use member accounts. GitHub supports a central App installation with a personal connection for each reader. Google Drive and Confluence also support a central service-account connection; GitLab requires an administrator token for a self-managed instance.
+Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation, and GitLab requires an administrator token for a self-managed instance.
 
 | Method | What the admin does | What teammates do |
 | --- | --- | --- |
 | **Member accounts** | Allows the provider and adjusts shared filters when needed. | Connect their own accounts. Sim lists documents using each member's access. |
 | **GitHub App installation** | Installs the App, selects it under **Sync documents with**, and adds repository sources. | Connect GitHub once. Sim checks each reader's current repository access before returning installation-indexed content. |
-| **Service account** (Drive and Confluence) | Connects an account that can read the content and the source's permissions or directory. | Join the organization with a matching verified identity. Confluence also requires each person to connect their account. |
+| **Google Workspace service account** | Configures domain-wide delegation, supplies a Directory administrator email, and selects users and content filters. | Join with a matching verified email. No personal Google connection is needed for that source. Gmail remains private to the mailbox owner; Calendar preserves each person's event view; Drive uses file permissions. |
+| **Confluence service account** | Connects an account that can read the selected content and its permissions. | Join the organization and connect Confluence to establish identity. |
 | **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
 
-Adding a Google Drive or Confluence source from the admin page starts central setup. Drive uses **Manage → Advanced → Add sync configuration**; Confluence uses **Set up/Manage → Add source**. For personal connections, use **Integrations → Connect** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab. When personal connections are disabled for the organization, central Drive uses **Sources → Add source** instead of **Advanced**.
+Adding a Google or Confluence source from the admin page opens its central setup form directly. Google providers use **Manage → Advanced → Add sync configuration**; Confluence uses **Set up/Manage → Add source**. For personal connections, use **Integrations → Connect** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab. When personal connections are disabled for the organization, Google providers use **Add source** on the provider page instead of **Advanced**.
 
 Some member sources offer **Sync documents with**, either directly in setup or under **More options**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. For GitHub organization sources, choose **Connect GitHub App** in this field to [connect an installation](/search/github#add-a-repository). **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
 
 <Callout type="info">
-  An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules. It also does not automatically discover every employee's data: the indexing account must be able to read the configured content.
+  An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules.
 </Callout>
 
 ## Connector guides
@@ -71,8 +72,8 @@ Some member sources offer **Sync documents with**, either directly in setup or u
 | [Confluence](/search/confluence) | Pages and blog posts | Service account or member accounts; each teammate connects |
 | [GitHub](/search/github) | Repository text files | App installation or member indexing; each teammate connects |
 | [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed instance administrator token; no member connection |
-| [Gmail](/search/gmail) | Email thread text | Each member's Gmail account |
-| [Google Calendar](/search/google-calendar) | Calendar events | Each member's Google Calendar account |
+| [Gmail](/search/gmail) | Email thread text | Delegated service account or member accounts |
+| [Google Calendar](/search/google-calendar) | Meetings | Delegated service account or member accounts |
 | [Google Drive](/search/google-drive) | Supported Drive files | Delegated service account or member accounts |
 | [Jira](/search/jira) | Issues | Each member's Jira account |
 | [Slack](/search/slack) | Channel messages and threads | Slack app installation plus each member's authorization |
@@ -91,9 +92,9 @@ These requests are separate from organization invitations. They let recipients c
 
 ## Manage sources and documents
 
-Open **Settings → Sources** and select **Manage** beside the integration. Gmail, Calendar, and Drive list their sync configurations under **Advanced** and personal connections under **Accounts**. Other providers with personal connections use **Sources** and **Accounts**; GitLab opens directly to the source list. Select a source or sync configuration to manage it. Multiple sources can have different folder, repository, space, or project scopes.
+Open **Settings → Sources** and select **Manage** beside the integration. When personal connections are enabled, Gmail, Calendar, and Drive list their sync configurations under **Advanced** and connections under **Accounts**. Other providers with personal connections use **Sources** and **Accounts**. Providers without personal connections open directly to the source list. Select a source or sync configuration to manage it. Multiple sources can have different folder, repository, space, or project scopes.
 
-For Gmail, one configuration is usually enough. **Add sync configuration** creates another source; editing **Settings** updates the selected source. Each configuration applies to all connected Gmail accounts, including accounts connected later, using each person's own mailbox permissions. Configurations are not assigned to individual people.
+For Gmail, one configuration is usually enough. **Add sync configuration** creates another source; editing **Settings** updates the selected source. A member configuration applies to all connected Gmail accounts, including accounts connected later. A central configuration applies to the selected Workspace **Users**, or all active users when that field is blank. Its labels and filters are evaluated separately in each mailbox.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.jpg" alt="Gmail Advanced tab with a sync configuration, search, and Add sync configuration action" width={1008} height={340} />
 
@@ -132,9 +133,9 @@ Search runs background syncs on an hourly schedule. Large sources, provider limi
 
 ## If indexing needs attention
 
-A completed sync means the source was checked; some documents may still be indexing. Integrations lists personal connections; a central source that needs no personal account, such as delegated Drive, can be searchable without appearing there. In the main **Integrations** page, each connected source row shows how many documents you can search and whether indexing failed for any documents you can access.
+A completed sync means the source was checked; some documents may still be indexing. Integrations lists personal connections; a central Google source can be searchable without appearing there. In the main **Integrations** page, each connected source row shows how many documents you can search and whether indexing failed for any documents you can access.
 
-As an admin, open **Settings → Sources**, select **Manage** beside the integration, then open the source from **Advanced** (Google providers) or **Sources**. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+As an admin, open **Settings → Sources**, select **Manage** beside the integration, then open its source or sync configuration. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
 

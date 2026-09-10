@@ -95,6 +95,8 @@ vi.mock('@/lib/credentials/application/organization-credentials', () => ({
 
 vi.mock('@/lib/oauth/credential-service', () => ({
   resolveCredentialTokenBundle: mocks.resolveTokenBundle,
+  resolveOAuthAccountId: vi.fn(async () => null),
+  getServiceAccountToken: vi.fn(),
 }))
 vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mocks.decryptApiKey }))
 
@@ -124,6 +126,12 @@ vi.mock('@/connectors/registry.server', () => ({
         provider: 'google-drive',
         adminCredentialType: 'service_account',
         serviceAccountScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        adminServiceAccountScopes: [
+          'https://www.googleapis.com/auth/drive.readonly',
+          'https://www.googleapis.com/auth/admin.directory.user.readonly',
+          'https://www.googleapis.com/auth/admin.directory.group.readonly',
+          'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+        ],
         serviceAccountSubjectFieldId: 'adminEmail',
       },
       validateConfig: mocks.validateConnectorConfig,
@@ -331,32 +339,38 @@ describe('knowledge connector application use cases', () => {
     )
   })
 
-  it('mints delegated Drive tokens for an eligible canonical service account', async () => {
-    mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
-    await expect(
-      resolveConnectorCredentialAccessToken({
-        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-a',
-        actingUserId: 'admin',
-        requestId: 'request',
-        auth: googleDriveConnectorMeta.auth,
-        accessMode: 'admin',
-        sourceConfig: { adminEmail: 'Admin@corp.com' },
-      })
-    ).resolves.toEqual({ accessToken: 'access-token' })
-    expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
-      'credential-1',
-      'admin',
-      'request',
-      [
-        'https://www.googleapis.com/auth/drive.readonly',
-        'https://www.googleapis.com/auth/admin.directory.group.readonly',
-        'https://www.googleapis.com/auth/admin.directory.domain.readonly',
-      ],
-      'admin@corp.com'
-    )
-  })
+  it.each(['workspace', 'members', 'admin'] as const)(
+    'mints only the Drive scopes needed by an eligible service account in %s mode',
+    async (accessMode) => {
+      mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
+      await expect(
+        resolveConnectorCredentialAccessToken({
+          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          credentialId: 'credential-1',
+          workspaceId: 'workspace-a',
+          actingUserId: 'admin',
+          requestId: 'request',
+          auth: googleDriveConnectorMeta.auth,
+          accessMode,
+          sourceConfig: { adminEmail: 'Admin@corp.com' },
+        })
+      ).resolves.toEqual({ accessToken: 'access-token' })
+      expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
+        'credential-1',
+        'admin',
+        'request',
+        accessMode === 'admin'
+          ? [
+              'https://www.googleapis.com/auth/drive.readonly',
+              'https://www.googleapis.com/auth/admin.directory.user.readonly',
+              'https://www.googleapis.com/auth/admin.directory.group.readonly',
+              'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+            ]
+          : ['https://www.googleapis.com/auth/drive.readonly'],
+        'admin@corp.com'
+      )
+    }
+  )
 
   it('rejects an old central Drive OAuth source during settings validation before provider access', async () => {
     const connector = {
@@ -608,6 +622,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: string
           credentialId: string
           encryptedApiKey: null
+          accessMode: 'workspace'
         },
         sourceConfig: Record<string, unknown>
       ) => Promise<unknown>
@@ -625,6 +640,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: 'confluence',
           credentialId: 'credential-1',
           encryptedApiKey: null,
+          accessMode: 'workspace',
         },
         { space: 'ENG' }
       )
@@ -736,6 +752,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: string
           credentialId: string
           encryptedApiKey: null
+          accessMode: 'workspace'
         },
         sourceConfig: Record<string, unknown>
       ) => Promise<unknown>
@@ -757,6 +774,7 @@ describe('knowledge connector application use cases', () => {
           connectorType: 'confluence',
           credentialId: 'credential-1',
           encryptedApiKey: null,
+          accessMode: 'workspace',
         },
         { space: 'ENG' }
       )
@@ -1423,7 +1441,7 @@ describe('organization connector credential authorization', () => {
       principal.userId,
       'request',
       googleDriveConnectorMeta.auth.mode === 'oauth'
-        ? googleDriveConnectorMeta.auth.serviceAccountScopes
+        ? googleDriveConnectorMeta.auth.adminServiceAccountScopes
         : undefined,
       'admin@corp.com'
     )
@@ -1471,31 +1489,48 @@ describe('organization connector credential authorization', () => {
     )
   })
 
-  it('uses the same organization credential policy during config validation', async () => {
-    await expect(
-      validateConnectorSourceConfig({
-        principal,
-        organizationId: 'org',
-        actingUserId: principal.userId,
-        requestId: 'request',
-        sourceConfig: input.sourceConfig,
-        connector: {
-          connectorType: 'google_drive',
-          credentialId: credential.id,
-          encryptedApiKey: null,
-          accessMode: 'admin',
-        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
-      })
-    ).resolves.toBeNull()
-    expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
-      expect.objectContaining({ principal, organizationId: 'org' })
-    )
-    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith(
-      'organization-token',
-      input.sourceConfig,
-      { mirrorsSourceAcls: true }
-    )
-  })
+  it.each(['workspace', 'members', 'admin'] as const)(
+    'uses the saved %s mode and organization credential policy during config validation',
+    async (accessMode) => {
+      await expect(
+        validateConnectorSourceConfig({
+          principal,
+          organizationId: 'org',
+          actingUserId: principal.userId,
+          requestId: 'request',
+          sourceConfig: input.sourceConfig,
+          connector: {
+            connectorType: 'google_drive',
+            credentialId: credential.id,
+            encryptedApiKey: null,
+            accessMode,
+          } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+        })
+      ).resolves.toBeNull()
+      expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
+        expect.objectContaining({ principal, organizationId: 'org' })
+      )
+      expect(mocks.validateConnectorConfig).toHaveBeenCalledWith(
+        'organization-token',
+        input.sourceConfig,
+        expect.objectContaining({ mirrorsSourceAcls: accessMode === 'admin' })
+      )
+      expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
+        credential.id,
+        principal.userId,
+        'request',
+        accessMode === 'admin'
+          ? [
+              'https://www.googleapis.com/auth/drive.readonly',
+              'https://www.googleapis.com/auth/admin.directory.user.readonly',
+              'https://www.googleapis.com/auth/admin.directory.group.readonly',
+              'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+            ]
+          : ['https://www.googleapis.com/auth/drive.readonly'],
+        'admin@corp.com'
+      )
+    }
+  )
 
   it('propagates canonical organization credential refusals before token resolution', async () => {
     const rejection = new OrchestrationError('not_found', 'Credential not found')

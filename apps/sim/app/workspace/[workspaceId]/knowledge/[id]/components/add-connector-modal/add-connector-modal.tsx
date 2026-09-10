@@ -286,7 +286,9 @@ export function AddConnectorModal({
   } = useConnectorConfigFields({
     connectorConfig,
     accessMode: access.accessMode,
-    initialSourceConfig: draft?.sourceConfig,
+    initialSourceConfig: isSearchIndex
+      ? { ...connectorConfig?.searchDefaultSourceConfig, ...draft?.sourceConfig }
+      : draft?.sourceConfig,
     initialCanonicalModes: draft?.canonicalModes,
     initialSelectionLabels: draft?.selectionLabels,
   })
@@ -423,7 +425,9 @@ export function AddConnectorModal({
   const handleSelectType = (type: string) => {
     if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
     setSelectedType(type)
-    setSourceConfig({})
+    setSourceConfig(
+      isSearchIndex ? { ...CONNECTOR_META_REGISTRY[type]?.searchDefaultSourceConfig } : {}
+    )
     setSelectedCredentialId(null)
     setContentCredentialId(null)
     setAccess(

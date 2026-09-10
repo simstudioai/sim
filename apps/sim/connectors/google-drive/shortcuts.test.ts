@@ -4,6 +4,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
 vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
 
+vi.mock('@/connectors/google-drive/workspace-drives', () => ({
+  GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE: 100,
+  listGoogleWorkspaceDrives: async () => ({ driveIds: [] }),
+}))
+
+/** The file/ACL tests isolate Directory enumeration; company-crawl tests exercise its real HTTP boundary. */
+vi.mock('@/connectors/google-workspace/users', () => ({
+  GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,
+  selectedGoogleWorkspaceUsers: () => [],
+  listGoogleWorkspaceUsers: async () => ({
+    users: [{ id: 'admin', email: 'admin@corp.com', customerId: 'customer', active: true }],
+  }),
+  getGoogleWorkspaceUser: async () => ({
+    id: 'admin',
+    email: 'admin@corp.com',
+    customerId: 'customer',
+    active: true,
+  }),
+}))
+
+function companyContext(): Record<string, unknown> {
+  return {
+    mirrorsSourceAcls: true,
+    getDelegatedAccessToken: async () => 'token',
+    googleDrivePageAccess: { token: 'token', externalIds: new Set(['shortcut']) },
+  }
+}
+
 import { googleDriveConnector as drive } from '@/connectors/google-drive/google-drive'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { CONNECTOR_MAX_FILE_BYTES } from '@/connectors/utils'
@@ -206,7 +234,7 @@ describe('Drive file shortcuts', () => {
       'token',
       { adminEmail: 'admin@fixture.test' },
       undefined,
-      { mirrorsSourceAcls: true }
+      companyContext()
     )
     expect(page.documents[0].acl).toEqual({
       acl: ['u:alice@fixture.test'],
@@ -229,7 +257,7 @@ describe('Drive file shortcuts', () => {
       'token',
       { adminEmail: 'admin@fixture.test' },
       page.documents,
-      { mirrorsSourceAcls: true }
+      companyContext()
     )
     expect(acls.shortcut).toEqual({
       acl: ['u:alice@fixture.test'],
@@ -237,13 +265,16 @@ describe('Drive file shortcuts', () => {
     })
     fetchMock.mockResolvedValueOnce(json(alias)).mockResolvedValueOnce(denied())
     expect(
-      await drive.getDocumentAcls!('token', { adminEmail: 'admin@fixture.test' }, page.documents, {
-        mirrorsSourceAcls: true,
-      })
+      await drive.getDocumentAcls!(
+        'token',
+        { adminEmail: 'admin@fixture.test' },
+        page.documents,
+        companyContext()
+      )
     ).toEqual({ shortcut: [] })
   })
 
-  it('fetches target permissions with its resource key and fails closed on permission lookup errors', async () => {
+  it('keeps denied target permissions unresolved without granting shortcut-only access', async () => {
     fetchMock
       .mockResolvedValueOnce(
         json({
@@ -261,13 +292,44 @@ describe('Drive file shortcuts', () => {
       'token',
       { adminEmail: 'admin@fixture.test', openSharing: 'anyone' },
       undefined,
-      { mirrorsSourceAcls: true }
+      companyContext()
     )
-    expect(page.documents[0].acl).toEqual([])
+    expect(page.documents[0].acl).toBeUndefined()
     expect(urlAt(2).pathname).toBe('/drive/v3/files/target/permissions')
     expect(new Headers(fetchMock.mock.calls[2][1].headers).get('X-Goog-Drive-Resource-Keys')).toBe(
       'target/key'
     )
+  })
+
+  it('rechecks both permissions when target metadata failed before a target ID was recorded', async () => {
+    const alias = shortcut({
+      permissions: [{ type: 'anyone', role: 'reader', allowFileDiscovery: true }],
+    })
+    const context = companyContext()
+    const config = { adminEmail: 'admin@fixture.test', openSharing: 'anyone' }
+    fetchMock
+      .mockResolvedValueOnce(json({ files: [alias] }))
+      .mockResolvedValueOnce(denied('invalid', 400))
+    const page = await drive.listDocuments('token', config, undefined, context)
+    expect(page.documents[0].acl).toBeUndefined()
+    expect(page.documents[0].metadata).toMatchObject({ originalMimeType: shortcutMime })
+    expect(page.documents[0].metadata?.shortcutTargetId).toBeUndefined()
+
+    fetchMock.mockResolvedValueOnce(json(alias)).mockResolvedValueOnce(denied('invalid', 400))
+    expect(await drive.getDocumentAcls!('token', config, page.documents, context)).toEqual({})
+    expect(urlAt(2).pathname).toBe('/drive/v3/files/shortcut')
+    expect(urlAt(3).pathname).toBe('/drive/v3/files/target')
+
+    fetchMock.mockResolvedValueOnce(json(alias)).mockResolvedValueOnce(
+      json(
+        file({
+          permissions: [{ type: 'user', emailAddress: 'alice@fixture.test', role: 'reader' }],
+        })
+      )
+    )
+    expect(await drive.getDocumentAcls!('token', config, page.documents, context)).toEqual({
+      shortcut: { acl: ['pub'], requirements: [['u:alice@fixture.test']] },
+    })
   })
 
   it('checks target size at listing and caps target bytes while downloading', async () => {

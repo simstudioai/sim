@@ -36,6 +36,7 @@ const SOURCE_ADDRESS_FIELDS = new Set([
   'projectKey',
   'spaceKey',
   'folderId',
+  'calendarId',
   'channel',
   'channelIds',
   'teamId',
@@ -65,6 +66,7 @@ interface SourceLabelMetadata {
 
 const OPAQUE_SOURCE_FIELDS = new Map([
   ['folderId', 'folder'],
+  ['calendarId', 'calendar'],
   ['channel', 'channel'],
   ['channelIds', 'channel'],
   ['teamId', 'team'],

@@ -280,11 +280,7 @@ export function ConnectorSettingsFields({
       {connectorConfig && needsWorkspaceCredential && canAdmin && (
         <ChipModalField
           type='custom'
-          title={
-            isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
-              ? 'Indexing account'
-              : 'Service account'
-          }
+          title='Indexing account'
           hint={
             !requiresServiceAccount && !credentialsLoading && credentialOptions.length === 0
               ? `Connect a ${connectorConfig.name} account in Integrations, then return here to select it.`

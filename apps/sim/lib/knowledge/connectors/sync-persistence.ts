@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
@@ -94,18 +94,23 @@ export interface DocumentAclWriteResult {
  * Permission-only changes must not trigger re-embedding. Unchanged ACLs still refresh
  * their evidence timestamp; failed fetches cannot extend it. Malformed or oversized
  * ACLs are stored as unreadable so the previous grant cannot survive failed verification.
+ * An unresolved duplicate may retain evidence verified during this durable crawl,
+ * without refreshing its timestamp; explicit empty ACLs always revoke access.
  */
 export async function persistDocumentAcls(
   connectorId: string,
   acls: ReadonlyMap<string, MirroredDocumentAcl>,
-  executor: DbOrTx = db
+  executor: DbOrTx = db,
+  evidence?: {
+    unresolvedExternalIds: ReadonlySet<string>
+    generationStartedAt: Date
+  }
 ): Promise<DocumentAclWriteResult> {
   const byAcl = new Map<
     string,
-    { acl: string[]; requirements: string[][]; externalIds: string[] }
+    { acl: string[]; requirements: string[][]; externalIds: string[]; unresolved: boolean }
   >()
   let rejected = 0
-  const verifiedAt = new Date()
 
   for (const [externalId, value] of acls) {
     const validation = validateMirroredDocumentAcl(value)
@@ -127,23 +132,37 @@ export async function persistDocumentAcls(
       validation.valid && validation.requirements.length > 0
         ? [acl, ...validation.requirements]
         : []
-    const key = JSON.stringify([acl, requirements])
+    const unresolved = Boolean(
+      evidence?.unresolvedExternalIds.has(externalId) && validation.valid && acl.length === 0
+    )
+    const key = JSON.stringify([acl, requirements, unresolved])
     const group = byAcl.get(key)
     if (group) group.externalIds.push(externalId)
-    else byAcl.set(key, { acl, requirements, externalIds: [externalId] })
+    else byAcl.set(key, { acl, requirements, externalIds: [externalId], unresolved })
   }
 
   let updated = 0
-  for (const { acl, requirements, externalIds } of byAcl.values()) {
+  for (const { acl, requirements, externalIds, unresolved } of byAcl.values()) {
     for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
       const rows = await executor
         .update(document)
         .set({
           acl,
           aclRequirements: requirements,
-          aclVerifiedAt: acl.length > 0 ? verifiedAt : null,
+          aclVerifiedAt: acl.length > 0 ? sql`statement_timestamp() AT TIME ZONE 'UTC'` : null,
         })
-        .where(and(eq(document.connectorId, connectorId), inArray(document.externalId, batch)))
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            inArray(document.externalId, batch),
+            unresolved && evidence
+              ? or(
+                  isNull(document.aclVerifiedAt),
+                  lt(document.aclVerifiedAt, evidence.generationStartedAt)
+                )
+              : undefined
+          )
+        )
         .returning({ id: document.id })
       updated += rows.length
     }

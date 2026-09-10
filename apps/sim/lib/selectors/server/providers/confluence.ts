@@ -67,6 +67,16 @@ function parseSpaceCursor(raw: string | undefined): { status: SpaceStatus; inner
   return { status, ...(inner ? { inner } : {}) }
 }
 
+function nextSpaceCursor(data: ConfluenceSpacesResponse, status: SpaceStatus) {
+  if (!data._links?.next) return undefined
+  try {
+    const cursor = new URL(data._links.next, 'https://api.atlassian.com').searchParams.get('cursor')
+    return cursor ? `${status}:${cursor}` : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function spaceOption(
   space: ConfluenceSpace,
   fallbackStatus: SpaceStatus,
@@ -182,25 +192,23 @@ async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' 
   if (inner) params.set('cursor', inner)
   const data = await requestSpaces({ ...auth, params, signal: args.signal })
 
-  let nextInner: string | undefined
-  if (data._links?.next) {
-    try {
-      nextInner =
-        new URL(data._links.next, 'https://api.atlassian.com').searchParams.get('cursor') ||
-        undefined
-    } catch {
-      nextInner = undefined
-    }
+  const items = (data.results ?? []).map((space) => spaceOption(space, status, identifier))
+  const nextCursor = nextSpaceCursor(data, status)
+  if (!nextCursor && status === 'current') {
+    const archived = await requestSpaces({
+      ...auth,
+      params: new URLSearchParams({ limit: String(SPACE_PAGE_LIMIT), status: 'archived' }),
+      signal: args.signal,
+    })
+    return listSelectorResult(
+      [
+        ...items,
+        ...(archived.results ?? []).map((space) => spaceOption(space, 'archived', identifier)),
+      ],
+      nextSpaceCursor(archived, 'archived')
+    )
   }
-  const nextCursor = nextInner
-    ? `${status}:${nextInner}`
-    : status === 'current'
-      ? 'archived:'
-      : undefined
-  return listSelectorResult(
-    (data.results ?? []).map((space) => spaceOption(space, status, identifier)),
-    nextCursor
-  )
+  return listSelectorResult(items, nextCursor)
 }
 
 async function executePages(args: ExecuteServerSelectorArgs) {

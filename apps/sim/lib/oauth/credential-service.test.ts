@@ -1,12 +1,14 @@
 /**
  * @vitest-environment node
  */
+import { generateKeyPairSync, verify } from 'node:crypto'
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   coalesceLocally: vi.fn(),
+  decryptSecret: vi.fn(),
   getFreshestSlackChain: vi.fn(),
   getRecentTerminalError: vi.fn(),
   logger: {
@@ -32,6 +34,10 @@ vi.mock('@/lib/concurrency/singleflight', () => ({
 
 vi.mock('@/lib/concurrency/leader-lock', () => ({
   withLeaderLock: mocks.withLeaderLock,
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mocks.decryptSecret,
 }))
 
 vi.mock('@/lib/oauth/instagram', () => ({
@@ -71,9 +77,11 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
 
 import {
   getOAuthToken,
+  getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveCredentialTokenBundle,
 } from '@/lib/oauth/credential-service'
+import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -328,4 +336,121 @@ describe('non-refreshable OAuth token expiry', () => {
       expect(mocks.coalesceLocally).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('Google service-account token minting', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const fetchMock = vi.fn<typeof fetch>()
+  const row = {
+    type: 'service_account',
+    providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+    revokedAt: null,
+    encryptedServiceAccountKey: 'encrypted-google-key',
+  }
+  const driveScope = 'https://www.googleapis.com/auth/drive.readonly'
+  const now = new Date('2026-09-09T18:00:00.000Z')
+
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockImplementation(async () => Response.json({ access_token: 'google-access-token' }))
+    mocks.decryptSecret.mockResolvedValue({
+      decrypted: JSON.stringify({
+        client_email: 'crawler@qa-project.iam.gserviceaccount.com',
+        private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+        token_uri: 'https://oauth2.googleapis.com/token',
+      }),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it.each([
+    { label: 'missing', rows: [] },
+    { label: 'OAuth', rows: [{ ...row, type: 'oauth' }] },
+    { label: 'managed OAuth', rows: [{ ...row, type: 'managed_oauth' }] },
+    { label: 'another provider', rows: [{ ...row, providerId: 'atlassian-service-account' }] },
+    { label: 'Google OAuth provider', rows: [{ ...row, providerId: 'google' }] },
+    { label: 'missing provider', rows: [{ ...row, providerId: null }] },
+    { label: 'revoked', rows: [{ ...row, revokedAt: now }] },
+    { label: 'missing key', rows: [{ ...row, encryptedServiceAccountKey: null }] },
+    { label: 'empty key', rows: [{ ...row, encryptedServiceAccountKey: '' }] },
+  ])('rejects a $label credential before decryption or token exchange', async ({ rows }) => {
+    queueTableRows(credential, rows)
+
+    await expect(
+      getServiceAccountToken('credential-1', [driveScope], 'member@example.com')
+    ).rejects.toThrow('Google service account credential is unavailable')
+
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { label: 'delegated Drive', scope: driveScope, subject: 'member@example.com' },
+    {
+      label: 'project-scoped Vertex',
+      scope: 'https://www.googleapis.com/auth/cloud-platform',
+      subject: undefined,
+    },
+  ])('preserves $label JWT claims and signs with the validated key', async ({ scope, subject }) => {
+    queueTableRows(credential, [row])
+
+    await expect(getServiceAccountToken('credential-1', [scope], subject)).resolves.toBe(
+      'google-access-token'
+    )
+
+    expect(mocks.decryptSecret).toHaveBeenCalledWith('encrypted-google-key')
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: expect.any(URLSearchParams),
+    })
+    const body = fetchMock.mock.calls[0][1]?.body
+    expect(body).toBeInstanceOf(URLSearchParams)
+    if (!(body instanceof URLSearchParams)) throw new Error('Expected a JWT token exchange')
+    expect(body.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:jwt-bearer')
+    const [header, payload, signature] = (body.get('assertion') ?? '').split('.')
+    expect(JSON.parse(Buffer.from(header, 'base64url').toString())).toEqual({
+      alg: 'RS256',
+      typ: 'JWT',
+    })
+    expect(JSON.parse(Buffer.from(payload, 'base64url').toString())).toEqual({
+      iss: 'crawler@qa-project.iam.gserviceaccount.com',
+      scope,
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now.getTime() / 1000,
+      exp: now.getTime() / 1000 + 3600,
+      ...(subject ? { sub: subject } : {}),
+    })
+    expect(
+      verify(
+        'RSA-SHA256',
+        Buffer.from(`${header}.${payload}`),
+        publicKey,
+        Buffer.from(signature, 'base64url')
+      )
+    ).toBe(true)
+  })
+
+  it('checks revocation again before every delegated token mint', async () => {
+    queueTableRows(credential, [row])
+    await getServiceAccountToken('credential-1', [driveScope], 'first@example.com')
+    queueTableRows(credential, [{ ...row, revokedAt: now }])
+
+    await expect(
+      getServiceAccountToken('credential-1', [driveScope], 'second@example.com')
+    ).rejects.toThrow('Google service account credential is unavailable')
+
+    expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })

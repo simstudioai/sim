@@ -129,6 +129,14 @@ async function click(label: string) {
 }
 
 describe('organization integration management entry', () => {
+  it('uses Sources terminology in search and its empty state', async () => {
+    await render('?search=not-a-real-source')
+    expect(container.querySelector('input[placeholder="Search sources..."]')).toHaveValue(
+      'not-a-real-source'
+    )
+    expect(container.textContent).toContain('No matching sources')
+    expect(container.textContent).not.toContain('No matching integrations')
+  })
   it('offers Drive account management before anyone has connected', async () => {
     mocks.overview.mockReturnValue({
       data: {

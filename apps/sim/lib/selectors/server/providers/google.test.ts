@@ -105,7 +105,7 @@ describe('Google server selector adapters', () => {
     }
   )
 
-  it('searches shared-drive roots before continuing to matching folders', async () => {
+  it('includes matching folders when the shared-drive search is complete', async () => {
     mockFetch
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: "Team's notes" }] }))
@@ -119,20 +119,87 @@ describe('Google server selector adapters', () => {
 
     await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
       kind: 'list',
-      items: [{ id: 'drive-1', label: "Team's notes" }],
-      nextCursor: 'f:',
+      items: [
+        { id: 'drive-1', label: "Team's notes" },
+        { id: 'folder-1', label: "Team's notes folder" },
+      ],
     })
-    args.request = { ...args.request, cursor: 'f:' }
-    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'folder-1', label: "Team's notes folder" }],
-    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
 
     const [driveUrl, fileUrl] = mockFetch.mock.calls.map(([url]) => new URL(String(url)))
     expect(driveUrl.pathname).toBe('/drive/v3/drives')
     expect(driveUrl.searchParams.get('q')).toBe("name contains 'Team\\'s notes'")
     expect(fileUrl.pathname).toBe('/drive/v3/files')
     expect(fileUrl.searchParams.get('q')).toContain("name contains 'Team\\'s notes'")
+  })
+
+  it('does not offer another page when only a shared-drive root matches', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: 'Engineering' }] }))
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [] })))
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+    args.request = { kind: 'list', search: 'Engineering' }
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'drive-1', label: 'Engineering' }],
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('continues real folder pages after the final shared-drive page', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: 'Engineering' }] }))
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: 'next' })
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ files: [{ id: 'folder-2', name: 'Plans' }] }))
+      )
+    const args = listArgs('google.drive', 'd:previous')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [
+        { id: 'drive-1', label: 'Engineering' },
+        { id: 'folder-1', label: 'Notes' },
+      ],
+      nextCursor: 'f:next',
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    args.request = { kind: 'list', cursor: 'f:next' }
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'folder-2', label: 'Plans' }],
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    const urls = mockFetch.mock.calls.map(([url]) => new URL(String(url)))
+    expect(urls[0].searchParams.get('pageToken')).toBe('previous')
+    expect(urls[1].searchParams.has('pageToken')).toBe(false)
+    expect(urls[2].searchParams.get('pageToken')).toBe('next')
+  })
+
+  it('surfaces a folder-list failure after the final shared-drive page', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: 'Engineering' }] }))
+      )
+      .mockResolvedValueOnce(new Response('private provider error', { status: 503 }))
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).rejects.toMatchObject({
+      status: 502,
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
   it('continues a shared-drive search on demand', async () => {
@@ -153,6 +220,7 @@ describe('Google server selector adapters', () => {
     const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
     expect(url.searchParams.get('pageToken')).toBe('previous')
     expect(url.searchParams.get('q')).toBe("name contains 'Engineering'")
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('still lists personal folders when the account has no shared drives', async () => {
