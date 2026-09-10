@@ -108,8 +108,8 @@ const NON_CONTENT_SELECTOR = 'script, style, noscript, meta, link, iframe, objec
 /** Block elements inside a table cell; `.text()` would otherwise glue their words together. */
 const CELL_BLOCK_SELECTOR = 'p, div, li, br, h1, h2, h3, h4, h5, h6, tr'
 
-/** mammoth renders a footnote's return link as `<a href="#footnote-ref-N">↑</a>`. */
-const FOOTNOTE_BACKLINK_SELECTOR = 'a[href^="#footnote-ref"]'
+/** mammoth renders a footnote's or endnote's return link as `<a href="#footnote-ref-N">↑</a>`. */
+const FOOTNOTE_BACKLINK_SELECTOR = 'a[href^="#footnote-ref"], a[href^="#endnote-ref"]'
 
 /**
  * Strips the non-content markup and HTML comments from a loaded document so the
@@ -318,7 +318,9 @@ function processListItem(
         return
       }
     }
-    const text = $(child).text().replace(/\s+/g, ' ').trim()
+    const $child = $(child)
+    $child.find(CELL_BLOCK_SELECTOR).after(' ')
+    const text = $child.text().replace(/\s+/g, ' ').trim()
     if (text) ownText.push(text)
   })
 
@@ -335,8 +337,69 @@ function processListItem(
   }
 }
 
+/** A table's own rows: direct `<tr>` children and those under its section elements. */
+function directRows(
+  $: cheerio.CheerioAPI,
+  table: cheerio.Cheerio<AnyNode>
+): cheerio.Cheerio<AnyNode> {
+  return table.children('thead, tbody, tfoot').children('tr').add(table.children('tr'))
+}
+
+/** Nested tables whose nearest enclosing table is the cell's own. */
+function topLevelNestedTables(
+  $: cheerio.CheerioAPI,
+  cell: cheerio.Cheerio<AnyNode>
+): cheerio.Cheerio<AnyNode> {
+  const own = cell.closest('table').get(0)
+  return cell.find('table').filter((_, nested) => $(nested).parents('table').get(0) === own)
+}
+
 /**
- * Process table elements to extract structured data
+ * The cells of a table in reading order, each rendered with {@link cellText},
+ * for a table nested inside another table's cell.
+ */
+function flattenedTableCells($: cheerio.CheerioAPI, table: cheerio.Cheerio<AnyNode>): string[] {
+  const cells: string[] = []
+  directRows($, table).each((_, row) => {
+    $(row)
+      .children('td, th')
+      .each((_, cell) => {
+        const text = cellText($, $(cell))
+        if (text) cells.push(text)
+      })
+  })
+  return cells
+}
+
+/**
+ * One cell's text on a single line. Block elements inside the cell get a space
+ * so adjacent paragraphs do not glue together — this mutates the live DOM, and
+ * runs before `extractHeadings`/`extractLinks`, so heading or link text inside a
+ * cell gains those spaces too. A nested table is rendered on a clone of the cell
+ * as its cells joined with ` / `, without `[Table]` markers or pipes, so the
+ * outer row stays one line and the inner text appears exactly once.
+ */
+function cellText($: cheerio.CheerioAPI, cell: cheerio.Cheerio<AnyNode>): string {
+  const nested = topLevelNestedTables($, cell)
+  if (nested.length === 0) {
+    cell.find(CELL_BLOCK_SELECTOR).after(' ')
+    return cell.text().replace(/\s+/g, ' ').trim()
+  }
+
+  const clone = cell.clone()
+  topLevelNestedTables($, clone).each((_, table) => {
+    const $table = $(table)
+    $table.replaceWith(` ${flattenedTableCells($, $table).join(' / ')} `)
+  })
+  clone.find(CELL_BLOCK_SELECTOR).after(' ')
+  return clone.text().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Renders a table as `[Table]`, one `| a | b |` line per row, `[/Table]`. Only
+ * the table's own rows and each row's own cells are visited, so a nested table
+ * contributes to its containing cell (see {@link cellText}) and is never
+ * emitted a second time as rows of its own.
  */
 function processTable(
   $: cheerio.CheerioAPI,
@@ -345,16 +408,14 @@ function processTable(
 ): void {
   contentParts.push('\n[Table]')
 
-  table.find('tr').each((_, row) => {
-    const $row = $(row)
+  directRows($, table).each((_, row) => {
     const cells: string[] = []
 
-    $row.find('td, th').each((_, cell) => {
-      const $cell = $(cell)
-      $cell.find(CELL_BLOCK_SELECTOR).after(' ')
-      const cellText = $cell.text().replace(/\s+/g, ' ').trim()
-      cells.push(cellText || '')
-    })
+    $(row)
+      .children('td, th')
+      .each((_, cell) => {
+        cells.push(cellText($, $(cell)))
+      })
 
     if (cells.length > 0) {
       contentParts.push(`| ${cells.join(' | ')} |`)
@@ -397,7 +458,6 @@ export class HtmlParser implements FileParser {
       const htmlContent = decoded.text
       const $ = cheerio.load(htmlContent)
 
-      // Extract meta information before removing tags
       const title = $('title').text().trim()
       const metaDescription = $('meta[name="description"]').attr('content') || ''
 

@@ -1,9 +1,11 @@
 /**
  * @vitest-environment node
  */
-import JSZip from 'jszip'
-import { describe, expect, it } from 'vitest'
+import JSZip, { type JSZipObject } from 'jszip'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { FileParserError } from '@/lib/file-parsers/errors'
 import { extractOpenDocumentText } from '@/lib/file-parsers/odf-text'
+import { MAX_OFFICE_XML_PART_BYTES } from '@/lib/file-parsers/office-text'
 
 const NS =
   'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/"'
@@ -22,6 +24,10 @@ async function buildOdf(bodyXml: string, extraParts: Record<string, string> = {}
 const text = (body: string) => buildOdf(`<office:text>${body}</office:text>`)
 
 describe('extractOpenDocumentText', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('drops annotations so the surrounding sentence stays intact', async () => {
     const buffer = await text(
       `<text:p>Aaa <office:annotation><dc:creator>M</dc:creator><text:sender-initials>M</text:sender-initials><text:p>First comment.</text:p></office:annotation>comment ccc.<office:annotation-end office:name="c1"/></text:p>`
@@ -83,6 +89,56 @@ describe('extractOpenDocumentText', () => {
     expect(await extractOpenDocumentText(buffer)).toBe(
       'Slide title\n\n[Notes]\nSay hello\n\nSecond slide'
     )
+  })
+
+  it('flattens a nested table into its cell without markers', async () => {
+    const cell = (inner: string) => `<table:table-cell>${inner}</table:table-cell>`
+    const p = (t: string) => `<text:p>${t}</text:p>`
+    const inner = `<table:table><table:table-row>${cell(p('In 1'))}${cell(p('In 2'))}</table:table-row><table:table-row>${cell(p('In 3'))}</table:table-row></table:table>`
+    const buffer = await text(
+      `<table:table><table:table-row>${cell(p('Out A'))}${cell(p('Intro') + inner)}</table:table-row></table:table>`
+    )
+
+    const result = await extractOpenDocumentText(buffer)
+
+    expect(result).toBe('[Table]\n| Out A | Intro In 1 / In 2 / In 3 |\n[/Table]')
+  })
+
+  it('rejects an archive without content.xml as invalid_format', async () => {
+    const zip = new JSZip()
+    zip.file('mimetype', 'application/vnd.oasis.opendocument.text', { compression: 'STORE' })
+    zip.file('junk.txt', 'not a document')
+    const buffer = (await zip.generateAsync({ type: 'nodebuffer' })) as Buffer
+
+    await expect(extractOpenDocumentText(buffer)).rejects.toMatchObject<FileParserError>({
+      code: 'invalid_format',
+    })
+  })
+
+  it('returns an empty string for a present but textless body', async () => {
+    expect(await extractOpenDocumentText(await text('<text:p/>'))).toBe('')
+  })
+
+  it('emits an image frame as its alternative text', async () => {
+    const buffer = await text(
+      `<text:p><draw:frame draw:name="Image1"><draw:image xlink:href="Pictures/a.png" xmlns:xlink="http://www.w3.org/1999/xlink"/><svg:title xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">Org chart</svg:title></draw:frame></text:p>`
+    )
+
+    expect(await extractOpenDocumentText(buffer)).toBe('[Image: Org chart]')
+  })
+
+  it('rejects a content part above the per-part size cap before parsing it', async () => {
+    const buffer = await text('<text:p>Small</text:p>')
+    const zip = await JSZip.loadAsync(buffer)
+    const entry = zip.file('content.xml') as JSZipObject & {
+      _data: { uncompressedSize: number }
+    }
+    entry._data.uncompressedSize = MAX_OFFICE_XML_PART_BYTES + 1
+    vi.spyOn(JSZip, 'loadAsync').mockResolvedValueOnce(zip)
+
+    await expect(extractOpenDocumentText(buffer)).rejects.toMatchObject<FileParserError>({
+      code: 'complexity_limit',
+    })
   })
 
   it('includes embedded object content parts after the main document', async () => {

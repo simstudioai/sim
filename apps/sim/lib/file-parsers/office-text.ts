@@ -1,4 +1,7 @@
 import { DomUtils, parseDocument } from 'htmlparser2'
+import type JSZip from 'jszip'
+import type { JSZipObject } from 'jszip'
+import { FileParserError } from '@/lib/file-parsers/errors'
 
 /**
  * Shared XML primitives for the OOXML and OpenDocument structured-text walkers.
@@ -19,6 +22,47 @@ export const TABLE_CLOSE = '[/Table]'
 
 /** Introduces presenter notes that follow a slide's body text. */
 export const NOTES_MARKER = '[Notes]'
+
+/**
+ * Bounds a single XML part before it is parsed. htmlparser2 retains roughly
+ * 25 bytes of DOM per byte of markup, so the archive guard's 64 MB entry cap
+ * alone would let one slide or `content.xml` part cost over a gigabyte.
+ */
+export const MAX_OFFICE_XML_PART_BYTES = 16 * 1024 * 1024
+
+function declaredUncompressedSize(entry: JSZipObject): number | undefined {
+  const data = (entry as JSZipObject & { _data?: { uncompressedSize?: number } })._data
+  const size = data?.uncompressedSize
+  return typeof size === 'number' && Number.isFinite(size) ? size : undefined
+}
+
+function xmlPartTooLarge(path: string, bytes: number): FileParserError {
+  return new FileParserError(
+    'complexity_limit',
+    `Document part ${path} is ${bytes} bytes, above the maximum of ${MAX_OFFICE_XML_PART_BYTES} bytes`
+  )
+}
+
+/**
+ * Inflates one XML part as a string, or returns `null` when the archive has no
+ * such entry. Rejects a part above {@link MAX_OFFICE_XML_PART_BYTES} on its
+ * declared size before inflating, and on its real size afterwards in case the
+ * declaration lied.
+ */
+export async function readXmlPart(zip: JSZip, path: string): Promise<string | null> {
+  const entry = zip.file(path)
+  if (!entry) return null
+
+  const declared = declaredUncompressedSize(entry)
+  if (declared !== undefined && declared > MAX_OFFICE_XML_PART_BYTES) {
+    throw xmlPartTooLarge(path, declared)
+  }
+
+  const xml = await entry.async('string')
+  const actual = Buffer.byteLength(xml, 'utf8')
+  if (actual > MAX_OFFICE_XML_PART_BYTES) throw xmlPartTooLarge(path, actual)
+  return xml
+}
 
 export function parseXml(xml: string): XmlDocument {
   return parseDocument(xml, { xmlMode: true })

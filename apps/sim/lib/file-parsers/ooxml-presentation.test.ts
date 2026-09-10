@@ -1,8 +1,10 @@
 /**
  * @vitest-environment node
  */
-import JSZip from 'jszip'
-import { describe, expect, it } from 'vitest'
+import JSZip, { type JSZipObject } from 'jszip'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { FileParserError } from '@/lib/file-parsers/errors'
+import { MAX_OFFICE_XML_PART_BYTES } from '@/lib/file-parsers/office-text'
 import { extractPresentationText } from '@/lib/file-parsers/ooxml-presentation'
 
 const NS =
@@ -46,6 +48,10 @@ async function buildDeck(slides: DeckSlide[]): Promise<Buffer> {
 }
 
 describe('extractPresentationText', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('emits titles and body paragraphs while skipping layout placeholders', async () => {
     const buffer = await buildDeck([
       {
@@ -122,11 +128,62 @@ describe('extractPresentationText', () => {
   })
 
   it('joins runs within a paragraph and turns line breaks into newlines', async () => {
-    const spTree = `<p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/></p:nvSpPr><p:txBody><a:p><a:r><a:t>Hello </a:t></a:r><a:r><a:t>world</a:t></a:r><a:br/><a:fld type="slidenum"><a:t>‹#›</a:t></a:fld></a:p></p:txBody></p:sp>`
+    const spTree = `<p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/></p:nvSpPr><p:txBody><a:p><a:r><a:t>Hello </a:t></a:r><a:r><a:t>world</a:t></a:r><a:br/><a:r><a:t>again</a:t></a:r></a:p></p:txBody></p:sp>`
 
     expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe(
-      'Hello world\n‹#›'
+      'Hello world\nagain'
     )
+  })
+
+  it('walks the fallback branch of an AlternateContent wrapper, else its first choice', async () => {
+    const spTree =
+      `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x">${shape('Choice text')}</mc:Choice><mc:Fallback>${shape('Fallback text')}</mc:Fallback></mc:AlternateContent>` +
+      `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x">${shape('Only choice')}</mc:Choice></mc:AlternateContent>`
+
+    expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe(
+      'Fallback text\nOnly choice'
+    )
+  })
+
+  it('skips slide-number and date fields outside their placeholders', async () => {
+    const spTree = `<p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/></p:nvSpPr><p:txBody><a:p><a:r><a:t>Page </a:t></a:r><a:fld type="slidenum"><a:t>369</a:t></a:fld><a:fld type="datetime1"><a:t>1/1/2026</a:t></a:fld><a:fld type="custom"><a:t>kept</a:t></a:fld></a:p></p:txBody></p:sp>`
+
+    expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe('Page kept')
+  })
+
+  it('emits a picture as its alternative text', async () => {
+    const spTree = `<p:pic><p:nvPicPr><p:cNvPr id="4" name="Picture 3" descr="Org chart"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr></p:pic>${shape('Caption')}`
+
+    expect(await extractPresentationText(await buildDeck([{ index: 1, spTree }]))).toBe(
+      '[Image: Org chart]\nCaption'
+    )
+  })
+
+  it('ignores a notes relationship that escapes ppt/notesSlides', async () => {
+    const zip = new JSZip()
+    zip.file('ppt/slides/slide1.xml', slideXml(shape('Body')))
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../../docProps/app.xml"/></Relationships>`
+    )
+    zip.file('docProps/app.xml', notesXml(shape('Leaked', 'body')))
+    const buffer = (await zip.generateAsync({ type: 'nodebuffer' })) as Buffer
+
+    expect(await extractPresentationText(buffer)).toBe('Body')
+  })
+
+  it('rejects a slide part above the per-part size cap before parsing it', async () => {
+    const buffer = await buildDeck([{ index: 1, spTree: shape('Small') }])
+    const zip = await JSZip.loadAsync(buffer)
+    const entry = zip.file('ppt/slides/slide1.xml') as JSZipObject & {
+      _data: { uncompressedSize: number }
+    }
+    entry._data.uncompressedSize = MAX_OFFICE_XML_PART_BYTES + 1
+    vi.spyOn(JSZip, 'loadAsync').mockResolvedValueOnce(zip)
+
+    await expect(extractPresentationText(buffer)).rejects.toMatchObject<FileParserError>({
+      code: 'complexity_limit',
+    })
   })
 
   it('rejects when the signal is already aborted', async () => {

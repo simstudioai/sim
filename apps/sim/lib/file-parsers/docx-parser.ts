@@ -12,6 +12,7 @@ import {
   isHtmlComplexityError,
 } from '@/lib/file-parsers/html-parser'
 import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
+import { isEncryptedOoxmlContainer } from '@/lib/file-parsers/ooxml-encryption'
 import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -104,6 +105,14 @@ export class DocxParser implements FileParser {
         options.signal?.throwIfAborted()
         logger.warn('officeparser failed:', officeError)
         extractionErrors.push(officeError)
+      }
+
+      if (isEncryptedOoxmlContainer(buffer)) {
+        throw new FileParserError(
+          'encrypted_file',
+          'This document is encrypted or password-protected',
+          extractionErrors.length > 0 ? new AggregateError(extractionErrors) : undefined
+        )
       }
 
       const isZipFile = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b

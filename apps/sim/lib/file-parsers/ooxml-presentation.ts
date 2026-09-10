@@ -8,6 +8,7 @@ import {
   joinBlocks,
   NOTES_MARKER,
   parseXml,
+  readXmlPart,
   TABLE_CLOSE,
   TABLE_OPEN,
   type XmlElement,
@@ -28,6 +29,10 @@ import type { FileParseOptions } from '@/lib/file-parsers/types'
 
 const SLIDE_PART = /^ppt\/slides\/slide(\d+)\.xml$/
 const NOTES_RELATIONSHIP_SUFFIX = '/notesSlide'
+const NOTES_PART_PREFIX = 'ppt/notesSlides/'
+
+/** Fields PowerPoint fills at render time; their cached text is the layout's, not the author's. */
+const RENDER_TIME_FIELD_TYPES = /^(slidenum|datetime)/i
 
 /** Layout-chrome placeholders whose text is a field, not slide content. */
 const SKIPPED_PLACEHOLDER_TYPES = new Set(['sldNum', 'dt', 'ftr', 'hdr'])
@@ -42,12 +47,18 @@ function placeholderType(shape: XmlElement): string | null {
   return placeholder.attribs.type ?? 'body'
 }
 
-/** Concatenates a DrawingML paragraph's runs, turning `<a:br/>` into a newline. */
+/**
+ * Concatenates a DrawingML paragraph's runs, turning `<a:br/>` into a newline
+ * and skipping slide-number and date fields wherever they appear.
+ */
 function paragraphText(paragraph: XmlElement): string {
   const pieces: string[] = []
   const visit = (element: XmlElement): void => {
     if (element.name === 'a:br') {
       pieces.push('\n')
+      return
+    }
+    if (element.name === 'a:fld' && RENDER_TIME_FIELD_TYPES.test(element.attribs.type ?? '')) {
       return
     }
     if (element.name === 'a:t') {
@@ -109,6 +120,27 @@ function graphicFrameBlocks(frame: XmlElement): string[] {
   return table ? tableBlocks(table) : []
 }
 
+/** A picture contributes its alternative text, as the HTML walker does for `<img alt>`. */
+function pictureBlocks(picture: XmlElement): string[] {
+  const nonVisual = childElements(picture).find((child) => child.name === 'p:nvPicPr')
+  const properties = nonVisual ? findFirst(nonVisual, 'p:cNvPr') : null
+  const description = properties?.attribs.descr?.trim()
+  return description ? [`[Image: ${description}]`] : []
+}
+
+/**
+ * Markup-compatibility wrapper: the `mc:Fallback` branch is what every
+ * consumer renders, so it is preferred; otherwise the first `mc:Choice`.
+ */
+function alternateContentBranch(element: XmlElement): XmlElement | null {
+  const children = childElements(element)
+  return (
+    children.find((child) => child.name === 'mc:Fallback') ??
+    children.find((child) => child.name === 'mc:Choice') ??
+    null
+  )
+}
+
 /** Walks a shape tree (or group) in document order. */
 function shapeTreeBlocks(tree: XmlElement): string[] {
   const blocks: string[] = []
@@ -123,6 +155,14 @@ function shapeTreeBlocks(tree: XmlElement): string[] {
       case 'p:graphicFrame':
         blocks.push(...graphicFrameBlocks(child))
         break
+      case 'p:pic':
+        blocks.push(...pictureBlocks(child))
+        break
+      case 'mc:AlternateContent': {
+        const branch = alternateContentBranch(child)
+        if (branch) blocks.push(...shapeTreeBlocks(branch))
+        break
+      }
       default:
         break
     }
@@ -151,17 +191,23 @@ function notesBodyLines(notesXml: string): string[] {
   return lines
 }
 
-/** Resolves a relationship target relative to `ppt/slides/`. */
-function resolveSlideRelativePath(target: string): string {
+/**
+ * Resolves a notes relationship target relative to `ppt/slides/`. Only a part
+ * under `ppt/notesSlides/` is accepted, so a crafted `.rels` cannot point the
+ * walker at an arbitrary archive entry.
+ */
+function resolveNotesPartPath(target: string): string | null {
   const segments = ['ppt', 'slides']
   for (const part of target.split('/')) {
     if (part === '..') {
+      if (segments.length === 0) return null
       segments.pop()
     } else if (part && part !== '.') {
       segments.push(part)
     }
   }
-  return segments.join('/')
+  const path = segments.join('/')
+  return path.startsWith(NOTES_PART_PREFIX) && path.endsWith('.xml') ? path : null
 }
 
 function notesPartPath(relsXml: string): string | null {
@@ -170,7 +216,7 @@ function notesPartPath(relsXml: string): string | null {
     const type = relationship.attribs.Type ?? ''
     const target = relationship.attribs.Target
     if (target && type.endsWith(NOTES_RELATIONSHIP_SUFFIX)) {
-      return resolveSlideRelativePath(target)
+      return resolveNotesPartPath(target)
     }
   }
   return null
@@ -185,15 +231,11 @@ function slidePartsInOrder(zip: JSZip): Array<{ index: number; path: string }> {
   return slides.sort((a, b) => a.index - b.index)
 }
 
-async function readPart(zip: JSZip, path: string): Promise<string | null> {
-  const entry = zip.file(path)
-  return entry ? entry.async('string') : null
-}
-
 /**
  * Extracts structured text from a PresentationML package. Slides are separated
  * by a blank line; presenter notes follow their slide under a `[Notes]` marker.
- * The caller must already have applied the archive size guard.
+ * The caller must already have applied the archive size guard; each XML part is
+ * additionally bounded by {@link readXmlPart}.
  */
 export async function extractPresentationText(
   buffer: Buffer,
@@ -204,15 +246,15 @@ export async function extractPresentationText(
 
   const slideBlocks: string[] = []
   for (const slide of slidePartsInOrder(zip)) {
-    const slideXml = await readPart(zip, slide.path)
+    const slideXml = await readXmlPart(zip, slide.path)
     options.signal?.throwIfAborted()
     if (slideXml === null) continue
 
     const blocks = slideBodyBlocks(slideXml)
 
-    const relsXml = await readPart(zip, `ppt/slides/_rels/slide${slide.index}.xml.rels`)
+    const relsXml = await readXmlPart(zip, `ppt/slides/_rels/slide${slide.index}.xml.rels`)
     const notesPath = relsXml ? notesPartPath(relsXml) : null
-    const notesXml = notesPath ? await readPart(zip, notesPath) : null
+    const notesXml = notesPath ? await readXmlPart(zip, notesPath) : null
     options.signal?.throwIfAborted()
     if (notesXml) {
       const notes = notesBodyLines(notesXml)

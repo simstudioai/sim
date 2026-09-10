@@ -141,6 +141,46 @@ describe('HtmlParser', () => {
       expect(result.content).not.toContain('fourth nested')
     })
 
+    it('renders a nested table inside its cell exactly once', async () => {
+      const buffer = Buffer.from(
+        `<body><table><tbody><tr><td>Outer A</td><td><p>Intro</p>` +
+          `<table><tr><td>Inner 1</td><td>Inner 2</td></tr><tr><td>Inner 3</td></tr></table>` +
+          `</td></tr><tr><th>Outer B</th><td>Plain</td></tr></tbody></table></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('| Outer A | Intro Inner 1 / Inner 2 / Inner 3 |')
+      expect(result.content).toContain('| Outer B | Plain |')
+      for (const cell of ['Outer A', 'Inner 1', 'Inner 2', 'Inner 3', 'Outer B', 'Plain']) {
+        expect(result.content.split(cell)).toHaveLength(2)
+      }
+      expect(result.content.match(/\[Table\]/g)).toHaveLength(1)
+      expect(result.metadata?.tableCount).toBe(2)
+    })
+
+    it('separates block elements inside a list item', async () => {
+      const buffer = Buffer.from(
+        `<body><ul><li><div><p>Versions</p><p>Release Information</p></div></li></ul></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('• Versions Release Information')
+    })
+
+    it('drops endnote return links but keeps the endnote text', async () => {
+      const buffer = Buffer.from(
+        `<body><p>Body<sup><a href="#endnote-1" id="endnote-ref-1">[1]</a></sup></p>` +
+          `<ol><li id="endnote-1"><p>End text <a href="#endnote-ref-1">↑</a></p></li></ol></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('1. End text')
+      expect(result.content).not.toContain('↑')
+    })
+
     it('drops footnote return links but keeps the footnote text', async () => {
       const buffer = Buffer.from(
         `<body><p>Body<sup><a href="#footnote-1" id="footnote-ref-1">[1]</a></sup></p>` +

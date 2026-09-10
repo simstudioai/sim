@@ -1,12 +1,8 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
-import {
-  FileParserError,
-  isEncryptedOfficeParserError,
-  isFileParserError,
-} from '@/lib/file-parsers/errors'
-import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
+import { FileParserError, isFileParserError } from '@/lib/file-parsers/errors'
+import { isEncryptedOoxmlContainer, isOle2Container } from '@/lib/file-parsers/ooxml-encryption'
 import { extractPresentationText } from '@/lib/file-parsers/ooxml-presentation'
 import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
@@ -14,22 +10,12 @@ import { assertOoxmlArchiveWithinLimits, isZipShaped } from '@/lib/file-parsers/
 
 const logger = createLogger('PptxParser')
 
-const OLE_SIGNATURE = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
-
-/**
- * An OLE2 compound file: either a legacy PowerPoint 97 `.ppt` or an OOXML
- * `EncryptedPackage`, which wraps the encrypted ZIP in the same container.
- */
-function isOleShaped(buffer: Buffer): boolean {
-  return buffer.length >= OLE_SIGNATURE.length && buffer.subarray(0, 8).equals(OLE_SIGNATURE)
-}
-
 /**
  * Extracts presentation text. PresentationML packages go through the slide XML
- * walker, which keeps table rows together and skips layout placeholders. OLE
- * containers are handed to officeparser only to classify encryption — legacy
- * `.ppt` has no pure-JS extractor, so it is rejected as unsupported rather than
- * scraped for printable bytes.
+ * walker, which keeps table rows together and skips layout placeholders. An OLE
+ * container is either an encrypted OOXML package, reported as such, or a legacy
+ * `.ppt`, which has no pure-JS extractor and is rejected as unsupported rather
+ * than scraped for printable bytes.
  */
 export class PptxParser implements FileParser {
   async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
@@ -61,8 +47,8 @@ export class PptxParser implements FileParser {
       return this.parsePackage(buffer, options)
     }
 
-    if (isOleShaped(buffer)) {
-      return this.parseOleContainer(buffer, options)
+    if (isOle2Container(buffer)) {
+      this.rejectOleContainer(buffer)
     }
 
     throw new FileParserError(
@@ -102,34 +88,18 @@ export class PptxParser implements FileParser {
     }
   }
 
-  private async parseOleContainer(
-    buffer: Buffer,
-    options: FileParseOptions
-  ): Promise<FileParseResult> {
-    try {
-      const result = await parseOfficeText(buffer, options)
-      const content = typeof result === 'string' ? sanitizeTextForUTF8(result.trim()) : ''
-      if (content) {
-        return {
-          content,
-          metadata: {
-            characterCount: content.length,
-            extractionMethod: 'officeparser',
-          },
-        }
-      }
-    } catch (error) {
-      options.signal?.throwIfAborted()
-      if (isEncryptedOfficeParserError(error)) {
-        throw new FileParserError(
-          'encrypted_file',
-          'This presentation is encrypted or password-protected',
-          error
-        )
-      }
-      if (isFileParserError(error) && error.code === 'runtime_failure') throw error
+  /**
+   * Neither OLE shape has a reader here: officeparser 5 only throws a generic
+   * error for both, so the encrypted case is recognized from the container's
+   * own stream directory instead.
+   */
+  private rejectOleContainer(buffer: Buffer): never {
+    if (isEncryptedOoxmlContainer(buffer)) {
+      throw new FileParserError(
+        'encrypted_file',
+        'This presentation is encrypted or password-protected'
+      )
     }
-
     throw new FileParserError(
       'unsupported_type',
       'Legacy .ppt presentations are not supported. Save the file as .pptx and retry.'
