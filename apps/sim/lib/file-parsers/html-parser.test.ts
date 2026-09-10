@@ -9,6 +9,15 @@ import { HtmlComplexityError, HtmlParser } from '@/lib/file-parsers/html-parser'
 
 const parser = new HtmlParser()
 
+describe('table cells with several paragraphs', () => {
+  it('separates block children inside a cell with a space', async () => {
+    const html = '<table><tr><td><p>Заказчик</p><p>Исполняющий</p></td><td>ok</td></tr></table>'
+    const result = await new HtmlParser().parseBuffer(Buffer.from(html))
+
+    expect(result.content).toContain('| Заказчик Исполняющий | ok |')
+  })
+})
+
 describe('HtmlParser', () => {
   it('reports empty input with the typed parser taxonomy', async () => {
     await expect(parser.parseBuffer(Buffer.alloc(0))).rejects.toMatchObject({
@@ -117,6 +126,84 @@ describe('HtmlParser', () => {
       expect(result.metadata?.links).toEqual([{ text: 'Example', href: 'https://example.com' }])
       expect(result.metadata?.listCount).toBe(1)
       expect(result.metadata?.tableCount).toBe(1)
+    })
+
+    it('numbers ordered lists and keeps markers on nested items', async () => {
+      const buffer = Buffer.from(
+        `<body><ol start="3"><li>third</li><li>fourth<ul><li>nested</li></ul></li></ol></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('3. third')
+      expect(result.content).toContain('4. fourth')
+      expect(result.content).toContain('  • nested')
+      expect(result.content).not.toContain('fourth nested')
+    })
+
+    it('renders a nested table inside its cell exactly once', async () => {
+      const buffer = Buffer.from(
+        `<body><table><tbody><tr><td>Outer A</td><td><p>Intro</p>` +
+          `<table><tr><td>Inner 1</td><td>Inner 2</td></tr><tr><td>Inner 3</td></tr></table>` +
+          `</td></tr><tr><th>Outer B</th><td>Plain</td></tr></tbody></table></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('| Outer A | Intro Inner 1 / Inner 2 / Inner 3 |')
+      expect(result.content).toContain('| Outer B | Plain |')
+      for (const cell of ['Outer A', 'Inner 1', 'Inner 2', 'Inner 3', 'Outer B', 'Plain']) {
+        expect(result.content.split(cell)).toHaveLength(2)
+      }
+      expect(result.content.match(/\[Table\]/g)).toHaveLength(1)
+      expect(result.metadata?.tableCount).toBe(2)
+    })
+
+    it('keeps descriptive image alt text and drops file-name alt text', async () => {
+      const buffer = Buffer.from(
+        `<body><img alt="Org chart"><img alt="python-logo.gif"><img alt="Image 2"><p>Body</p></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('[Image: Org chart]')
+      expect(result.content).not.toContain('python-logo')
+      expect(result.content).not.toContain('Image 2')
+    })
+
+    it('separates block elements inside a list item', async () => {
+      const buffer = Buffer.from(
+        `<body><ul><li><div><p>Versions</p><p>Release Information</p></div></li></ul></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('• Versions Release Information')
+    })
+
+    it('drops endnote return links but keeps the endnote text', async () => {
+      const buffer = Buffer.from(
+        `<body><p>Body<sup><a href="#endnote-1" id="endnote-ref-1">[1]</a></sup></p>` +
+          `<ol><li id="endnote-1"><p>End text <a href="#endnote-ref-1">↑</a></p></li></ol></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('1. End text')
+      expect(result.content).not.toContain('↑')
+    })
+
+    it('drops footnote return links but keeps the footnote text', async () => {
+      const buffer = Buffer.from(
+        `<body><p>Body<sup><a href="#footnote-1" id="footnote-ref-1">[1]</a></sup></p>` +
+          `<ol><li id="footnote-1"><p>Note text <a href="#footnote-ref-1">↑</a></p></li></ol></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('Body[1]')
+      expect(result.content).toContain('1. Note text')
+      expect(result.content).not.toContain('↑')
     })
   })
 })

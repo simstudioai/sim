@@ -21,6 +21,14 @@ import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import {
+  parseGitHubInstallationBinding,
+  resolveGitHubInstallationAccessToken,
+} from '@/lib/oauth/github-installation'
+import {
+  GITHUB_INSTALLATION_PROVIDER_ID,
+  type GitHubInstallationRepositoryScope,
+} from '@/lib/oauth/github-installation-types'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -63,6 +71,8 @@ export interface CredentialTokenResolutionOptions {
    * mode so selector and ordinary calls share the same locks and dead flags.
    */
   privacyMode?: 'selector'
+  /** GitHub installation content tokens may only address one connector repository. */
+  githubRepositoryScope?: GitHubInstallationRepositoryScope
 }
 
 function privateCredentialIdentity(namespace: string, value: string): string {
@@ -195,14 +205,22 @@ export async function getServiceAccountToken(
 ): Promise<string> {
   const [credentialRow] = await db
     .select({
+      type: credential.type,
+      providerId: credential.providerId,
+      revokedAt: credential.revokedAt,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!credentialRow?.encryptedServiceAccountKey) {
-    throw new Error('Service account key not found')
+  if (
+    credentialRow?.type !== 'service_account' ||
+    credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
+    credentialRow.revokedAt !== null ||
+    !credentialRow.encryptedServiceAccountKey
+  ) {
+    throw new Error('Google service account credential is unavailable')
   }
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
@@ -635,6 +653,7 @@ interface ServiceAccountTokenOptions {
   scopes?: string[]
   impersonateEmail?: string
   privacyMode?: 'selector'
+  githubRepositoryScope?: GitHubInstallationRepositoryScope
 }
 
 type ServiceAccountTokenResolver = (
@@ -648,6 +667,40 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [GITHUB_INSTALLATION_PROVIDER_ID]: async (credentialId, { githubRepositoryScope }) => {
+    if (!githubRepositoryScope)
+      throw new Error('GitHub installation tokens require a source repository')
+    const [row] = await db
+      .select({
+        type: credential.type,
+        providerId: credential.providerId,
+        encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+        providerSubjectId: credential.providerSubjectId,
+        providerTenantId: credential.providerTenantId,
+        revokedAt: credential.revokedAt,
+      })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+    if (
+      row?.type !== 'service_account' ||
+      row.providerId !== GITHUB_INSTALLATION_PROVIDER_ID ||
+      row.revokedAt ||
+      !row.encryptedServiceAccountKey ||
+      row.encryptedServiceAccountKey.length > 16_384
+    ) {
+      throw new Error('GitHub installation credential is unavailable')
+    }
+    const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
+    const binding = parseGitHubInstallationBinding(JSON.parse(decrypted))
+    if (
+      row.providerSubjectId !== binding.installationId ||
+      row.providerTenantId !== binding.accountId
+    ) {
+      throw new Error('GitHub installation credential identity does not match its binding')
+    }
+    return resolveGitHubInstallationAccessToken(binding, githubRepositoryScope)
+  },
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
     const secret = await getAtlassianServiceAccountSecret(credentialId)
     return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }

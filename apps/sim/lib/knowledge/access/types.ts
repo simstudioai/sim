@@ -39,6 +39,16 @@ export interface UserAccessScope {
    * they belong to.
    */
   tokens: readonly string[]
+  /** Live user-token evidence, scoped to the installation source's immutable repository. */
+  githubInstallationGrants?: readonly GitHubInstallationReadGrant[]
+}
+
+export interface GitHubInstallationReadGrant {
+  connectorId: string
+  contentCredentialId: string
+  readerCredentialId: string
+  readerSubjectToken: string
+  repositoryId: string
 }
 
 /**
@@ -64,7 +74,18 @@ export type MirroredDocumentAcl = readonly string[] | SourceDocumentAcl
  */
 export interface KnowledgeAccessProvider {
   get(): Promise<KnowledgeAccessScope>
+  getForConnectors(
+    connectorIds: readonly string[],
+    signal?: AbortSignal
+  ): Promise<KnowledgeAccessScope>
+  getForDocuments(
+    documentIds: readonly string[],
+    signal?: AbortSignal
+  ): Promise<KnowledgeAccessScope>
 }
+
+/** Two existing search legs each contribute at most 200 candidates to one authorization batch. */
+export const MAX_KNOWLEDGE_ACCESS_CANDIDATES = 400
 
 declare const systemAccessScopeBrand: unique symbol
 

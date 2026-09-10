@@ -33,6 +33,7 @@ interface ContextMenuProps {
   position: { x: number; y: number }
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
+  onCopyLink?: () => void
   onOpenInNewTab?: () => void
   openInNewTabLabel?: string
   openInNewTabPosition?: 'first' | 'last'
@@ -56,7 +57,7 @@ interface ContextMenuProps {
   onCreateFolder?: () => void
   onDuplicate?: () => void
   onExport?: () => void
-  onDelete: () => void
+  onDelete?: () => void
   /**
    * Closes the item rather than deleting it — for tabs, where the destructive
    * action is "close this one", not "delete it forever". Named for the item so
@@ -118,6 +119,7 @@ export function ContextMenu({
   position,
   menuRef,
   onClose,
+  onCopyLink,
   onOpenInNewTab,
   openInNewTabLabel = 'Open in new tab',
   openInNewTabPosition = 'first',
@@ -169,6 +171,7 @@ export function ContextMenu({
   selectedCount = 1,
 }: ContextMenuProps) {
   const hasActionsAboveDestructive =
+    onCopyLink ||
     (showOpenInNewTab && onOpenInNewTab) ||
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
@@ -182,7 +185,7 @@ export function ContextMenu({
     (showExport && onExport)
   const hasDestructiveSection =
     (showLeave && onLeave) ||
-    showDelete ||
+    (showDelete && onDelete) ||
     (showCloseTab && onCloseTab) ||
     onCloseOtherTabs ||
     onCloseTabsToRight
@@ -214,6 +217,7 @@ export function ContextMenu({
         side='bottom'
         sideOffset={4}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
+        inert={!isOpen}
         onFocusOutside={(e) => {
           const target = e.target
           if (target instanceof Element && target.closest('[role="menu"]')) {
@@ -240,6 +244,17 @@ export function ContextMenu({
           >
             <SquareArrowUpRight />
             {openInNewTabLabel}
+          </DropdownMenuItem>
+        )}
+        {onCopyLink && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onCopyLink()
+              onClose()
+            }}
+          >
+            <Duplicate />
+            Copy link
           </DropdownMenuItem>
         )}
         {showMarkAsRead && onMarkAsRead && (
@@ -388,7 +403,7 @@ export function ContextMenu({
             Leave
           </DropdownMenuItem>
         )}
-        {showDelete && (
+        {showDelete && onDelete && (
           <DropdownMenuItem
             disabled={disableDelete}
             onSelect={() => {

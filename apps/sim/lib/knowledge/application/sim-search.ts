@@ -21,6 +21,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
   requireKnowledgeMemberAccessAvailable,
@@ -49,6 +50,7 @@ import {
   canConnectPersonally,
   missingSetupFields,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
+  withSearchSourceDefaults,
 } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
@@ -64,12 +66,15 @@ export interface ConnectSimSearchConnectorInput extends ResourceOwner {
   connectorId?: string
   /** Source settings identify a compatible configuration when creating or reusing a source. */
   sourceConfig?: Record<string, string>
+  /** Correlates a direct provider authorization with the initiating Integrations tab. */
+  connectionIntent?: CredentialGroupConnectionIntent
+  oauthCompletionId?: string
 }
 
 export interface ConnectSimSearchConnectorResult {
   knowledgeBaseId: string
   connectorId: string
-  /** The enrollment link that connects the caller's own account. */
+  /** The invitation link or provider authorization URL for the caller's own account. */
   url: string
 }
 
@@ -295,11 +300,19 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
     if (context.organizationId) {
       await requireOrganizationSearchApproval(context.organizationId, input.connectorType)
     }
-    let target = await findSimSearchConnector({ ...input, ...owner })
+    /**
+     * Defaults are applied before any lookup so a second person connecting with
+     * an untouched form lands on the source the first connection created.
+     */
+    const sourceConfig =
+      input.connectorId && input.sourceConfig === undefined
+        ? undefined
+        : withSearchSourceDefaults(meta, input.sourceConfig)
+    let target = await findSimSearchConnector({ ...input, sourceConfig, ...owner })
     if (!target) {
       const userId = resolvePrincipalSubjectUserId(principal)
       if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
-      const sourceConfig = input.sourceConfig ?? {}
+      const sourceConfig = withSearchSourceDefaults(meta, input.sourceConfig)
       const missing = missingSetupFields(meta, sourceConfig)
       if (missing.length > 0) {
         throw new OrchestrationError(
@@ -367,6 +380,8 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         connectorId: target.connectorId,
         assertedWorkspaceId: workspaceId,
         assertedOrganizationId: context.organizationId,
+        oauthCompletionId: input.oauthCompletionId,
+        connectionIntent: input.connectionIntent,
       },
       request,
     })

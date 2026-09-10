@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode } from 'react'
+import { toast } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import { SEARCH_CONNECTORS, type SearchConnector } from '@/lib/sim-search/connectors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +17,9 @@ const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
   availability: vi.fn(),
   refetchAvailability: vi.fn(),
+  enrollment: vi.fn(),
+  enrollmentError: null as string | null,
+  setupConnector: null as SearchConnector | null,
 }))
 
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
@@ -57,20 +62,27 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
 }))
 vi.mock('@/hooks/use-member-enrollment', () => ({
   CONNECTABLE_MEMBERSHIPS: new Set(['invited', 'not_enrolled', 'needs_reauth']),
-  useMemberEnrollment: () => ({
-    connect: mocks.connect,
-    connectSearchSource: mocks.connect,
-    isAwaiting: () => false,
-    isPending: false,
-    error: null,
-  }),
+  useMemberEnrollment: (options: unknown) => {
+    mocks.enrollment(options)
+    return {
+      connect: mocks.connect,
+      connectSearchSource: mocks.connect,
+      isAwaiting: () => false,
+      isPending: false,
+      error: mocks.enrollmentError,
+      setupConnector: mocks.setupConnector,
+      closeSetup: vi.fn(),
+    }
+  },
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({
   useDesktopOAuthConnectListener: () => undefined,
   useOAuthReturnRouter: () => undefined,
 }))
 
+import { ConnectAccountOptions } from '@/app/o/[organizationId]/integrations/connect-account-options'
 import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
+import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 
 const scope = { kind: 'organization', organizationId: 'organization-a' } as const
 const memberSource: SearchSourceSummary = {
@@ -106,6 +118,9 @@ describe('organization integrations role and source paths', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(toast, 'error').mockReturnValue('toast-id')
+    mocks.enrollmentError = null
+    mocks.setupConnector = null
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
@@ -115,7 +130,11 @@ describe('organization integrations role and source paths', () => {
     mocks.integrations.mockReturnValue({ data: [], isPending: false })
     mocks.availability.mockReturnValue({
       integrationAvailability: new Map(),
-      oauthServiceAvailability: new Map([['google-email', true]]),
+      oauthServiceAvailability: new Map([
+        ['google-email', true],
+        ['confluence', true],
+        ['jira', true],
+      ]),
       isIntegrationAvailabilityReady: true,
       integrationAvailabilityError: null,
       isIntegrationAvailabilityFetching: false,
@@ -141,12 +160,13 @@ describe('organization integrations role and source paths', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     vi.useRealTimers()
+    vi.restoreAllMocks()
     container.remove()
     vi.unstubAllGlobals()
   })
 
   async function render() {
-    await act(async () => root.render(<OrganizationIntegrations />))
+    await act(async () => root.render(<ConnectAccountOptions />))
   }
 
   function buttons(label: string) {
@@ -155,18 +175,44 @@ describe('organization integrations role and source paths', () => {
     )
   }
 
+  it.each([OrganizationIntegrations, ConnectAccountOptions])(
+    'shows connection errors in a toast without adding inline error text in %s',
+    async (Component) => {
+      const message = 'Choose the account matching your Sim email address.'
+      mocks.enrollmentError = message
+      await act(async () => root.render(<Component />))
+      const options = mocks.enrollment.mock.calls[0][0] as {
+        onConnectionError: (message: string) => void
+      }
+      act(() => options.onConnectionError(message))
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(message)
+      expect(container.textContent).not.toContain(message)
+      await act(async () => root.render(<Component />))
+      expect(toast.error).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('keeps source setup fields after a failure without duplicating the toast inside the modal', async () => {
+    const message = 'Connection unavailable'
+    mocks.enrollmentError = message
+    mocks.setupConnector = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira') ?? null
+    await render()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.body.textContent).not.toContain(message)
+  })
+
   it('uses the actual organization and only asks members to connect identity-dependent sources', async () => {
     await render()
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '', mine: false })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '' })
     expect(buttons('Add source')).toHaveLength(0)
     expect(buttons('Manage')).toHaveLength(0)
-    expect(buttons('Connect account')).toHaveLength(1)
-    expect(document.body.textContent).toContain('4 searchable documents')
-    await act(async () => buttons('Connect account')[0].click())
+    expect(buttons('Connect')).toHaveLength(1)
+    expect(document.body.textContent).not.toContain('Engineering')
+    await act(async () => buttons('Connect')[0].click())
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
   })
 
-  it('keeps Slack return actions alongside the standard account and source actions', async () => {
+  it('keeps Slack return actions alongside personal connection controls', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
@@ -177,19 +223,32 @@ describe('organization integrations role and source paths', () => {
         <OrganizationIntegrations slackOnboarding={{ token: 'slack-return', userId: 'member' }} />
       )
     )
-    expect(document.body.textContent).toContain('Your accounts')
-    expect(document.body.textContent).toContain('Manage sources')
+    expect(document.body.textContent).not.toContain('Your accounts')
+    expect(document.body.textContent).not.toContain('Manage sources')
     expect(buttons('slack-return')).toHaveLength(1)
   })
 
-  it('debounces server search while applying the selected tab immediately', async () => {
+  it('always requests personal connections even with an old All tab URL', async () => {
     vi.useFakeTimers()
-    await render()
-    mocks.filters.mockReturnValue({ tab: 'mine', search: ' drive ', setSearch: vi.fn() })
-    await render()
-    expect(mocks.sources).toHaveBeenLastCalledWith(scope, { search: '', mine: true })
+    await act(async () => root.render(<OrganizationIntegrations />))
+    mocks.filters.mockReturnValue({ tab: 'all', search: ' drive ', setSearch: vi.fn() })
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '', mine: true })
     await act(async () => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS))
-    expect(mocks.sources).toHaveBeenLastCalledWith(scope, { search: 'drive', mine: true })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: 'drive', mine: true })
+  })
+
+  it('refreshes organization Accounts after either direct connection flow completes', async () => {
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(mocks.enrollment.mock.calls.length).toBeGreaterThanOrEqual(2)
+    for (const [options] of mocks.enrollment.mock.calls) {
+      expect(options).toMatchObject({
+        directOAuth: true,
+        membershipQueryKeys: expect.arrayContaining([
+          organizationAccountsKeys.detail(scope.organizationId),
+        ]),
+      })
+    }
   })
 
   it('offers an approved integration before any source is configured', async () => {
@@ -204,8 +263,8 @@ describe('organization integrations role and source paths', () => {
     })
     await render()
     expect(document.body.textContent).toContain('Connect your account to search this source')
-    expect(buttons('Connect account')).toHaveLength(1)
-    await act(async () => buttons('Connect account')[0].click())
+    expect(buttons('Connect')).toHaveLength(1)
+    await act(async () => buttons('Connect')[0].click())
     expect(mocks.connect).toHaveBeenCalledWith(
       scope,
       expect.objectContaining({ type: 'gmail' }),
@@ -231,8 +290,8 @@ describe('organization integrations role and source paths', () => {
       isIntegrationAvailabilityReady: true,
     })
     await render()
-    expect(buttons('Add source')).toHaveLength(1)
-    await act(async () => buttons('Add source')[0].click())
+    expect(buttons('Connect')).toHaveLength(2)
+    await act(async () => buttons('Connect')[1].click())
     expect(mocks.connect).toHaveBeenCalledWith(
       scope,
       expect.objectContaining({ type: 'confluence' }),
@@ -261,8 +320,8 @@ describe('organization integrations role and source paths', () => {
       isPending: false,
     })
     await render()
-    expect(buttons('Connect account')).toHaveLength(0)
-    expect(document.body.textContent).toContain('Deactivated by an organization admin')
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain('Gmail')
   })
   it('waits for availability before describing approved sources as needing admin setup', async () => {
     mocks.sources.mockReturnValue({ data: [], isPending: false })
@@ -278,7 +337,7 @@ describe('organization integrations role and source paths', () => {
     await render()
     expect(document.body.textContent).toContain('Loading sources')
     expect(document.body.textContent).not.toContain('An admin needs to finish source setup')
-    expect(buttons('Connect account')).toHaveLength(0)
+    expect(buttons('Connect')).toHaveLength(0)
   })
 
   it('retries availability failures instead of asking an admin to finish setup', async () => {
@@ -300,11 +359,11 @@ describe('organization integrations role and source paths', () => {
     await render()
     expect(document.body.textContent).toContain('Connection availability failed')
     expect(document.body.textContent).not.toContain('An admin needs to finish source setup')
-    expect(buttons('Connect account')).toHaveLength(0)
+    expect(buttons('Connect')).toHaveLength(0)
     await act(async () => buttons('Try again')[0].click())
     expect(mocks.refetchAvailability).toHaveBeenCalledOnce()
   })
-  it('asks an admin to configure Slack before members can connect an approved source', async () => {
+  it('hides Slack until its organization setup is ready', async () => {
     mocks.sources.mockReturnValue({ data: [], isPending: false })
     mocks.overview.mockReturnValue({
       data: { providers: [], hasSearchableDocuments: false },
@@ -315,10 +374,42 @@ describe('organization integrations role and source paths', () => {
       isPending: false,
     })
     await render()
-    expect(buttons('Connect account')).toHaveLength(0)
-    expect(document.body.textContent).toContain('An admin needs to finish source setup')
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain('Slack')
+    expect(document.body.textContent).toContain('No integrations are available to connect.')
   })
-  it('takes admins directly to unfinished Slack indexing setup', async () => {
+
+  it('hides an approved provider when its OAuth configuration is missing', async () => {
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'gmail', approved: true }],
+      isPending: false,
+    })
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map(),
+      oauthServiceAvailability: new Map([['google-email', false]]),
+      isIntegrationAvailabilityReady: true,
+    })
+    await render()
+    expect(document.body.textContent).not.toContain('Gmail')
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(document.body.textContent).toContain('No integrations are available to connect.')
+  })
+
+  it('offers personal Slack connection once source setup is complete', async () => {
+    mocks.sources.mockReturnValue({
+      data: [{ ...memberSource, connectorType: 'slack', accessMode: 'admin' }],
+      isPending: false,
+    })
+    await render()
+    expect(document.body.textContent).toContain('Slack')
+    expect(buttons('Connect')).toHaveLength(1)
+    expect(document.body.textContent).not.toContain('Finish Slack setup')
+    await act(async () => buttons('Connect')[0].click())
+    expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
+  })
+  it('also hides unfinished Slack setup from admins on this personal surface', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
@@ -333,46 +424,73 @@ describe('organization integrations role and source paths', () => {
     await render()
     expect(
       document.querySelector('a[href="/o/organization-a/settings/integrations/providers/slack"]')
-    ).toHaveTextContent('Finish Slack setup')
+    ).toBeNull()
     expect(document.body.textContent).not.toContain('An admin needs to finish source setup')
-    expect(buttons('Connect account')).toHaveLength(0)
+    expect(buttons('Connect')).toHaveLength(0)
   })
 
-  it('keeps personal rows consistent for admins and directs management through Sources', async () => {
+  it('keeps source administration off the personal page for admins', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
       viewer: { isAdmin: true },
       searchAccess: { memberScoped: true, sourceMirrored: true },
     })
-    await render()
-    expect(
-      document.querySelector(
-        'a[href="/o/organization-a/settings/integrations/sources/member-source"]'
-      )
-    ).toBeNull()
-    expect(
-      document.querySelector('a[href="/o/organization-a/settings/integrations"]')
-    ).toHaveTextContent('Manage sources')
-    expect(document.querySelector('a[href="/account/settings/connected-accounts"]')).not.toBeNull()
-    expect(buttons('Add source')).toHaveLength(0)
-    expect(buttons('Manage')).toHaveLength(0)
-    expect(document.querySelector('[aria-label$="source actions"]')).toBeNull()
-    expect(buttons('Connect account')).toHaveLength(1)
-  })
-
-  it('lists only the sources the viewer connected under Mine', async () => {
-    mocks.filters.mockReturnValue({ tab: 'mine', search: '', setSearch: vi.fn() })
-    mocks.sources.mockReturnValue({ data: [], isPending: false })
-    await render()
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '', mine: true })
-    expect(document.body.textContent).toContain('You haven’t connected any sources yet.')
     mocks.sources.mockReturnValue({
       data: [{ ...memberSource, viewerMembership: 'connected' }],
       isPending: false,
     })
-    await render()
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(document.body.textContent).not.toContain('Manage sources')
+    expect(document.querySelector('a[href="/account/settings/connected-accounts"]')).toBeNull()
+    expect(document.querySelector('[aria-label$="source actions"]')).toBeNull()
+    expect(buttons('Connect')).toHaveLength(0)
+  })
+
+  it('shows ready integrations inline and connects without an intermediate dialog', async () => {
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'gmail', approved: true }],
+      isPending: false,
+    })
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '', mine: true })
     expect(document.body.textContent).toContain('Gmail')
-    expect(document.body.textContent).not.toContain('Engineering')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(buttons('Connect account')).toHaveLength(0)
+    await act(async () => buttons('Connect')[0].click())
+    expect(mocks.connect).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ type: 'gmail' }),
+      undefined
+    )
+  })
+
+  it('filters available providers using the same search as personal connections', async () => {
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [
+        { connectorType: 'gmail', approved: true },
+        { connectorType: 'jira', approved: true },
+      ],
+      isPending: false,
+    })
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    await act(async () => root.render(<ConnectAccountOptions search='gmail' />))
+    expect(document.body.textContent).toContain('Gmail')
+    expect(document.body.textContent).not.toContain('Jira')
+    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: 'gmail' })
+  })
+
+  it('lets the viewer reconnect their own expired account from the main page', async () => {
+    mocks.sources.mockReturnValue({
+      data: [{ ...memberSource, viewerMembership: 'needs_reauth' }],
+      isPending: false,
+    })
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(document.body.textContent).toContain('Your account needs to be reconnected')
+    await act(async () => buttons('Reconnect')[0].click())
+    expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
   })
 
   it('does not offer connection to an unavailable source or setup to a member with no sources', async () => {
@@ -382,15 +500,15 @@ describe('organization integrations role and source paths', () => {
       searchAccess: { memberScoped: false, sourceMirrored: false },
     })
     await render()
-    expect(buttons('Connect account')).toHaveLength(0)
-    expect(document.body.textContent).toContain('Not available in this organization')
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain('Gmail')
     mocks.sources.mockReturnValue({ data: [], isPending: false })
     mocks.overview.mockReturnValue({
       data: { providers: [], hasSearchableDocuments: false },
       isPending: false,
     })
     await render()
-    expect(document.body.textContent).toContain('Ask an organization admin to get started')
+    expect(document.body.textContent).toContain('No integrations are available to connect.')
     expect(buttons('Add source')).toHaveLength(0)
   })
   it('keeps sparse source pages navigable without claiming missing sources or duplicating configured providers', async () => {
@@ -402,7 +520,7 @@ describe('organization integrations role and source paths', () => {
     })
     await render()
     expect(buttons('Load more')).toHaveLength(1)
-    expect(buttons('Connect account')).toHaveLength(0)
+    expect(buttons('Connect')).toHaveLength(0)
     expect(document.body.textContent).not.toContain('hasn’t added any sources')
     await act(async () => buttons('Load more')[0].click())
     expect(fetchNextPage).toHaveBeenCalledOnce()
@@ -411,7 +529,7 @@ describe('organization integrations role and source paths', () => {
   it('retains loaded rows on a next-page failure and retries only that page', async () => {
     const fetchNextPage = vi.fn()
     mocks.sources.mockReturnValue({
-      data: [centralSource],
+      data: [{ ...memberSource, sourceDescription: 'Engineering' }],
       isPending: false,
       isError: true,
       isFetchNextPageError: true,

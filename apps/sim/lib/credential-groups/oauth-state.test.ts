@@ -70,7 +70,9 @@ describe('credential group OAuth state', () => {
       redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
+      connectionIntent: { kind: 'reconnect', credentialId: 'existing-account' },
       completionRedirect: true,
+      completionId: '550e8400-e29b-41d4-a716-446655440000',
     })
 
     const stored = [...values.values()][0]
@@ -90,7 +92,9 @@ describe('credential group OAuth state', () => {
       optionId: 'option-1',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
+      connectionIntent: { kind: 'reconnect', credentialId: 'existing-account' },
       completionRedirect: true,
+      completionId: '550e8400-e29b-41d4-a716-446655440000',
     })
     expect(credentialGroupOAuthNonceMatches(created.nonce, consumed?.nonceHash ?? '')).toBe(true)
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()

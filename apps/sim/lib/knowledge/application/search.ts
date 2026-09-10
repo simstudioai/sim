@@ -229,7 +229,11 @@ async function resolveKnowledgeSearchContext(
     return {
       ...context,
       knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
-      access: createKnowledgeAccessProvider(principal, context),
+      access: createKnowledgeAccessProvider(principal, {
+        ...context,
+        knowledgeBaseIds: knowledgeBases.map((base) => base!.id),
+        signal: input.signal,
+      }),
     }
   }
   if (!canonicalWorkspaceId) {
@@ -241,7 +245,11 @@ async function resolveKnowledgeSearchContext(
   return {
     ...workspaceContext,
     knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
-    access: createKnowledgeAccessProvider(principal, { workspaceId: canonicalWorkspaceId }),
+    access: createKnowledgeAccessProvider(principal, {
+      workspaceId: canonicalWorkspaceId,
+      knowledgeBaseIds: knowledgeBases.map((base) => base!.id),
+      signal: input.signal,
+    }),
   }
 }
 
@@ -366,6 +374,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       topK: candidateTopK,
       filters: input.filters,
       access,
+      accessProvider: context.organizationId ? context.access : undefined,
+      signal: input.signal,
       searchMode: searchDefaults.searchMode,
       boostRecency: searchDefaults.boostRecency,
       query: input.query,
@@ -567,7 +577,9 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
      */
     const basicDocumentMetadata = await getDocumentMetadataByIds(
       rows.map((row) => row.documentId),
-      access
+      access,
+      context.organizationId ? context.access : undefined,
+      input.signal
     )
     const results = rows
       .filter((row) => basicDocumentMetadata[row.documentId])

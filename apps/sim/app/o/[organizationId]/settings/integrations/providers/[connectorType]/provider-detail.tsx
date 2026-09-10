@@ -11,7 +11,11 @@ import { SettingsPanel } from '@/components/settings/settings-panel'
 import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
-import { canConnectPersonally, getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import {
+  canConnectPersonally,
+  canConnectWithDefaults,
+  getConnectorAccessAvailability,
+} from '@/lib/sim-search/connectors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
@@ -52,6 +56,8 @@ interface OrganizationProviderDetailProps {
 export function OrganizationProviderDetail({ connectorType }: OrganizationProviderDetailProps) {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const router = useRouter()
+  const meta = CONNECTOR_META_REGISTRY[connectorType]
+  const automaticSetup = Boolean(meta && canConnectWithDefaults(meta) && searchAccess.memberScoped)
   const [view, setView] = useQueryState(
     organizationProviderTabParam.key,
     organizationProviderTabParam.parser
@@ -62,7 +68,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const [deactivating, setDeactivating] = useState(false)
   const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
   const scope = { kind: 'organization', organizationId: organization.id } as const
-  const meta = CONNECTOR_META_REGISTRY[connectorType]
   const personal = Boolean(meta && canConnectPersonally(meta) && searchAccess.memberScoped)
   const showAccounts = view === 'accounts' && personal
   const overview = useOrganizationSearchOverview(organization.id, { enabled: viewer.isAdmin })
@@ -100,7 +105,11 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   if (!viewer.isAdmin || !meta) return null
   const searchField = showAccounts
     ? { value: peopleSearch, onChange: setPeopleSearch, placeholder: 'Search people...' }
-    : { value: search, onChange: setSearch, placeholder: 'Search sources...' }
+    : {
+        value: search,
+        onChange: setSearch,
+        placeholder: automaticSetup ? 'Search sync configurations...' : 'Search sources...',
+      }
   const panel = {
     back,
     title: meta.name,
@@ -156,10 +165,14 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
     approval.mutate({ organizationId: organization.id, connectorType, approved: true })
   const actions: SettingsAction[] = approved
     ? [
-        ...(access.admin || access.members
+        ...((access.admin || access.members) && (!automaticSetup || !showAccounts)
           ? [
               {
-                text: needsSlackSetup ? 'Set up Slack app' : 'Add source',
+                text: needsSlackSetup
+                  ? 'Set up Slack app'
+                  : automaticSetup
+                    ? 'Add sync configuration'
+                    : 'Add source',
                 icon: Plus,
                 variant: 'primary' as const,
                 disabled:
@@ -247,19 +260,29 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
             <SettingsResourceRow
               key={source.connectorId}
               title={source.sourceDescription || meta.name}
-              description={
+              description={[
+                source.accessMode === 'members'
+                  ? 'Member accounts'
+                  : meta.auth.mode === 'oauth' &&
+                      meta.auth.adminCredentialType === 'service_account'
+                    ? 'Service account'
+                    : 'Admin account',
                 !approved
                   ? 'Deactivated'
                   : !source.enabled
                     ? 'Paused'
                     : source.hasSyncError
-                      ? 'Needs attention'
-                      : source.isSyncing
-                        ? 'Indexing'
-                        : source.lastSyncAt
-                          ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
-                          : 'Waiting for the first sync'
-              }
+                      ? source.isSyncing
+                        ? 'Indexing · Previous sync failed'
+                        : 'Sync failed'
+                      : source.viewerFailedDocumentCount > 0
+                        ? `${source.viewerFailedDocumentCount} ${source.viewerFailedDocumentCount === 1 ? 'document' : 'documents'} failed to index`
+                        : source.isSyncing
+                          ? 'Indexing'
+                          : source.lastSyncAt
+                            ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
+                            : 'Waiting for the first sync',
+              ].join(' · ')}
               href={organizationRoutes(organization.id).searchSource(source.connectorId)}
               clickLabel={`Open ${source.sourceDescription || meta.name}`}
               navigable
@@ -271,7 +294,9 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                 ? 'No matching sources'
                 : !approved
                   ? 'Activate this integration to set up sources.'
-                  : 'No sources yet.'}
+                  : automaticSetup
+                    ? 'No sync configurations yet.'
+                    : 'No sources yet.'}
             </SettingsEmptyState>
           )}
           <SearchSourcePagination {...sources} />
@@ -288,10 +313,17 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
               aria-label={`${meta.name} settings`}
               value={view}
               onChange={(value) => void setView(value)}
-              options={[
-                { value: 'sources', label: 'Sources' },
-                { value: 'accounts', label: 'Accounts' },
-              ]}
+              options={
+                automaticSetup
+                  ? [
+                      { value: 'accounts', label: 'Accounts' },
+                      { value: 'sources', label: 'Advanced' },
+                    ]
+                  : [
+                      { value: 'sources', label: 'Sources' },
+                      { value: 'accounts', label: 'Accounts' },
+                    ]
+              }
             />
           </div>
         )}
@@ -336,7 +368,11 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                 {approved
                   ? needsSlackSetup
                     ? 'Set up the Slack app to connect accounts.'
-                    : 'Add a source to set up account connections.'
+                    : automaticSetup
+                      ? provider && provider.sourceCount > 0
+                        ? 'No connected member accounts.'
+                        : 'Members connect their accounts from Integrations. Indexing starts automatically.'
+                      : 'Add a source to set up account connections.'
                   : 'Activate this integration to set up account connections.'}
               </SettingsEmptyState>
             </SettingsPanel>

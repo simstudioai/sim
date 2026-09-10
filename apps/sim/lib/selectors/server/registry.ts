@@ -17,6 +17,7 @@ import { jiraSelectorAttachments } from '@/lib/selectors/server/providers/jira'
 import { jsmSelectorAttachments } from '@/lib/selectors/server/providers/jsm'
 import { linearSelectorAttachments } from '@/lib/selectors/server/providers/linear'
 import { managedAgentSelectorAttachments } from '@/lib/selectors/server/providers/managed-agent'
+import { mcpSelectorAttachments } from '@/lib/selectors/server/providers/mcp'
 import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/microsoft'
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
@@ -34,6 +35,7 @@ import type { ServerSelectorAttachment } from '@/lib/selectors/server/types'
 
 export const serverSelectorRegistry = {
   ...internalSelectorAttachments,
+  ...mcpSelectorAttachments,
   ...airtableSelectorAttachments,
   ...asanaSelectorAttachments,
   ...attioSelectorAttachments,

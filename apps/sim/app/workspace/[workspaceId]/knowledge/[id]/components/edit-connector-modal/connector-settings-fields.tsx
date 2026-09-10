@@ -169,11 +169,13 @@ export function ConnectorSettingsFields({
     refetch: refetchCredentials,
   } = useOAuthCredentials(providerId ?? undefined, {
     enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
+    purpose: syncsPerMember ? 'browsing' : undefined,
     ...resourceScopeFields(scope),
   })
   useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', scope)
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
   const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
+  const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
   const credentialOptions = useMemo<ComboboxOption[]>(
     () =>
       rawCredentials
@@ -222,6 +224,7 @@ export function ConnectorSettingsFields({
           value={access}
           onChange={onAccessChange}
           canAdmin={canAdmin}
+          lockAccessMode={isSearchIndex}
           allowMembers={allowMembers}
           allowAdmin={allowAdmin}
           allowWorkspace={allowWorkspace}
@@ -277,11 +280,7 @@ export function ConnectorSettingsFields({
       {connectorConfig && needsWorkspaceCredential && canAdmin && (
         <ChipModalField
           type='custom'
-          title={
-            isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
-              ? 'Indexing account'
-              : 'Service account'
-          }
+          title='Indexing account'
           hint={
             !requiresServiceAccount && !credentialsLoading && credentialOptions.length === 0
               ? `Connect a ${connectorConfig.name} account in Integrations, then return here to select it.`
@@ -314,6 +313,11 @@ export function ConnectorSettingsFields({
       {showServiceAccountModal && serviceAccountTarget && canAdmin && (
         <ConnectServiceAccountModal
           atlassianProduct={connectorConfig?.id === 'confluence' ? 'confluence' : undefined}
+          atlassianSetupGuideUrl={
+            isSearchIndex && connectorConfig?.id === 'confluence' && connectorConfig.searchDocsUrl
+              ? `${connectorConfig.searchDocsUrl}#using-a-service-account`
+              : undefined
+          }
           open
           onOpenChange={setShowServiceAccountModal}
           {...resourceScopeFields(scope)}
@@ -329,9 +333,20 @@ export function ConnectorSettingsFields({
         connectorConfig.configFields.some(
           (field) => field.type === 'selector' && isFieldVisible(field)
         ) && (
-          <ChipModalField type='custom' title='Account for browsing'>
+          <ChipModalField
+            type='custom'
+            title='Account for browsing'
+            hint={
+              isSearchIndex
+                ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
+                : undefined
+            }
+          >
             <ChipCombobox
-              options={credentialOptions}
+              options={rawCredentials.map((credential) => ({
+                label: credential.name || credential.provider,
+                value: credential.id,
+              }))}
               value={browseCredentialId ?? undefined}
               onChange={setBrowseCredentialId}
               placeholder={`Select your ${connectorConfig.name} account`}
@@ -348,7 +363,8 @@ export function ConnectorSettingsFields({
           connectorConfig={connectorConfig}
           sourceConfig={sourceConfig}
           selectionLabels={selectionLabels}
-          credentialId={selectorCredentialId}
+          credentialId={selectorCredential?.id ?? null}
+          credentialType={selectorCredential?.type}
           canonicalGroups={canonicalGroups}
           canonicalModes={canonicalModes}
           isFieldVisible={isFieldVisible}

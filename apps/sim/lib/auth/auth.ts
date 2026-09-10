@@ -101,6 +101,7 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
@@ -1615,16 +1616,6 @@ export const auth = betterAuth({
                   throw orgError
                 }
 
-                try {
-                  await syncSubscriptionUsageLimits(resolvedSubscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionUpdate] Failed to sync usage limits', {
-                    subscriptionId: resolvedSubscription.id,
-                    referenceId: resolvedSubscription.referenceId,
-                    error,
-                  })
-                }
-
                 if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
@@ -1703,6 +1694,7 @@ export const auth = betterAuth({
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await handleSubscriptionUsageUpdate(event)
                     break
                   }
                   case 'checkout.session.expired': {

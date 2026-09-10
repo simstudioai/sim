@@ -102,6 +102,24 @@ const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
 } as const
 
 export const knowledgeOperations = {
+  listGitHubInstallations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.installations.list',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  connectGitHubInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.installations.connect',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   prepareSlackInstallation: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.slack.prepare',
@@ -674,13 +692,33 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  connectPersonalSearchIntegration: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listPersonalSearchIntegrations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
+  ),
   listSearchSources: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.sources.list',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
     })
   ),
   readSearchSourceOverview: defineKnowledgeOperation(
@@ -689,7 +727,8 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
     })
   ),
   readSearchSourceProgress: defineKnowledgeOperation(

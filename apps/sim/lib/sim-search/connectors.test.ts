@@ -117,13 +117,19 @@ vi.mock('@/lib/credential-groups/providers', () => ({
 
 import {
   canConnectPersonally,
+  canConnectWithDefaults,
   getConnectorAccessAvailability,
   isSearchConnectorAvailable,
   missingSetupFields,
   personalSetupFields,
+  personalSourceConfigFieldIds,
   SEARCH_CONNECTORS,
+  withSearchSourceDefaults,
 } from '@/lib/sim-search/connectors'
+import { gmailConnectorMeta } from '@/connectors/gmail/meta'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { slackConnectorMeta } from '@/connectors/slack/meta'
 import type { ConnectorMeta } from '@/connectors/types'
 
 describe('SEARCH_CONNECTORS', () => {
@@ -161,6 +167,21 @@ describe('canConnectPersonally', () => {
 })
 
 describe('personalSetupFields', () => {
+  it('does not require central indexing setup for a personal Drive connection', () => {
+    const defaults = CONNECTOR_META_REGISTRY.google_drive
+    expect(canConnectWithDefaults(defaults)).toBe(true)
+    expect(canConnectWithDefaults(googleDriveConnectorMeta)).toBe(true)
+    expect(canConnectWithDefaults(slackConnectorMeta)).toBe(false)
+    expect(
+      canConnectWithDefaults({
+        ...defaults,
+        permissionScopedListing: undefined,
+        mirrorsSourceAcls: true,
+      })
+    ).toBe(false)
+    expect(canConnectWithDefaults(CONNECTOR_META_REGISTRY.jira)).toBe(false)
+    expect(canConnectWithDefaults(CONNECTOR_META_REGISTRY.unreviewed)).toBe(false)
+  })
   it('asks for required config beyond the listing caps, never a selector', () => {
     const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
@@ -431,5 +452,35 @@ describe('getConnectorAccessAvailability', () => {
         isIntegrationAvailabilityReady: false,
       })
     ).toEqual({ admin: false, members: false })
+  })
+})
+
+describe('withSearchSourceDefaults', () => {
+  it('starts a Gmail Search source from the last six months', () => {
+    expect(withSearchSourceDefaults(gmailConnectorMeta)).toEqual({ dateRange: '6m' })
+    expect(withSearchSourceDefaults(gmailConnectorMeta, {})).toEqual({ dateRange: '6m' })
+  })
+
+  it('keeps an explicit value and treats a blank one as untouched', () => {
+    expect(withSearchSourceDefaults(gmailConnectorMeta, { dateRange: 'all' })).toEqual({
+      dateRange: 'all',
+    })
+    expect(
+      withSearchSourceDefaults(gmailConnectorMeta, { dateRange: ' ', label: 'INBOX' })
+    ).toEqual({ dateRange: '6m', label: 'INBOX' })
+  })
+
+  it('leaves a source without Search defaults exactly as supplied', () => {
+    expect(withSearchSourceDefaults(googleDriveConnectorMeta, { folderId: 'f1' })).toEqual({
+      folderId: 'f1',
+    })
+    expect(withSearchSourceDefaults(googleDriveConnectorMeta)).toEqual({})
+  })
+
+  it('lets a person supply the fields the defaults cover', () => {
+    expect(personalSourceConfigFieldIds(gmailConnectorMeta)).toEqual(new Set(['dateRange']))
+    expect(personalSourceConfigFieldIds(googleDriveConnectorMeta)).toEqual(
+      new Set(personalSetupFields(googleDriveConnectorMeta).map((field) => field.id))
+    )
   })
 })

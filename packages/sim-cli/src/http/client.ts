@@ -14,7 +14,8 @@ export class SimApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string | null = null,
-    readonly details?: unknown
+    readonly details?: unknown,
+    readonly exitCode = 1
   ) {
     super(message)
     this.name = 'SimApiError'
@@ -210,6 +211,18 @@ function transportErrorMessage(error: unknown): string {
   }
 
   return messages.join(': ') || 'Unknown network error'
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text()
+  } catch (error) {
+    throw new SimApiError(
+      `Unable to read the response: ${transportErrorMessage(error)}`,
+      response.status,
+      'RESPONSE_READ_FAILED'
+    )
+  }
 }
 
 /**
@@ -556,7 +569,7 @@ export class SimClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const { response, url } = await this.send(path, options)
-    const raw = await response.text()
+    const raw = await readResponseText(response)
 
     if (!raw) return undefined as T
     try {
@@ -652,7 +665,7 @@ export class SimClient {
     }
 
     if (!response.ok) {
-      const raw = await response.text()
+      const raw = await readResponseText(response)
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`

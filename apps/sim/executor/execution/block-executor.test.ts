@@ -4,6 +4,7 @@
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
@@ -24,8 +25,10 @@ const blockExecutorBaseLogger =
   loggerMock.createLogger.mock.results[blockExecutorLoggerCallIndex]?.value
 if (!blockExecutorBaseLogger) throw new Error('BlockExecutor logger mock was not initialized')
 
-const { mockUploadFile } = vi.hoisted(() => ({
+const { mockUploadFile, mockDownloadFile, mockMaskBatch } = vi.hoisted(() => ({
   mockUploadFile: vi.fn(),
+  mockDownloadFile: vi.fn(),
+  mockMaskBatch: vi.fn(),
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
@@ -35,7 +38,12 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
     uploadFile: mockUploadFile,
+    downloadFile: mockDownloadFile,
   },
+}))
+
+vi.mock('@/lib/guardrails/mask-client', () => ({
+  maskPIIBatchViaHttp: mockMaskBatch,
 }))
 
 vi.mock('@/lib/logs/execution/pii-redaction', async (importOriginal) => {
@@ -92,6 +100,88 @@ describe('BlockExecutor', () => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+  })
+
+  it('isolates MCP policy provenance across concurrent blocks without a secret registry', async () => {
+    const blocks = [createBlock(), { ...createBlock(), id: 'function-block-2' }]
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks,
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const contexts: ExecutionContext[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, block) => {
+        contexts.push(blockContext)
+        if (contexts.length === 2) release()
+        await gate
+        expect(blockContext.mcpBlockId).toBe(block.id)
+        return { result: 'done' }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const context = createContext(state)
+    await Promise.all(blocks.map((block) => executor.execute(context, createNode(block), block)))
+    expect(contexts[0]).not.toBe(contexts[1])
+    expect(context.mcpBlockId).toBeUndefined()
+  })
+
+  it('redacts an authorized prior-execution manifest returned by a block under the current execution', async () => {
+    const items = [{ email: 'alice@example.com', count: 7 }]
+    const manifest = await createLargeArrayManifest(items, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'source-execution',
+    })
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockClear()
+    mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify(items)))
+    mockMaskBatch.mockImplementation(async (texts: string[]) =>
+      texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
+    )
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => ({ result: manifest }),
+    }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    ctx.largeValueExecutionIds = ['source-execution']
+    ctx.piiBlockOutputRedaction = { enabled: true, entityTypes: ['EMAIL_ADDRESS'], language: 'en' }
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(state.getBlockOutput(block.id)?.result).toMatchObject({
+      preview: [{ email: '<EMAIL_ADDRESS>', count: 7 }],
+      chunks: [{ ref: { executionId: 'execution-1' } }],
+    })
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ key: manifest.chunks[0].ref.key })
+    )
+    expect(mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customKey: expect.stringContaining('execution/workspace-1/workflow-1/execution-1/'),
+        file: Buffer.from(JSON.stringify([{ email: '<EMAIL_ADDRESS>', count: 7 }])),
+      })
+    )
   })
 
   it('persists function output arrays as manifests in execution state', async () => {

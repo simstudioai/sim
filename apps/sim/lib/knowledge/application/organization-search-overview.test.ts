@@ -17,10 +17,12 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
   resolveKnowledgeAccessAvailability: mocks.availability,
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
+  canConnectWithDefaults: (meta: { id: string }) => ['google_drive', 'gmail'].includes(meta.id),
   SEARCH_SOURCE_TYPES: [
-    ['google_drive', { mirrorsSourceAcls: true }],
-    ['gmail', { permissionScopedListing: {} }],
-    ['github', { permissionScopedListing: {} }],
+    ['google_drive', { id: 'google_drive', mirrorsSourceAcls: true, permissionScopedListing: {} }],
+    ['gmail', { id: 'gmail', permissionScopedListing: {} }],
+    ['github', { id: 'github', permissionScopedListing: {} }],
+    ['gitlab', { id: 'gitlab', mirrorsSourceAcls: true }],
   ],
 }))
 
@@ -35,6 +37,8 @@ const health = {
   sourceCount: 4,
   pausedCount: 0,
   hasError: false,
+  hasAccountError: false,
+  hasDocumentError: false,
   hasIndexing: false,
   hasWaiting: false,
   hasUnstarted: false,
@@ -49,6 +53,35 @@ beforeEach(() => {
 })
 
 describe('organization Search administration overview', () => {
+  it.each([
+    { connectorType: 'google_drive', memberScoped: true, status: 'waiting_for_connections' },
+    { connectorType: 'google_drive', memberScoped: false, status: 'needs_setup' },
+    { connectorType: 'gitlab', memberScoped: true, status: 'needs_setup' },
+  ])(
+    'reports $connectorType setup with member access $memberScoped',
+    async ({ connectorType, memberScoped, status }) => {
+      queueTableRows(member, [{ role: 'admin' }])
+      queueTableRows(organizationSearchIntegration, [{ connectorType, approved: true }])
+      mocks.availability.mockResolvedValue({ memberScoped, sourceMirrored: true })
+      const result = await readOrganizationSearchOverview.execute({ principal, input })
+      expect(result.providers).toEqual([
+        { connectorType, approved: true, sourceCount: 0, status, issue: null, isSyncing: false },
+      ])
+    }
+  )
+  it.each([
+    { hasAccountError: true, hasDocumentError: false, issue: 'account_sync_incomplete' },
+    { hasAccountError: false, hasDocumentError: true, issue: 'document_indexing_failed' },
+    { hasAccountError: false, hasDocumentError: false, issue: 'sync_failed' },
+  ])('identifies $issue without exposing error details', async ({ issue, ...errors }) => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(knowledgeConnector, [
+      { ...health, ...errors, hasError: true, rawError: 'private provider response' },
+    ])
+    const result = await readOrganizationSearchOverview.execute({ principal, input })
+    expect(result.providers[0]).toMatchObject({ status: 'needs_attention', issue })
+    expect(JSON.stringify(result)).not.toContain('private provider response')
+  })
   it('keeps recovery observable while a previous error remains visible', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(knowledgeConnector, [{ ...health, hasError: true, hasIndexing: true }])
@@ -59,6 +92,7 @@ describe('organization Search administration overview', () => {
         sourceCount: 4,
         approved: true,
         status: 'needs_attention',
+        issue: 'sync_failed',
         isSyncing: true,
       },
     ])
@@ -84,6 +118,7 @@ describe('organization Search administration overview', () => {
             sourceCount: 4,
             approved: true,
             status: 'active',
+            issue: null,
             isSyncing: false,
           },
           {
@@ -91,6 +126,7 @@ describe('organization Search administration overview', () => {
             sourceCount: 0,
             approved: true,
             status: 'waiting_for_connections',
+            issue: null,
             isSyncing: false,
           },
           {
@@ -98,6 +134,7 @@ describe('organization Search administration overview', () => {
             sourceCount: 0,
             approved: false,
             status: 'paused',
+            issue: null,
             isSyncing: false,
           },
         ],
@@ -149,6 +186,7 @@ describe('organization Search administration overview', () => {
         sourceCount: 4,
         approved: false,
         status: 'paused',
+        issue: null,
         isSyncing: false,
       },
     ])
@@ -181,6 +219,7 @@ describe('organization Search administration overview', () => {
         sourceCount: 4,
         approved: true,
         status: 'paused',
+        issue: null,
         isSyncing: false,
       },
       {
@@ -188,6 +227,7 @@ describe('organization Search administration overview', () => {
         sourceCount: 0,
         approved: true,
         status: 'paused',
+        issue: null,
         isSyncing: false,
       },
     ])

@@ -1,6 +1,10 @@
 /** @vitest-environment node */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  OrganizationSearchProviderSummary,
+  SearchSourceSummary,
+} from '@/lib/api/contracts/knowledge/connectors'
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -58,9 +62,10 @@ const source = {
   viewerDocumentCount: 0,
   viewerFailedDocumentCount: 0,
   viewerEmailVerified: true,
+  viewerAccounts: [],
   connectionRequired: false,
   viewerMembership: null,
-}
+} satisfies SearchSourceSummary
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -266,8 +271,9 @@ describe('organization administration overview boundary', () => {
       sourceCount: 1,
       approved: true,
       status: 'waiting_for_connections',
+      issue: null,
       isSyncing: false,
-    }
+    } satisfies OrganizationSearchProviderSummary
     mocks.adminOverview.mockResolvedValue({
       providers: [{ ...provider, privateAccount: 'private' }],
       documentNames: ['private'],

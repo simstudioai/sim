@@ -72,6 +72,11 @@ const PAGED_LISTS = [
   'GET /api/v2/workflows/[workflowId]/versions',
   'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
+  'GET /api/v2/workspaces/[workspaceId]/fork/children',
+  'GET /api/v2/workspaces/[workspaceId]/fork/mappings',
+  'GET /api/v2/workspaces/[workspaceId]/fork/resources',
+  'GET /api/v2/workspaces/[workspaceId]/operations',
+  'POST /api/v2/selectors/list',
   'GET /api/v2/workspaces',
 ] as const
 
@@ -248,6 +253,16 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/chat-deployments': ['workspaceId', 'workflowId', 'isActive', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
+  'GET /api/v2/workspaces/[workspaceId]/fork/children': ['sortBy', 'sortOrder'],
+  'GET /api/v2/workspaces/[workspaceId]/fork/mappings': [
+    'otherWorkspaceId',
+    'direction',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/workspaces/[workspaceId]/fork/resources': ['kind', 'sortBy', 'sortOrder'],
+  'GET /api/v2/workspaces/[workspaceId]/operations': ['requestId'],
+  'POST /api/v2/selectors/list': ['workspaceId', 'selectorKey', 'context', 'search'],
   'GET /api/v2/workspaces': ['sortBy', 'sortOrder'],
 }
 
@@ -288,6 +303,10 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
   'GET /api/v2/workflows/[workflowId]/runs': ['workflowId'],
   'GET /api/v2/workflows/[workflowId]/versions': ['workflowId'],
   'GET /api/v2/workspaces/[workspaceId]/members': ['workspaceId'],
+  'GET /api/v2/workspaces/[workspaceId]/fork/children': ['workspaceId'],
+  'GET /api/v2/workspaces/[workspaceId]/fork/mappings': ['workspaceId'],
+  'GET /api/v2/workspaces/[workspaceId]/fork/resources': ['workspaceId'],
+  'GET /api/v2/workspaces/[workspaceId]/operations': ['workspaceId'],
 }
 
 /**

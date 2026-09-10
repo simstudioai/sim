@@ -1,4 +1,5 @@
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled, isForkingEnabled } from '@/lib/core/config/env-flags'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { checkWorkspaceAccess, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -16,7 +17,7 @@ export type PromoteDirection = 'push' | 'pull'
  * flag, not by directory.
  *
  */
-async function assertForkingEnabled(organizationId: string | null, userId: string): Promise<void> {
+export async function assertForkingEnabled(organizationId: string | null): Promise<void> {
   if (!isBillingEnabled && !isForkingEnabled) {
     throw new ForkError('Workspace forking is not enabled on this deployment', 404)
   }
@@ -25,7 +26,10 @@ async function assertForkingEnabled(organizationId: string | null, userId: strin
       ? await isOrganizationOnEnterprisePlan(organizationId)
       : false
     if (!hasEnterprise) {
-      throw new ForkError('Workspace forking is available on Enterprise plans only', 403)
+      throw new ForbiddenOperationError(
+        'ENTERPRISE_PLAN_REQUIRED',
+        'Workspace forking is available on Enterprise plans only'
+      )
     }
   }
 }
@@ -41,7 +45,7 @@ export async function isForkingAvailableForWorkspace(
   userId: string
 ): Promise<boolean> {
   try {
-    await assertForkingEnabled(organizationId, userId)
+    await assertForkingEnabled(organizationId)
     return true
   } catch {
     return false
@@ -71,7 +75,7 @@ async function requireWorkspace(
   if (!access.exists || !access.workspace) {
     throw new ForkError('Workspace not found', 404)
   }
-  await assertForkingEnabled(access.workspace.organizationId, userId)
+  await assertForkingEnabled(access.workspace.organizationId)
   return { workspace: access.workspace, canAdmin: access.canAdmin }
 }
 

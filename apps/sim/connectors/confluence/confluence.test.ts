@@ -522,6 +522,212 @@ describe('confluence incremental CQL listing', () => {
   })
 })
 
+describe('Confluence service-account site binding', () => {
+  const config = { domain: 'other.atlassian.net', spaceKey: 'ENG' }
+  const context = { cloudId: 'cloud-1', credentialDomain: 'bound.atlassian.net' }
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    fetchMock.mockRejectedValue(new Error('Unexpected provider request'))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('rejects a mismatched domain during setup without calling the provider', async () => {
+    await expect(confluenceConnector.validateConfig('token', config, context)).resolves.toEqual({
+      valid: false,
+      error: 'Confluence domain must match the selected service account',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['listing', 'hydration', 'permissions', 'directory'] as const)(
+    'rejects a mismatched domain before %s',
+    async (operation) => {
+      const execute = {
+        listing: () => confluenceConnector.listDocuments('token', config, undefined, context),
+        hydration: () => confluenceConnector.getDocument('token', config, 'page-1', context),
+        permissions: () => confluenceConnector.getDocumentAcls!('token', config, [], context),
+        directory: () => confluenceConnector.openDirectory!('token', config, context),
+      }
+      await expect(execute[operation]()).rejects.toThrow(
+        'Confluence domain must match the selected service account'
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts equivalent normalized domains and uses the credential cloud ID', async () => {
+    fetchMock.mockResolvedValue(Response.json({ results: [{ id: 'space-1', key: 'ENG' }] }))
+    await expect(
+      confluenceConnector.validateConfig(
+        'token',
+        { ...config, domain: ' HTTPS://BOUND.ATLASSIAN.NET/ ' },
+        context
+      )
+    ).resolves.toEqual({ valid: true })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/ex/confluence/cloud-1/wiki/api/v2/spaces?'
+    )
+  })
+
+  it('preserves site discovery for regular OAuth credentials', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json([{ id: 'oauth-cloud', url: 'https://oauth-binding-test.atlassian.net' }])
+      )
+      .mockResolvedValueOnce(Response.json({ results: [{ id: 'space-1', key: 'ENG' }] }))
+    await expect(
+      confluenceConnector.validateConfig('token', {
+        ...config,
+        domain: 'oauth-binding-test.atlassian.net',
+      })
+    ).resolves.toEqual({ valid: true })
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      'https://api.atlassian.com/oauth/token/accessible-resources'
+    )
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/ex/confluence/oauth-cloud/')
+  })
+})
+
+describe('Confluence listing limits', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+  const config = { domain: 'example.atlassian.net', spaceKey: 'ENG', maxPages: '2' }
+  let context: Record<string, unknown>
+
+  function listing(ids: string[], next?: string): Response {
+    return Response.json({
+      results: ids.map((id) => ({ id, title: id, status: 'current', version: { number: 1 } })),
+      _links: next ? { next: `/wiki/api/v2/content?cursor=${next}` } : {},
+    })
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    context = { cloudId: 'cloud-1', spaceId: 'space-1' }
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([{ contentType: 'page' }, { contentType: 'blogpost' }, { labelFilter: 'published' }])(
+    'trims a partially consumed final provider page for %j and suppresses deletion reconciliation',
+    async (options) => {
+      fetchMock.mockResolvedValueOnce(listing(['one', 'two', 'three']))
+      const result = await confluenceConnector.listDocuments(
+        'token',
+        { ...config, ...options },
+        undefined,
+        context
+      )
+      expect(result.documents.map((document) => document.externalId)).toEqual(['one', 'two'])
+      expect(result.hasMore).toBe(false)
+      expect(result.nextCursor).toBeUndefined()
+      expect(context).toMatchObject({ totalDocsFetched: 2, listingCapped: true })
+    }
+  )
+
+  it('applies only the remaining budget on a subsequent page', async () => {
+    context.totalDocsFetched = 1
+    fetchMock.mockResolvedValueOnce(listing(['two', 'three']))
+    const result = await confluenceConnector.listDocuments('token', config, 'next', context)
+    expect(result.documents.map((document) => document.externalId)).toEqual(['two'])
+    expect(context).toMatchObject({ totalDocsFetched: 2, listingCapped: true })
+  })
+
+  it.each([undefined, 'next'])(
+    'distinguishes source exhaustion from an unread cursor %s',
+    async (next) => {
+      fetchMock.mockResolvedValueOnce(listing(['one', 'two'], next))
+      const result = await confluenceConnector.listDocuments('token', config, undefined, context)
+      expect(result.hasMore).toBe(false)
+      expect(result.nextCursor).toBeUndefined()
+      expect(context.listingCapped).toBe(next ? true : undefined)
+    }
+  )
+
+  it('shares one budget across pages and blog posts', async () => {
+    fetchMock
+      .mockResolvedValueOnce(listing(['page-one', 'page-two']))
+      .mockResolvedValueOnce(listing(['blog-one', 'blog-two']))
+    const result = await confluenceConnector.listDocuments(
+      'token',
+      { ...config, contentType: 'all', maxPages: '3' },
+      undefined,
+      context
+    )
+    expect(result.documents.map((document) => document.externalId)).toEqual([
+      'page-one',
+      'page-two',
+      'blog-one',
+    ])
+    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toBeUndefined()
+    expect(context).toMatchObject({ totalDocsFetched: 3, listingCapped: true })
+  })
+
+  it('stops a compound cursor when blog posts consume the budget while pages remain', async () => {
+    fetchMock
+      .mockResolvedValueOnce(listing(['page-one'], 'next-page'))
+      .mockResolvedValueOnce(listing(['blog-one']))
+    const result = await confluenceConnector.listDocuments(
+      'token',
+      { ...config, contentType: 'all' },
+      undefined,
+      context
+    )
+    expect(result.documents).toHaveLength(2)
+    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toBeUndefined()
+    expect(context.listingCapped).toBe(true)
+  })
+
+  it.each([{ blogs: [] }, { blogs: ['blog-one'] }])(
+    'checks the other content type when pages exhaust the budget: %j',
+    async ({ blogs }) => {
+      fetchMock
+        .mockResolvedValueOnce(listing(['page-one', 'page-two']))
+        .mockResolvedValueOnce(listing(blogs))
+      const result = await confluenceConnector.listDocuments(
+        'token',
+        { ...config, contentType: 'all' },
+        undefined,
+        context
+      )
+      expect(result.documents.map((document) => document.externalId)).toEqual([
+        'page-one',
+        'page-two',
+      ])
+      expect(result.hasMore).toBe(false)
+      expect(context.listingCapped).toBe(blogs.length > 0 ? true : undefined)
+    }
+  )
+
+  it('keeps uncapped listings complete and preserves both content-type cursors', async () => {
+    fetchMock
+      .mockResolvedValueOnce(listing(['page-one', 'page-two'], 'next-page'))
+      .mockResolvedValueOnce(listing(['blog-one', 'blog-two'], 'next-blog'))
+    const result = await confluenceConnector.listDocuments(
+      'token',
+      { ...config, contentType: 'all', maxPages: '0' },
+      undefined,
+      context
+    )
+    expect(result.documents).toHaveLength(4)
+    expect(result.hasMore).toBe(true)
+    expect(JSON.parse(result.nextCursor!)).toEqual({
+      page: 'next-page',
+      blog: 'next-blog',
+      pagesDone: false,
+      blogsDone: false,
+    })
+    expect(context.listingCapped).toBeUndefined()
+  })
+})
+
 describe('confluenceStorageToPlainText', () => {
   it('preserves rich text, word boundaries, link labels, and encoded literals', () => {
     const storage =

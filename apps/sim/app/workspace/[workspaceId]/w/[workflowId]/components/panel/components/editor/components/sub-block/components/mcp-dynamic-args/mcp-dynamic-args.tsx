@@ -6,6 +6,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useMcpBlockConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -110,18 +111,22 @@ export function McpDynamicArgs({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading } = useMcpTools(workspaceId)
-  const [toolFromStore] = useSubBlockValue(blockId, 'tool')
-  const selectedTool = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.tool)
-    : toolFromStore
   const [schemaFromStore] = useSubBlockValue(blockId, '_toolSchema')
+  const {
+    server: selectedServer,
+    tool: selectedTool,
+    argumentsMode,
+  } = useMcpBlockConfig({ blockId, previewContextValues })
   const cachedSchema = previewContextValues
     ? resolvePreviewContextValue(previewContextValues._toolSchema)
     : schemaFromStore
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
-  const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
-  const toolSchema = cachedSchema || selectedToolConfig?.inputSchema
+  const selectedToolConfig = mcpTools.find(
+    (tool) =>
+      tool.serverId === selectedServer && (tool.id === selectedTool || tool.name === selectedTool)
+  )
+  const toolSchema = selectedToolConfig?.inputSchema || cachedSchema
 
   /**
    * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
@@ -132,8 +137,7 @@ export function McpDynamicArgs({
    * the live persisted value, so an external change to that value (undo/redo, a diff
    * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
    * Drafts also reset wholesale on either of two independent triggers:
-   *  - the selected tool or the cached `_toolSchema` snapshot changes (this pair
-   *    always drives `toolSchema` whenever a cached snapshot exists) — the live
+   *  - the selected tool or the cached `_toolSchema` snapshot changes — the live
    *    schema tracker is also re-baselined to the new tool's current signature
    *    here (even if still empty), so a tool switch never leaves the *previous*
    *    tool's signature behind to be misread as a "refresh" once the new tool's
@@ -451,6 +455,27 @@ export function McpDynamicArgs({
     }
   }
 
+  if (argumentsMode === 'json') {
+    return (
+      <div className='flex flex-col gap-[9px]'>
+        <Label>JSON arguments</Label>
+        <LongInput
+          blockId={blockId}
+          subBlockId={subBlockId}
+          config={{
+            id: subBlockId,
+            type: 'long-input',
+            title: 'JSON arguments',
+            placeholder: 'JSON arguments or an upstream reference',
+          }}
+          disabled={disabled}
+          isPreview={isPreview}
+          previewValue={previewValue}
+        />
+      </div>
+    )
+  }
+
   if (!selectedTool) {
     return (
       <div className='rounded-lg border p-8 text-center'>
@@ -459,16 +484,19 @@ export function McpDynamicArgs({
     )
   }
 
-  if (
-    selectedTool &&
-    !cachedSchema &&
-    !selectedToolConfig &&
-    (isLoading || mcpTools.length === 0)
-  ) {
+  if (selectedTool && !cachedSchema && !selectedToolConfig && isLoading) {
     return (
       <div className='rounded-lg border p-8 text-center'>
         <p className='text-muted-foreground text-sm'>Loading tool schema…</p>
       </div>
+    )
+  }
+
+  if (!toolSchema) {
+    return (
+      <p className='text-[var(--text-error)] text-small'>
+        Operation schema unavailable. Refresh or select an available operation.
+      </p>
     )
   }
 

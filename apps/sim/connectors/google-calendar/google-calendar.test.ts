@@ -135,10 +135,11 @@ describe('Google Calendar Search isolation', () => {
     })
   })
 
-  it('offers member Search without claiming centralized permissions or shared content', () => {
+  it('offers personal and centrally delegated Search without sharing event representations', () => {
     expect(googleCalendarConnectorMeta.search).toBe(true)
     expect(googleCalendarConnectorMeta.permissionScopedListing?.capFieldIds).toEqual(['maxEvents'])
-    expect(googleCalendarConnectorMeta.mirrorsSourceAcls).toBeUndefined()
+    expect(googleCalendarConnectorMeta.mirrorsSourceAcls).toBe(true)
+    expect(googleCalendarConnectorMeta.auth.adminCredentialType).toBe('service_account')
     expect(googleCalendarConnectorMeta.supportsSeparateContentCredential).toBeUndefined()
   })
 
@@ -178,7 +179,7 @@ describe('Google Calendar Search isolation', () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         accessRole: 'reader',
-        items: [{ id: EVENT.id, updated: EVENT.updated, start: EVENT.start, end: EVENT.end }],
+        items: [{ ...EVENT, description: undefined, organizer: undefined, attendees: undefined }],
       })
     )
     const restricted = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
@@ -189,12 +190,101 @@ describe('Google Calendar Search isolation', () => {
     expect(restricted.documents[0].metadata?.organizer).toBe('')
   })
 
+  it('keeps an untitled meeting that still names a room or its participants', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        items: [
+          { ...EVENT, id: 'room', summary: undefined, description: undefined },
+          {
+            ...EVENT,
+            id: 'bare-location',
+            summary: undefined,
+            description: undefined,
+            organizer: undefined,
+            attendees: undefined,
+          },
+        ],
+      })
+    )
+    const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
+    expect(result.documents.map((doc) => doc.externalId)).toEqual([
+      expect.stringContaining('room'),
+      expect.stringContaining('bare-location'),
+    ])
+    expect(result.documents[0].content).toContain(ATTENDEE_NAME)
+    expect(result.documents[1].content).toContain(EVENT.location)
+  })
+
+  it('withdraws a free/busy time block that carries no title or description', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        accessRole: 'freeBusyReader',
+        items: [{ id: EVENT.id, updated: EVENT.updated, start: EVENT.start, end: EVENT.end }],
+      })
+    )
+    const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
+    expect(result).toMatchObject({ documents: [], hasMore: false })
+  })
+
+  it('asks Google for meetings only and drops status entries it still returns', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        items: [
+          { ...EVENT, id: 'wfh', summary: 'Home', eventType: 'workingLocation' },
+          { ...EVENT, id: 'ooo', summary: 'Out of office', eventType: 'outOfOffice' },
+          { ...EVENT, id: 'focus', summary: 'Focus time', eventType: 'focusTime' },
+          { ...EVENT, id: 'bday', summary: 'Birthday', eventType: 'birthday' },
+          { ...EVENT, id: 'meeting', eventType: 'default' },
+          EVENT,
+        ],
+      })
+    )
+    const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
+    expect(result.documents.map((doc) => doc.externalId)).toEqual([
+      expect.stringContaining('meeting'),
+      expect.stringContaining(EVENT.id),
+    ])
+    const listUrl = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(listUrl.searchParams.getAll('eventTypes')).toEqual(['default'])
+  })
+
+  it('returns null for a status entry fetched directly', async () => {
+    const listing = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ...EVENT, eventType: 'outOfOffice' }))
+    expect(
+      await googleCalendarConnector.getDocument('token', {}, listing.documents[0].externalId, alice)
+    ).toBeNull()
+  })
+
+  it('keeps a declined invitation and marks the response on it', async () => {
+    const declined = {
+      ...EVENT,
+      attendees: [
+        ...EVENT.attendees,
+        { email: 'alice@example.com', self: true, responseStatus: 'declined' },
+      ],
+    }
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [declined] }))
+    const [doc] = (await googleCalendarConnector.listDocuments('token', {}, undefined, alice))
+      .documents
+    expect(doc.content).toContain('Response: declined')
+    expect(doc.metadata?.responseStatus).toBe('declined')
+
+    const accepted = await listOne({})
+    expect(accepted.content).not.toContain('Response:')
+    expect(accepted.metadata?.responseStatus).toBeUndefined()
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [declined] }))
+    const workspaceDeclined = await listOne({})
+    expect(workspaceDeclined.contentHash).toBe(`${accepted.contentHash}:declined`)
+  })
+
   it('withdraws cancelled events, including instances of recurring events', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ items: [{ ...EVENT, status: 'cancelled', recurringEventId: 'series' }] })
     )
     const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
-    expect(result).toEqual({ documents: [], hasMore: false })
+    expect(result).toMatchObject({ documents: [], hasMore: false })
   })
 
   it('follows empty continuation pages with identical time bounds after a resumed run', async () => {
@@ -332,7 +422,9 @@ describe('google-calendar attendee PII opt-out', () => {
   it('indexes attendee and organizer identifiers when unset (default on)', async () => {
     const doc = await listOne({})
     expect(doc.content).toContain(`Organizer: Grace Hopper (${ORGANIZER_EMAIL})`)
-    expect(doc.content).toContain(`Attendees: ${ATTENDEE_NAME}, second@example.com`)
+    expect(doc.content).toContain(
+      `Attendees: ${ATTENDEE_NAME} (${ATTENDEE_EMAIL}), second@example.com`
+    )
     expect(doc.contentHash).toBe('gcal:evt-1:2026-01-02T00:00:00Z')
 
     const tags = googleCalendarConnector.mapTags?.(doc.metadata ?? {}) ?? {}

@@ -1,10 +1,10 @@
-import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
+import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
 import {
   clearDependentsOnRemap,
   remapForkBlockType,
   remapForkSubBlocks,
   type SubBlockTransform,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
 
 /**
  * Resolves a source resource reference to its copied child id, or null when the
@@ -22,13 +22,21 @@ export type ForkCopyResolver = (kind: ForkRemapKind, sourceId: string) => string
  * the child defines the key).
  */
 export function createForkBootstrapTransform(resolveCopied: ForkCopyResolver): SubBlockTransform {
-  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged, triggerMode) => {
+  return (
+    subBlocks,
+    blockType,
+    canonicalModes,
+    onCanonicalModesChanged,
+    triggerMode,
+    preserveToolIndices
+  ) => {
     // Every resolution at fork-create IS a copy (the resolver is the copy id map), so all
     // remapped keys carry copy provenance - copy-faithful dependents (column picks) survive.
     // `blockType`/`canonicalModes` activate the mode policy: active basic remaps, active
     // advanced (manual) passes through with its dependents, dormant members clear.
     const result = remapForkSubBlocks(subBlocks, resolveCopied, 'create', {
       blockType,
+      preserveToolIndices,
       canonicalModes,
       triggerMode,
       isCopiedTarget: (kind, sourceId) => resolveCopied(kind, sourceId) != null,

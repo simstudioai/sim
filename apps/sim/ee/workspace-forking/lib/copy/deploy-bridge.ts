@@ -3,7 +3,11 @@ import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, exists, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
+  materializeDeploymentState,
+} from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
@@ -20,6 +24,9 @@ const logger = createLogger('WorkspaceForkDeployBridge')
  * workspace to a few hundred MB of transient state instead of an unbounded load.
  */
 export const MAX_FORK_DEPLOYED_WORKFLOWS = 1000
+
+/** Aggregate serialized source state admitted before any graph materialization. */
+export const MAX_FORK_STATE_BYTES = 64 * 1024 * 1024
 
 export interface DeployedWorkflowSummary {
   id: string
@@ -76,6 +83,7 @@ export async function listDeployedWorkflows(
         )
       )
     )
+    .limit(MAX_FORK_DEPLOYED_WORKFLOWS + 1)
 }
 
 /**
@@ -171,6 +179,7 @@ export async function getActiveDeploymentVersionNumbers(
 export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promise<{
   deployedWorkflows: DeployedWorkflowSummary[]
   sourceStates: Map<string, WorkflowState>
+  sourceVersionIds: Map<string, { id: string; digest: string }>
 }> {
   const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId)
   // Fail fast on the cheap count before loading any heavy state into memory.
@@ -180,21 +189,117 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
       400
     )
   }
+  if (deployedWorkflows.length > 0) {
+    const [size] = await db
+      .select({
+        bytes: sql<string>`coalesce(sum(octet_length(${workflowDeploymentVersion.state}::text)), 0)`,
+      })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          inArray(
+            workflowDeploymentVersion.workflowId,
+            deployedWorkflows.map((workflow) => workflow.id)
+          ),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+    if (Number(size?.bytes ?? 0) > MAX_FORK_STATE_BYTES) {
+      throw new ForkError(
+        `Deployed workflow states exceed the ${MAX_FORK_STATE_BYTES} byte fork/sync limit`,
+        413
+      )
+    }
+  }
+  const versions = deployedWorkflows.length
+    ? await db
+        .select({
+          id: workflowDeploymentVersion.id,
+          workflowId: workflowDeploymentVersion.workflowId,
+          bytes: sql<number>`octet_length(${workflowDeploymentVersion.state}::text)`,
+          digest: sql<string>`md5(${workflowDeploymentVersion.state}::text)`,
+        })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            inArray(
+              workflowDeploymentVersion.workflowId,
+              deployedWorkflows.map((item) => item.id)
+            ),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+    : []
+  if (versions.reduce((total, row) => total + Number(row.bytes), 0) > MAX_FORK_STATE_BYTES)
+    throw new ForkError('Deployed workflow states exceed the aggregate byte limit', 413)
+  const sourceVersionIds = new Map(
+    versions.map((version) => [version.workflowId, { id: version.id, digest: version.digest }])
+  )
+  if (
+    sourceVersionIds.size !== deployedWorkflows.length ||
+    versions.length !== sourceVersionIds.size
+  )
+    throw new ForkError('Source deployments changed during loading; request a new preview', 409)
   // Read states in bounded-concurrency batches instead of one serial await per workflow:
   // serial cost is O(workflows) round trips (this also runs on the diff preview, refetched
   // while the sync modal is open). The cap keeps concurrent global-pool checkouts well
   // under the pool max even at the workflow ceiling, and this runs BEFORE any transaction.
   const sourceStates = new Map<string, WorkflowState>()
+  let materializedBytes = 0
   const READ_CONCURRENCY = 5
   for (let i = 0; i < deployedWorkflows.length; i += READ_CONCURRENCY) {
     const batch = deployedWorkflows.slice(i, i + READ_CONCURRENCY)
-    const states = await Promise.all(batch.map((wf) => readDeployedState(wf.id, sourceWorkspaceId)))
+    const states = await Promise.all(
+      batch.map((wf) =>
+        readAdmittedSourceState(wf.id, sourceWorkspaceId, sourceVersionIds.get(wf.id)!)
+      )
+    )
     batch.forEach((wf, index) => {
       const state = states[index]
-      if (state) sourceStates.set(wf.id, state)
+      if (state) {
+        materializedBytes += Buffer.byteLength(JSON.stringify(state), 'utf8')
+        if (materializedBytes > MAX_FORK_STATE_BYTES) {
+          throw new ForkError(
+            `Deployed workflow states exceed the ${MAX_FORK_STATE_BYTES} byte fork/sync limit`,
+            413
+          )
+        }
+        sourceStates.set(wf.id, state)
+      }
     })
   }
-  return { deployedWorkflows, sourceStates }
+  return { deployedWorkflows, sourceStates, sourceVersionIds }
+}
+
+/** Materializes only the bounded snapshot selected during admission, bypassing historical caches. */
+async function readAdmittedSourceState(
+  workflowId: string,
+  workspaceId: string,
+  expected: { id: string; digest: string }
+): Promise<WorkflowState> {
+  const [version] = await db
+    .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.id, expected.id),
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        sql`md5(${workflowDeploymentVersion.state}::text) = ${expected.digest}`
+      )
+    )
+    .limit(1)
+  if (!version)
+    throw new ForkError('Source deployment changed during loading; request a new preview', 409)
+  const data = await materializeDeploymentState(workflowId, version, workspaceId, db, {
+    cache: false,
+  })
+  return {
+    blocks: data.blocks,
+    edges: data.edges,
+    loops: data.loops,
+    parallels: data.parallels,
+    variables: (data.variables ?? {}) as Record<string, Variable>,
+  }
 }
 
 /**
@@ -206,19 +311,22 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
  */
 export async function readDeployedState(
   workflowId: string,
-  workspaceId: string
+  workspaceId: string,
+  deploymentVersionId?: string
 ): Promise<WorkflowState | null> {
   // This reads the (unchanged) SOURCE workspace on the global pool. Callers like
   // promote run it inside their transaction, so escape the tx context: the read
   // must not join the promote's transaction (and the tripwire forbids global-pool
   // queries inside a tx). Outside a transaction this is a no-op.
   return runOutsideTransactionContext(async () => {
-    const version = await getActiveDeploymentVersionNumber(db, workflowId)
+    const version = deploymentVersionId ?? (await getActiveDeploymentVersionNumber(db, workflowId))
     if (version == null) {
       logger.warn('No active deployment for workflow during fork/promote', { workflowId })
       return null
     }
-    const data = await loadDeployedWorkflowState(workflowId, workspaceId)
+    const data = deploymentVersionId
+      ? await loadWorkflowDeploymentVersionState(workflowId, deploymentVersionId, workspaceId)
+      : await loadDeployedWorkflowState(workflowId, workspaceId)
     return {
       blocks: data.blocks,
       edges: data.edges,

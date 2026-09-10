@@ -16,6 +16,8 @@ import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types
 import type { ResourcePolicyBinding } from '@/lib/resource-policies/registry'
 
 export interface WorkspaceUseCaseAuditEntry {
+  /** Canonical workspace affected by a cross-workspace mutation, when different from its authorization scope. */
+  workspaceId?: string
   action: AuditActionType
   resourceType: AuditResourceTypeValue
   resourceId?: string
@@ -103,7 +105,7 @@ export function recordProjectedUseCaseAuditEntries(
   const attribution: PrincipalAuditAttribution = resolvePrincipalAuditAttribution(principal)
   for (const entry of entries) {
     recordAudit({
-      workspaceId,
+      workspaceId: entry.workspaceId ?? workspaceId,
       actorId: attribution.actorId,
       actorName: attribution.actorName,
       action: entry.action,

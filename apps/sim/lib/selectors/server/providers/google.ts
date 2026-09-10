@@ -23,6 +23,12 @@ type GoogleSelectorKey = Extract<
   'google.tasks.lists' | 'gmail.labels' | 'google.calendar' | 'google.drive' | 'google.sheets'
 >
 
+const GOOGLE_SELECTOR_SCOPES: Partial<Record<string, string[]>> = {
+  'google-drive': ['https://www.googleapis.com/auth/drive.readonly'],
+  gmail: ['https://www.googleapis.com/auth/gmail.modify'],
+  'google-calendar': ['https://www.googleapis.com/auth/calendar'],
+}
+
 interface GoogleTaskList {
   id: string
   title: string
@@ -70,7 +76,7 @@ async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: str
     return await resolveSelectorOAuthAccessToken({
       credential: args.credential,
       serviceId,
-      scopes: getScopesForService(serviceId),
+      scopes: GOOGLE_SELECTOR_SCOPES[serviceId] ?? getScopesForService(serviceId),
       impersonateEmail: args.context.impersonateUserEmail,
       protectedValues: args.protectedValues,
     })
@@ -214,29 +220,26 @@ function requireGoogleId(value: string | undefined, maxLength = 255): string {
 async function fetchSharedDrivePage(
   accessToken: string,
   pageToken: string | undefined,
+  search: string | undefined,
   signal?: AbortSignal
 ): Promise<GooglePage<DriveFile>> {
-  try {
-    const url = new URL('https://www.googleapis.com/drive/v3/drives')
-    url.searchParams.set('pageSize', '100')
-    url.searchParams.set('fields', 'nextPageToken,drives(id,name)')
-    if (pageToken) url.searchParams.set('pageToken', pageToken)
-    const data = await fetchProviderJson<{
-      drives?: Array<{ id: string; name: string }>
-      nextPageToken?: string
-    }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal })
-    const nextCursor = data.nextPageToken?.trim()
-    return {
-      items: (data.drives ?? []).map((drive) => ({
-        id: drive.id,
-        name: drive.name,
-        mimeType: 'application/vnd.google-apps.folder',
-      })),
-      ...(nextCursor ? { nextCursor } : {}),
-    }
-  } catch (error) {
-    if (signal?.aborted) throw error
-    return { items: [] }
+  const url = new URL('https://www.googleapis.com/drive/v3/drives')
+  url.searchParams.set('pageSize', '100')
+  url.searchParams.set('fields', 'nextPageToken,drives(id,name)')
+  if (pageToken) url.searchParams.set('pageToken', pageToken)
+  if (search) url.searchParams.set('q', `name contains '${escapeDriveQuery(search)}'`)
+  const data = await fetchProviderJson<{
+    drives?: Array<{ id: string; name: string }>
+    nextPageToken?: string
+  }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal })
+  const nextCursor = data.nextPageToken?.trim()
+  return {
+    items: (data.drives ?? []).map((drive) => ({
+      id: drive.id,
+      name: drive.name,
+      mimeType: 'application/vnd.google-apps.folder',
+    })),
+    ...(nextCursor ? { nextCursor } : {}),
   }
 }
 
@@ -250,8 +253,8 @@ function parseDriveCursor(cursor: string | undefined): DriveCursor | undefined {
   return { source: source === 'd:' ? 'drives' : 'files', pageToken }
 }
 
-function driveCursor(source: DriveCursor['source'], pageToken?: string): string {
-  return `${source === 'drives' ? 'd' : 'f'}:${pageToken ?? ''}`
+function driveCursor(source: DriveCursor['source'], pageToken: string): string {
+  return `${source === 'drives' ? 'd' : 'f'}:${pageToken}`
 }
 
 async function listDriveFiles(
@@ -268,24 +271,23 @@ async function listDriveFiles(
   if (mimeType) clauses.push(`mimeType = '${escapeDriveQuery(mimeType)}'`)
   if (search) clauses.push(`name contains '${escapeDriveQuery(search)}'`)
 
-  const includeSharedDrives =
-    !folderId && mimeType === 'application/vnd.google-apps.folder' && !search
+  const includeSharedDrives = !folderId && mimeType === 'application/vnd.google-apps.folder'
   const request = requireListRequest(args.selectorKey, args.request)
   const cursor = parseDriveCursor(request.cursor)
   if (cursor?.source === 'drives' && !includeSharedDrives) {
     throw new SelectorContextUnavailableError()
   }
 
+  let sharedDrives: DriveFile[] = []
   if (includeSharedDrives && (!cursor || cursor.source === 'drives')) {
-    const drives = await fetchSharedDrivePage(accessToken, cursor?.pageToken, args.signal)
-    if (drives.items.length > 0 || drives.nextCursor) {
+    const drives = await fetchSharedDrivePage(accessToken, cursor?.pageToken, search, args.signal)
+    if (drives.nextCursor) {
       return {
         items: drives.items,
-        nextCursor: drives.nextCursor
-          ? driveCursor('drives', drives.nextCursor)
-          : driveCursor('files'),
+        nextCursor: driveCursor('drives', drives.nextCursor),
       }
     }
+    sharedDrives = drives.items
   }
 
   const pageToken = cursor?.source === 'files' ? cursor.pageToken : undefined
@@ -304,7 +306,7 @@ async function listDriveFiles(
   const nextPageToken = data.nextPageToken?.trim()
 
   return {
-    items: data.files ?? [],
+    items: [...sharedDrives, ...(data.files ?? [])],
     ...(nextPageToken ? { nextCursor: driveCursor('files', nextPageToken) } : {}),
   }
 }

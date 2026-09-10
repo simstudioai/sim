@@ -1,13 +1,27 @@
 /** @vitest-environment node */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock as resetDatabaseMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  beginListingCheckpoint,
+  type ListingCheckpoint,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
+
+function resetDbChainMock() {
+  resetDatabaseMock()
+  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+}
 
 const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
@@ -19,11 +33,12 @@ const mocks = vi.hoisted(() => ({
   }),
   dispatch: vi.fn(),
   onPage: vi.fn(),
+  hardDelete: vi.fn(async (_ids: string[]) => 0),
 }))
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(async () => 0),
+  hardDeleteDocuments: mocks.hardDelete,
   isTriggerAvailable: () => true,
   processDocumentsWithQueue: mocks.dispatch,
 }))
@@ -89,6 +104,7 @@ beforeEach(() => {
   sourceVersion = 3
   hydrationVersion = undefined
   sourceBody = { value: '' }
+  mocks.hardDelete.mockResolvedValue(0)
   mocks.upload.mockImplementation(async ({ customKey }: { customKey: string }) => ({
     key: customKey,
     path: `/api/files/serve/${encodeURIComponent(customKey)}`,
@@ -125,6 +141,139 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('completed listing removal counts', () => {
+  interface AbsentDocument {
+    id: string
+    seenAt: string
+    deletedAt: Date | null
+  }
+
+  const absent = (id: string, deletedAt: Date | null = null): AbsentDocument => ({
+    id,
+    seenAt: '2026-09-07T12:00:00.000000',
+    deletedAt,
+  })
+
+  async function reconcile(options: {
+    soft?: AbsentDocument[]
+    hard?: AbsentDocument[]
+    fullSync?: boolean
+    updated?: { id: string }[]
+  }) {
+    resetDbChainMock()
+    const soft = options.soft ?? []
+    const hard = options.hard ?? []
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: 'a'.repeat(64),
+        generationId: 'completed-listing',
+        startedAt: new Date('2026-09-08T11:00:00Z'),
+        fullSync: options.fullSync,
+      }),
+      complete: true,
+      listedCount: 8,
+    }
+    queueTableRows(schemaMock.document, [
+      { ownedCount: 10, listedCount: 8, softCount: soft.length, hardCount: hard.length },
+    ])
+    queueTableRows(schemaMock.document, [])
+    if (!options.fullSync) {
+      queueTableRows(schemaMock.document, soft)
+      if (soft.length) {
+        queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
+        dbChainMockFns.returning.mockResolvedValueOnce(
+          options.updated ?? soft.map(({ id }) => ({ id }))
+        )
+        queueTableRows(schemaMock.document, [])
+      }
+    }
+    queueTableRows(schemaMock.document, hard)
+    if (hard.length) queueTableRows(schemaMock.document, [])
+    const result: SyncResult = {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 0,
+      docsFailed: 0,
+    }
+    const pass = await runConnectorContentPass({
+      connectorId: 'connector',
+      connector: {
+        knowledgeBaseId: 'kb',
+        connectorType: 'confluence',
+        listingCheckpoint: checkpoint,
+      },
+      connectorConfig: confluenceConnector,
+      sourceConfig: SOURCE_CONFIG,
+      syncContext: {},
+      kbOwner: { workspaceId: 'workspace', userId: 'owner' },
+      billingAttribution: BILLING,
+      result,
+      lease: {
+        stillHeld: () => stillHoldsSyncLock('connector', 'run'),
+        beatIfDue: async () => undefined,
+        beatLive: async () => undefined,
+      },
+      leaseKind: 'content',
+      runId: 'run',
+      fingerprint: 'a'.repeat(64),
+      documentAccess: 'admin',
+      getAccessToken: async () => 'token',
+      hydration: { getDocument: vi.fn() },
+      forceRehydrate: false,
+      deadlineAt: Date.now() + 60_000,
+    })
+    expect(pass.complete).toBe(true)
+    return result
+  }
+
+  it('reports newly hidden documents once, without recounting their later cleanup', async () => {
+    const first = await reconcile({ soft: [absent('one'), absent('two')] })
+    expect(first.docsDeleted).toBe(2)
+    expect(mocks.hardDelete).not.toHaveBeenCalled()
+
+    mocks.hardDelete.mockResolvedValue(2)
+    const cleanup = await reconcile({
+      hard: [absent('one', new Date(0)), absent('two', new Date(0))],
+    })
+    expect(cleanup.docsDeleted).toBe(0)
+    expect(mocks.hardDelete).toHaveBeenCalledWith(['one', 'two'], 'run', 'connector', 'kb', {
+      connectorId: 'connector',
+      knowledgeBaseId: 'kb',
+      syncLockToken: 'run',
+      lease: 'content',
+    })
+
+    const resumed = await reconcile({})
+    expect(resumed.docsDeleted).toBe(0)
+  })
+
+  it('counts only rows the guarded soft-delete update actually changed', async () => {
+    const result = await reconcile({
+      soft: [absent('one'), absent('two')],
+      updated: [{ id: 'one' }],
+    })
+    expect(result.docsDeleted).toBe(1)
+  })
+
+  it('counts full-sync removals of live documents but not already hidden tombstones', async () => {
+    mocks.hardDelete.mockImplementation(async (ids: string[]) => ids.length)
+    const result = await reconcile({
+      fullSync: true,
+      hard: [absent('live'), absent('already-hidden', new Date(0))],
+    })
+    expect(result.docsDeleted).toBe(1)
+    expect(mocks.hardDelete.mock.calls.map(([ids]) => ids)).toEqual([['live'], ['already-hidden']])
+  })
+
+  it('does not report a full-sync removal when the guarded delete removed no live rows', async () => {
+    mocks.hardDelete.mockResolvedValue(0)
+    const result = await reconcile({ fullSync: true, hard: [absent('detached')] })
+    expect(result.docsDeleted).toBe(0)
+  })
+})
+
 /** Real listing, hydration, persistence and checkpoint logic, with only external systems mocked. */
 async function runPass(
   options: {
@@ -132,12 +281,17 @@ async function runPass(
     access?: ConnectorAccessMode
     readCurrent?: boolean
     forceRehydrate?: boolean
+    checkpoint?: ListingCheckpoint
+    databaseTime?: Date
     getDocument?: () => Promise<ExternalDocument | null>
   } = {}
 ) {
   vi.clearAllMocks()
   resetDbChainMock()
   vi.setSystemTime(new Date(Date.now() + 60_000))
+  if (options.databaseTime) {
+    dbChainMockFns.execute.mockResolvedValue([{ startedAt: options.databaseTime.toISOString() }])
+  }
   for (let index = 0; index < 16; index++) {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
@@ -188,10 +342,15 @@ async function runPass(
     options.getDocument ??
       (() => confluenceConnector.getDocument('token', SOURCE_CONFIG, 'page', syncContext))
   )
+  const listDocuments = vi.fn(confluenceConnector.listDocuments)
   const pass = await runConnectorContentPass({
     connectorId: 'connector',
-    connector: { knowledgeBaseId: 'kb', connectorType: 'confluence' },
-    connectorConfig: confluenceConnector,
+    connector: {
+      knowledgeBaseId: 'kb',
+      connectorType: 'confluence',
+      listingCheckpoint: options.checkpoint,
+    },
+    connectorConfig: { ...confluenceConnector, listDocuments },
     sourceConfig: SOURCE_CONFIG,
     syncContext,
     kbOwner: { workspaceId: 'workspace', userId: 'owner' },
@@ -212,7 +371,7 @@ async function runPass(
     deadlineAt: Date.now() + 60_000,
     onPage: mocks.onPage,
   })
-  return { pass, result, hydrate }
+  return { pass, result, hydrate, listDocuments }
 }
 
 function contentWrite(): Record<string, unknown> {
@@ -220,6 +379,120 @@ function contentWrite(): Record<string, unknown> {
   expect(call).toBeDefined()
   return call![0]
 }
+
+describe('content pass checkpoint intent', () => {
+  it('uses the database clock for a new generation despite a different worker clock', async () => {
+    const databaseTime = new Date('2026-09-08T10:00:00Z')
+    sourceBody = { value: '<p>Current content</p>' }
+    const { pass } = await runPass({ databaseTime, access: 'admin' })
+    expect(pass.checkpoint.startedAt).toBe(databaseTime.toISOString())
+    expect(mocks.onPage).toHaveBeenCalledWith(expect.any(Array), databaseTime)
+  })
+
+  it('passes the durable generation start to ACL updates when resuming with a later worker clock', async () => {
+    const checkpoint = beginListingCheckpoint({
+      fingerprint: 'a'.repeat(64),
+      generationId: 'previous-run',
+      startedAt: new Date('2026-09-08T11:00:00Z'),
+    })
+    sourceBody = { value: '<p>Current content</p>' }
+    await runPass({ checkpoint, access: 'admin' })
+    expect(mocks.onPage).toHaveBeenCalledWith(expect.any(Array), new Date(checkpoint.startedAt))
+  })
+
+  it.each([
+    { name: 'full', incrementalSince: undefined },
+    { name: 'incremental', incrementalSince: new Date('2026-09-07T12:00:00Z') },
+  ])(
+    'restarts an ordinary $name checkpoint when Full resync is requested',
+    async ({ incrementalSince }) => {
+      const checkpoint = {
+        ...beginListingCheckpoint({
+          fingerprint: 'a'.repeat(64),
+          generationId: 'previous-run',
+          startedAt: new Date('2026-09-08T11:00:00Z'),
+          incrementalSince,
+        }),
+        cursor: 'saved-cursor',
+        listedCount: 1,
+      }
+      sourceBody = { value: '<p>The included page changed without a parent edit.</p>' }
+
+      const { pass, result, hydrate, listDocuments } = await runPass({
+        existing: {
+          ...EXISTING,
+          contentHash: 'confluence:view-callouts:page:3',
+          storageKey: 'kb/old.txt',
+          sourceSeenAt: new Date(checkpoint.startedAt),
+        },
+        checkpoint,
+        readCurrent: true,
+        forceRehydrate: true,
+      })
+
+      expect(listDocuments.mock.calls[0]?.[2]).toBeUndefined()
+      expect(listDocuments.mock.calls[0]?.[4]).toBeUndefined()
+      expect(pass.checkpoint).toMatchObject({
+        generationId: 'run',
+        forceRehydrate: true,
+        incrementalSince: null,
+        fullSync: false,
+        listedCount: 1,
+      })
+      expect(new Date(pass.checkpoint.startedAt).getTime()).toBeGreaterThan(
+        new Date(checkpoint.startedAt).getTime()
+      )
+      expect(hydrate).toHaveBeenCalledOnce()
+      expect(result).toMatchObject({ docsUpdated: 1, docsFailed: 0 })
+      expect(mocks.upload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: Buffer.from('The included page changed without a parent edit.'),
+        })
+      )
+    }
+  )
+
+  it.each([
+    { name: 'ordinary automatic retry', savedRehydrate: false, requestedRehydrate: false },
+    { name: 'Full resync automatic retry', savedRehydrate: true, requestedRehydrate: false },
+    { name: 'Full resync task retry', savedRehydrate: true, requestedRehydrate: true },
+  ])(
+    'preserves the generation and cursor for an $name',
+    async ({ savedRehydrate, requestedRehydrate }) => {
+      const checkpoint = {
+        ...beginListingCheckpoint({
+          fingerprint: 'a'.repeat(64),
+          generationId: 'previous-run',
+          startedAt: new Date('2026-09-08T11:00:00Z'),
+          forceRehydrate: savedRehydrate,
+          fullSync: true,
+        }),
+        cursor: 'saved-cursor',
+        listedCount: 1,
+      }
+      const { pass, hydrate, listDocuments } = await runPass({
+        existing: {
+          ...EXISTING,
+          contentHash: 'confluence:view-callouts:page:3',
+          storageKey: 'kb/old.txt',
+          sourceSeenAt: new Date(checkpoint.startedAt),
+        },
+        checkpoint,
+        forceRehydrate: requestedRehydrate,
+      })
+
+      expect(listDocuments.mock.calls[0]?.[2]).toBe('saved-cursor')
+      expect(pass.checkpoint).toMatchObject({
+        generationId: checkpoint.generationId,
+        startedAt: checkpoint.startedAt,
+        forceRehydrate: savedRehydrate,
+        fullSync: true,
+      })
+      expect(hydrate).not.toHaveBeenCalled()
+      expect(mocks.dispatch).not.toHaveBeenCalled()
+    }
+  )
+})
 
 describe('Confluence empty content through the shared content pass', () => {
   it.each(['admin', 'members'] as const)(

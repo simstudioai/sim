@@ -25,6 +25,7 @@ import {
   listAncestorIds,
   listSpaceReadPrincipals,
   openConfluenceDirectory,
+  validateConfluencePermissionAccess,
 } from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -37,6 +38,7 @@ import {
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+const PERMISSION_VALIDATION_TIMEOUT_MS = 10_000
 
 /**
  * The configured space does not exist for the caller. Confluence answers a
@@ -410,9 +412,16 @@ async function resolveCloudId(
   syncContext?: Record<string, unknown>,
   retryOptions?: RetryOptions
 ): Promise<string> {
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  const credentialDomain = syncContext?.credentialDomain
+  if (
+    typeof credentialDomain === 'string' &&
+    normalizeConfluenceDomainHost(credentialDomain) !== domain
+  ) {
+    throw new Error('Confluence domain must match the selected service account')
+  }
   const cached = syncContext?.cloudId
   if (typeof cached === 'string' && cached) return cached
-  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
   const cloudId = await getConfluenceCloudId(domain, accessToken, retryOptions)
   if (syncContext) syncContext.cloudId = cloudId
   return cloudId
@@ -462,9 +471,8 @@ interface ContentLocation {
  * configured space: a connector over two spaces must not let a reader of one
  * into the unrestricted pages of the other.
  *
- * A page whose restrictions could not be read this run is omitted, which the
- * engine stores as readable by nobody, and the rest of the batch still
- * resolves — the same per-document containment Drive has.
+ * Unresolved pages are omitted while the rest of the batch completes. The engine
+ * hides them unless another observation verified their ACL during the same crawl.
  */
 async function resolveConfluenceAcls(
   accessToken: string,
@@ -524,7 +532,7 @@ async function resolveConfluenceAcls(
       resolved.set(externalId, { spaceId: location.spaceId, chain })
     } catch (error) {
       unreadable += 1
-      logger.warn("Could not read a page's permissions; it stays readable by nobody", {
+      logger.warn("Could not verify a page's permissions", {
         cloudId,
         externalId,
         error: getErrorMessage(error),
@@ -547,7 +555,7 @@ async function resolveConfluenceAcls(
   }
 
   if (unreadable > 0) {
-    logger.warn('Some Confluence pages had unreadable permissions and stay readable by nobody', {
+    logger.warn('Some Confluence pages had unresolved permissions', {
       cloudId,
       unreadable,
     })
@@ -729,12 +737,15 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await resolveCloudId(
-        accessToken,
-        sourceConfig,
-        syncContext,
-        VALIDATE_RETRY_OPTIONS
-      )
+      const retryOptions =
+        syncContext?.mirrorsSourceAcls === true
+          ? {
+              ...VALIDATE_RETRY_OPTIONS,
+              retryBudgetMs: PERMISSION_VALIDATION_TIMEOUT_MS,
+              signal: AbortSignal.timeout(PERMISSION_VALIDATION_TIMEOUT_MS),
+            }
+          : VALIDATE_RETRY_OPTIONS
+      const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext, retryOptions)
       const params = new URLSearchParams()
       for (const key of spaceKeys) params.append('keys', key)
       params.append('limit', String(Math.max(spaceKeys.length, 1)))
@@ -748,7 +759,7 @@ export const confluenceConnector: ConnectorConfig = {
             Authorization: `Bearer ${accessToken}`,
           },
         },
-        VALIDATE_RETRY_OPTIONS
+        retryOptions
       )
       if (!response.ok) {
         return { valid: false, error: `Failed to validate spaces: ${response.status}` }
@@ -762,6 +773,19 @@ export const confluenceConnector: ConnectorConfig = {
           valid: false,
           error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
         }
+      }
+      if (syncContext?.mirrorsSourceAcls === true) {
+        const spaceId = results[0]?.id
+        if (typeof spaceId !== 'string' || !spaceId) {
+          return { valid: false, error: 'Confluence returned a space without an ID. Try again.' }
+        }
+        await validateConfluencePermissionAccess({
+          cloudId,
+          accessToken,
+          spaceId,
+          contentType: (sourceConfig.contentType as string) || 'page',
+          retryOptions,
+        })
       }
       return { valid: true }
     } catch (error) {
@@ -849,7 +873,7 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+  const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
     .map((page) => {
       const links = page._links as Record<string, string> | undefined
@@ -867,16 +891,20 @@ async function listDocumentsV2(
 
   const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
 
-  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
+  const remaining = maxPages > 0 ? Math.max(0, maxPages - fetchedSoFar) : Number.POSITIVE_INFINITY
+  const documents =
+    allDocuments.length > remaining ? allDocuments.slice(0, remaining) : allDocuments
+  const trimmedByCap = documents.length < allDocuments.length
+  const totalFetched = fetchedSoFar + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
   /**
    * Only a cap that actually truncates a listing may suppress deletion
-   * reconciliation. When the source is exhausted (no next cursor) the listing is
-   * complete even though the count reached `maxPages`, and flagging it would
-   * permanently strand documents deleted upstream.
+   * reconciliation: either a tail trimmed from this page or an unread cursor.
+   * Reaching the cap exactly at source exhaustion still reconciles deletions.
    */
-  if (hitLimit && nextCursor && syncContext) syncContext.listingCapped = true
+  if (hitLimit && (trimmedByCap || nextCursor) && syncContext) syncContext.listingCapped = true
 
   return {
     documents,
@@ -897,7 +925,7 @@ async function listAllContentTypes(
   spaceKey: string,
   maxPages: number,
   cursor?: string,
-  syncContext?: Record<string, unknown>
+  syncContext: Record<string, unknown> = {}
 ): Promise<ExternalDocumentList> {
   let pageCursor: string | undefined
   let blogCursor: string | undefined
@@ -957,6 +985,10 @@ async function listAllContentTypes(
   }
 
   results.hasMore = !pagesDone || !blogsDone
+  if (maxPages > 0 && Number(syncContext.totalDocsFetched) >= maxPages && results.hasMore) {
+    syncContext.listingCapped = true
+    results.hasMore = false
+  }
 
   if (results.hasMore) {
     results.nextCursor = JSON.stringify({

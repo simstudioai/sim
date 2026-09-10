@@ -16,6 +16,8 @@ describe('knowledge operation registry', () => {
   it('defines unique stable semantic operation IDs', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
     expect(ids).toEqual([
+      'knowledge.github.installations.list',
+      'knowledge.github.installations.connect',
       'knowledge.slack.prepare',
       'knowledge.slack.oauth.start',
       'knowledge.slack.oauth.complete',
@@ -69,6 +71,8 @@ describe('knowledge operation registry', () => {
       'knowledge.connectors.create',
       'knowledge.connectors.update',
       'knowledge.connectors.access.update',
+      'knowledge.search.personal-integrations.connect',
+      'knowledge.search.personal-integrations.list',
       'knowledge.search.sources.list',
       'knowledge.search.sources.overview',
       'knowledge.search.sources.progress',

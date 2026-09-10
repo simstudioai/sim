@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authorizeCredentialUse: vi.fn(),
+  authorizeOrganizationCredentialUse: vi.fn(),
+  resolveOrganizationCredentialTokenBundle: vi.fn(),
   credentialProviderMatchesService: vi.fn(),
   getServiceConfig: vi.fn(),
   resolveCredentialTokenBundle: vi.fn(),
@@ -15,6 +17,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredentialUse,
+}))
+
+vi.mock('@/lib/credentials/application/organization-credentials', () => ({
+  authorizeOrganizationCredentialUse: mocks.authorizeOrganizationCredentialUse,
+  resolveOrganizationCredentialTokenBundle: mocks.resolveOrganizationCredentialTokenBundle,
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => ({
@@ -57,6 +64,76 @@ describe('authorizeSelectorCredential', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.getServiceConfig.mockReturnValue({ id: 'gmail' })
+  })
+
+  it('authorizes organization browsing as the acting principal before checking its provider', async () => {
+    mocks.authorizeOrganizationCredentialUse.mockResolvedValue({
+      credential: { id: 'managed-1', providerId: 'google-email', type: 'managed_oauth' },
+    })
+    mocks.credentialProviderMatchesService.mockReturnValue(true)
+    const selected = await authorizeSelectorCredential({
+      principal,
+      context: { oauthCredential: 'managed-1' },
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      organizationId: 'org-1',
+      policy,
+      protectedValues: createSelectorProtectedValues(),
+      references: new Map(),
+    })
+    expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith({
+      principal,
+      organizationId: 'org-1',
+      credentialId: 'managed-1',
+      requestId: 'selector-execution',
+      purpose: 'browsing',
+    })
+    expect(selected).toMatchObject({
+      suppliedId: 'managed-1',
+      providerId: 'google-email',
+      organization: { principal, organizationId: 'org-1' },
+    })
+    expect(mocks.authorizeCredentialUse).not.toHaveBeenCalled()
+    const protectedValues = createSelectorProtectedValues()
+    mocks.resolveOrganizationCredentialTokenBundle.mockResolvedValue({
+      accessToken: 'private-managed-token',
+    })
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: selected,
+        serviceId: 'gmail',
+        scopes: ['gmail.modify'],
+        protectedValues,
+      })
+    ).resolves.toBe('private-managed-token')
+    expect(mocks.resolveOrganizationCredentialTokenBundle).toHaveBeenCalledWith({
+      principal,
+      organizationId: 'org-1',
+      credentialId: 'managed-1',
+      requestId: 'selector-execution',
+      purpose: 'browsing',
+      expectedProviderId: 'google-email',
+      requiredScopes: ['gmail.modify'],
+      impersonateEmail: undefined,
+    })
+  })
+
+  it('rejects an organization connection for the wrong selector provider', async () => {
+    mocks.authorizeOrganizationCredentialUse.mockResolvedValue({
+      credential: { id: 'managed-1', providerId: 'jira', type: 'managed_oauth' },
+    })
+    mocks.credentialProviderMatchesService.mockReturnValue(false)
+    await expect(
+      authorizeSelectorCredential({
+        principal,
+        context: { oauthCredential: 'managed-1' },
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        organizationId: 'org-1',
+        policy,
+        protectedValues: createSelectorProtectedValues(),
+        references: new Map(),
+      })
+    ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    expect(mocks.resolveOrganizationCredentialTokenBundle).not.toHaveBeenCalled()
   })
 
   it('conceals a credential authorized in a different workspace', async () => {

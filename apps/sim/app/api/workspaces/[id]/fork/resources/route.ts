@@ -1,26 +1,20 @@
-import { db } from '@sim/db'
-import { type NextRequest, NextResponse } from 'next/server'
 import { getForkResourcesContract } from '@/lib/api/contracts/workspace-fork'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertWorkspaceAdminAccess } from '@/ee/workspace-forking/lib/lineage/authz'
-import { listForkCopyableResources } from '@/ee/workspace-forking/lib/mapping/resources'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { internalForkErrorPolicy } from '@/ee/workspace-forking/api/route-policies'
+import { forkOperations } from '@/ee/workspace-forking/application/operations'
+import { getWorkspaceForkResourceDetails } from '@/ee/workspace-forking/application/resource-details'
 
-export const GET = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(getForkResourcesContract, req, context)
-    if (!parsed.success) return parsed.response
-    const { id } = parsed.data.params
-
-    await assertWorkspaceAdminAccess(id, session.user.id)
-
-    const resources = await listForkCopyableResources(db, id)
-    return NextResponse.json(resources)
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: getForkResourcesContract,
+  auth: internalSessionAuth,
+  operation: forkOperations.discover,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal fork request policy' }),
+  errorPolicy: internalForkErrorPolicy,
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: getWorkspaceForkResourceDetails,
+  present: (result) => result,
+})

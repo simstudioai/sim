@@ -148,7 +148,7 @@ describe('focused Search enrollment', () => {
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: {} })
   })
 
-  it('keeps account-settings reconnect focused and returns to account settings', async () => {
+  it('keeps existing account reconnect links focused and returns to Sim', async () => {
     await render({ returnTo: 'accounts', optionId: 'site-two' })
     expect(oauthLinks().map((link) => link.getAttribute('href'))).toEqual([
       '/api/credential-groups/enroll/invitation/oauth/site-two?returnTo=accounts',
@@ -156,9 +156,9 @@ describe('focused Search enrollment', () => {
     expect(document.querySelector('form')).toBeNull()
     expect(
       Array.from(document.querySelectorAll('a'))
-        .find((link) => link.textContent === 'Your connected accounts')
+        .find((link) => link.textContent === 'Open Sim')
         ?.getAttribute('href')
-    ).toBe('/account/settings/connected-accounts')
+    ).toBe('/home')
   })
 
   it('lets an account owner deliberately reconnect an active grant before reporting completion', async () => {
@@ -189,12 +189,12 @@ describe('focused Search enrollment', () => {
       })
       mocks.read.mockResolvedValue({ enrollment, canSearch })
       await render({ returnTo: 'search', optionId: 'site-two' })
-      const label = canSearch ? 'Return to Search' : 'Your connected accounts'
+      const label = canSearch ? 'Return to Search' : 'Open Sim'
       expect(
         Array.from(document.querySelectorAll('a'))
           .find((link) => link.textContent === label)
           ?.getAttribute('href')
-      ).toBe(canSearch ? '/o/canonical-org/search' : '/account/settings/connected-accounts')
+      ).toBe(canSearch ? '/o/canonical-org/search' : '/home')
     }
   )
 
@@ -204,7 +204,11 @@ describe('focused Search enrollment', () => {
       session: { id: 'session-1' },
     })
     await render({ returnTo: 'search', optionId: 'site-two' })
-    expect(document.querySelector('a')?.getAttribute('href')).toBe('/verify')
+    const recovery = new URL(document.querySelector('a')!.getAttribute('href')!, 'https://sim.test')
+    expect(recovery.pathname).toBe('/verify')
+    expect(recovery.searchParams.get('redirectAfter')).toBe(
+      '/credential-groups/enroll/invitation?returnTo=search&optionId=site-two'
+    )
     expect(mocks.read).not.toHaveBeenCalled()
   })
 

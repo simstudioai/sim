@@ -1951,6 +1951,7 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'custom_block',
   'custom_tool',
   'skill',
+  'sandbox',
 ])
 
 export const workspaceForkResourceMap = pgTable(
@@ -2164,6 +2165,34 @@ export const backgroundWorkStatus = pgTable(
     ),
     metaOtherWorkspaceIdx: index('background_work_status_meta_other_ws_idx').on(
       sql`(${table.metadata} ->> 'otherWorkspaceId')`
+    ),
+  })
+)
+
+/** Workspace-lifetime mutation deduplication and bounded, durable operation reports. */
+export const workspaceOperationReceipt = pgTable(
+  'workspace_operation_receipt',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    requestHash: text('request_hash').notNull(),
+    kind: text('kind').notNull(),
+    report: jsonb('report').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    requestUnique: uniqueIndex('workspace_operation_receipt_request_unique').on(
+      table.workspaceId,
+      table.requestId
+    ),
+    workspaceCreatedIdx: index('workspace_operation_receipt_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
     ),
   })
 )

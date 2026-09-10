@@ -9,6 +9,7 @@ import { attachResourceDirectoryCommands } from './resource-directory'
 import { attachTableImport } from './tables-import'
 import { attachWorkflowRunFollow } from './workflow-run-follow'
 import { attachWorkflowRunWait } from './workflow-run-wait'
+import { attachWorkspaceOperationWait } from './workspace-operation-wait'
 
 function group(program: Command, name: string): Command {
   const existing = program.commands.find((command) => command.name() === name)
@@ -61,6 +62,8 @@ export function attachProtocolCommands(program: Command): void {
   // the order `buildProgram` calls them in.
   attachWorkflowRunFollow(workflows)
   attachWorkflowRunWait(group(workflows, 'runs'))
+
+  attachWorkspaceOperationWait(group(group(program, 'workspaces'), 'operations'))
 
   attachLogsFollow(group(program, 'logs'))
 

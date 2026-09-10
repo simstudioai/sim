@@ -111,6 +111,7 @@
     "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
     "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
+    "test:workflow-sync": "bun --no-env-file scripts/test-workflow-sync.ts",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts",
     "test:scripts": "vitest run --config vitest.scripts.config.ts"

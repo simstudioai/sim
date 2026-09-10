@@ -5,6 +5,7 @@ import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/cred
 import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
+import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import {
   CredentialGroupInvitationUnavailableError,
@@ -12,7 +13,6 @@ import {
 } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
-  type CredentialGroupOAuthFailure,
   createCredentialGroupCompletionRedirect,
   createCredentialGroupEnrollmentRedirect,
 } from '@/app/api/credential-groups/enrollment-redirect'
@@ -54,7 +54,7 @@ export async function handleCredentialGroupOAuthCallback({
     : {}
   const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
     attempt.completionRedirect
-      ? createCredentialGroupCompletionRedirect(oauth)
+      ? createCredentialGroupCompletionRedirect(oauth, attempt.completionId)
       : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { ...focus, oauth })
   if (limited) {
     return failureRedirect('rate_limited')
@@ -74,7 +74,7 @@ export async function handleCredentialGroupOAuthCallback({
       request,
     })
     return attempt.completionRedirect
-      ? createCredentialGroupCompletionRedirect()
+      ? createCredentialGroupCompletionRedirect(undefined, attempt.completionId)
       : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
           ...focus,
           connected: attempt.optionId,

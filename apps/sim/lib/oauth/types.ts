@@ -237,7 +237,7 @@ export interface Credential {
   id: string
   name: string
   provider: OAuthProvider
-  type?: 'oauth' | 'service_account'
+  type?: 'oauth' | 'service_account' | 'managed_oauth'
   serviceId?: string
   lastUsed?: string
   isDefault?: boolean

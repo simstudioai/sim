@@ -1,9 +1,11 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment, mcpServers } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { resolveMcpWorkspaceContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
@@ -39,14 +41,29 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
     ) {
       return { servers: [], tools: [] }
     }
+    const organizationId = context.workspaceOrganizationId
+    if (!organizationId) return { servers: [], tools: [] }
+    const group = await loadScopedAccountsCredentialListContext({
+      kind: 'organization',
+      organizationId,
+    })
+    if (!group) return { servers: [], tools: [] }
+    await requireOrganizationAccountsWorkspaceAccess({
+      ...context,
+      organizationId,
+      credentialGroupId: group.credentialGroupId,
+    })
     const managedCatalogScope = () =>
       and(
-        eq(credential.workspaceId, context.workspaceId),
+        eq(credential.organizationId, organizationId),
+        eq(credentialGroup.id, group.credentialGroupId),
+        eq(credential.mcpOauthConfigVersion, mcpServers.oauthConfigVersion),
         eq(credential.type, 'managed_mcp'),
         eq(credential.managedOauthStatus, 'active'),
         eq(credentialGroup.status, 'active'),
+        isNotNull(credentialGroupEnrollment.userId),
         inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
-        eq(mcpServers.workspaceId, context.workspaceId),
+        eq(mcpServers.organizationId, organizationId),
         eq(mcpServers.authType, 'oauth'),
         eq(mcpServers.enabled, true),
         isNull(mcpServers.deletedAt),
@@ -109,9 +126,13 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
             .where(
               and(
                 managedCatalogScope(),
-                inArray(
-                  credential.id,
-                  metadataRows.map((row) => row.id)
+                or(
+                  ...metadataRows.map((row) =>
+                    and(
+                      eq(credential.id, row.id),
+                      sql`COALESCE(octet_length(${credential.mcpTools}::text), 0) <= ${row.toolSnapshotBytes}`
+                    )
+                  )
                 )
               )
             )
@@ -134,6 +155,8 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
     return {
       servers: rows.map((row) => ({
         id: row.id,
+        canonicalServerId: row.serverId,
+        canonicalServerName: row.serverName,
         workspaceId: context.workspaceId,
         name: `${row.serverName} — ${row.email}`,
         ...(row.serverDescription ? { description: row.serverDescription } : {}),
@@ -152,6 +175,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
           description: tool.description,
           inputSchema: requireMcpToolSchema(tool.inputSchema),
           serverId: row.id,
+          canonicalServerId: row.serverId,
           serverName: `${row.serverName} — ${row.email}`,
           managedConnectorId: row.managedConnectorId,
         }))

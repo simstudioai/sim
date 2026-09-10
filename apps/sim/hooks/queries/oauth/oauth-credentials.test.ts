@@ -10,7 +10,7 @@ import {
   listOrganizationCredentialsContract,
   listOrganizationOAuthCredentialsContract,
 } from '@/lib/api/contracts/organization-credentials'
-import { fetchOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
 
 beforeEach(() => {
   mocks.request.mockReset()
@@ -71,6 +71,34 @@ describe('connector credential listing', () => {
       type: 'service_account',
     })
     expect(credentials[1]).not.toHaveProperty('displayName')
+  })
+
+  it('requests own managed accounts only for the isolated organization browsing cache', async () => {
+    const memberAccount = {
+      id: 'managed-1',
+      name: 'My Jira',
+      provider: 'jira',
+      type: 'managed_oauth',
+    }
+    const signal = new AbortController().signal
+    mocks.request.mockImplementation((contract) =>
+      Promise.resolve({
+        credentials: contract === listOrganizationOAuthCredentialsContract ? [memberAccount] : [],
+      })
+    )
+    await expect(
+      fetchOAuthCredentials(
+        { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
+        signal
+      )
+    ).resolves.toEqual([memberAccount])
+    expect(mocks.request).toHaveBeenCalledWith(listOrganizationOAuthCredentialsContract, {
+      query: { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
+      signal,
+    })
+    expect(oauthCredentialKeys.list('jira', undefined, undefined, 'org-1', 'browsing')).not.toEqual(
+      oauthCredentialKeys.list('jira', undefined, undefined, 'org-1')
+    )
   })
 
   it('does not request service accounts for a provider without service-account support', async () => {

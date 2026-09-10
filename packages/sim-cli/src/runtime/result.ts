@@ -293,7 +293,7 @@ export function renderPage(
     format,
     page.data,
     spec.columns ? columnsFrom(spec.columns) : inferColumns(page.data, spec.expand),
-    page
+    { ...page, ...truncationMetadata(envelope) }
   )
 }
 
@@ -316,7 +316,7 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
  *
  * Matched by shape rather than listed per command, so a flag added to a route
  * envelope is surfaced the day it lands. Structured list output carries data
- * and nextCursor; truncation flags are reported separately.
+ * and nextCursor along with these boolean flags; human-readable warnings remain on stderr.
  */
 const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
 
@@ -331,14 +331,24 @@ const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
  */
 const NEGATED_TRUNCATION_FLAG = /^(?:not|un|non|never)Truncated$|(?:Not|Un|Non|Never)Truncated$/
 
+/** Preserves declared boolean truncation fields without projecting user-owned row values. */
+function truncationMetadata(container: unknown): Record<string, boolean> {
+  if (!container || typeof container !== 'object' || Array.isArray(container)) return {}
+  const metadata: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(container))
+    if (
+      typeof value === 'boolean' &&
+      TRUNCATION_FLAG.test(key) &&
+      !NEGATED_TRUNCATION_FLAG.test(key)
+    )
+      metadata[key] = value
+  return metadata
+}
+
 /** The flags one object raised, in the spelling the wire used. */
 function truncationFlags(container: unknown): string[] {
-  if (!container || typeof container !== 'object' || Array.isArray(container)) return []
-  return Object.entries(container)
-    .filter(
-      ([key, value]) =>
-        value === true && TRUNCATION_FLAG.test(key) && !NEGATED_TRUNCATION_FLAG.test(key)
-    )
+  return Object.entries(truncationMetadata(container))
+    .filter(([, value]) => value)
     .map(([key]) => key)
 }
 
@@ -368,12 +378,11 @@ function responseTruncationFlags(envelope: unknown): string[] {
  */
 export function foldPageEnvelope(current: unknown, page: unknown): unknown {
   if (current === undefined) return page
-  const raised = truncationFlags(page)
-  if (raised.length === 0 || !current || typeof current !== 'object') return current
-  return {
-    ...(current as Record<string, unknown>),
-    ...Object.fromEntries(raised.map((flag) => [flag, true])),
-  }
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return current
+  const merged = { ...(current as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(truncationMetadata(page)))
+    merged[key] = merged[key] === true || value
+  return merged
 }
 
 /** `toolNamesTruncated` as a reader says it. */

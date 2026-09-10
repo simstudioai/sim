@@ -244,6 +244,7 @@ function createInternalToolOperationContext(
     executionId: context.executionId,
     userId: context.userId,
     executorDelegationOrigin: context.executorDelegationOrigin,
+    mcpBlockId: context.mcpBlockId,
     copilotToolExecution: context.copilotToolExecution,
     billingAttribution: context.metadata.billingAttribution,
     callChain: context.callChain,

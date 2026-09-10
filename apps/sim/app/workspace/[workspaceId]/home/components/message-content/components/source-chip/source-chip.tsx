@@ -23,11 +23,16 @@ export const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new M
   Object.entries(blockTypeToIconMap).map(([type, icon]) => [stripVersionSuffix(type), icon])
 )
 
-/** Chip label: the site name the model supplied, else the URL's hostname without a `www.` prefix. */
-export function sourceLabel(source: SourceTagData): string {
+/** The source's site or provider, separate from its document title. */
+export function sourceSiteName(source: SourceTagData): string {
   const siteName = source.siteName?.trim()
   if (siteName) return siteName
   return (externalLinkHostname(source.url) ?? source.url).replace(/^www\./, '')
+}
+
+/** Citations identify the document; source metadata is the fallback when its title is unavailable. */
+export function sourceLabel(source: SourceTagData): string {
+  return source.title?.trim() || sourceSiteName(source)
 }
 
 interface SourceChipProps {
@@ -36,13 +41,16 @@ interface SourceChipProps {
 
 /**
  * A cited document as a small round pill — the connector's brand mark or the
- * site favicon, then the site name — used inline at the citation point and
+ * site favicon, then the document title — used inline at the citation point and
  * again in the footer strip. Built on the chip fill and hover tokens at a 20px
  * height so it sits inside a line of prose; the 30px `Chip` is the wrong scale
  * for a citation. Opens the document like any external link in the reply.
  */
 export function SourceChip({ source }: SourceChipProps) {
   const hostname = externalLinkHostname(source.url)
+  /** Slack's connector prefixes channel titles with `#channel: `; direct messages omit `#`. */
+  const slackChannel =
+    source.connectorType === 'slack' ? source.title?.match(/^(#[^:\s]+): /)?.[1] : undefined
   const ConnectorIcon = source.connectorType
     ? BRAND_ICON_BY_BASE_TYPE.get(source.connectorType)
     : undefined
@@ -71,17 +79,17 @@ export function SourceChip({ source }: SourceChipProps) {
               onError={hideBrokenFavicon}
             />
           ) : null}
-          <OverflowText label={sourceLabel(source)} tooltipEnabled={false} />
+          <OverflowText label={slackChannel ?? sourceLabel(source)} tooltipEnabled={false} />
         </a>
       </Tooltip.Trigger>
-      <Tooltip.Content>
+      <Tooltip.Content className='whitespace-normal [overflow-wrap:anywhere]'>
         {source.title ? (
-          <span className='flex flex-col gap-0.5'>
+          <span className='flex min-w-0 flex-col gap-0.5'>
             <span>{source.title}</span>
-            <span className='break-all text-[var(--text-muted)]'>{source.url}</span>
+            <span className='text-[var(--text-muted)]'>{source.url}</span>
           </span>
         ) : (
-          <span className='break-all'>{source.url}</span>
+          <span>{source.url}</span>
         )}
       </Tooltip.Content>
     </Tooltip.Root>

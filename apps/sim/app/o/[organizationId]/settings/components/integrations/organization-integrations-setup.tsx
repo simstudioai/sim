@@ -4,8 +4,13 @@ import { useState } from 'react'
 import { ChipConfirmModal, ChipLink, ChipModalError, Switch, toast } from '@sim/emcn'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import {
+  canConnectWithDefaults,
+  getConnectorAccessAvailability,
+  SEARCH_SOURCE_TYPES,
+} from '@/lib/sim-search/connectors'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
@@ -56,7 +61,7 @@ export function OrganizationIntegrationsSetup() {
 
   return (
     <SettingsPanel
-      search={{ value: search, onChange: setSearch, placeholder: 'Search integrations...' }}
+      search={{ value: search, onChange: setSearch, placeholder: 'Search sources...' }}
     >
       {availability.integrationAvailabilityError && (
         <SettingsQueryErrorState
@@ -79,7 +84,7 @@ export function OrganizationIntegrationsSetup() {
         ) : overview.isPending ? (
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visible.length === 0 ? (
-          <SettingsEmptyState variant='inline'>No matching integrations</SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>No matching sources</SettingsEmptyState>
         ) : (
           visible.map(([type, meta]) => {
             const provider = providers.get(type)
@@ -97,12 +102,8 @@ export function OrganizationIntegrationsSetup() {
             )
             const available = access.admin || access.members
             const hasSources = sourceCount > 0
-            let description = hasSources
-              ? `${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'}`
-              : approved
-                ? 'Needs setup'
-                : undefined
-            if (approved && provider?.status === 'needs_attention') description = 'Needs attention'
+            const manage = hasSources || canConnectWithDefaults(meta)
+            let description = provider ? organizationSearchStatusLabel(provider) : undefined
             if (!hasSources && availability.isIntegrationAvailabilityReady && !available)
               description = 'Unavailable in this deployment'
             return (
@@ -117,10 +118,10 @@ export function OrganizationIntegrationsSetup() {
                     {(hasSources || (approved && available)) && (
                       <ChipLink
                         href={organizationRoutes(organization.id).searchProvider(type)}
-                        variant={hasSources ? undefined : 'primary'}
-                        aria-label={`${hasSources ? 'Manage' : 'Set up'} ${meta.name}`}
+                        variant={manage ? undefined : 'primary'}
+                        aria-label={`${manage ? 'Manage' : 'Set up'} ${meta.name}`}
                       >
-                        {hasSources ? 'Manage' : 'Set up'}
+                        {manage ? 'Manage' : 'Set up'}
                       </ChipLink>
                     )}
                     <Switch

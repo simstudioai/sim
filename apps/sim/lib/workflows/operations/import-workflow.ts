@@ -150,7 +150,7 @@ function unwrapResponseEnvelope(payload: unknown): unknown {
  * effective one — a caller could store an unbounded name simply by embedding it
  * in the payload instead of passing it as a field.
  */
-function resolveImportedMetadata(
+export function resolveImportedMetadata(
   rawPayload: unknown,
   overrideName?: string,
   overrideDescription?: string

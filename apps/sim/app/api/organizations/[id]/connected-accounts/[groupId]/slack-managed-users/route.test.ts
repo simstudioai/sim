@@ -20,8 +20,6 @@ import { POST } from '@/app/api/organizations/[id]/connected-accounts/[groupId]/
 const body = {
   appId: 'A123',
   teamId: 'T123',
-  clientId: 'fixture-client-id',
-  clientSecret: 'fixture-client-secret',
 }
 const context = { params: Promise.resolve({ id: 'org-a', groupId: 'group-a' }) }
 function request(input: unknown = body) {
@@ -43,7 +41,7 @@ beforeEach(() => {
 })
 
 describe('organization Slack setup route', () => {
-  it('authenticates before parsing setup secrets', async () => {
+  it('authenticates before parsing setup input', async () => {
     mocks.session.mockResolvedValue(null)
     const response = await POST(request({}), context)
     expect(response.status).toBe(401)
@@ -63,6 +61,12 @@ describe('organization Slack setup route', () => {
 
   it('rejects a client-supplied workspace owner', async () => {
     const response = await POST(request({ ...body, workspaceId: 'workspace-a' }), context)
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it.each(['clientId', 'clientSecret'])('rejects a client-supplied OAuth %s', async (field) => {
+    const response = await POST(request({ ...body, [field]: 'client-supplied-value' }), context)
     expect(response.status).toBe(400)
     expect(mocks.execute).not.toHaveBeenCalled()
   })

@@ -3,7 +3,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { parseGitHubRepository } from '@/lib/oauth/github-repository'
 import { githubConnectorMeta } from '@/connectors/github/meta'
 import { fetchGitHubWithRetry as fetchWithRetry } from '@/connectors/github/request'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -52,28 +54,6 @@ function isBinaryBuffer(buf: Buffer): boolean {
     if (buf[i] === 0) return true
   }
   return false
-}
-
-/**
- * Parses the repository string into owner and repo.
- */
-function parseRepo(repository: string): { owner: string; repo: string } {
-  const cleaned = repository
-    .trim()
-    .replace(/^https?:\/\/github\.com\//i, '')
-    .replace(/\/$/, '')
-    .replace(/\.git$/, '')
-  const parts = cleaned.split('/')
-  if (
-    parts.length !== 2 ||
-    !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(parts[0] ?? '') ||
-    !/^[a-z\d_.-]+$/i.test(parts[1] ?? '') ||
-    parts[1] === '.' ||
-    parts[1] === '..'
-  ) {
-    throw new Error(`Invalid repository format: "${repository}". Use "owner/repo".`)
-  }
-  return { owner: parts[0], repo: parts[1] }
 }
 
 /**
@@ -180,7 +160,7 @@ async function repositoryRequestError(
   return new GitHubApiError(message, response.status)
 }
 
-/** Member sources follow the repository default; existing workspace sources retain main. */
+/** Search sources follow the repository default; existing workspace sources retain main. */
 async function resolveBranch(
   accessToken: string,
   owner: string,
@@ -191,7 +171,8 @@ async function resolveBranch(
 ): Promise<string> {
   const configuredBranch = typeof sourceConfig.branch === 'string' ? sourceConfig.branch.trim() : ''
   if (configuredBranch) return configuredBranch
-  if (!isPerMemberListing(syncContext)) return 'main'
+  const isInstallationSource = typeof sourceConfig.githubRepositoryId === 'string'
+  if (!isPerMemberListing(syncContext) && !isInstallationSource) return 'main'
   if (typeof syncContext?.githubBranch === 'string') return syncContext.githubBranch
 
   const response = await fetchWithRetry(
@@ -316,7 +297,7 @@ async function fetchBlobContent(
     throw new ConnectorFileTooLargeError(maxBytes)
   }
   if (isBinaryBuffer(buffer)) return null
-  return buffer.toString('utf8')
+  return decodeTextBuffer(buffer).text
 }
 
 /** Resolves links within one snapshot; Contents can truncate dereferenced targets at 1 MiB. */
@@ -405,7 +386,7 @@ export const githubConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const { owner, repo } = parseRepo(sourceConfig.repository as string)
+    const { owner, repo } = parseGitHubRepository(sourceConfig.repository as string)
     const position = readCursor(cursor, syncContext)
     const branch =
       position?.branch ?? (await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext))
@@ -510,7 +491,7 @@ export const githubConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const { owner, repo } = parseRepo(sourceConfig.repository as string)
+    const { owner, repo } = parseGitHubRepository(sourceConfig.repository as string)
     const path = externalId
 
     try {
@@ -578,7 +559,7 @@ export const githubConnector: ConnectorConfig = {
     let owner: string
     let repo: string
     try {
-      const parsed = parseRepo(repository)
+      const parsed = parseGitHubRepository(repository)
       owner = parsed.owner
       repo = parsed.repo
     } catch (error) {

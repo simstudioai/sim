@@ -2,46 +2,22 @@
 import { act } from 'react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   people: vi.fn(),
   resend: vi.fn(),
   revoke: vi.fn(),
-  disconnect: vi.fn(),
   reset: vi.fn(),
   resendState: { isPending: false, error: null as Error | null },
   revokeState: { isPending: false, error: null as Error | null },
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccountPeople: mocks.people,
-  usePersonalOrganizationAccounts: () => ({
-    data: {
-      pages: [
-        {
-          accounts: [
-            {
-              credentialId: 'credential-1',
-              displayName: 'Personal Gmail',
-              organizationName: 'Example organization',
-              providerId: 'gmail',
-              status: 'active',
-              canReconnect: true,
-            },
-          ],
-        },
-      ],
-    },
-  }),
   useResendOrganizationAccountInvitation: () => ({ ...mocks.resendState, mutate: mocks.resend }),
   useRevokeOrganizationAccountEnrollment: () => ({
     ...mocks.revokeState,
     mutate: mocks.revoke,
-    reset: mocks.reset,
-  }),
-  useReconnectPersonalOrganizationAccount: () => ({}),
-  useDisconnectPersonalOrganizationAccount: () => ({
-    mutate: mocks.disconnect,
     reset: mocks.reset,
   }),
 }))
@@ -51,7 +27,6 @@ vi.mock('@/ee/credential-groups/components/organization-account-invite-modal', (
 
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
-import { PersonalOrganizationAccounts } from '@/ee/credential-groups/components/personal-organization-accounts'
 
 let root: Root
 let container: HTMLDivElement
@@ -111,11 +86,6 @@ async function selectPersonAction(label: string) {
   return action
 }
 
-async function openConfirmation(label: string) {
-  if (label === 'Revoke') await selectPersonAction(label)
-  else await act(async () => button(container, label).click())
-}
-
 async function renderPeople(searchConnection?: { optionId: string; providerName: string }) {
   await act(async () =>
     root.render(
@@ -156,58 +126,28 @@ it('keeps the compact People rows and resends from the actions menu', async () =
   )
 })
 
-const cases = [
-  {
-    label: 'Revoke',
-    component: <OrganizationAccountPeople organizationId='organization-1' />,
-    mutation: mocks.revoke,
-    target: 'person@example.com',
-    input: { organizationId: 'organization-1', enrollmentId: 'enrollment-1' },
-  },
-  {
-    label: 'Disconnect',
-    component: <PersonalOrganizationAccounts />,
-    mutation: mocks.disconnect,
-    target: 'Personal Gmail',
-    input: 'credential-1',
-  },
-] as const
-
-describe.each(cases)(
-  '$label organization account access',
-  ({ label, component, mutation, target, input }) => {
-    it('requires confirmation, allows cancellation, and never submits from an unfocused Enter', async () => {
-      await act(async () =>
-        root.render(
-          <NuqsTestingAdapter hasMemory>
-            <SettingsHeaderProvider>
-              <SettingsHeaderShell>{component}</SettingsHeaderShell>
-            </SettingsHeaderProvider>
-          </NuqsTestingAdapter>
-        )
-      )
-      await openConfirmation(label)
-      let dialog = document.querySelector('[role="dialog"]')
-      expect(dialog?.textContent).toContain(target)
-      expect(mutation).not.toHaveBeenCalled()
-      await act(async () =>
-        dialog?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-      )
-      expect(mutation).not.toHaveBeenCalled()
-      if (!dialog) throw new Error('Missing confirmation dialog')
-      await act(async () => button(dialog, 'Cancel').click())
-      expect(mutation).not.toHaveBeenCalled()
-      await openConfirmation(label)
-      dialog = document.querySelector('[role="dialog"]')
-      if (!dialog) throw new Error('Missing confirmation dialog')
-      await act(async () => button(dialog, label).click())
-      expect(mutation).toHaveBeenCalledExactlyOnceWith(
-        input,
-        expect.objectContaining({ onSuccess: expect.any(Function) })
-      )
-    })
-  }
-)
+it('requires revoke confirmation, allows cancellation, and never submits from an unfocused Enter', async () => {
+  await renderPeople()
+  await selectPersonAction('Revoke')
+  let dialog = document.querySelector('[role="dialog"]')
+  expect(dialog?.textContent).toContain('person@example.com')
+  expect(mocks.revoke).not.toHaveBeenCalled()
+  await act(async () =>
+    dialog?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  expect(mocks.revoke).not.toHaveBeenCalled()
+  if (!dialog) throw new Error('Missing confirmation dialog')
+  await act(async () => button(dialog, 'Cancel').click())
+  expect(mocks.revoke).not.toHaveBeenCalled()
+  await selectPersonAction('Revoke')
+  dialog = document.querySelector('[role="dialog"]')
+  if (!dialog) throw new Error('Missing confirmation dialog')
+  await act(async () => button(dialog, 'Revoke').click())
+  expect(mocks.revoke).toHaveBeenCalledExactlyOnceWith(
+    { organizationId: 'organization-1', enrollmentId: 'enrollment-1' },
+    expect.objectContaining({ onSuccess: expect.any(Function) })
+  )
+})
 
 it('restores the existing People URL search and requests server-filtered results', async () => {
   mocks.people.mockReturnValue({ data: { pages: [{ enrollments: [] }] }, hasNextPage: false })

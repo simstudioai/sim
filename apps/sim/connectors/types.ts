@@ -14,7 +14,7 @@ export type ConnectorAuthConfig =
       requiredScopes?: string[]
       /** Scope requirements for the selected source; omitted configurations use requiredScopes. */
       requiredScopesForConfig?: (sourceConfig: Record<string, unknown>) => string[]
-      /** Restricts permission-mirroring crawls when ordinary OAuth cannot grant directory access. */
+      /** Credential type required for permission-mirroring crawls. */
       adminCredentialType?: 'service_account'
       /** Optional token authentication for workspace crawls; member access always uses OAuth. */
       apiKey?: { label: string; placeholder?: string }
@@ -30,6 +30,10 @@ export type ConnectorAuthConfig =
        * genuinely coincide, which is the common case.
        */
       serviceAccountScopes?: string[]
+      /** Scope override for central crawls that read the source directory and mirror permissions. */
+      adminServiceAccountScopes?: string[]
+      /** Fixed scopes for per-user tokens minted during a delegated service-account crawl. */
+      serviceAccountDelegationScopes?: string[]
       /**
        * The config field naming the person a service-account credential acts
        * as, through domain-wide delegation.
@@ -266,6 +270,8 @@ export interface SyncResult {
 export interface ConnectorConfigField {
   id: string
   title: string
+  /** Label when configuring a central crawl that mirrors source permissions. */
+  titleInAdminMode?: string
   type: 'short-input' | 'dropdown' | 'selector'
   placeholder?: string
   required?: boolean
@@ -274,8 +280,14 @@ export interface ConnectorConfigField {
   /** Secondary Search setup controls, shown in the shared More options disclosure. */
   setupGroup?: 'options'
   description?: string
+  /** Setup guidance specific to a central crawl that mirrors source permissions. */
+  descriptionInAdminMode?: string
   /** Excludes settings unused by member crawls and account-local selectors that need a manual sibling. */
   hideInMemberMode?: true
+  /** Excludes account-local controls that cannot describe a company-wide source. */
+  hideInAdminMode?: true
+  /** Only applies to a central crawl that mirrors source permissions. */
+  showInAdminModeOnly?: true
   options?: { label: string; id: string }[]
 
   /** Selector key from the selector registry (used when type is 'selector') */
@@ -313,6 +325,12 @@ export interface ConnectorMeta {
   search?: true
   /** Source setup guide shown only in Search connection flows. */
   searchDocsUrl?: string
+  /**
+   * Settings a Search source starts from when nobody chose a value, such as a
+   * bounded history window for a mailbox. Explicit settings always win, and
+   * knowledge-base connectors ignore these defaults.
+   */
+  searchDefaultSourceConfig?: Readonly<Record<string, string>>
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */

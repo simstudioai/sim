@@ -4,6 +4,7 @@ import {
   isPayloadSizeLimitError,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -427,7 +428,6 @@ export const PIPELINE_PARSED_MIME_TYPES: ReadonlyMap<string, string> = new Map([
   ['xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
   ['xlsb', 'application/vnd.ms-excel.sheet.binary.macroEnabled.12'],
   ['xltx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.template'],
-  ['ppt', 'application/vnd.ms-powerpoint'],
   ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   ['pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
   ['potx', 'application/vnd.openxmlformats-officedocument.presentationml.template'],
@@ -497,16 +497,18 @@ export function pipelineParsedMimeType(fileName: string): string | undefined {
  *
  * Only for formats that are already text — anything the shared parsers handle is
  * delivered to them verbatim instead, via {@link pipelineParsedMimeType}. HTML is
- * additionally reduced to plain text; everything else is a UTF-8 decode.
+ * additionally reduced to plain text; everything else is decoded with the shared
+ * BOM/UTF-8/Windows-1252 detection so a Latin-1 file never indexes as mojibake.
  */
 export function extractConnectorText(buffer: Buffer, fileName: string): string {
   const extension = connectorFileExtension(fileName)
+  const { text } = decodeTextBuffer(buffer)
 
   if (extension === 'html' || extension === 'htm') {
-    return htmlToPlainText(buffer.toString('utf8'))
+    return htmlToPlainText(text)
   }
 
-  return buffer.toString('utf8')
+  return text
 }
 
 /**

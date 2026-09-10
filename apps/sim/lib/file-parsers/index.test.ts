@@ -59,7 +59,6 @@ vi.mock('@/lib/file-parsers/index', () => {
     txt: { parseFile: mockTxtParseFile },
     md: { parseFile: mockMdParseFile },
     pptx: { parseFile: mockPptxParseFile },
-    ppt: { parseFile: mockPptxParseFile },
     html: { parseFile: mockHtmlParseFile },
     htm: { parseFile: mockHtmlParseFile },
   }
@@ -232,22 +231,6 @@ describe('File Parsers', () => {
       expect(result).toEqual(expectedResult)
     })
 
-    it('should parse PPT files successfully', async () => {
-      const expectedResult = {
-        content: 'Parsed PPTX content',
-        metadata: {
-          slideCount: 5,
-          extractionMethod: 'officeparser',
-        },
-      }
-
-      mockPptxParseFile.mockResolvedValueOnce(expectedResult)
-
-      const result = await parseFile('/test/files/presentation.ppt')
-
-      expect(result).toEqual(expectedResult)
-    })
-
     it('should parse HTML files successfully', async () => {
       const expectedResult = {
         content: 'Parsed HTML content',
@@ -304,13 +287,13 @@ describe('File Parsers', () => {
       expect(isSupportedFileType('txt')).toBe(true)
       expect(isSupportedFileType('md')).toBe(true)
       expect(isSupportedFileType('pptx')).toBe(true)
-      expect(isSupportedFileType('ppt')).toBe(true)
       expect(isSupportedFileType('html')).toBe(true)
       expect(isSupportedFileType('htm')).toBe(true)
     })
 
     it('should return false for unsupported file types', () => {
       expect(isSupportedFileType('png')).toBe(false)
+      expect(isSupportedFileType('ppt')).toBe(false)
       expect(isSupportedFileType('unknown')).toBe(false)
     })
 

@@ -134,9 +134,13 @@ export class BlockExecutor {
       []
     )
     const inputDisplayRegistry = blockResolvedSecretTraceRegistry
-    const blockCtx = blockResolvedSecretTraceRegistry
-      ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
-      : ctx
+    const blockCtx: ExecutionContext = {
+      ...ctx,
+      mcpBlockId: block.id,
+      ...(blockResolvedSecretTraceRegistry
+        ? { resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
+        : {}),
+    }
     let registryCommitted = false
     const commitBlockRegistry = () => {
       const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
@@ -358,6 +362,9 @@ export class BlockExecutor {
             workspaceId: blockCtx.workspaceId,
             workflowId: blockCtx.workflowId,
             executionId: blockCtx.executionId,
+            largeValueExecutionIds: blockCtx.largeValueExecutionIds,
+            largeValueKeys: blockCtx.largeValueKeys,
+            allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
             userId: blockCtx.userId,
           },
         })

@@ -454,6 +454,21 @@ describe('PDF OCR triage', () => {
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
   })
 
+  /**
+   * The parser re-routes by sniffed bytes, so an HTML error page saved as `.pdf`
+   * comes back as decoded text that would pass the text-layer check. It is not a
+   * PDF and OCR would fail on it terminally, so it must be rejected up front.
+   */
+  it('rejects a non-PDF file named .pdf instead of indexing its text or sending it to OCR', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: 'Access denied. Your request was blocked by the firewall. '.repeat(40),
+      metadata: { detectedType: 'html', warning: 'parsed as .html instead of .pdf' },
+    })
+
+    await expect(parse()).rejects.toMatchObject({ code: 'invalid_file' })
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+  })
+
   it('rejects password-protected PDFs before provider admission', async () => {
     mockParseBuffer.mockRejectedValue(
       Object.assign(new Error('Password needed'), { name: 'PasswordException' })

@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  loadWorkflow: vi.fn(),
   loadContext: vi.fn(),
   getServer: vi.fn(),
   resolvePermission: vi.fn(),
@@ -12,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   executeTool: vi.fn(),
   telemetry: vi.fn(),
+}))
+
+vi.mock('@sim/workflow-persistence', () => ({
+  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -60,7 +66,7 @@ const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   issuedAt: new Date('2026-08-27T00:00:00.000Z'),
   expiresAt: new Date('2099-08-27T00:05:00.000Z'),
   delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-  resourceScope: { mcpServerId: SERVER.id },
+  resourceScope: { mcpServerId: SERVER.id, mcpBlockId: 'block-1' },
 }
 const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -85,7 +91,7 @@ const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
       workflowId: 'workflow-1',
     },
   },
-  resourceScope: { mcpServerId: SERVER.id },
+  resourceScope: { mcpServerId: SERVER.id, mcpBlockId: 'block-1' },
 }
 const COMPATIBILITY_ACTOR_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   ...ACTORLESS_PRINCIPAL,
@@ -101,6 +107,20 @@ const COMPATIBILITY_ACTOR_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
 describe('executeMcpToolUseCase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    const savedWorkflow = {
+      workspaceId: 'workspace-1',
+      blocks: {
+        'block-1': {
+          type: 'mcp',
+          enabled: true,
+          subBlocks: { server: { value: SERVER.id }, tool: { value: 'lookup' } },
+        },
+      },
+    }
+    mocks.loadWorkflow.mockResolvedValue(savedWorkflow)
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
     mocks.loadContext.mockResolvedValue(WORKSPACE)
     mocks.getServer.mockResolvedValue(SERVER)
     mocks.resolvePermission.mockResolvedValue('read')
@@ -319,7 +339,7 @@ describe('executeMcpToolUseCase', () => {
           arguments: { enabled: true },
         },
       })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid tool arguments' })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid MCP operation arguments' })
 
     expect(mocks.executeTool).not.toHaveBeenCalled()
   })
@@ -340,5 +360,143 @@ describe('executeMcpToolUseCase', () => {
     ).rejects.toThrow('socket hang up')
 
     expect(mocks.executeTool).toHaveBeenCalledOnce()
+  })
+
+  it('does not execute after discovery fails or loses the requested operation', async () => {
+    const input = {
+      workspaceId: WORKSPACE.workspaceId,
+      serverId: SERVER.id,
+      toolName: 'lookup',
+      arguments: { count: 1 },
+    }
+    mocks.discoverServerTools.mockRejectedValueOnce(new Error('incomplete discovery'))
+    await expect(executeMcpToolUseCase.execute({ principal: PRINCIPAL, input })).rejects.toThrow(
+      'incomplete discovery'
+    )
+    mocks.discoverServerTools.mockResolvedValueOnce([])
+    await expect(executeMcpToolUseCase.execute({ principal: PRINCIPAL, input })).rejects.toThrow(
+      'Tool not found'
+    )
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('rechecks a saved block restriction changed during discovery', async () => {
+    mocks.loadWorkflow.mockResolvedValueOnce(await mocks.loadWorkflow()).mockResolvedValue({
+      workspaceId: WORKSPACE.workspaceId,
+      blocks: {
+        'block-1': {
+          type: 'agent',
+          subBlocks: {
+            tools: {
+              value: [
+                {
+                  type: 'mcp-server-advanced',
+                  params: { serverId: SERVER.id },
+                  operationPolicy: { mode: 'allow', operations: [] },
+                },
+              ],
+            },
+          },
+        },
+      },
+    })
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+          arguments: { count: 1 },
+        },
+      })
+    ).rejects.toThrow('not permitted')
+    expect(mocks.discoverServerTools).toHaveBeenCalledWith(
+      'user-1',
+      SERVER.id,
+      WORKSPACE.workspaceId,
+      'skip-cache',
+      undefined,
+      { signal: undefined, requireComplete: true }
+    )
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it.each(['<upstream.operation>', 'lookup'])(
+    'validates Advanced JSON arguments for %s without generated-field coercion',
+    async (tool) => {
+      mocks.loadWorkflow.mockResolvedValue({
+        workspaceId: WORKSPACE.workspaceId,
+        blocks: {
+          'block-1': {
+            type: 'mcp',
+            data: { canonicalModes: { server: 'basic', tool: 'advanced' } },
+            subBlocks: {
+              serverSelector: { value: SERVER.id },
+              operation: { value: 'run' },
+              toolReference: { value: tool },
+            },
+          },
+        },
+      })
+      const input = {
+        workspaceId: WORKSPACE.workspaceId,
+        serverId: SERVER.id,
+        toolName: 'lookup',
+        arguments: { count: '2' },
+      }
+      await expect(executeMcpToolUseCase.execute({ principal: PRINCIPAL, input })).rejects.toThrow(
+        'Invalid MCP operation arguments'
+      )
+      expect(mocks.executeTool).not.toHaveBeenCalled()
+      await expect(
+        executeMcpToolUseCase.execute({
+          principal: PRINCIPAL,
+          input: { ...input, arguments: { count: 2 } },
+        })
+      ).resolves.toMatchObject({ success: true })
+    }
+  )
+
+  it('rejects restricted calls before discovery and rejects forged block scope', async () => {
+    const input = {
+      workspaceId: WORKSPACE.workspaceId,
+      serverId: SERVER.id,
+      toolName: 'lookup',
+      arguments: { count: 1 },
+    }
+    mocks.loadWorkflow.mockResolvedValue({
+      workspaceId: WORKSPACE.workspaceId,
+      blocks: {
+        'block-1': {
+          type: 'agent',
+          subBlocks: {
+            tools: {
+              value: [
+                {
+                  type: 'mcp-server-advanced',
+                  params: { serverId: SERVER.id },
+                  operationPolicy: {
+                    mode: 'deny',
+                    operations: ['lookup'],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    })
+    await expect(executeMcpToolUseCase.execute({ principal: PRINCIPAL, input })).rejects.toThrow(
+      'not permitted'
+    )
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: { ...PRINCIPAL, resourceScope: { mcpServerId: SERVER.id } },
+        input,
+      })
+    ).rejects.toThrow('provenance')
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 })

@@ -360,6 +360,54 @@ describe('Slack thread indexing through provider APIs', () => {
     expect(document?.content).toContain('PR approved')
     expect(document?.content).toContain('Deploy tonight')
   })
+
+  it('indexes a rich-text message once when Slack also provides its plain-text fallback', async () => {
+    const text = 'Project Lantern is coordinated by Avery Reed.'
+    channels[0].replies[ROOT] = [
+      {
+        ...root(text),
+        attachments: [{ text: 'Review Friday at 09:30 UTC' }],
+        blocks: [
+          {
+            type: 'rich_text',
+            elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text }] }],
+          },
+        ],
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content.split(text)).toHaveLength(2)
+    expect(document?.content).toContain('Review Friday at 09:30 UTC')
+  })
+
+  it('does not repeat a fallback containing the complete block body', async () => {
+    channels[0].replies[ROOT] = [
+      {
+        ...root('First paragraph\nSecond paragraph'),
+        blocks: ['First paragraph', 'Second paragraph'].map((text) => ({
+          type: 'section',
+          text: { type: 'plain_text', text },
+        })),
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content.split('First paragraph')).toHaveLength(2)
+    expect(document?.content.split('Second paragraph')).toHaveLength(2)
+  })
+
+  it('preserves repeated blocks and distinct fallback information', async () => {
+    channels[0].replies[ROOT] = [
+      {
+        ...root('Deployment status changed'),
+        blocks: ['Ready', 'Ready'].map((text) => ({
+          type: 'section',
+          text: { type: 'plain_text', text },
+        })),
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content).toContain('Deployment status changed\nReady\nReady')
+  })
 })
 
 describe('Slack incomplete and unsafe provider responses', () => {

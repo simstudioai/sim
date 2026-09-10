@@ -27,6 +27,7 @@ import {
   WORKSPACE_ERRORS,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
   v2ActivateWorkflowVersionContract,
@@ -958,12 +959,17 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.export,
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow; workspace-scoped bindings must be selected again after import. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow; Set includeReferences=true to include non-secret source reference identities for mapped import; default exports keep their existing sanitized shape. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
     {
-      query: v2ExportWorkflowContract.query,
+      query: documentedSchema(
+        v2ExportWorkflowContract.query,
+        'ExportWorkflowQuery',
+        'Export workflow query',
+        'Export reference options.'
+      ),
       params: v2ExportWorkflowContract.params,
       response: documentedSchema(
         v2ExportWorkflowContract.response.schema,
@@ -995,13 +1001,18 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.import,
       operationId: 'importWorkflow',
       summary: 'Import Workflow',
-      description: `Create a workflow from a portable export object, bare state, or JSON string. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create an undeployed workflow from a portable export object, bare state, or JSON string. Mapping options require a preview fingerprint and stable request ID; unresolved required configuration creates nothing. Mapped imports return source-to-imported block IDs and an operation receipt. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The imported workflow.'),
     }),
     {
       query: v2ImportWorkflowContract.query,
-      body: v2ImportWorkflowContract.body,
+      body: documentedSchema(
+        v2ImportWorkflowContract.body,
+        'ImportWorkflowBody',
+        'Import workflow input',
+        'Workflow document, destination, and optional reviewed mappings.'
+      ),
       response: documentedSchema(
         v2ImportWorkflowContract.response.schema,
         'ImportWorkflowResponse',
@@ -1476,6 +1487,11 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
     {
+      name: 'Workspace Sync',
+      description:
+        'Portable workflow configuration, workspace forks, push and pull, and durable operation status.',
+    },
+    {
       name: 'Workflows',
       description:
         'Manage and execute workflow definitions, folders, deployment versions, and portable imports and exports.',
@@ -1490,5 +1506,5 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
-  routes,
+  routes: [...routes, ...workspaceSyncOpenApiRoutes],
 })

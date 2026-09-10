@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  loadWorkflow: vi.fn(),
   discoverTools: vi.fn(),
   loadAuthProvider: vi.fn(),
   loadContext: vi.fn(),
@@ -12,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   requireCredentialAccess: vi.fn(),
   resolvePermission: vi.fn(),
   saveToolSnapshot: vi.fn(),
+}))
+
+vi.mock('@sim/workflow-persistence', () => ({
+  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
 }))
 
 vi.mock('@/lib/credentials/managed-mcp', () => ({
@@ -66,7 +72,7 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   audience: 'sim:managed-mcp-credentials',
   issuedAt: new Date(Date.now() - 1_000),
   expiresAt: new Date(Date.now() + 60_000),
-  resourceScope: { credentialId: context.credentialId },
+  resourceScope: { credentialId: context.credentialId, mcpBlockId: 'block-1' },
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
@@ -78,6 +84,23 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
 describe('discoverManagedMcpToolsUseCase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    const savedWorkflow = {
+      workspaceId: 'workspace-1',
+      blocks: {
+        'block-1': {
+          type: 'mcp',
+          enabled: true,
+          subBlocks: {
+            server: { value: context.credentialId },
+            tool: { value: 'search_transcripts' },
+          },
+        },
+      },
+    }
+    mocks.loadWorkflow.mockResolvedValue(savedWorkflow)
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
     mocks.loadContext.mockResolvedValue(context)
     mocks.loadRuntime.mockResolvedValue({
       credentialId: context.credentialId,
@@ -132,6 +155,7 @@ describe('discoverManagedMcpToolsUseCase', () => {
       expect.objectContaining({
         name: 'search_transcripts',
         serverId: context.credentialId,
+        canonicalServerId: context.mcpServerId,
         serverName: context.mcpServerName,
       }),
     ])

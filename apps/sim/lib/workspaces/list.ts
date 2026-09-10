@@ -112,9 +112,8 @@ async function buildWorkspacesWithInviteFlags(
  * the workspace creation policy.
  *
  * Unlike the route, this performs no writes — no default-workspace creation and
- * no orphaned-workflow repair. It exists for the workspace layout's sidebar
- * prefetch, which only runs after host-context authorization has proven the
- * viewer already has at least one accessible workspace.
+ * no orphaned-workflow repair. Sidebar prefetch leaves empty lists uncached so
+ * the client can still reach the route's default-workspace creation path.
  */
 export async function listWorkspacesForViewer(params: {
   userId: string

@@ -3069,6 +3069,7 @@ import {
   manageengineSdpUpdateRequestTool,
   manageengineSdpUpdateSolutionTool,
 } from '@/tools/manageengine_sdp'
+import { mcpListOperationsTool, mcpRunOperationTool } from '@/tools/mcp'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -9611,6 +9612,8 @@ export const tools: Record<string, ExecutableToolConfig> = {
   tinyfish_list_profiles: tinyfishListProfilesTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
+  mcp_list_operations: mcpListOperationsTool,
+  mcp_run_operation: mcpRunOperationTool,
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,

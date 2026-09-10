@@ -240,9 +240,9 @@ export const credentialOperations = {
     id: 'credentials.managed_mcp.use',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    capability: 'integrations.manage',
+    capability: 'mcp_tools.use',
     principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    delegatedServices: ['executor', 'copilot'],
     resourcePolicy: {
       resourceType: 'credential_group',
       action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,

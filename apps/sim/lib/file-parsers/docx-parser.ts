@@ -6,23 +6,27 @@ import {
   isEncryptedOfficeParserError,
   toFileParserError,
 } from '@/lib/file-parsers/errors'
+import {
+  assertHtmlStringWithinLimits,
+  htmlToStructuredText,
+  isHtmlComplexityError,
+} from '@/lib/file-parsers/html-parser'
 import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
+import { isEncryptedOoxmlContainer } from '@/lib/file-parsers/ooxml-encryption'
 import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('DocxParser')
 
-interface MammothMessage {
-  type: 'warning' | 'error'
-  message: string
-}
-
-interface MammothResult {
-  value: string
-  messages: MammothMessage[]
-}
-
+/**
+ * Extracts DOCX text by rendering the document to HTML with mammoth and walking
+ * that HTML with the shared structured-text walker. mammoth's HTML keeps the
+ * heading levels, list nesting, table rows, and footnotes that its raw-text mode
+ * flattens to one paragraph per cell, so the output matches what the HTML parser
+ * produces for the same document. (mammoth's Markdown mode is deprecated and
+ * drops tables, so it is deliberately not used.)
+ */
 export class DocxParser implements FileParser {
   async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
@@ -46,24 +50,29 @@ export class DocxParser implements FileParser {
       let parserReturnedEmpty = false
 
       try {
-        const result = await mammoth.extractRawText({ buffer })
+        const htmlResult = await mammoth.convertToHtml({ buffer })
         options.signal?.throwIfAborted()
 
-        if (result.value && result.value.trim().length > 0) {
-          let htmlResult: MammothResult = { value: '', messages: [] }
-          try {
-            htmlResult = await mammoth.convertToHtml({ buffer })
-          } catch {
-            // HTML conversion is optional
-          }
-          options.signal?.throwIfAborted()
-
+        const structured = this.structuredTextFromHtml(htmlResult.value)
+        if (structured) {
           return {
-            content: sanitizeTextForUTF8(result.value),
+            content: sanitizeTextForUTF8(structured),
+            metadata: {
+              extractionMethod: 'mammoth-html',
+              messages: htmlResult.messages,
+            },
+          }
+        }
+
+        const rawResult = await mammoth.extractRawText({ buffer })
+        options.signal?.throwIfAborted()
+
+        if (rawResult.value && rawResult.value.trim().length > 0) {
+          return {
+            content: sanitizeTextForUTF8(rawResult.value),
             metadata: {
               extractionMethod: 'mammoth',
-              messages: [...result.messages, ...htmlResult.messages],
-              html: htmlResult.value,
+              messages: [...htmlResult.messages, ...rawResult.messages],
             },
           }
         }
@@ -96,6 +105,14 @@ export class DocxParser implements FileParser {
         options.signal?.throwIfAborted()
         logger.warn('officeparser failed:', officeError)
         extractionErrors.push(officeError)
+      }
+
+      if (isEncryptedOoxmlContainer(buffer)) {
+        throw new FileParserError(
+          'encrypted_file',
+          'This document is encrypted or password-protected',
+          extractionErrors.length > 0 ? new AggregateError(extractionErrors) : undefined
+        )
       }
 
       const isZipFile = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b
@@ -139,5 +156,24 @@ export class DocxParser implements FileParser {
       logger.error('DOCX parsing error:', error)
       throw toFileParserError(error, 'invalid_format', 'Failed to parse DOCX buffer')
     }
+  }
+
+  /**
+   * Walks mammoth's HTML rendering under the HTML parser's size caps. A rendering
+   * too large to walk safely falls back to the raw-text path by returning empty,
+   * since mammoth has already materialised the document once at that point.
+   */
+  private structuredTextFromHtml(html: string): string {
+    if (!html || html.trim().length === 0) return ''
+    try {
+      assertHtmlStringWithinLimits(html)
+    } catch (error) {
+      if (isHtmlComplexityError(error)) {
+        logger.warn('mammoth HTML exceeds walker limits, using raw text:', error.message)
+        return ''
+      }
+      throw error
+    }
+    return htmlToStructuredText(html).trim()
   }
 }

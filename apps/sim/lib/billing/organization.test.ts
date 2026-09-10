@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -13,6 +19,7 @@ const {
   mockAssertNoCompetingEnterpriseIssuance,
   mockGetOrganizationIdForSubscriptionReference,
   mockIsSubscriptionOrgScoped,
+  mockSyncUsageLimitsFromSubscription,
 } = vi.hoisted(() => ({
   mockCreateOrganizationWithOwner: vi.fn(),
   mockGetPlanPricing: vi.fn(),
@@ -22,6 +29,7 @@ const {
   mockAssertNoCompetingEnterpriseIssuance: vi.fn(),
   mockGetOrganizationIdForSubscriptionReference: vi.fn(),
   mockIsSubscriptionOrgScoped: vi.fn(),
+  mockSyncUsageLimitsFromSubscription: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -34,7 +42,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 
 vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: vi.fn(),
+  syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
@@ -217,7 +225,46 @@ describe('syncSubscriptionUsageLimits', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockGetOrganizationIdForSubscriptionReference.mockResolvedValue(null)
   })
+
+  it('syncs only the directly referenced personal subscriber', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'user-1' }])
+    queueTableRows(schemaMock.member, [{ userId: 'other-member' }])
+
+    await syncSubscriptionUsageLimits({
+      id: 'sub-personal',
+      plan: 'pro_25000',
+      referenceId: 'user-1',
+      status: 'active',
+    })
+
+    expect(mockGetOrganizationIdForSubscriptionReference).toHaveBeenCalledWith('user-1')
+    expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledExactlyOnceWith('user-1')
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it.each(['team_6000', 'enterprise'])(
+    'preserves personal member limits when syncing an organization %s subscription',
+    async (plan) => {
+      mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('org-1')
+      mockGetPlanPricing.mockReturnValue({ basePrice: 25 })
+      queueTableRows(schemaMock.member, [{ userId: 'member-1' }, { userId: 'member-2' }])
+
+      await syncSubscriptionUsageLimits({
+        id: 'sub-organization',
+        plan,
+        referenceId: 'org-1',
+        status: 'active',
+        seats: 2,
+      })
+
+      expect(mockSyncUsageLimitsFromSubscription).not.toHaveBeenCalled()
+      expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
+      expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.userStats)
+    }
+  )
 
   it('keeps prepaid headroom additive when a Team seat increase raises the base', async () => {
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('org-1')

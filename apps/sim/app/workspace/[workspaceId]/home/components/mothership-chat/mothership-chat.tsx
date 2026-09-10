@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import {
   memo,
   type ReactNode,
@@ -34,6 +35,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import {
   prepareCopyableMarkdown,
   toCopyableMarkdown,
@@ -62,6 +64,7 @@ import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
   messages: ChatMessage[]
@@ -333,6 +336,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 })
 
 export function MothershipChat({
+  SearchConnectionComponent,
   workspaceId,
   composer,
   messages: messagesProp,
@@ -781,6 +785,7 @@ export function MothershipChat({
 
   return (
     <ChatSurfaceProvider
+      SearchConnectionComponent={SearchConnectionComponent}
       chatId={chatId}
       userId={userId}
       onContextAdd={onContextAdd}

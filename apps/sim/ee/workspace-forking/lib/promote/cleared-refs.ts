@@ -11,22 +11,7 @@ import {
   coerceObjectArray,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
-import {
-  buildSubBlockValues,
-  type CanonicalModeOverrides,
-} from '@/lib/workflows/subblocks/visibility'
-import { getBlock } from '@/blocks/registry'
-import { collectForkDependentReconfigs } from '@/ee/workspace-forking/lib/mapping/dependent-reconfigs'
-import {
-  filterExistingForkTargets,
-  loadForkCopyableResourceLabels,
-} from '@/ee/workspace-forking/lib/mapping/resources'
-import { isForkCopyableKind } from '@/ee/workspace-forking/lib/promote/promote-plan'
-import {
-  selectForkSyncBlockingRefs,
-  toForkSyncBlockers,
-} from '@/ee/workspace-forking/lib/promote/sync-blockers'
-import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
+import { collectForkDependentReconfigs } from '@/lib/workflows/references/dependent-reconfigs'
 import {
   createCanonicalModeGates,
   type ForkReference,
@@ -35,7 +20,22 @@ import {
   REQUIRED_KINDS,
   remapForkBlockType,
   remapForkSubBlocks,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
+import {
+  filterExistingForkTargets,
+  loadForkCopyableResourceLabels,
+} from '@/lib/workflows/references/resources'
+import {
+  buildSubBlockValues,
+  type CanonicalModeOverrides,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks/registry'
+import { isForkCopyableKind } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import {
+  selectForkSyncBlockingRefs,
+  toForkSyncBlockers,
+} from '@/ee/workspace-forking/lib/promote/sync-blockers'
+import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**

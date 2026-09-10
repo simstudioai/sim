@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -24,11 +25,9 @@ import {
   type InviteOrganizationAccountPeopleBody,
   inviteOrganizationAccountPeopleContract,
   listOrganizationAccountPeopleContract,
-  listPersonalOrganizationAccountsContract,
   type OrganizationAccountPeopleQuery,
   type RemoveOrganizationAccountMcpProviderParams,
   type ResendOrganizationAccountInvitationQuery,
-  reconnectPersonalOrganizationAccountContract,
   removeOrganizationAccountMcpProviderContract,
   resendOrganizationAccountInvitationContract,
   revokeOrganizationAccountEnrollmentContract,
@@ -39,13 +38,34 @@ import {
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { slackSearchKeys } from '@/hooks/queries/slack-search'
+import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 
+/** Disconnects an owned grant; indexing and source setup do not gate this operation. */
+export function useDisconnectPersonalOrganizationAccount(organizationId: string) {
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  return useMutation({
+    mutationFn: (credentialId: string) =>
+      requestJson(disconnectPersonalOrganizationAccountContract, {
+        params: { credentialId },
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        resetOrganizationSearchAccess(queryClient, organizationId),
+        queryClient.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(organizationId),
+        }),
+      ])
+      router.refresh()
+    },
+  })
+}
+
 export const organizationAccountsKeys = {
   all: ['organization-accounts'] as const,
-  personal: () => [...organizationAccountsKeys.all, 'personal'] as const,
   workspaces: () => [...organizationAccountsKeys.all, 'workspace'] as const,
   workspace: (workspaceId?: string) =>
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
@@ -117,7 +137,6 @@ export function useConfigureOrganizationMcp() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
       ]),
   })
 }
@@ -144,7 +163,6 @@ export function useUpdateOrganizationAccounts() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
         queryClient.invalidateQueries({
           queryKey: slackSearchKeys.organizationManifests(organizationId),
         }),
@@ -294,12 +312,7 @@ export function useRevokeOrganizationAccountEnrollment() {
         params: { id: organizationId, enrollmentId },
       }),
     onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.people(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
-      ]),
+      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
   })
 }
 export function useAddOrganizationAccountMcpProvider() {
@@ -341,39 +354,6 @@ export function useRemoveOrganizationAccountMcpProvider() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
-      ]),
-  })
-}
-
-export function usePersonalOrganizationAccounts() {
-  return useInfiniteQuery({
-    queryKey: organizationAccountsKeys.personal(),
-    staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ signal, pageParam }) =>
-      requestJson(listPersonalOrganizationAccountsContract, {
-        query: { cursor: pageParam },
-        signal,
-      }),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
-  })
-}
-export function useReconnectPersonalOrganizationAccount() {
-  return useMutation({
-    mutationFn: (credentialId: string) =>
-      requestJson(reconnectPersonalOrganizationAccountContract, { params: { credentialId } }),
-  })
-}
-export function useDisconnectPersonalOrganizationAccount() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (credentialId: string) =>
-      requestJson(disconnectPersonalOrganizationAccountContract, { params: { credentialId } }),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.details() }),
       ]),
   })
 }

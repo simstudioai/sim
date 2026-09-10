@@ -32,6 +32,7 @@ interface OrganizationSurfaceViewer {
   isAdmin: boolean
   canInviteMembers: boolean
   canUsePersonalApiKeys: boolean
+  canUseSearchMcp: boolean
 }
 
 /**
@@ -102,6 +103,9 @@ async function resolveOrganizationSurfaceContext(
       canUsePersonalApiKeys:
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),
+      canUseSearchMcp:
+        !capabilityDeniedBy('personal_api_key.use', config) &&
+        !capabilityDeniedBy('oauth_apps.use', config),
     },
     connectedAccountsAvailable,
     searchAccess,

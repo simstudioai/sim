@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
+import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
 
 const {
   mockFilterExisting,
@@ -28,7 +28,7 @@ const {
   mockDetectCascade: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/mapping/resources', () => ({
+vi.mock('@/lib/workflows/references/resources', () => ({
   listForkResourceCandidates: mockListCandidates,
   classifyCredentialResourceType: mockClassifyCredential,
   getWorkspaceEnvKeys: mockGetEnvKeys,
@@ -47,16 +47,17 @@ vi.mock('@/ee/workspace-forking/lib/mapping/cascade', () => ({
   detectForkCascadeReferences: mockDetectCascade,
 }))
 
-vi.mock('@/ee/workspace-forking/lib/remap/remap-references', () => ({
+vi.mock('@/lib/workflows/references/remap-references', () => ({
   scanWorkflowReferences: mockScanWorkflowReferences,
 }))
 
-vi.mock('@/ee/workspace-forking/lib/remap/reference-scan', () => ({
+vi.mock('@/lib/workflows/references/reference-scan', () => ({
   toScannerBlocks: vi.fn((state: unknown) => state),
 }))
 
 import { workflow, workspaceForkResourceMap } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import type { ForkResourceCandidate } from '@/lib/workflows/references/resources'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import {
   findDuplicateTargetEntry,
@@ -64,7 +65,6 @@ import {
   suggestTarget,
   validateForkMappingTargets,
 } from '@/ee/workspace-forking/lib/mapping/mapping-service'
-import type { ForkResourceCandidate } from '@/ee/workspace-forking/lib/mapping/resources'
 
 type ExistingByKind = Partial<Record<ForkRemapKind, Set<string>>>
 

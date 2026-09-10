@@ -16,60 +16,64 @@ Search brings your connected sources into one place. An organization admin allow
 
 ### Allow an integration
 
-As an organization admin, open **Settings → Sources** and turn on the integration under **Allowed in Sim Search**. It stays in the list; no setup page opens automatically.
+As an organization admin, open **Settings → Sources** and turn on the integration. It stays in the list; no setup page opens automatically.
 
-The switch permits the integration in your organization. It does not connect an account, grant document access, or start indexing. Teammates connect from **Integrations** in the main sidebar; only admins manage these switches.
+The switch saves immediately and permits the integration in your organization. It does not connect an account, grant document access, or start indexing. Teammates connect from **Integrations** in the main sidebar; only admins manage these switches.
 
 </Step>
 <Step>
 
-### Configure it once
+### Connect or configure the source
 
-Select **Set up** beside the integration, or **Manage** if it already has sources. On its page, select **Add source**. For Slack, complete **Set up Slack app** first. Follow its **Setup guide** to connect the indexing account or choose the folders, repositories, calendars, spaces, or channels to include. **More options** contains secondary filters and **Metadata tags**.
+For personal Gmail, Calendar, or Drive, teammates can connect immediately from **Integrations**. The first account creates the default sync configuration. Admins can adjust it later under **Manage → Advanced** on the provider page.
 
-Select **Connect & Sync** for an administrator connection, or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
+For other sources, select **Set up** or **Manage**, then **Add source**. For a central Gmail, Calendar, or Drive service account, use **Manage → Advanced → Add sync configuration**. For Slack, complete **Set up Slack app** first. Follow the provider's **Setup guide** to configure its connection and content. **More options** contains secondary filters and **Metadata tags**.
+
+In the source form, select **Connect & Sync** for a central account or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
 
 </Step>
 <Step>
 
 ### Connect and search
 
-Open **Integrations** in the main sidebar and select **Connect account** if prompted—even if you created the source. Complete authorization in the new tab. Open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
+For member-account sources, open **Integrations** in the main sidebar and select **Connect** if prompted—even if you created the source. Complete authorization in the new tab. Central Google sources need no personal connection: join with a matching verified Workspace email and open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
 
 </Step>
 </Steps>
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.jpg" alt="Organization Sources settings with Allowed in Sim Search switches and separate Set up and Manage actions" width={1632} height={1452} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.jpg" alt="Organization Sources settings with provider switches and Set up or Manage actions" width={800} height={674} />
 
-Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue.
+Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue. If an existing provider asks for a configuration update after a deployment change, an admin selects **More → Refresh connection settings** on this page, then affected teammates reconnect.
 
 ## Choose the right connection method
 
-Most sources use member accounts. Google Drive and Confluence also support a central administrator connection; GitLab requires an administrator token for a self-managed instance.
+Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation, and GitLab requires an administrator token for a self-managed instance.
 
 | Method | What the admin does | What teammates do |
 | --- | --- | --- |
-| **Member accounts** | Sets the source's filters once. | Connect their own accounts. Sim lists documents using each member's access. |
-| **Service account** (Drive) / **Admin or service account** (Confluence) | Connects an account that can read the content and the source's permissions or directory. | Join the organization with a matching verified identity. Confluence also requires each person to connect their account. |
+| **Member accounts** | Allows the provider and adjusts shared filters when needed. | Connect their own accounts. Sim lists documents using each member's access. |
+| **GitHub App installation** | Installs the App, selects it under **Sync documents with**, and adds repository sources. | Connect GitHub once. Sim checks each reader's current repository access before returning installation-indexed content. |
+| **Google Workspace service account** | Configures domain-wide delegation, supplies a Directory administrator email, and selects users and content filters. | Join with a matching verified email. No personal Google connection is needed for that source. Gmail remains private to the mailbox owner; Calendar preserves each person's event view; Drive uses file permissions. |
+| **Confluence service account** | Connects an account that can read the selected content and its permissions. | Join the organization and connect Confluence to establish identity. |
 | **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
 
-Adding a Google Drive or Confluence source from the admin page starts central setup. For personal connections, use **Integrations → Connect account** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab.
+Adding a Google or Confluence source from the admin page opens its central setup form directly. Google providers use **Manage → Advanced → Add sync configuration**; Confluence uses **Set up/Manage → Add source**. For personal connections, use **Integrations → Connect** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab. When personal connections are disabled for the organization, Google providers use **Add source** on the provider page instead of **Advanced**.
 
-Some member sources offer **More options → Sync documents with**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
+Some member sources offer **Sync documents with**, either directly in setup or under **More options**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. For GitHub organization sources, choose **Connect GitHub App** in this field to [connect an installation](/search/github#add-a-repository). **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
 
 <Callout type="info">
-  An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules. It also does not automatically discover every employee's data: the indexing account must be able to read the configured content.
+  An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules.
 </Callout>
 
 ## Connector guides
 
 | Source | Content | Connection in Search |
 | --- | --- | --- |
-| [Confluence](/search/confluence) | Pages and blog posts | Admin/service account or member accounts; each teammate connects |
-| [GitHub](/search/github) | Repository text files | GitHub App installation plus each member's authorization |
+| [Confluence](/search/confluence) | Pages and blog posts | Service account or member accounts; each teammate connects |
+| [GitHub](/search/github) | Repository text files | App installation or member indexing; each teammate connects |
 | [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed instance administrator token; no member connection |
-| [Gmail](/search/gmail) | Email thread text | Each member's Gmail account |
-| [Google Calendar](/search/google-calendar) | Calendar events | Each member's Google Calendar account |
+| [Gmail](/search/gmail) | Email thread text | Delegated service account or member accounts |
+| [Google Calendar](/search/google-calendar) | Meetings | Delegated service account or member accounts |
 | [Google Drive](/search/google-drive) | Supported Drive files | Delegated service account or member accounts |
 | [Jira](/search/jira) | Issues | Each member's Jira account |
 | [Slack](/search/slack) | Channel messages and threads | Slack app installation plus each member's authorization |
@@ -88,39 +92,31 @@ These requests are separate from organization invitations. They let recipients c
 
 ## Manage sources and documents
 
-Open **Settings → Sources**, select **Manage** beside the integration, then select a source. Providers with personal connections have **Sources** and **Accounts** tabs; providers such as GitLab open directly to the source list. Multiple sources can have different folder, repository, space, or project scopes.
+Open **Settings → Sources** and select **Manage** beside the integration. When personal connections are enabled, Gmail, Calendar, and Drive list their sync configurations under **Advanced** and connections under **Accounts**. Other providers with personal connections use **Sources** and **Accounts**. Providers without personal connections open directly to the source list. Select a source or sync configuration to manage it. Multiple sources can have different folder, repository, space, or project scopes.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.jpg" alt="Integration detail with Sources and Accounts tabs and a nested source list" width={738} height={390} />
+For Gmail, one configuration is usually enough. **Add sync configuration** creates another source; editing **Settings** updates the selected source. A member configuration applies to all connected Gmail accounts, including accounts connected later. A central configuration applies to the selected Workspace **Users**, or all active users when that field is blank. Its labels and filters are evaluated separately in each mailbox.
+
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.jpg" alt="Gmail Advanced tab with a sync configuration, search, and Add sync configuration action" width={1008} height={340} />
 
 | Source tab | What you can do |
 | --- | --- |
 | **Documents** | Find indexed documents, inspect processing status, retry failed indexing, or exclude and restore documents. |
-| **Settings** | Edit the source's scope, filters, and supported connection settings. Save your changes before leaving. |
-| **Sync history** | Review recent sync runs and errors. |
+| **Settings** | Edit the source's scope, filters, and supported indexing credentials. Select **Save** to apply changes or **Discard** to undo them. |
+| **Sync history** | Review run dates, document changes, and any sync or account errors. |
 
-Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. To disable an entire integration, turn off its **Allowed in Sim Search** switch. If it has sources, confirm **Deactivate**. Its content becomes unavailable in Search, Assistant, and MCP; sources and connected accounts are preserved. Turn the switch back on to allow it again.
+**Sync using** shows the method selected when the source was created. Create a new source to change that method. To replace a supported indexing credential, select its replacement and use **Change indexing account**.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-settings.jpg" alt="Gmail source Settings tab with label, date range, and search filters" width={1022} height={680} />
+Use the source header to sync, pause, resume, or remove that source. The back link returns to its integration. To disable an entire integration, turn off its switch in **Settings → Sources**. If it has sources, confirm **Deactivate**. Its content becomes unavailable in Search, Assistant, and MCP; sources and connected accounts are preserved. Turn the switch back on to allow it again.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-sync-history.jpg" alt="Source Sync history with no connected accounts or synced members" width={1022} height={430} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-settings.jpg" alt="Gmail Settings with the read-only Sync using method and editable label, date range, and search filters" width={824} height={606} />
+
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-sync-history.jpg" alt="Gmail Sync history showing run dates and document additions, deletions, or no changes" width={824} height={446} />
 
 ## Search, Assistant, and MCP
 
 **Search** in the organization sidebar finds documents directly. The assistant on **Home** can search and read the same sources to answer questions with citations. Conversations are private to their author, including when another organization member is an admin.
 
-To search from Claude, Codex, Claude Code, or Cursor, open **Settings → Search MCP**, choose your app, and copy its URL, command, or configuration. Connect in that app, sign in to Sim, and approve read-only Search access. No API key is needed. In Claude Team or Enterprise, an owner adds the custom connector before members connect.
-
-For another client, choose **Other** and use the server URL with Streamable HTTP and OAuth. The client must support remote MCP authentication. When adding configuration to an existing file, keep your other MCP servers.
-
-Each person signs in with their own Sim account. MCP applies their current organization membership and document access; connecting an app does not add sources or grant new document permissions. To disconnect an app, open **Settings → General → Authorized apps** and revoke it.
-
-MCP provides three tools for your organization:
-
-- **search** finds indexed passages. Narrow results by source, modification date, or document.
-- **read_document** opens an indexed document by ID or its original URL. Read around a matching passage or page through longer documents. Results include a citation link.
-- **chat** asks the Sim Assistant for an answer with citations. Each call starts a new private conversation and can use the same search filters.
-
-Search MCP is available in organization settings. All three tools use the caller’s current document permissions. They do not browse the web or change connected sources.
+To use these sources from Claude, Codex, Claude Code, Cursor, or another compatible app, open **Settings → Search MCP**. Each person signs in with their own Sim account. The server provides `search`, `read_document`, and `chat`; `chat` starts a new private Sim conversation. See [Search MCP](/search/mcp) for app setup, permissions, and limits.
 
 ## Existing workspace Search
 
@@ -133,13 +129,13 @@ Workspace Search remains separate. Workspace admins add sources through **Search
 3. Ask a teammate with different source access to repeat the search. Documents restricted to you should not appear for them.
 4. Change or remove a test document's access in the source and check again after the next completed content and permission refresh.
 
-Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query.
+Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits appear after syncing. Permission refresh behavior depends on the connector: GitHub sources indexed through an App installation also check the reader's current repository access before returning indexed content.
 
 ## If indexing needs attention
 
-A completed sync means the source was checked; some documents may still be indexing. In the main **Integrations** page, each source row shows how many documents you can search and whether indexing failed for any documents you can access.
+A completed sync means the source was checked; some documents may still be indexing. Integrations lists personal connections; a central Google source can be searchable without appearing there. In the main **Integrations** page, each connected source row shows how many documents you can search and whether indexing failed for any documents you can access.
 
-As an admin, open **Settings → Sources**, select **Manage** beside the integration, then open the source. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+As an admin, open **Settings → Sources**, select **Manage** beside the integration, then open its source or sync configuration. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
 

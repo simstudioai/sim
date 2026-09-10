@@ -57,10 +57,17 @@ export const listOrganizationCredentialsContract = defineRouteContract({
     schema: z.object({ credentials: z.array(organizationCredentialSchema) }),
   },
 })
+export const organizationOAuthCredentialsQuerySchema = organizationCredentialsQuerySchema.extend({
+  purpose: z.literal('browsing').optional(),
+})
+export type OrganizationOAuthCredentialsQuery = z.input<
+  typeof organizationOAuthCredentialsQuerySchema
+>
+
 export const listOrganizationOAuthCredentialsContract = defineRouteContract({
   method: 'GET',
   path: '/api/organization-credentials/oauth',
-  query: organizationCredentialsQuerySchema,
+  query: organizationOAuthCredentialsQuerySchema,
   response: { mode: 'json', schema: z.object({ credentials: z.array(oauthCredentialSchema) }) },
 })
 export const createOrganizationCredentialContract = defineRouteContract({

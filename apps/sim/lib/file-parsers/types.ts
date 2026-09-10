@@ -7,16 +7,16 @@ export interface FileParseMetadata {
    * True when no real extraction happened and `content` is best-effort scraped
    * bytes or a placeholder message rather than the document's text.
    *
-   * The legacy-format parsers (`doc`, `ppt`) deliberately never throw, so an
-   * interactive upload still shows the user something. An automated caller must
-   * not index that: it embeds ZIP internals or an English placeholder sentence as
-   * if it were document content. Such callers check this flag and skip the file.
+   * Set by extractors that can only return best-effort output, such as a
+   * spreadsheet whose cells are all blank. Legacy `.doc` and `.ppt` inputs used
+   * to fall through to a byte scrape reported this way; they now raise typed
+   * errors instead. An automated caller must not index degraded content, and
+   * every automated consumer checks this flag and skips the file.
    */
   degraded?: boolean
   extractionMethod?: string
   warning?: string
   messages?: unknown[]
-  html?: string
   type?: string
   headers?: string[]
   totalRows?: number
@@ -59,7 +59,6 @@ export type SupportedFileType =
   | 'html'
   | 'htm'
   | 'pptx'
-  | 'ppt'
   | 'pptm'
   | 'potx'
   | 'odt'

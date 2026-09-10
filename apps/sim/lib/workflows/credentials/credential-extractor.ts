@@ -1,4 +1,5 @@
 import { isPlainRecord } from '@sim/utils/object'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
@@ -55,6 +56,7 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'projectId',
   'channelId',
   'folderId',
+  'sandboxId',
 ])
 
 /**
@@ -134,6 +136,8 @@ interface SanitizedWorkflowState {
 
 interface WorkflowSanitizationOptions {
   preserveEnvVars?: boolean
+  /** Allows only registered non-secret tool identities in portable exports. */
+  preserveReferenceMetadata?: boolean
   /**
    * Withhold values whose interior cannot be projected safely once the payload leaves the
    * workspace — whole `table` values (see {@link OPAQUE_CREDENTIAL_BEARING_TYPES}) and every
@@ -172,13 +176,15 @@ function isEnvironmentVariableReference(value: unknown): value is string {
  * and unknown schemas lack reliable secret annotations, so their generic parameters are withheld.
  */
 function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOptions): unknown {
-  const tools = parseStoredToolInputValue(value)
-  if (!Array.isArray(value)) return null
-  if (tools.length !== value.length) return null
+  const { array, wasString } = coerceObjectArray(value)
+  if (!array) return null
+  if (wasString && !options.preserveReferenceMetadata) return null
+  const tools = parseStoredToolInputValue(array)
+  if (tools.length !== array.length) return null
 
-  let sanitizedValue: unknown = value
+  let sanitizedValue: unknown = array
   tools.forEach((tool, toolIndex) => {
-    const storedTool = value[toolIndex]
+    const storedTool = array[toolIndex]
     if (!isPlainRecord(storedTool)) {
       throw new Error(`Parsed tool input at index ${toolIndex} lost its object shape`)
     }
@@ -203,12 +209,18 @@ function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOpt
       const resolved = configByParamKey.get(paramKey)
       const nextValue = resolved?.authoritative
         ? sanitizeConfiguredSubBlockValue(paramValue, resolved.config, options)
-        : null
+        : options.preserveReferenceMetadata &&
+            (tool.type === 'mcp' || tool.type === 'mcp-server-advanced') &&
+            paramKey === 'toolName' &&
+            typeof paramValue === 'string' &&
+            /^[\w.-]{1,256}$/.test(paramValue)
+          ? paramValue
+          : null
       sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params', paramKey], nextValue)
     })
   })
 
-  return sanitizedValue
+  return wasString ? JSON.stringify(sanitizedValue) : sanitizedValue
 }
 
 function sanitizeConfiguredSubBlockValue(
@@ -217,6 +229,13 @@ function sanitizeConfiguredSubBlockValue(
   options: WorkflowSanitizationOptions
 ): unknown {
   if (config.type === 'oauth-input') return null
+  if (
+    options.preserveReferenceMetadata &&
+    config.type === 'mcp-tool-selector' &&
+    typeof value === 'string' &&
+    /^[\w.-]{1,512}$/.test(value)
+  )
+    return value
   if (options.redactOpaqueCredentialInputs && config.type === 'tool-input') {
     return sanitizeToolInputValue(value, options)
   }

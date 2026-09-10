@@ -56,6 +56,7 @@ const providers: OrganizationSearchProviderSummary[] = [
     approved: true,
     sourceCount: 0,
     status: 'waiting_for_connections',
+    issue: null,
     isSyncing: false,
   },
   {
@@ -63,6 +64,7 @@ const providers: OrganizationSearchProviderSummary[] = [
     approved: false,
     sourceCount: 2,
     status: 'paused',
+    issue: null,
     isSyncing: false,
   },
 ]
@@ -127,9 +129,41 @@ async function click(label: string) {
 }
 
 describe('organization integration management entry', () => {
+  it('uses Sources terminology in search and its empty state', async () => {
+    await render('?search=not-a-real-source')
+    expect(container.querySelector('input[placeholder="Search sources..."]')).toHaveValue(
+      'not-a-real-source'
+    )
+    expect(container.textContent).toContain('No matching sources')
+    expect(container.textContent).not.toContain('No matching integrations')
+  })
+  it('offers Drive account management before anyone has connected', async () => {
+    mocks.overview.mockReturnValue({
+      data: {
+        providers: [
+          {
+            connectorType: 'google_drive',
+            approved: true,
+            sourceCount: 0,
+            status: 'waiting_for_connections',
+            issue: null,
+            isSyncing: false,
+          },
+        ],
+      },
+      isPending: false,
+    })
+    await render()
+    expect(document.querySelector('a[aria-label="Manage Google Drive"]')).toHaveAttribute(
+      'href',
+      '/o/org-one/settings/integrations/providers/google_drive'
+    )
+    expect(document.querySelector('a[aria-label="Set up Google Drive"]')).toBeNull()
+    expect(container.textContent).toContain('Waiting for connections')
+  })
   it('shows the stable catalog with switches and separate setup and management links', async () => {
     await render()
-    expect(document.querySelector('a[aria-label="Set up Gmail"]')).toHaveAttribute(
+    expect(document.querySelector('a[aria-label="Manage Gmail"]')).toHaveAttribute(
       'href',
       '/o/org-one/settings/integrations/providers/gmail'
     )
@@ -137,8 +171,9 @@ describe('organization integration management entry', () => {
       'href',
       '/o/org-one/settings/integrations/providers/google_drive'
     )
-    expect(container.textContent).toContain('Needs setup')
-    expect(container.textContent).toContain('2 sources')
+    expect(container.textContent).toContain('Waiting for connections')
+    expect(container.textContent).not.toContain('Needs setup')
+    expect(container.textContent).toContain('Disabled')
     expect(container.textContent).toContain('Confluence')
     expect(container.textContent).not.toContain('Add integration')
     expect(document.querySelector('[aria-label="Allow Gmail in Sim Search"]')).toHaveAttribute(
@@ -307,7 +342,7 @@ describe('organization integration management entry', () => {
       isPending: false,
     })
     await render()
-    expect(container.textContent).toContain('Needs attention')
+    expect(container.textContent).toContain('Sync failed')
     expect(document.querySelector('a[aria-label="Manage Google Drive"]')).not.toBeNull()
   })
 

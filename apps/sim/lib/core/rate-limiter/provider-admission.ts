@@ -18,6 +18,15 @@ interface ProviderAdmissionInput extends ProviderIdentity {
   maxWaitMs: number
 }
 
+/**
+ * Requests admitted in the same instant per embedding credential. The
+ * per-minute rate still governs sustained throughput; the burst only decides
+ * how many concurrent documents can start a batch together instead of losing a
+ * race for a handful of slots while the token budget sits unused.
+ */
+const EMBEDDING_REQUEST_BURST = 64
+const DEFAULT_REQUEST_BURST = 2
+
 /** A local admission wait expired; the document scheduler may retry the work later. */
 export class ProviderAdmissionTimeoutError extends Error {
   readonly retryable = false
@@ -68,15 +77,26 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     key: `${key}:requests`,
     cost: 1,
     config: {
-      maxTokens: Math.min(input.operation === 'embedding' ? 8 : 2, requestsPerMinute),
+      maxTokens: Math.min(
+        input.operation === 'embedding' ? EMBEDDING_REQUEST_BURST : DEFAULT_REQUEST_BURST,
+        requestsPerMinute
+      ),
       refillRate: requestsPerMinute / 60,
       refillIntervalMs: 1000,
     },
   })
 
+  /** When the bucket last said capacity returns, so a deadline hit after a sleep reports the wait still left. */
+  let capacityAvailableAt: number | undefined
   for (;;) {
     input.signal?.throwIfAborted()
-    if (Date.now() >= deadlineAt) throw new ProviderAdmissionTimeoutError()
+    if (Date.now() >= deadlineAt) {
+      const remainingMs =
+        capacityAvailableAt === undefined ? undefined : capacityAvailableAt - Date.now()
+      throw new ProviderAdmissionTimeoutError(
+        remainingMs !== undefined && remainingMs > 0 ? remainingMs : undefined
+      )
+    }
     if (await isProviderQuotaExhausted(input))
       throw new ProviderQuotaExhaustedError(input.providerId)
     let result: AtomicAdmissionResult
@@ -98,6 +118,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     }
     if (result.allowed) return
     const waitMs = Math.max(1, result.retryAfterMs)
+    if (Number.isFinite(waitMs)) capacityAvailableAt = Date.now() + waitMs
     if (!Number.isFinite(waitMs) || waitMs >= deadlineAt - Date.now()) {
       if (await isProviderQuotaExhausted(input))
         throw new ProviderQuotaExhaustedError(input.providerId)

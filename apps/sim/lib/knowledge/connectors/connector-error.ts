@@ -1,15 +1,12 @@
 import { findCause, getPostgresErrorCode } from '@sim/utils/errors'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import {
+  ConnectorSourceError,
+  type ConnectorSourceFailureCategory,
+} from '@/connectors/source-error'
 
 export interface ConnectorFailureDiagnostic {
-  category:
-    | 'database'
-    | 'authorization'
-    | 'source_unavailable'
-    | 'request_rejected'
-    | 'rate_limit'
-    | 'provider_unavailable'
-    | 'transport'
+  category: 'database' | ConnectorSourceFailureCategory | 'transport'
   message: string
   status?: number
   code?: string
@@ -74,29 +71,29 @@ export function getConnectorFailureDiagnostic(error: unknown): ConnectorFailureD
   )
   if (!httpError) return null
   const { status } = httpError
-  if (status === 401 || status === 403) {
+  const category = httpError instanceof ConnectorSourceError ? httpError.category : undefined
+  if (category === 'authorization' || (!category && (status === 401 || status === 403))) {
     return {
       category: 'authorization',
       status,
       message: `Source content access was denied (HTTP ${status}). Check the connector account's file access and download permissions.`,
     }
   }
-  if (status === 404 || status === 410) {
+  if (category === 'source_unavailable' || (!category && (status === 404 || status === 410))) {
     return {
       category: 'source_unavailable',
       status,
       message: `Source content is unavailable (HTTP ${status}). It may have moved, been removed, or lost sharing access.`,
     }
   }
-  if (status === 429) {
+  if (category === 'rate_limit' || (!category && status === 429)) {
     return {
       category: 'rate_limit',
       status,
-      message:
-        'Source requests are rate limited (HTTP 429). The connector will retry after backoff.',
+      message: `Source request quota or rate limit was exceeded (HTTP ${status}). The connector will retry after backoff.`,
     }
   }
-  if (status >= 500 || status === 408) {
+  if (category === 'provider_unavailable' || (!category && (status >= 500 || status === 408))) {
     return {
       category: 'provider_unavailable',
       status,

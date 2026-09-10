@@ -28,6 +28,7 @@ interface ConnectorSelectorFieldProps {
   value: ConfigFieldValue
   onChange: (value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => void
   credentialId: string | null
+  serviceAccountSubjectFieldId?: string
   sourceConfig: ConfigFieldMap
   configFields: ConnectorConfigField[]
   canonicalModes: Record<string, 'basic' | 'advanced'>
@@ -41,6 +42,7 @@ export function ConnectorSelectorField({
   value,
   onChange,
   credentialId,
+  serviceAccountSubjectFieldId,
   sourceConfig,
   configFields,
   canonicalModes,
@@ -56,6 +58,12 @@ export function ConnectorSelectorField({
     const candidate: Record<string, string> = {}
     if (credentialId) candidate.oauthCredential = credentialId
     if (field.mimeType) candidate.mimeType = field.mimeType
+    const subject = serviceAccountSubjectFieldId
+      ? sourceConfig[serviceAccountSubjectFieldId]
+      : undefined
+    if (typeof subject === 'string' && subject.trim()) {
+      candidate.impersonateUserEmail = subject.trim()
+    }
 
     const fieldsById = new Map(configFields.map((f) => [f.id, f]))
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
@@ -68,6 +76,7 @@ export function ConnectorSelectorField({
     return projectSelectorContext(field.selectorKey, candidate)
   }, [
     credentialId,
+    serviceAccountSubjectFieldId,
     field.mimeType,
     field.dependsOn,
     field.selectorKey,
@@ -105,22 +114,21 @@ export function ConnectorSelectorField({
     surfaceId: `connector:${field.id}`,
   })
 
-  /**
-   * Label every selected value, including values restored from saved config that no
-   * in-session search would have resolved. Opaque revisions bind each label request to
-   * the active context without placing credential or dependency values in its query key.
-   */
   const singleValue = Array.isArray(value) ? value[0] : value
   const selectedIds = useMemo(
     () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
     [value]
   )
+  const missingSelectedIds = useMemo(() => {
+    const loadedIds = new Set(options.map((option) => option.id))
+    return selectedIds.filter((id) => !loadedIds.has(id))
+  }, [options, selectedIds])
   const { data: selectedOptions, isLoading: isLoadingSelectedOptions } = useSelectorOptionDetails(
     field.selectorKey,
     {
       context,
       scope,
-      detailIds: isEnabled ? selectedIds : [],
+      detailIds: isEnabled ? missingSelectedIds : [],
       surfaceId: `connector:${field.id}`,
     }
   )
@@ -189,7 +197,7 @@ export function ConnectorSelectorField({
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
         disabled={disabled || !credentialId || !depsResolved}
-        isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
+        isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
         hasMore={hasMore}
         isLoadingMore={isFetchingMore}
         isLoadingAll={isLoadingAll}
@@ -217,7 +225,7 @@ export function ConnectorSelectorField({
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
-      isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
+      isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
       hasMore={hasMore}
       isLoadingMore={isFetchingMore}
       isLoadingAll={isLoadingAll}

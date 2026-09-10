@@ -19,6 +19,7 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
   MAX_SEARCH_SOURCE_PROGRESS_ITEMS,
   MAX_SEARCH_SOURCE_PROVIDER_TYPES,
+  SEARCH_SOURCE_CANDIDATE_PAGE_SIZE,
   SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
 import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
@@ -295,17 +296,23 @@ export const updateKnowledgeConnectorAccessContract = defineRouteContract({
 })
 
 export const startKnowledgeConnectorMemberEnrollmentDataSchema = z.object({
-  /** The viewer's enrollment link; opening it connects their account. */
+  /** The viewer's invitation link or direct provider authorization URL. */
   url: z.string().url(),
 })
 export type StartKnowledgeConnectorMemberEnrollmentData = z.output<
   typeof startKnowledgeConnectorMemberEnrollmentDataSchema
 >
 
+export const searchConnectionOAuthQuerySchema = z.object({
+  oauthCompletionId: z.string().uuid().optional(),
+})
+export type SearchConnectionOAuthQuery = z.input<typeof searchConnectionOAuthQuerySchema>
+
 export const startKnowledgeConnectorMemberEnrollmentContract = defineRouteContract({
   method: 'POST',
   path: '/api/knowledge/[id]/connectors/[connectorId]/enroll',
   params: knowledgeConnectorParamsSchema,
+  query: searchConnectionOAuthQuerySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(startKnowledgeConnectorMemberEnrollmentDataSchema),
@@ -342,6 +349,15 @@ const searchSourceSummaryFields = {
   viewerDocumentCount: z.number().int().nonnegative(),
   viewerFailedDocumentCount: z.number().int().nonnegative().default(0),
   viewerEmailVerified: z.boolean(),
+  viewerAccounts: z
+    .array(
+      z.object({
+        credentialId: z.string().min(1).max(128),
+        displayName: z.string(),
+        status: z.enum(['active', 'needs_reauth']).optional(),
+      })
+    )
+    .max(SEARCH_SOURCE_CANDIDATE_PAGE_SIZE),
 }
 
 export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequired', [
@@ -357,6 +373,7 @@ export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequire
   }),
 ])
 export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
+export type ViewerSearchSourceAccount = SearchSourceSummary['viewerAccounts'][number]
 
 export const searchSourceCursorSchema = z.object({
   createdAt: z.string().datetime(),
@@ -422,6 +439,7 @@ export const organizationSearchProviderSummarySchema = z.object({
   approved: z.boolean(),
   sourceCount: z.number().int().nonnegative(),
   status: organizationSearchProviderStatusSchema,
+  issue: z.enum(['sync_failed', 'account_sync_incomplete', 'document_indexing_failed']).nullable(),
   isSyncing: z.boolean(),
 })
 export type OrganizationSearchProviderSummary = z.output<
@@ -477,6 +495,7 @@ export const connectSimSearchConnectorBodySchema = resourceOwnerSchema.safeExten
   connectorId: knowledgeConnectorParamsSchema.shape.connectorId.max(255).optional(),
   /** Settings identify a compatible source, or assert the configuration of a selected source. */
   sourceConfig: z.record(z.string(), z.string().max(500)).optional(),
+  oauthCompletionId: searchConnectionOAuthQuerySchema.shape.oauthCompletionId,
 })
 export type ConnectSimSearchConnectorBody = z.input<typeof connectSimSearchConnectorBodySchema>
 

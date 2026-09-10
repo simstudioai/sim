@@ -204,6 +204,23 @@ describe('organization source detail navigation', () => {
       '/o/org-one/settings/integrations/providers/google_drive'
     )
   })
+
+  it.each(['members', 'admin'] as const)(
+    'links member sources to personal Search connections: %s',
+    async (accessMode) => {
+      mocks.detail.mockReturnValue({ data: { ...connector, accessMode } })
+      await render()
+      const link = container.querySelector('a[aria-label="Manage your Search accounts"]')
+      if (accessMode === 'members') {
+        expect(link).toHaveAttribute('href', '/o/org-one/integrations')
+        expect(container.textContent).toContain(
+          'Each person connects from Integrations to sync content they can access.'
+        )
+      } else {
+        expect(link).toBeNull()
+      }
+    }
+  )
   it('restores document search and status from the shared URL', async () => {
     await render('?search=notes&document-filter=excluded')
     expect(mocks.documents).toHaveBeenLastCalledWith(

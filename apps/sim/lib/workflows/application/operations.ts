@@ -430,6 +430,17 @@ export const workflowOperations = {
     capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * permission-group-exempt: preview uses the same authoring permission and block policy as import.
+   */
+  importPreview: defineWorkspaceOperation({
+    id: 'workflows.import.preview',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: importing is workflow authoring governed by workspace role; the blocks the payload carries are judged against allowedIntegrations before they are persisted
   import: defineWorkspaceOperation({
     id: 'workflows.import',
