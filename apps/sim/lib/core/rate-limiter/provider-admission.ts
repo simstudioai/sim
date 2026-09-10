@@ -86,11 +86,17 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     },
   })
 
-  /** The bucket's last stated wait, so a deadline hit between polls still reports when capacity returns. */
-  let lastRetryAfterMs: number | undefined
+  /** When the bucket last said capacity returns, so a deadline hit after a sleep reports the wait still left. */
+  let capacityAvailableAt: number | undefined
   for (;;) {
     input.signal?.throwIfAborted()
-    if (Date.now() >= deadlineAt) throw new ProviderAdmissionTimeoutError(lastRetryAfterMs)
+    if (Date.now() >= deadlineAt) {
+      const remainingMs =
+        capacityAvailableAt === undefined ? undefined : capacityAvailableAt - Date.now()
+      throw new ProviderAdmissionTimeoutError(
+        remainingMs !== undefined && remainingMs > 0 ? remainingMs : undefined
+      )
+    }
     if (await isProviderQuotaExhausted(input))
       throw new ProviderQuotaExhaustedError(input.providerId)
     let result: AtomicAdmissionResult
@@ -112,7 +118,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     }
     if (result.allowed) return
     const waitMs = Math.max(1, result.retryAfterMs)
-    if (Number.isFinite(waitMs)) lastRetryAfterMs = waitMs
+    if (Number.isFinite(waitMs)) capacityAvailableAt = Date.now() + waitMs
     if (!Number.isFinite(waitMs) || waitMs >= deadlineAt - Date.now()) {
       if (await isProviderQuotaExhausted(input))
         throw new ProviderQuotaExhaustedError(input.providerId)

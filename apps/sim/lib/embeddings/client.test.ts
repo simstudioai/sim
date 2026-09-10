@@ -10,6 +10,7 @@ import {
   assertKnowledgeEmbeddingCapacityForDeployment,
   clampEmbeddingConcurrency,
   EMBEDDING_MAX_RETRIES,
+  EMBEDDING_RETRY_BUDGET_MS,
   EmbeddingAPIError,
   EmbeddingOutputLimitError,
   EmbeddingQuotaExhaustedError,
@@ -1800,6 +1801,10 @@ describe('durable embedding batches', () => {
       errors: expect.arrayContaining([shortWait, longWait]),
     })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the checkpointed admission wait inside the retry budget the processing deadline reserves', () => {
+    expect(KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS).toBeLessThan(EMBEDDING_RETRY_BUDGET_MS)
   })
 
   it('limits checkpointed admission waits while retaining the interactive request budget', async () => {
