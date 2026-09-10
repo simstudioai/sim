@@ -21,6 +21,10 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretDiagnosticContent: api.project,
 }))
 
+import type {
+  ToolCallStreamEvent,
+  ToolResultStreamEvent,
+} from '@/lib/copilot/request/session/contract'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { publicSlackAnswer, SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -80,6 +84,149 @@ function setup(deliverConnections = vi.fn().mockResolvedValue(undefined)) {
     }),
   }
 }
+
+function toolCall(toolName = 'list_integrations', toolCallId = 'tool-1'): ToolCallStreamEvent {
+  return {
+    type: 'tool',
+    payload: {
+      phase: 'call',
+      toolName,
+      toolCallId,
+      executor: 'sim',
+      mode: 'sync',
+      status: 'executing',
+    },
+  }
+}
+
+function toolResult(
+  toolName = 'list_integrations',
+  toolCallId = 'tool-1',
+  success = true
+): ToolResultStreamEvent {
+  return {
+    type: 'tool',
+    payload: { phase: 'result', toolName, toolCallId, executor: 'sim', mode: 'sync', success },
+  }
+}
+
+describe('Slack tool progress', () => {
+  it.each([
+    ['list_integrations', 'Listing connected integrations…'],
+    ['search_workspace', 'Searching documents…'],
+    ['read_document', 'Reading documents…'],
+  ])('shows %s as a task and completes that same task once', async (name, title) => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent(toolCall(name))
+    await stream.onEvent(toolCall(name))
+    await stream.onEvent(toolResult(name))
+    await stream.onEvent(toolResult(name))
+    await stream.finish(result)
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks).toEqual([
+      { type: 'task_update', id: expect.any(String), title, status: 'in_progress' },
+      { type: 'task_update', id: chunks[0].id, title, status: 'complete' },
+    ])
+    expect(api.stop.mock.calls[0][6]).toEqual([])
+  })
+
+  it('keeps parallel calls separate when their results arrive out of order', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent(toolCall('search_workspace', 'search-1'))
+    await stream.onEvent(toolCall('search_workspace', 'search-2'))
+    await stream.onEvent(toolResult('search_workspace', 'search-2'))
+    await stream.onEvent(toolResult('search_workspace', 'search-1'))
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks[0].id).not.toBe(chunks[1].id)
+    expect(chunks[2]).toEqual({ ...chunks[1], status: 'complete' })
+    expect(chunks[3]).toEqual({ ...chunks[0], status: 'complete' })
+  })
+
+  it('withholds partial, hidden, internal, subagent, and unsupported tools', async () => {
+    const { stream } = setup()
+    await stream.start()
+    for (const attributes of [
+      { partial: true },
+      { status: 'generating' as const },
+      { ui: { hidden: true } },
+      { ui: { internal: true } },
+    ]) {
+      const event = toolCall()
+      await stream.onEvent({ ...event, payload: { ...event.payload, ...attributes } })
+    }
+    await stream.onEvent({ ...toolCall(), scope: { lane: 'subagent', agentId: 'private-agent' } })
+    await stream.onEvent(toolCall('internal_tool'))
+    await stream.onEvent(toolResult())
+    expect(api.append).not.toHaveBeenCalled()
+    await stream.onEvent(toolCall())
+    expect(api.append).toHaveBeenCalledOnce()
+  })
+
+  it('reports failed tools without exposing arguments, account labels, or backend errors', async () => {
+    const { stream } = setup()
+    await stream.start()
+    const call = toolCall()
+    await stream.onEvent({
+      ...call,
+      payload: { ...call.payload, arguments: { query: 'private argument' } },
+    })
+    const failed = toolResult('list_integrations', 'tool-1', false)
+    await stream.onEvent({
+      ...failed,
+      payload: {
+        ...failed.payload,
+        error: 'private error',
+        output: { accountLabel: 'private account' },
+      },
+    })
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(chunks[1]).toEqual({ ...chunks[0], status: 'error' })
+    expect(JSON.stringify(chunks)).not.toContain('private')
+  })
+
+  it('marks unfinished tasks failed when the Assistant fails', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent(toolCall())
+    await stream.finishWithError()
+    expect(api.stop.mock.calls[0][6]).toEqual([
+      { ...api.append.mock.calls[0][3][0], status: 'error' },
+    ])
+  })
+
+  it('aborts an ambiguous progress send and cleans up once without replaying it', async () => {
+    const { stream, controller } = setup()
+    await stream.start()
+    api.append.mockRejectedValueOnce(new Error('progress response lost'))
+    await expect(stream.onEvent(toolCall())).rejects.toThrow('progress response lost')
+    expect(controller.signal.aborted).toBe(true)
+    await expect(stream.onEvent(toolCall())).rejects.toThrow('progress response lost')
+    await stream.terminateAfterFailure()
+    await stream.terminateAfterFailure()
+    expect(api.append).toHaveBeenCalledOnce()
+    expect(api.stop).toHaveBeenCalledOnce()
+    expect(api.stop.mock.calls[0][6]).toEqual([
+      { ...api.append.mock.calls[0][3][0], status: 'error' },
+    ])
+  })
+
+  it('does not send task updates after cancellation or revoked delivery authority', async () => {
+    const { stream, controller, beforeDelivery } = setup()
+    await stream.start()
+    beforeDelivery.mockRejectedValueOnce(new Error('authority revoked'))
+    await expect(stream.onEvent(toolCall())).rejects.toThrow('authority revoked')
+    expect(controller.signal.aborted).toBe(true)
+    expect(api.append).not.toHaveBeenCalled()
+    const cancelled = setup()
+    await cancelled.stream.start()
+    cancelled.controller.abort(new Error('stopped'))
+    await expect(cancelled.stream.onEvent(toolCall())).rejects.toThrow('stopped')
+    expect(api.append).not.toHaveBeenCalled()
+  })
+})
+
 describe('Slack Assistant delivery', () => {
   it('withholds split connection tags, delivers validated controls, and leaves a visible next step', async () => {
     const deliver = vi.fn().mockResolvedValue(undefined)
@@ -249,7 +396,8 @@ describe('Slack Assistant delivery', () => {
           type: 'section',
           text: { type: 'plain_text', text: 'I couldn’t complete this search. Please try again.' },
         },
-      ]
+      ],
+      []
     )
     expect(api.append).not.toHaveBeenCalled()
   })

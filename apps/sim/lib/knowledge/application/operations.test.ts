@@ -71,6 +71,8 @@ describe('knowledge operation registry', () => {
       'knowledge.connectors.create',
       'knowledge.connectors.update',
       'knowledge.connectors.access.update',
+      'knowledge.search.personal-integrations.connect',
+      'knowledge.search.personal-integrations.list',
       'knowledge.search.sources.list',
       'knowledge.search.sources.overview',
       'knowledge.search.sources.progress',
