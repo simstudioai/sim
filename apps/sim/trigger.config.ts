@@ -110,8 +110,8 @@ export default defineConfig({
    *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
-  init: async () => {
-    markInsideTriggerRun()
+  init: async ({ ctx }) => {
+    markInsideTriggerRun(ctx.deployment?.version)
     const { warmRedisConnection } = await import('./lib/core/config/redis')
     await warmRedisConnection()
   },

@@ -19,6 +19,9 @@ inputs:
   tags:
     description: Comma-separated list of tags to push.
     required: true
+  build-args:
+    description: Newline-separated Docker build arguments.
+    required: false
   max-cache-size-mb:
     description: >-
       Layer cache to retain after this action prunes, in MB. Must stay above one
@@ -30,8 +33,8 @@ inputs:
       bypass an input `default:` entirely.
     required: false
 
-# Registry logins must precede this action. provenance/sbom stay off: attestation
-# manifests break `imagetools create` retagging in promote-images.
+# Registry logins must precede this action. Keep the existing image format;
+# GHCR signatures and attestations are published by the separate attestation jobs.
 runs:
   using: composite
   steps:
@@ -72,6 +75,7 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
+        build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
 
@@ -177,5 +181,6 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
+        build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false

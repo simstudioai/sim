@@ -141,7 +141,7 @@ jobs:
       environment: dev
     secrets: inherit
 
-  # Dev: build all 3 images for ECR only (no GHCR, no ARM64)
+  # Dev publishes SHA artifacts first; only promote-images moves deploy aliases.
   build-dev:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
@@ -215,13 +215,25 @@ jobs:
         env:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
+      - name: Reuse existing SHA artifact
+        id: artifact
+        env:
+          ECR_REPO: ${{ steps.ecr-repo.outputs.name }}
+        run: |
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] && test -n "$ECR_REPO"
+          result="$(aws ecr batch-get-image --repository-name "$ECR_REPO" --image-ids "imageTag=$GITHUB_SHA" --output json)"
+          jq -e 'all(.failures[]; .failureCode == "ImageNotFound")' <<< "$result" > /dev/null
+          echo "exists=$(jq -r '.images | length == 1' <<< "$result")" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
+        if: steps.artifact.outputs.exists != 'true'
         uses: ./.github/actions/docker-build
         with:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.sha }}
+          build-args: COMMIT_SHA=${{ github.sha }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Dev: deploy Trigger.dev background tasks to the preview "dev-sim" branch.
@@ -232,7 +244,9 @@ jobs:
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
+    timeout-minutes: 45
+    outputs:
+      deployment_version: ${{ steps.deploy.outputs.deploymentVersion }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -257,6 +271,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Deploy to Trigger.dev
+        id: deploy
         working-directory: ./apps/sim
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.DEV_TRIGGER_ACCESS_TOKEN }}
@@ -266,7 +281,8 @@ jobs:
             echo "ERROR: DEV_TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
+          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim --external-id "$GITHUB_SHA"
 
   # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
   # Runs in parallel with tests — only immutable sha tags are pushed here, and
@@ -384,95 +400,137 @@ jobs:
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
+      - name: Reuse existing SHA artifact
+        id: artifact
+        if: matrix.ecr_repo_secret != ''
+        env:
+          ECR_REPO: ${{ steps.ecr-repo.outputs.name }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          GHCR_IMAGE: ${{ matrix.ghcr_image }}
+        run: |
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] && test -n "$ECR_REPO"
+          result="$(aws ecr batch-get-image --repository-name "$ECR_REPO" --image-ids "imageTag=$GITHUB_SHA" --output json)"
+          jq -e 'all(.failures[]; .failureCode == "ImageNotFound")' <<< "$result" > /dev/null
+          exists="$(jq -r '.images | length == 1' <<< "$result")"
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+          if [ "$exists" = true ] && [ "$GITHUB_REF_NAME" = main ]; then
+            digest="$(jq -r '.images[0].imageId.imageDigest' <<< "$result")"
+            source="${ECR_REGISTRY}/${ECR_REPO}@${digest}"
+            docker pull "$source"
+            docker tag "$source" "${GHCR_IMAGE}:${GITHUB_SHA}-amd64"
+            docker push "${GHCR_IMAGE}:${GITHUB_SHA}-amd64"
+          fi
+
       - name: Build and push images
-        if: steps.meta.outputs.skip != 'true'
+        if: steps.meta.outputs.skip != 'true' && steps.artifact.outputs.exists != 'true'
         uses: ./.github/actions/docker-build
         with:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
+          build-args: COMMIT_SHA=${{ github.sha }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Promote the sha-tagged ECR images to the deploy tags once tests and
-  # migrations pass. Pushing the ECR latest/staging tag is what triggers
-  # CodePipeline, so this seconds-long manifest retag is the deploy gate —
-  # the image builds themselves run in parallel with the tests. A single job
-  # (not a matrix) so all four sha manifests are verified before any tag
-  # moves; a missing image can't produce a partial mixed-version deploy.
+  # Keep the existing ECR -> CodePipeline path; verify both release halves.
   promote-images:
-    name: Promote Images
-    needs: [migrate, build-amd64]
-    # Explicit results: see migrate's comment.
+    name: Promote and Verify Release
+    needs: [migrate, build-amd64, migrate-dev, build-dev, deploy-trigger-dev]
     if: >-
-      !cancelled() &&
-      needs.migrate.result == 'success' &&
-      needs.build-amd64.result == 'success' &&
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+      !cancelled() && github.event_name == 'push' &&
+      ((github.ref == 'refs/heads/dev' &&
+        needs.migrate-dev.result == 'success' && needs.build-dev.result == 'success' &&
+        needs.deploy-trigger-dev.result == 'success') ||
+       ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+        needs.migrate.result == 'success' && needs.build-amd64.result == 'success'))
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 10
+    timeout-minutes: 130
     permissions:
       contents: read
+      checks: read
       id-token: write
+    outputs:
+      decision: ${{ steps.guard.outputs.decision }}
+      complete: ${{ steps.verify.outputs.complete }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Wait for matching worker deployment
+        env:
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          TRIGGER_DEPLOYMENT_VERSION: ${{ needs.deploy-trigger-dev.outputs.deployment_version }}
+        run: bun scripts/verify-release.ts worker
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-duration-seconds: 5400
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
-
-      # Deploy-tag moves must be monotonic: a re-run of an old run must never
-      # retag latest/staging back to stale code. A superseded first-attempt
-      # run still promotes — the ci-<ref> concurrency group executes runs
-      # serially in commit order, so an ancestor of head is a forward deploy.
-      - name: Guard against stale promotion
-        id: guard
+      - name: Preflight all image artifacts
+        id: images
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          STATUS="$(gh api "repos/${{ github.repository }}/compare/${{ github.sha }}...${GITHUB_REF_NAME}" --jq '.status' || echo "unknown")"
-          if [ "$STATUS" = "identical" ] || { [ "$STATUS" = "ahead" ] && [ "${{ github.run_attempt }}" = "1" ]; }; then
-            echo "fresh=true" >> $GITHUB_OUTPUT
-          else
-            echo "::warning::Skipping promotion of ${{ github.sha }} (branch compare: ${STATUS}, attempt ${{ github.run_attempt }}). Moving the deploy tags here could deploy stale code; push a revert commit to roll back instead."
-            echo "fresh=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Promote images to deploy tags
-        if: steps.guard.outputs.fresh == 'true'
-        env:
+          ECR_APP: ${{ secrets.ECR_APP }}
           ECR_REPOS: >-
             ${{ secrets.ECR_APP }}
             ${{ secrets.ECR_MIGRATIONS }}
             ${{ secrets.ECR_REALTIME }}
             ${{ secrets.ECR_PII }}
+        run: bun scripts/verify-release.ts images
+
+      - name: Guard against stale promotion
+        id: guard
+        run: bun scripts/verify-release.ts freshness
+
+      - name: Promote changed images to deploy tags
+        if: steps.guard.outputs.decision == 'promote'
+        env:
+          IMAGES: ${{ steps.images.outputs.images }}
         run: |
-          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          tag="$GITHUB_REF_NAME"
+          [ "$tag" != main ] || tag=latest
+          while IFS= read -r entry; do
+            repo="$(jq -r '.repository' <<< "$entry")"
+            jq -jr '.manifest' <<< "$entry" > "$RUNNER_TEMP/release-manifest.json"
+            aws ecr put-image --repository-name "$repo" --image-tag "$tag" \
+              --image-digest "$(jq -r '.sourceDigest' <<< "$entry")" \
+              --image-manifest "file://$RUNNER_TEMP/release-manifest.json" \
+              --image-manifest-media-type "$(jq -r '.mediaType' <<< "$entry")" > /dev/null
+            echo "Promoted $repo:$tag" >> "$GITHUB_STEP_SUMMARY"
+          done < <(jq -c '.[] | select(.promote)' <<< "$IMAGES")
 
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            ECR_TAG="latest"
+      - name: Verify app deployment
+        id: verify
+        if: steps.guard.outputs.decision == 'promote'
+        env:
+          APP_DIGEST: ${{ steps.images.outputs.app_digest }}
+          APP_PLATFORM_DIGEST: ${{ steps.images.outputs.app_platform_digest }}
+        run: bun scripts/verify-release.ts app
+
+      - name: Record release outcome
+        if: always()
+        env:
+          DECISION: ${{ steps.guard.outputs.decision }}
+          COMPLETE: ${{ steps.verify.outputs.complete }}
+          RESULT: ${{ job.status }}
+        run: |
+          if [ "$DECISION" = skip ]; then
+            outcome=superseded
+          elif [ "$RESULT" = success ] && [ "$COMPLETE" = true ]; then
+            outcome=complete
           else
-            ECR_TAG="staging"
+            outcome=incomplete
           fi
-
-          # Verify every sha image exists before moving any deploy tag, so a
-          # missing/expired image aborts the whole promotion up front.
-          for repo in $ECR_REPOS; do
-            echo "🔍 Verifying ${repo}:${{ github.sha }}"
-            docker buildx imagetools inspect "${REGISTRY}/${repo}:${{ github.sha }}" > /dev/null
-          done
-
-          for repo in $ECR_REPOS; do
-            echo "🚀 Promoting ${repo}:${{ github.sha }} to ${ECR_TAG}"
-            docker buildx imagetools create \
-              -t "${REGISTRY}/${repo}:${ECR_TAG}" \
-              "${REGISTRY}/${repo}:${{ github.sha }}"
-          done
+          echo "Release $GITHUB_SHA ($GITHUB_REF_NAME): **$outcome**" >> "$GITHUB_STEP_SUMMARY"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
@@ -534,6 +592,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
           tags: ${{ matrix.image }}:${{ github.sha }}-arm64
+          build-args: COMMIT_SHA=${{ github.sha }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
@@ -548,6 +607,8 @@ jobs:
     if: >-
       !cancelled() &&
       needs.promote-images.result == 'success' &&
+      needs.promote-images.outputs.decision == 'promote' &&
+      needs.promote-images.outputs.complete == 'true' &&
       needs.build-ghcr-arm64.result == 'success' &&
       needs.detect-version.result == 'success' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -583,12 +644,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          STATUS="$(gh api "repos/${{ github.repository }}/compare/${{ github.sha }}...${GITHUB_REF_NAME}" --jq '.status' || echo "unknown")"
-          if [ "$STATUS" = "identical" ] || { [ "$STATUS" = "ahead" ] && [ "${{ github.run_attempt }}" = "1" ]; }; then
-            echo "fresh=true" >> $GITHUB_OUTPUT
+          HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${GITHUB_REF_NAME}" --jq '.object.sha')"
+          if [ "$HEAD_SHA" = "$GITHUB_SHA" ]; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Publishing immutable tags for ${{ github.sha }} but skipping the latest tags (branch compare: ${STATUS}, attempt ${{ github.run_attempt }})."
-            echo "fresh=false" >> $GITHUB_OUTPUT
+            echo "::warning::Skipping latest tags for superseded commit $GITHUB_SHA."
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish tags and manifests
@@ -921,6 +982,8 @@ jobs:
     if: >-
       !cancelled() &&
       needs.promote-images.result == 'success' &&
+      needs.promote-images.outputs.decision == 'promote' &&
+      needs.promote-images.outputs.complete == 'true' &&
       needs.check-docs-changes.result == 'success' &&
       needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
