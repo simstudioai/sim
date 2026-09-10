@@ -15,6 +15,8 @@ const CYCLE_MS = 17_100
 
 let pending: FrameRequestCallback[] = []
 let clock = 0
+let reducedMotion = false
+let onMotionPreference: (() => void) | undefined
 let root: Root | null = null
 let host: HTMLDivElement | null = null
 
@@ -40,15 +42,23 @@ beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   pending = []
   clock = 0
+  reducedMotion = false
+  onMotionPreference = undefined
   const stubs = {
     requestAnimationFrame: (cb: FrameRequestCallback) => pending.push(cb),
     cancelAnimationFrame: () => {
       pending = []
     },
     matchMedia: () => ({
-      matches: false,
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      get matches() {
+        return reducedMotion
+      },
+      addEventListener: (_type: string, listener: () => void) => {
+        onMotionPreference = listener
+      },
+      removeEventListener: () => {
+        onMotionPreference = undefined
+      },
     }),
   }
   for (const [name, value] of Object.entries(stubs)) {
@@ -79,7 +89,10 @@ describe('FooterWordmarkLoop', () => {
     expect(html).toContain('aria-hidden="true"')
     expect(html).toContain('data-stage="wm" opacity="1"')
     expect(html).toContain('data-stage="orb" opacity="0"')
-    expect(html).toContain('stdDeviation="0.55"')
+    expect(html).toContain('stdDeviation="0"')
+    expect(html).toMatch(/filter="url\(#fwl-goo-/)
+    expect(html).toContain('values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"')
+    expect(html).not.toContain('<feGaussianBlur in="goo"')
     for (const shape of SHAPES) {
       expect(html).toContain(`data-stage="${shape}" opacity="0"`)
     }
@@ -90,12 +103,14 @@ describe('FooterWordmarkLoop', () => {
 
   it('plays the master timeline: wordmark, orb, the seven shapes, orb, wordmark', () => {
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('1.0000')
-    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.550')
+    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.000')
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
 
     advanceTo(2700)
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('0.0000')
     expect(attr('[data-stage="orb"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-goo]', 'stdDeviation')).toBe('5.000')
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/40\.000 -19\.000$/)
 
     advanceTo(3900)
     expect(attr('[data-stage="metaballs"]', 'opacity')).toBe('1.0000')
@@ -112,11 +127,51 @@ describe('FooterWordmarkLoop', () => {
     advanceTo(16000)
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-stage="thinking"]', 'opacity')).toBe('0.0000')
-    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.550')
+    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.000')
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
 
     advanceTo(CYCLE_MS + 2700)
     expect(attr('[data-stage="orb"]', 'opacity')).toBe('1.0000')
     expect(attr('[data-stage="wm"]', 'opacity')).toBe('0.0000')
+  })
+
+  it('returns to an identity filter when reduced motion is enabled mid-morph', () => {
+    advanceTo(2700)
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/40\.000 -19\.000$/)
+
+    reducedMotion = true
+    act(() => onMotionPreference?.())
+
+    expect(pending).toHaveLength(0)
+    expect(attr('[data-stage="wm"]', 'opacity')).toBe('1.0000')
+    expect(attr('[data-stage="orb"]', 'opacity')).toBe('0.0000')
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
+    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.000')
+  })
+
+  it('eases the same filter to identity at both wordmark boundaries', () => {
+    advanceTo(1300)
+    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.000')
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
+
+    advanceTo(1301)
+    expect(Number(attr('[data-goo]', 'stdDeviation'))).toBeLessThan(0.001)
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
+
+    advanceTo(1800)
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/40\.000 -19\.000$/)
+
+    advanceTo(2500)
+    expect(attr('[data-goo]', 'stdDeviation')).toBe('5.000')
+
+    advanceTo(15199)
+    expect(Number(attr('[data-goo]', 'stdDeviation'))).toBeLessThan(0.001)
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
+
+    advanceTo(15200)
+    expect(attr('[data-goo]', 'stdDeviation')).toBe('0.000')
+    expect(attr('[data-goo-matrix]', 'values')).toMatch(/1\.000 -?0\.000$/)
+    expect(host?.querySelector('feComposite')).toBeNull()
   })
 
   it('stops requesting frames on unmount', () => {

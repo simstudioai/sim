@@ -43,11 +43,9 @@ const ORB_BEAT = 450
 /** Closing hold on the wordmark before the loop wraps back to the opening hold. */
 const HOLD_LOGO_END = 1700
 const TAIL = 200
-/** Goo blur while liquid (through the cycle) and while crisp (the wordmark). */
+/** Blur range for the filtered portion of the morph. */
 const GOO_HI = 5
 const GOO_LO = 0.55
-/** Post-threshold blur, about half a device pixel at the mark's largest size. */
-const EDGE_SMOOTHING = 0.16
 /**
  * Shapes that restart from compact when they appear and play exactly one pulse
  * of this many ms (just under a loop, so the dots reach the edge without
@@ -356,13 +354,18 @@ interface StageNode {
   key: StageKey
 }
 
+interface GooFilterNodes {
+  blur: SVGFEGaussianBlurElement
+  matrix: SVGFEColorMatrixElement
+}
+
 /**
  * Paints one frame of the choreography at `t` ms into the cycle by writing
  * SVG attributes directly - no React render per frame.
  */
 function paintFrame(
   t: number,
-  blur: SVGFEGaussianBlurElement,
+  goo: GooFilterNodes,
   stages: StageNode[],
   anims: AnimatedNode[]
 ): void {
@@ -411,8 +414,17 @@ function paintFrame(
     smooth(T_LOGO_HOLD_END, T_INTRO_END, t),
     1 - smooth(T_OUTRO_START, T_OUTRO_END, t)
   )
-  const deviation = round(GOO_LO + (GOO_HI - GOO_LO) * liquid)
-  if (blur.getAttribute('stdDeviation') !== deviation) blur.setAttribute('stdDeviation', deviation)
+  /** Ease the filter to identity at rest without overlaying the unfiltered shapes. */
+  const strength = Math.min(
+    smooth(T_LOGO_HOLD_END, T_LOGO_HOLD_END + MORPH, t),
+    1 - smooth(T_OUTRO_END - MORPH, T_OUTRO_END, t)
+  )
+  const deviation = round((GOO_LO + (GOO_HI - GOO_LO) * liquid) * strength)
+  if (goo.blur.getAttribute('stdDeviation') !== deviation) {
+    goo.blur.setAttribute('stdDeviation', deviation)
+  }
+  const matrix = `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${round(1 + 39 * strength)} ${round(-19 * strength)}`
+  if (goo.matrix.getAttribute('values') !== matrix) goo.matrix.setAttribute('values', matrix)
 }
 
 interface FooterWordmarkLoopProps {
@@ -454,7 +466,9 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
     const svg = svgRef.current
     if (!svg) return
     const blur = svg.querySelector<SVGFEGaussianBlurElement>('[data-goo]')
-    if (!blur) return
+    const matrix = svg.querySelector<SVGFEColorMatrixElement>('[data-goo-matrix]')
+    if (!blur || !matrix) return
+    const goo: GooFilterNodes = { blur, matrix }
 
     const stages: StageNode[] = Array.from(
       svg.querySelectorAll<SVGGElement>('[data-stage]'),
@@ -475,7 +489,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
     const tick = (now: number) => {
       if (previous !== null) elapsed += Math.min(now - previous, MAX_FRAME_STEP)
       previous = now
-      paintFrame(elapsed % CYCLE_MS, blur, stages, anims)
+      paintFrame(elapsed % CYCLE_MS, goo, stages, anims)
       frame = requestAnimationFrame(tick)
     }
     const play = () => {
@@ -492,7 +506,7 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
       if (reducedMotion?.matches) {
         pause()
         elapsed = 0
-        paintFrame(0, blur, stages, anims)
+        paintFrame(0, goo, stages, anims)
       } else {
         play()
       }
@@ -536,20 +550,16 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
             height='160%'
             colorInterpolationFilters='sRGB'
           >
-            <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={GOO_LO} result='blur' />
+            <feGaussianBlur data-goo='' in='SourceGraphic' stdDeviation={0} result='blur' />
             {/* A steep threshold: the melt between shapes keeps its liquid
                 merges, but every edge resolves within a pixel, so the mark
                 stays crisp at the cycle's full blur. */}
             <feColorMatrix
+              data-goo-matrix=''
               in='blur'
-              values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -19'
+              values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0'
               result='goo'
             />
-            {/* The threshold discards the rasterizer's edge coverage, so at the
-                resting blur the wordmark's edge fell inside a device pixel and
-                stair-stepped at the largest size. A sub-pixel blur after it
-                restores ordinary anti-aliasing without touching the melt. */}
-            <feGaussianBlur in='goo' stdDeviation={EDGE_SMOOTHING} />
           </filter>
           <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
             <stop style={INK_STOP_INNER} />
