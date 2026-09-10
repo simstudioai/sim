@@ -106,7 +106,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     if (candidates.length === 0) return { sources: [], nextCursor: null }
     const scanned = candidates.slice(0, SEARCH_SOURCE_CANDIDATE_PAGE_SIZE)
 
-    const [availability, memberships, viewers, access, approvals] = await Promise.all([
+    const [availability, memberships, viewers, approvals] = await Promise.all([
       resolveKnowledgeAccessAvailability(context),
       resolveViewerConnectorMemberships({
         userId: principal.userId,
@@ -119,7 +119,6 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         .from(user)
         .where(eq(user.id, principal.userId))
         .limit(1),
-      createKnowledgeAccessProvider(principal, context).get(),
       context.organizationId ? listOrganizationSearchApprovals(context.organizationId) : null,
     ])
     /** Filtering uses the same safe display labels and verified membership as the source rows. */
@@ -145,6 +144,9 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           ).toString('base64url')
         : null
     if (rows.length === 0) return { sources: [], nextCursor }
+    const access = await createKnowledgeAccessProvider(principal, context).getForConnectors(
+      rows.map((row) => row.id)
+    )
     const documentStates = await db
       .select({
         connectorId: document.connectorId,

@@ -100,6 +100,24 @@ describe('resolveConnectorAccessToken', () => {
     expect(mockDecryptApiKey).not.toHaveBeenCalled()
   })
 
+  it('passes the immutable repository scope to installation token resolution', async () => {
+    await resolveConnectorAccessToken({
+      auth: { mode: 'oauth', provider: 'github-repositories' },
+      connector: credentialConnector('installation-credential'),
+      userId: 'actor',
+      requestId: 'request',
+      sourceConfig: { repository: 'team/repo', githubRepositoryId: '101' },
+    })
+    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
+      'installation-credential',
+      'actor',
+      'request',
+      undefined,
+      undefined,
+      { githubRepositoryScope: { repository: 'team/repo', repositoryId: '101' } }
+    )
+  })
+
   it('does not accept an undeclared key alternative on other OAuth connectors', async () => {
     await expect(
       resolveConnectorAccessToken({
