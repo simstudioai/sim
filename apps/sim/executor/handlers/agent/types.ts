@@ -1,3 +1,4 @@
+import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
 import type { UserFile } from '@/executor/types'
 
 export interface SkillInput {
@@ -54,6 +55,7 @@ export interface AgentInputs {
  * - 'mcp-server-advanced': All tools available to the executing subject from one MCP server
  */
 export interface ToolInput {
+  operationPolicy?: McpOperationPolicy
   /** Tool type identifier */
   type?: string
   schema?: any

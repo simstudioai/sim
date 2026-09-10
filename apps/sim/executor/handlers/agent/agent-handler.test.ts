@@ -172,7 +172,32 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
-    mockDiscoverMcpServerToolsAsExecutor.mockResolvedValue([])
+    mockDiscoverMcpServerToolsAsExecutor.mockImplementation(
+      async ({ serverId }: { serverId: string }) =>
+        [
+          'read_file',
+          'search_files',
+          'list_files',
+          'search',
+          'failing_tool',
+          'test_tool',
+          'tool',
+          'tool_1',
+          'tool_2',
+          'tool_3',
+          'tool1',
+          'tool2',
+        ].map((name) => ({
+          name,
+          serverId,
+          serverName: 'Live server',
+          description: `Live ${name}`,
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string' }, path: { type: 'string' } },
+          },
+        }))
+    )
     mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
     resetDbChainMock()
     // The MCP server lookup awaits select().from(mcpServers).where(...) directly;
@@ -202,6 +227,7 @@ describe('AgentBlockHandler', () => {
       enabled: true,
     } as SerializedBlock
     mockContext = {
+      workspaceId: 'test-workspace',
       workflowId: 'test-workflow',
       blockStates: new Map(),
       blockLogs: [],
@@ -1720,10 +1746,11 @@ describe('AgentBlockHandler', () => {
           }),
           expect.objectContaining({
             id: expect.stringContaining('search_files'),
-            description: 'MCP tool search_files from Docs {{MCP_SERVER_LABEL}}',
+            description: 'Live search_files',
             parameters: expect.objectContaining({
               properties: {
-                query: { type: 'string', description: 'Search {{MCP_PARAMETER}}' },
+                query: { type: 'string' },
+                path: { type: 'string' },
               },
             }),
           }),
@@ -3314,7 +3341,7 @@ describe('AgentBlockHandler', () => {
       expect(contextWithWorkspace.workspaceId).toBe('test-workspace-456')
     })
 
-    it('should use cached schema for MCP tools (no discovery needed)', async () => {
+    it('rediscovers MCP tools even when an editor schema is cached', async () => {
       mockExecuteProviderRequest.mockResolvedValueOnce({
         content: 'Used MCP tool successfully',
         model: 'gpt-4o',
@@ -3358,11 +3385,11 @@ describe('AgentBlockHandler', () => {
 
       await handler.execute(contextWithWorkspace, mockBlock, inputs)
 
-      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+      expect(mockDiscoverMcpServerToolsAsExecutor).toHaveBeenCalledOnce()
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
     })
 
-    it('should pass the cached tool schema to the provider', async () => {
+    it('passes the authorized live schema to the provider', async () => {
       mockExecuteProviderRequest.mockResolvedValueOnce({
         content: 'Tool executed',
         model: 'gpt-4o',
@@ -3643,7 +3670,7 @@ describe('AgentBlockHandler', () => {
 
       await handler.execute(contextWithWorkspace, mockBlock, inputs)
 
-      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+      expect(mockDiscoverMcpServerToolsAsExecutor).toHaveBeenCalledOnce()
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
       const providerCallArgs = mockExecuteProviderRequest.mock.calls[0]
       expect(providerCallArgs[1].tools.length).toBe(3)
@@ -3779,30 +3806,55 @@ describe('AgentBlockHandler', () => {
       ])
     })
 
-    it('does not create tools for a blank advanced MCP server binding', async () => {
-      await handler.execute(
-        {
-          ...mockContext,
-          workspaceId: 'test-workspace-123',
-          workflowId: 'test-workflow-456',
-        },
-        mockBlock,
-        {
-          model: 'gpt-4o',
-          userPrompt: 'Continue without MCP tools',
-          apiKey: 'test-api-key',
-          tools: [
-            {
-              type: 'mcp-server-advanced',
-              params: { serverId: '' },
-              usageControl: 'auto' as const,
-            },
-          ],
-        }
-      )
+    it('rejects a blank advanced MCP server binding', async () => {
+      await expect(
+        handler.execute(
+          {
+            ...mockContext,
+            workspaceId: 'test-workspace-123',
+            workflowId: 'test-workflow-456',
+          },
+          mockBlock,
+          {
+            model: 'gpt-4o',
+            userPrompt: 'Continue without MCP tools',
+            apiKey: 'test-api-key',
+            tools: [
+              {
+                type: 'mcp-server-advanced',
+                params: { serverId: '' },
+                usageControl: 'auto' as const,
+              },
+            ],
+          }
+        )
+      ).rejects.toThrow('requires params.serverId')
 
       expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
-      expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([])
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('fails before invoking the model when no advanced operations are permitted', async () => {
+      mockDiscoverMcpServerToolsAsExecutor.mockResolvedValue([])
+      await expect(
+        handler.execute(
+          { ...mockContext, workspaceId: 'test-workspace-123', workflowId: 'test-workflow-456' },
+          mockBlock,
+          {
+            model: 'gpt-4o',
+            userPrompt: 'Use MCP',
+            apiKey: 'test-api-key',
+            tools: [
+              {
+                type: 'mcp-server-advanced',
+                params: { serverId: 'mcp-server-1' },
+                operationPolicy: { mode: 'allow', operations: [] },
+              },
+            ],
+          }
+        )
+      ).rejects.toThrow('No permitted MCP operations')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
     describe('customToolId resolution - DB as source of truth', () => {

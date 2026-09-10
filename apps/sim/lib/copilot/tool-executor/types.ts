@@ -2,9 +2,12 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
+  mcpBlockId?: string
+  executorDelegationOrigin?: ExecutorDelegationOrigin
   userId: string
   workflowId: string
   workspaceId?: string

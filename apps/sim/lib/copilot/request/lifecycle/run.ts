@@ -71,6 +71,7 @@ import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -175,6 +176,8 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 }
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
+  mcpBlockId?: string
+  executorDelegationOrigin?: ExecutorDelegationOrigin
   userId: string
   workflowId?: string
   workspaceId?: string
@@ -334,6 +337,10 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  if (lifecycleOptions.mcpBlockId) {
+    execContext.mcpBlockId = lifecycleOptions.mcpBlockId
+    execContext.executorDelegationOrigin = lifecycleOptions.executorDelegationOrigin
+  }
   if (typeof requestPayload.mode === 'string') execContext.requestMode = requestPayload.mode
   if (execContext.requestMode === 'assistant') {
     execContext.assistantSearch = workspaceSearchFiltersSchema.parse(

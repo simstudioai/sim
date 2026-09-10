@@ -4,6 +4,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { readFolderPaths } from '@/lib/folders/selection'
+import { isMcpRuntimeReference, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import { createMcpToolId, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
@@ -1031,6 +1032,13 @@ function remapForkToolInputValue(
 
   array.forEach((tool, toolIndex) => {
     const keep = (nextTool: unknown) => {
+      if (isRecordLike(nextTool) && nextTool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+        const operationPolicy = normalizeMcpOperationPolicy(nextTool.operationPolicy)
+        if (operationPolicy !== nextTool.operationPolicy) {
+          nextTool = { ...nextTool, operationPolicy }
+          changed = true
+        }
+      }
       newIndexByOldIndex.set(toolIndex, next.length)
       next.push(nextTool)
     }
@@ -1065,6 +1073,10 @@ function remapForkToolInputValue(
       typeof tool.params.serverId === 'string'
     ) {
       const serverId = tool.params.serverId
+      if (isMcpRuntimeReference(serverId)) {
+        keep(tool)
+        return
+      }
       const target = resolve('mcp-server', serverId, [toolIndex, 'params', 'serverId'])
       opts.record?.('mcp-server', serverId, target != null, [toolIndex, 'params', 'serverId'])
       if (target != null) {
@@ -1230,6 +1242,7 @@ export function remapForkSubBlocks(
 
     const resolveField: ForkReferenceResolver = (kind, id, path) =>
       resolve(kind, id, [subBlockKey, ...(path ?? [])])
+
     let value = subBlock.value
     const valueBeforeResource = value
     const subBlockType = typeof subBlock.type === 'string' ? subBlock.type : undefined
@@ -1450,7 +1463,11 @@ export function remapForkSubBlocks(
   if (mcpServerRemaps.size > 0) {
     for (const [subBlockKey, subBlock] of Object.entries(result)) {
       if (!subBlock || typeof subBlock !== 'object') continue
-      if (subBlock.type !== 'mcp-tool-selector') continue
+      if (
+        subBlock.type !== 'mcp-tool-selector' ||
+        configByBaseKey.get(subBlockKey)?.canonicalParamId === 'tool'
+      )
+        continue
       const toolValue = subBlock.value
       if (typeof toolValue !== 'string' || !toolValue) continue
       for (const [sourceServerId, targetServerId] of mcpServerRemaps) {

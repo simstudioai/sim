@@ -403,9 +403,18 @@ export const createMothershipChatContract = defineRouteContract({
   },
 })
 
+export const mothershipExecuteHeadersSchema = z.object({
+  'x-sim-mcp-delegation': z
+    .string()
+    .min(1, 'Signed MCP workflow provenance is required')
+    .max(16384),
+})
+export type MothershipExecuteHeaders = z.input<typeof mothershipExecuteHeadersSchema>
+
 export const mothershipExecuteContract = defineRouteContract({
   method: 'POST',
   path: '/api/mothership/execute',
+  headers: mothershipExecuteHeadersSchema,
   body: mothershipExecuteBodySchema,
   response: {
     mode: 'json',

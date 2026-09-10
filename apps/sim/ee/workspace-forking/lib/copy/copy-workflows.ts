@@ -8,6 +8,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { buildFolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import {
   remapConditionIdsInSubBlocks,
   remapVariableIdsInSubBlocks,
@@ -519,7 +520,8 @@ export async function copyWorkflowStateIntoTarget(
 
   const newBlocks: Record<string, BlockState> = {}
   const clearedDependents: NeedsConfigurationField[] = []
-  for (const [oldBlockId, block] of Object.entries(sourceState.blocks)) {
+  for (const [oldBlockId, savedBlock] of Object.entries(sourceState.blocks)) {
+    const block = migrateMcpOperationControls(savedBlock)
     const newBlockId = blockIdMapping.get(oldBlockId)!
 
     let updatedData = block.data

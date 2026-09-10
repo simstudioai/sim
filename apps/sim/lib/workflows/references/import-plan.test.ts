@@ -12,6 +12,7 @@ import { finalizeBlockToolPositions } from '@/lib/workflows/references/finalize-
 import { buildWorkflowImportPlan } from '@/lib/workflows/references/import-plan'
 import { buildWorkflowReferenceManifest } from '@/lib/workflows/references/manifest'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/registry'
 
 const config = {
@@ -66,6 +67,148 @@ beforeEach(() => {
 })
 
 describe('portable workflow references', () => {
+  it.each([
+    { tool: 'mcp-source-server-search_docs', action: undefined, expected: 'search_docs' },
+    { tool: 'search_docs', action: undefined, expected: 'search_docs' },
+    {
+      tool: 'mcp-source-server-search_docs',
+      action: 'run',
+      expected: 'mcp-source-server-search_docs',
+    },
+  ])(
+    'imports a legacy MCP manifest and operation $tool with action $action',
+    ({ tool, action, expected }) => {
+      vi.mocked(getBlock).mockReturnValue(McpBlock)
+      const source = state({})
+      source.blocks.source.type = 'mcp'
+      source.blocks.source.subBlocks = {
+        server: { id: 'server', type: 'mcp-server-selector', value: null },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: tool },
+        ...(action
+          ? { operation: { id: 'operation', type: 'dropdown' as const, value: action } }
+          : {}),
+      }
+      const plan = buildWorkflowImportPlan(
+        {
+          state: source,
+          referenceManifest: {
+            version: 1,
+            references: [
+              {
+                kind: 'mcp-server',
+                sourceId: 'mcp-source-server',
+                required: true,
+                occurrences: [
+                  { blockId: 'source', subBlockKey: 'server', valuePath: [], encoding: 'scalar' },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          mappings: [{ kind: 'mcp-server', sourceId: 'mcp-source-server', targetId: 'mcp-target' }],
+        }
+      )
+      expect(plan.unresolvedBindings).toEqual([])
+      expect(plan.state.blocks.source.subBlocks.serverSelector.value).toBe('mcp-target')
+      expect(plan.state.blocks.source.subBlocks.toolSelector.value).toBe(expected)
+      expect(plan.state.blocks.source.subBlocks.server).toBeUndefined()
+      expect(plan.manifest.references[0].occurrences[0].subBlockKey).toBe('serverSelector')
+    }
+  )
+
+  it('migrates legacy MCP environment locators with their runtime server field', () => {
+    vi.mocked(getBlock).mockReturnValue(McpBlock)
+    const source = state({})
+    source.blocks.source.type = 'mcp'
+    source.blocks.source.subBlocks = {
+      server: { id: 'server', type: 'mcp-server-selector', value: '{{SOURCE_SERVER}}' },
+      tool: { id: 'tool', type: 'mcp-tool-selector', value: '<choose.name>' },
+    }
+    const plan = buildWorkflowImportPlan(
+      {
+        state: source,
+        referenceManifest: {
+          version: 1,
+          references: [
+            {
+              kind: 'env-var',
+              sourceId: 'SOURCE_SERVER',
+              required: true,
+              occurrences: [
+                {
+                  blockId: 'source',
+                  subBlockKey: 'server',
+                  valuePath: [],
+                  encoding: 'environment',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      { mappings: [{ kind: 'env-var', sourceId: 'SOURCE_SERVER', targetId: 'TARGET_SERVER' }] }
+    )
+    expect(plan.unresolvedBindings).toEqual([])
+    expect(plan.state.blocks.source.subBlocks.serverReference.value).toBe('{{TARGET_SERVER}}')
+    expect(plan.state.blocks.source.subBlocks.toolReference.value).toBe('<choose.name>')
+  })
+
+  it.each(['missing', 'shadowed', 'connection'])(
+    'rejects a %s legacy MCP parent locator instead of rebinding another field',
+    (configuration) => {
+      vi.mocked(getBlock).mockReturnValue(McpBlock)
+      const source = state({})
+      source.blocks.source.type = 'mcp'
+      source.blocks.source.subBlocks = {
+        ...(configuration !== 'missing'
+          ? { server: { id: 'server', type: 'mcp-server-selector' as const, value: null } }
+          : {}),
+        ...(configuration === 'shadowed'
+          ? {
+              serverSelector: {
+                id: 'serverSelector',
+                type: 'mcp-server-selector' as const,
+                value: 'other-server',
+              },
+            }
+          : {}),
+        ...(configuration === 'connection'
+          ? {
+              connection: {
+                id: 'connection',
+                type: 'short-input' as const,
+                value: '<lookup.connection>',
+              },
+            }
+          : {}),
+      }
+      expect(() =>
+        buildWorkflowImportPlan(
+          {
+            state: source,
+            referenceManifest: {
+              version: 1,
+              references: [
+                {
+                  kind: 'mcp-server',
+                  sourceId: 'mcp-source-server',
+                  required: true,
+                  occurrences: [
+                    { blockId: 'source', subBlockKey: 'server', valuePath: [], encoding: 'scalar' },
+                  ],
+                },
+              ],
+            },
+          },
+          {}
+        )
+      ).toThrow(
+        configuration === 'connection' ? 'selected connection' : 'Reference field does not exist'
+      )
+    }
+  )
+
   it('rejects duplicate variable identities before they collapse into one imported variable', () => {
     const source = state({})
     source.variables = {

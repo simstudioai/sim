@@ -115,7 +115,8 @@ export async function executeTool(
         executionId: context.executionId,
         chatId: context.chatId,
         toolCallId: context.toolCallId,
-        executorDelegationOrigin: {
+        mcpBlockId: context.mcpBlockId,
+        executorDelegationOrigin: context.executorDelegationOrigin ?? {
           subjectUserId: context.userId,
           workflowId: context.workflowId,
           ...(context.executionId ? { executionId: context.executionId } : {}),

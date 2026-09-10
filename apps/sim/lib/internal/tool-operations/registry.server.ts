@@ -1768,6 +1768,15 @@ registerFamily(handlerLoaders, LOG_TOOL_IDS, async () => {
   return (await import('@/lib/internal/logs/execute-tool')).executeLogsTool
 })
 
+handlerLoaders.set(
+  'mcp_run_operation',
+  async () => (await import('@/lib/internal/mcp/execute-tool')).executeMcpTool
+)
+handlerLoaders.set(
+  'mcp_list_operations',
+  async () => (await import('@/lib/internal/mcp/list-operations')).listMcpOperations
+)
+
 export function isInternalToolOperationRegistered(toolId: string): boolean {
   return handlerLoaders.has(toolId) || isMcpTool(toolId)
 }

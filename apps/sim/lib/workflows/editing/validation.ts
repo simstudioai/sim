@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
@@ -253,6 +254,14 @@ function validateAgentToolEntry(item: any, index: number): string | null {
 
   if (typeof type !== 'string' || type.trim() === '') {
     return `${where} is missing a string "type". Custom tools require "type":"custom-tool" (without it the tool will not attach or show its icon); use "mcp" for MCP tools or an integration block type (e.g. "exa") otherwise`
+  }
+
+  if (
+    type === MCP_SERVER_ADVANCED_TOOL_TYPE &&
+    item.operationPolicy !== undefined &&
+    !mcpOperationPolicySchema.safeParse(item.operationPolicy).success
+  ) {
+    return `${where} has an invalid MCP operations access policy`
   }
 
   if (type === 'custom-tool') {

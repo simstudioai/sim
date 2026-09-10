@@ -24,11 +24,11 @@ vi.mock('@/blocks/registry', () => ({
         ? {
             name: 'MCP',
             subBlocks: [
-              { id: 'server', type: 'mcp-server-selector' },
+              { id: 'serverSelector', type: 'mcp-server-selector' },
               {
-                id: 'tool',
+                id: 'toolSelector',
                 type: 'mcp-tool-selector',
-                dependsOn: ['server'],
+                dependsOn: ['serverSelector'],
                 selectorKey: 'mcp.tools',
               },
             ],
@@ -245,7 +245,7 @@ describe('buildWorkflowExportPayload', () => {
     expect(legacy!.state.blocks.agent.subBlocks.tools.value).toBeNull()
   })
 
-  it.each(['mcp-source-server-search_docs', 'search_docs'])(
+  it.each(['search_docs', 'read_document'])(
     'preserves safe MCP selection metadata only when opted in: %s',
     async (value) => {
       mocks.loadNormalized.mockResolvedValue({
@@ -258,8 +258,12 @@ describe('buildWorkflowExportPayload', () => {
             outputs: {},
             enabled: true,
             subBlocks: {
-              server: { id: 'server', type: 'mcp-server-selector', value: 'source-server' },
-              tool: { id: 'tool', type: 'mcp-tool-selector', value },
+              serverSelector: {
+                id: 'serverSelector',
+                type: 'mcp-server-selector',
+                value: 'source-server',
+              },
+              toolSelector: { id: 'toolSelector', type: 'mcp-tool-selector', value },
             },
           },
         },
@@ -276,16 +280,15 @@ describe('buildWorkflowExportPayload', () => {
         variables: {},
       }
       const portable = await buildWorkflowExportPayload(record, { includeReferences: true })
-      expect(portable!.state.blocks.mcp.subBlocks.tool.value).toBe(value)
+      expect(portable!.state.blocks.mcp.subBlocks.toolSelector.value).toBe(value)
       const plan = buildWorkflowImportPlan(
         { ...portable! },
         { mappings: [{ kind: 'mcp-server', sourceId: 'source-server', targetId: 'target-server' }] }
       )
-      expect(plan.state.blocks.mcp.subBlocks.tool.value).toBe(
-        value.replace('source-server', 'target-server')
-      )
+      expect(plan.state.blocks.mcp.subBlocks.serverSelector.value).toBe('target-server')
+      expect(plan.state.blocks.mcp.subBlocks.toolSelector.value).toBe(value)
       const legacy = await buildWorkflowExportPayload(record)
-      expect(legacy!.state.blocks.mcp.subBlocks.tool.value).toBeNull()
+      expect(legacy!.state.blocks.mcp.subBlocks.toolSelector.value).toBeNull()
     }
   )
 
@@ -301,7 +304,7 @@ describe('buildWorkflowExportPayload', () => {
             position: { x: 0, y: 0 },
             outputs: {},
             enabled: true,
-            subBlocks: { tool: { id: 'tool', type: 'mcp-tool-selector', value } },
+            subBlocks: { toolSelector: { id: 'toolSelector', type: 'mcp-tool-selector', value } },
           },
         },
         edges: [],
@@ -319,7 +322,7 @@ describe('buildWorkflowExportPayload', () => {
         },
         { includeReferences: true }
       )
-      expect(payload!.state.blocks.mcp.subBlocks.tool.value).toBeNull()
+      expect(payload!.state.blocks.mcp.subBlocks.toolSelector.value).toBeNull()
       expect(JSON.stringify(payload)).not.toContain('secret-token')
     }
   )

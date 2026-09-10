@@ -134,9 +134,13 @@ export class BlockExecutor {
       []
     )
     const inputDisplayRegistry = blockResolvedSecretTraceRegistry
-    const blockCtx = blockResolvedSecretTraceRegistry
-      ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
-      : ctx
+    const blockCtx: ExecutionContext = {
+      ...ctx,
+      mcpBlockId: block.id,
+      ...(blockResolvedSecretTraceRegistry
+        ? { resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
+        : {}),
+    }
     let registryCommitted = false
     const commitBlockRegistry = () => {
       const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry

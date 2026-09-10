@@ -1,7 +1,13 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { discover } = vi.hoisted(() => ({ discover: vi.fn() }))
+const { discover, discoverManaged } = vi.hoisted(() => ({
+  discover: vi.fn(),
+  discoverManaged: vi.fn(),
+}))
+vi.mock('@/lib/credentials/application/discover-managed-mcp-tools', () => ({
+  discoverManagedMcpToolsUseCase: { execute: discoverManaged },
+}))
 vi.mock('@/lib/mcp/application/use-cases', () => ({
   discoverMcpServerToolsUseCase: { execute: discover },
 }))
@@ -67,5 +73,26 @@ describe('MCP tools selector', () => {
     })
     discover.mockRejectedValueOnce(new Error('Destination access denied'))
     await expect(execute(args({ kind: 'list' }))).rejects.toThrow('Destination access denied')
+  })
+  it('discovers a managed connection through its authorized use case with the acting principal', async () => {
+    discoverManaged.mockResolvedValue({ tools: [{ name: 'read', canonicalServerId: 'parent' }] })
+    const input = args({ kind: 'list' })
+    input.context.mcpServerId = 'mcp-cg-abcdefghijklmnopqrstu'
+    expect(await execute(input)).toEqual({
+      kind: 'list',
+      items: [{ id: 'read', label: 'read' }],
+    })
+    expect(discoverManaged).toHaveBeenCalledWith({
+      principal: input.principal,
+      input: {
+        workspaceId: 'destination',
+        credentialId: 'mcp-cg-abcdefghijklmnopqrstu',
+        signal: input.signal,
+      },
+    })
+    expect(discover).not.toHaveBeenCalled()
+    discoverManaged.mockRejectedValueOnce(new Error('Credential revoked'))
+    await expect(execute(input)).rejects.toThrow('Credential revoked')
+    expect(discover).not.toHaveBeenCalled()
   })
 })

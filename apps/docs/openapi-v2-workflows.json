@@ -8201,6 +8201,69 @@
             "const": "mcp-server-advanced",
             "description": "Server-wide MCP binding discriminator."
           },
+          "operationPolicy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "all",
+                    "description": "Allow all operations available to the authorized credential."
+                  }
+                },
+                "required": ["mode"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "allow",
+                    "description": "Allow only the selected exact operations."
+                  },
+                  "operations": {
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "description": "Exact MCP tool name on the resolved connection, without a Sim server prefix."
+                    },
+                    "description": "Allowed exact MCP tool names; an empty list grants no access."
+                  }
+                },
+                "required": ["mode", "operations"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "deny",
+                    "description": "Exclude the selected exact operations."
+                  },
+                  "operations": {
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "description": "Exact MCP tool name on the resolved connection, without a Sim server prefix."
+                    },
+                    "description": "Denied exact MCP tool names; an empty list allows otherwise permitted tools."
+                  }
+                },
+                "required": ["mode", "operations"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "Saved workflow operation restrictions that can only narrow authorized credential access."
+          },
           "params": {
             "type": "object",
             "properties": {
@@ -8213,7 +8276,7 @@
             },
             "required": ["serverId"],
             "additionalProperties": false,
-            "description": "Server identity for discovering and invoking every available MCP tool."
+            "description": "Executable server or connection identity for authorized operation discovery and execution."
           },
           "usageControl": {
             "type": "string",
@@ -8226,7 +8289,7 @@
           "description": "Forward-compatible MCP server metadata preserved by the workflow editor."
         },
         "title": "Agent MCP server (advanced)",
-        "description": "All tools available to the executing subject from one MCP server.",
+        "description": "Dynamically discovered operations permitted by the authorized credential and saved block policy.",
         "examples": [
           {
             "type": "mcp-server-advanced",

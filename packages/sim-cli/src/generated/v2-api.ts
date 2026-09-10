@@ -429,6 +429,18 @@ type ApplyWorkflowOperationsBodyRef5 = {
 
 type ApplyWorkflowOperationsBodyRef6 = {
   type: 'mcp-server-advanced'
+  operationPolicy?:
+    | {
+        mode: 'all'
+      }
+    | {
+        mode: 'allow'
+        operations: Array<string>
+      }
+    | {
+        mode: 'deny'
+        operations: Array<string>
+      }
   params: {
     serverId: string
   }

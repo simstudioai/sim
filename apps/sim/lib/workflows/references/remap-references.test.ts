@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { McpBlock } from '@/blocks/blocks/mcp'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
 // The indexer resolves a tool's params via the tool registry; stub it so the
@@ -498,6 +499,100 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
   })
   const mapServer = (kind: string, id: string) =>
     kind === 'mcp-server' && id === 'mcp-src1' ? 'mcp-tgt9' : null
+
+  it('copies canonical field pairs without rewriting exact operation names', () => {
+    vi.mocked(getBlock).mockReturnValue(McpBlock)
+    const result = remapForkSubBlocks(
+      {
+        serverSelector: { id: 'serverSelector', type: 'mcp-server-selector', value: 'mcp-src1' },
+        serverReference: { id: 'serverReference', type: 'short-input', value: 'dormant-server' },
+        toolSelector: { id: 'toolSelector', type: 'mcp-tool-selector', value: 'mcp-src1-read' },
+        toolReference: { id: 'toolReference', type: 'short-input', value: 'dormant-operation' },
+        arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
+      },
+      mapServer,
+      'promote',
+      { blockType: 'mcp', canonicalModes: { server: 'basic', tool: 'basic' } }
+    )
+    expect(result.subBlocks.serverSelector.value).toBe('mcp-tgt9')
+    expect(result.subBlocks.toolSelector.value).toBe('mcp-src1-read')
+    expect(result.subBlocks.arguments.value).toBe('{"query":"hello"}')
+    expect(result.subBlocks.serverReference.value).toBe('')
+    expect(result.subBlocks.toolReference.value).toBe('')
+  })
+
+  it('preserves dynamic Agent target references and their literal tool restrictions', () => {
+    const result = remapForkSubBlocks(
+      {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'mcp-server-advanced',
+              params: { serverId: '<lookup.id>' },
+              operationPolicy: {
+                mode: 'deny',
+                operations: ['temporarily_missing'],
+              },
+            },
+          ],
+        },
+      },
+      mapServer,
+      'promote'
+    )
+    expect(result.subBlocks.tools.value).toEqual([
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: '<lookup.id>' },
+        operationPolicy: {
+          mode: 'deny',
+          operations: ['temporarily_missing'],
+        },
+      },
+    ])
+  })
+
+  it.each(['allow', 'deny'])(
+    'normalizes interim %s restrictions to names when a workflow is copied',
+    (mode) => {
+      vi.mocked(getBlock).mockReturnValue(mcpBlock())
+      const policy = {
+        mode,
+        operations: [
+          { serverId: 'mcp-src1', name: 'temporarily_missing' },
+          { serverId: 'other-server', name: 'read' },
+        ],
+      }
+      const transformed = remapForkSubBlocks(
+        {
+          ...mcpSubBlocks(),
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              {
+                type: 'mcp-server-advanced',
+                params: { serverId: 'mcp-src1' },
+                operationPolicy: policy,
+              },
+            ],
+          },
+        },
+        mapServer,
+        'promote'
+      )
+      const expected = {
+        mode,
+        operations: ['temporarily_missing', 'read'],
+      }
+      expect(transformed.subBlocks.tools.value).toEqual([
+        expect.objectContaining({ operationPolicy: expected }),
+      ])
+      expect(policy.operations[0].serverId).toBe('mcp-src1')
+    }
+  )
 
   it('sync transform: keeps the tool (embedded server id swapped, name verbatim) and its arguments', () => {
     // The same transform serves BOTH create- and replace-mode sync targets, so a freshly

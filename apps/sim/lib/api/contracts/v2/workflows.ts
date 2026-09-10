@@ -66,6 +66,7 @@ import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
@@ -3085,6 +3086,7 @@ export const v2AgentMcpToolSchema = z
 export const v2AgentMcpServerAdvancedSchema = z
   .object({
     type: z.literal('mcp-server-advanced').describe('Server-wide MCP binding discriminator.'),
+    operationPolicy: mcpOperationPolicySchema.optional(),
     params: z
       .object({
         serverId: z
@@ -3097,7 +3099,9 @@ export const v2AgentMcpServerAdvancedSchema = z
           ),
       })
       .strict()
-      .describe('Server identity for discovering and invoking every available MCP tool.'),
+      .describe(
+        'Executable server or connection identity for authorized operation discovery and execution.'
+      ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
   })
   .catchall(
@@ -3106,7 +3110,8 @@ export const v2AgentMcpServerAdvancedSchema = z
   .meta({
     id: 'AgentMcpServerAdvanced',
     title: 'Agent MCP server (advanced)',
-    description: 'All tools available to the executing subject from one MCP server.',
+    description:
+      'Dynamically discovered operations permitted by the authorized credential and saved block policy.',
     examples: [
       {
         type: 'mcp-server-advanced',

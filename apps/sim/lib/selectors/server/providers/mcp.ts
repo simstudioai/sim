@@ -1,5 +1,7 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { discoverManagedMcpToolsUseCase } from '@/lib/credentials/application/discover-managed-mcp-tools'
 import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
+import { isManagedMcpConnectionId, MANAGED_MCP_CONNECTION_PREFIX } from '@/lib/mcp/utils'
 import {
   definePreparedSelectorAttachment,
   detailSelectorResult,
@@ -18,11 +20,24 @@ export const mcpSelectorAttachments = {
             'validation',
             'MCP tool discovery requires a destination server'
           )
+        const serverId = args.context.mcpServerId
+        if (serverId.startsWith(MANAGED_MCP_CONNECTION_PREFIX)) {
+          if (!isManagedMcpConnectionId(serverId))
+            throw new OrchestrationError('validation', 'Invalid managed MCP connection ID')
+          return discoverManagedMcpToolsUseCase.execute({
+            principal: args.principal,
+            input: {
+              workspaceId: args.workspaceId,
+              credentialId: serverId,
+              signal: args.signal,
+            },
+          })
+        }
         return discoverMcpServerToolsUseCase.execute({
           principal: args.principal,
           input: {
             workspaceId: args.workspaceId,
-            serverId: args.context.mcpServerId,
+            serverId,
             signal: args.signal,
             requireComplete: true,
           },

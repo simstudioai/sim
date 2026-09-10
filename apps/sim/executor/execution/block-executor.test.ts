@@ -102,6 +102,39 @@ describe('BlockExecutor', () => {
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
+  it('isolates MCP policy provenance across concurrent blocks without a secret registry', async () => {
+    const blocks = [createBlock(), { ...createBlock(), id: 'function-block-2' }]
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks,
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const contexts: ExecutionContext[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, block) => {
+        contexts.push(blockContext)
+        if (contexts.length === 2) release()
+        await gate
+        expect(blockContext.mcpBlockId).toBe(block.id)
+        return { result: 'done' }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const context = createContext(state)
+    await Promise.all(blocks.map((block) => executor.execute(context, createNode(block), block)))
+    expect(contexts[0]).not.toBe(contexts[1])
+    expect(context.mcpBlockId).toBeUndefined()
+  })
+
   it('redacts an authorized prior-execution manifest returned by a block under the current execution', async () => {
     const items = [{ email: 'alice@example.com', count: 7 }]
     const manifest = await createLargeArrayManifest(items, {
