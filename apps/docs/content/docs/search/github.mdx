@@ -96,7 +96,7 @@ This is an installation plus personal authorization flow. GitHub Search does not
 | Identity verification fails | Verify the email used by your Sim account in GitHub's email settings, then reconnect. A public profile email alone is insufficient. |
 | Authorization fails after installation | Return to Sim and start **Connect** there. Do not enable authorization during installation. |
 | Account authorization did not complete | Start the connection again from Sim. If it repeats, contact your organization admin or Sim support. For self-hosted Sim, check the [App callback and credentials](/platform/self-hosting/integrations-oauth#github-search). |
-| Update GitHub using Update configurations in organization settings before connecting this source | An organization admin must select **Settings → Sources → Update configurations**, then reconnect GitHub. |
+| GitHub asks for a provider configuration update | An organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected users reconnect GitHub. |
 | Indexed files no longer appear | Confirm your own repository access, App repository selection, and connection status. Installation-indexed content is also withheld when GitHub cannot verify current access; retry once GitHub is available. |
 | Sync is incomplete | Review the source status. Very large Git trees, file size limits, and unreadable files can limit indexing. |
 | Empty repository returns an error | Add an initial commit, then sync again. GitHub does not return a file tree for an uninitialized repository. |

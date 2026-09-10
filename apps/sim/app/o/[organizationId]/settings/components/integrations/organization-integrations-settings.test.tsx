@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   update: vi.fn(),
   updatePending: false,
+  updateError: null as Error | null,
+  resetUpdate: vi.fn(),
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: mocks.context,
@@ -23,7 +25,12 @@ vi.mock(
 )
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccounts: mocks.accounts,
-  useUpdateOrganizationAccounts: () => ({ mutate: mocks.update, isPending: mocks.updatePending }),
+  useUpdateOrganizationAccounts: () => ({
+    mutate: mocks.update,
+    isPending: mocks.updatePending,
+    error: mocks.updateError,
+    reset: mocks.resetUpdate,
+  }),
   useOrganizationAccountPeople: mocks.people,
   useInviteOrganizationAccountPeople: () => ({ mutateAsync: mocks.invite, reset: vi.fn() }),
   useResendOrganizationAccountInvitation: () => ({}),
@@ -42,6 +49,7 @@ describe('organization integration invitations', () => {
     vi.spyOn(toast, 'success').mockReturnValue('toast-id')
     vi.spyOn(toast, 'error').mockReturnValue('toast-id')
     mocks.updatePending = false
+    mocks.updateError = null
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: true } })
     mocks.accounts.mockReturnValue({
@@ -85,7 +93,7 @@ describe('organization integration invitations', () => {
 
   function findButton(label: string) {
     const button = Array.from(document.querySelectorAll('button')).find(
-      (element) => element.textContent === label
+      (element) => element.textContent === label || element.getAttribute('aria-label') === label
     )
     if (!button) throw new Error(`Missing ${label} button`)
     return button
@@ -93,6 +101,19 @@ describe('organization integration invitations', () => {
 
   async function click(label: string) {
     await act(async () => findButton(label).click())
+  }
+
+  async function openRefresh() {
+    expect(container.textContent).not.toContain('Update configurations')
+    await act(async () =>
+      findButton('More source actions').dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0 })
+      )
+    )
+    const item = document.querySelector<HTMLElement>('[role="menuitem"]')
+    expect(item?.textContent).toBe('Refresh connection settings')
+    await act(async () => item?.click())
+    expect(document.body.textContent).toContain('Affected accounts will need to reconnect.')
   }
 
   it('keeps provider setup as the default and sends manual invitations from People to this org', async () => {
@@ -124,7 +145,7 @@ describe('organization integration invitations', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('refreshes saved provider identities from Sources and reports the outcome', async () => {
+  it('refreshes saved provider identities only after choosing the maintenance action and confirming', async () => {
     mocks.accounts.mockReturnValue({
       data: {
         credentialGroup: {
@@ -151,7 +172,8 @@ describe('organization integration invitations', () => {
     })
     mocks.update.mockImplementationOnce((_input, { onSuccess }) => onSuccess())
     await render()
-    await click('Update configurations')
+    await openRefresh()
+    await click('Refresh')
     expect(mocks.update).toHaveBeenCalledWith(
       {
         organizationId: 'org-a',
@@ -176,24 +198,32 @@ describe('organization integration invitations', () => {
       },
       expect.any(Object)
     )
-    expect(toast.success).toHaveBeenCalledWith('Provider configurations updated')
+    expect(toast.success).toHaveBeenCalledWith('Connection settings refreshed')
 
-    mocks.update.mockImplementationOnce((_input, { onError }) =>
-      onError(new Error('Update denied'))
-    )
-    await click('Update configurations')
-    expect(toast.error).toHaveBeenCalledWith('Update denied')
-
-    mocks.updatePending = true
-    await render()
-    expect(findButton('Update configurations')).toBeDisabled()
-    await click('Update configurations')
-    expect(mocks.update).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('does not offer a configuration update without saved providers', async () => {
+  it('keeps failed refreshes open for retry and blocks duplicate submissions', async () => {
+    mocks.accounts.mockReturnValue({
+      data: { credentialGroup: { id: 'group-a', options: [{ provider: 'gmail' }] } },
+      error: null,
+    })
     await render()
-    expect(container.textContent).not.toContain('Update configurations')
+    await openRefresh()
+    await click('Refresh')
+    mocks.updateError = new Error('Update denied')
+    await render()
+    expect(document.body.textContent).toContain('Update denied')
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    mocks.updatePending = true
+    await render()
+    expect(findButton('Refresh')).toBeDisabled()
+    expect(mocks.update).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer maintenance without saved providers', async () => {
+    await render()
+    expect(container.querySelector('[aria-label="More source actions"]')).toBeNull()
   })
 
   it('opens People directly from the saved URL', async () => {

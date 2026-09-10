@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipLink, ChipModalError, ChipSwitch } from '@sim/emcn'
+import { ChipConfirmModal, ChipModalError, ChipSwitch } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -367,11 +367,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                       : 'Add a source to set up account connections.'
                   : 'Activate this integration to set up account connections.'}
               </SettingsEmptyState>
-              {automaticSetup && approved && (
-                <ChipLink href={organizationRoutes(organization.id).integrations}>
-                  Open Integrations
-                </ChipLink>
-              )}
             </SettingsPanel>
           )
         ) : (

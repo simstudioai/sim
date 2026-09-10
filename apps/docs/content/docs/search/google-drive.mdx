@@ -151,7 +151,7 @@ https://<your-sim-domain>/api/auth/oauth2/callback/google-drive
 
 This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
 
-Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → Update configurations**, then affected teammates reconnect.
+Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected teammates reconnect.
 
 The current Sim Drive OAuth connection uses these scopes:
 

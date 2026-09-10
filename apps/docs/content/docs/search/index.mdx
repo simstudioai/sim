@@ -18,7 +18,7 @@ Search brings your connected sources into one place. An organization admin allow
 
 As an organization admin, open **Settings → Sources** and turn on the integration. It stays in the list; no setup page opens automatically.
 
-The switch permits the integration in your organization. It does not connect an account, grant document access, or start indexing. Teammates connect from **Integrations** in the main sidebar; only admins manage these switches.
+The switch saves immediately and permits the integration in your organization. It does not connect an account, grant document access, or start indexing. Teammates connect from **Integrations** in the main sidebar; only admins manage these switches.
 
 </Step>
 <Step>
@@ -41,9 +41,9 @@ Open **Integrations** in the main sidebar and select **Connect** if prompted—e
 </Step>
 </Steps>
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.jpg" alt="Organization Sources settings with provider switches, Set up or Manage actions, and Update configurations" width={800} height={674} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.jpg" alt="Organization Sources settings with provider switches and Set up or Manage actions" width={800} height={674} />
 
-Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue. If an existing provider asks for a configuration update, an admin selects **Update configurations** on this page, then affected teammates reconnect.
+Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue. If an existing provider asks for a configuration update after a deployment change, an admin selects **More → Refresh connection settings** on this page, then affected teammates reconnect.
 
 ## Choose the right connection method
 
@@ -100,7 +100,7 @@ For Gmail, one configuration is usually enough. **Add sync configuration** creat
 | Source tab | What you can do |
 | --- | --- |
 | **Documents** | Find indexed documents, inspect processing status, retry failed indexing, or exclude and restore documents. |
-| **Settings** | Edit the source's scope, filters, and supported indexing credentials. Save your changes before leaving. |
+| **Settings** | Edit the source's scope, filters, and supported indexing credentials. Select **Save** to apply changes or **Discard** to undo them. |
 | **Sync history** | Review run dates, document changes, and any sync or account errors. |
 
 **Sync using** shows the method selected when the source was created. Create a new source to change that method. To replace a supported indexing credential, select its replacement and use **Change indexing account**.
