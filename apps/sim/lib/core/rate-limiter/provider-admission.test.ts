@@ -46,6 +46,8 @@ describe('provider admission', () => {
         'provider:embedding:openai:hashed-credential:requests',
       ])
       expect(reservations[0].cost).toBe(50)
+      /** Enough burst for every concurrent document to start a batch; the rate still governs throughput. */
+      expect(reservations[1].config).toMatchObject({ maxTokens: 64, refillRate: 10 })
       expect(options.cooldownKeys).toHaveLength(2)
     }
   })
@@ -92,7 +94,7 @@ describe('provider admission', () => {
     })
     expect(consumeTokens).toHaveBeenCalledOnce()
     expect(consumeTokens.mock.calls[0][0]).toMatchObject([
-      { key: 'provider:ocr:openai:another-key:requests' },
+      { key: 'provider:ocr:openai:another-key:requests', config: { maxTokens: 2 } },
     ])
   })
   it('retains the cooldown when an admission storage call consumes the remaining deadline', async () => {

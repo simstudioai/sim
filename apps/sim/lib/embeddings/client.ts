@@ -147,7 +147,17 @@ export const EMBEDDING_MAX_RETRY_DELAY_MS = 30_000
  * is honored in full when it fits inside this deadline.
  */
 export const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
-const KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS = 5000
+
+/**
+ * How long a checkpointed indexing batch waits for the shared admission bucket
+ * before the document yields its slot. Twenty concurrent documents fanning out
+ * eight batches each can queue for a couple of minutes behind the configured
+ * per-minute budget; yielding after a few seconds turned every such wait into a
+ * full re-dispatch with a minute-or-more delay. A minute of idle waiting is far
+ * cheaper than that round trip, and the per-request retry budget still bounds
+ * the whole attempt. Interactive callers keep the full request budget.
+ */
+export const KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS = 60_000
 
 export class EmbeddingAPIError extends Error {
   public status: number
