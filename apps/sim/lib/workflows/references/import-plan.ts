@@ -2,6 +2,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import { workflowReferenceManifestSchema } from '@/lib/api/contracts/workflow-references'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { normalizeMcpBlockValues } from '@/lib/mcp/workflow-config'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   coerceObjectArray,
@@ -120,6 +121,69 @@ function writeOccurrence(
   ) as BlockState['subBlocks'][string]['value']
 }
 
+/** Moves portable locators with the legacy MCP fields that workflow parsing normalizes. */
+function normalizePortableMcpReferences(
+  state: WorkflowState,
+  manifest: WorkflowReferenceManifest,
+  rawState: unknown
+): WorkflowReferenceManifest {
+  const rawBlocks = isRecordLike(rawState) ? rawState.blocks : undefined
+  return {
+    ...manifest,
+    references: manifest.references.map((reference) => ({
+      ...reference,
+      occurrences: reference.occurrences.map((occurrence) => {
+        const rawBlock = isRecordLike(rawBlocks) ? rawBlocks[occurrence.blockId] : undefined
+        const block = state.blocks[occurrence.blockId]
+        if (
+          !block ||
+          block.type !== 'mcp' ||
+          !isRecordLike(rawBlock) ||
+          !isRecordLike(rawBlock.subBlocks) ||
+          !Object.hasOwn(rawBlock.subBlocks, occurrence.subBlockKey) ||
+          (occurrence.subBlockKey !== 'server' && occurrence.subBlockKey !== 'tool') ||
+          occurrence.valuePath.length !== 0
+        )
+          return occurrence
+        const saved: Record<string, unknown> = {}
+        for (const [key, field] of Object.entries(rawBlock.subBlocks))
+          if (isRecordLike(field)) saved[key] = field.value
+        if (
+          Object.hasOwn(saved, `${occurrence.subBlockKey}Selector`) ||
+          Object.hasOwn(saved, `${occurrence.subBlockKey}Reference`)
+        )
+          return occurrence
+        if (
+          occurrence.subBlockKey === 'server' &&
+          saved.connection != null &&
+          saved.connection !== ''
+        )
+          throw new OrchestrationError(
+            'validation',
+            'Legacy MCP parent server references must be replaced with the selected connection'
+          )
+        if (reference.kind === 'mcp-server' && occurrence.subBlockKey === 'server')
+          saved.server = reference.sourceId
+        const normalized = normalizeMcpBlockValues(saved)
+        const subBlockKey =
+          occurrence.subBlockKey +
+          (normalized.canonicalModes[occurrence.subBlockKey] === 'advanced'
+            ? 'Reference'
+            : 'Selector')
+        if (reference.kind === 'mcp-server' && occurrence.subBlockKey === 'server') {
+          const toolKey =
+            normalized.canonicalModes.tool === 'advanced' ? 'toolReference' : 'toolSelector'
+          if (block.subBlocks[toolKey])
+            block.subBlocks[toolKey].value = normalized.values[
+              toolKey
+            ] as BlockState['subBlocks'][string]['value']
+        }
+        return { ...occurrence, subBlockKey }
+      }),
+    })),
+  }
+}
+
 export function parsePortableWorkflow(workflow: string | Record<string, unknown>): {
   state: WorkflowState
   manifest?: WorkflowReferenceManifest
@@ -181,7 +245,13 @@ export function parsePortableWorkflow(workflow: string | Record<string, unknown>
   }
   const rawManifest = isRecordLike(payload) ? payload.referenceManifest : undefined
   const manifest =
-    rawManifest === undefined ? undefined : workflowReferenceManifestSchema.parse(rawManifest)
+    rawManifest === undefined
+      ? undefined
+      : normalizePortableMcpReferences(
+          state,
+          workflowReferenceManifestSchema.parse(rawManifest),
+          isRecordLike(payload) && isRecordLike(payload.state) ? payload.state : payload
+        )
   return { state, manifest }
 }
 

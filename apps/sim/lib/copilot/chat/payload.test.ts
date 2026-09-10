@@ -30,8 +30,8 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
   ),
 }))
 
-vi.mock('@/lib/mcp/utils', () => ({
-  createMcpToolId: vi.fn(),
+vi.mock('@/lib/copilot/mcp-tools', () => ({
+  buildTaggedMcpToolSchemas: vi.fn(async () => []),
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
@@ -156,7 +156,7 @@ import {
   buildCopilotRequestPayload,
   buildIntegrationToolSchemas,
   clearIntegrationToolSchemaCacheForTests,
-} from './payload'
+} from '@/lib/copilot/chat/payload'
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
