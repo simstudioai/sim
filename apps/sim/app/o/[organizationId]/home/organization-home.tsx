@@ -6,6 +6,7 @@ import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -79,6 +80,7 @@ function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
       {hasChat ? (
         <MothershipChat
+          SearchConnectionComponent={SearchIntegrationConnection}
           messages={chat.messages}
           isSending={chat.isSending}
           isReconnecting={chat.isReconnecting}

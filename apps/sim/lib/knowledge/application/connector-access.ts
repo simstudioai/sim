@@ -12,6 +12,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
 import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import {
   requireKnowledgeMemberAccessAvailable,
@@ -58,6 +59,7 @@ export interface StartKnowledgeConnectorMemberEnrollmentInput {
   assertedWorkspaceId?: string
   assertedOrganizationId?: string
   /** Opens provider OAuth directly and correlates its completion with the initiating tab. */
+  connectionIntent?: CredentialGroupConnectionIntent
   oauthCompletionId?: string
 }
 
@@ -123,6 +125,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
           completionRedirect: true,
           returnTo: 'search',
           completionId: input.oauthCompletionId,
+          connectionIntent: input.connectionIntent,
         })
       }
       if (!context.knowledgeBase.isSearchIndex) return invitationLink

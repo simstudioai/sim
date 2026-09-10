@@ -28,6 +28,7 @@ const account = {
   groupId: 'group-1',
   optionId: 'gmail-option',
   providerId: 'gmail',
+  status: 'active',
 }
 
 describe('personal source account projection', () => {
@@ -46,10 +47,13 @@ describe('personal source account projection', () => {
     expect(isNull).toHaveBeenCalledWith(credentialGroup.workspaceId)
     expect(isNull).toHaveBeenCalledWith(credential.revokedAt)
     expect(inArray).toHaveBeenCalledWith(credential.managedOauthStatus, ['active', 'needs_reauth'])
-    expect(result.get(source.id)).toEqual([{ credentialId: 'mine', displayName: 'My Gmail' }])
+    expect(result.get(source.id)).toEqual([
+      { credentialId: 'mine', displayName: 'My Gmail', status: 'active' },
+    ])
     expect(dbChainMockFns.select).toHaveBeenCalledWith({
       credentialId: credential.id,
       displayName: credential.displayName,
+      status: credential.managedOauthStatus,
       groupId: credentialGroup.id,
       optionId: credential.credentialGroupOptionId,
       providerId: credential.providerId,
@@ -84,7 +88,7 @@ describe('personal source account projection', () => {
     expect(eq).toHaveBeenCalledWith(credential.type, 'managed_oauth')
     expect(eq).toHaveBeenCalledWith(credential.providerId, 'slack')
     expect(result.get('slack-source')).toEqual([
-      { credentialId: 'slack-personal', displayName: 'My Gmail' },
+      { credentialId: 'slack-personal', displayName: 'My Gmail', status: 'active' },
     ])
   })
 

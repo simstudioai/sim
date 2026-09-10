@@ -16,6 +16,7 @@ import {
   type CredentialGroupOAuthContext,
   lockCredentialGroupEnrollmentLifecycle,
 } from '@/lib/credential-groups/enrollments'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import {
   type CredentialGroupOAuthAttempt,
   createCredentialGroupOAuthAttempt,
@@ -35,6 +36,7 @@ import {
   getCredentialGroupProviderService,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
+import { recordSearchConnectionCompletion } from '@/lib/credential-groups/search-connection-completion'
 import {
   decryptManagedOAuthTokenSet,
   encryptManagedOAuthTokenSet,
@@ -112,6 +114,7 @@ export async function startCredentialGroupOAuth(
   invitationToken: string,
   options: {
     completionRedirect?: boolean
+    connectionIntent?: CredentialGroupConnectionIntent
     completionId?: string
     returnTo?: 'search' | 'accounts'
   } = {}
@@ -135,6 +138,7 @@ export async function startCredentialGroupOAuth(
     codeVerifier: prepared.codeVerifier,
     completionRedirect: options.completionRedirect,
     completionId: options.completionId,
+    connectionIntent: options.connectionIntent,
     returnTo: options.returnTo,
     invitationToken,
   })
@@ -146,7 +150,8 @@ async function persistGrant(
   adapter: CredentialGroupProviderAdapter,
   policy: CredentialGroupProviderPolicy,
   grant: VerifiedCredentialGroupGrant,
-  invitationTokenHash: string
+  invitationTokenHash: string,
+  connectionIntent?: CredentialGroupConnectionIntent
 ): Promise<CredentialGroupOAuthCompletion> {
   if (grant.providerId !== policy.providerId) {
     throw new CredentialGroupOAuthError('Provider returned a credential for another app.', 502)
@@ -217,6 +222,7 @@ async function persistGrant(
     const [existing] = await tx
       .select({
         id: credential.id,
+        revokedAt: credential.revokedAt,
         providerSubjectId: credential.providerSubjectId,
         encryptedOauthTokenSet: credential.encryptedOauthTokenSet,
         refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
@@ -230,6 +236,16 @@ async function persistGrant(
         )
       )
       .limit(1)
+
+    if (
+      (connectionIntent?.kind === 'create' && existing && !existing.revokedAt) ||
+      (connectionIntent?.kind === 'reconnect' && existing?.id !== connectionIntent.credentialId)
+    ) {
+      throw new CredentialGroupOAuthError(
+        'The account changed during authorization. Refresh your connections and try again.',
+        409
+      )
+    }
 
     let refreshToken = grant.refreshToken
     if (
@@ -373,5 +389,21 @@ export async function completeCredentialGroupOAuth(
   const adapter = getOptionAdapter(context)
   const policy = await assertCurrentPolicy(context, adapter, attempt)
   const grant = await adapter.exchangeAndVerify({ context, attempt, code, policy })
-  return persistGrant(context, adapter, policy, grant, sha256Hex(attempt.invitationToken))
+  const completion = await persistGrant(
+    context,
+    adapter,
+    policy,
+    grant,
+    sha256Hex(attempt.invitationToken),
+    attempt.connectionIntent
+  )
+  if (attempt.connectionIntent && attempt.completionId && attempt.organizationId) {
+    await recordSearchConnectionCompletion({
+      organizationId: attempt.organizationId,
+      userId: attempt.userId,
+      completionId: attempt.completionId,
+      credentialId: completion.credentialId,
+    })
+  }
+  return completion
 }

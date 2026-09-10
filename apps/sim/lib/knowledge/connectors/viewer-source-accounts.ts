@@ -8,6 +8,7 @@ import { getConnectorMeta } from '@/connectors/registry'
 interface ViewerSourceAccount {
   credentialId: string
   displayName: string
+  status: 'active' | 'needs_reauth'
 }
 
 interface SourceAccountBinding {
@@ -56,6 +57,7 @@ export async function resolveViewerSourceAccounts(input: {
     .select({
       credentialId: credential.id,
       displayName: credential.displayName,
+      status: credential.managedOauthStatus,
       groupId: credentialGroup.id,
       optionId: credential.credentialGroupOptionId,
       providerId: credential.providerId,
@@ -90,7 +92,11 @@ export async function resolveViewerSourceAccounts(input: {
     if (own.length)
       result.set(
         source.id,
-        own.map(({ credentialId, displayName }) => ({ credentialId, displayName }))
+        own.map(({ credentialId, displayName, status }) => {
+          if (status !== 'active' && status !== 'needs_reauth')
+            throw new Error('Invalid personal account status')
+          return { credentialId, displayName, status }
+        })
       )
   }
   return result

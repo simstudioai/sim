@@ -48,11 +48,12 @@ export async function executeTool(
     (context.workspaceId ||
       context.workflowId ||
       context.requestMode !== 'assistant' ||
-      !['search_workspace', 'read_document'].includes(toolId))
+      !['search_workspace', 'read_document', 'list_integrations'].includes(toolId))
   ) {
     return {
       success: false,
-      error: 'Organization Assistant can search and read connected documents.',
+      error:
+        'Organization Assistant can search documents and inspect personal Search integrations.',
     }
   }
   if (context.requestMode === 'assistant' && !ASSISTANT_TOOLS.has(toolId)) {

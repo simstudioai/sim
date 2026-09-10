@@ -55,7 +55,7 @@ function retrieval(
     },
   }
 }
-function setup() {
+function setup(deliverConnections = vi.fn().mockResolvedValue(undefined)) {
   const controller = new AbortController()
   const beforeDelivery = vi.fn().mockResolvedValue(undefined)
   const beforeCleanup = vi.fn().mockResolvedValue(undefined)
@@ -76,10 +76,49 @@ function setup() {
       registry,
       beforeDelivery,
       beforeCleanup,
+      deliverConnections,
     }),
   }
 }
 describe('Slack Assistant delivery', () => {
+  it('withholds split connection tags, delivers validated controls, and leaves a visible next step', async () => {
+    const deliver = vi.fn().mockResolvedValue(undefined)
+    const { stream } = setup(deliver)
+    await stream.start()
+    const target = { type: 'link', provider: 'google-email', connectorType: 'gmail' }
+    for (const text of [
+      'Connect Gmail. <cre',
+      `dential>${JSON.stringify(target).slice(0, 10)}`,
+      `${JSON.stringify(target).slice(10)}</credential>`,
+    ]) {
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text } })
+    }
+    await stream.finish(result)
+    expect(deliver).toHaveBeenCalledExactlyOnceWith([target])
+    expect(deliveredText()).toContain('connection buttons in our DM')
+    expect(deliveredText()).not.toMatch(/credential|connectorType|google-email/)
+  })
+  it('aborts on connection-button delivery failure without a successful finish', async () => {
+    const deliver = vi.fn().mockRejectedValue(new Error('ephemeral delivery failed'))
+    const { stream, controller } = setup(deliver)
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: {
+        channel: 'assistant',
+        text: '<credential>{"type":"link","provider":"gmail","connectorType":"gmail"}</credential>',
+      },
+    })
+    await expect(stream.finish(result)).rejects.toThrow('ephemeral delivery failed')
+    expect(controller.signal.aborted).toBe(true)
+    expect(api.stop).not.toHaveBeenCalled()
+  })
+  it('never exposes a partial terminal tag or model-authored connection URL', () => {
+    expect(publicSlackAnswer('Next <cred', true)).toBe('Next ')
+    expect(publicSlackAnswer('Connect [here](https://evil.test) <credential>{oops}', true)).toBe(
+      'Connect here '
+    )
+  })
   it('streams only main public answer text and preserves the original thread', async () => {
     const { stream } = setup()
     await stream.start()

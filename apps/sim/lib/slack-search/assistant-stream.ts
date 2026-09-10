@@ -8,6 +8,10 @@ import {
 import { redactSensitiveContent } from '@/lib/copilot/chat/sim-key-redaction'
 import type { StreamEvent } from '@/lib/copilot/request/session/contract'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import {
+  parseSearchConnectionTargets,
+  type SearchConnectionTarget,
+} from '@/lib/knowledge/search/connection-target'
 import { SLACK_SEARCH_FAILED_ANSWER } from '@/lib/slack-search/constants'
 import {
   appendSlackAgentStream,
@@ -54,7 +58,7 @@ export function publicSlackAnswer(
 function publicSlackText(value: string): string {
   return value
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*(?:>|$)/g, '')
     .replace(/(?:https?:\/\/|www\.)[^\s<>]+/gi, '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -89,6 +93,7 @@ interface AssistantStreamOptions {
   registry: ResolvedSecretTraceRegistry
   beforeDelivery: () => Promise<void>
   beforeCleanup: (signal: AbortSignal) => Promise<void>
+  deliverConnections?: (targets: SearchConnectionTarget[]) => Promise<void>
 }
 
 const FAILURE_BLOCKS: Record<string, unknown>[] = [
@@ -221,6 +226,21 @@ export class SlackSearchAssistantStream {
   async finish(result: OrchestratorResult) {
     if (this.failure) throw this.failure
     this.collectSources(result.contentBlocks)
+    const projection = projectResolvedSecretDiagnosticContent(
+      this.text,
+      this.options.registry,
+      512_000
+    )
+    if (!projection.safe || typeof projection.value !== 'string')
+      throw new Error('Connection controls could not be safely projected')
+    const targets = parseSearchConnectionTargets(redactSensitiveContent(projection.value))
+    if (targets.length) {
+      if (!this.options.deliverConnections)
+        throw new Error('Search connection delivery is unavailable')
+      await this.deliver(() => this.options.deliverConnections!(targets))
+      this.text +=
+        '\n\nUse the connection buttons in our DM, then reply here when you’re ready to continue.'
+    }
     await this.flush(true)
     await this.close([])
   }

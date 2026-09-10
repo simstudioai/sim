@@ -21,6 +21,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
   requireKnowledgeMemberAccessAvailable,
@@ -65,6 +66,7 @@ export interface ConnectSimSearchConnectorInput extends ResourceOwner {
   /** Source settings identify a compatible configuration when creating or reusing a source. */
   sourceConfig?: Record<string, string>
   /** Correlates a direct provider authorization with the initiating Integrations tab. */
+  connectionIntent?: CredentialGroupConnectionIntent
   oauthCompletionId?: string
 }
 
@@ -370,6 +372,7 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         assertedWorkspaceId: workspaceId,
         assertedOrganizationId: context.organizationId,
         oauthCompletionId: input.oauthCompletionId,
+        connectionIntent: input.connectionIntent,
       },
       request,
     })
