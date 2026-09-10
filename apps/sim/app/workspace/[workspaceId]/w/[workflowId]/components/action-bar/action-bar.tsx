@@ -91,27 +91,35 @@ const ACTION_BUTTON_STYLES = [
 const RUNNING_FILL =
   'bg-[repeating-linear-gradient(75deg,var(--surface-2)_11.59px_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.485px_36.7px)]'
 
-/** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
-const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
+/** A 2.75px gap across the 15° slant matches the 2px inset plus 0.75px outer stroke. */
+const RUNNING_FILL_INSET_SWELL = 'left-[42.85px]'
 const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
 
 /**
- * Trims the fill to the swell's tapered end.
- *
- * The row is a rectangle but the swell is not: its last slot cuts a diagonal
- * (`M16.25 0 … L36.59 19.9 …`) so the shape narrows toward the top. A rectangular
- * overlay therefore paints past the gray edge at the top while still sitting
- * inside it at the bottom — the fill visibly ran off the block. The per-slot
- * version never did, because each button's own clip contained it.
- *
- * Same taper, read off that path. Its straight run — (22.4, 2.88) to
- * (36.59, 19.9) in the slot's own 40×24 box — has a slope of 20/24, so across
- * the full row it moves from 20px in at the top to flush at the bottom. The
- * overlay spans the row, so those are its two numbers; they are the slot's own
- * edge continued, which is what puts the hatch's end exactly where a hovered
- * slot's fill ends. Changing the end silhouette means changing them with it.
+ * A 15° entry with 4px rounded corners. The solid body overlaps each end cap
+ * by 1px to avoid seams at fractional zoom; the plain bar keeps a square end.
  */
-const RUNNING_FILL_END_TAPER = '[clip-path:polygon(0_0,calc(100%_-_20px)_0,100%_100%,0_100%)]'
+const RUNNING_FILL_MASK = [
+  '[mask-image:linear-gradient(black,black),url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2024%22%3E%3Cpath%20d%3D%22M5.213%200H16V24H9.5A4%204%200%200%201%205.636%2021.035L1.349%205.035A4%204%200%200%201%205.213%200Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"),var(--running-fill-end-mask,linear-gradient(black,black))]',
+  '[mask-size:calc(100%_-_54px)_100%,16px_100%,40px_100%]',
+  '[mask-position:15px_top,left_top,right_top]',
+  '[mask-repeat:no-repeat]',
+].join(' ')
+
+/** Uses the delete button's rounded contour for the swell's right end cap. */
+const RUNNING_FILL_ROUNDED_END =
+  '[--running-fill-end-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2024%22%3E%3Cpath%20d%3D%22M0%200H16.25A8%208%200%200%201%2022.4%202.88L36.59%2019.9A2.5%202.5%200%200%201%2034.66%2024H0Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E")]'
+
+/**
+ * The running button keeps its outer shoulder and rounds its 15° right edge.
+ * The edge runs from x=40 at the top to x=46.43 at the bottom, parallel to the hatch.
+ */
+const RUNNING_BUTTON_CLIP_SWELL =
+  "[clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24H41.217A4_4_0_0_0_45.081_18.965L40.795_2.965A4_4_0_0_0_36.931_0Z')]"
+
+/** Extends the highlight while preserving the 40px slot and the icon's center. */
+const RUNNING_BUTTON_LAYOUT_SWELL =
+  'relative z-[1] -mr-[6.43px] w-[46.43px]! shrink-0 rounded-none pr-[6.43px]'
 
 const ICON_SIZE = 'size-[14px]'
 
@@ -128,7 +136,7 @@ type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' |
 function RunningActionIcon() {
   return (
     <span
-      className='relative grid size-[14px] translate-x-[8px] translate-y-px place-items-center'
+      className='relative grid size-[16px] translate-x-[8px] translate-y-px place-items-center'
       role='status'
     >
       <span className='sr-only'>Block running</span>
@@ -136,7 +144,7 @@ function RunningActionIcon() {
         aria-hidden='true'
         className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-reduce:transition-none'
       >
-        <Loader className='size-[14px]' animate />
+        <Loader className='size-[16px]' animate />
       </span>
       <span
         aria-hidden='true'
@@ -334,8 +342,12 @@ export const ActionBar = memo(
             'dark:focus-visible:bg-[var(--surface-4)]! dark:focus-visible:text-[var(--text-primary)]!',
           ],
         isSwell &&
-          actionId === firstActionId &&
-          "w-[40px]! [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&>svg]:translate-y-px",
+          actionId === firstActionId && [
+            '[&>svg]:translate-y-px',
+            isSweeping && actionId === 'run'
+              ? [RUNNING_BUTTON_LAYOUT_SWELL, RUNNING_BUTTON_CLIP_SWELL]
+              : "w-[40px]! [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')]",
+          ],
         isSwell &&
           actionId === firstActionId &&
           (actionId === 'run' || actionId === 'color'
@@ -432,7 +444,8 @@ export const ActionBar = memo(
                    the container's own inset. */
                 'pointer-events-none absolute inset-y-0 right-0 overflow-hidden',
                 isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN,
-                isSwell && RUNNING_FILL_END_TAPER
+                RUNNING_FILL_MASK,
+                isSwell && RUNNING_FILL_ROUNDED_END
               )}
             >
               <span
