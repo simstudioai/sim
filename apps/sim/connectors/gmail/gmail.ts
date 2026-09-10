@@ -306,18 +306,22 @@ function buildSearchQuery(
   return parts.join(' ')
 }
 
-const DATE_RANGE_DAYS: Record<string, number> = {
+const DATE_RANGE_DAYS = {
   '7d': 7,
   '30d': 30,
   '90d': 90,
   '6m': 180,
   '1y': 365,
+} as const
+
+function isBoundedDateRange(value: unknown): value is keyof typeof DATE_RANGE_DAYS {
+  return typeof value === 'string' && Object.hasOwn(DATE_RANGE_DAYS, value)
 }
 
 /** The earliest message date the configured range admits, or undefined for all time. */
 function dateRangeStart(sourceConfig: Record<string, unknown>, now: Date): Date | undefined {
-  const days = DATE_RANGE_DAYS[(sourceConfig.dateRange as string) || 'all']
-  return days === undefined ? undefined : daysAgo(now, days)
+  const range = sourceConfig.dateRange
+  return isBoundedDateRange(range) ? daysAgo(now, DATE_RANGE_DAYS[range]) : undefined
 }
 
 function daysAgo(now: Date, days: number): Date {
