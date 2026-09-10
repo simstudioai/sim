@@ -379,7 +379,9 @@ export async function validateConnectorSourceConfig(input: {
     })
     if (!identity) {
       return {
-        message: 'Credential is no longer usable in this workspace. Please reconnect it.',
+        message: input.organizationId
+          ? 'Credential is no longer usable in this organization. Please reconnect it.'
+          : 'Credential is no longer usable in this workspace. Please reconnect it.',
         errorCode: 'validation',
       }
     }

@@ -179,6 +179,7 @@ describe('organization operational overview with real SQL', () => {
           sourceCount: 2,
           approved: true,
           status: 'active',
+          issue: null,
           isSyncing: false,
         },
         {
@@ -186,6 +187,7 @@ describe('organization operational overview with real SQL', () => {
           sourceCount: 1,
           approved: true,
           status: 'active',
+          issue: null,
           isSyncing: false,
         },
       ])
@@ -208,7 +210,7 @@ describe('organization operational overview with real SQL', () => {
     expect(await provider('github')).toMatchObject({
       sourceCount: 0,
       approved: true,
-      status: 'waiting_for_connections',
+      status: 'needs_setup',
     })
     expect(await provider('confluence')).toMatchObject({
       sourceCount: 0,

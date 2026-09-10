@@ -461,3 +461,146 @@ describe('Jira validation and provider failures', () => {
     expect(full?.contentHash).toBe(listed.documents[0]?.contentHash)
   })
 })
+
+describe('Jira member project permissions', () => {
+  const source = { ...SOURCE, projectKey: ['ENG', 'SUPPORT'] }
+  const projectDenied = {
+    errorMessages: ["The value 'ENG' does not exist for the field 'project'."],
+    errors: {},
+  }
+  const supportIssue = (id: string) => issue(id, { project: { id: '20000', key: 'SUPPORT' } })
+
+  it('skips an inaccessible project and resumes the accessible project across fresh contexts', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(projectDenied, 400))
+      .mockResolvedValueOnce(
+        json({ issues: [supportIssue('2')], nextPageToken: 'opaque|support', isLast: false })
+      )
+      .mockResolvedValueOnce(json({ issues: [supportIssue('3')], isLast: true }))
+
+    const denied = await jiraConnector.listDocuments('token', source, undefined, { ...MEMBERS })
+    expect(denied).toMatchObject({ documents: [], hasMore: true })
+    const first = await jiraConnector.listDocuments('token', source, denied.nextCursor, {
+      ...MEMBERS,
+    })
+    const second = await jiraConnector.listDocuments('token', source, first.nextCursor, {
+      ...MEMBERS,
+    })
+    expect(first.documents.map((doc) => doc.externalId)).toEqual([
+      memberDocumentId(`jira:${CLOUD_ID}:2`, MEMBERS),
+    ])
+    expect(second.documents.map((doc) => doc.externalId)).toEqual([
+      memberDocumentId(`jira:${CLOUD_ID}:3`, MEMBERS),
+    ])
+    expect(second.hasMore).toBe(false)
+    const urls = fetchMock.mock.calls.map(([input]) => new URL(String(input)))
+    expect(urls.map((url) => url.searchParams.get('jql'))).toEqual([
+      'project = "ENG" ORDER BY updated DESC',
+      'project = "SUPPORT" ORDER BY updated DESC',
+      'project = "SUPPORT" ORDER BY updated DESC',
+    ])
+    expect(urls[2].searchParams.get('nextPageToken')).toBe('opaque|support')
+  })
+
+  it('ends normally when the last project is denied by its selector ID', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ issues: [issue()] }))
+      .mockResolvedValueOnce(
+        json(
+          { errorMessages: ["A value with ID '20000' does not exist for the field 'project'."] },
+          400
+        )
+      )
+    const configured = { ...SOURCE, projectKey: ['ENG', '20000'] }
+    const first = await jiraConnector.listDocuments('token', configured, undefined, { ...MEMBERS })
+    const last = await jiraConnector.listDocuments('token', configured, first.nextCursor, {
+      ...MEMBERS,
+    })
+    expect(first.documents).toHaveLength(1)
+    expect(last).toEqual({ documents: [], hasMore: false, nextCursor: undefined })
+  })
+
+  it('confirms whole-source access loss only after every project has explicitly denied access', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(projectDenied, 400))
+      .mockResolvedValueOnce(
+        json(
+          { errorMessages: ["The value 'SUPPORT' does not exist for the field 'project'."] },
+          400
+        )
+      )
+    const first = await jiraConnector.listDocuments('token', source, undefined, { ...MEMBERS })
+    const error = await jiraConnector
+      .listDocuments('token', source, first.nextCursor, { ...MEMBERS })
+      .catch((value: unknown) => value)
+    expect(jiraConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+  })
+
+  it.each([
+    { status: 400, body: { errorMessages: ['Invalid JQL syntax.'] } },
+    {
+      status: 400,
+      body: { errorMessages: ["The value 'OTHER' does not exist for the field 'project'."] },
+    },
+    { status: 400, body: { errorMessages: [...projectDenied.errorMessages, 'Unknown field.'] } },
+    { status: 400, body: { ...projectDenied, errors: { jql: 'Invalid query' } } },
+    { status: 403, body: projectDenied },
+    { status: 500, body: projectDenied },
+  ])('preserves observations on unrelated failure %j', async ({ status, body }) => {
+    fetchMock.mockResolvedValue(json(body, status))
+    const error = await jiraConnector
+      .listDocuments('token', source, undefined, { ...MEMBERS })
+      .catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(Error)
+    expect(jiraConnector.isListingScopeUnavailableError?.(error)).toBe(false)
+    expect(jiraConnector.isListingCursorInvalidError?.(error)).toBe(false)
+  })
+
+  it.each([
+    'legacy-token|100',
+    JSON.stringify({ version: 1, projectIndex: 1, projectKey: 'ENG', pageToken: 'stale' }),
+  ])('restarts incompatible durable project cursor %s', async (cursor) => {
+    const error = await jiraConnector
+      .listDocuments('token', source, cursor, { ...MEMBERS })
+      .catch((value: unknown) => value)
+    expect(jiraConnector.isListingCursorInvalidError?.(error)).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('restarts the observation generation when a project loses access during pagination', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ issues: [issue('1')], nextPageToken: 'eng-page-two' }))
+      .mockResolvedValueOnce(json(projectDenied, 400))
+      .mockResolvedValueOnce(json(projectDenied, 400))
+      .mockResolvedValueOnce(json({ issues: [supportIssue('2')] }))
+    const checkpoint = beginListingCheckpoint({
+      fingerprint: '0'.repeat(64),
+      generationId: 'before-project-revocation',
+      startedAt: new Date(),
+    })
+    const processed: { generationId: string; ids: string[] }[] = []
+    const completed = await runResumableListing({
+      connectorConfig: jiraConnector,
+      sourceConfig: source,
+      syncContext: { ...MEMBERS },
+      checkpoint,
+      deadlineAt: Date.now() + 10000,
+      beforePage: async () => {},
+      getAccessToken: async () => 'token',
+      processPage: async (documents, page) => {
+        processed.push({
+          generationId: page.generationId,
+          ids: documents.map((doc) => doc.externalId),
+        })
+      },
+      saveCheckpoint: async () => {},
+    })
+    expect(completed).toMatchObject({ complete: true, listedCount: 1, unsafe: false, cursor: null })
+    expect(completed.generationId).not.toBe('before-project-revocation')
+    expect(
+      processed
+        .filter((page) => page.generationId === completed.generationId)
+        .flatMap((page) => page.ids)
+    ).toEqual([memberDocumentId(`jira:${CLOUD_ID}:2`, MEMBERS)])
+  })
+})

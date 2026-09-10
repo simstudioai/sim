@@ -23,11 +23,16 @@ export const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new M
   Object.entries(blockTypeToIconMap).map(([type, icon]) => [stripVersionSuffix(type), icon])
 )
 
-/** Chip label: the site name the model supplied, else the URL's hostname without a `www.` prefix. */
-export function sourceLabel(source: SourceTagData): string {
+/** The source's site or provider, separate from its document title. */
+export function sourceSiteName(source: SourceTagData): string {
   const siteName = source.siteName?.trim()
   if (siteName) return siteName
   return (externalLinkHostname(source.url) ?? source.url).replace(/^www\./, '')
+}
+
+/** Citations identify the document; source metadata is the fallback when its title is unavailable. */
+export function sourceLabel(source: SourceTagData): string {
+  return source.title?.trim() || sourceSiteName(source)
 }
 
 interface SourceChipProps {
@@ -36,7 +41,7 @@ interface SourceChipProps {
 
 /**
  * A cited document as a small round pill — the connector's brand mark or the
- * site favicon, then the site name — used inline at the citation point and
+ * site favicon, then the document title — used inline at the citation point and
  * again in the footer strip. Built on the chip fill and hover tokens at a 20px
  * height so it sits inside a line of prose; the 30px `Chip` is the wrong scale
  * for a citation. Opens the document like any external link in the reply.

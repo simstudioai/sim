@@ -123,6 +123,7 @@ export async function authorizeSelectorCredential(input: {
       organizationId: input.scope.organizationId,
       credentialId: suppliedId,
       requestId: 'selector-execution',
+      purpose: 'browsing',
     })
     if (
       !row.providerId ||
@@ -192,6 +193,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
         ...input.credential.organization,
         credentialId: input.credential.suppliedId,
         requestId: 'selector-execution',
+        purpose: 'browsing',
         requiredScopes: input.scopes ? [...input.scopes] : undefined,
         impersonateEmail: input.impersonateEmail,
         expectedProviderId: input.credential.providerId,

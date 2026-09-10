@@ -247,7 +247,7 @@ describe('durable source and member cycles in PostgreSQL', () => {
       const soft = await run()
       expect(soft.pass).toMatchObject({ complete: true, holdNotice: null })
       expect(soft.pass.checkpoint.listedCount).toBe(3_300)
-      expect(soft.stats).toMatchObject({ docsUnchanged: 3_300, docsDeleted: 0, docsFailed: 0 })
+      expect(soft.stats).toMatchObject({ docsUnchanged: 3_300, docsDeleted: 1_100, docsFailed: 0 })
       expect(hardDelete).not.toHaveBeenCalled()
       const missing = await db
         .select({
@@ -281,7 +281,7 @@ describe('durable source and member cycles in PostgreSQL', () => {
         .where(eq(knowledgeConnector.id, connectorId))
       const hard = await run()
       expect(hard.pass).toMatchObject({ complete: true, holdNotice: null })
-      expect(hard.stats).toMatchObject({ docsUnchanged: 3_300, docsDeleted: 1_100, docsFailed: 0 })
+      expect(hard.stats).toMatchObject({ docsUnchanged: 3_300, docsDeleted: 0, docsFailed: 0 })
       expect(hardDelete.mock.calls.map(([batch]) => batch.length)).toEqual(Array(44).fill(25))
       const remaining = await db
         .select()

@@ -75,6 +75,9 @@ describe('Jira server selector adapter', () => {
     expect(url.searchParams.get('startAt')).toBe('50')
     expect(url.searchParams.get('maxResults')).toBe('50')
     expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockResolveSelectorCredentialBundle).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: ['read:jira-work'] })
+    )
   })
 
   it('preserves a requested project key when hydrating its label', async () => {

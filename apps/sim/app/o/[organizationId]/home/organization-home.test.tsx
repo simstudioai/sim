@@ -2,6 +2,7 @@
 import { act, type ComponentProps, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthorizedApp, AuthorizedAppsPage } from '@/lib/api/contracts/user'
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
@@ -13,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   consume: vi.fn(),
   sources: vi.fn(),
   apiKeys: vi.fn(),
+  authorizedApps: vi.fn(),
+  fetchNextPage: vi.fn(),
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
@@ -30,6 +33,7 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSourceOverview: mocks.sources }))
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
+vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
   MothershipChat: mocks.renderer,
 }))
@@ -45,10 +49,11 @@ beforeEach(() => {
   mocks.context.mockReturnValue({
     organization: { id: 'organization-a' },
     searchAccess: { memberScoped: true },
-    viewer: { isAdmin: false },
+    viewer: { isAdmin: false, canUseSearchMcp: true },
   })
   mocks.sources.mockReturnValue({ data: { providers: [], hasSearchableDocuments: false } })
   mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
+  mockAuthorizedApps([{ apps: [], nextCursor: null }])
   mocks.chat.mockReturnValue({ messages: [], isChatHistoryPending: true, sendMessage: mocks.send })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
   mocks.renderer.mockReturnValue(<div>Chat history</div>)
@@ -63,6 +68,30 @@ afterEach(async () => {
 })
 function composerProps(): ComponentProps<typeof Composer> {
   return mocks.composer.mock.lastCall![0]
+}
+
+function hasCompletedMcpStep() {
+  const link = container.querySelector('a[href="/o/organization-a/settings/search-mcp"]')
+  expect(link).not.toBeNull()
+  return link!.querySelector('span[aria-hidden="true"] svg') !== null
+}
+
+function authorizedApp(scopes: string[], clientId = 'search-client'): AuthorizedApp {
+  return { clientId, name: clientId, scopes, authorizedAt: '2026-09-01T00:00:00.000Z' }
+}
+
+function mockAuthorizedApps(
+  pages: AuthorizedAppsPage[],
+  state: { isFetching?: boolean; isError?: boolean } = {}
+) {
+  mocks.authorizedApps.mockReturnValue({
+    data: { pages },
+    fetchNextPage: mocks.fetchNextPage,
+    hasNextPage: Boolean(pages.at(-1)?.nextCursor),
+    isFetching: false,
+    isError: false,
+    ...state,
+  })
 }
 
 describe('organization home', () => {
@@ -151,7 +180,7 @@ describe('organization home', () => {
       mocks.context.mockReturnValue({
         organization: { id: 'organization-a' },
         searchAccess: { memberScoped: true },
-        viewer: { isAdmin },
+        viewer: { isAdmin, canUseSearchMcp: true },
       })
       await act(async () => root.render(<OrganizationHome />))
       expect(
@@ -170,6 +199,79 @@ describe('organization home', () => {
       })
     }
   )
+  it('does not complete MCP onboarding for an unrelated personal API key', async () => {
+    mocks.apiKeys.mockReturnValue({ data: { personalKeys: [{ id: 'workflow-api-key' }] } })
+    await act(async () => root.render(<OrganizationHome />))
+    expect(hasCompletedMcpStep()).toBe(false)
+    expect(mocks.apiKeys).not.toHaveBeenCalled()
+  })
+
+  it('hides MCP onboarding and stops authorization paging when organization policy blocks access', async () => {
+    mocks.context.mockReturnValue({
+      organization: { id: 'organization-a' },
+      searchAccess: { memberScoped: true },
+      viewer: { isAdmin: false, canUseSearchMcp: false },
+    })
+    mockAuthorizedApps([{ apps: [], nextCursor: 'older-apps' }])
+    await act(async () => root.render(<OrganizationHome />))
+    expect(container.textContent).not.toContain('Connect Sim Search MCP')
+    expect(container.textContent).toContain('Connect an integration')
+    expect(mocks.authorizedApps).toHaveBeenCalledWith('', { enabled: false })
+    expect(mocks.fetchNextPage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { scopes: ['search:read'], completed: true },
+    { scopes: ['api:read'], completed: true },
+    { scopes: ['api:write'], completed: true },
+    { scopes: ['offline_access'], completed: false },
+    { scopes: [], completed: false },
+    { scopes: ['unrecognized:read'], completed: false },
+  ])('derives MCP completion from OAuth scopes $scopes', async ({ scopes, completed }) => {
+    mockAuthorizedApps([{ apps: [authorizedApp(scopes)], nextCursor: null }])
+    await act(async () => root.render(<OrganizationHome />))
+    expect(hasCompletedMcpStep()).toBe(completed)
+  })
+
+  it('finds a Search authorization after the first page and stops paging once found', async () => {
+    const firstPage = {
+      apps: [authorizedApp(['offline_access'], 'other-client')],
+      nextCursor: 'older-apps',
+    }
+    mockAuthorizedApps([firstPage])
+    await act(async () => root.render(<OrganizationHome />))
+    expect(hasCompletedMcpStep()).toBe(false)
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
+
+    mockAuthorizedApps([
+      firstPage,
+      { apps: [authorizedApp(['search:read'])], nextCursor: 'even-older-apps' },
+    ])
+    await act(async () => root.render(<OrganizationHome />))
+    expect(hasCompletedMcpStep()).toBe(true)
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([{ isFetching: true }, { isError: true }])(
+    'does not start another authorization page request while %j',
+    async (state) => {
+      mockAuthorizedApps([{ apps: [], nextCursor: 'older-apps' }], state)
+      await act(async () => root.render(<OrganizationHome />))
+      expect(mocks.fetchNextPage).not.toHaveBeenCalled()
+      expect(hasCompletedMcpStep()).toBe(false)
+    }
+  )
+
+  it('clears MCP completion when the Search authorization is revoked', async () => {
+    mockAuthorizedApps([{ apps: [authorizedApp(['search:read'])], nextCursor: null }])
+    await act(async () => root.render(<OrganizationHome />))
+    expect(hasCompletedMcpStep()).toBe(true)
+
+    mockAuthorizedApps([{ apps: [], nextCursor: null }])
+    await act(async () => root.render(<OrganizationHome />))
+    expect(hasCompletedMcpStep()).toBe(false)
+  })
+
   it('sends the member question as an assistant turn and clears the draft', async () => {
     await act(async () => root.render(<OrganizationHome />))
     await act(async () => composerProps().onChange('Find our launch plan'))

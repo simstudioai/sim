@@ -144,7 +144,7 @@ function formatAttendees(attendees?: CalendarAttendee[]): string {
   if (!attendees || attendees.length === 0) return ''
   return attendees
     .filter((a) => !a.resource)
-    .map((a) => a.displayName || a.email || 'Unknown')
+    .map((a) => formatOrganizer(a) || 'Unknown')
     .join(', ')
 }
 

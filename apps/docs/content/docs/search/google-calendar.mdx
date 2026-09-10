@@ -11,32 +11,30 @@ Search meetings and event details available to your Google account. An organizat
 
 Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
-## Set up the source
-
-These steps require a Sim organization admin.
+## Set up Google Calendar
 
 <Steps>
 <Step>
 
-### Set up Google Calendar
+### Allow and connect Google Calendar
 
-Open **Settings → Sources** and turn on **Google Calendar** under **Allowed in Sim Search**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Search uses member accounts; an admin or service account cannot connect on behalf of everyone.
+An admin opens **Settings → Sources** and turns on **Google Calendar**. Then each person opens **Integrations**, selects **Connect** beside Google Calendar, and authorizes their matching Google account. The first connection creates the default sync configuration. Search uses member accounts; an admin or service account cannot connect on behalf of everyone.
 
 </Step>
 <Step>
 
-### Choose the calendars
+### Choose calendars if needed
 
-Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select an **Account for browsing** and choose calendars, or switch to **Calendar IDs** and enter their IDs.
+An admin selects **Manage** beside Google Calendar in **Settings → Sources**, opens **Advanced**, and selects the configuration's **Settings** tab. Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select an **Account for browsing** and choose calendars, or switch to **Calendar IDs** and enter their IDs.
 
 **Account for browsing** only helps you choose calendars. It does not connect your account for Search or grant teammates access.
 
 </Step>
 <Step>
 
-### Create the source
+### Save or add a configuration
 
-Keep the default date range for the previous and next 30 days. **More options** contains **Search Query**, **Include Attendees**, and **Metadata tags**. Click **Add source**, then connect your own account from **Integrations** in the main sidebar.
+The default date range covers the previous and next 30 days. Save any changes to the existing configuration. To create a separate one, select **Add sync configuration** on **Advanced**. In that form, **More options** contains **Search Query**, **Include Attendees**, and **Metadata tags**. Select **Add source** to save it; teammates connect their own accounts from Integrations.
 
 </Step>
 </Steps>
@@ -49,7 +47,7 @@ Keep the default date range for the previous and next 30 days. **More options** 
 
 ## Connect your account
 
-1. Join the Sim organization and verify your Sim email. Open **Integrations** and click **Connect account** beside Google Calendar.
+1. Join the Sim organization and verify your Sim email. Open **Integrations** and click **Connect** beside Google Calendar.
 2. In the connection tab, choose the Google account whose verified email matches your Sim email. Grant the requested permissions.
 3. Return to Integrations to see indexing status and your searchable document count.
 
@@ -57,7 +55,7 @@ Teammates repeat only these connection steps after joining the organization. The
 
 ## Source options
 
-An admin opens **Settings → Sources**, selects **Manage** beside **Google Calendar**, and opens the source's **Settings** tab to change these options. **Documents** shows indexed events and **Sync history** shows recent runs.
+An admin opens **Settings → Sources**, selects **Manage** beside **Google Calendar**, opens **Advanced**, and selects the configuration's **Settings** tab to change these options. **Documents** shows indexed events and **Sync history** shows recent runs.
 
 | Option | Behavior |
 | --- | --- |
@@ -89,12 +87,14 @@ Search schedules syncs hourly. Event edits, cancellations, access changes, and e
 
 ## Self-hosted operator setup
 
+For an External app in **Testing**, Google refresh tokens for these scopes expire after seven days. Before production use, configure the appropriate publishing status and complete any required verification; adding test users alone does not make a durable production connection. See [Google’s token expiration rules](https://developers.google.com/identity/protocols/oauth2#expiration).
+
 The deployment operator configures Google OAuth once; teammates then use the normal connection flow.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), select your project. Open **APIs & Services → Library**, find **Google Calendar API**, and enable it.
 2. Open **Google Auth platform → Branding** and configure the app name and contact details. Under **Audience**, choose **Internal** for your Google Workspace organization only, or **External** for other users. Add test users while an external app is testing. Review **Data Access → Add or remove scopes** using the current Sim scopes below. See Google's [consent and verification guidance](https://developers.google.com/workspace/guides/configure-oauth-consent).
 3. Open **Google Auth platform → Clients → Create client**, choose **Web application**, and add the URI below under **Authorized redirect URIs**. Add it to the existing Google client if the instance already uses one. See [Google's credential setup](https://developers.google.com/workspace/guides/create-credentials#web-application).
-4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → Update configurations**, then affected teammates reconnect.
 
 ```text
 https://<your-sim-domain>/api/auth/oauth2/callback/google-calendar

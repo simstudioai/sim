@@ -11,30 +11,34 @@ Search email threads from your own Gmail account. An organization admin enables 
 
 Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
-## Set up the source
-
-These steps require a Sim organization admin.
+## Set up Gmail
 
 <Steps>
 <Step>
 
-### Set up Gmail
+### Allow Gmail
 
-Open **Settings → Sources** and turn on **Gmail** under **Allowed in Sim Search**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Gmail uses member accounts; there is no domain-wide or service-account crawl in Search.
-
-</Step>
-<Step>
-
-### Choose what to include
-
-Keep the defaults to search all dates and labels, excluding Promotions, Social, Spam, and Trash. **Labels** and **Date Range** are shown first. Open **More options** for category exclusions, **Search Filter**, and **Metadata tags**.
+Open **Settings → Sources** and turn on **Gmail**. Gmail uses member accounts; there is no domain-wide or service-account crawl in Search.
 
 </Step>
 <Step>
 
-### Create the source
+### Connect your account
 
-Click **Add source**. Gmail appears in the provider's **Sources** list. Each person, including the admin, then connects their own account from **Integrations** in the main sidebar. To send a Gmail connection request, open **Gmail → Accounts → Request connections**; this does not invite the recipient to the Sim organization.
+Open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The first connection creates the default sync configuration: all dates and labels, excluding Promotions, Social, Spam, and Trash.
+
+</Step>
+<Step>
+
+### Adjust filters if needed
+
+An admin selects **Manage** beside Gmail in **Settings → Sources**, opens **Advanced**, then selects the configuration's **Settings** tab. Change **Labels**, **Date Range**, or other filters and save.
+
+To create a separate configuration, use **Add sync configuration** on **Advanced**. Its form shows **Labels** and **Date Range** first; **More options** contains category exclusions, **Search Filter**, and **Metadata tags**. Select **Add source** to save. This does not connect accounts or invite people.
+
+One configuration is usually enough. Adding another creates a separate source; editing **Settings** updates the selected one. Every configuration applies to all active Gmail connections, including accounts connected later. It does not assign different filters to selected people or let teammates search each other's mail.
+
+Configurations are additive: a narrower one does not restrict an existing broader one, and overlapping configurations can index the same thread more than once. For one organization-wide policy, edit the existing configuration.
 
 </Step>
 </Steps>
@@ -43,15 +47,15 @@ Click **Add source**. Gmail appears in the provider's **Sources** list. Each per
 
 ## Connect your account
 
-1. Join the Sim organization and verify your Sim email address. Open **Integrations** and click **Connect account** beside Gmail.
+1. Join the Sim organization and verify your Sim email address. Open **Integrations** and click **Connect** beside Gmail.
 2. Complete the connection in the tab that opens. Choose the Google account whose verified email matches your Sim email, and grant the requested permissions.
 3. Return to Integrations. The source shows its indexing status and the number of documents you can search.
 
-Teammates follow these same steps after joining the organization. Once an admin approves Gmail, the first connection can create its source with default filters. Admins can configure shared filters beforehand.
+Teammates follow these same steps after joining the organization. Once an admin approves Gmail, the first connection can create its source with default filters. Admins can configure shared filters beforehand or request connections from **Manage → Accounts → Request connections**. A connection request does not invite the recipient to the Sim organization.
 
 ## Source options
 
-An admin opens **Settings → Sources**, selects **Manage** beside **Gmail**, and opens the source's **Settings** tab to change these options. Filters apply separately to each connected mailbox. **Documents** shows indexed threads and **Sync history** shows recent runs.
+An admin opens **Settings → Sources**, selects **Manage** beside **Gmail**, opens **Advanced**, and selects the configuration's **Settings** tab to change these options. Filters apply separately to each connected mailbox. **Documents** shows indexed threads and **Sync history** shows recent runs.
 
 | Option | Behavior |
 | --- | --- |
@@ -70,24 +74,30 @@ File attachments and image contents are not indexed. Thread discovery uses Gmail
 
 Search schedules syncs hourly. The first sync and large mailboxes can take longer; results appear as documents are indexed. Updates and removals are reconciled during background sync, rather than fetched live for each search.
 
+An empty mailbox or filters with no matching threads complete normally with zero documents.
+
+Threads that exceed indexing size limits are skipped and reconsidered when the thread changes.
+
 ## Troubleshooting
 
 | What you see | What to do |
 | --- | --- |
 | A different email is requested | Use the Google account matching your verified Sim email. A separate personal account or alias does not satisfy the match. |
 | No searchable documents | Check the source's labels, date range, category exclusions, and search filter. Allow the first sync to finish. |
-| Finish connecting in the other tab | Complete the Google flow, or use **Open again** while authorization is pending. If the popup was blocked or closed, allow popups and select **Connect account** again. |
+| Finish connecting in the other tab | Complete the Google flow, or use **Open again** while authorization is pending. If the popup was blocked or closed, allow popups and select **Connect** again. |
 | Reconnect | Click **Reconnect** and authorize the same account again. |
 | Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 
 ## Self-hosted operator setup
+
+For an External app in **Testing**, Google refresh tokens for these scopes expire after seven days. Before production use, configure the appropriate publishing status and complete any required verification; adding test users alone does not make a durable production connection. See [Google’s token expiration rules](https://developers.google.com/identity/protocols/oauth2#expiration).
 
 Users do not need to create Google Cloud credentials. The deployment operator configures one Google OAuth client for the instance:
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), select your project. Open **APIs & Services → Library**, find **Gmail API**, and enable it.
 2. Open **Google Auth platform → Branding**. Select **Get started** if needed, then enter the app name, support email, and contact email. Under **Audience**, use **Internal** only for an app limited to your Google Workspace organization; otherwise use **External** and add test users while testing. Review the app's permissions under **Data Access → Add or remove scopes**, using the current Sim scopes below. Follow Google's [consent and verification guidance](https://developers.google.com/workspace/guides/configure-oauth-consent) for your audience.
 3. Open **Google Auth platform → Clients → Create client**. Choose **Web application**, give the client a name, and add the URI below under **Authorized redirect URIs**. If this instance already has a Google client, add this URI to that client instead. See [Google's credential setup](https://developers.google.com/workspace/guides/create-credentials#web-application).
-4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → Update configurations**, then affected teammates reconnect.
 
 ```text
 https://<your-sim-domain>/api/auth/oauth2/callback/google-email

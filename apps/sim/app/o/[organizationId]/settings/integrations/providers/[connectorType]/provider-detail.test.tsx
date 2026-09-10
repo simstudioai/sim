@@ -243,7 +243,7 @@ describe('organization provider management', () => {
       )
       await click('Advanced')
       expect(container.textContent).toContain(
-        'A sync configuration controls what gets indexed and how often.'
+        'No accounts connected yet. A sync configuration will be created when someone connects.'
       )
       expect(container.textContent).toContain('Add sync configuration')
       await click('Add sync configuration')

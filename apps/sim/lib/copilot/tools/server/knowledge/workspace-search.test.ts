@@ -168,6 +168,37 @@ describe('Assistant retrieval tools', () => {
       },
     })
   })
+  it('projects the provider name for connected-source citations instead of the index name', async () => {
+    mocks.search.mockResolvedValueOnce({
+      knowledgeBases: [{ id: 'index', name: 'Sim Search' }],
+      results: [
+        {
+          knowledgeBaseId: 'index',
+          documentId: 'doc',
+          documentName: 'Launch checklist',
+          sourceUrl: 'https://mail.google.com/thread',
+          connectorType: 'gmail',
+          sourceModifiedAt: null,
+          metadata: {},
+          content: 'body',
+          chunkIndex: 0,
+          similarity: 1,
+        },
+      ],
+    })
+    expect(await searchWorkspaceServerTool.execute({ query: 'launch' }, context)).toMatchObject({
+      success: true,
+      data: {
+        results: [
+          expect.objectContaining({
+            documentName: 'Launch checklist',
+            siteName: 'Gmail',
+            knowledgeBaseName: 'Sim Search',
+          }),
+        ],
+      },
+    })
+  })
   it('rejects untrusted contexts, incompatible sources and out-of-scope document reads', async () => {
     expect(
       await searchWorkspaceServerTool.execute(

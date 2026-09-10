@@ -69,6 +69,15 @@ describe('OAuth provider hooks', () => {
     vi.useRealTimers()
   })
 
+  it('does not fetch authorizations when its consumer is disabled', async () => {
+    const hook = renderHook(() => useAuthorizedApps('', { enabled: false }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(hook.result().fetchStatus).toBe('idle')
+    expect(mocks.requestJson).not.toHaveBeenCalled()
+  })
+
   it('loads subsequent pages with the same search and forwards cancellation', async () => {
     mocks.requestJson
       .mockResolvedValueOnce({ apps: [{ clientId: 'first' }], nextCursor: 'next-cursor' })

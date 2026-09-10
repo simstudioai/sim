@@ -132,6 +132,50 @@ describe('managed OAuth token resolution', () => {
     expect(mocks.decryptSecret).toHaveBeenCalledWith('encrypted-token-set')
   })
 
+  it.each([
+    { grant: 'drive', request: 'drive.readonly', allowed: true },
+    { grant: 'drive.readonly', request: 'drive.readonly', allowed: true },
+    { grant: 'drive.file', request: 'drive.readonly', allowed: false },
+    { grant: 'drive.readonly', request: 'drive', allowed: false },
+  ])(
+    'validates the actual managed Drive grant $grant for selector scope $request',
+    async ({ grant, request, allowed }) => {
+      setEnv({ GOOGLE_CLIENT_ID: 'fixture-client', GOOGLE_CLIENT_SECRET: 'fixture-secret' })
+      const adapter = createStandardOAuthCredentialGroupProviderAdapter('google-drive')
+      const policy = await adapter.getPolicy(undefined, { workspaceId: 'workspace-1' })
+      expect(policy.requiredScopes).toContain('https://www.googleapis.com/auth/drive')
+      expect(policy.requiredScopes).not.toContain('https://www.googleapis.com/auth/drive.readonly')
+      mocks.getAdapter.mockReturnValue(adapter)
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          ...mondayCredentialRow(),
+          providerId: policy.providerId,
+          authorizationAppId: policy.authorizationAppId,
+          managedOauthScopeVersion: policy.scopeVersion,
+          grantedScopes: [`https://www.googleapis.com/auth/${grant}`],
+          accessTokenExpiresAt: new Date('2026-09-01T13:00:00Z'),
+        },
+      ])
+      const resolution = resolveManagedOAuthToken({
+        ...mondayTokenResolutionParams(),
+        expectedProviderId: policy.providerId,
+        requiredScopes: [`https://www.googleapis.com/auth/${request}`],
+      })
+      if (allowed) {
+        await expect(resolution).resolves.toMatchObject({
+          refreshed: false,
+          accessToken: 'xoxp-slack-token',
+        })
+        expect(mocks.decryptSecret).toHaveBeenCalledWith('encrypted-token-set')
+      } else {
+        await expect(resolution).rejects.toMatchObject({
+          code: 'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE',
+        })
+        expect(mocks.decryptSecret).not.toHaveBeenCalled()
+      }
+    }
+  )
+
   it.each([null, undefined])(
     'rejects missing granted-scope metadata: %s',
     async (grantedScopes) => {

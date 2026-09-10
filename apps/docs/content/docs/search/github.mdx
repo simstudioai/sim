@@ -25,7 +25,7 @@ To connect an installation for central indexing, you must be a Sim organization 
 
 ### Open GitHub setup
 
-Open **Settings → Sources** and turn on **GitHub** under **Allowed in Sim Search**. Select **Set up** (or **Manage** if sources already exist), then **Add source**.
+Open **Settings → Sources** and turn on **GitHub**. Select **Set up** (or **Manage** if sources already exist), then **Add source**.
 
 </Step>
 <Step>
@@ -65,13 +65,13 @@ Open **More options** if you need a different branch, path or extension filters,
 
 ### Connect your account
 
-Open **Integrations** in the main sidebar, select **Connect account** on the GitHub source, and authorize the App. Teammates repeat this step after joining the Sim organization. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
+Open **Integrations** in the main sidebar, select **Connect** on the GitHub source, and authorize the App. Teammates repeat this step after joining the Sim organization. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
 
 An App installation or dedicated indexing account can start syncing after the source is saved. With **Connected members**, indexing begins after someone connects. Each teammate still connects before searching. An existing GitHub connection in the same Sim organization is reused across its GitHub sources.
 
 Open **Settings → Sources**, select **Manage** beside **GitHub**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**.
 
-Use **GitHub → Accounts → Request connections** to send provider-specific connection requests. These requests do not grant organization membership. For another repository, add another source; members can also use **Add another GitHub source** in the main Integrations page.
+Use **GitHub → Accounts → Request connections** to send provider-specific connection requests. These requests do not grant organization membership. For another repository, add another source; members can also select **Connect** beside the GitHub row labeled **Connect a different site or content scope** in Integrations.
 
 </Step>
 </Steps>
@@ -94,7 +94,7 @@ This is an installation plus personal authorization flow. GitHub Search does not
 | No eligible installations found | Finish connecting your own GitHub account, install the configured App on your account or an organization you own, then select **Refresh**. An installation of a different App or one you only have repository access to cannot be selected. |
 | Repository is not accepted for an installation | Check `owner/repo`, the installation's account and repository selection, and your own access. Update the source's Repository field after a rename. After a transfer, add a source using an installation for the new owner. |
 | Identity verification fails | Verify the email used by your Sim account in GitHub's email settings, then reconnect. A public profile email alone is insufficient. |
-| Authorization fails after installation | Return to Sim and start **Connect account** there. Do not enable authorization during installation. |
+| Authorization fails after installation | Return to Sim and start **Connect** there. Do not enable authorization during installation. |
 | Account authorization did not complete | Start the connection again from Sim. If it repeats, contact your organization admin or Sim support. For self-hosted Sim, check the [App callback and credentials](/platform/self-hosting/integrations-oauth#github-search). |
 | Update GitHub using Update configurations in organization settings before connecting this source | An organization admin must select **Settings → Sources → Update configurations**, then reconnect GitHub. |
 | Indexed files no longer appear | Confirm your own repository access, App repository selection, and connection status. Installation-indexed content is also withheld when GitHub cannot verify current access; retry once GitHub is available. |

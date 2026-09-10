@@ -196,11 +196,54 @@ export async function listSpaceReadPrincipals(
   ]
 }
 
+interface RestrictionPage<T> {
+  results?: T[]
+  start?: number
+  limit?: number
+  size?: number
+  totalSize?: number
+  _links?: { next?: string }
+}
+
 interface RestrictionResponse {
   restrictions?: {
-    user?: { results?: { accountId?: string }[]; size?: number }
-    group?: { results?: { id?: string }[]; size?: number }
+    user?: RestrictionPage<{ accountId?: string }>
+    group?: RestrictionPage<{ id?: string }>
   }
+}
+
+/** Uses the provider's effective page size; requested limits may be capped. */
+function restrictionNextStart(page: RestrictionPage<unknown>, start: number): number | null {
+  const count = page.results!.length
+  for (const value of [page.start, page.size, page.limit, page.totalSize]) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+      throw new Error('Confluence returned invalid read-restriction pagination')
+    }
+  }
+  /** UserArray defaults totalSize to zero when a total count was not requested. */
+  const totalSize = page.totalSize === 0 ? undefined : page.totalSize
+  if (
+    (page.start !== undefined && page.start !== start) ||
+    (page.size !== undefined && page.size !== count) ||
+    (page.limit !== undefined && (page.limit === 0 || count > page.limit)) ||
+    (totalSize !== undefined && count > 0 && start + count > totalSize)
+  ) {
+    throw new Error('Confluence returned inconsistent read-restriction pagination')
+  }
+
+  const next = page._links?.next
+  if (next) {
+    const nextStart = new URL(next, 'https://api.atlassian.com').searchParams.get('start')
+    if (!nextStart || !/^\d+$/.test(nextStart) || Number(nextStart) <= start) {
+      throw new Error('Confluence read-restriction pagination did not advance')
+    }
+  }
+  const hasMore =
+    Boolean(next) ||
+    (totalSize !== undefined ? start + count < totalSize : count >= (page.limit ?? PAGE_SIZE))
+  if (!hasMore) return null
+  if (count === 0) throw new Error('Confluence returned an empty read-restriction continuation')
+  return start + count
 }
 
 /**
@@ -212,19 +255,20 @@ interface RestrictionResponse {
  * ACL mapper draws between `null` and `[]` is defensive rather than reachable
  * from the product.
  *
- * The user and group lists page independently under one `start`; a
- * restriction naming more people than one page holds is read until both lists
- * come back short.
+ * The user and group lists may have different effective limits under one
+ * `start`. Advance by the shorter unfinished collection and deduplicate the
+ * overlap in the other collection so neither list skips principals.
  */
 export async function getReadRestriction(
   cloudId: string,
   accessToken: string,
   contentId: string
 ): Promise<ConfluenceRestriction> {
-  const principals: ConfluencePrincipal[] = []
+  const principals = new Map<string, ConfluencePrincipal>()
+  let start = 0
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const body = await getJson<RestrictionResponse>(
-      `${apiBase(cloudId)}/rest/api/content/${encodeURIComponent(contentId)}/restriction/byOperation/read?expand=restrictions.user,restrictions.group&start=${page * PAGE_SIZE}&limit=${PAGE_SIZE}`,
+      `${apiBase(cloudId)}/rest/api/content/${encodeURIComponent(contentId)}/restriction/byOperation/read?expand=restrictions.user,restrictions.group&start=${start}&limit=${PAGE_SIZE}`,
       accessToken
     )
     const users = body?.restrictions?.user?.results
@@ -234,15 +278,20 @@ export async function getReadRestriction(
     }
     for (const user of users) {
       if (!user.accountId) throw new Error('Confluence read restriction is missing an account id')
-      principals.push({ kind: 'user', id: user.accountId })
+      principals.set(`user:${user.accountId}`, { kind: 'user', id: user.accountId })
     }
     for (const group of groups) {
       if (!group.id) throw new Error('Confluence read restriction is missing a group id')
-      principals.push({ kind: 'group', id: group.id })
+      principals.set(`group:${group.id}`, { kind: 'group', id: group.id })
     }
-    if (users.length < PAGE_SIZE && groups.length < PAGE_SIZE) {
-      return principals.length === 0 ? null : principals
+    const nextStarts = [
+      restrictionNextStart(body.restrictions!.user!, start),
+      restrictionNextStart(body.restrictions!.group!, start),
+    ].filter((next): next is number => next !== null)
+    if (nextStarts.length === 0) {
+      return principals.size === 0 ? null : [...principals.values()]
     }
+    start = Math.min(...nextStarts)
   }
   throw new Error(`Confluence restriction on ${contentId} exceeded ${MAX_PAGES} pages`)
 }

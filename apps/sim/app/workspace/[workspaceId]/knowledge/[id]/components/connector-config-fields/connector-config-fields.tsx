@@ -4,6 +4,7 @@ import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/e
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import type { Credential } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
@@ -24,6 +25,7 @@ export interface ConnectorConfigFieldsProps {
   selectionLabels?: SourceSelectionLabels
   /** OAuth credential backing selector fields, when available. */
   credentialId: string | null
+  credentialType?: Credential['type']
   /** Canonical-pair groups keyed by `canonicalParamId`. */
   canonicalGroups: Map<string, ConnectorConfigField[]>
   /** Active mode per canonical pair. */
@@ -55,6 +57,7 @@ export function ConnectorConfigFields({
   sourceConfig,
   selectionLabels,
   credentialId,
+  credentialType,
   canonicalGroups,
   canonicalModes,
   isFieldVisible,
@@ -141,6 +144,11 @@ export function ConnectorConfigFields({
                 }
                 selectedLabels={selectionLabels?.[field.canonicalParamId ?? field.id]}
                 credentialId={credentialId}
+                serviceAccountSubjectFieldId={
+                  credentialType === 'service_account' && connectorConfig.auth.mode === 'oauth'
+                    ? connectorConfig.auth.serviceAccountSubjectFieldId
+                    : undefined
+                }
                 sourceConfig={sourceConfig}
                 configFields={connectorConfig.configFields}
                 canonicalModes={canonicalModes}
