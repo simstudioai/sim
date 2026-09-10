@@ -26,21 +26,56 @@ for (const ext of readdirSync(filesRoot).sort()) {
     const bytes = readFileSync(path.join(dir, file))
     const started = performance.now()
     try {
-      const result = await parseBuffer(bytes, ext, { pdfTextMode: ext === 'pdf' ? 'complete' : undefined })
+      const result = await parseBuffer(bytes, ext, {
+        pdfTextMode: ext === 'pdf' ? 'complete' : undefined,
+      })
       const ms = performance.now() - started
       let chunkCount = -1
-      try { chunkCount = (await chunker.chunk(result.content)).length } catch {}
+      try {
+        chunkCount = (await chunker.chunk(result.content)).length
+      } catch {}
       const { html, sampledData, messages, headings, links, ...metadata } = result.metadata ?? {}
-      writeFileSync(path.join(OUT, `${label}.json`), JSON.stringify({ label, ext, file, bytes: bytes.length, ms, ok: true, content: result.content, metadata, chunkCount }))
+      writeFileSync(
+        path.join(OUT, `${label}.json`),
+        JSON.stringify({
+          label,
+          ext,
+          file,
+          bytes: bytes.length,
+          ms,
+          ok: true,
+          content: result.content,
+          metadata,
+          chunkCount,
+        })
+      )
       summary[ext].ok++
-      process.stdout.write(`ok   ${label} ${result.content.length}ch ${ms.toFixed(0)}ms${metadata.degraded ? ' DEGRADED' : ''}${metadata.truncated ? ' TRUNCATED' : ''}\n`)
+      process.stdout.write(
+        `ok   ${label} ${result.content.length}ch ${ms.toFixed(0)}ms${metadata.degraded ? ' DEGRADED' : ''}${metadata.truncated ? ' TRUNCATED' : ''}\n`
+      )
     } catch (error) {
       const ms = performance.now() - started
       const typed = error instanceof FileParserError
-      writeFileSync(path.join(OUT, `${label}.json`), JSON.stringify({ label, ext, file, bytes: bytes.length, ms, ok: false, typedError: typed, errorCode: typed ? error.code : undefined, errorName: (error as Error)?.name, error: String((error as Error)?.message ?? error).slice(0, 300) }))
+      writeFileSync(
+        path.join(OUT, `${label}.json`),
+        JSON.stringify({
+          label,
+          ext,
+          file,
+          bytes: bytes.length,
+          ms,
+          ok: false,
+          typedError: typed,
+          errorCode: typed ? error.code : undefined,
+          errorName: (error as Error)?.name,
+          error: String((error as Error)?.message ?? error).slice(0, 300),
+        })
+      )
       summary[ext].error++
       if (typed) summary[ext].typed++
-      process.stdout.write(`FAIL ${label} ${typed ? `typed:${error.code}` : `UNTYPED:${(error as Error)?.name}`} ${String((error as Error)?.message).slice(0, 80)}\n`)
+      process.stdout.write(
+        `FAIL ${label} ${typed ? `typed:${error.code}` : `UNTYPED:${(error as Error)?.name}`} ${String((error as Error)?.message).slice(0, 80)}\n`
+      )
     }
   }
 }

@@ -127,9 +127,7 @@ describe('joinLines', () => {
       const lines = paragraph(['we ship high-', 'quality builds'], 627.4)
       const words = collectWords(lines)
 
-      expect(joinLines(lines, { words, headingMarkers: false })).toBe(
-        'we ship high-quality builds'
-      )
+      expect(joinLines(lines, { words, headingMarkers: false })).toBe('we ship high-quality builds')
       expect(joinLines(lines, { headingMarkers: false })).toBe('we ship high-quality builds')
     })
 
