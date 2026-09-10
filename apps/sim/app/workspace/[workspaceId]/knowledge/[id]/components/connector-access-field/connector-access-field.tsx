@@ -5,6 +5,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   ChipCombobox,
+  ChipDropdown,
   ChipLink,
   ChipModalField,
   type ComboboxOption,
@@ -64,6 +65,8 @@ interface ConnectorAccessFieldProps {
   /** Only an admin may move a connector out of workspace mode. */
   canAdmin: boolean
   disabled?: boolean
+  /** Existing Search sources retain the sync method chosen during setup. */
+  lockAccessMode?: boolean
   /** Whether member accounts may be chosen; an existing selection remains visible for recovery. */
   allowMembers?: boolean
   /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
@@ -85,6 +88,7 @@ export function ConnectorAccessField({
   onChange,
   canAdmin,
   disabled = false,
+  lockAccessMode = false,
   allowMembers = true,
   allowAdmin = false,
   allowWorkspace = true,
@@ -122,14 +126,16 @@ export function ConnectorAccessField({
     { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
     {
       mode: 'admin',
-      label: isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
-        ? 'Admin or service account'
-        : 'Service account',
+      label:
+        !lockAccessMode && isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
+          ? 'Admin or service account'
+          : 'Service account',
       allowed: adminSupported && allowAdmin,
     },
   ]
   /** Keep a retired current method visible so an admin can select an available replacement. */
   const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
+  const currentMode = modes.find((entry) => entry.mode === value.accessMode)
   const showModeSelector =
     canAdmin && visibleModes.some((entry) => entry.allowed && entry.mode !== value.accessMode)
 
@@ -141,15 +147,25 @@ export function ConnectorAccessField({
       title={slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
-        canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
+        canAdmin && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
-          : value.accessMode === 'workspace'
-            ? 'Everyone in this workspace can search these documents.'
-            : undefined
+          : lockAccessMode
+            ? 'Create a new source to change the sync method.'
+            : value.accessMode === 'workspace'
+              ? 'Everyone in this workspace can search these documents.'
+              : undefined
       }
     >
       <div className='flex flex-col gap-2'>
-        {slackSetupOnly ? null : showModeSelector ? (
+        {slackSetupOnly ? null : lockAccessMode ? (
+          <ChipDropdown
+            aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
+            value={value.accessMode}
+            options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
+            disabled
+            className='w-fit'
+          />
+        ) : showModeSelector ? (
           <ButtonGroup
             value={value.accessMode}
             disabled={disabled}

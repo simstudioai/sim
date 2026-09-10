@@ -221,12 +221,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
 
   const renderSources = () => (
     <SettingsPanel {...panel} actions={actions}>
-      {automaticSetup && (
-        <SettingsEmptyState variant='inline'>
-          A sync configuration controls what gets indexed and how often. Connecting the first
-          account creates the default configuration automatically.
-        </SettingsEmptyState>
-      )}
       {approval.error && (
         <SettingsEmptyState variant='inline' tone='error'>
           {approval.error.message}

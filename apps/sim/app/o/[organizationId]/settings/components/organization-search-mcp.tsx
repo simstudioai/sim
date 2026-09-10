@@ -5,7 +5,15 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import { SearchMcpConnection } from '@/app/o/[organizationId]/settings/components/search-mcp-connection'
 
 export function OrganizationSearchMcp() {
-  const { organization } = useOrganizationContext()
+  const { organization, viewer } = useOrganizationContext()
+  if (!viewer.canUseSearchMcp) {
+    return (
+      <p className='max-w-xl text-[var(--text-muted)] text-sm'>
+        Your organization’s policy disables Sim Search MCP access. Contact an organization admin to
+        enable it.
+      </p>
+    )
+  }
   const endpoint = getSearchMcpUrl(organization.id)
 
   return (

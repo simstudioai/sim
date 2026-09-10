@@ -347,6 +347,7 @@ export function AddConnectorModal({
           sourceConfig,
           selectionLabels,
           credentialId: effectiveCredentialId,
+          credentialType: credentials.find((item) => item.id === effectiveCredentialId)?.type,
           canonicalGroups,
           canonicalModes,
           onFieldChange: handleFieldChange,

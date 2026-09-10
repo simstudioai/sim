@@ -166,6 +166,45 @@ describe('shared connector settings form', () => {
     )
   })
 
+  it('offers central Confluence account replacement without making an unchanged source dirty', () => {
+    const sourceConfig = {
+      domain: 'team.atlassian.net',
+      spaceKey: ['ENG'],
+      labelFilter: 'approved',
+    }
+    render(
+      connector({
+        connectorType: 'confluence',
+        accessMode: 'admin',
+        credentialId: 'service-account-1',
+        sourceConfig,
+      }),
+      'confluence-central'
+    )
+    expect(form.fieldsProps.needsWorkspaceCredential).toBe(true)
+    expect(form.dirty).toBe(false)
+    expect(form.canSave).toBe(false)
+
+    act(() => form.fieldsProps.onFieldChange('labelFilter', 'published'))
+    expect(form.canSave).toBe(true)
+    act(() => form.save())
+    expect(mocks.update).toHaveBeenCalledWith(
+      {
+        knowledgeBaseId: 'kb-search',
+        connectorId: baseline.id,
+        updates: {
+          sourceConfig: {
+            ...sourceConfig,
+            labelFilter: 'published',
+            _canonicalModes: { spaceKey: 'basic' },
+          },
+        },
+      },
+      expect.any(Object)
+    )
+    expect(mocks.applyAccess).not.toHaveBeenCalled()
+  })
+
   it('keeps general knowledge-base listing caps editable and includes their changes on save', () => {
     const sourceConfig = {
       label: ['INBOX'],

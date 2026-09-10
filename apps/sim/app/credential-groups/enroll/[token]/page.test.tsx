@@ -204,7 +204,11 @@ describe('focused Search enrollment', () => {
       session: { id: 'session-1' },
     })
     await render({ returnTo: 'search', optionId: 'site-two' })
-    expect(document.querySelector('a')?.getAttribute('href')).toBe('/verify')
+    const recovery = new URL(document.querySelector('a')!.getAttribute('href')!, 'https://sim.test')
+    expect(recovery.pathname).toBe('/verify')
+    expect(recovery.searchParams.get('redirectAfter')).toBe(
+      '/credential-groups/enroll/invitation?returnTo=search&optionId=site-two'
+    )
     expect(mocks.read).not.toHaveBeenCalled()
   })
 

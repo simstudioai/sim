@@ -18,9 +18,14 @@ export const oauthProviderKeys = {
 
 export const AUTHORIZED_APPS_STALE_TIME = 30 * 1000
 
-export function useAuthorizedApps(search = '') {
+interface UseAuthorizedAppsOptions {
+  enabled?: boolean
+}
+
+export function useAuthorizedApps(search = '', { enabled = true }: UseAuthorizedAppsOptions = {}) {
   return useInfiniteQuery({
     queryKey: oauthProviderKeys.authorizedAppsList(search),
+    enabled,
     queryFn: ({ signal, pageParam }) =>
       requestJson(listAuthorizedAppsContract, {
         query: { search, ...(pageParam ? { cursor: pageParam } : {}) },

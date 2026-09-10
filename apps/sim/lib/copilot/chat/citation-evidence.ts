@@ -46,12 +46,12 @@ export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitat
         continue
       }
       if (evidence.has(result.citationId)) continue
+      const siteName =
+        typeof result.siteName === 'string' ? result.siteName : result.knowledgeBaseName
       evidence.set(result.citationId, {
         url: result.citationUrl,
         ...(typeof result.documentName === 'string' ? { title: result.documentName } : {}),
-        ...(typeof result.knowledgeBaseName === 'string'
-          ? { siteName: result.knowledgeBaseName }
-          : {}),
+        ...(typeof siteName === 'string' ? { siteName } : {}),
         ...(typeof result.connectorType === 'string'
           ? { connectorType: result.connectorType }
           : {}),

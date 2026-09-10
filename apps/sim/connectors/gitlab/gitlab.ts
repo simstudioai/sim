@@ -862,12 +862,13 @@ async function resolveRef(
 
 /**
  * Applies the optional maxItems cap to a batch, tracking the running total in
- * syncContext and flagging `listingCapped` when the cap is hit.
+ * syncContext. Only an unread page, phase, or trimmed tail makes the listing incomplete.
  */
 function applyMaxItemsCap(
   documents: ExternalDocument[],
   maxItems: number,
-  syncContext: Record<string, unknown> | undefined
+  syncContext: Record<string, unknown> | undefined,
+  hasMoreDocuments: boolean
 ): { documents: ExternalDocument[]; capped: boolean } {
   if (maxItems <= 0) return { documents, capped: false }
   const prevTotal = (syncContext?.totalDocsFetched as number) ?? 0
@@ -876,7 +877,9 @@ function applyMaxItemsCap(
   const newTotal = prevTotal + sliced.length
   if (syncContext) syncContext.totalDocsFetched = newTotal
   const capped = newTotal >= maxItems
-  if (capped && syncContext) syncContext.listingCapped = true
+  if (capped && (sliced.length < documents.length || hasMoreDocuments) && syncContext) {
+    syncContext.listingCapped = true
+  }
   return { documents: sliced, capped }
 }
 
@@ -978,14 +981,16 @@ export const gitlabConnector: ConnectorConfig = {
         documents.push(treeEntryToStub(apiBase, encodedProject, host, projectPath, ref, entry))
       }
 
+      const nextLink = checkedNextLink(response, url)
+      const adv = advance('repo')
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(nextLink) || adv.hasMore
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -993,7 +998,6 @@ export const gitlabConnector: ConnectorConfig = {
           hasMore: true,
         }
       }
-      const adv = advance('repo')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
 
@@ -1055,17 +1059,19 @@ export const gitlabConnector: ConnectorConfig = {
         })
       }
 
+      const nextLink = checkedNextLink(response, url)
+      const adv = advance('wiki')
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(nextLink) || adv.hasMore
       )
 
       if (hitLimit) {
         return { documents: capped, hasMore: false }
       }
 
-      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -1073,7 +1079,6 @@ export const gitlabConnector: ConnectorConfig = {
           hasMore: true,
         }
       }
-      const adv = advance('wiki')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
 
@@ -1124,14 +1129,16 @@ export const gitlabConnector: ConnectorConfig = {
         )
       }
 
+      const nextLink = checkedNextLink(response, url)
+      const adv = advance('issues')
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(nextLink) || adv.hasMore
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -1140,7 +1147,6 @@ export const gitlabConnector: ConnectorConfig = {
         }
       }
 
-      const adv = advance('issues')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
 
@@ -1153,9 +1159,9 @@ export const gitlabConnector: ConnectorConfig = {
       const documents = items.map((item) =>
         workItemToStub(encodedProject, host, projectPath, item, 'merge_request', syncContext)
       )
-      const capped = applyMaxItemsCap(documents, maxItems, syncContext)
-      if (capped.capped) return { documents: capped.documents, hasMore: false }
       const nextLink = checkedNextLink(response, url)
+      const capped = applyMaxItemsCap(documents, maxItems, syncContext, Boolean(nextLink))
+      if (capped.capped) return { documents: capped.documents, hasMore: false }
       return {
         documents: capped.documents,
         nextCursor: nextLink
@@ -1285,8 +1291,8 @@ export const gitlabConnector: ConnectorConfig = {
     }
 
     const maxItems = sourceConfig.maxItems as string | undefined
-    if (maxItems && (Number.isNaN(Number(maxItems)) || Number(maxItems) <= 0)) {
-      return { valid: false, error: 'Max items must be a positive number' }
+    if (maxItems && (!Number.isSafeInteger(Number(maxItems)) || Number(maxItems) <= 0)) {
+      return { valid: false, error: 'Max items must be a positive whole number' }
     }
 
     let host: string

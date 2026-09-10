@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import {
   Chip,
-  ChipDropdown,
   ChipModalField,
+  ChipSelect,
   Code,
   chipFieldSurfaceClass,
   useCopyToClipboard,
@@ -38,18 +38,20 @@ export function SearchMcpConnection({ endpoint }: SearchMcpConnectionProps) {
   return (
     <>
       <ChipModalField type='custom' title='App' flush>
-        <ChipDropdown
-          value={client}
-          onChange={(value) => {
-            const option = CLIENTS.find((item) => item.value === value)
-            if (option) setClient(option.value)
-          }}
-          options={CLIENTS}
-          aria-label={`MCP app: ${CLIENTS.find((option) => option.value === client)?.label}`}
-          align='start'
-          matchTriggerWidth={false}
-          className='self-start'
-        />
+        <div className='w-[240px] shrink-0'>
+          <ChipSelect
+            value={client}
+            onChange={(value) => {
+              const option = CLIENTS.find((item) => item.value === value)
+              if (option) setClient(option.value)
+            }}
+            options={[...CLIENTS]}
+            aria-label={`MCP app: ${CLIENTS.find((option) => option.value === client)?.label}`}
+            align='start'
+            fullWidth
+            dropdownWidth='trigger'
+          />
+        </div>
       </ChipModalField>
       {client !== 'cursor' ? (
         <ChipModalField

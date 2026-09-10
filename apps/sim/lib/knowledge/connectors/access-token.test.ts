@@ -17,6 +17,7 @@ import {
   connectorServiceAccountScopes,
   connectorServiceAccountSubject,
   resolveConnectorAccessToken,
+  syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 
@@ -189,17 +190,28 @@ describe('resolveConnectorAccessToken', () => {
     )
   })
 
-  it('carries the credential cloud id so the connector skips discovering it', async () => {
-    mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token', cloudId: 'cloud-1' })
-    await expect(
-      resolveConnectorAccessToken({
-        auth: { mode: 'oauth', provider: 'confluence' },
-        connector: credentialConnector('credential-1'),
-        userId: 'credential-owner',
-        requestId: 'req-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({ accessToken: 'access-token', cloudId: 'cloud-1' })
+  it('carries the credential site binding into the connector context', async () => {
+    mockResolveTokenBundle.mockResolvedValue({
+      accessToken: 'access-token',
+      cloudId: 'cloud-1',
+      domain: 'bound.atlassian.net',
+    })
+    const token = await resolveConnectorAccessToken({
+      auth: { mode: 'oauth', provider: 'confluence' },
+      connector: credentialConnector('credential-1'),
+      userId: 'credential-owner',
+      requestId: 'req-1',
+      sourceConfig: {},
+    })
+    expect(token).toEqual({
+      accessToken: 'access-token',
+      cloudId: 'cloud-1',
+      domain: 'bound.atlassian.net',
+    })
+    expect(syncContextForToken(token!)).toEqual({
+      cloudId: 'cloud-1',
+      credentialDomain: 'bound.atlassian.net',
+    })
   })
 
   it('omits the cloud id rather than carrying an empty one', async () => {

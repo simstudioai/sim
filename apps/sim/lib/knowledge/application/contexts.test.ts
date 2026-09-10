@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 
+import type { Principal } from '@sim/auth/principal'
+import { member, organization } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getConnector: vi.fn(),
   loadWorkspace: vi.fn(),
   loadWorkspaceIncludingArchived: vi.fn(),
+  getOrganizationPermissionConfig: vi.fn(),
   createAccessProvider: vi.fn(() => ({
     get: async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] }),
     getForDocuments: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
@@ -48,6 +51,11 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadWorkspaceApplicationContext: mocks.loadWorkspaceIncludingArchived,
 }))
 
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: mocks.getOrganizationPermissionConfig,
+}))
+
+import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   loadKnowledgeWorkspaceAuthorizationContext,
   resolveActiveKnowledgeBaseContext,
@@ -58,6 +66,7 @@ import {
   resolveCanonicalActiveKnowledgeDocumentContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -72,6 +81,7 @@ describe('knowledge application contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.getOrganizationPermissionConfig.mockResolvedValue(null)
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
     mocks.getKnowledgeBaseWithCounts.mockResolvedValue({
       ...knowledgeBase,
@@ -294,6 +304,97 @@ describe('knowledge application contexts', () => {
 
       expect(mocks.getConnector).toHaveBeenCalledWith('connector-b')
       expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('knowledge-b')
+    })
+  })
+
+  describe.each(['tag', 'connector'] as const)('organization-scoped %s context', (kind) => {
+    const execute = vi.fn(async () => 'authorized')
+    const useCase = defineAuthorizedKnowledgeUseCase({
+      operation:
+        kind === 'tag' ? knowledgeOperations.readTagUsage : knowledgeOperations.readConnector,
+      resolveContext: ({
+        input,
+        principal: actingPrincipal,
+      }: {
+        input: { assertedOrganizationId?: string }
+        principal: Principal
+      }) =>
+        kind === 'tag'
+          ? resolveActiveKnowledgeTagContext(
+              { ...input, tagDefinitionId: 'tag-1' },
+              actingPrincipal
+            )
+          : resolveActiveKnowledgeConnectorContext(
+              { ...input, connectorId: 'connector-1' },
+              actingPrincipal
+            ),
+      execute,
+    })
+
+    function queueOrganization(organizationId: string, isMember = true) {
+      mocks.getKnowledgeBase.mockResolvedValue({
+        id: 'org-index',
+        workspaceId: null,
+        organizationId,
+      })
+      queueTableRows(organization, [{ id: organizationId }])
+      queueTableRows(member, isMember ? [{ role: 'member' }] : [])
+    }
+
+    beforeEach(() => {
+      mocks.getTag.mockResolvedValue({ id: 'tag-1', knowledgeBaseId: 'org-index' })
+      mocks.getConnector.mockResolvedValue({
+        id: 'connector-1',
+        knowledgeBaseId: 'org-index',
+        connectorType: 'confluence',
+        status: 'active',
+      })
+    })
+
+    it('rejects a mismatched assertion even when the caller belongs to both organizations', async () => {
+      for (const organizationId of ['org-a', 'org-b']) {
+        queueOrganization(organizationId)
+        await expect(
+          useCase.execute({ principal, input: { assertedOrganizationId: organizationId } })
+        ).resolves.toBe('authorized')
+        expect(mocks.getOrganizationPermissionConfig).toHaveBeenLastCalledWith(organizationId)
+      }
+      expect(execute).toHaveBeenCalledTimes(2)
+      vi.clearAllMocks()
+
+      queueOrganization('org-b')
+      await expect(
+        useCase.execute({ principal, input: { assertedOrganizationId: 'org-a' } })
+      ).rejects.toMatchObject({ code: 'not_found', message: 'Knowledge base not found' })
+
+      expect(kind === 'tag' ? mocks.getTag : mocks.getConnector).toHaveBeenCalledWith(`${kind}-1`)
+      expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('org-index')
+      expect(mocks.createAccessProvider).not.toHaveBeenCalled()
+      expect(mocks.getOrganizationPermissionConfig).not.toHaveBeenCalled()
+      expect(execute).not.toHaveBeenCalled()
+    })
+
+    it('authorizes the canonical organization when no organization is asserted', async () => {
+      queueOrganization('org-b')
+      await expect(useCase.execute({ principal, input: {} })).resolves.toBe('authorized')
+      expect(mocks.getOrganizationPermissionConfig).toHaveBeenCalledWith('org-b')
+      expect(execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal,
+          context: expect.objectContaining({
+            organizationId: 'org-b',
+            knowledgeBaseId: 'org-index',
+          }),
+        })
+      )
+
+      execute.mockClear()
+      queueOrganization('org-b', false)
+      await expect(useCase.execute({ principal, input: {} })).rejects.toMatchObject({
+        code: 'not_found',
+        message: 'Organization not found',
+      })
+      expect(execute).not.toHaveBeenCalled()
     })
   })
 })

@@ -2,19 +2,23 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  ConnectorFileTooLargeError,
   htmlToPlainText,
   isPerMemberListing,
   joinTagArray,
+  markSkipped,
   memberDocumentId,
   parseDefaultedUnlimitedSafeInteger,
   parseMultiValue,
   parseTagDate,
+  sizeLimitSkipReason,
   sourceDocumentId,
 } from '@/connectors/utils'
 
@@ -22,6 +26,9 @@ const logger = createLogger('GmailConnector')
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const THREADS_PER_PAGE = 100
+const BODY_RESPONSE_ENVELOPE_BYTES = 1024
+/** Bounds base64 bodies, alternative MIME parts, and headers before parsing the thread JSON. */
+const MAX_THREAD_RESPONSE_BYTES = 32 * 1024 * 1024
 
 class GmailApiError extends Error {
   constructor(
@@ -41,7 +48,7 @@ interface GmailHeader {
 interface GmailMessagePart {
   mimeType?: string
   filename?: string
-  body?: { data?: string; size?: number }
+  body?: { data?: string; size?: number; attachmentId?: string }
   parts?: GmailMessagePart[]
   headers?: GmailHeader[]
 }
@@ -65,6 +72,11 @@ interface GmailThread {
 interface GmailThreadList {
   threads: GmailThread[]
   nextPageToken?: string
+}
+
+interface GmailBodyContext {
+  accessToken: string
+  remainingBytes: number
 }
 
 /** Legacy cursors contain only Gmail's raw page token. */
@@ -303,8 +315,74 @@ function formatGmailDate(date: Date): string {
  * Decodes base64url-encoded content from the Gmail API.
  * Uses Buffer to correctly handle multi-byte UTF-8 characters.
  */
-function decodeBase64Url(data: string): string {
+function decodeBase64Url(data: string, context: GmailBodyContext): string {
+  const bytes = Buffer.byteLength(data, 'base64url')
+  if (bytes > context.remainingBytes) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+  }
+  context.remainingBytes -= bytes
   return Buffer.from(data, 'base64url').toString('utf-8')
+}
+
+/** Fetches separately stored MIME body data without downloading file attachments. */
+async function readMessageBody(
+  part: GmailMessagePart,
+  messageId: string,
+  context: GmailBodyContext
+): Promise<string> {
+  const body = part.body
+  if (!body) return ''
+  if (body.size !== undefined && body.size > context.remainingBytes) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+  }
+  if (!body.attachmentId) return body.data ? decodeBase64Url(body.data, context) : ''
+
+  const params = new URLSearchParams({ fields: 'data,size' })
+  const response = await fetchWithRetry(
+    `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(body.attachmentId)}?${params}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${context.accessToken}`, Accept: 'application/json' },
+    }
+  )
+  if (!response.ok) {
+    throw new GmailApiError('Failed to fetch Gmail message body', response.status)
+  }
+
+  let fetchedBody: unknown
+  try {
+    fetchedBody = await readResponseJsonWithLimit(response, {
+      /** Bound base64 expansion before parsing, including when Gmail omits the part's size. */
+      maxBytes: Math.ceil(context.remainingBytes / 3) * 4 + BODY_RESPONSE_ENVELOPE_BYTES,
+      label: 'Gmail message body',
+    })
+  } catch (error) {
+    if (
+      isPayloadSizeLimitError(error) &&
+      error.observedBytes !== undefined &&
+      error.observedBytes > error.maxBytes
+    ) {
+      throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+    }
+    throw error
+  }
+  if (
+    !isPlainRecord(fetchedBody) ||
+    typeof fetchedBody.data !== 'string' ||
+    !/^[A-Za-z0-9_-]*={0,2}$/.test(fetchedBody.data) ||
+    fetchedBody.data.replace(/=+$/, '').length % 4 === 1 ||
+    typeof fetchedBody.size !== 'number' ||
+    !Number.isSafeInteger(fetchedBody.size) ||
+    fetchedBody.size < 0 ||
+    Buffer.byteLength(fetchedBody.data, 'base64url') !== fetchedBody.size
+  ) {
+    throw new Error('Gmail returned malformed message body data')
+  }
+  return decodeBase64Url(fetchedBody.data, context)
+}
+
+function hasMessageBody(part: GmailMessagePart): boolean {
+  return Boolean(part.body?.data || part.body?.attachmentId)
 }
 
 /**
@@ -325,33 +403,37 @@ function isAttachmentPart(part: GmailMessagePart): boolean {
  * Prefers text/plain, falls back to text/html with tag stripping, and recurses
  * through nested multiparts (e.g. a multipart/alternative inside a multipart/mixed).
  */
-function extractBody(part: GmailMessagePart): string {
+async function extractBody(
+  part: GmailMessagePart,
+  messageId: string,
+  context: GmailBodyContext
+): Promise<string> {
   if (isAttachmentPart(part)) return ''
 
-  if (part.mimeType === 'text/plain' && part.body?.data) {
-    return decodeBase64Url(part.body.data)
+  if (part.mimeType === 'text/plain' && hasMessageBody(part)) {
+    return readMessageBody(part, messageId, context)
   }
 
   if (part.parts) {
     const children = part.parts.filter((child) => !isAttachmentPart(child))
     for (const child of children) {
-      if (child.mimeType === 'text/plain' && child.body?.data) {
-        return decodeBase64Url(child.body.data)
+      if (child.mimeType === 'text/plain' && hasMessageBody(child)) {
+        return readMessageBody(child, messageId, context)
       }
     }
     for (const child of children) {
-      if (child.mimeType === 'text/html' && child.body?.data) {
-        return htmlToPlainText(decodeBase64Url(child.body.data))
+      if (child.mimeType === 'text/html' && hasMessageBody(child)) {
+        return htmlToPlainText(await readMessageBody(child, messageId, context))
       }
     }
     for (const child of children) {
-      const result = extractBody(child)
+      const result = await extractBody(child, messageId, context)
       if (result) return result
     }
   }
 
-  if (part.mimeType === 'text/html' && part.body?.data) {
-    return htmlToPlainText(decodeBase64Url(part.body.data))
+  if (part.mimeType === 'text/html' && hasMessageBody(part)) {
+    return htmlToPlainText(await readMessageBody(part, messageId, context))
   }
 
   return ''
@@ -369,11 +451,14 @@ function getHeader(payload: GmailMessagePart | undefined, name: string): string 
 /**
  * Formats a thread's messages into a single document string.
  */
-function formatThread(thread: GmailThread): {
+async function formatThread(
+  thread: GmailThread,
+  accessToken: string
+): Promise<{
   content: string
   subject: string
   metadata: Record<string, unknown>
-} {
+}> {
   const messages = thread.messages || []
   if (messages.length === 0) {
     return { content: '', subject: 'Untitled Thread', metadata: {} }
@@ -396,16 +481,27 @@ function formatThread(thread: GmailThread): {
   const labelIds = [...labelIdSet]
 
   const lines = new BoundedLines()
-  lines.push(`Subject: ${subject}`, `From: ${from}`)
-  if (to) lines.push(`To: ${to}`)
-  lines.push(`Messages: ${messages.length}`, '')
+  const bodyContext = { accessToken, remainingBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES }
+  if (
+    !lines.push(
+      `Subject: ${subject}`,
+      `From: ${from}`,
+      ...(to ? [`To: ${to}`] : []),
+      `Messages: ${messages.length}`,
+      ''
+    )
+  ) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+  }
 
   for (const msg of messages) {
     const msgFrom = getHeader(msg.payload, 'From') || 'Unknown'
     const msgDate = getHeader(msg.payload, 'Date') || ''
-    const body = msg.payload ? extractBody(msg.payload) : ''
+    const body = msg.payload ? await extractBody(msg.payload, msg.id, bodyContext) : ''
 
-    if (!lines.push(`--- ${msgFrom} (${msgDate}) ---`, body.trim(), '')) break
+    if (!lines.push(`--- ${msgFrom} (${msgDate}) ---`, body.trim(), '')) {
+      throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+    }
   }
 
   const firstDate = firstMessage.internalDate
@@ -455,7 +551,10 @@ async function fetchThread(
     throw new GmailApiError(`Failed to fetch thread ${threadId}`, response.status)
   }
 
-  const thread: unknown = await response.json()
+  const thread = await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_THREAD_RESPONSE_BYTES,
+    label: 'Gmail thread response',
+  })
   if (
     !isThreadMetadata(thread) ||
     thread.id !== threadId ||
@@ -497,7 +596,8 @@ function threadToStub(
     estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
     sourceUrl: threadUrl(thread.id),
-    contentHash: `gmail:${thread.id}:${thread.historyId}`,
+    /** Rehydrate older rows that omitted separately stored message bodies. */
+    contentHash: `gmail:${thread.id}:${thread.historyId}:body-v2`,
     metadata: {},
   }
 }
@@ -597,7 +697,10 @@ export const gmailConnector: ConnectorConfig = {
       throw new GmailApiError('Failed to list Gmail threads', response.status)
     }
 
-    const { threads, nextPageToken } = parseThreadList(await response.json())
+    /** Gmail can return 204 when an empty listing has no requested metadata fields. */
+    const { threads, nextPageToken } = parseThreadList(
+      response.status === 204 ? {} : await response.json()
+    )
     const stubs = await mapWithConcurrency(threads, 5, async (thread) => {
       const metadata = thread.historyId
         ? thread
@@ -648,7 +751,16 @@ export const gmailConnector: ConnectorConfig = {
     const thread = await fetchThread(accessToken, threadId)
     if (!thread) return null
 
-    const { content, subject, metadata } = formatThread(thread)
+    let formatted: Awaited<ReturnType<typeof formatThread>>
+    try {
+      formatted = await formatThread(thread, accessToken)
+    } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) {
+        return markSkipped(threadToStub(thread, syncContext), sizeLimitSkipReason(error.limitBytes))
+      }
+      throw error
+    }
+    const { content, subject, metadata } = formatted
     if (!content.trim()) return null
 
     const labelIds = (metadata.labelIds as string[]) || []

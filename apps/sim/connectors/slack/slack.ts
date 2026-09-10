@@ -385,7 +385,6 @@ async function resolveUserName(
  */
 function extractMessageContent(msg: SlackMessage): string {
   const parts: string[] = []
-  if (msg.text) parts.push(msg.text)
 
   for (const attachment of msg.attachments ?? []) {
     for (const key of ['pretext', 'author_name', 'title', 'text', 'footer'] as const) {
@@ -424,7 +423,12 @@ function extractMessageContent(msg: SlackMessage): string {
     if (blockParts.length > 0) parts.push(blockParts.join(' '))
   }
 
-  return parts.filter((s) => s.trim().length > 0).join('\n')
+  const body = parts.filter((part) => part.trim().length > 0).join('\n')
+  const fallback = msg.text?.trim()
+  if (!fallback || fallback === body.trim() || parts.some((part) => part.trim() === fallback)) {
+    return body
+  }
+  return body ? `${fallback}\n${body}` : fallback
 }
 
 /**

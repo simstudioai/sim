@@ -75,6 +75,20 @@ describe('Credential Group provider registry', () => {
     expect(managedOAuth.hasRequiredScopes([], canonicalScopes)).toBe(false)
   })
 
+  it('accepts a full Drive grant for read-only access without promoting limited grants', () => {
+    const policy = createGoogleManagedOAuthConnector('google-drive')
+    const full = 'https://www.googleapis.com/auth/drive'
+    const readOnly = 'https://www.googleapis.com/auth/drive.readonly'
+    const selectedFiles = 'https://www.googleapis.com/auth/drive.file'
+    expect(policy.hasRequiredScopes([full], [readOnly])).toBe(true)
+    expect(policy.hasRequiredScopes([selectedFiles], [readOnly])).toBe(false)
+    expect(policy.hasRequiredScopes([readOnly], [full])).toBe(false)
+    expect(policy.hasRequiredScopes([readOnly], [selectedFiles])).toBe(false)
+    expect(
+      policy.hasRequiredScopes([full], ['https://www.googleapis.com/auth/calendar.readonly'])
+    ).toBe(false)
+  })
+
   it('requires the complete Google Calendar scope policy', () => {
     const managedOAuth = createGoogleManagedOAuthConnector('google-calendar')
     const requiredScopes = getCredentialGroupProviderService('google-calendar').scopes

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { getScopesForService } from '@/lib/oauth/utils'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -18,7 +17,7 @@ import {
 
 type JiraSelectorKey = Extract<ServerSelectorKey, 'jira.projects' | 'jira.issues'>
 
-const JIRA_SCOPES = getScopesForService('jira')
+const JIRA_SCOPES = ['read:jira-work']
 const JIRA_PROJECTS_PAGE_SIZE = 50
 const JIRA_ISSUES_LIMIT = 25
 

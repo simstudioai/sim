@@ -30,6 +30,7 @@ import {
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
@@ -42,8 +43,6 @@ import {
 } from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('ConnectServiceAccountModal')
-
-const GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID = 'google-service-account' as const
 
 export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
@@ -356,6 +355,7 @@ function GoogleServiceAccountModalForm({
         const created = await createCredential.mutateAsync({
           ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           type: 'service_account',
+          providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
           serviceAccountJson: trimmed,

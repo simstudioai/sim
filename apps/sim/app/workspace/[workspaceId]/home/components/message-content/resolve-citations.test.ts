@@ -67,6 +67,37 @@ describe('evidence-linked citations', () => {
       ).blocks[1].content
     ).toEqual(resolveMessageCitations(blocks(), '', true).blocks[1].content)
   })
+  it('retains a retrieved provider label after persistence instead of the internal index name', () => {
+    const providerOutput = structuredClone(output)
+    Object.assign(providerOutput.data.results[0], {
+      knowledgeBaseName: 'Sim Search',
+      siteName: 'Gmail',
+      connectorType: 'gmail',
+    })
+    for (const result of [
+      providerOutput,
+      compactRetrievalCitations('search_workspace', providerOutput),
+    ]) {
+      const resolved = resolveMessageCitations(blocks(result), '', true).blocks[1].content
+      expect(resolved).toContain('"title":"Actual title"')
+      expect(resolved).toContain('"siteName":"Gmail"')
+      expect(resolved).not.toContain('Sim Search')
+    }
+  })
+
+  it('keeps the document title when a follow-up uses only read_document evidence', () => {
+    const readBlocks = blocks({
+      success: true,
+      data: {
+        ...output.data.results[0],
+        chunks: [{ content: 'Retrieved passage', chunkIndex: 0 }],
+      },
+    })
+    readBlocks[0].toolCall!.name = 'read_document'
+    expect(resolveMessageCitations(readBlocks, '', true).blocks[1].content).toContain(
+      '"title":"Actual title"'
+    )
+  })
   it('resolves source tags split across streamed text chunks before rendering', () => {
     const split = blocks().slice(0, 1)
     split.push(

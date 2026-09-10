@@ -66,7 +66,8 @@ export const OAUTH_SCOPE_DESCRIPTIONS: Record<OAuthScope, string> = {
   offline_access: 'Stay signed in without asking again',
   [OAUTH_API_READ_SCOPE]: 'Read your workspaces, workflows, files, tables, and logs',
   [OAUTH_API_WRITE_SCOPE]: 'Read, create, change, run, and delete resources in your workspaces',
-  [OAUTH_SEARCH_READ_SCOPE]: 'Search and read documents you can access in Sim Search',
+  [OAUTH_SEARCH_READ_SCOPE]:
+    'Search and read documents you can access, and start private Sim Search conversations',
 }
 
 /**
@@ -91,7 +92,8 @@ export function visibleOAuthScopes(granted: readonly string[]): OAuthScope[] {
 export function summarizeOAuthAccess(granted: readonly string[]): string {
   if (granted.includes(OAUTH_API_WRITE_SCOPE)) return 'Full access to your workspaces'
   if (granted.includes(OAUTH_API_READ_SCOPE)) return 'Read-only access to your workspaces'
-  if (granted.includes(OAUTH_SEARCH_READ_SCOPE)) return 'Read-only access to Sim Search'
+  if (granted.includes(OAUTH_SEARCH_READ_SCOPE))
+    return 'Search documents and start private conversations'
   return 'No API access'
 }
 

@@ -938,6 +938,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
       id,
       label: 'Search MCP',
       description: 'Search your sources from other apps.',
+      docsLink: 'https://docs.sim.ai/search/mcp',
       icon: Server,
       group,
     }

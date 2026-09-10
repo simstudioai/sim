@@ -138,21 +138,21 @@ export default async function CredentialGroupEnrollmentPage({
   const { token } = await params
   if (!token || token.length > 128) return <UnavailableInvitation />
   const resolvedSearchParams = await searchParams
+  const callback = new URLSearchParams()
+  for (const key of ['returnTo', 'optionId']) {
+    const value = getSearchParam(resolvedSearchParams, key)
+    if (value) callback.set(key, value)
+  }
+  const callbackUrl = `/credential-groups/enroll/${encodeURIComponent(token)}${callback.size ? `?${callback}` : ''}`
   const session = await getSession()
   if (!session?.user) {
-    const callback = new URLSearchParams()
-    for (const key of ['returnTo', 'optionId']) {
-      const value = getSearchParam(resolvedSearchParams, key)
-      if (value) callback.set(key, value)
-    }
-    const callbackUrl = `/credential-groups/enroll/${encodeURIComponent(token)}${callback.size ? `?${callback}` : ''}`
     redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
   }
   if (!session.user.emailVerified)
     return (
       <UnavailableInvitation
-        message='Verify your Sim email address before connecting your accounts, then reopen this connection link.'
-        recoveryHref='/verify'
+        message='Verify your Sim email address before connecting your accounts.'
+        recoveryHref={`/verify?redirectAfter=${encodeURIComponent(callbackUrl)}`}
         recoveryLabel='Verify email'
       />
     )

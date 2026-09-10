@@ -327,11 +327,11 @@ export interface WorkspaceResourceTagData {
 export interface SourceTagData {
   /** Canonical http(s) link to the referenced document. */
   url: string
-  /** Document title, shown on hover. */
+  /** Document title, used as the citation label and shown in full on hover. */
   title?: string
   /**
-   * Short chip label — the site or product the document lives in ("GitHub
-   * Docs", "Confluence"). Falls back to the URL's hostname.
+   * The site or product the document lives in ("GitHub Docs", "Confluence"),
+   * used when its title is missing and as secondary metadata in source cards.
    */
   siteName?: string
   /**
