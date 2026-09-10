@@ -3,6 +3,7 @@ import type {
   UpdateOrganizationAccountsBody,
 } from '@/lib/api/contracts/organization-accounts'
 
+/** Preserves option identities and custom Slack scopes while the server refreshes managed OAuth policies. */
 export function getOrganizationAccountUpdateOptions(
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>
 ): NonNullable<UpdateOrganizationAccountsBody['options']> {
