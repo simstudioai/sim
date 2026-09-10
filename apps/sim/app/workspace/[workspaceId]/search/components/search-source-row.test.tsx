@@ -155,9 +155,9 @@ describe('Search source viewer actions', () => {
   it.each([
     {
       change: { hasSyncError: true, viewerDocumentCount: 4 },
-      status: 'Sync needs attention · 4 searchable documents',
+      status: 'Sync failed · 4 searchable documents',
     },
-    { change: { hasSyncError: true }, status: 'Sync needs admin attention' },
+    { change: { hasSyncError: true }, status: 'Sync failed' },
     {
       change: { viewerFailedDocumentCount: 1 },
       status: "1 document couldn't be indexed",

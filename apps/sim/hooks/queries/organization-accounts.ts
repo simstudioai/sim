@@ -14,6 +14,7 @@ import {
   addOrganizationAccountMcpProviderContract,
   type ConfigureOrganizationMcpBody,
   configureOrganizationMcpContract,
+  disconnectPersonalOrganizationAccountContract,
   type EnsureOrganizationAccountsBody,
   ensureOrganizationAccountsContract,
   getOrganizationAccountsContract,
@@ -39,6 +40,26 @@ import { slackSearchKeys } from '@/hooks/queries/slack-search'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
+
+/** Disconnects an owned grant; indexing and source setup do not gate this operation. */
+export function useDisconnectPersonalOrganizationAccount(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (credentialId: string) =>
+      requestJson(disconnectPersonalOrganizationAccountContract, {
+        params: { credentialId },
+      }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: searchSourceKeys.list({ kind: 'organization', organizationId }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(organizationId),
+        }),
+      ]),
+  })
+}
 
 export const organizationAccountsKeys = {
   all: ['organization-accounts'] as const,

@@ -10,6 +10,7 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { internalPersonalCredentialConnectionErrorPolicy } from '@/lib/credentials/api/route-policies'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -111,6 +112,7 @@ export const internalKnowledgeErrorPolicies = {
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
   connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  connectAccount: concealKnowledgeBase(internalPersonalCredentialConnectionErrorPolicy),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 

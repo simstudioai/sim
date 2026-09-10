@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 
 const NO_STORE_REDIRECT_HEADERS = {
   'Cache-Control': 'no-store',
@@ -20,23 +21,17 @@ export function createCredentialGroupEnrollmentRedirect(
   })
 }
 
-export type CredentialGroupOAuthFailure =
-  | 'expired'
-  | 'denied'
-  | 'account_mismatch'
-  | 'permissions_required'
-  | 'configuration_changed'
-  | 'rate_limited'
-  | 'unavailable'
-  | 'failed'
-
 export function createCredentialGroupCompletionRedirect(
-  oauth?: CredentialGroupOAuthFailure
+  oauth?: CredentialGroupOAuthFailure,
+  completionId?: string
 ): NextResponse {
+  const query = new URLSearchParams()
+  if (oauth) query.set('oauth', oauth)
+  if (completionId) query.set('completionId', completionId)
   return new NextResponse(null, {
     status: 303,
     headers: {
-      Location: `/credential-groups/complete${oauth ? `?oauth=${oauth}` : ''}`,
+      Location: `/credential-groups/complete${query.size ? `?${query}` : ''}`,
       ...NO_STORE_REDIRECT_HEADERS,
     },
   })

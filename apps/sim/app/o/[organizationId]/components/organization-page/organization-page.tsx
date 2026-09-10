@@ -34,6 +34,9 @@ interface OrganizationPageProps {
   tabs?: readonly OrganizationPageTab[]
   /** The page's primary action, a chip. Omit for a page without one. */
   action?: ReactNode
+  /** Keep the search field visible on pages whose main content is a searchable list. */
+  searchMode?: 'collapsible' | 'expanded'
+  searchPlaceholder?: string
   children?: ReactNode
 }
 
@@ -53,6 +56,8 @@ export function OrganizationPage({
   description,
   tabs,
   action,
+  searchMode = 'collapsible',
+  searchPlaceholder = 'Search',
   children,
 }: OrganizationPageProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -71,7 +76,7 @@ export function OrganizationPage({
    * viewer opened and has not dismissed.
    */
   const [searchOpened, setSearchOpened] = useState(false)
-  const searchOpen = searchOpened || search.length > 0
+  const searchOpen = searchMode === 'expanded' || searchOpened || search.length > 0
 
   const closeSearch = () => {
     setSearch('')
@@ -99,7 +104,8 @@ export function OrganizationPage({
             ref={tabsRef}
             className={cn(
               scrollFadeXClass,
-              'flex min-w-0 flex-1 items-center gap-[1px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              'flex min-w-0 flex-1 items-center gap-[1px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              searchMode === 'expanded' && !tabs?.length && 'hidden'
             )}
             {...scrollFadeAttributes(tabEdges)}
           >
@@ -119,32 +125,39 @@ export function OrganizationPage({
               )
             })}
           </div>
-          <div className='flex shrink-0 items-center gap-1.5'>
+          <div
+            className={cn(
+              'flex items-center gap-1.5',
+              searchMode === 'expanded' ? 'min-w-0 flex-1' : 'shrink-0'
+            )}
+          >
             {searchOpen ? (
               <ChipInput
-                autoFocus
+                autoFocus={searchMode === 'collapsible'}
                 icon={Search}
                 value={search}
-                placeholder='Search'
+                placeholder={searchPlaceholder}
                 aria-label='Search'
                 spellCheck={false}
                 autoComplete='off'
-                className='w-[240px]'
+                className={searchMode === 'expanded' ? 'w-full' : 'w-[240px]'}
                 onChange={(event) => setSearch(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') closeSearch()
                 }}
                 endAdornment={
-                  <Button
-                    type='button'
-                    variant='quiet'
-                    size='icon'
-                    className='-mr-1 shrink-0'
-                    aria-label='Close search'
-                    onClick={closeSearch}
-                  >
-                    <X className='size-[14px]' />
-                  </Button>
+                  (searchMode === 'collapsible' || search.length > 0) && (
+                    <Button
+                      type='button'
+                      variant='quiet'
+                      size='icon'
+                      className='-mr-1 shrink-0'
+                      aria-label={searchMode === 'expanded' ? 'Clear search' : 'Close search'}
+                      onClick={closeSearch}
+                    >
+                      <X className='size-[14px]' />
+                    </Button>
+                  )
                 }
               />
             ) : (
