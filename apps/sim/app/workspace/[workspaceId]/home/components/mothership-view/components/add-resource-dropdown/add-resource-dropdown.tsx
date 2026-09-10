@@ -18,10 +18,7 @@ import {
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import {
-  BROWSER_SESSION_RESOURCE_ID,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
+import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import {
@@ -52,6 +49,12 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+
+/**
+ * Placeholder id for the Browser launcher row. It never names a resource: the
+ * page the desktop app creates becomes the browser tab, keyed by its own id.
+ */
+export const BROWSER_LAUNCHER_ID = 'browser'
 
 export interface AddResourceDropdownProps {
   workspaceId: string
@@ -303,14 +306,14 @@ export function useAvailableResources(
         }),
       },
     ]
-    // The live browser panel — desktop app only (needs the agent-browser
-    // bridge). There is one top-level panel; repeated launches open inner tabs.
+    // A new browser tab — desktop app only (needs the agent-browser bridge).
+    // Every launch opens another page; the strip lists each as its own tab.
     if (browserAvailable) {
       groups.push({
         type: 'browser' as const,
         items: [
           {
-            id: BROWSER_SESSION_RESOURCE_ID,
+            id: BROWSER_LAUNCHER_ID,
             name: 'Browser',
           },
         ],
@@ -541,9 +544,10 @@ export function ResourceMenuSections({
         const Icon = config.icon
         const section = sectionByType.get(type)
 
-        // Browser and terminal each have one top-level panel — a flat launcher
-        // here creates inner tabs when that panel already exists.
-        if (!section && (type === 'browser' || type === 'terminal')) {
+        // The Browser launcher and the Terminal panel are flat rows: one opens
+        // a new page, the other the terminal and its inner shells. Live browser
+        // pages offered as context are an ordinary picker submenu.
+        if (!section && (type === 'terminal' || items[0]?.id === BROWSER_LAUNCHER_ID)) {
           const item = items[0]
           return (
             <DropdownMenuItem key={type} onClick={() => onSelect(resourceFromItem(type, item))}>

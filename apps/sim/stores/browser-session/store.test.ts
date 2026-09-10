@@ -33,7 +33,6 @@ describe('browser session store', () => {
           url: 'https://docs.sim.ai',
           loading: false,
           active: false,
-          pinned: false,
         },
         {
           tabId: '2',
@@ -41,7 +40,6 @@ describe('browser session store', () => {
           url: 'https://sim.ai/workspace',
           loading: true,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -193,38 +191,6 @@ describe('browser session store', () => {
     expect(getBrowserSession('chat-test').pageState?.sitePermissionRequest).toBeUndefined()
   })
 
-  it('reorders tabs optimistically without changing the active page', () => {
-    const store = useBrowserSessionStore.getState()
-    store.setTabsState({
-      scopeId: 'chat-test',
-      activeTabId: '2',
-      tabs: [
-        {
-          tabId: '1',
-          title: 'One',
-          url: 'https://one.example',
-          loading: false,
-          active: false,
-          pinned: false,
-        },
-        {
-          tabId: '2',
-          title: 'Two',
-          url: 'https://two.example',
-          loading: false,
-          active: true,
-          pinned: false,
-        },
-      ],
-    })
-
-    store.reorderTab('chat-test', '2', 0)
-
-    expect(getBrowserSession('chat-test').tabs.map((tab) => tab.tabId)).toEqual(['2', '1'])
-    expect(getBrowserSession('chat-test').activeTabId).toBe('2')
-    expect(getBrowserSession('chat-test').pageState?.tabId).toBe('2')
-  })
-
   it('retains a settled tab title when opening a new tab pushes a temporary blank title', () => {
     const store = useBrowserSessionStore.getState()
     store.setTabsState({
@@ -237,7 +203,6 @@ describe('browser session store', () => {
           url: 'https://example.com/docs',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -264,7 +229,6 @@ describe('browser session store', () => {
           url: 'https://example.com/docs',
           loading: false,
           active: false,
-          pinned: false,
         },
         {
           tabId: '2',
@@ -272,7 +236,6 @@ describe('browser session store', () => {
           url: '',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -296,7 +259,6 @@ describe('browser session store', () => {
           url: 'https://a.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -312,7 +274,6 @@ describe('browser session store', () => {
           url: 'https://b.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -371,7 +332,6 @@ describe('browser session store', () => {
           url: 'https://example.com',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -420,7 +380,6 @@ describe('browser session store', () => {
           url: 'https://example.com',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -483,7 +442,6 @@ describe('browser session store', () => {
           url: 'https://a.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -499,7 +457,6 @@ describe('browser session store', () => {
           url: 'https://stale.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -529,7 +486,6 @@ describe('browser session store', () => {
           url: 'https://fresh.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })

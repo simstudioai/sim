@@ -86,7 +86,10 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   integration: { persisted: true },
   // A synthetic panel with no addressable entity behind it to reopen.
   generic: { persisted: false },
-  browser: { persisted: true, desktopOnly: true },
+  // One tab per live desktop browser page, keyed by the native tab id. The
+  // desktop app owns the page list and restores it itself, so the chat row
+  // never stores these; they are re-derived from the live tab list on open.
+  browser: { persisted: false, desktopOnly: true },
   terminal: { persisted: true, desktopOnly: true },
 }
 
@@ -117,32 +120,20 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
 }
 
 /**
- * Singleton id for the live browser-session panel, which hosts the desktop
- * app's natively embedded browser view. Only this metadata is stored with the
- * chat: reopening restores the tab, while the page and browser profile stay
- * owned by the desktop app.
- */
-export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
-
-/**
- * Singleton id for the live terminal panel. As with the browser, only the
- * metadata is stored — reopening the chat brings the panel back with a fresh
- * shell, since the pty and its scrollback belong to the desktop app and do not
- * outlive it.
+ * Singleton id for the live terminal panel. Only the metadata is stored —
+ * reopening the chat brings the panel back with a fresh shell, since the pty
+ * and its scrollback belong to the desktop app and do not outlive it.
  */
 export const TERMINAL_SESSION_RESOURCE_ID = 'terminal-session'
 
 /**
- * Collapses page/shell-shaped metadata onto the one top-level desktop panel
- * each chat can restore. Browser pages and terminal tabs are inner tabs, not
- * independently addressable Mothership resources.
+ * Collapses shell-shaped metadata onto the one top-level terminal panel each
+ * chat can restore. Terminal tabs are inner tabs, not independently
+ * addressable Mothership resources.
  */
 export function canonicalizeDesktopSessionResource(
   resource: MothershipResource
 ): MothershipResource {
-  if (resource.type === 'browser') {
-    return { type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' }
-  }
   if (resource.type === 'terminal') {
     return { type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' }
   }
@@ -174,20 +165,23 @@ export function isAddressableResource(resource: MothershipResource): boolean {
 }
 
 /**
- * Canonicalizes and deduplicates the singleton desktop panels in display order.
+ * Canonicalizes and deduplicates the singleton terminal panel in display
+ * order, and drops browser rows: older clients stored one per page, but the
+ * live tab list is derived from the desktop app rather than the chat row.
  * Module-private: callers want {@link sanitizeChatResources}, which also drops
  * unaddressable resources.
  */
 function canonicalizeDesktopSessionResources(
   resources: readonly MothershipResource[]
 ): MothershipResource[] {
-  const seenDesktopTypes = new Set<'browser' | 'terminal'>()
+  let seenTerminal = false
   const canonical: MothershipResource[] = []
 
   for (const resource of resources) {
-    if (resource.type === 'browser' || resource.type === 'terminal') {
-      if (seenDesktopTypes.has(resource.type)) continue
-      seenDesktopTypes.add(resource.type)
+    if (resource.type === 'browser') continue
+    if (resource.type === 'terminal') {
+      if (seenTerminal) continue
+      seenTerminal = true
     }
     canonical.push(canonicalizeDesktopSessionResource(resource))
   }
@@ -196,11 +190,12 @@ function canonicalizeDesktopSessionResources(
 }
 
 /**
- * The canonical form of a chat's resource list: singleton desktop panels
- * collapsed, unaddressable resources dropped. Every path that reads or writes
- * stored resources goes through this, which is what heals chats that already
- * hold one. Canonicalization runs first, so the browser and terminal panels —
- * which are given their ids there — are never dropped for arriving without one.
+ * The canonical form of a chat's resource list: the terminal panel collapsed,
+ * legacy browser rows and unaddressable resources dropped. Every path that
+ * reads or writes stored resources goes through this, which is what heals
+ * chats that already hold one. Canonicalization runs first, so the terminal
+ * panel — which is given its id there — is never dropped for arriving without
+ * one.
  */
 export function sanitizeChatResources(
   resources: readonly MothershipResource[]

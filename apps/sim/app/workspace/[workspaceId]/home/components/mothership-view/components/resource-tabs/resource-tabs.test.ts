@@ -7,6 +7,7 @@ const { mockOpenTerminal, mockSendBrowserPanelAction } = vi.hoisted(() => ({
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   isBrowserAgentAvailable: vi.fn(() => true),
+  openBrowserTab: vi.fn(),
   sendBrowserPanelAction: mockSendBrowserPanelAction,
 }))
 
@@ -20,20 +21,6 @@ import { openExistingResourceTab } from './resource-tabs'
 describe('openExistingResourceTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('selects an existing browser resource and opens a new browser tab', () => {
-    const selectResource = vi.fn()
-
-    openExistingResourceTab(
-      { type: 'browser', id: 'browser-session', title: 'Browser' },
-      'chat-1',
-      selectResource
-    )
-
-    expect(selectResource).toHaveBeenCalledWith('browser-session')
-    expect(mockSendBrowserPanelAction).toHaveBeenCalledWith('new-tab', {}, 'chat-1')
-    expect(mockOpenTerminal).not.toHaveBeenCalled()
   })
 
   it('selects an existing terminal resource and opens a new terminal tab', () => {

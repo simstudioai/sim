@@ -18,9 +18,15 @@ import {
   type TabStripSelectionSource,
   Tooltip,
   tabStripItemSelector,
+  toast,
 } from '@sim/emcn'
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
-import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import { browserTabTitle } from '@/lib/browser-agent/tab-label'
+import {
+  openBrowserTab,
+  reorderBrowserTab,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { openTerminal } from '@/lib/terminal/transport'
@@ -32,6 +38,7 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
+  resourceTabWidthClass,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
@@ -47,17 +54,16 @@ import {
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
-/** Opens another inner tab when a singleton desktop resource already exists. */
+/** Opens another inner tab when the singleton terminal resource already exists. */
 export function openExistingResourceTab(
   resource: MothershipResource,
   desktopScopeId: string,
   selectResource: (id: string) => void
 ): void {
   selectResource(resource.id)
-  if (resource.type === 'browser') {
-    sendBrowserPanelAction('new-tab', {}, desktopScopeId)
-  } else if (resource.type === 'terminal') {
+  if (resource.type === 'terminal') {
     void openTerminal(undefined, desktopScopeId)
   }
 }
@@ -251,21 +257,40 @@ export function ResourceTabs({
     [resources]
   )
 
-  const tabs = useMemo<TabStripItem[]>(
-    () =>
-      resources.map((resource) => ({
-        id: resource.id,
-        title: nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title,
-        icon: getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0'),
-        active: activeId === resource.id,
-        selected: selectedIds.size > 1 && selectedIds.has(resource.id),
-        attention: activityIds?.has(resource.id) ?? false,
-      })),
-    [resources, nameLookup, activeId, selectedIds, activityIds]
-  )
+  // A browser tab's title is the live page title, owned by the desktop app.
+  const browserTabs = useBrowserSessionStore((state) => state.sessions[desktopScopeId]?.tabs)
+
+  const tabs = useMemo<TabStripItem[]>(() => {
+    const browserTitles = new Map(browserTabs?.map((tab) => [tab.tabId, browserTabTitle(tab)]))
+    return resources.map((resource) => ({
+      id: resource.id,
+      title:
+        (resource.type === 'browser'
+          ? browserTitles.get(resource.id)
+          : nameLookup.get(`${resource.type}:${resource.id}`)) ?? resource.title,
+      icon: getResourceConfig(resource.type).renderTabIcon(
+        resource,
+        'size-[16px] shrink-0',
+        desktopScopeId
+      ),
+      active: activeId === resource.id,
+      selected: selectedIds.size > 1 && selectedIds.has(resource.id),
+      attention: activityIds?.has(resource.id) ?? false,
+    }))
+  }, [resources, nameLookup, browserTabs, desktopScopeId, activeId, selectedIds, activityIds])
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
+      // A browser tab is a live page the desktop app creates; it joins the
+      // strip through the tab list rather than as a resource of its own.
+      if (resource.type === 'browser') {
+        void openBrowserTab(desktopScopeId)
+          .then((state) => {
+            if (state?.activeTabId) selectResource(state.activeTabId)
+          })
+          .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
+        return
+      }
       // Opening a resource before the first message is sent is allowed: there
       // is simply no chat to attach it to yet. `onAddResource` queues it and
       // persists once the chat exists, so only the server call is conditional.
@@ -276,7 +301,7 @@ export function ResourceTabs({
       onAddResource(resource)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onAddResource]
+    [chatId, desktopScopeId, onAddResource, selectResource]
   )
 
   const handleOpenExisting = useCallback(
@@ -343,9 +368,13 @@ export function ResourceTabs({
       if (!resource) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
-      // Update parent state immediately for all targets
+      // Update parent state immediately for all targets. A browser tab's page
+      // is closed natively too; the tab list then confirms the removal.
       for (const r of targets) {
         onRemoveResource(r.type, r.id)
+        if (r.type === 'browser') {
+          sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
+        }
       }
       // Clear stale selection and anchor for all removed targets
       const removedIds = new Set(targets.map((r) => r.id))
@@ -368,14 +397,23 @@ export function ResourceTabs({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onRemoveResource, resources, selectedIds]
+    [chatId, desktopScopeId, onRemoveResource, resources, selectedIds]
+  )
+
+  /** The strip's own title for a resource — a browser tab's is its live page title. */
+  const withStripTitle = useCallback(
+    (resource: MothershipResource): MothershipResource => {
+      const title = tabs.find((tab) => tab.id === resource.id)?.title
+      return title && title !== resource.title ? { ...resource, title } : resource
+    },
+    [tabs]
   )
 
   const handleTabDragStart = useCallback(
     (e: ReactDragEvent<HTMLDivElement>, id: string, drag: TabStripDragContext) => {
       const resource = resources.find((r) => r.id === id)
       if (!resource) return
-      const selected = resources.filter((r) => selectedIds.has(r.id))
+      const selected = resources.filter((r) => selectedIds.has(r.id)).map(withStripTitle)
       const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
@@ -399,12 +437,13 @@ export function ResourceTabs({
       // and a drop target asking for `copy` is refused outright unless copying
       // is allowed too.
       e.dataTransfer.effectAllowed = 'copyMove'
+      const { type, id: resourceId, title } = withStripTitle(resource)
       e.dataTransfer.setData(
         SIM_RESOURCE_DRAG_TYPE,
-        JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
+        JSON.stringify({ type, id: resourceId, title })
       )
     },
-    [resources, selectedIds]
+    [resources, selectedIds, withStripTitle]
   )
 
   const handleReorder = useCallback(
@@ -415,6 +454,12 @@ export function ResourceTabs({
       const [moved] = reordered.splice(fromIndex, 1)
       reordered.splice(targetIndex, 0, moved)
       onReorderResources(reordered)
+      // Browser tabs are not stored with the chat; their order lives in the
+      // desktop's native list, which restore and the agent read back.
+      if (moved.type === 'browser') {
+        const browserIndex = reordered.filter((r) => r.type === 'browser').indexOf(moved)
+        reorderBrowserTab(moved.id, browserIndex, desktopScopeId)
+      }
       if (chatId) {
         const persistable = reordered.filter((r) => !isEphemeralResource(r))
         if (persistable.length > 0) {
@@ -423,7 +468,7 @@ export function ResourceTabs({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, resources, onReorderResources]
+    [chatId, desktopScopeId, resources, onReorderResources]
   )
 
   const previewToggle =
@@ -453,7 +498,7 @@ export function ResourceTabs({
       onReorder={handleReorder}
       onTabDragStart={handleTabDragStart}
       variant='floating'
-      className={RESOURCE_HEADER_CLASSES.stripGeometry}
+      className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, resourceTabWidthClass(resources.length))}
       newTabControl={
         // Offered before the chat exists too: a resource opened while composing
         // the first prompt is context for that prompt, and gating on a chat id

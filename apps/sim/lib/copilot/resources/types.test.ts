@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
 import {
-  BROWSER_SESSION_RESOURCE_ID,
   canonicalizeDesktopSessionResource,
   isAddressableResource,
   isDesktopOnlyResource,
@@ -21,17 +20,16 @@ function resource(overrides: Partial<MothershipResource> = {}): MothershipResour
 }
 
 describe('isEphemeralResource', () => {
-  it('persists the desktop panels so their tabs survive reopening the chat', () => {
-    expect(
-      isEphemeralResource(
-        resource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' })
-      )
-    ).toBe(false)
+  it('persists the terminal panel so its tab survives reopening the chat', () => {
     expect(
       isEphemeralResource(
         resource({ type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' })
       )
     ).toBe(false)
+  })
+
+  it('keeps browser tabs client-only because the desktop app restores its own pages', () => {
+    expect(isEphemeralResource(resource({ type: 'browser', id: '3', title: 'Slack' }))).toBe(true)
   })
 
   it('keeps synthetic panels client-only', () => {
@@ -57,7 +55,7 @@ describe('isDesktopOnlyResource', () => {
 })
 
 describe('desktop session resource identity', () => {
-  it('keeps browser pages as inner tabs of one canonical Browser resource', () => {
+  it('drops stored browser rows, which older clients persisted per page or as one panel', () => {
     expect(
       sanitizeChatResources([
         resource({
@@ -65,9 +63,10 @@ describe('desktop session resource identity', () => {
           id: 'browser-session:slack-tab',
           title: 'mship-todo (Channel) - sim - Slack',
         }),
-        resource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' }),
+        resource({ type: 'browser', id: 'browser-session', title: 'Browser' }),
+        resource({ type: 'file', id: 'file-1', title: 'report.csv' }),
       ])
-    ).toEqual([{ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' }])
+    ).toEqual([{ type: 'file', id: 'file-1', title: 'report.csv' }])
   })
 
   it('canonicalizes terminal inner-tab metadata without changing regular resources', () => {
@@ -161,15 +160,11 @@ describe('unaddressable resources', () => {
     ])
   })
 
-  it('keeps the desktop panels, which are given their ids by canonicalization', () => {
+  it('keeps the terminal panel, which is given its id by canonicalization', () => {
     const sanitized = sanitizeChatResources([
-      resource({ type: 'browser', id: '', title: 'Browser' }),
       resource({ type: 'terminal', id: '', title: 'Terminal' }),
     ])
-    expect(sanitized.map((r) => r.id)).toEqual([
-      BROWSER_SESSION_RESOURCE_ID,
-      TERMINAL_SESSION_RESOURCE_ID,
-    ])
+    expect(sanitized.map((r) => r.id)).toEqual([TERMINAL_SESSION_RESOURCE_ID])
   })
 
   it('refuses a blank id at the write boundary, matching the send path', () => {

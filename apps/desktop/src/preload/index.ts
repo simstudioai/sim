@@ -228,12 +228,6 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:dispose-scope', scopeId),
     suspendScope: (scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('browser-agent:suspend-scope', scopeId),
-    setTabPinned: (tabId: string, pinned: boolean, scopeId: string): void => {
-      ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned, scopeId)
-    },
-    showTabContextMenu: (tabId: string, scopeId: string): void => {
-      ipcRenderer.send('browser-agent:show-tab-context-menu', tabId, scopeId)
-    },
     reorderTab: (tabId: string, targetIndex: number, scopeId: string): void => {
       ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex, scopeId)
     },

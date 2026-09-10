@@ -16,6 +16,7 @@ import {
 } from '@sim/emcn/icons'
 import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -39,7 +40,12 @@ export interface ResourceTypeConfig {
   type: MothershipResourceType
   label: string
   icon: ElementType
-  renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
+  /** `desktopScopeId` names the desktop browser scope a browser tab belongs to. */
+  renderTabIcon: (
+    resource: MothershipResource,
+    className: string,
+    desktopScopeId?: string
+  ) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
   /**
    * How many of this family's candidates an unfiltered `@` list shows, overriding
@@ -233,8 +239,8 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'browser',
     label: 'Browser',
     icon: Globe,
-    renderTabIcon: (_resource, className) => (
-      <Globe className={cn(className, 'text-[var(--text-icon)]')} />
+    renderTabIcon: (resource, className, desktopScopeId) => (
+      <BrowserTabIcon tabId={resource.id} scopeId={desktopScopeId} className={className} />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },

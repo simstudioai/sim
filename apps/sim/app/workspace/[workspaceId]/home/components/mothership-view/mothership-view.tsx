@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
@@ -26,14 +26,33 @@ import { ResourceActions, ResourceContent, ResourceTabs } from './components'
 /**
  * Panels that are kept mounted across resource switches rather than rebuilt.
  *
- * These two are singletons wrapping live state the renderer does not own: the
- * browser's page is a native view the main process positions from a measured
- * rect, and each terminal is an xterm fed from a pty whose scrollback has to
- * be replayed to rebuild it. Everything else re-renders from data that is
- * already in memory and is cheap to mount on demand.
+ * Both wrap live state the renderer does not own: a browser page is a native
+ * view the main process positions from a measured rect, and each terminal is
+ * an xterm fed from a pty whose scrollback has to be replayed to rebuild it.
+ * Everything else re-renders from data that is already in memory and is cheap
+ * to mount on demand.
  */
 function isPersistentPanel(resource: MothershipResource): boolean {
   return resource.type === 'browser' || resource.type === 'terminal'
+}
+
+/**
+ * The live panels to keep mounted. Every browser tab shares one panel — the
+ * desktop app shows whichever page is selected — so the first browser
+ * resource stands in for all of them; the terminal panel is a singleton.
+ */
+function persistentPanelResources(resources: MothershipResource[]): MothershipResource[] {
+  const panels: MothershipResource[] = []
+  let browserSeen = false
+  for (const resource of resources) {
+    if (!isPersistentPanel(resource)) continue
+    if (resource.type === 'browser') {
+      if (browserSeen) continue
+      browserSeen = true
+    }
+    panels.push(resource)
+  }
+  return panels
 }
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
@@ -129,7 +148,7 @@ export const MothershipView = memo(
       return browserOverlayControllerRef.current?.closeOverlay('resources') ?? Promise.resolve()
     }, [])
 
-    const persistentResources = useMemo(() => resources.filter(isPersistentPanel), [resources])
+    const persistentResources = persistentPanelResources(resources)
 
     const previewForActive =
       previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
@@ -221,27 +240,33 @@ export const MothershipView = memo(
               screen": the browser reports no bounds and its native view hides
               itself, and the terminals stop being measured.
             */}
-            {persistentResources.map((resource) => (
-              <div
-                key={`${desktopScopeId}:${resource.id}`}
-                className={cn('absolute inset-0', resource.id !== active?.id && 'hidden')}
-              >
-                {/*
+            {persistentResources.map((resource) => {
+              const panelVisible =
+                resource.type === 'browser'
+                  ? active?.type === 'browser'
+                  : resource.id === active?.id
+              return (
+                <div
+                  key={`${desktopScopeId}:${resource.type === 'browser' ? 'browser' : resource.id}`}
+                  className={cn('absolute inset-0', !panelVisible && 'hidden')}
+                >
+                  {/*
                   A hidden persistent panel can otherwise only INFER it is off
                   screen by measuring itself, which is enough to pause xterm and
                   hide the native view but not to switch off document-wide
                   observers the panel installs. The explicit flag lets it stand
                   those down while hidden.
                 */}
-                <ResourceContent
-                  workspaceId={workspaceId}
-                  desktopScopeId={desktopScopeId}
-                  resource={resource}
-                  visible={resource.id === active?.id}
-                  onBrowserOverlayControllerChange={registerBrowserOverlayController}
-                />
-              </div>
-            ))}
+                  <ResourceContent
+                    workspaceId={workspaceId}
+                    desktopScopeId={desktopScopeId}
+                    resource={resource}
+                    visible={panelVisible}
+                    onBrowserOverlayControllerChange={registerBrowserOverlayController}
+                  />
+                </div>
+              )
+            })}
             {active && !isPersistentPanel(active) && (
               <ResourceContent
                 workspaceId={workspaceId}

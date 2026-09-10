@@ -794,10 +794,13 @@ export function restoreBrowserScope(scopeId: string): BrowserTabsState {
     return session.withBrowserScope(resolved, () => session.peekTabsState())
   }
   const state = driverScopeState(resolved)
-  state.activationOnly = false
   return session.withBrowserScope(resolved, () => {
     session.restoreBrowserSession()
-    return session.peekTabsState()
+    const tabs = session.peekTabsState()
+    // Only a scope that actually holds pages is material; one restored empty
+    // stays adoptable by a pending chat migrating onto its id.
+    if (tabs.tabs.length > 0) state.activationOnly = false
+    return tabs
   })
 }
 
@@ -905,7 +908,7 @@ export async function clearBrowserProfile(
   retireAllDriverScopeStates()
   const settingsCleared = knownSessions?.clear() !== false
   const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
-  // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
+  // Last, covering the saved tab list `clearProfileStorage` just emptied.
   // Settings writes coalesce, and an erasure that is still sitting in that
   // window when the process dies leaves the previous account's data on disk
   // after sign-out already told the user it was gone.
@@ -2368,8 +2371,7 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      // The agent chose to open this page to work in, so the panel follows it.
-      const tab = session.addAutomationTab({ reveal: true })
+      const tab = session.addAutomationTab()
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
@@ -4782,19 +4784,9 @@ export async function handlePanelAction(
       }
       return
     }
-    if (action.action === 'new-tab') {
-      session.addTab()
-      return
-    }
-    if (action.action === 'duplicate-tab') {
-      if (typeof action.tabId === 'string') {
-        session.duplicateTab(action.tabId)
-      }
-      return
-    }
     if (action.action === 'switch-tab') {
       if (typeof action.tabId === 'string') {
-        session.switchTab(action.tabId)
+        session.switchTab(action.tabId, { claim: action.claim !== false })
       }
       return
     }

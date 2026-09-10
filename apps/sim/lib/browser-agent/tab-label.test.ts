@@ -3,11 +3,8 @@ import {
   browserTabHostname,
   browserTabTitle,
   shouldShowBrowserTabSpinner,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
+} from '@/lib/browser-agent/tab-label'
 
-// Drop-index and title-truncation behaviour moved to the shared TabStrip in
-// @sim/emcn along with the component; see its own tests. Only the browser's
-// favicon lookup stays here.
 describe('browserTabHostname', () => {
   it('extracts hostnames from browser URLs', () => {
     expect(browserTabHostname('https://docs.sim.ai/guides')).toBe('docs.sim.ai')
@@ -28,7 +25,6 @@ describe('browserTabTitle', () => {
     url: 'https://docs.sim.ai/guides',
     loading: false,
     active: false,
-    pinned: false,
   }
 
   it('never labels a settled blank-title page as loading', () => {

@@ -24,8 +24,9 @@ import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/componen
 import {
   buildMentionPreview,
   resourceMentionMatches,
-  withDesktopTabMentions,
+  withBrowserTabMentions,
   withFolderMentions,
+  withTerminalTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 import type {
   MothershipResource,
@@ -123,9 +124,12 @@ export const PlusMenuDropdown = React.memo(
     }, [])
 
     const visibleResources = useMemo(() => {
-      const resources = withFolderMentions(availableResources, structureFolders)
+      const resources = withBrowserTabMentions(
+        withFolderMentions(availableResources, structureFolders),
+        browserTabs
+      )
       if (isMention) {
-        return withDesktopTabMentions(resources, browserTabs, terminalTabs)
+        return withTerminalTabMentions(resources, terminalTabs)
       }
       return resources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
     }, [availableResources, structureFolders, browserTabs, isMention, terminalTabs])
