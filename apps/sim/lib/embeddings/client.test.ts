@@ -19,6 +19,7 @@ import {
   isBYOKEmbeddingCredentialRejection,
   isEmbeddingQuotaExhaustion,
   isTransientEmbeddingError,
+  KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS,
   MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
 } from '@/lib/embeddings/client'
 
@@ -1804,9 +1805,13 @@ describe('durable embedding batches', () => {
   it('limits checkpointed admission waits while retaining the interactive request budget', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(openAIBody([[1]], 7))))
     await embed(['text'], { apiKey: 'fixture-key', checkpoints: memoryCheckpoints() })
-    expect(mockAdmit).toHaveBeenLastCalledWith(expect.objectContaining({ maxWaitMs: 5000 }))
+    expect(mockAdmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ maxWaitMs: KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS })
+    )
     await embed(['text'], { apiKey: 'fixture-key' })
-    expect(mockAdmit.mock.lastCall?.[0].maxWaitMs).toBeGreaterThan(5000)
+    expect(mockAdmit.mock.lastCall?.[0].maxWaitMs).toBeGreaterThan(
+      KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS
+    )
   })
 
   it('drains admitted batches, resumes only missing requests and retains the complete token charge', async () => {

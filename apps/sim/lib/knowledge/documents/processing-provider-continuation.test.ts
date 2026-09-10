@@ -15,6 +15,7 @@ import {
   MAX_PROCESSING_CONTINUATION_SLICES,
   MAX_PROVIDER_CONTINUATION_AGE_MS,
   MAX_PROVIDER_CONTINUATION_ATTEMPTS,
+  resolveAdmissionContinuationDelayMs,
   resolveProviderContinuationDelayMs,
   scheduleDocumentProcessingProviderContinuation,
 } from '@/lib/knowledge/documents/processing-provider-continuation'
@@ -135,6 +136,55 @@ describe('durable provider continuations', () => {
     })
   })
 
+  it('resumes soon after the local admission bucket turned a batch away, without spending a provider attempt', async () => {
+    const payload = {
+      ...PAYLOAD,
+      providerRetryCount: 2,
+      processingSliceCount: 7,
+      providerRetryStartedAt: new Date(NOW.getTime() - 3_600_000).toISOString(),
+    }
+    const continuation = await scheduleDocumentProcessingProviderContinuation(
+      payload,
+      new ProviderCapacityDeferredError('admission_timeout', { retryAfterMs: 3_000 }),
+      false
+    )
+    const delay = continuation.deferredUntil.getTime() - NOW.getTime()
+    expect(delay).toBeGreaterThanOrEqual(8_000)
+    expect(delay).toBeLessThanOrEqual(12_000)
+    expect(continuation.processingQueueToken).toBe('knowledge-slice-doc-1-pass-1-8')
+    expect(assertDocumentProcessingPayload(dispatch.mock.calls[0][0])).toMatchObject({
+      providerRetryCount: 2,
+      processingSliceCount: 8,
+      providerRetryStartedAt: payload.providerRetryStartedAt,
+    })
+  })
+
+  it('keeps the exponential ladder for provider-side throttling', async () => {
+    const continuation = await scheduleDocumentProcessingProviderContinuation(
+      { ...PAYLOAD, providerRetryCount: 3 },
+      new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 3_000 }),
+      false
+    )
+    const delay = continuation.deferredUntil.getTime() - NOW.getTime()
+    expect(delay).toBeGreaterThanOrEqual(8 * 60_000 * 0.8)
+    expect(continuation.processingQueueToken).toBe('knowledge-provider-doc-1-pass-1-4')
+  })
+
+  it('bounds admission resumes independently of provider retries', async () => {
+    await expect(
+      scheduleDocumentProcessingProviderContinuation(
+        {
+          ...PAYLOAD,
+          processingSliceCount: MAX_PROCESSING_CONTINUATION_SLICES,
+          providerRetryStartedAt: NOW.toISOString(),
+        },
+        new ProviderCapacityDeferredError('admission_timeout'),
+        false
+      )
+    ).rejects.toBeInstanceOf(ProviderCapacityContinuationExhaustedError)
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
   it('starts the same bounded recovery horizon when the first continuation is a processing slice', async () => {
     await scheduleDocumentProcessingProviderContinuation(
       PAYLOAD,
@@ -185,6 +235,23 @@ describe('durable provider continuations', () => {
         new ProviderCapacityDeferredError('admission_unavailable')
       )
     ).rejects.toBe(error)
+  })
+
+  it('clamps and jitters the admission bucket wait', () => {
+    for (let i = 0; i < 20; i++) {
+      const stated = resolveAdmissionContinuationDelayMs(30_000)
+      expect(stated).toBeGreaterThanOrEqual(24_000)
+      expect(stated).toBeLessThanOrEqual(36_000)
+      const floored = resolveAdmissionContinuationDelayMs(800)
+      expect(floored).toBeGreaterThanOrEqual(8_000)
+      expect(floored).toBeLessThanOrEqual(12_000)
+      const capped = resolveAdmissionContinuationDelayMs(10 * 60_000)
+      expect(capped).toBeGreaterThanOrEqual(48_000)
+      expect(capped).toBeLessThanOrEqual(72_000)
+      const missing = resolveAdmissionContinuationDelayMs(undefined)
+      expect(missing).toBeGreaterThanOrEqual(12_000)
+      expect(missing).toBeLessThanOrEqual(18_000)
+    }
   })
 
   it('bounds jittered polling without reducing provider minimums', () => {
