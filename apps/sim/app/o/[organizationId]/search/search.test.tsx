@@ -6,14 +6,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import type { useSpeechToText } from '@/hooks/use-speech-to-text'
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
   urlUpdate: vi.fn(),
   push: vi.fn(),
+  speech: vi.fn<typeof useSpeechToText>(),
+  toggleListening: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }))
+vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mocks.push }),
+  usePathname: () => '/o/organization-a/search',
+}))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: () => ({
     organization: { id: 'organization-a', name: 'Acme' },
@@ -54,6 +61,21 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+  )
+  mocks.speech.mockReturnValue({
+    isSupported: true,
+    isListening: false,
+    audioLevelsRef: { current: new Float32Array(5) },
+    toggleListening: mocks.toggleListening,
+    resetTranscript: vi.fn(),
+  })
   mocks.search.mockImplementation((_scope: ResourceScope, query: string) => {
     const result: WorkspaceKnowledgeSearchResult = {
       documentId: `document-${query}`,
@@ -113,6 +135,30 @@ function expectVisibleQuery(query: string) {
 }
 
 describe('organization Search query navigation', () => {
+  it.each(['', '?q=Orion'])(
+    'dictates into the draft without searching until submit (%s)',
+    async (params) => {
+      await render(params)
+      await editDraft('Find')
+      const searchCalls = mocks.search.mock.calls.length
+      const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
+      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Search')
+      await act(async () => mic.click())
+      expect(mocks.toggleListening).toHaveBeenCalledOnce()
+      const speech = mocks.speech.mock.calls.at(-1)![0]
+      expect(speech.organizationId).toBe('organization-a')
+      await act(async () => speech.onTranscript('release'))
+      await act(async () => speech.onTranscript('release notes'))
+      expect(searchInput().value).toBe('Find release notes')
+      expect(mocks.search).toHaveBeenCalledTimes(searchCalls)
+      expect(mocks.urlUpdate).not.toHaveBeenCalled()
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')!.click()
+      })
+      expectVisibleQuery('Find release notes')
+    }
+  )
+
   it('replaces the field draft and results when the committed URL query changes without remounting the page', async () => {
     await render('?q=Orion')
     expectVisibleQuery('Orion')
