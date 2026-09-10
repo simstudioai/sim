@@ -86,6 +86,19 @@ describe('provider admission', () => {
     )
   })
 
+  it('reserves an interactive lane from its own buckets while sharing the provider gates', async () => {
+    await waitForProviderAdmission({ ...INPUT, lane: 'interactive' })
+    const [reservations, options] = consumeTokens.mock.calls[0]
+    expect(reservations.map((item: { key: string }) => item.key)).toEqual([
+      'provider:embedding:openai:hashed-credential:interactive:tokens',
+      'provider:embedding:openai:hashed-credential:interactive:requests',
+    ])
+    expect(options.cooldownKeys).toEqual([
+      'provider:embedding:openai:hashed-credential:cooldown',
+      'provider:embedding:openai:hashed-credential:quota',
+    ])
+  })
+
   it('isolates another credential and does not impose token costs on OCR', async () => {
     await waitForProviderAdmission({
       ...INPUT,

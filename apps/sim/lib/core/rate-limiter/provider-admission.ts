@@ -12,10 +12,19 @@ export interface ProviderIdentity {
   operation: 'embedding' | 'ocr' | 'rerank'
 }
 
+/**
+ * A lane reserves from its own request and token buckets under the same
+ * provider identity, so a person waiting on one embedding never queues behind
+ * a bulk crawl's batches. Cooldown and quota gates stay per identity: a
+ * provider pause or an exhausted balance still stops every lane.
+ */
+export type ProviderAdmissionLane = 'interactive'
+
 interface ProviderAdmissionInput extends ProviderIdentity {
   inputTokens?: number
   signal?: AbortSignal
   maxWaitMs: number
+  lane?: ProviderAdmissionLane
 }
 
 /**
@@ -49,6 +58,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
   input.signal?.throwIfAborted()
   const deadlineAt = Date.now() + input.maxWaitMs
   const key = providerKey(input)
+  const bucketKey = input.lane ? `${key}:${input.lane}` : key
   const requestsPerMinute =
     input.operation === 'embedding'
       ? envNumber(env.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE, 600, { min: 1 })
@@ -64,7 +74,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       throw new Error('Embedding request exceeds the configured per-credential token budget')
     }
     reservations.push({
-      key: `${key}:tokens`,
+      key: `${bucketKey}:tokens`,
       cost: input.inputTokens,
       config: {
         maxTokens: tokensPerMinute,
@@ -74,7 +84,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     })
   }
   reservations.push({
-    key: `${key}:requests`,
+    key: `${bucketKey}:requests`,
     cost: 1,
     config: {
       maxTokens: Math.min(

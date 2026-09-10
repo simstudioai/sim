@@ -11,6 +11,7 @@ import {
 } from '@/lib/core/config/env-capabilities'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
+  type ProviderAdmissionLane,
   ProviderQuotaExhaustedError,
   recordProviderCooldown,
   waitForProviderAdmission,
@@ -544,7 +545,8 @@ async function callEmbeddingAPI(
   expectedDimensions: number | undefined,
   isBYOK: boolean,
   signal?: AbortSignal,
-  admissionWaitMs = EMBEDDING_RETRY_BUDGET_MS
+  admissionWaitMs = EMBEDDING_RETRY_BUDGET_MS,
+  lane?: ProviderAdmissionLane
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
   return retryWithExponentialBackoff(
@@ -563,6 +565,7 @@ async function callEmbeddingAPI(
           ),
           signal: operationSignal,
           maxWaitMs: Math.min(admissionWaitMs, Math.max(0, deadlineAt - Date.now())),
+          lane,
         })
       } catch (error) {
         if (error instanceof ProviderQuotaExhaustedError)
@@ -848,7 +851,13 @@ async function callCheckpointedEmbeddingBatch(
     provider.dimensions,
     provider.isBYOK,
     signal,
-    checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined
+    checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined,
+    /**
+     * Checkpoints mark the bulk indexing path. Everything else has a person
+     * waiting on it, so it reserves from the interactive lane and never
+     * queues behind a crawl's batches.
+     */
+    checkpoints ? undefined : 'interactive'
   )
   if (identity) await checkpoints!.save(identity, result, signal)
   return result
