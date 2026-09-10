@@ -1,7 +1,8 @@
 'use client'
 
-import { useId } from 'react'
-import { cn } from '@sim/emcn'
+import { type ReactNode, useId, useState } from 'react'
+import { cn, usePrefersReducedMotion } from '@sim/emcn'
+import { motion } from 'framer-motion'
 import { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@/lib/branding/wordmark'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import {
@@ -17,10 +18,45 @@ interface StackIntroProps {
   progress: number
 }
 
+interface AnimatedCtaProps {
+  show: boolean
+  children: ReactNode
+}
+
+function AnimatedCta({ show, children }: AnimatedCtaProps) {
+  const [visible, setVisible] = useState(show)
+  const interactive = show && visible
+  return (
+    <motion.div
+      data-stack-completion-cta
+      initial={false}
+      animate={show ? 'visible' : 'hidden'}
+      variants={{ visible: { opacity: 1 }, hidden: { opacity: 0 } }}
+      transition={{ duration: 0.3 }}
+      onAnimationStart={() => setVisible(false)}
+      onAnimationComplete={(state) => setVisible(state === 'visible')}
+      inert={!interactive}
+      aria-hidden={!interactive}
+      className={cn(
+        'col-start-1 row-start-1',
+        interactive ? 'pointer-events-auto' : 'pointer-events-none'
+      )}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
 /** The heading remains above the arriving planes; supporting copy fades once exploration begins. */
 export function StackIntro({ progress }: StackIntroProps) {
   const wordmarkInkId = useId()
   const showCta = getStackLayerProgress(progress, STACK_LAYERS.length - 1).entrance > 0
+  const reducedMotion = usePrefersReducedMotion()
+  const cta = (
+    <LandingCtaLink variant='outline' size='display' href={SIGNUP_HREF} prefetch={false} withArrow>
+      Start building
+    </LandingCtaLink>
+  )
   return (
     <div
       className={cn(
@@ -66,25 +102,21 @@ export function StackIntro({ progress }: StackIntroProps) {
           The complete stack for AI agents. From your data and models to the workflows they power,
           all built on a foundation of control.
         </p>
-        <div
-          data-stack-completion-cta
-          inert={!showCta}
-          aria-hidden={!showCta}
-          className={cn(
-            'col-start-1 row-start-1 transition-opacity duration-300 motion-reduce:transition-none',
-            showCta ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-          )}
-        >
-          <LandingCtaLink
-            variant='outline'
-            size='display'
-            href={SIGNUP_HREF}
-            prefetch={false}
-            withArrow
+        {reducedMotion ? (
+          <div
+            data-stack-completion-cta
+            inert={!showCta}
+            aria-hidden={!showCta}
+            className={cn(
+              'col-start-1 row-start-1 transition-none',
+              showCta ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+            )}
           >
-            Start building
-          </LandingCtaLink>
-        </div>
+            {cta}
+          </div>
+        ) : (
+          <AnimatedCta show={showCta}>{cta}</AnimatedCta>
+        )}
       </div>
     </div>
   )
