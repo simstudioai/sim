@@ -36,7 +36,7 @@ const RELS_NS = 'xmlns="http://schemas.openxmlformats.org/package/2006/relations
 const REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 /** Lists the given slide part names in `p:sldIdLst` order, resolved through the presentation rels. */
-function presentationParts(zip: JSZip, order: number[]): void {
+function presentationParts(zip: JSZip, order: number[], absoluteTargets = false): void {
   const ids = order.map((n, i) => `<p:sldId id="${256 + i}" r:id="rId${n}"/>`).join('')
   zip.file(
     'ppt/presentation.xml',
@@ -44,7 +44,8 @@ function presentationParts(zip: JSZip, order: number[]): void {
   )
   const rels = order
     .map(
-      (n) => `<Relationship Id="rId${n}" Type="${REL_TYPE}/slide" Target="slides/slide${n}.xml"/>`
+      (n) =>
+        `<Relationship Id="rId${n}" Type="${REL_TYPE}/slide" Target="${absoluteTargets ? '/ppt/' : ''}slides/slide${n}.xml"/>`
     )
     .join('')
   zip.file(
@@ -53,11 +54,15 @@ function presentationParts(zip: JSZip, order: number[]): void {
   )
 }
 
-async function buildDeck(slides: DeckSlide[], order?: number[]): Promise<Buffer> {
+async function buildDeck(
+  slides: DeckSlide[],
+  order?: number[],
+  absoluteTargets = false
+): Promise<Buffer> {
   const zip = new JSZip()
   zip.file('[Content_Types].xml', '<Types/>')
   zip.file('ppt/media/image1.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]))
-  if (order) presentationParts(zip, order)
+  if (order) presentationParts(zip, order, absoluteTargets)
   for (const slide of slides) {
     zip.file(`ppt/slides/slide${slide.index}.xml`, slideXml(slide.spTree))
     const rels: string[] = []
@@ -254,6 +259,44 @@ describe('extractPresentationText', () => {
     )
 
     expect(await extractPresentationText(buffer)).toBe('Three\n\nOne\n\nTwo')
+  })
+
+  it('resolves package-absolute relationship targets against the package root', async () => {
+    const buffer = await buildDeck(
+      [
+        { index: 1, spTree: shape('One') },
+        { index: 2, spTree: shape('Two') },
+        {
+          index: 3,
+          spTree: shape('Three'),
+          extraRels: `<Relationship Id="rId9" Type="${REL_TYPE}/notesSlide" Target="/ppt/notesSlides/notesSlide3.xml"/>`,
+        },
+      ],
+      [3, 1, 2],
+      true
+    )
+    const zip = await JSZip.loadAsync(buffer)
+    zip.file('ppt/notesSlides/notesSlide3.xml', notesXml(shape('Absolute note', 'body')))
+    const withNotes = (await zip.generateAsync({ type: 'nodebuffer' })) as Buffer
+
+    expect(await extractPresentationText(withNotes)).toBe(
+      'Three\n[Notes]\nAbsolute note\n\nOne\n\nTwo'
+    )
+  })
+
+  it('rejects a package-absolute target outside ppt/', async () => {
+    const buffer = await buildDeck([
+      {
+        index: 1,
+        spTree: shape('Body'),
+        extraRels: `<Relationship Id="rId9" Type="${REL_TYPE}/notesSlide" Target="/docProps/app.xml"/>`,
+      },
+    ])
+    const zip = await JSZip.loadAsync(buffer)
+    zip.file('docProps/app.xml', notesXml(shape('Leaked', 'body')))
+    const withDecoy = (await zip.generateAsync({ type: 'nodebuffer' })) as Buffer
+
+    expect(await extractPresentationText(withDecoy)).toBe('Body')
   })
 
   it('skips slide ids whose target is missing and falls back when none resolve', async () => {

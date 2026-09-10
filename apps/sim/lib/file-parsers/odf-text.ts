@@ -1,6 +1,8 @@
 import JSZip from 'jszip'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import {
+  assertTextWithinLimit,
+  chargeTextBudget,
   childElements,
   collapseWhitespace,
   findFirst,
@@ -13,6 +15,8 @@ import {
   readXmlPart,
   TABLE_CLOSE,
   TABLE_OPEN,
+  type TextBudget,
+  trimLineEnds,
   type XmlElement,
 } from '@/lib/file-parsers/office-text'
 import type { FileParseOptions } from '@/lib/file-parsers/types'
@@ -49,6 +53,9 @@ const SKIPPED_PRESENTATION_CLASSES = new Set(['header', 'footer', 'date-time', '
 /** Bounds `table:number-columns-repeated`, which spreadsheets inflate to 1024. */
 const MAX_REPEATED_COLUMNS = 32
 
+/** Bounds one `text:s` run; `text:c` is attacker-controlled and would otherwise size an allocation. */
+const MAX_SPACE_RUN = 100
+
 const MAX_LIST_INDENT = 3
 
 interface WalkState {
@@ -57,10 +64,18 @@ interface WalkState {
   pendingNotes: string[]
   /** Inside a table cell, nested tables flatten to text rather than emitting markers. */
   inCell: boolean
+  /** Shared across the document so cells and note bodies count toward one ceiling. */
+  budget: TextBudget
 }
 
-function newState(inCell = false): WalkState {
-  return { blocks: [], pendingNotes: [], inCell }
+function newState(budget: TextBudget, inCell = false): WalkState {
+  return { blocks: [], pendingNotes: [], inCell, budget }
+}
+
+/** Records a piece of emitted text against the document ceiling before it is kept. */
+function emit(state: WalkState, pieces: string[], text: string): void {
+  chargeTextBudget(state.budget, text.length)
+  pieces.push(text)
 }
 
 function isSkipped(element: XmlElement): boolean {
@@ -80,7 +95,7 @@ function inlineText(element: XmlElement, state: WalkState): string {
   const pieces: string[] = []
   for (const child of element.children) {
     if (child.type === 'text') {
-      pieces.push(child.data)
+      emit(state, pieces, child.data)
       continue
     }
     if (!isXmlElement(child) || isSkipped(child)) continue
@@ -88,14 +103,15 @@ function inlineText(element: XmlElement, state: WalkState): string {
     switch (child.name) {
       case 'text:s': {
         const count = Number.parseInt(child.attribs['text:c'] ?? '1', 10)
-        pieces.push(' '.repeat(Number.isFinite(count) && count > 0 ? count : 1))
+        const bounded = Number.isFinite(count) && count > 0 ? Math.min(count, MAX_SPACE_RUN) : 1
+        emit(state, pieces, ' '.repeat(bounded))
         break
       }
       case 'text:tab':
-        pieces.push('\t')
+        emit(state, pieces, '\t')
         break
       case 'text:line-break':
-        pieces.push('\n')
+        emit(state, pieces, '\n')
         break
       case 'draw:frame': {
         const image = imageFrameText(child, state)
@@ -106,7 +122,7 @@ function inlineText(element: XmlElement, state: WalkState): string {
         const citation = findFirst(child, 'text:note-citation')
         const body = findFirst(child, 'text:note-body')
         const label = citation ? collapseWhitespace(inlineText(citation, state)) : ''
-        const bodyText = body ? collapseWhitespace(blockText(body)) : ''
+        const bodyText = body ? collapseWhitespace(blockText(body, state.budget)) : ''
         if (label) pieces.push(`[${label}]`)
         if (bodyText) state.pendingNotes.push(label ? `[${label}] ${bodyText}` : bodyText)
         break
@@ -119,8 +135,8 @@ function inlineText(element: XmlElement, state: WalkState): string {
 }
 
 /** Renders a container's block children to a single string, for cells and note bodies. */
-function blockText(container: XmlElement, inCell = false): string {
-  const state = newState(inCell)
+function blockText(container: XmlElement, budget: TextBudget, inCell = false): string {
+  const state = newState(budget, inCell)
   walkChildren(container, state, 0)
   return [...state.blocks, ...state.pendingNotes].join('\n')
 }
@@ -132,9 +148,7 @@ function flushNotes(state: WalkState): void {
 }
 
 function emitParagraph(element: XmlElement, state: WalkState, heading: boolean): void {
-  const text = inlineText(element, state)
-    .replace(/[ \t]+\n/g, '\n')
-    .trim()
+  const text = trimLineEnds(inlineText(element, state)).trim()
   if (text) {
     state.blocks.push(heading ? `\n${text}\n` : text)
   }
@@ -167,8 +181,8 @@ function emitList(list: XmlElement, state: WalkState, depth: number): void {
   }
 }
 
-function cellText(cell: XmlElement): string {
-  return collapseWhitespace(blockText(cell, true))
+function cellText(cell: XmlElement, budget: TextBudget): string {
+  return collapseWhitespace(blockText(cell, budget, true))
 }
 
 function repeatCount(element: XmlElement, attribute: string, cap: number): number {
@@ -179,7 +193,7 @@ function repeatCount(element: XmlElement, attribute: string, cap: number): numbe
   return Math.min(parsed, cap)
 }
 
-function tableRows(container: XmlElement, rows: string[]): void {
+function tableRows(container: XmlElement, rows: string[], state: WalkState): void {
   for (const child of childElements(container)) {
     if (isSkipped(child)) continue
     switch (child.name) {
@@ -187,7 +201,7 @@ function tableRows(container: XmlElement, rows: string[]): void {
         const cells: string[] = []
         for (const cell of childElements(child)) {
           if (cell.name !== 'table:table-cell' && cell.name !== 'table:covered-table-cell') continue
-          const text = cellText(cell)
+          const text = cellText(cell, state.budget)
           const repeats = repeatCount(cell, 'table:number-columns-repeated', MAX_REPEATED_COLUMNS)
           for (let i = 0; i < repeats; i++) cells.push(text)
         }
@@ -197,7 +211,7 @@ function tableRows(container: XmlElement, rows: string[]): void {
       case 'table:table-header-rows':
       case 'table:table-rows':
       case 'table:table-row-group':
-        tableRows(child, rows)
+        tableRows(child, rows, state)
         break
       default:
         break
@@ -206,13 +220,13 @@ function tableRows(container: XmlElement, rows: string[]): void {
 }
 
 /** Every non-empty cell of a table in reading order, for a table nested inside a cell. */
-function flattenedCells(container: XmlElement, cells: string[]): void {
+function flattenedCells(container: XmlElement, cells: string[], state: WalkState): void {
   for (const child of childElements(container)) {
     if (isSkipped(child)) continue
     if (child.name === 'table:table-row') {
       for (const cell of childElements(child)) {
         if (cell.name !== 'table:table-cell' && cell.name !== 'table:covered-table-cell') continue
-        const text = cellText(cell)
+        const text = cellText(cell, state.budget)
         if (text) cells.push(text)
       }
     } else if (
@@ -220,7 +234,7 @@ function flattenedCells(container: XmlElement, cells: string[]): void {
       child.name === 'table:table-rows' ||
       child.name === 'table:table-row-group'
     ) {
-      flattenedCells(child, cells)
+      flattenedCells(child, cells, state)
     }
   }
 }
@@ -228,12 +242,12 @@ function flattenedCells(container: XmlElement, cells: string[]): void {
 function emitTable(table: XmlElement, state: WalkState): void {
   if (state.inCell) {
     const cells: string[] = []
-    flattenedCells(table, cells)
+    flattenedCells(table, cells, state)
     if (cells.length > 0) state.blocks.push(cells.join(' / '))
     return
   }
   const rows: string[] = []
-  tableRows(table, rows)
+  tableRows(table, rows, state)
   if (rows.length > 0) {
     state.blocks.push('', TABLE_OPEN, ...rows, TABLE_CLOSE, '')
   }
@@ -251,7 +265,7 @@ function imageFrameText(frame: XmlElement, state: WalkState): string | null {
 }
 
 function emitNotes(notes: XmlElement, state: WalkState): void {
-  const body = collapseWhitespace(blockText(notes))
+  const body = collapseWhitespace(blockText(notes, state.budget))
   if (body) state.blocks.push(NOTES_MARKER, body)
 }
 
@@ -299,11 +313,11 @@ function walkChildren(container: XmlElement, state: WalkState, depth: number): v
   }
 }
 
-function contentBlocks(contentXml: string): string[] {
+function contentBlocks(contentXml: string, budget: TextBudget): string[] {
   const document = parseXml(contentXml)
   const body = findFirst(document, 'office:body')
   if (!body) return []
-  const state = newState()
+  const state = newState(budget)
   walkChildren(body, state, 0)
   flushNotes(state)
   return state.blocks
@@ -321,7 +335,8 @@ function embeddedContentParts(zip: JSZip): string[] {
 /**
  * Extracts structured text from an OpenDocument text or presentation package.
  * The caller must already have applied the archive size guard; each XML part is
- * additionally bounded by {@link readXmlPart}. An archive without `content.xml`
+ * additionally bounded by {@link readXmlPart} and the assembled text by
+ * {@link assertTextWithinLimit}. An archive without `content.xml`
  * is not an OpenDocument file at all and is rejected as `invalid_format`; a
  * present but textless body yields an empty string for the caller to classify.
  */
@@ -339,14 +354,15 @@ export async function extractOpenDocumentText(
     )
   }
 
+  const budget: TextBudget = { used: 0 }
   const sections: string[] = []
   for (const path of [CONTENT_PART, ...embeddedContentParts(zip)]) {
     const xml = await readXmlPart(zip, path)
     options.signal?.throwIfAborted()
     if (xml === null) continue
-    const blocks = contentBlocks(xml)
+    const blocks = contentBlocks(xml, budget)
     if (blocks.length > 0) sections.push(joinBlocks(blocks), '')
   }
 
-  return joinBlocks(sections)
+  return assertTextWithinLimit(joinBlocks(sections))
 }

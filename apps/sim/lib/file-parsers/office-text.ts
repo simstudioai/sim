@@ -36,6 +36,40 @@ function declaredUncompressedSize(entry: JSZipObject): number | undefined {
   return typeof size === 'number' && Number.isFinite(size) ? size : undefined
 }
 
+/**
+ * Hard ceiling on the text a walker assembles from one document. The part cap
+ * bounds the markup, but ODF whitespace and repeat attributes can expand a
+ * small part many times over, so the output is bounded on its own.
+ */
+export const MAX_OFFICE_TEXT_BYTES = MAX_OFFICE_XML_PART_BYTES
+
+/** Running total of emitted text, shared by every walk state of one document. */
+export interface TextBudget {
+  used: number
+}
+
+export function chargeTextBudget(budget: TextBudget, length: number): void {
+  budget.used += length
+  if (budget.used > MAX_OFFICE_TEXT_BYTES) {
+    throw new FileParserError(
+      'complexity_limit',
+      `Document text exceeds the maximum of ${MAX_OFFICE_TEXT_BYTES} bytes`
+    )
+  }
+}
+
+/** The assembled output must fit the same ceiling once joined. */
+export function assertTextWithinLimit(text: string): string {
+  const bytes = Buffer.byteLength(text, 'utf8')
+  if (bytes > MAX_OFFICE_TEXT_BYTES) {
+    throw new FileParserError(
+      'complexity_limit',
+      `Document text is ${bytes} bytes, above the maximum of ${MAX_OFFICE_TEXT_BYTES} bytes`
+    )
+  }
+  return text
+}
+
 function xmlPartTooLarge(path: string, bytes: number): FileParserError {
   return new FileParserError(
     'complexity_limit',
@@ -102,6 +136,21 @@ export function imageAltText(raw: string | undefined): string | null {
   const text = raw ? collapseWhitespace(raw) : ''
   if (!text || FILENAME_LIKE.test(text) || AUTO_CAPTION.test(text)) return null
   return `[Image: ${text}]`
+}
+
+/**
+ * Strips trailing spaces and tabs from every line in linear time. The obvious
+ * `/[ \t]+\n/` is quadratic on a long whitespace run — each position scans
+ * the run, fails on the newline, and backtracks — which a document inside the
+ * text budget can still trigger.
+ */
+export function trimLineEnds(text: string): string {
+  return text.includes('\n')
+    ? text
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .join('\n')
+    : text
 }
 
 /** Collapses internal whitespace so a cell or list item occupies a single line. */

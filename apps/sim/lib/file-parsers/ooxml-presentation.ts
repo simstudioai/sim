@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import {
+  assertTextWithinLimit,
   childElements,
   findAll,
   findFirst,
@@ -12,6 +13,7 @@ import {
   readXmlPart,
   TABLE_CLOSE,
   TABLE_OPEN,
+  trimLineEnds,
   type XmlElement,
 } from '@/lib/file-parsers/office-text'
 import type { FileParseOptions } from '@/lib/file-parsers/types'
@@ -99,10 +101,7 @@ function paragraphText(paragraph: XmlElement): string {
     }
   }
   visit(paragraph)
-  return pieces
-    .join('')
-    .replace(/[ \t]+\n/g, '\n')
-    .trim()
+  return trimLineEnds(pieces.join('')).trim()
 }
 
 /** One line per `<a:p>` in a text body, skipping empty paragraphs. */
@@ -217,12 +216,14 @@ function chartLines(chartXml: string): string[] {
 }
 
 /**
- * Resolves a relationship target against a directory and clamps it inside
- * `ppt/`, so a crafted `.rels` cannot point the walker at an arbitrary entry.
+ * Resolves a relationship target — relative to a directory, or package-absolute
+ * when it starts with `/` — and clamps it inside `ppt/`, so a crafted `.rels`
+ * cannot point the walker at an arbitrary entry.
  */
 function resolvePackagePath(baseDir: string, target: string): string | null {
-  const segments = baseDir.split('/').filter(Boolean)
-  for (const part of target.split('/')) {
+  const absolute = target.startsWith('/')
+  const segments = absolute ? [] : baseDir.split('/').filter(Boolean)
+  for (const part of (absolute ? target.slice(1) : target).split('/')) {
     if (part === '..') {
       if (segments.length === 0) return null
       segments.pop()
@@ -457,5 +458,5 @@ export async function extractPresentationText(
     if (blocks.length > 0) slideBlocks.push(joinBlocks(blocks), '')
   }
 
-  return joinBlocks(slideBlocks)
+  return assertTextWithinLimit(joinBlocks(slideBlocks))
 }
