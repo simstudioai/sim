@@ -45,6 +45,7 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
+import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
 import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
@@ -368,6 +369,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setActiveResourceId, clearResourceActivity]
   )
+
+  useBrowserTabResources({
+    scopeId: desktopScopeId,
+    resources,
+    activeResourceId,
+    addResource,
+    removeResource,
+    selectResource: selectResourceFromUser,
+    onResourceEvent: handleResourceEvent,
+  })
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {

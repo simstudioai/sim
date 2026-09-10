@@ -334,9 +334,12 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
+      // One panel serves every browser tab of the chat: the desktop app
+      // composites whichever page is selected, so switching tabs must not
+      // remount it.
       return (
         <BrowserSession
-          key={resource.id}
+          key={desktopScopeId}
           scopeId={desktopScopeId}
           visible={visible}
           onOverlayControllerChange={onBrowserOverlayControllerChange}

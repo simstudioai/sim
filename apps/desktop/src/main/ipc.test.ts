@@ -1146,36 +1146,6 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
   })
 
-  it('restricts browser-tab pinning to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-tab-pinned')
-
-    expect(() => handler?.(evilEvent, '1', true)).not.toThrow()
-    expect(() => handler?.(appEvent, 1, true)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', 'yes')).not.toThrow()
-    expect(() => handler?.(appEvent, '1', true)).not.toThrow()
-  })
-
-  it('restricts browser-tab context menus to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:show-tab-context-menu')
-
-    expect(() => handler?.(evilEvent, '1')).not.toThrow()
-    expect(() => handler?.(appEvent, 1)).not.toThrow()
-    expect(() => handler?.(appEvent, '1')).not.toThrow()
-  })
-
-  it('restricts browser-tab reordering to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:reorder-tab')
-
-    expect(() => handler?.(evilEvent, '1', 0)).not.toThrow()
-    expect(() => handler?.(appEvent, 1, 0)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', '0')).not.toThrow()
-    expect(() => handler?.(appEvent, '1', Number.NaN)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', 0)).not.toThrow()
-  })
-
   it('restricts browser-panel focus updates to boolean app-origin messages', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:set-panel-focused')
@@ -1337,7 +1307,6 @@ describe('registerIpcHandlers', () => {
           title: 'Restored',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
       activeTabId: '1',
@@ -1369,7 +1338,6 @@ describe('registerIpcHandlers', () => {
           title: '',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
       activeTabId: '2',

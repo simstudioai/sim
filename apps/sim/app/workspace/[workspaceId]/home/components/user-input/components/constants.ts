@@ -109,9 +109,9 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * so adding a new resource type fails compilation here until a conversion is
  * supplied — preventing silent drift between the two taxonomies.
  */
-// Browser/terminal resources may name either the singleton panel or one live
-// inner tab. The singleton ids ask the agent to inspect the whole resource;
-// every other id is a precise live-tab pointer.
+// A browser resource is one live page, so its id is a precise tab pointer. A
+// terminal resource names either the singleton panel, which asks the agent to
+// inspect the whole resource, or one live shell.
 const RESOURCE_TO_CONTEXT: Record<
   MothershipResourceType,
   (resource: MothershipResource) => ChatContext

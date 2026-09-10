@@ -1395,7 +1395,7 @@ describe('executeTool', () => {
   it('keeps activation lazy, then restores and disposes through the driver API', async () => {
     const snapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://restored.example/', pinned: false }],
+      tabs: [{ url: 'https://restored.example/' }],
       activeIndex: 0,
       downloads: [],
     }

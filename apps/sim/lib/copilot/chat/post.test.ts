@@ -601,7 +601,7 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
-  it('persists browser page attachments as one canonical Browser panel', async () => {
+  it('never persists browser tab attachments, which the desktop app restores itself', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
         method: 'POST',
@@ -612,14 +612,14 @@ describe('handleUnifiedChatPost', () => {
           resourceAttachments: [
             {
               type: 'browser',
-              id: 'browser-session:slack-tab',
+              id: '3',
               title: 'mship-todo (Channel) - sim - Slack',
               active: true,
               url: 'https://app.slack.com/client/workspace/channel',
             },
             {
               type: 'browser',
-              id: 'browser-session:docs-tab',
+              id: '4',
               title: 'Docs',
               url: 'https://docs.example.com',
             },
@@ -629,9 +629,7 @@ describe('handleUnifiedChatPost', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
-      { type: 'browser', id: 'browser-session', title: 'Browser' },
-    ])
+    expect(persistChatResources).not.toHaveBeenCalled()
   })
 
   it('forwards the desktop local filesystem capability into payload construction', async () => {

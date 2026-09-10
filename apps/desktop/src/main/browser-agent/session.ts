@@ -90,7 +90,6 @@ export interface AgentTab {
   id: string
   scopeId: string
   view: WebContentsView
-  pinned: boolean
   pendingRestoreUrl?: string
   pendingRestore?: PendingTabRestore
   pageIssue?: BrowserPageIssue
@@ -828,7 +827,7 @@ export function showBrowserDownloadInFolder(scopeId: string, downloadId: string)
  *
  * {@link initSession} names itself as the session boundary but set three of
  * these fields and left the rest, so a second call would inherit the first
- * session's tab id counter, theme, pinned-restore latch and persisted-list
+ * session's tab id counter, theme, restore latch and persisted-list
  * digest — the last of which would then suppress the new session's first save
  * as an unchanged write. Nothing re-inits in production today, which is
  * exactly why the gap stayed invisible, and why the tests had to reset the
@@ -877,15 +876,10 @@ export function initSession(
       return scopeId ? withBrowserScope(scopeId, activeTab) : null
     },
     backgroundColor: browserBackgroundColor,
-    ensureInitialTab: () => {
+    restoreActiveScope: () => {
       const scopeId = getActiveBrowserScopeId()
       if (!scopeId) return
-      withBrowserScope(scopeId, () => {
-        restoreBrowserSession()
-        if (!hasSession()) {
-          ensureTab()
-        }
-      })
+      withBrowserScope(scopeId, restoreBrowserSession)
     },
     onViewDetached: (view) => {
       if (!view) return
@@ -946,7 +940,6 @@ function isActivationOnlyBrowserScope(scopeId: string): boolean {
     state.activeTabId === null &&
     state.automationTabId === null &&
     state.nextTabId === 1 &&
-    !state.restored &&
     !state.restoring
   )
 }
@@ -1128,7 +1121,7 @@ function browserSessionSnapshot(): BrowserSessionSnapshot {
     .map(({ interruptionReason: _interruptionReason, ...download }) => ({ ...download }))
   return {
     v: 1,
-    tabs: liveTabs.map((tab) => ({ url: tabUrl(tab), pinned: tab.pinned })),
+    tabs: liveTabs.map((tab) => ({ url: tabUrl(tab) })),
     activeIndex,
     downloads,
   }
@@ -2427,8 +2420,8 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
       if (tab) dismissFind(tab.id)
     })
   )
-  // A pinned tab persists its latest top-level location, including
-  // user-driven navigations that do not pass through the driver.
+  // A tab persists its latest top-level location, including user-driven
+  // navigations that do not pass through the driver.
   contents.on(
     'did-navigate',
     bindToBrowserScope(scopeId, () => {
@@ -2649,26 +2642,11 @@ export function requireTab(): AgentTab {
 }
 
 interface AddTabOptions {
-  pinned?: boolean
   activate?: boolean
   notify?: boolean
 }
 
-/** Pinned tabs join the stable group at the far left; regular tabs append. */
-function insertPinnedAware(tab: AgentTab): void {
-  if (tab.pinned) {
-    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
-    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
-  } else {
-    tabs.push(tab)
-  }
-}
-
-function addTabInternal({
-  pinned = false,
-  activate = true,
-  notify = true,
-}: AddTabOptions = {}): AgentTab {
+function addTabInternal({ activate = true, notify = true }: AddTabOptions = {}): AgentTab {
   assertTabCapacity()
   const previousActiveTab = activeTab()
   const transferBrowserFocus =
@@ -2679,9 +2657,8 @@ function addTabInternal({
     id: String(currentScope.nextTabId++),
     scopeId: getBrowserScopeId(),
     view: createTabView(),
-    pinned,
   }
-  insertPinnedAware(tab)
+  tabs.push(tab)
   if (currentScope.automationTabId === null) currentScope.automationTabId = tab.id
   if (activate || currentScope.activeTabId === null) {
     if (previousActiveTab && previousActiveTab.id !== tab.id) {
@@ -2995,7 +2972,6 @@ export function restoreBrowserSession(): void {
     throw new SessionError('This task browser is suspended until the task is reopened.')
   }
   if (currentScope.restored) return
-  currentScope.activationOnly = false
 
   const scopeId = getBrowserScopeId()
   let snapshot: BrowserSessionSnapshot | null = null
@@ -3008,19 +2984,14 @@ export function restoreBrowserSession(): void {
       })
     }
   }
+  // Every chat is hydrated as soon as it is opened so its pages can be listed
+  // as tabs. Only a chat that actually had pages holds browser state of its
+  // own; one without stays replaceable by a pending chat adopting its id.
+  if (snapshot) currentScope.activationOnly = false
 
   const selectedIndexes = new Set<number>()
   if (snapshot) {
-    for (
-      let index = 0;
-      index < snapshot.tabs.length && selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE;
-      index++
-    ) {
-      if (snapshot.tabs[index]?.pinned) selectedIndexes.add(index)
-    }
-    if (selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE && snapshot.tabs[snapshot.activeIndex]) {
-      selectedIndexes.add(snapshot.activeIndex)
-    }
+    if (snapshot.tabs[snapshot.activeIndex]) selectedIndexes.add(snapshot.activeIndex)
     for (
       let index = 0;
       index < snapshot.tabs.length && selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE;
@@ -3062,7 +3033,7 @@ export function restoreBrowserSession(): void {
         snapshot.downloads.map((download) => ({ ...download }))
       )
       for (const { entry } of selectedEntries) {
-        const tab = addTabInternal({ pinned: entry.pinned, activate: false, notify: false })
+        const tab = addTabInternal({ activate: false, notify: false })
         tab.pendingRestoreUrl = entry.url
         const restoredOrigin = mediaOrigin(entry.url)
         if (restoredOrigin) grantSiteOrigin(state, restoredOrigin)
@@ -3122,23 +3093,13 @@ export function addTab(): AgentTab {
 }
 
 /**
- * Opens a tab for agent work.
- *
- * `reveal` is for the agent deliberately opening a page to work in
- * (`browser_open_tab`): the panel follows it, so the user watches the work
- * instead of staring at a page where nothing is happening. It is NOT set when a
- * page spawns a tab on its own (popups, `target="_blank"`) — that is the site
- * grabbing the view, not the agent choosing a workspace.
- *
- * Even with `reveal`, a tab the user claimed themselves wins: pulling the view
- * off the page they are reading is the same interruption as a window stealing
- * focus mid-sentence. The work still starts, just in the background, and the
- * tab strip shows it arriving.
+ * Opens a tab for agent work in the background. Which page is visible is the
+ * renderer's decision: every page is a resource tab there, and it shows the
+ * agent's tab or badges it depending on what the user is doing.
  */
-export function addAutomationTab({ reveal = false }: { reveal?: boolean } = {}): AgentTab {
+export function addAutomationTab(): AgentTab {
   restoreBrowserSession()
-  const followTheWork = reveal && !currentScope.visibleTabUserSelected
-  const tab = addTabInternal({ activate: followTheWork, notify: false })
+  const tab = addTabInternal({ activate: false, notify: false })
   currentScope.automationTabId = tab.id
   applyActiveTabThrottling()
   persistBrowserSession()
@@ -3191,29 +3152,6 @@ export function reopenClosedTab(): AgentTab | null {
   return tab
 }
 
-/**
- * Opens a copy of a tab at the same URL. A duplicate is a fresh load rather
- * than a clone of the original's session history: the history belongs to the
- * WebContents, and there is no way to fork it.
- */
-export function duplicateTab(tabId: string): AgentTab | null {
-  restoreBrowserSession()
-  const source = tabs.find((entry) => entry.id === tabId)
-  if (!source) return null
-
-  const url = sanitizeRestorableUrl(source.view.webContents.getURL())
-  currentScope.visibleTabUserSelected = true
-  const tab = addTabInternal()
-  if (url && url !== 'about:blank') {
-    // Sanitized to http(s) without embedded credentials above, and the
-    // partition's onBeforeRequest still runs the full SSRF check on the load —
-    // same reasoning as reopenClosedTab, and this is likewise a user action.
-    grantSiteOriginForUserNavigation(tab.view.webContents, url)
-    void tab.view.webContents.loadURL(url).catch(() => {})
-  }
-  return tab
-}
-
 export function switchTab(tabId: string): AgentTab {
   restoreBrowserSession()
   const tab = tabs.find((entry) => entry.id === tabId)
@@ -3254,40 +3192,10 @@ export function switchAutomationTab(tabId: string): AgentTab {
   return tab
 }
 
-/**
- * Moves a tab to a final list index while preserving the pinned/regular
- * boundary. Dragging across that boundary moves to its nearest valid edge.
- */
-export function reorderTab(tabId: string, targetIndex: number): AgentTab {
-  restoreBrowserSession()
-  if (!Number.isFinite(targetIndex)) {
-    throw new SessionError('Browser tab target index must be a finite number.')
-  }
-  const currentIndex = tabs.findIndex((entry) => entry.id === tabId)
-  if (currentIndex < 0) {
-    throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
-  }
-  const tab = tabs[currentIndex]
-  const pinnedCount = tabs.filter((entry) => entry.pinned).length
-  const minIndex = tab.pinned ? 0 : pinnedCount
-  const maxIndex = tab.pinned ? pinnedCount - 1 : tabs.length - 1
-  const nextIndex = Math.max(minIndex, Math.min(maxIndex, Math.trunc(targetIndex)))
-  if (nextIndex === currentIndex) return tab
-
-  tabs.splice(currentIndex, 1)
-  tabs.splice(nextIndex, 0, tab)
-  persistBrowserSession()
-  events?.onTabsChanged()
-  return tab
-}
-
 export function closeTab(tabId: string): void {
   restoreBrowserSession()
   const index = tabs.findIndex((entry) => entry.id === tabId)
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
-  if (tabs[index].pinned) {
-    throw new SessionError('Pinned tabs cannot be closed. Unpin the tab first.')
-  }
   // Before the splice, while the tab is still resolvable, stop page-owned UI.
   dismissFind(tabId)
   clearAutomationIndicatorsForTab(tabId)
@@ -3316,13 +3224,6 @@ export function closeTab(tabId: string): void {
     currentScope.automationTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
     applyActiveTabThrottling()
   }
-  // Closing the last tab must not leave a visible browser resource with an
-  // empty strip. Replace it with a fresh New tab, matching normal browser UI.
-  if (!hasSession() && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
-    addTab()
-    if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
-    return
-  }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
   persistBrowserSession()
   events?.onTabsChanged()
@@ -3340,48 +3241,6 @@ export function closeAutomationTab(tabId: string): void {
     )
   }
   closeTab(tabId)
-}
-
-/**
- * Pins or unpins a live tab. Pinned tabs form a stable group at the far left,
- * and their latest URLs are persisted locally for the next browser opening.
- */
-export function setTabPinned(tabId: string, pinned: boolean): AgentTab {
-  restoreBrowserSession()
-  const index = tabs.findIndex((entry) => entry.id === tabId)
-  if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
-  const tab = tabs[index]
-  if (tab.pinned === pinned) return tab
-
-  tabs.splice(index, 1)
-  tab.pinned = pinned
-  insertPinnedAware(tab)
-  persistBrowserSession()
-  events?.onTabsChanged()
-  return tab
-}
-
-/** Opens tab actions as a native menu so the embedded page never has to be hidden. */
-export function showTabContextMenu(tabId: string): void {
-  const scopeId = getBrowserScopeId()
-  const tab = tabs.find((entry) => entry.id === tabId)
-  if (!tab || tab.view.webContents.isDestroyed()) return
-
-  const inOwningScope = (action: () => void) => () => withBrowserScope(scopeId, action)
-
-  Menu.buildFromTemplate([
-    {
-      label: tab.pinned ? 'Unpin Tab' : 'Pin Tab',
-      click: inOwningScope(() => setTabPinned(tabId, !tab.pinned)),
-    },
-    { label: 'Duplicate Tab', click: inOwningScope(() => duplicateTab(tabId)) },
-    { type: 'separator' },
-    {
-      label: 'Close Tab',
-      enabled: !tab.pinned,
-      click: inOwningScope(() => closeTab(tabId)),
-    },
-  ]).popup()
 }
 
 /** The live page whose browser surface owns a menu accelerator. */
@@ -3510,10 +3369,6 @@ function clearFocusedBrowserTab(tabId?: string): void {
 }
 
 function closeTabFromUser(tabId: string): void {
-  if (tabs.find((tab) => tab.id === tabId)?.pinned) {
-    shell.beep()
-    return
-  }
   const closingLastTab = listTabs().length === 1
   closeTab(tabId)
   const active = activeTab()
@@ -3566,7 +3421,7 @@ export function quiesceBrowserSessions(): void {
 }
 
 /**
- * Ends the live session without touching the profile or the pinned-tab list on
+ * Ends the live session without touching the profile or the saved tab list on
  * disk, so the strip comes back intact next time. Turning the agent browser
  * off in settings runs this; a sign-out wipe runs {@link clearProfileStorage}.
  */
@@ -3587,10 +3442,10 @@ export function closeSession(): void {
 
 /**
  * Wipes the embedded browser's profile: open tabs, the in-memory list behind
- * Reopen Closed Tab, the persisted pinned tabs, and all site data and cache in
+ * Reopen Closed Tab, the saved tab lists, and all site data and cache in
  * the agent partition. Sim sign-out runs this so the next account signing in
  * on this machine cannot inherit the previous user's authenticated sessions,
- * pinned tabs, or browsing trail.
+ * saved tabs, or browsing trail.
  */
 export async function clearProfileStorage(): Promise<void> {
   // Cached DNS verdicts are part of the browsing trail: without this a wipe
@@ -3642,7 +3497,7 @@ const SITE_DATA_STORAGES = [
 /**
  * Erases selected kinds of browsing data without ending the session.
  *
- * Unlike {@link clearProfileStorage} this leaves tabs open and the pinned strip
+ * Unlike {@link clearProfileStorage} this leaves tabs open and the saved strip
  * intact: the user asked to clear data, not to close their browser. Saved
  * passwords live in a separate vault and are never touched here.
  */
@@ -3674,7 +3529,6 @@ export function listTabs(): BrowserTabState[] {
         url: issue?.url || tab.pendingRestoreUrl || tab.view.webContents.getURL(),
         loading: issue ? false : tab.view.webContents.isLoadingMainFrame(),
         active: tab.id === currentScope.activeTabId,
-        pinned: tab.pinned,
         ...(issue ? { issue } : {}),
       }
     })

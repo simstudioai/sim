@@ -529,10 +529,10 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
-  it('describes whole Browser and Terminal mentions without inventing tab ids', async () => {
+  it('points every browser mention at its exact tab and describes the whole Terminal', async () => {
     const result = await processContextsServer(
       [
-        { kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' },
+        { kind: 'browser_tab', tabId: '3', label: 'Sim Docs' },
         { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
       ],
       'user-1'
@@ -541,8 +541,8 @@ describe('processContextsServer - browser and terminal selections', () => {
     expect(result).toMatchObject([
       {
         type: 'browser_tab',
-        tag: '@Browser',
-        content: expect.stringContaining('resource as a whole'),
+        tag: '@Sim Docs',
+        content: expect.stringContaining('tabId 3'),
       },
       {
         type: 'terminal_tab',
@@ -550,7 +550,7 @@ describe('processContextsServer - browser and terminal selections', () => {
         content: expect.stringContaining('resource as a whole'),
       },
     ])
-    expect(result[0].content).toContain('browser_list_tabs')
+    expect(result[0].content).toContain('browser_switch_tab')
     expect(result[1].content).toContain('terminal list operation')
   })
 

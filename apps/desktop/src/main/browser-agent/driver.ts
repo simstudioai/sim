@@ -905,7 +905,7 @@ export async function clearBrowserProfile(
   retireAllDriverScopeStates()
   const settingsCleared = knownSessions?.clear() !== false
   const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
-  // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
+  // Last, covering the saved tab list `clearProfileStorage` just emptied.
   // Settings writes coalesce, and an erasure that is still sitting in that
   // window when the process dies leaves the previous account's data on disk
   // after sign-out already told the user it was gone.
@@ -2368,8 +2368,7 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      // The agent chose to open this page to work in, so the panel follows it.
-      const tab = session.addAutomationTab({ reveal: true })
+      const tab = session.addAutomationTab()
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
@@ -4779,16 +4778,6 @@ export async function handlePanelAction(
         session.prepareExplicitNavigation(contents)
         session.grantSiteOriginForUserNavigation(contents, action.url)
         void contents.loadURL(action.url).catch(() => {})
-      }
-      return
-    }
-    if (action.action === 'new-tab') {
-      session.addTab()
-      return
-    }
-    if (action.action === 'duplicate-tab') {
-      if (typeof action.tabId === 'string') {
-        session.duplicateTab(action.tabId)
       }
       return
     }

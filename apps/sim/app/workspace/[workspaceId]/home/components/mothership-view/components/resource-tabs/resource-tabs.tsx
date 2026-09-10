@@ -18,9 +18,11 @@ import {
   type TabStripSelectionSource,
   Tooltip,
   tabStripItemSelector,
+  toast,
 } from '@sim/emcn'
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
-import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import { browserTabTitle } from '@/lib/browser-agent/tab-label'
+import { openBrowserTab, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { openTerminal } from '@/lib/terminal/transport'
@@ -47,17 +49,16 @@ import {
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
-/** Opens another inner tab when a singleton desktop resource already exists. */
+/** Opens another inner tab when the singleton terminal resource already exists. */
 export function openExistingResourceTab(
   resource: MothershipResource,
   desktopScopeId: string,
   selectResource: (id: string) => void
 ): void {
   selectResource(resource.id)
-  if (resource.type === 'browser') {
-    sendBrowserPanelAction('new-tab', {}, desktopScopeId)
-  } else if (resource.type === 'terminal') {
+  if (resource.type === 'terminal') {
     void openTerminal(undefined, desktopScopeId)
   }
 }
@@ -251,21 +252,41 @@ export function ResourceTabs({
     [resources]
   )
 
+  // A browser tab's title is the live page title, owned by the desktop app.
+  const browserTabs = useBrowserSessionStore((state) => state.sessions[desktopScopeId]?.tabs)
+  const browserTitles = useMemo(
+    () => new Map(browserTabs?.map((tab) => [tab.tabId, browserTabTitle(tab)])),
+    [browserTabs]
+  )
+
   const tabs = useMemo<TabStripItem[]>(
     () =>
       resources.map((resource) => ({
         id: resource.id,
-        title: nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title,
+        title:
+          (resource.type === 'browser'
+            ? browserTitles.get(resource.id)
+            : nameLookup.get(`${resource.type}:${resource.id}`)) ?? resource.title,
         icon: getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0'),
         active: activeId === resource.id,
         selected: selectedIds.size > 1 && selectedIds.has(resource.id),
         attention: activityIds?.has(resource.id) ?? false,
       })),
-    [resources, nameLookup, activeId, selectedIds, activityIds]
+    [resources, nameLookup, browserTitles, activeId, selectedIds, activityIds]
   )
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
+      // A browser tab is a live page the desktop app creates; it joins the
+      // strip through the tab list rather than as a resource of its own.
+      if (resource.type === 'browser') {
+        void openBrowserTab(desktopScopeId)
+          .then((state) => {
+            if (state?.activeTabId) selectResource(state.activeTabId)
+          })
+          .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
+        return
+      }
       // Opening a resource before the first message is sent is allowed: there
       // is simply no chat to attach it to yet. `onAddResource` queues it and
       // persists once the chat exists, so only the server call is conditional.
@@ -276,7 +297,7 @@ export function ResourceTabs({
       onAddResource(resource)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onAddResource]
+    [chatId, desktopScopeId, onAddResource, selectResource]
   )
 
   const handleOpenExisting = useCallback(
@@ -343,9 +364,13 @@ export function ResourceTabs({
       if (!resource) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
-      // Update parent state immediately for all targets
+      // Update parent state immediately for all targets. A browser tab's page
+      // is closed natively too; the tab list then confirms the removal.
       for (const r of targets) {
         onRemoveResource(r.type, r.id)
+        if (r.type === 'browser') {
+          sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
+        }
       }
       // Clear stale selection and anchor for all removed targets
       const removedIds = new Set(targets.map((r) => r.id))
@@ -368,7 +393,7 @@ export function ResourceTabs({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onRemoveResource, resources, selectedIds]
+    [chatId, desktopScopeId, onRemoveResource, resources, selectedIds]
   )
 
   const handleTabDragStart = useCallback(

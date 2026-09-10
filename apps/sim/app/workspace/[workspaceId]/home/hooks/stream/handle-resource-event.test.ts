@@ -86,7 +86,7 @@ describe('handleResourceEvent removal', () => {
     )
   })
 
-  it('normalizes a page-shaped browser event into the singleton Browser panel', () => {
+  it('ignores browser events because browser tabs come from the desktop tab list', () => {
     const onResourceEvent = vi.fn()
     const deps = makeStreamLoopDeps({
       onResourceEventRef: { current: onResourceEvent },
@@ -98,13 +98,9 @@ describe('handleResourceEvent removal', () => {
       browserUpsertEvent('browser-session:slack-tab', 'mship-todo (Channel) - sim - Slack')
     )
 
-    expect(deps.addResource).toHaveBeenCalledWith({
-      type: 'browser',
-      id: 'browser-session',
-      title: 'Browser',
-    })
+    expect(deps.addResource).not.toHaveBeenCalled()
     expect(deps.setActiveResourceId).not.toHaveBeenCalled()
-    expect(onResourceEvent).toHaveBeenCalledWith('browser-session')
+    expect(onResourceEvent).not.toHaveBeenCalled()
   })
 })
 

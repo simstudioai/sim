@@ -54,12 +54,9 @@ import {
   getBrowserDownloadsState,
   grantSiteOriginForUserNavigation,
   peekTabsState,
-  reorderTab,
   setBrowserAppTheme,
-  setTabPinned,
   showBrowserDownloadInFolder,
   showBrowserDownloadsMenu,
-  showTabContextMenu,
   stopFindInActiveTab,
   withBrowserScope,
 } from '@/main/browser-agent/session'
@@ -1172,50 +1169,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return
         }
         void handlePanelAction(scope, panelAction).catch(() => {})
-      },
-    },
-    'browser-agent:set-tab-pinned': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, pinned, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (!scope || typeof tabId !== 'string' || typeof pinned !== 'boolean') return
-        try {
-          withBrowserScope(scope, () => setTabPinned(tabId, pinned))
-        } catch {}
-      },
-    },
-    'browser-agent:show-tab-context-menu': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (!scope || typeof tabId !== 'string') return
-        withBrowserScope(scope, () => showTabContextMenu(tabId))
-      },
-    },
-    'browser-agent:reorder-tab': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, targetIndex, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (
-          !scope ||
-          typeof tabId !== 'string' ||
-          typeof targetIndex !== 'number' ||
-          !Number.isFinite(targetIndex)
-        ) {
-          return
-        }
-        try {
-          withBrowserScope(scope, () => reorderTab(tabId, targetIndex))
-        } catch {}
       },
     },
     'browser-agent:set-panel-bounds': {

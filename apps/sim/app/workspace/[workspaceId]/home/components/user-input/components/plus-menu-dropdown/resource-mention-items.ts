@@ -1,11 +1,8 @@
 import type { BrowserTabState } from '@sim/browser-protocol'
 import type { TerminalTabState } from '@sim/terminal-protocol'
-import {
-  BROWSER_SESSION_RESOURCE_ID,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
+import { browserTabTitle } from '@/lib/browser-agent/tab-label'
+import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
-import { browserTabTitle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface ResourceMentionGroup {
@@ -35,8 +32,6 @@ export function withFolderMentions(
   )
 }
 
-export type ResourceMentionLevel = 'resource' | 'tab'
-
 /** A family query such as "browser" keeps that resource's live tabs visible. */
 export function resourceMentionMatches(item: AvailableItem, query: string): boolean {
   const normalized = query.toLowerCase().trim()
@@ -61,52 +56,53 @@ function uniqueTabNames<T>(tabs: readonly T[], nameOf: (tab: T) => string): stri
   })
 }
 
-function resourceItem(id: string, name: string, existing?: AvailableItem): AvailableItem {
-  return {
-    ...existing,
-    id,
-    name,
-    mentionFamily: name,
-    mentionLevel: 'resource' satisfies ResourceMentionLevel,
-  }
-}
-
-/** Adds live inner tabs after each always-present desktop resource mention. */
-export function withDesktopTabMentions(
+/**
+ * Replaces the Browser launcher row with the live pages, which are the only
+ * browser things that can be attached or mentioned. With no page open the
+ * family disappears from the menu.
+ */
+export function withBrowserTabMentions(
   groups: readonly ResourceMentionGroup[],
-  browserTabs: readonly BrowserTabState[],
-  terminalTabs: readonly TerminalTabState[]
+  browserTabs: readonly BrowserTabState[]
 ): ResourceMentionGroup[] {
   const browserNames = uniqueTabNames(browserTabs, browserTabTitle)
-  const terminalNames = uniqueTabNames(terminalTabs, (tab) => tab.title.trim() || 'Terminal')
-
-  return groups.map((group) => {
-    if (group.type === 'browser') {
-      const existing = group.items.find((item) => item.id === BROWSER_SESSION_RESOURCE_ID)
-      return {
-        ...group,
-        items: [
-          resourceItem(BROWSER_SESSION_RESOURCE_ID, 'Browser', existing),
-          ...browserTabs.map((tab, index) => ({
+  return groups.map((group) =>
+    group.type === 'browser'
+      ? {
+          ...group,
+          items: browserTabs.map((tab, index) => ({
             id: tab.tabId,
             name: browserNames[index],
             mentionFamily: 'Browser',
-            mentionLevel: 'tab' satisfies ResourceMentionLevel,
           })),
-        ],
-      }
-    }
+        }
+      : group
+  )
+}
+
+/** Adds live shells after the always-present Terminal mention. */
+export function withTerminalTabMentions(
+  groups: readonly ResourceMentionGroup[],
+  terminalTabs: readonly TerminalTabState[]
+): ResourceMentionGroup[] {
+  const terminalNames = uniqueTabNames(terminalTabs, (tab) => tab.title.trim() || 'Terminal')
+
+  return groups.map((group) => {
     if (group.type === 'terminal') {
       const existing = group.items.find((item) => item.id === TERMINAL_SESSION_RESOURCE_ID)
       return {
         ...group,
         items: [
-          resourceItem(TERMINAL_SESSION_RESOURCE_ID, 'Terminal', existing),
+          {
+            ...existing,
+            id: TERMINAL_SESSION_RESOURCE_ID,
+            name: 'Terminal',
+            mentionFamily: 'Terminal',
+          },
           ...terminalTabs.map((tab, index) => ({
             id: tab.terminalId,
             name: terminalNames[index],
             mentionFamily: 'Terminal',
-            mentionLevel: 'tab' satisfies ResourceMentionLevel,
           })),
         ],
       }

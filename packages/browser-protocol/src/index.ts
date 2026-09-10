@@ -215,10 +215,11 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus the legacy `takeover-done` action retained for persisted
- * `browser_request_takeover` cards. Page interactions need no protocol — the
- * user acts on the real embedded page directly, and its right-click menu is
- * native and lives entirely in the shell.
+ * reload), the resource tab strip (`switch-tab`, `close-tab`), plus the legacy
+ * `takeover-done` action retained for persisted `browser_request_takeover`
+ * cards. Page interactions need no protocol — the user acts on the real
+ * embedded page directly, and its right-click menu is native and lives
+ * entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:
@@ -226,8 +227,8 @@ export interface BrowserPanelAction {
     | 'reload'
     | 'back'
     | 'forward'
+    /** Fallback for installed shells that predate the acknowledged `openTab` bridge call. */
     | 'new-tab'
-    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'print'
@@ -239,7 +240,7 @@ export interface BrowserPanelAction {
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
+  /** Stable tab id for `switch-tab` and `close-tab`. */
   tabId?: string
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
@@ -351,8 +352,6 @@ export interface BrowserTabState {
   active: boolean
   /** Recoverable problem currently replacing this tab's native page surface. */
   issue?: BrowserPageIssue
-  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */

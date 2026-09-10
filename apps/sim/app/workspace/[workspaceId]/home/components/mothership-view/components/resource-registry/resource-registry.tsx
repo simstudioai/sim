@@ -16,6 +16,7 @@ import {
 } from '@sim/emcn/icons'
 import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -233,8 +234,8 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'browser',
     label: 'Browser',
     icon: Globe,
-    renderTabIcon: (_resource, className) => (
-      <Globe className={cn(className, 'text-[var(--text-icon)]')} />
+    renderTabIcon: (resource, className) => (
+      <BrowserTabIcon tabId={resource.id} className={className} />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },

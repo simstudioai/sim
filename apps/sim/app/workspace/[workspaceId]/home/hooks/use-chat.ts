@@ -73,7 +73,6 @@ import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { canDisplayResource } from '@/lib/copilot/resources/availability'
 import { ResourcePersistenceQueue } from '@/lib/copilot/resources/client-persistence-queue'
 import {
-  BROWSER_SESSION_RESOURCE_ID,
   isAddressableResource,
   isEphemeralResource,
   type MothershipResourceUpdate,
@@ -2128,17 +2127,6 @@ export function useChat(
     [workspaceId, organizationId, scopeKey]
   )
 
-  const openBrowserResource = useCallback(() => {
-    // Browser work surfaces like any other agent activity: the panel follows
-    // the agent to the browser whether or not the session was already open.
-    addResource({
-      type: 'browser',
-      id: BROWSER_SESSION_RESOURCE_ID,
-      title: 'Browser',
-    })
-    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID, { activate: true })
-  }, [addResource])
-
   const getResourceActivityTracker = useCallback(
     (generation: number, targetChatId?: string) => {
       let tracker = resourceActivityTrackerRef.current
@@ -2213,12 +2201,13 @@ export function useChat(
       if (!isCurrentBrowserToolName(toolName)) {
         return
       }
-      openBrowserResource()
-      // Replay/exactly-once guarding lives in executeBrowserToolOnClient
-      // (sessionStorage-backed, so reloads cannot re-run an action).
+      // The agent's tab reaches the resource strip through the desktop tab
+      // list, so nothing is opened here. Replay/exactly-once guarding lives in
+      // executeBrowserToolOnClient (sessionStorage-backed, so reloads cannot
+      // re-run an action).
       executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
     },
-    [openBrowserResource]
+    []
   )
 
   const openTerminalResource = useCallback(() => {
@@ -2249,18 +2238,25 @@ export function useChat(
     [openTerminalResource]
   )
 
-  // Chat links clicked in the desktop app open in the embedded browser panel
-  // (message components dispatch the request; this hook owns the resource).
+  // Chat links clicked in the desktop app open in a new browser tab. The user
+  // asked to see it, so it is selected outright rather than offered through
+  // the agent-activity policy (message components dispatch the request; the
+  // tab list adds the resource).
   useEffect(() => {
     return onOpenInBrowserPanel((url) => {
-      openBrowserResource()
-      void openUrlInNewBrowserTab(url, desktopScopeIdRef.current).catch((error) => {
-        logger.warn('Failed to open chat link in a new browser tab', {
-          error: getErrorMessage(error),
+      void openUrlInNewBrowserTab(url, desktopScopeIdRef.current)
+        .then((tabId) => {
+          if (!tabId) return
+          activeResourceIdRef.current = tabId
+          setActiveResourceId(tabId)
         })
-      })
+        .catch((error) => {
+          logger.warn('Failed to open chat link in a new browser tab', {
+            error: getErrorMessage(error),
+          })
+        })
     })
-  }, [openBrowserResource])
+  }, [])
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
@@ -2508,9 +2504,8 @@ export function useChat(
 
     flushPendingResources(chatHistory.id)
 
-    // Older clients persisted each live browser page as a top-level resource
-    // during new-chat creation. Collapse those legacy rows into the one
-    // restorable Browser panel so page titles never appear beside Browser.
+    // Browser rows stored by older clients are dropped: the live tab list is
+    // what puts browser tabs in the strip now.
     const persistedResources = sanitizeChatResources(
       chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     )
@@ -2575,13 +2570,13 @@ export function useChat(
     }
 
     // Live-panel counterpart of the workflow-run recovery above: returning to
-    // a chat whose turn is mid browser-action or mid-command re-focuses that
-    // tab and re-expands a collapsed panel. Runs after the resource hydration
-    // so it wins over the "last resource" active fallback.
+    // a chat whose turn is mid-command re-focuses the terminal and re-expands
+    // a collapsed panel. Runs after the resource hydration so it wins over the
+    // "last resource" active fallback. A mid-action browser tab announces
+    // itself through the desktop's automation state instead, and a browser
+    // action in flight after the command keeps the terminal from taking over.
     if (shouldReconnectActiveStream) {
-      const panel = panelForExecutingClientTool(mappedMessages)
-      if (panel === 'browser') openBrowserResource()
-      else if (panel === 'terminal') openTerminalResource()
+      if (panelForExecutingClientTool(mappedMessages) === 'terminal') openTerminalResource()
     }
 
     const snapshotPreviewSessions = Array.isArray(chatHistory.streamSnapshot?.previewSessions)
@@ -2649,7 +2644,6 @@ export function useChat(
     cancelActiveStreamReader,
     cancelActiveStreamRecovery,
     flushPendingResources,
-    openBrowserResource,
     openTerminalResource,
     reconcileHydratedWorkflowResources,
     recoverPendingClientWorkflowTools,
@@ -2679,7 +2673,6 @@ export function useChat(
       )
       const activityScopeId = () => activityTracker.currentScopeId
       const startBrowserAgentRunForStream = (runId: string) => {
-        openBrowserResource()
         const scopeId = activityScopeId()
         setTrackedBrowserRun(activityTracker, scopeId, runId, true)
       }
@@ -2853,7 +2846,6 @@ export function useChat(
       startClientTerminalTool,
       getResourceActivityTracker,
       clearResourceActivity,
-      openBrowserResource,
       adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
