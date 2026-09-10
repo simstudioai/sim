@@ -888,6 +888,9 @@ async function executeWorkflowCoreImpl(
           workspaceId: providedWorkspaceId,
           workflowId,
           executionId,
+          largeValueExecutionIds,
+          largeValueKeys,
+          allowLargeValueWorkflowScope,
           userId: userId ?? undefined,
         },
       })
@@ -918,6 +921,9 @@ async function executeWorkflowCoreImpl(
           workspaceId: providedWorkspaceId,
           workflowId,
           executionId,
+          largeValueExecutionIds,
+          largeValueKeys,
+          allowLargeValueWorkflowScope,
           userId: userId ?? undefined,
         },
       }
