@@ -40,7 +40,12 @@ export interface ResourceTypeConfig {
   type: MothershipResourceType
   label: string
   icon: ElementType
-  renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
+  /** `desktopScopeId` names the desktop browser scope a browser tab belongs to. */
+  renderTabIcon: (
+    resource: MothershipResource,
+    className: string,
+    desktopScopeId?: string
+  ) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
   /**
    * How many of this family's candidates an unfiltered `@` list shows, overriding
@@ -234,8 +239,8 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'browser',
     label: 'Browser',
     icon: Globe,
-    renderTabIcon: (resource, className) => (
-      <BrowserTabIcon tabId={resource.id} className={className} />
+    renderTabIcon: (resource, className, desktopScopeId) => (
+      <BrowserTabIcon tabId={resource.id} scopeId={desktopScopeId} className={className} />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },

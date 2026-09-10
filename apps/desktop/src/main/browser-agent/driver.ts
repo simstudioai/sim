@@ -794,10 +794,13 @@ export function restoreBrowserScope(scopeId: string): BrowserTabsState {
     return session.withBrowserScope(resolved, () => session.peekTabsState())
   }
   const state = driverScopeState(resolved)
-  state.activationOnly = false
   return session.withBrowserScope(resolved, () => {
     session.restoreBrowserSession()
-    return session.peekTabsState()
+    const tabs = session.peekTabsState()
+    // Only a scope that actually holds pages is material; one restored empty
+    // stays adoptable by a pending chat migrating onto its id.
+    if (tabs.tabs.length > 0) state.activationOnly = false
+    return tabs
   })
 }
 
@@ -4783,7 +4786,7 @@ export async function handlePanelAction(
     }
     if (action.action === 'switch-tab') {
       if (typeof action.tabId === 'string') {
-        session.switchTab(action.tabId)
+        session.switchTab(action.tabId, { claim: action.claim !== false })
       }
       return
     }

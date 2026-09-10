@@ -1,10 +1,15 @@
 import { useEffect, useRef } from 'react'
 import type { BrowserTabState } from '@sim/browser-protocol'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
-import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import { openUrlInNewBrowserTab, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
+
+const logger = createLogger('BrowserTabResources')
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
@@ -16,7 +21,7 @@ interface UseBrowserTabResourcesOptions {
   /** Adds a tab without activating it; activation goes through {@link onResourceEvent}. */
   addResource: (resource: MothershipResource) => void
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  /** Explicit user selection, which claims the visible tab. */
+  /** Explicit user selection, which claims the strip's selection for the user. */
   selectResource: (resourceId: string) => void
   /** Agent activity on a tab, subject to the panel's user-ownership policy. */
   onResourceEvent: ResourceEventHandler
@@ -47,6 +52,9 @@ export function useBrowserTabResources({
   selectResource,
   onResourceEvent,
 }: UseBrowserTabResourcesOptions): void {
+  // A missing bucket means the scope has not been activated yet or was just
+  // migrated to its durable id; it says nothing about the pages themselves.
+  const hasSession = useBrowserSessionStore((state) => state.sessions[scopeId] !== undefined)
   const tabs = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.tabs ?? EMPTY_BROWSER_TABS
   )
@@ -60,10 +68,23 @@ export function useBrowserTabResources({
       ? session.automationTabId
       : null
   })
-  /** Tab ids this hook has projected into the strip for the current scope. */
+  /**
+   * Tab ids whose resource has been seen in the strip for the current scope.
+   * A tab is projected until its resource shows up — chat hydration can
+   * replace the list underneath a fresh add — and once it has been seen, its
+   * absence means the user closed it and the native close is in flight.
+   */
   const knownTabIdsRef = useRef<Set<string> | null>(null)
   knownTabIdsRef.current ??= new Set()
   const knownScopeRef = useRef(scopeId)
+  /** The native switch this hook asked for and has not seen land yet. */
+  const requestedTabIdRef = useRef<string | null>(null)
+  const scopeIdRef = useRef(scopeId)
+  scopeIdRef.current = scopeId
+  const tabsRef = useRef(tabs)
+  tabsRef.current = tabs
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
   const activeResourceIdRef = useRef(activeResourceId)
@@ -79,40 +100,52 @@ export function useBrowserTabResources({
     if (knownScopeRef.current !== scopeId) {
       knownScopeRef.current = scopeId
       known.clear()
+      requestedTabIdRef.current = null
     }
-    const liveTabIds = new Set(tabs.map((tab) => tab.tabId))
     const resourceTabIds = new Set(
       resources.filter((resource) => resource.type === 'browser').map((resource) => resource.id)
     )
 
     for (const tab of tabs) {
-      // A known tab without a resource is a close still in flight natively.
-      if (known.has(tab.tabId)) continue
-      known.add(tab.tabId)
-      if (!resourceTabIds.has(tab.tabId)) {
+      if (resourceTabIds.has(tab.tabId)) {
+        known.add(tab.tabId)
+        continue
+      }
+      if (!known.has(tab.tabId)) {
         addResource({ type: 'browser', id: tab.tabId, title: browserTabTitle(tab) })
       }
     }
 
+    if (!hasSession) return
+    const liveTabIds = new Set(tabs.map((tab) => tab.tabId))
     for (const tabId of known) {
       if (liveTabIds.has(tabId)) continue
       known.delete(tabId)
       if (resourceTabIds.has(tabId)) removeResource('browser', tabId)
     }
-  }, [addResource, removeResource, resources, scopeId, tabs])
+  }, [addResource, hasSession, removeResource, resources, scopeId, tabs])
 
-  // Selecting a browser resource tab shows its native page.
+  // Selecting a browser resource tab shows its native page. Keyed on the
+  // selection alone: a native push must not re-assert a selection it just
+  // moved away from, or the two sides would trade switches forever.
   useEffect(() => {
-    if (!activeResourceId || activeResourceId === activeTabId) return
-    if (!tabs.some((tab) => tab.tabId === activeResourceId)) return
-    sendBrowserPanelAction('switch-tab', { tabId: activeResourceId }, scopeId)
-  }, [activeResourceId, activeTabId, scopeId, tabs])
+    if (!activeResourceId || activeResourceId === activeTabIdRef.current) return
+    if (!tabsRef.current.some((tab) => tab.tabId === activeResourceId)) return
+    requestedTabIdRef.current = activeResourceId
+    sendBrowserPanelAction(
+      'switch-tab',
+      { tabId: activeResourceId, claim: false },
+      scopeIdRef.current
+    )
+  }, [activeResourceId])
 
   // A native switch while the user is on the browser follows into the strip.
-  const followedActiveTabIdRef = useRef(activeTabId)
+  // The switch this hook requested itself is not a native change of mind.
   useEffect(() => {
-    if (followedActiveTabIdRef.current === activeTabId) return
-    followedActiveTabIdRef.current = activeTabId
+    if (requestedTabIdRef.current === activeTabId) {
+      requestedTabIdRef.current = null
+      return
+    }
     const activeResource = resourcesRef.current.find(
       (resource) => resource.id === activeResourceIdRef.current
     )
@@ -126,4 +159,21 @@ export function useBrowserTabResources({
   useEffect(() => {
     if (automationTabId) onResourceEventRef.current(automationTabId, { activate: true })
   }, [automationTabId])
+
+  // Chat links clicked in the desktop app open in a new browser tab. The user
+  // asked to see it, so it is selected as their own choice rather than offered
+  // through the agent-activity policy.
+  useEffect(() => {
+    return onOpenInBrowserPanel((url) => {
+      void openUrlInNewBrowserTab(url, scopeIdRef.current)
+        .then((tabId) => {
+          if (tabId) selectResourceRef.current(tabId)
+        })
+        .catch((error) => {
+          logger.warn('Failed to open chat link in a new browser tab', {
+            error: getErrorMessage(error),
+          })
+        })
+    })
+  }, [])
 }

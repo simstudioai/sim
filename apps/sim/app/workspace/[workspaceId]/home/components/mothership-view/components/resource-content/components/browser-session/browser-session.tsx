@@ -653,9 +653,9 @@ export function BrowserSession({
 
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
 
-  // A fresh blank tab coming on screen — opened from the resource strip, by
-  // Cmd+T, or by the shell replacing a closed last tab — gets the omnibox, the
-  // way Chrome's new-tab page does. A tab with a page keeps its content.
+  // A fresh blank tab coming on screen — opened from the resource strip or by
+  // Cmd+T — gets the omnibox, the way Chrome's new-tab page does. A tab with a
+  // page keeps its content.
   const focusedBlankTabIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (!visible || !activeTabId || !showEmptyState) return

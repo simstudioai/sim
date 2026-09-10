@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
@@ -148,7 +148,7 @@ export const MothershipView = memo(
       return browserOverlayControllerRef.current?.closeOverlay('resources') ?? Promise.resolve()
     }, [])
 
-    const persistentResources = useMemo(() => persistentPanelResources(resources), [resources])
+    const persistentResources = persistentPanelResources(resources)
 
     const previewForActive =
       previewSession && active && shouldShowStreamingFilePanel(previewSession, active)

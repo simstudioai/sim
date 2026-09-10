@@ -31,12 +31,7 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import {
-  cancelActiveBrowserTools,
-  initBrowserAgentTransport,
-  openUrlInNewBrowserTab,
-} from '@/lib/browser-agent/transport'
+import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -1154,12 +1149,12 @@ export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]
 /**
  * Which live panel the transcript is mid-action on, or null for neither.
  *
- * Used on reconnect to restore that panel, the way workflow-run recovery
- * restores workflows. A completed browser or terminal call is suppressed on
- * replay, so it never re-opens its own panel — without this, returning to a
- * chat mid-turn lands on whichever resource happened to be persisted last
- * while the agent is driving a different one. When calls against both are in
- * flight the later one wins, being the one the user was watching.
+ * Used on reconnect the way workflow-run recovery restores workflows: a
+ * mid-command terminal is re-focused, while a mid-action browser tab announces
+ * itself through the desktop's automation state and only needs to keep the
+ * terminal from taking over. A completed browser or terminal call is
+ * suppressed on replay, so it never re-opens its own panel. When calls against
+ * both are in flight the later one wins, being the one the user was watching.
  */
 export function panelForExecutingClientTool(
   messages: ChatMessage[]
@@ -1174,6 +1169,24 @@ export function panelForExecutingClientTool(
     }
   }
   return panel
+}
+
+/**
+ * Runs a browser tool on the desktop client. The agent's tab reaches the
+ * resource strip through the desktop tab list, so nothing is opened here.
+ * Replay/exactly-once guarding lives in executeBrowserToolOnClient
+ * (sessionStorage-backed, so reloads cannot re-run an action).
+ */
+function startClientBrowserTool(
+  toolCallId: string,
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  scopeId: string,
+  eventTs?: string,
+  signal?: AbortSignal
+): void {
+  if (!isCurrentBrowserToolName(toolName)) return
+  executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
 }
 
 function buildRecoverySubjectKey(
@@ -1453,6 +1466,8 @@ export function useChat(
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
+  const selectedResourceIdRef = useRef(activeResourceId)
+  selectedResourceIdRef.current = activeResourceId
   const {
     previewSession,
     previewSessionRef,
@@ -2189,27 +2204,6 @@ export function useChat(
     [workspaceId, organizationId, scopeKey]
   )
 
-  const startClientBrowserTool = useCallback(
-    (
-      toolCallId: string,
-      toolName: string,
-      toolArgs: Record<string, unknown>,
-      scopeId: string,
-      eventTs?: string,
-      signal?: AbortSignal
-    ) => {
-      if (!isCurrentBrowserToolName(toolName)) {
-        return
-      }
-      // The agent's tab reaches the resource strip through the desktop tab
-      // list, so nothing is opened here. Replay/exactly-once guarding lives in
-      // executeBrowserToolOnClient (sessionStorage-backed, so reloads cannot
-      // re-run an action).
-      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
-    },
-    []
-  )
-
   const openTerminalResource = useCallback(() => {
     addResource({
       type: 'terminal',
@@ -2237,26 +2231,6 @@ export function useChat(
     },
     [openTerminalResource]
   )
-
-  // Chat links clicked in the desktop app open in a new browser tab. The user
-  // asked to see it, so it is selected outright rather than offered through
-  // the agent-activity policy (message components dispatch the request; the
-  // tab list adds the resource).
-  useEffect(() => {
-    return onOpenInBrowserPanel((url) => {
-      void openUrlInNewBrowserTab(url, desktopScopeIdRef.current)
-        .then((tabId) => {
-          if (!tabId) return
-          activeResourceIdRef.current = tabId
-          setActiveResourceId(tabId)
-        })
-        .catch((error) => {
-          logger.warn('Failed to open chat link in a new browser tab', {
-            error: getErrorMessage(error),
-          })
-        })
-    })
-  }, [])
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
@@ -2543,11 +2517,18 @@ export function useChat(
       )
 
     if (mergedResources.length > 0) {
+      // An explicit selection wins. Otherwise fall back to the last resource
+      // the server holds, not the last on screen: local-only browser tabs can
+      // land before the history does, and which side arrives first must not
+      // decide which tab the chat opens on.
+      const selectedResourceId = selectedResourceIdRef.current
       const hydratedActiveResourceId =
-        activeResourceIdRef.current &&
-        mergedResources.some((resource) => resource.id === activeResourceIdRef.current)
-          ? activeResourceIdRef.current
-          : mergedResources[mergedResources.length - 1].id
+        selectedResourceId && mergedResources.some((resource) => resource.id === selectedResourceId)
+          ? selectedResourceId
+          : (
+              restorableResources[restorableResources.length - 1] ??
+              mergedResources[mergedResources.length - 1]
+            ).id
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
@@ -2842,7 +2823,6 @@ export function useChat(
       removeResource,
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
-      startClientBrowserTool,
       startClientTerminalTool,
       getResourceActivityTracker,
       clearResourceActivity,

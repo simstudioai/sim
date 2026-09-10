@@ -34,6 +34,7 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
+  resourceTabWidthClass,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
@@ -254,26 +255,25 @@ export function ResourceTabs({
 
   // A browser tab's title is the live page title, owned by the desktop app.
   const browserTabs = useBrowserSessionStore((state) => state.sessions[desktopScopeId]?.tabs)
-  const browserTitles = useMemo(
-    () => new Map(browserTabs?.map((tab) => [tab.tabId, browserTabTitle(tab)])),
-    [browserTabs]
-  )
 
-  const tabs = useMemo<TabStripItem[]>(
-    () =>
-      resources.map((resource) => ({
-        id: resource.id,
-        title:
-          (resource.type === 'browser'
-            ? browserTitles.get(resource.id)
-            : nameLookup.get(`${resource.type}:${resource.id}`)) ?? resource.title,
-        icon: getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0'),
-        active: activeId === resource.id,
-        selected: selectedIds.size > 1 && selectedIds.has(resource.id),
-        attention: activityIds?.has(resource.id) ?? false,
-      })),
-    [resources, nameLookup, browserTitles, activeId, selectedIds, activityIds]
-  )
+  const tabs = useMemo<TabStripItem[]>(() => {
+    const browserTitles = new Map(browserTabs?.map((tab) => [tab.tabId, browserTabTitle(tab)]))
+    return resources.map((resource) => ({
+      id: resource.id,
+      title:
+        (resource.type === 'browser'
+          ? browserTitles.get(resource.id)
+          : nameLookup.get(`${resource.type}:${resource.id}`)) ?? resource.title,
+      icon: getResourceConfig(resource.type).renderTabIcon(
+        resource,
+        'size-[16px] shrink-0',
+        desktopScopeId
+      ),
+      active: activeId === resource.id,
+      selected: selectedIds.size > 1 && selectedIds.has(resource.id),
+      attention: activityIds?.has(resource.id) ?? false,
+    }))
+  }, [resources, nameLookup, browserTabs, desktopScopeId, activeId, selectedIds, activityIds])
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
@@ -478,7 +478,7 @@ export function ResourceTabs({
       onReorder={handleReorder}
       onTabDragStart={handleTabDragStart}
       variant='floating'
-      className={RESOURCE_HEADER_CLASSES.stripGeometry}
+      className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, resourceTabWidthClass(resources.length))}
       newTabControl={
         // Offered before the chat exists too: a resource opened while composing
         // the first prompt is context for that prompt, and gating on a chat id

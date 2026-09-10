@@ -25,7 +25,6 @@ describe('browserTabTitle', () => {
     url: 'https://docs.sim.ai/guides',
     loading: false,
     active: false,
-    pinned: false,
   }
 
   it('never labels a settled blank-title page as loading', () => {

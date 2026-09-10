@@ -3152,7 +3152,12 @@ export function reopenClosedTab(): AgentTab | null {
   return tab
 }
 
-export function switchTab(tabId: string): AgentTab {
+/**
+ * Shows a tab. `claim` records the visible page as the user's own; a switch
+ * that only mirrors the renderer's strip selection passes false so the agent
+ * can still close or adopt the page as its own.
+ */
+export function switchTab(tabId: string, { claim = true }: { claim?: boolean } = {}): AgentTab {
   restoreBrowserSession()
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
@@ -3168,7 +3173,7 @@ export function switchTab(tabId: string): AgentTab {
     revokeTabMediaPermissions(previousActiveTab, false)
   }
   currentScope.activeTabId = tab.id
-  currentScope.visibleTabUserSelected = true
+  if (claim) currentScope.visibleTabUserSelected = true
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
@@ -3192,7 +3197,15 @@ export function switchAutomationTab(tabId: string): AgentTab {
   return tab
 }
 
-export function closeTab(tabId: string): void {
+/**
+ * Closes a tab. When the agent closes its own working tab it moves on to the
+ * neighbour so its next page tool has a target; a close the user made leaves
+ * the agent cursor unset instead of announcing a page the agent never chose.
+ */
+export function closeTab(
+  tabId: string,
+  { adoptNeighborForAgent = false }: { adoptNeighborForAgent?: boolean } = {}
+): void {
   restoreBrowserSession()
   const index = tabs.findIndex((entry) => entry.id === tabId)
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
@@ -3221,7 +3234,9 @@ export function closeTab(tabId: string): void {
     }
   }
   if (currentScope.automationTabId === tab.id) {
-    currentScope.automationTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    currentScope.automationTabId = adoptNeighborForAgent
+      ? ((tabs[index] ?? tabs[index - 1])?.id ?? null)
+      : null
     applyActiveTabThrottling()
   }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
@@ -3240,7 +3255,7 @@ export function closeAutomationTab(tabId: string): void {
       'That tab is currently being used by the user. Switch to another agent tab instead of closing it.'
     )
   }
-  closeTab(tabId)
+  closeTab(tabId, { adoptNeighborForAgent: true })
 }
 
 /** The live page whose browser surface owns a menu accelerator. */

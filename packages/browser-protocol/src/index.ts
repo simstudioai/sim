@@ -242,6 +242,12 @@ export interface BrowserPanelAction {
   url?: string
   /** Stable tab id for `switch-tab` and `close-tab`. */
   tabId?: string
+  /**
+   * `switch-tab` only: false when the switch mirrors a selection made outside
+   * the page (the resource strip), so it must not count as the user claiming
+   * the page from the agent. Older shells treat every switch as a claim.
+   */
+  claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
   /** Exact pending permission request being answered. */

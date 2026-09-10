@@ -11,6 +11,8 @@ import { useBrowserSessionStore } from '@/stores/browser-session/store'
 interface BrowserTabIconProps {
   /** Native tab id, which is also the browser resource's id. */
   tabId: string
+  /** Desktop browser scope the tab lives in; without one the icon is a plain globe. */
+  scopeId?: string
   className?: string
 }
 
@@ -21,15 +23,11 @@ interface BrowserTabIconProps {
  * thinking loader, so the strip shows where the agent is without pulling the
  * user's selection there.
  */
-export function BrowserTabIcon({ tabId, className }: BrowserTabIconProps) {
-  const tab = useBrowserSessionStore((state) => {
-    const scopeId = state.activeScopeId
-    return scopeId
-      ? state.sessions[scopeId]?.tabs.find((entry) => entry.tabId === tabId)
-      : undefined
-  })
+export function BrowserTabIcon({ tabId, scopeId, className }: BrowserTabIconProps) {
+  const tab = useBrowserSessionStore((state) =>
+    scopeId ? state.sessions[scopeId]?.tabs.find((entry) => entry.tabId === tabId) : undefined
+  )
   const agentWorking = useBrowserSessionStore((state) => {
-    const scopeId = state.activeScopeId
     const session = scopeId ? state.sessions[scopeId] : undefined
     return Boolean(
       session &&
@@ -37,13 +35,20 @@ export function BrowserTabIcon({ tabId, className }: BrowserTabIconProps) {
         (session.automationActive || session.agentRunIds.length > 0)
     )
   })
-  const [loadedHostname, setLoadedHostname] = useState<string | null>(null)
-  const [failedHostname, setFailedHostname] = useState<string | null>(null)
+  /** Outcome of the favicon request for one hostname; the image remounts per host. */
+  const [favicon, setFavicon] = useState<{ hostname: string; status: 'loaded' | 'failed' } | null>(
+    null
+  )
 
   const hostname = tab ? browserTabHostname(tab.url) : null
-  const faviconLoaded = Boolean(hostname && loadedHostname === hostname)
-  const faviconFailed = Boolean(hostname && failedHostname === hostname)
-  const showSpinner = shouldShowBrowserTabSpinner(tab?.loading ?? false, hostname, loadedHostname)
+  const faviconStatus = hostname && favicon?.hostname === hostname ? favicon.status : null
+  const faviconLoaded = faviconStatus === 'loaded'
+  const faviconFailed = faviconStatus === 'failed'
+  const showSpinner = shouldShowBrowserTabSpinner(
+    tab?.loading ?? false,
+    hostname,
+    faviconLoaded ? hostname : null
+  )
 
   return (
     <span className={cn('relative flex items-center justify-center', className)}>
@@ -62,8 +67,8 @@ export function BrowserTabIcon({ tabId, className }: BrowserTabIconProps) {
                 'size-[16px] rounded-[3px]',
                 !faviconLoaded && 'pointer-events-none absolute opacity-0'
               )}
-              onLoad={() => setLoadedHostname(hostname)}
-              onError={() => setFailedHostname(hostname)}
+              onLoad={() => setFavicon({ hostname, status: 'loaded' })}
+              onError={() => setFavicon({ hostname, status: 'failed' })}
             />
           )}
           {showSpinner ? (
