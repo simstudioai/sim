@@ -175,6 +175,7 @@
     "csv-parse": "7.0.2",
     "date-fns": "4.1.0",
     "decimal.js": "10.6.0",
+    "diff": "8.0.4",
     "docx-preview": "^0.3.7",
     "docx": "^9.6.1",
     "drizzle-orm": "^0.45.2",
