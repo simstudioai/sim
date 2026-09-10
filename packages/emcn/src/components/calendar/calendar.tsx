@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { z } from 'zod'
 import { ChevronLeft, ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Chip, chipVariants } from '../chip/chip'
@@ -27,6 +28,7 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
 const DEFAULT_RANGE_START_TIME = '00:00'
 const DEFAULT_RANGE_END_TIME = '23:59'
+const localDateTimePartsSchema = z.tuple([z.iso.date(), z.iso.time()])
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate()
@@ -155,10 +157,9 @@ export function parseDateTimeValue(value: string | Date | undefined): {
   const parsed = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(parsed.getTime())) return { date: null, time: null }
   if (typeof value === 'string') {
-    const wallTime =
-      /^\d{4}-\d{2}-\d{2}T((?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?)$/.exec(value)
-    if (wallTime) {
-      const time = wallTime[1]
+    const wallTime = localDateTimePartsSchema.safeParse(value.split('T'))
+    if (wallTime.success) {
+      const [, time] = wallTime.data
       return {
         date: parsed,
         time: time.length === 8 && time.endsWith(':00') ? time.slice(0, 5) : time,

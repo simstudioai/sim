@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   buildRangeBounds,
   formatDateRangeLabel,
@@ -20,12 +20,25 @@ describe('parseDateTimeValue', () => {
     expect(parseDateTimeValue('2026-07-06T16:04').time).toBe('16:04')
   })
 
-  it.each(['14:30:00.000001', '14:30:45.123456', '00:00:00.999999'])(
+  it.each(['14:30:00.000001', '14:30:45.123456', '00:00:00.999999', '14:30:45.123456789'])(
     'retains the full wall time %s for subsequent date selections',
     (time) => {
       expect(parseDateTimeValue(`2026-09-07T${time}`).time).toBe(time)
     }
   )
+
+  it.each([
+    ['2026-09-07T07:30:45.123456Z', '07:30:45'],
+    ['2026-09-07T07:30:45.123456-07:00', '14:30:45'],
+    ['2026-09-07T07:30:45.123456+05:45', '01:45:45'],
+  ])('keeps explicit-offset input %s on the instant conversion path', (value, expectedTime) => {
+    vi.stubEnv('TZ', 'UTC')
+    try {
+      expect(parseDateTimeValue(value).time).toBe(expectedTime)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 
   it('does not reinterpret a literal wall time through a daylight-saving gap', () => {
     expect(parseDateTimeValue('2026-03-08T02:30:45.123456').time).toBe('02:30:45.123456')
