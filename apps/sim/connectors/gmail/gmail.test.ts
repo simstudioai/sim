@@ -28,7 +28,11 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { gmailConnector } from '@/connectors/gmail/gmail'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
-import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
+import {
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  memberDocumentId,
+  PER_MEMBER_LISTING_CONTEXT,
+} from '@/connectors/utils'
 
 function threads(count: number, prefix: string) {
   return Array.from({ length: count }, (_, i) => ({ id: `${prefix}-${i}`, historyId: '1' }))
@@ -1143,5 +1147,213 @@ describe('Gmail body and label extraction', () => {
     expect(
       mockFetchWithRetry.mock.calls.filter(([url]) => new URL(url).pathname.endsWith('/labels'))
     ).toHaveLength(1)
+  })
+})
+
+describe('Gmail change feed', () => {
+  function historyPage(
+    threadIds: string[],
+    options: { nextPageToken?: string; historyId?: string } = {}
+  ) {
+    return {
+      historyId: options.historyId ?? '900',
+      nextPageToken: options.nextPageToken,
+      history: threadIds.map((threadId, i) => ({
+        id: String(100 + i),
+        messages: [{ id: `m-${threadId}`, threadId }],
+      })),
+    }
+  }
+
+  function metadataThread(
+    id: string,
+    messages: Array<{ labelIds: string[]; internalDate?: string }>,
+    historyId = '77'
+  ) {
+    return {
+      id,
+      historyId,
+      snippet: `Snippet ${id}`,
+      messages: messages.map((message, i) => ({
+        id: `${id}-m${i}`,
+        threadId: id,
+        internalDate: message.internalDate ?? String(Date.now()),
+        labelIds: message.labelIds,
+      })),
+    }
+  }
+
+  /** Routes history, label and thread reads; a thread id missing from `threads` answers 404. */
+  function mockFeed(
+    pages: ReturnType<typeof historyPage>[],
+    threads: Record<string, ReturnType<typeof metadataThread>>,
+    labels: Array<{ id: string; name: string }> = [{ id: 'INBOX', name: 'INBOX' }]
+  ) {
+    const requests: URL[] = []
+    let historyCall = 0
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      const parsed = new URL(url)
+      requests.push(parsed)
+      if (parsed.pathname.endsWith('/profile')) return Response.json({ historyId: '500' })
+      if (parsed.pathname.endsWith('/labels')) return Response.json({ labels })
+      if (parsed.pathname.endsWith('/history')) {
+        return Response.json(pages[historyCall++] ?? historyPage([]))
+      }
+      const threadId = decodeURIComponent(parsed.pathname.split('/').at(-1) ?? '')
+      const thread = threads[threadId]
+      return thread ? Response.json(thread) : new Response('not found', { status: 404 })
+    })
+    return requests
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-10T12:00:00Z'))
+  })
+
+  it('opens the feed at the mailbox history id from the profile', async () => {
+    const requests = mockFeed([], {})
+    const cursor = await gmailConnector.getChangeCursor!('token', {})
+    expect(JSON.parse(cursor)).toEqual({ historyId: '500' })
+    expect(requests.map((url) => url.pathname.split('/').at(-1))).toEqual(['profile'])
+  })
+
+  it('refuses the feed only when a free-form search filter is configured', () => {
+    expect(gmailConnector.supportsChangeFeed!({})).toBe(true)
+    expect(gmailConnector.supportsChangeFeed!({ label: 'INBOX', dateRange: '30d' })).toBe(true)
+    expect(gmailConnector.supportsChangeFeed!({ query: '   ' })).toBe(true)
+    expect(gmailConnector.supportsChangeFeed!({ query: 'from:boss@example.com' })).toBe(false)
+  })
+
+  it('upserts changed threads still in scope and removes trashed or deleted ones', async () => {
+    const requests = mockFeed([historyPage(['kept', 'trashed', 'gone'])], {
+      kept: metadataThread('kept', [{ labelIds: ['INBOX'] }]),
+      trashed: metadataThread('trashed', [{ labelIds: ['TRASH'] }, { labelIds: ['SPAM'] }]),
+    })
+    const syncContext = memberContext('member-a')
+    const page = await gmailConnector.listChanges!(
+      'token',
+      {},
+      JSON.stringify({ historyId: '500' }),
+      syncContext
+    )
+
+    expect(page.hasMore).toBe(false)
+    expect(JSON.parse(page.nextCursor)).toEqual({ historyId: '900' })
+    expect(page.changes).toHaveLength(3)
+    const kept = page.changes.find((change) => change.externalId.endsWith('kept'))
+    expect(kept?.kind).toBe('upsert')
+    if (kept?.kind !== 'upsert') throw new Error('expected an upsert')
+    expect(kept.document.externalId).toBe(memberDocumentId('kept', syncContext))
+    expect(kept.document.contentDeferred).toBe(true)
+    expect(kept.document.contentHash).toBe('gmail:kept:77:body-v2')
+    expect(
+      page.changes.filter((change) => change.kind === 'removed').map((c) => c.externalId)
+    ).toEqual(
+      expect.arrayContaining([
+        memberDocumentId('trashed', syncContext),
+        memberDocumentId('gone', syncContext),
+      ])
+    )
+
+    const history = requests.find((url) => url.pathname.endsWith('/history'))!
+    expect(history.searchParams.get('startHistoryId')).toBe('500')
+    expect(history.searchParams.getAll('historyTypes')).toEqual([
+      'messageAdded',
+      'messageDeleted',
+      'labelAdded',
+      'labelRemoved',
+    ])
+    const threadReads = requests.filter((url) => /\/threads\/[^/]+$/.test(url.pathname))
+    expect(threadReads).toHaveLength(3)
+    for (const read of threadReads) {
+      expect(read.searchParams.get('format')).toBe('metadata')
+      expect(read.searchParams.get('fields')).not.toContain('payload')
+    }
+  })
+
+  it('applies the date range, label and category filters to each message', async () => {
+    const dayMs = 24 * 60 * 60 * 1000
+    const recent = String(Date.now() - 2 * dayMs)
+    const stale = String(Date.now() - 40 * dayMs)
+    mockFeed(
+      [historyPage(['old', 'promo', 'unlabelled', 'match'])],
+      {
+        old: metadataThread('old', [{ labelIds: ['Label_7'], internalDate: stale }]),
+        promo: metadataThread('promo', [
+          { labelIds: ['Label_7', 'CATEGORY_PROMOTIONS'], internalDate: recent },
+        ]),
+        unlabelled: metadataThread('unlabelled', [{ labelIds: ['INBOX'], internalDate: recent }]),
+        match: metadataThread('match', [
+          { labelIds: ['INBOX'], internalDate: stale },
+          { labelIds: ['Label_7'], internalDate: recent },
+        ]),
+      },
+      [{ id: 'Label_7', name: 'Engineering' }]
+    )
+    const page = await gmailConnector.listChanges!(
+      'token',
+      { label: 'Engineering', dateRange: '30d' },
+      JSON.stringify({ historyId: '500' })
+    )
+    const byId = Object.fromEntries(page.changes.map((change) => [change.externalId, change.kind]))
+    expect(byId).toEqual({
+      old: 'removed',
+      promo: 'removed',
+      unlabelled: 'removed',
+      match: 'upsert',
+    })
+  })
+
+  it('keeps the start history id while paging and advances it once the feed drains', async () => {
+    const requests = mockFeed(
+      [
+        historyPage(['a'], { nextPageToken: 'hp-2', historyId: '901' }),
+        historyPage(['b'], { historyId: '902' }),
+      ],
+      {
+        a: metadataThread('a', [{ labelIds: ['INBOX'] }]),
+        b: metadataThread('b', [{ labelIds: ['INBOX'] }]),
+      }
+    )
+    const first = await gmailConnector.listChanges!('token', {}, '500')
+    expect(first.hasMore).toBe(true)
+    expect(JSON.parse(first.nextCursor)).toEqual({ historyId: '500', pageToken: 'hp-2' })
+
+    const second = await gmailConnector.listChanges!('token', {}, first.nextCursor)
+    expect(second.hasMore).toBe(false)
+    expect(JSON.parse(second.nextCursor)).toEqual({ historyId: '902' })
+
+    const historyReads = requests.filter((url) => url.pathname.endsWith('/history'))
+    expect(historyReads.map((url) => url.searchParams.get('startHistoryId'))).toEqual([
+      '500',
+      '500',
+    ])
+    expect(historyReads.map((url) => url.searchParams.get('pageToken'))).toEqual([null, 'hp-2'])
+  })
+
+  it('reports an expired or malformed cursor so the engine reopens from a full listing', async () => {
+    mockFetchWithRetry.mockImplementation(
+      async () => new Response('history expired', { status: 404 })
+    )
+    const expired = await gmailConnector.listChanges!(
+      'token',
+      {},
+      JSON.stringify({ historyId: '1' })
+    ).catch((error: unknown) => error)
+    expect(gmailConnector.isChangeCursorInvalidError!(expired)).toBe(true)
+
+    const malformed = await gmailConnector.listChanges!('token', {}, 'not-a-cursor').catch(
+      (error: unknown) => error
+    )
+    expect(gmailConnector.isChangeCursorInvalidError!(malformed)).toBe(true)
+
+    mockFetchWithRetry.mockImplementation(async () => new Response('boom', { status: 500 }))
+    const outage = await gmailConnector.listChanges!(
+      'token',
+      {},
+      JSON.stringify({ historyId: '1' })
+    ).catch((error: unknown) => error)
+    expect(gmailConnector.isChangeCursorInvalidError!(outage)).toBe(false)
   })
 })

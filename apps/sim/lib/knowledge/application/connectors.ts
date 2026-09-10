@@ -92,7 +92,11 @@ import { credentialProviderMatchesService, type ServiceProviderIdentity } from '
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import { canConnectPersonally, personalSetupFields } from '@/lib/sim-search/connectors'
+import {
+  canConnectPersonally,
+  personalSourceConfigFieldIds,
+  withSearchSourceDefaults,
+} from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
@@ -875,7 +879,7 @@ export const createApprovedSearchSource = defineAuthorizedKnowledgeUseCase({
         'Only approved personal Search sources may be connected'
       )
     }
-    const allowedFields = new Set(personalSetupFields(meta).map((field) => field.id))
+    const allowedFields = personalSourceConfigFieldIds(meta)
     if (Object.keys(input.sourceConfig).some((field) => !allowedFields.has(field))) {
       throw new OrchestrationError(
         'validation',
@@ -891,7 +895,7 @@ export const createApprovedSearchSource = defineAuthorizedKnowledgeUseCase({
           knowledgeBaseId: input.knowledgeBaseId,
           assertedOrganizationId: input.assertedOrganizationId,
           connectorType: input.connectorType,
-          sourceConfig: input.sourceConfig,
+          sourceConfig: withSearchSourceDefaults(meta, input.sourceConfig),
           accessMode: 'members',
           syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
           reuseSearchSource: true,

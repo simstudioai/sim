@@ -25,7 +25,7 @@ Open **Settings → Sources** and turn on **Gmail**. Gmail uses member accounts;
 
 ### Connect your account
 
-Open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The first connection creates the default sync configuration: all dates and labels, excluding Promotions, Social, Spam, and Trash.
+Open **Integrations** and select **Connect** beside Gmail. Authorize the Google account matching your verified Sim email. The first connection creates the default sync configuration: the last 6 months across all labels, excluding Promotions, Social, Spam, and Trash.
 
 </Step>
 <Step>
@@ -60,9 +60,9 @@ An admin opens **Settings → Sources**, selects **Manage** beside **Gmail**, op
 | Option | Behavior |
 | --- | --- |
 | Labels | Optional comma-separated names or system IDs, such as `Engineering, INBOX`. A thread matching any listed label is included. Leave empty for all labels. Custom IDs such as `Label_7` belong to one mailbox and cannot be used for member setup. |
-| Date Range | All time by default. Choose the last 7, 30, or 90 days, 6 months, or year. |
+| Date Range | Last 6 months by default for Search sources. Choose the last 7, 30, or 90 days, a year, or all time. A knowledge-base connector outside Search defaults to all time. |
 | Exclude Promotions / Exclude Social | Both enabled by default. Choose **No** to include either category. |
-| Search Filter | Optional [Gmail query](https://developers.google.com/workspace/gmail/api/guides/filtering), such as `from:team@example.com subject:release`. This filters what is indexed; it is not a Sim Search query. |
+| Search Filter | Optional [Gmail query](https://developers.google.com/workspace/gmail/api/guides/filtering), such as `from:team@example.com subject:release`. This filters what is indexed; it is not a Sim Search query. A source with a search filter cannot use Gmail's change history and relists the mailbox on every sync. |
 
 In the add-source form, **More options** contains optional **Metadata tags**. Sync frequency and the general knowledge-base **Max Threads** setting are hidden in Search.
 
@@ -72,7 +72,7 @@ Sim indexes the message text Gmail returns for each matching thread, plus subjec
 
 File attachments and image contents are not indexed. Thread discovery uses Gmail's default exclusion of Spam and Trash. A filter such as `has:attachment` selects the email thread; it does not index the attachment. Gmail API filtering also differs from Gmail's interface for aliases and thread-wide searches. See Google's [thread listing reference](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads/list) and [filtering guide](https://developers.google.com/workspace/gmail/api/guides/filtering).
 
-Search schedules syncs hourly. The first sync and large mailboxes can take longer; results appear as documents are indexed. Updates and removals are reconciled during background sync, rather than fetched live for each search.
+Search schedules syncs hourly. The first sync lists every thread in scope and can take several runs for a large mailbox; results appear as documents are indexed. Later syncs read Gmail's change history instead of relisting the mailbox, so only threads that gained a message, were relabelled, or were deleted since the previous run are fetched. A full relisting runs about weekly, or sooner if Gmail no longer retains the history the source last read. Updates and removals are reconciled during background sync, rather than fetched live for each search.
 
 An empty mailbox or filters with no matching threads complete normally with zero documents.
 

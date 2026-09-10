@@ -122,8 +122,11 @@ import {
   isSearchConnectorAvailable,
   missingSetupFields,
   personalSetupFields,
+  personalSourceConfigFieldIds,
   SEARCH_CONNECTORS,
+  withSearchSourceDefaults,
 } from '@/lib/sim-search/connectors'
+import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { slackConnectorMeta } from '@/connectors/slack/meta'
@@ -449,5 +452,35 @@ describe('getConnectorAccessAvailability', () => {
         isIntegrationAvailabilityReady: false,
       })
     ).toEqual({ admin: false, members: false })
+  })
+})
+
+describe('withSearchSourceDefaults', () => {
+  it('starts a Gmail Search source from the last six months', () => {
+    expect(withSearchSourceDefaults(gmailConnectorMeta)).toEqual({ dateRange: '6m' })
+    expect(withSearchSourceDefaults(gmailConnectorMeta, {})).toEqual({ dateRange: '6m' })
+  })
+
+  it('keeps an explicit value and treats a blank one as untouched', () => {
+    expect(withSearchSourceDefaults(gmailConnectorMeta, { dateRange: 'all' })).toEqual({
+      dateRange: 'all',
+    })
+    expect(
+      withSearchSourceDefaults(gmailConnectorMeta, { dateRange: ' ', label: 'INBOX' })
+    ).toEqual({ dateRange: '6m', label: 'INBOX' })
+  })
+
+  it('leaves a source without Search defaults exactly as supplied', () => {
+    expect(withSearchSourceDefaults(googleDriveConnectorMeta, { folderId: 'f1' })).toEqual({
+      folderId: 'f1',
+    })
+    expect(withSearchSourceDefaults(googleDriveConnectorMeta)).toEqual({})
+  })
+
+  it('lets a person supply the fields the defaults cover', () => {
+    expect(personalSourceConfigFieldIds(gmailConnectorMeta)).toEqual(new Set(['dateRange']))
+    expect(personalSourceConfigFieldIds(googleDriveConnectorMeta)).toEqual(
+      new Set(personalSetupFields(googleDriveConnectorMeta).map((field) => field.id))
+    )
   })
 })

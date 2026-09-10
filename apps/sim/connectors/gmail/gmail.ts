@@ -5,7 +5,13 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import type {
+  ConnectorConfig,
+  ExternalChange,
+  ExternalChangeList,
+  ExternalDocument,
+  ExternalDocumentList,
+} from '@/connectors/types'
 import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
@@ -29,6 +35,14 @@ const THREADS_PER_PAGE = 100
 const BODY_RESPONSE_ENVELOPE_BYTES = 1024
 /** Bounds base64 bodies, alternative MIME parts, and headers before parsing the thread JSON. */
 const MAX_THREAD_RESPONSE_BYTES = 32 * 1024 * 1024
+
+/** History records that can move a thread into or out of the configured scope. */
+const HISTORY_TYPES = ['messageAdded', 'messageDeleted', 'labelAdded', 'labelRemoved'] as const
+const HISTORY_PAGE_SIZE = 500
+/** Changed threads re-read per history page before their stubs are returned. */
+const CHANGED_THREAD_CONCURRENCY = 5
+/** Gmail's thread listing omits these unless `includeSpamTrash` is set; the feed must agree. */
+const HIDDEN_LABEL_IDS = new Set(['SPAM', 'TRASH'])
 
 class GmailApiError extends Error {
   constructor(
@@ -261,25 +275,8 @@ function buildSearchQuery(
     }
   }
 
-  const dateRange = (sourceConfig.dateRange as string) || 'all'
-  const now = new Date()
-  switch (dateRange) {
-    case '7d':
-      parts.push(`after:${formatGmailDate(daysAgo(now, 7))}`)
-      break
-    case '30d':
-      parts.push(`after:${formatGmailDate(daysAgo(now, 30))}`)
-      break
-    case '90d':
-      parts.push(`after:${formatGmailDate(daysAgo(now, 90))}`)
-      break
-    case '6m':
-      parts.push(`after:${formatGmailDate(daysAgo(now, 180))}`)
-      break
-    case '1y':
-      parts.push(`after:${formatGmailDate(daysAgo(now, 365))}`)
-      break
-  }
+  const after = dateRangeStart(sourceConfig, new Date())
+  if (after) parts.push(`after:${formatGmailDate(after)}`)
 
   const excludePromotions = sourceConfig.excludePromotions !== 'false'
   if (excludePromotions) {
@@ -307,6 +304,24 @@ function buildSearchQuery(
   }
 
   return parts.join(' ')
+}
+
+const DATE_RANGE_DAYS = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+  '6m': 180,
+  '1y': 365,
+} as const
+
+function isBoundedDateRange(value: unknown): value is keyof typeof DATE_RANGE_DAYS {
+  return typeof value === 'string' && Object.hasOwn(DATE_RANGE_DAYS, value)
+}
+
+/** The earliest message date the configured range admits, or undefined for all time. */
+function dateRangeStart(sourceConfig: Record<string, unknown>, now: Date): Date | undefined {
+  const range = sourceConfig.dateRange
+  return isBoundedDateRange(range) ? daysAgo(now, DATE_RANGE_DAYS[range]) : undefined
 }
 
 function daysAgo(now: Date, days: number): Date {
@@ -537,10 +552,13 @@ async function formatThread(
 async function fetchThread(
   accessToken: string,
   threadId: string,
-  format: 'full' | 'minimal' = 'full'
+  format: 'full' | 'minimal' | 'metadata' = 'full'
 ): Promise<GmailThread | null> {
   const params = new URLSearchParams({ format })
   if (format === 'minimal') params.set('fields', 'id,historyId,snippet')
+  /** Enough to place every message against the configured scope without any body. */
+  if (format === 'metadata')
+    params.set('fields', 'id,historyId,snippet,messages(id,labelIds,internalDate)')
   const url = `${GMAIL_API_BASE}/threads/${encodeURIComponent(threadId)}?${params}`
 
   const response = await fetchWithRetry(url, {
@@ -617,10 +635,217 @@ function threadUrl(threadId: string): string {
   return `https://mail.google.com/mail/u/0/#all/${threadId}`
 }
 
+/** A feed position: the mailbox history id the next read starts from, mid-page when paging. */
+interface GmailChangeCursor {
+  historyId: string
+  pageToken?: string
+}
+
+class InvalidGmailChangeCursorError extends Error {
+  constructor() {
+    super('Malformed Gmail change cursor')
+    this.name = 'InvalidGmailChangeCursorError'
+  }
+}
+
+function parseChangeCursor(cursor: string): GmailChangeCursor {
+  if (/^\d+$/.test(cursor)) return { historyId: cursor }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(cursor)
+  } catch {
+    throw new InvalidGmailChangeCursorError()
+  }
+  if (
+    !isPlainRecord(parsed) ||
+    typeof parsed.historyId !== 'string' ||
+    !/^\d+$/.test(parsed.historyId) ||
+    (parsed.pageToken !== undefined &&
+      (typeof parsed.pageToken !== 'string' || parsed.pageToken.length === 0))
+  ) {
+    throw new InvalidGmailChangeCursorError()
+  }
+  return { historyId: parsed.historyId, pageToken: parsed.pageToken as string | undefined }
+}
+
+interface GmailHistoryList {
+  threadIds: string[]
+  nextPageToken?: string
+  historyId: string
+}
+
+function parseHistoryList(value: unknown): GmailHistoryList {
+  if (
+    !isPlainRecord(value) ||
+    typeof value.historyId !== 'string' ||
+    !/^\d+$/.test(value.historyId) ||
+    (value.history !== undefined && !Array.isArray(value.history)) ||
+    (value.nextPageToken !== undefined &&
+      (typeof value.nextPageToken !== 'string' || value.nextPageToken.length === 0))
+  ) {
+    throw new Error('Gmail returned malformed history metadata')
+  }
+  const threadIds = new Set<string>()
+  for (const record of (value.history ?? []) as unknown[]) {
+    if (!isPlainRecord(record) || !Array.isArray(record.messages)) continue
+    for (const message of record.messages as unknown[]) {
+      if (isPlainRecord(message) && typeof message.threadId === 'string' && message.threadId) {
+        threadIds.add(message.threadId)
+      }
+    }
+  }
+  return {
+    threadIds: [...threadIds],
+    nextPageToken: value.nextPageToken as string | undefined,
+    historyId: value.historyId,
+  }
+}
+
+/** The configured listing scope, evaluated locally against a thread's message metadata. */
+interface GmailChangeScope {
+  after?: Date
+  labelIds?: Set<string>
+  excludedLabelIds: Set<string>
+}
+
+/**
+ * Mirrors {@link buildSearchQuery}: a free-form search filter cannot be
+ * evaluated here, which is why {@link gmailConnector.supportsChangeFeed}
+ * refuses the feed when one is configured.
+ */
+function buildChangeScope(
+  sourceConfig: Record<string, unknown>,
+  labelIndex: GmailLabelIndex,
+  now: Date
+): GmailChangeScope {
+  const scope: GmailChangeScope = {
+    after: dateRangeStart(sourceConfig, now),
+    excludedLabelIds: new Set(),
+  }
+  const configuredLabels = parseMultiValue(sourceConfig.label)
+  if (configuredLabels.length > 0) {
+    const labelIds = new Set<string>()
+    for (const value of configuredLabels) {
+      const id = labelIndex.byId[value] ? value : labelIndex.idByLowerName[value.toLowerCase()]
+      if (!id) throw new Error(`Gmail label "${value}" does not exist in this mailbox`)
+      labelIds.add(id)
+    }
+    scope.labelIds = labelIds
+  }
+  if (sourceConfig.excludePromotions !== 'false') scope.excludedLabelIds.add('CATEGORY_PROMOTIONS')
+  if (sourceConfig.excludeSocial !== 'false') scope.excludedLabelIds.add('CATEGORY_SOCIAL')
+  return scope
+}
+
+/**
+ * Gmail matches search terms per message and returns the thread of any
+ * matching message, so a thread is in scope while one message outside Spam and
+ * Trash satisfies every configured filter.
+ */
+function threadInScope(thread: GmailThread, scope: GmailChangeScope): boolean {
+  return (thread.messages ?? []).some((message) => {
+    const labels = new Set(message.labelIds ?? [])
+    for (const label of labels) {
+      if (HIDDEN_LABEL_IDS.has(label) || scope.excludedLabelIds.has(label)) return false
+    }
+    if (scope.labelIds && ![...scope.labelIds].some((id) => labels.has(id))) return false
+    if (scope.after) {
+      const sentAt = Number(message.internalDate)
+      if (!Number.isFinite(sentAt) || sentAt < scope.after.getTime()) return false
+    }
+    return true
+  })
+}
+
 export const gmailConnector: ConnectorConfig = {
   ...gmailConnectorMeta,
 
   isCredentialInvalidError: (error) => error instanceof GmailApiError && error.status === 401,
+
+  /** The mailbox's current history id; `users.history.list` replays everything after it. */
+  getChangeCursor: async (accessToken: string): Promise<string> => {
+    const response = await fetchWithRetry(`${GMAIL_API_BASE}/profile?fields=historyId`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    })
+    if (!response.ok) throw new GmailApiError('Failed to read the Gmail profile', response.status)
+    const data: unknown = await response.json()
+    if (
+      !isPlainRecord(data) ||
+      typeof data.historyId !== 'string' ||
+      !/^\d+$/.test(data.historyId)
+    ) {
+      throw new Error('Gmail returned malformed profile metadata')
+    }
+    return JSON.stringify({ historyId: data.historyId })
+  },
+
+  /** Labels, dates and categories are checked locally; a free-form search filter cannot be. */
+  supportsChangeFeed: (sourceConfig) =>
+    typeof sourceConfig.query !== 'string' || sourceConfig.query.trim() === '',
+
+  /**
+   * Reads `users.history.list` from the cursor and re-reads each touched
+   * thread's metadata. A thread that still matches the configured scope is an
+   * upsert carrying the same stub a listing produces; one that was deleted,
+   * trashed, or relabelled out of scope is a removal.
+   */
+  listChanges: async (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    cursor: string,
+    syncContext?: Record<string, unknown>
+  ): Promise<ExternalChangeList> => {
+    const { historyId, pageToken } = parseChangeCursor(cursor)
+    let labelIndex = EMPTY_LABEL_INDEX
+    if (parseMultiValue(sourceConfig.label).length > 0) {
+      const resolved = await getLabelIndex(accessToken, syncContext)
+      if (!resolved) {
+        throw new Error('Failed to fetch Gmail labels; cannot resolve the configured label filter')
+      }
+      labelIndex = resolved
+    }
+    const scope = buildChangeScope(sourceConfig, labelIndex, new Date())
+
+    const params = new URLSearchParams({
+      startHistoryId: historyId,
+      maxResults: String(HISTORY_PAGE_SIZE),
+      fields: 'history(messages(threadId)),nextPageToken,historyId',
+    })
+    for (const type of HISTORY_TYPES) params.append('historyTypes', type)
+    if (pageToken) params.set('pageToken', pageToken)
+
+    const response = await fetchWithRetry(`${GMAIL_API_BASE}/history?${params.toString()}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    })
+    if (!response.ok) {
+      logger.warn('Failed to list Gmail history', { status: response.status })
+      throw new GmailApiError('Failed to list Gmail history', response.status)
+    }
+    const page = parseHistoryList(await response.json())
+
+    const changes = await mapWithConcurrency(
+      page.threadIds,
+      CHANGED_THREAD_CONCURRENCY,
+      async (threadId): Promise<ExternalChange> => {
+        const externalId = memberDocumentId(threadId, syncContext)
+        const thread = await fetchThread(accessToken, threadId, 'metadata')
+        if (!thread || !threadInScope(thread, scope)) return { kind: 'removed', externalId }
+        return { kind: 'upsert', externalId, document: threadToStub(thread, syncContext) }
+      }
+    )
+
+    const next: GmailChangeCursor = page.nextPageToken
+      ? { historyId, pageToken: page.nextPageToken }
+      : { historyId: page.historyId }
+    return { changes, nextCursor: JSON.stringify(next), hasMore: Boolean(page.nextPageToken) }
+  },
+
+  /** Gmail answers 404 once `startHistoryId` falls outside the history it retains. */
+  isChangeCursorInvalidError: (error) =>
+    error instanceof InvalidGmailChangeCursorError ||
+    (error instanceof GmailApiError && error.status === 404),
 
   listDocuments: async (
     accessToken: string,

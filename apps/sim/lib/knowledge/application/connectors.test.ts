@@ -1310,6 +1310,33 @@ describe('approved organization member source creation', () => {
     expect(mocks.createConnector).not.toHaveBeenCalled()
   })
 
+  it('starts a personal source from the connector Search defaults and accepts their fields', async () => {
+    mocks.createConnector.mockResolvedValue({
+      success: true,
+      connector: { id: 'connector', connectorType: 'gmail', accessMode: 'members' },
+    })
+    await createApprovedSearchSource.execute({
+      principal,
+      input: { ...input, connectorType: 'gmail', sourceConfig: {} },
+    })
+    expect(mocks.createConnector).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceConfig: expect.objectContaining({ dateRange: '6m' }),
+      })
+    )
+
+    queueTableRows(member, [{ role: 'member' }])
+    await createApprovedSearchSource.execute({
+      principal,
+      input: { ...input, connectorType: 'gmail', sourceConfig: { dateRange: 'all' } },
+    })
+    expect(mocks.createConnector).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceConfig: expect.objectContaining({ dateRange: 'all' }),
+      })
+    )
+  })
+
   it('refuses custom configuration outside the personal setup fields', async () => {
     await expect(
       createApprovedSearchSource.execute({
