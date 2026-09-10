@@ -56,16 +56,23 @@ export function isTimeOnlyFormat(format: string): boolean {
   return true
 }
 
+const MS_PER_SECOND = 1000
+
 /**
  * Excel dates carry no zone. Emit the UTC fields SheetJS parsed the serial
  * into, without a trailing `Z`, and drop the time when it is midnight.
+ *
+ * A float serial such as `45366.572916666664` parses to `13:44:59.999`, so
+ * the instant is rounded to the nearest second first; a value that rounds up
+ * to midnight is a whole date.
  *
  * A time-of-day cell is decided from its format, because the epoch date its
  * serial lands on differs between 1900 and 1904 workbooks. Without a format,
  * a date before 1900 can only be a fraction of a day and is shown as a time.
  */
-export function isoDateText(date: Date, format?: string): string {
-  if (Number.isNaN(date.getTime())) return ''
+export function isoDateText(parsed: Date, format?: string): string {
+  if (Number.isNaN(parsed.getTime())) return ''
+  const date = new Date(Math.round(parsed.getTime() / MS_PER_SECOND) * MS_PER_SECOND)
   const iso = date.toISOString()
   const timeOnly = format === undefined ? date.getUTCFullYear() < 1900 : isTimeOnlyFormat(format)
   if (timeOnly) return iso.slice(11, 19)

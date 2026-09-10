@@ -97,6 +97,23 @@ describe('XlsxParser display text', () => {
       return XLSX.write(book, { type: 'buffer', bookType }) as Buffer
     }
 
+    it('rounds float serials to the second instead of truncating', async () => {
+      const sheet = XLSX.utils.aoa_to_sheet([['When', 'Clock']])
+      sheet.A2 = { t: 'n', v: 45366.572916666664, z: 'yyyy-mm-dd h:mm' }
+      sheet.B2 = { t: 'n', v: 0.6041666666666666, z: 'h:mm' }
+      sheet['!ref'] = 'A1:B2'
+      const book = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(book, sheet, 'Times')
+      if (date1904) book.Workbook = { WBProps: { date1904: true } }
+      const buffer = XLSX.write(book, { type: 'buffer', bookType }) as Buffer
+
+      const result = await new XlsxParser().parseBuffer(buffer)
+
+      const row = dataRow(result.content)
+      expect(row[0]).toMatch(/^\d{4}-\d{2}-\d{2}T13:45:00$/)
+      expect(row[1]).toBe('14:30:00')
+    })
+
     it('renders time-only cells as times and elapsed cells as durations', async () => {
       const result = await new XlsxParser().parseBuffer(timeWorkbook())
 
@@ -172,6 +189,22 @@ describe('isoDateText', () => {
 
   it('renders an invalid date as empty text', () => {
     expect(isoDateText(new Date(Number.NaN))).toBe('')
+  })
+
+  it('rounds the sub-second drift of a float serial to the nearest second', () => {
+    const datetime = XLSX.SSF.parse_date_code(45366.572916666664)
+    const time = XLSX.SSF.parse_date_code(0.6041666666666666)
+    const toDate = (d: XLSX.SSF.DateObject) =>
+      new Date(Date.UTC(d.y, d.m - 1, d.d, d.H, d.M, d.S, Math.round(d.u * 1000)))
+
+    expect(isoDateText(new Date(Date.UTC(2024, 2, 15, 13, 44, 59, 999)), 'yyyy-mm-dd h:mm')).toBe(
+      '2024-03-15T13:45:00'
+    )
+    expect(isoDateText(toDate(datetime), 'yyyy-mm-dd h:mm')).toBe('2024-03-15T13:45:00')
+    expect(isoDateText(toDate(time), 'h:mm')).toBe('14:30:00')
+    expect(isoDateText(new Date(Date.UTC(2024, 2, 15, 23, 59, 59, 700)), 'yyyy-mm-dd')).toBe(
+      '2024-03-16'
+    )
   })
 
   it('renders a formatless date before 1900 as a time of day', () => {
