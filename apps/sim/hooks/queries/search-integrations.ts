@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import {
   listSearchIntegrationsContract,
@@ -22,13 +23,16 @@ export function useSearchIntegrations(organizationId: string) {
 
 export function useUpdateSearchIntegration() {
   const queryClient = useQueryClient()
+  const router = useRouter()
   return useMutation({
     mutationFn: async (body: UpdateSearchIntegrationBody) =>
       (await requestJson(updateSearchIntegrationContract, { body })).data,
-    onSuccess: (_data, { organizationId }) =>
-      Promise.all([
+    onSuccess: async (_data, { organizationId }) => {
+      await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.list(organizationId) }),
-      ]),
+      ])
+      router.refresh()
+    },
   })
 }

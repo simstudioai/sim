@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const mocks = vi.hoisted(() => ({ request: vi.fn(), refresh: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }))
 
 import { ApiClientError } from '@/lib/api/client/errors'
 import {
@@ -27,10 +28,11 @@ import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 describe('personal account disconnect', () => {
   it.each([true, false])(
-    'refreshes this organization only after success=%s, including after unmount',
+    'clears content and refreshes the router only after success=%s, including after unmount',
     async (success) => {
       vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
       mocks.request.mockReset()
+      mocks.refresh.mockReset()
       const response = Promise.withResolvers<{ success: true }>()
       mocks.request.mockReturnValue(response.promise)
       const client = new QueryClient()
@@ -112,13 +114,22 @@ describe('personal account disconnect', () => {
           disconnectPersonalOrganizationAccountContract,
           { params: { credentialId: 'own-credential' } }
         )
-        for (const key of [own, catalog, results, ownDocument, resultOnlyDocument, chunks]) {
+        for (const key of [
+          own,
+          catalog,
+          results,
+          ownDocument,
+          resultOnlyDocument,
+          chunks,
+          otherDocument,
+        ]) {
           if (success) expect(client.getQueryData(key)).toBeUndefined()
           else expect(client.getQueryData(key)).toBeDefined()
         }
         expect(client.getQueryState(people)?.isInvalidated).toBe(success)
         expect(client.getQueryState(other)?.isInvalidated).toBe(false)
-        for (const key of [otherResults, workspaceResults, otherDocument])
+        expect(mocks.refresh).toHaveBeenCalledTimes(success ? 1 : 0)
+        for (const key of [otherResults, workspaceResults])
           expect(client.getQueryData(key)).toEqual({ content: 'previously authorized content' })
       } finally {
         await act(async () => root.unmount())

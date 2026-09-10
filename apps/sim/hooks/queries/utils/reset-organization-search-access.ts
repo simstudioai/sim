@@ -1,6 +1,4 @@
-import type { InfiniteData, QueryClient } from '@tanstack/react-query'
-import type { SearchSourcePage } from '@/lib/api/contracts/knowledge/connectors'
-import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge/search'
+import type { QueryClient } from '@tanstack/react-query'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
@@ -11,28 +9,12 @@ export async function resetOrganizationSearchAccess(
   organizationId: string
 ) {
   const scope = { kind: 'organization', organizationId } as const
-  const pages = queryClient.getQueriesData<InfiniteData<SearchSourcePage>>({
-    queryKey: searchSourceKeys.list(scope),
-    predicate: (query) => query.queryKey[3] === 'pages',
-  })
-  const searchKey = [...knowledgeKeys.searches(), resourceScopeKey(scope)]
-  const results = queryClient.getQueriesData<WorkspaceKnowledgeSearchResult[]>({
-    queryKey: searchKey,
-  })
-  const knowledgeBaseIds = new Set([
-    ...pages.flatMap(
-      ([, data]) =>
-        data?.pages.flatMap((page) => page.sources.map((source) => source.knowledgeBaseId)) ?? []
-    ),
-    ...results.flatMap(([, data]) => data?.map((result) => result.knowledgeBaseId) ?? []),
-  ])
   await Promise.all([
     queryClient.resetQueries({
-      queryKey: searchKey,
+      queryKey: [...knowledgeKeys.searches(), resourceScopeKey(scope)],
     }),
-    ...[...knowledgeBaseIds].map((id) =>
-      queryClient.resetQueries({ queryKey: knowledgeKeys.detail(id) })
-    ),
+    /** Document keys carry no resource scope and may exist without source or result caches. */
+    queryClient.resetQueries({ queryKey: knowledgeKeys.details() }),
     queryClient.resetQueries({ queryKey: searchSourceKeys.list(scope) }),
   ])
 }
