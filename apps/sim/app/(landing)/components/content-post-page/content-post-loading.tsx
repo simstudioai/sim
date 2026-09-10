@@ -5,7 +5,13 @@ import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/component
 export function ContentPostLoading() {
   return (
     <article className='w-full bg-[var(--bg)]'>
-      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+      <div
+        className={cn(
+          LANDING_CONTENT_WIDTH,
+          LANDING_GUTTER,
+          'pt-[112px] max-sm:pt-12 max-xl:pt-20'
+        )}
+      >
         <div className='mb-6'>
           <Skeleton className='h-[16px] w-[100px] rounded-[4px] bg-[var(--surface-hover)]' />
         </div>

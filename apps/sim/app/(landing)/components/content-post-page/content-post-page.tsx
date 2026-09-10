@@ -1,10 +1,11 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
+import { Avatar, AvatarFallback, AvatarImage, cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FAQ } from '@/lib/content/faq'
 import type { ContentMeta, ContentPost } from '@/lib/content/schema'
 import { BackLink } from '@/app/(landing)/components/back-link'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 import { ShareButton } from '@/app/(landing)/components/share-button'
 
 /** Renders an ISO date as "Jul 1, 2026". Pinned to UTC so the day matches the frontmatter date in every reader's timezone. */
@@ -48,7 +49,7 @@ export function ContentPostPage({
   return (
     <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
       <JsonLd data={graphJsonLd} />
-      <header className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+      <header className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'>
         <div className='mb-6'>
           <BackLink href={basePath} label={backLabel} />
         </div>
@@ -73,7 +74,7 @@ export function ContentPostPage({
           <div className='flex min-w-0 flex-1 flex-col justify-between'>
             <div>
               <h1
-                className='text-balance text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
+                className={cn('text-balance text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.detail)}
                 itemProp='headline'
               >
                 {post.title}
@@ -145,8 +146,11 @@ export function ContentPostPage({
 
       <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='border-[var(--border)] border-x'>
-          <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
-            <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-secondary)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>
+          <div
+            className='mx-auto max-w-[800px] px-6 py-16 max-sm:px-4 max-sm:py-10'
+            itemProp='articleBody'
+          >
+            <div className='prose prose-lg max-sm:prose-base max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-secondary)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>
               <Article />
               {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
             </div>

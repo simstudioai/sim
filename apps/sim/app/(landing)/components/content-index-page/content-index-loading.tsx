@@ -9,7 +9,7 @@ export function ContentIndexLoading() {
   return (
     <section className='bg-[var(--bg)]'>
       <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
-        <div className='pt-[112px] max-sm:pt-20'>
+        <div className='pt-[112px] max-sm:pt-12 max-xl:pt-20'>
           <Skeleton className='mb-5 h-[20px] w-[60px] rounded-md bg-[var(--surface-hover)]' />
           <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
             <Skeleton className='h-[40px] w-[240px] rounded-[4px] bg-[var(--surface-hover)]' />

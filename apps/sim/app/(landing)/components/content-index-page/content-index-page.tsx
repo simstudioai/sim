@@ -1,9 +1,10 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { paginateContentPosts } from '@/lib/content/index-list'
 import type { ContentMeta } from '@/lib/content/schema'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 
 interface ContentIndexPageProps {
   /** Route base path, e.g. `/blog` or `/library`. */
@@ -43,9 +44,9 @@ export function ContentIndexPage({
       <section className='bg-[var(--bg)]'>
         <JsonLd data={collectionJsonLd} />
 
-        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'>
           <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
-            <h1 className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
+            <h1 className={cn('text-balance text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.title)}>
               {heading}
             </h1>
             <p className='max-w-[540px] text-[var(--text-secondary)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>

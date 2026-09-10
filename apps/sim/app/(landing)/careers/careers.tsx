@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { cn } from '@sim/emcn'
 import type { SearchParams } from 'nuqs/server'
 import { getAshbyJobs } from '@/lib/ashby/jobs'
 import {
@@ -9,6 +10,7 @@ import {
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board'
 import { careersSearchParamsCache } from '@/app/(landing)/careers/search-params'
+import { LANDING_TYPE } from '@/app/(landing)/components/landing-layout'
 
 interface CareersProps {
   searchParams: Promise<SearchParams>
@@ -45,7 +47,7 @@ export default async function Careers({ searchParams }: CareersProps) {
       <section
         id='careers-hero'
         aria-labelledby='careers-heading'
-        className='mx-auto flex w-full max-w-[1728px] flex-col gap-5 px-10 pt-20 pb-10 max-sm:pt-16 max-md:px-7 max-lg:px-8 max-xl:px-9'
+        className='mx-auto flex w-full max-w-[1728px] flex-col gap-6 px-10 pt-[112px] pb-16 max-sm:pt-12 max-sm:pb-10 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'
       >
         <p className='sr-only'>
           Careers at Sim, the open-source AI workspace where teams build, deploy, and manage AI
@@ -56,11 +58,11 @@ export default async function Careers({ searchParams }: CareersProps) {
 
         <h1
           id='careers-heading'
-          className='max-w-[24ch] text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px] max-xl:text-[40px]'
+          className={cn('max-w-[24ch] text-balance text-[var(--text-primary)]', LANDING_TYPE.h1)}
         >
           Help build Sim, the AI workspace for teams.
         </h1>
-        <p className='max-w-[60ch] text-pretty text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-base'>
+        <p className='max-w-[60ch] text-pretty text-[20px] text-[var(--text-body)] leading-[1.5] max-sm:text-[17px]'>
           Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. We're
           a small, high-agency team shipping fast to thousands of builders. If you want to own real
           work and shape the workspace teams live in, we'd love to meet you.

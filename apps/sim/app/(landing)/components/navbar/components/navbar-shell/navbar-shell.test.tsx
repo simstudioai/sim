@@ -120,7 +120,7 @@ beforeEach(() => {
   mounted = true
   act(() => {
     root.render(
-      <NavbarShell>
+      <NavbarShell announcement={<a href='/blog'>Latest update</a>}>
         <MenuControls />
       </NavbarShell>
     )
@@ -194,5 +194,47 @@ describe('NavbarShell menu positioning and scroll containment', () => {
 
     expect(host.style.overflowY).toBe('scroll')
     expect(host.style.paddingRight).toBe('12px')
+  })
+})
+
+describe('NavbarShell announcement at page top', () => {
+  function scrollTo(top: number) {
+    act(() => {
+      host.scrollTop = top
+      host.dispatchEvent(new Event('scroll'))
+    })
+  }
+
+  it('starts hidden when the page restores a scrolled position', () => {
+    const banner = host.querySelector('[data-announcement-collapsed]')
+    expect(banner?.getAttribute('aria-hidden')).toBe('true')
+    expect(banner?.hasAttribute('inert')).toBe(true)
+  })
+
+  it('stays hidden on upward scroll until the page reaches the top', () => {
+    const banner = host.querySelector('[data-announcement-collapsed]')
+    scrollTo(0)
+    expect(banner?.getAttribute('aria-hidden')).toBe('false')
+    scrollTo(400)
+    expect(banner?.getAttribute('aria-hidden')).toBe('true')
+    expect(banner?.hasAttribute('inert')).toBe(true)
+    scrollTo(380)
+    expect(banner?.getAttribute('aria-hidden')).toBe('true')
+    scrollTo(8)
+    expect(banner?.getAttribute('aria-hidden')).toBe('true')
+    scrollTo(0)
+    expect(banner?.getAttribute('aria-hidden')).toBe('false')
+    expect(banner?.hasAttribute('inert')).toBe(false)
+  })
+
+  it('shows at the top and restores scroll anchoring on unmount', () => {
+    scrollTo(400)
+    scrollTo(0)
+    expect(host.querySelector('[data-announcement-collapsed]')?.getAttribute('aria-hidden')).toBe(
+      'false'
+    )
+    expect(host.style.overflowAnchor).toBe('none')
+    unmount()
+    expect(host.style.overflowAnchor).toBe('')
   })
 })

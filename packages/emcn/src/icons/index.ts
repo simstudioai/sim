@@ -101,6 +101,12 @@ export { MessageSquareText } from './message-square-text'
 export { Mic } from './mic'
 export { MicOff } from './mic-off'
 export { Minus } from './minus'
+export {
+  CLAUDE_MARK_PATH,
+  GEMINI_MARK_PATH,
+  OPENAI_MARK_PATH,
+  XAI_MARK_POLYGONS,
+} from './model-marks'
 export { Moon } from './moon'
 export { MoreHorizontal } from './more-horizontal'
 export { MoreVertical } from './more-vertical'

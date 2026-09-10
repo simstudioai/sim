@@ -1,8 +1,10 @@
+import { cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ContentMeta } from '@/lib/content/schema'
 import { BackLink } from '@/app/(landing)/components/back-link'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 
 interface ContentAuthorPageProps {
   /** Route base path, e.g. `/blog` or `/library`. */
@@ -35,7 +37,7 @@ export function ContentAuthorPage({
       <section className='bg-[var(--bg)]'>
         {graphJsonLd && <JsonLd data={graphJsonLd} />}
 
-        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'>
           <div className='mb-6'>
             <BackLink href={basePath} label={`Back to ${sectionName}`} />
           </div>
@@ -51,7 +53,7 @@ export function ContentAuthorPage({
                 unoptimized
               />
             ) : null}
-            <h1 className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
+            <h1 className={cn('text-balance text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.title)}>
               {authorName}
             </h1>
           </div>

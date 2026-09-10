@@ -30,6 +30,7 @@ export function useNavbarFrost(): NavbarFrostContextValue | null {
 
 interface NavbarShellProps {
   children: ReactNode
+  announcement?: ReactNode
 }
 
 /**
@@ -39,8 +40,7 @@ interface NavbarShellProps {
  * At the very top the bar uses the same solid canvas token as the hero, so it is
  * visually seamless while still preventing route content from painting through
  * the sticky header. A 1px sentinel at the top of the landing shell's internal
- * scroll port is watched by an {@link IntersectionObserver} - no scroll listener
- * and no per-frame work. Past that point the bar gains the shared
+ * scroll port is watched by an {@link IntersectionObserver}. Past that point the bar gains the shared
  * {@link NAVBAR_GLASS_SURFACE} (`--bg` at 92% via `color-mix` plus a strong 40px
  * backdrop blur) - a white/glass surface built entirely from the platform's
  * light tokens, not invented colors.
@@ -75,9 +75,10 @@ interface NavbarShellProps {
  * Only this shell hydrates; the nav content is server-rendered and passed through
  * as {@link children}, so the wordmark and links stay zero-hydration and crawlable.
  */
-export function NavbarShell({ children }: NavbarShellProps) {
+export function NavbarShell({ children, announcement }: NavbarShellProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
+  const [announcementHidden, setAnnouncementHidden] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [menuOpenBySource, setMenuOpenBySource] = useState({ desktop: false, mobile: false })
   const menuOpen = menuOpenBySource.desktop || menuOpenBySource.mobile
@@ -118,6 +119,24 @@ export function NavbarShell({ children }: NavbarShellProps) {
     observer.observe(sentinel)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    const scrollPort = sentinelRef.current?.parentElement
+    if (!scrollPort || !announcement || menuOpen) return
+
+    const previousOverflowAnchor = scrollPort.style.overflowAnchor
+    scrollPort.style.overflowAnchor = 'none'
+    const onScroll = () => {
+      setAnnouncementHidden(Math.max(0, scrollPort.scrollTop) > 1)
+    }
+
+    onScroll()
+    scrollPort.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scrollPort.removeEventListener('scroll', onScroll)
+      scrollPort.style.overflowAnchor = previousOverflowAnchor
+    }
+  }, [announcement, menuOpen])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -175,6 +194,19 @@ export function NavbarShell({ children }: NavbarShellProps) {
             scrolled || menuOpen ? NAVBAR_GLASS_SURFACE : 'bg-[var(--bg)]'
           )}
         />
+        {announcement && (
+          <div
+            data-announcement-collapsed={announcementHidden}
+            inert={announcementHidden}
+            aria-hidden={announcementHidden}
+            className={cn(
+              'overflow-hidden transition-[height] duration-200 ease-out motion-reduce:transition-none',
+              announcementHidden ? 'h-0' : 'h-[1.95rem]'
+            )}
+          >
+            {announcement}
+          </div>
+        )}
         {children}
       </header>
       <div

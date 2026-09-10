@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn'
 import { truncate } from '@sim/utils/string'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -16,6 +16,7 @@ import {
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { PUBLIC_PAGE_TYPE } from '@/app/(landing)/components/landing-layout'
 import { ShareButton } from '@/app/(landing)/components/share-button'
 import { IntegrationComparisonSection } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-comparison-section/integration-comparison-section'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
@@ -455,7 +456,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
       <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
-      <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+      <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'>
         <div className='mb-6'>
           <BackLink href='/integrations' label='Back to Integrations' />
         </div>
@@ -474,7 +475,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           <div>
             <h1
               id='integration-heading'
-              className='text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
+              className={cn('text-[var(--text-primary)]', PUBLIC_PAGE_TYPE.detail)}
             >
               {seo?.h1 ?? name}
             </h1>

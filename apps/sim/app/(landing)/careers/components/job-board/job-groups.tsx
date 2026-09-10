@@ -84,11 +84,11 @@ function JobRow({ posting }: JobRowProps) {
       rel='noopener noreferrer'
       className={cn(
         '-mx-3 group flex items-center justify-between gap-6 rounded-lg border-[var(--border)]',
-        'border-t px-3 py-5 transition-colors hover:bg-[var(--surface-hover)]'
+        'border-t px-3 py-6 transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-2 motion-reduce:transition-none'
       )}
     >
       <div className='flex min-w-0 flex-col gap-1.5'>
-        <h4 className='truncate font-medium text-[var(--text-primary)] text-base'>
+        <h4 className='text-pretty font-normal text-[var(--text-primary)] text-lg max-sm:text-base'>
           {posting.title}
         </h4>
         <div className='flex flex-wrap items-center gap-x-2 gap-y-1 text-[var(--text-muted)] text-sm'>
@@ -107,7 +107,7 @@ function JobRow({ posting }: JobRowProps) {
 
       <span className='flex shrink-0 items-center gap-1.5 font-medium text-[var(--text-body)] text-sm'>
         Apply
-        <ArrowRight className='size-[14px] text-[var(--text-icon)] transition-transform group-hover:translate-x-0.5' />
+        <ArrowRight className='size-[14px] text-[var(--text-icon)] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none' />
       </span>
     </a>
   )

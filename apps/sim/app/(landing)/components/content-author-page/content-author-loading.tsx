@@ -6,7 +6,7 @@ const AUTHOR_POST_SKELETON_COUNT = 4
 export function ContentAuthorLoading() {
   return (
     <section className='bg-[var(--bg)]'>
-      <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
+      <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-12 max-md:px-7 max-lg:px-8 max-xl:px-9 max-xl:pt-20'>
         <Skeleton className='mb-6 h-[16px] w-[100px] rounded-md bg-[var(--surface-hover)]' />
         <div className='flex items-center gap-4'>
           <Skeleton className='size-[64px] rounded-full bg-[var(--surface-hover)]' />
