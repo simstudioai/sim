@@ -160,20 +160,18 @@ describe('Slack empty threads through sync jobs, indexing and search', () => {
       accessToken: 'fixture-slack-token',
     })
     vi.stubGlobal('fetch', providerFetch)
-    await db
-      .insert(document)
-      .values({
-        id: documentId,
-        knowledgeBaseId: ids.knowledgeBaseId,
-        connectorId: ids.connectorId,
-        externalId: EXTERNAL_ID,
-        filename: 'Thread.txt',
-        mimeType: 'text/plain',
-        fileUrl: '',
-        fileSize: 0,
-        processingStatus: 'failed',
-        processingError: 'Synthetic previous source failure',
-      })
+    await db.insert(document).values({
+      id: documentId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorId: ids.connectorId,
+      externalId: EXTERNAL_ID,
+      filename: 'Thread.txt',
+      mimeType: 'text/plain',
+      fileUrl: '',
+      fileSize: 0,
+      processingStatus: 'failed',
+      processingError: 'Synthetic previous source failure',
+    })
   })
   afterAll(async () => {
     await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
