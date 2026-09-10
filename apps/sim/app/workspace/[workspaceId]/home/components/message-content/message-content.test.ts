@@ -846,7 +846,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
 
 describe('parseBlocks main activity controls', () => {
   it.each([undefined, 'main'])(
-    'retains blocking controls across prose and completion with spanId=%s',
+    'retains interaction controls and answers across prose and completion with spanId=%s',
     (spanId) => {
       const blocks: ContentBlock[] = [
         {
@@ -863,6 +863,17 @@ describe('parseBlocks main activity controls', () => {
             name: 'terminal',
             status: 'executing',
             params: { operation: 'handoff' },
+          },
+          timestamp: 2,
+        },
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'answered-takeover',
+            name: 'browser_request_takeover',
+            status: 'success',
+            params: { reason: 'Choose a result.' },
+            result: { success: true, output: { userInstruction: 'Open the second result.' } },
           },
           timestamp: 2,
         },
@@ -885,6 +896,7 @@ describe('parseBlocks main activity controls', () => {
       expect(visibleTools(blocks).map((tool) => tool.id)).toEqual([
         'permission',
         'handoff',
+        'answered-takeover',
         'latest',
       ])
       const completed = blocks.map((block) =>
@@ -895,6 +907,7 @@ describe('parseBlocks main activity controls', () => {
       expect(visibleTools(completed).map((tool) => tool.id)).toEqual([
         'permission',
         'handoff',
+        'answered-takeover',
         'latest',
       ])
       expect(visibleTools(completed).at(-1)?.status).toBe('success')

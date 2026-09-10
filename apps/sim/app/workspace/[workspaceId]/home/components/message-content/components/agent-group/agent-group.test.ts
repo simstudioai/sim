@@ -160,6 +160,46 @@ describe('AgentGroup inline main activity', () => {
     expect(container.querySelector('button, svg, [data-state], .pl-6')).toBeNull()
   })
 
+  it('keeps a browser question and answer after the main agent resumes tool activity', () => {
+    const takeover = browserTakeover('Choose a result.')
+    const items: AgentGroupItem[] = [
+      {
+        ...takeover,
+        data: {
+          ...takeover.data,
+          status: 'success',
+          result: { success: true, output: { userInstruction: 'Open the second result.' } },
+        },
+      },
+      {
+        type: 'tool',
+        data: {
+          id: 'resumed',
+          toolName: 'grep',
+          displayTitle: 'Searching files',
+          status: 'success',
+        },
+      },
+    ]
+
+    act(() => {
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          items,
+          isStreaming: false,
+        })
+      )
+    })
+
+    expect(container.querySelector('[data-takeover-answer="true"]')?.textContent).toBe(
+      'Choose a result.: Open the second result.'
+    )
+    expect(container.textContent).toContain('Searched files')
+    expect(container.querySelector('button, svg, [data-state], .pl-6')).toBeNull()
+  })
+
   it('keeps pending permissions and terminal handoffs visible when newer tools arrive', () => {
     const items: AgentGroupItem[] = [
       {
