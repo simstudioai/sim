@@ -176,6 +176,8 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 }
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
+  /** Trusted entry point for Search metering; never read from model arguments. */
+  searchSurface?: 'copilot' | 'slack'
   mcpBlockId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
   userId: string
@@ -337,6 +339,7 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  execContext.searchSurface = lifecycleOptions.searchSurface ?? 'copilot'
   if (lifecycleOptions.mcpBlockId) {
     execContext.mcpBlockId = lifecycleOptions.mcpBlockId
     execContext.executorDelegationOrigin = lifecycleOptions.executorDelegationOrigin

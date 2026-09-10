@@ -24,8 +24,8 @@ export function OrganizationSlackAccountRemoval({
       onOpenChange={(open) => {
         if (!open && !update.isPending) onClose()
       }}
-      title='Remove Slack account setup?'
-      text='This disconnects your organization’s Slack accounts and clears their saved app configuration. Remove any sources using these accounts first.'
+      title='Remove Slack app setup?'
+      text='This disconnects your organization’s Slack accounts and clears their saved app configuration. Remove any connections using these accounts first.'
       confirm={{
         label: 'Remove',
         variant: 'destructive',

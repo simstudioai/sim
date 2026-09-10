@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps, useState } from 'react'
+import { act, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -7,7 +7,7 @@ import type { SelectorRequest, SelectorResult } from '@/lib/selectors/types'
 import type { ConnectorConfigField } from '@/connectors/types'
 
 interface ComboboxProps {
-  options: { value: string; label: string }[]
+  options: { value: string; label: string; disabled?: boolean; onSelect?: () => void }[]
   isLoading: boolean
   onChange: (value: string) => void
   onMultiSelectChange?: (value: string[]) => void
@@ -21,9 +21,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/emcn', () => ({
   ChipCombobox: mocks.combobox,
-  Chip: ({ children, ...props }: ComponentProps<'button'>) => (
-    <button {...props}>{children}</button>
-  ),
 }))
 vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
 vi.mock('@/hooks/use-debounce', () => ({ useDebounce: (value: string) => value }))
@@ -174,35 +171,34 @@ async function renderBulkSelector() {
   document.body.appendChild(container)
   const root = createRoot(container)
   const change = vi.fn()
-  await act(async () =>
-    root.render(
-      <QueryClientProvider client={client}>
-        <ConnectorSelectorField
-          field={{ ...field, multi: true, allowSelectAll: true }}
-          value={['SAVED']}
-          onChange={change}
-          credentialId='credential-1'
-          sourceConfig={{ domain: 'example.atlassian.net' }}
-          configFields={[domainField, field]}
-          canonicalModes={{}}
-        />
-      </QueryClientProvider>
+  const rerender = (sourceConfig = { domain: 'example.atlassian.net' }) =>
+    act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <ConnectorSelectorField
+            field={{ ...field, multi: true, allowSelectAll: true }}
+            value={['SAVED']}
+            onChange={change}
+            credentialId='credential-1'
+            sourceConfig={sourceConfig}
+            configFields={[domainField, field]}
+            canonicalModes={{}}
+          />
+        </QueryClientProvider>
+      )
     )
-  )
-  const button = (label: string) => {
-    const element = Array.from(container.querySelectorAll('button')).find(
-      (item) => item.textContent === label
-    )
-    if (!element) throw new Error(`Missing ${label} button`)
-    return element
+  await rerender()
+  const all = () => {
+    const option = mocks.combobox.mock.lastCall![0].options.find((item) => item.label === 'All')
+    if (!option) throw new Error('Missing All option')
+    return option
   }
-  await act(async () =>
-    vi.waitFor(() => expect(button('Select all').disabled).toBe(false), { interval: 1 })
-  )
+  await act(async () => vi.waitFor(() => expect(all().disabled).toBe(false), { interval: 1 }))
   return {
     container,
     change,
-    button,
+    all,
+    rerender,
     dispose: async () => {
       await act(async () => root.unmount())
       client.clear()
@@ -211,7 +207,7 @@ async function renderBulkSelector() {
   }
 }
 
-it('selects every complete page, exposes the count, and clears explicitly', async () => {
+it('selects every complete page from All without an external toolbar', async () => {
   mocks.execute.mockImplementation(async ({ request }: { request: SelectorRequest }) =>
     request.kind === 'detail'
       ? { kind: 'detail', item: null }
@@ -221,8 +217,8 @@ it('selects every complete page, exposes the count, and clears explicitly', asyn
   )
   const view = await renderBulkSelector()
   try {
-    expect(view.container.textContent).toContain('1 selected')
-    await act(async () => view.button('Select all').click())
+    expect(view.container.textContent).not.toContain('Select all')
+    await act(async () => view.all().onSelect?.())
     await act(async () =>
       vi.waitFor(() => expect(view.change).toHaveBeenCalledWith(['ENG', 'OPS'], options), {
         interval: 1,
@@ -231,7 +227,7 @@ it('selects every complete page, exposes the count, and clears explicitly', asyn
     expect(mocks.execute.mock.calls.filter(([args]) => args.request.kind === 'list')).toHaveLength(
       2
     )
-    await act(async () => view.button('Clear').click())
+    await act(async () => mocks.combobox.mock.lastCall![0].onMultiSelectChange?.([]))
     expect(view.change).toHaveBeenLastCalledWith([], [])
   } finally {
     await view.dispose()
@@ -249,17 +245,21 @@ it.each(['partial', 'error'] as const)('preserves the selection on %s results', 
   })
   const view = await renderBulkSelector()
   try {
-    await act(async () => view.button('Select all').click())
+    await act(async () => view.all().onSelect?.())
     await act(async () =>
       vi.waitFor(() => expect(view.container.querySelector('[role="alert"]')).not.toBeNull(), {
         interval: 1,
       })
     )
+    await view.rerender()
+    expect(view.container.querySelector('[role="alert"]')).not.toBeNull()
     expect(view.change).not.toHaveBeenCalled()
-    expect(view.container.textContent).toContain('1 selected')
+    expect(view.container.textContent).not.toContain('Select all')
     expect(view.container.textContent).toContain(
       failure === 'error' ? 'Could not load all options' : 'too many results'
     )
+    await view.rerender({ domain: 'another.atlassian.net' })
+    expect(view.container.querySelector('[role="alert"]')).toBeNull()
   } finally {
     await view.dispose()
   }
@@ -280,15 +280,14 @@ it('disables bulk selection while searching and ignores a completion after the u
   const view = await renderBulkSelector()
   try {
     await act(async () => mocks.combobox.mock.lastCall![0].onSearchChange?.('Eng'))
-    expect(view.button('Select all').disabled).toBe(true)
-    expect(view.container.textContent).toContain('Clear search to select all')
+    expect(view.all().disabled).toBe(true)
     await act(async () => mocks.combobox.mock.lastCall![0].onSearchChange?.(''))
-    await act(async () => view.button('Select all').click())
-    await act(async () => view.button('Clear').click())
+    await act(async () => view.all().onSelect?.())
+    await act(async () => mocks.combobox.mock.lastCall![0].onMultiSelectChange?.([]))
     expect(view.change).toHaveBeenCalledTimes(1)
     await act(async () => resolvePage({ kind: 'list', items: [options[1]] }))
     await act(async () =>
-      vi.waitFor(() => expect(view.container.textContent).not.toContain('Selecting…'), {
+      vi.waitFor(() => expect(view.all().disabled).toBe(false), {
         interval: 1,
       })
     )

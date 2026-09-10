@@ -124,7 +124,7 @@ describe('connection method selection', () => {
     )
     expect(dropdown).toBeDisabled()
     expect(dropdown).toHaveTextContent(label)
-    expect(container.textContent).toContain('Create a new source to change the sync method.')
+    expect(container.textContent).toContain('Add a new connection to change the sync method.')
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
     await act(async () => dropdown!.click())
     expect(document.querySelector('[role="menu"]')).toBeNull()

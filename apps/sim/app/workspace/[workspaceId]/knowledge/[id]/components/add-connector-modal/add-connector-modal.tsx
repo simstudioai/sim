@@ -27,6 +27,7 @@ import {
   getServiceAccountProviderForProviderId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -84,6 +85,7 @@ interface AddConnectorModalProps {
   isSearchIndex?: boolean
   initialConnectorType?: string | null
   initialAccessMode?: ConnectorAccessSelection['accessMode']
+  lockConnectorType?: boolean
   /** The entry point has already chosen how this source connects. */
   lockedAccessMode?: 'members' | 'admin'
   initialSyncIntervalMinutes?: number
@@ -101,6 +103,7 @@ export function AddConnectorModal({
   isSearchIndex = false,
   initialConnectorType,
   initialAccessMode = 'workspace',
+  lockConnectorType = false,
   lockedAccessMode,
   initialSyncIntervalMinutes = 1440,
   onCreated,
@@ -133,7 +136,7 @@ export function AddConnectorModal({
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
     accessMode:
       lockedAccessMode ??
-      draft?.accessMode ??
+      (lockConnectorType ? initialAccessMode : draft?.accessMode) ??
       (isSearchIndex && initialAccessMode === 'workspace'
         ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
           ? 'admin'
@@ -146,7 +149,9 @@ export function AddConnectorModal({
   const [showMetadata, setShowMetadata] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
+  const [serviceAccountField, setServiceAccountField] = useState<'browsing' | 'content' | null>(
+    null
+  )
   const [showGitHubInstallationModal, setShowGitHubInstallationModal] = useState(false)
 
   const [apiKeyValue, setApiKeyValue] = useState('')
@@ -172,6 +177,11 @@ export function AddConnectorModal({
         },
       ]
     : undefined
+  const searchLabels =
+    isSearchIndex && selectedType
+      ? getSearchConnectionLabels(selectedType, access.accessMode)
+      : undefined
+  const modalTitle = searchLabels?.title ?? `Configure ${connectorConfig?.name}`
   const isMembersMode = access.accessMode === 'members'
   const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
   const isApiKeyMode =
@@ -391,7 +401,7 @@ export function AddConnectorModal({
                     value: '__service_account__',
                     label: serviceAccountTarget.label,
                     icon: Plus,
-                    onSelect: () => setShowServiceAccountModal(true),
+                    onSelect: () => setServiceAccountField('content'),
                   },
                 ]
               : []),
@@ -551,14 +561,14 @@ export function AddConnectorModal({
       <ChipModal
         open={open}
         onOpenChange={closeSetup}
-        srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
+        srTitle={step === 'select-type' ? 'Add source' : modalTitle}
         size='md'
         dismissDisabled={isCreating}
       >
         <ChipModalHeader onClose={() => closeSetup(false)}>
           {step === 'configure' ? (
             <span className='flex items-center gap-2'>
-              {!lockedAccessMode && (
+              {!lockConnectorType && !lockedAccessMode && (
                 <Chip
                   leftIcon={ArrowLeft}
                   aria-label='Choose another source'
@@ -569,10 +579,10 @@ export function AddConnectorModal({
                   }}
                 />
               )}
-              {`Configure ${connectorConfig?.name}`}
+              {modalTitle}
             </span>
           ) : (
-            'Connect Source'
+            'Add source'
           )}
         </ChipModalHeader>
 
@@ -683,11 +693,9 @@ export function AddConnectorModal({
                       title={
                         isMembersMode
                           ? 'Account for browsing'
-                          : isSearchIndex
-                            ? 'Indexing account'
-                            : canConnectOAuth
-                              ? 'Account'
-                              : 'Service account'
+                          : canConnectOAuth
+                            ? 'Account'
+                            : 'Service account'
                       }
                       hint={
                         isSearchIndex && isMembersMode
@@ -732,7 +740,7 @@ export function AddConnectorModal({
                                     label: serviceAccountTarget.label,
                                     value: '__service_account__',
                                     icon: Plus,
-                                    onSelect: () => setShowServiceAccountModal(true),
+                                    onSelect: () => setServiceAccountField('browsing'),
                                   },
                                 ]
                               : []),
@@ -894,7 +902,7 @@ export function AddConnectorModal({
                     : 'Connecting…'
                   : isMembersMode
                     ? scope.kind === 'organization'
-                      ? 'Add source'
+                      ? (searchLabels?.add ?? 'Add connection')
                       : 'Create & Invite'
                     : 'Connect & Sync',
                 onClick: handleSubmit,
@@ -903,10 +911,12 @@ export function AddConnectorModal({
             />
           ))}
       </ChipModal>
-      {showServiceAccountModal && canConnectServiceAccount && (
+      {serviceAccountField && canConnectServiceAccount && (
         <ConnectServiceAccountModal
           open
-          onOpenChange={setShowServiceAccountModal}
+          onOpenChange={(open) => {
+            if (!open) setServiceAccountField(null)
+          }}
           {...owner}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
           serviceName={serviceAccountTarget.serviceName}
@@ -917,7 +927,9 @@ export function AddConnectorModal({
               ? `${docsUrl}#using-a-service-account`
               : undefined
           }
-          onCreated={setSelectedCredentialId}
+          onCreated={
+            serviceAccountField === 'content' ? setContentCredentialId : setSelectedCredentialId
+          }
         />
       )}
       {showGitHubInstallationModal &&
@@ -955,7 +967,7 @@ export function AddConnectorModal({
             {...owner}
             knowledgeBaseId={knowledgeBaseId}
             connectorType={selectedType ?? undefined}
-            sourceAccess={lockedAccessMode === 'members' ? 'members' : undefined}
+            sourceAccess={access.accessMode === 'members' ? 'members' : undefined}
           />
         )}
     </>

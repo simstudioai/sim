@@ -758,6 +758,15 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  readOrganizationSearchStats: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.stats.read',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   approveSearchIntegration: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.approve',

@@ -118,3 +118,9 @@ describe('resolveChartPadding', () => {
     expect(padding.bottom).toBe(CHART_PADDING.bottom)
   })
 })
+
+it('keeps UTC bucket labels independent of the viewer time zone', () => {
+  const bucket = new Date('2026-09-10T00:00:00.000Z')
+  expect(formatTimeTick(bucket, 7 * 24 * 60 * 60 * 1000, 'UTC')).toBe('Sep 10')
+  expect(formatTimeTick(bucket, 7 * 24 * 60 * 60 * 1000, 'America/Los_Angeles')).toBe('Sep 9')
+})

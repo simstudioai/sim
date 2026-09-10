@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps } from 'react'
+import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { ConnectorConfigField } from '@/connectors/types'
@@ -13,9 +13,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/emcn', () => ({
   ChipCombobox: mocks.combobox,
-  Chip: ({ children, ...props }: ComponentProps<'button'>) => (
-    <button {...props}>{children}</button>
-  ),
 }))
 vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
 vi.mock('@/lib/selectors/context', () => ({ projectSelectorContext: mocks.projectContext }))
@@ -37,7 +34,7 @@ vi.mock('@/hooks/queries/selectors', () => ({
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field'
 
 interface ComboboxCallbacks {
-  options: { value: string; label: string; hidden?: boolean }[]
+  options: { value: string; label: string; hidden?: boolean; onSelect?: () => void }[]
   disabled: boolean
   onChange?: (value: string) => void
   onMultiSelectChange?: (value: string[]) => void
@@ -219,10 +216,9 @@ it('keeps the prior selection when all personal setup options exceed its source 
         />
       )
     )
-    const button = Array.from(container.querySelectorAll('button')).find(
-      (item) => item.textContent === 'Select all'
-    )
-    await act(async () => button?.click())
+    const all = mocks.combobox.mock.lastCall![0].options.find((item) => item.label === 'All')
+    expect(container.textContent).not.toContain('Select all')
+    await act(async () => all?.onSelect?.())
     expect(mocks.loadAll).toHaveBeenCalledTimes(1)
     expect(mocks.change).not.toHaveBeenCalled()
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(

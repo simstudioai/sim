@@ -53,7 +53,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
         query: projected.value,
         topK,
         filters: intersectWorkspaceSearchFilters(requestedFilters, context?.assistantSearch),
-        surface: 'copilot',
+        surface: context?.searchSurface ?? 'copilot',
         resultSecretRegistry: registry,
         signal: context?.abortSignal,
       } as const

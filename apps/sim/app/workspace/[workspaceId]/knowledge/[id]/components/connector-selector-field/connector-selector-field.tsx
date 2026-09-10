@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Chip, ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn'
+import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { projectSelectorContext } from '@/lib/selectors/context'
@@ -125,6 +126,7 @@ export function ConnectorSelectorField({
     truncated,
     loadMore,
     loadAll,
+    refetch,
     error,
   } = useSelectorOptions(field.selectorKey, {
     context,
@@ -211,8 +213,19 @@ export function ConnectorSelectorField({
   }
 
   const hasSearch = searchTerm.trim().length > 0 || debouncedSearch.length > 0
+  const selectedIdSet = new Set(selectedIds)
+  const allSelected =
+    !hasMore &&
+    !truncated &&
+    options.length > 0 &&
+    selectedIds.length === options.length &&
+    options.every((option) => selectedIdSet.has(option.id))
   const selectAll = async () => {
     if (!isEnabled || hasSearch || isFetching || isLoadingAll) return
+    if (allSelected) {
+      handleChange([])
+      return
+    }
     const generation = ++bulkGenerationRef.current
     setBulkError(null)
     const result = await loadAll()
@@ -251,7 +264,21 @@ export function ConnectorSelectorField({
           {...controlAria}
           aria-label={field.title}
           multiSelect
-          options={comboboxOptions}
+          options={
+            field.allowSelectAll && (options.length > 0 || hasMore)
+              ? [
+                  {
+                    value: '',
+                    label: 'All',
+                    disabled: !isEnabled || hasSearch || isFetching || isLoadingAll,
+                    onSelect: () => void selectAll(),
+                    keepOpen: true,
+                    selected: allSelected,
+                  },
+                  ...comboboxOptions,
+                ]
+              : comboboxOptions
+          }
           multiSelectValues={multiValues}
           onMultiSelectChange={handleChange}
           searchable
@@ -266,44 +293,19 @@ export function ConnectorSelectorField({
           }
           disabled={disabled || !credentialId || !depsResolved}
           isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
-          hasMore={hasMore}
+          hasMore={hasMore || Boolean(error)}
           isLoadingMore={isFetchingMore}
           isLoadingAll={isLoadingAll}
           truncated={truncated}
-          onLoadMore={loadMore}
-          onLoadAll={loadAll}
+          onLoadMore={error ? refetch : loadMore}
+          onLoadAll={error ? refetch : loadAll}
           emptyMessage={emptyMessage}
+          error={error?.message}
         />
-        {field.allowSelectAll && (
-          <>
-            <div className='flex items-center gap-1'>
-              <Chip
-                type='button'
-                disabled={!isEnabled || hasSearch || isFetching || isLoadingAll}
-                onClick={() => void selectAll()}
-              >
-                {isLoadingAll ? 'Selecting…' : 'Select all'}
-              </Chip>
-              <Chip
-                type='button'
-                disabled={!isEnabled || multiValues.length === 0}
-                onClick={() => handleChange([])}
-              >
-                Clear
-              </Chip>
-              <span className='text-[var(--text-muted)] text-caption'>
-                {multiValues.length} selected
-              </span>
-            </div>
-            {hasSearch && (
-              <p className='text-[var(--text-muted)] text-caption'>Clear search to select all.</p>
-            )}
-            {bulkError?.context === context && (
-              <p role='alert' className='text-[var(--text-error)] text-caption'>
-                {bulkError.message}
-              </p>
-            )}
-          </>
+        {bulkError && isEqual(bulkError.context, context) && (
+          <p role='alert' className='text-[var(--text-error)] text-caption'>
+            {bulkError.message}
+          </p>
         )}
       </div>
     )
@@ -328,13 +330,14 @@ export function ConnectorSelectorField({
       }
       disabled={disabled || !credentialId || !depsResolved}
       isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
-      hasMore={hasMore}
+      hasMore={hasMore || Boolean(error)}
       isLoadingMore={isFetchingMore}
       isLoadingAll={isLoadingAll}
       truncated={truncated}
-      onLoadMore={loadMore}
-      onLoadAll={loadAll}
+      onLoadMore={error ? refetch : loadMore}
+      onLoadAll={error ? refetch : loadAll}
       emptyMessage={emptyMessage}
+      error={error?.message}
     />
   )
 }
@@ -346,7 +349,7 @@ function getEmptyMessage(
     truncated: boolean
   }
 ): string {
-  if (state.error) return 'No match — the list failed to load. Try reopening'
+  if (state.error) return 'Could not load options. Try again.'
   if (state.truncated) return 'No match — too many to list. Try a more exact term'
   return `No ${noun} found`
 }

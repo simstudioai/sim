@@ -302,7 +302,7 @@ export function SlackManagedUsersModal({
 
   const noBots = !organizationSetup && !isLoading && bots.length === 0
   const needsApp = organizationSetup && apps.isSuccess && availableApps.length === 0
-  const title = organizationSetup ? 'Connect Slack accounts' : 'Set up Slack'
+  const title = organizationSetup ? 'Set up Slack app' : 'Set up Slack'
   const primaryLabel = isLoading
     ? 'Loading...'
     : pending

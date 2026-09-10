@@ -45,6 +45,8 @@ interface BarChartProps {
   /** `''` | `'%'` | `'ms'` | `'latency'` | `'credits'` — drives tick and tooltip formatting. */
   unit?: string
   height?: number
+  /** Display bucket dates in this zone; omitted uses the viewer’s local zone. */
+  timeZone?: string
   /** Bucket drawn at full opacity, e.g. the period in progress. */
   highlightIndex?: number
 }
@@ -75,6 +77,7 @@ function BarChartComponent({
   unit,
   height = CHART_DEFAULT_HEIGHT,
   highlightIndex,
+  timeZone,
 }: BarChartProps) {
   /*
     `useId`, not `useRef(generateShortId())`: a ref initializer is evaluated on
@@ -311,7 +314,7 @@ function BarChartComponent({
                 textAnchor='middle'
                 fill={CHART_TICK_FILL}
               >
-                {Number.isNaN(date.getTime()) ? '' : formatTimeTick(date, spanMs)}
+                {Number.isNaN(date.getTime()) ? '' : formatTimeTick(date, spanMs, timeZone)}
               </text>
             )
           })}
@@ -352,7 +355,7 @@ function BarChartComponent({
           (() => {
             const bar = bars[hoverIndex]
             const value = formatBarValue(bar.point.value, unit)
-            const date = formatChartTimestamp(bar.point.timestamp)
+            const date = formatChartTimestamp(bar.point.timestamp, timeZone)
             const { left, top } = positionChartTooltip({
               anchorX: hoverPos?.x ?? bar.x,
               anchorY: hoverPos?.y ?? bar.y,

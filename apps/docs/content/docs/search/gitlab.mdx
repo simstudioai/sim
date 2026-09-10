@@ -9,8 +9,6 @@ import { Image } from '@/components/ui/image'
 
 GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed primary GitLab email.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={520} height={479} />
-
 Admin setup uses your organization's **Settings → Sources** page. Teammates do not need a personal GitLab connection. For workspace Search, use **Search → Add source** instead.
 
 ## Before you start
@@ -49,12 +47,12 @@ The token must read the project, users, inherited project membership, instance s
 
 ### Configure the source in Sim
 
-Open **Settings → Sources** and turn on **GitLab**. Select **Set up** (or **Manage** if sources already exist), then **Add source**. Paste the **Personal Access Token**, enter your **Host** and **Project**, and choose the content to index.
+Open **Settings → Sources → Add source** and select **GitLab**. This opens **Add GitLab project**. Add one project per connection; to add another, open **GitLab** from the Sources list and select **Add project**. Paste the **Personal Access Token**, enter your **Host** and **Project**, and choose the content to index.
 
 | Field | What to enter |
 |---|---|
 | Host | Your self-managed domain, such as `gitlab.example.com`. |
-| Project | `group/project` or the numeric project ID. Add another source for another project. |
+| Project | `group/project` or the numeric project ID. Use **Add project** for another project. |
 | Content | Defaults to **Wiki & Issues**. Choose **Code, Wiki, Issues & Merge Requests** to include all supported types. |
 | Branch | Optional branch or tag for repository files; blank uses the project's default branch. |
 | Path Filter / File Extensions | Optional limits for repository files. |
@@ -62,8 +60,6 @@ Open **Settings → Sources** and turn on **GitLab**. Select **Set up** (or **Ma
 | Max Items | Optional positive whole-number limit. Leave blank for all matching items. |
 
 **More options** contains the repository and issue filters, **Max Items**, and **Metadata tags**. Unlike member-account sources, GitLab retains this optional item limit.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/gitlab-options.jpg" alt="GitLab source setup with More options expanded for repository and issue filters, item limit, and metadata tags" width={520} height={625} />
 
 Select **Connect & Sync**. Sim validates the token and source policy, then starts indexing.
 
@@ -74,7 +70,7 @@ Select **Connect & Sync**. Sim validates the token and source policy, then start
 
 Invite teammates to the Sim organization using their verified work email. Sim matches that email against their confirmed primary GitLab email and applies project, feature, and confidential-issue permissions. Confirmed secondary addresses are not matched. No GitLab **Connect** step is required.
 
-Admins open **Settings → Sources**, select **Manage** beside **GitLab**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. GitLab has no personal **Accounts** tab. Permission and membership changes are picked up during background refreshes.
+Admins open **Settings → Sources**, open **GitLab**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. Permission and membership changes are picked up during background refreshes.
 
 </Step>
 </Steps>

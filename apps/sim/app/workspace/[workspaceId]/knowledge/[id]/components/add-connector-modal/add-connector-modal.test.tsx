@@ -162,6 +162,7 @@ vi.mock(
         <button
           onClick={() => {
             mocks.credentials = [
+              ...mocks.credentials,
               { id: 'new-service-account', name: 'New service account', type: 'service_account' },
             ]
             props.onCreated('new-service-account')
@@ -417,6 +418,58 @@ describe('Slack member setup readiness', () => {
 })
 
 describe('Search methods requiring member identity', () => {
+  it.each(['browsing', 'content'] as const)(
+    'assigns a new service account to the %s field without changing the other credential',
+    async (field) => {
+      mocks.serviceAccountTarget = {
+        serviceAccountProviderId: 'google-service-account',
+        serviceName: 'Google',
+        serviceIcon: googleDriveConnectorMeta.icon,
+        label: 'Add service account',
+        hidden: false,
+      }
+      await render({
+        initialConnectorType: 'google_drive',
+        initialAccessMode: 'members',
+        scope: { kind: 'organization', organizationId: 'org-1' },
+      })
+      await act(async () => button('More options').click())
+      await act(async () => combobox('Source account').click())
+      const sourceOption = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((option) => option.textContent?.trim() === 'Source account')
+      expect(sourceOption).toBeDefined()
+      await act(async () =>
+        sourceOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      await act(async () =>
+        combobox(field === 'content' ? 'Connected members' : 'Source account').click()
+      )
+      const serviceOption = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((option) => option.textContent?.trim() === 'Add service account')
+      expect(serviceOption).toBeDefined()
+      await act(async () =>
+        serviceOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      await act(async () => button('Finish service account setup').click())
+
+      expect(combobox('New service account')).toBeDefined()
+      expect(configFieldsProps().credentialId).toBe(
+        field === 'content' ? 'credential-1' : 'new-service-account'
+      )
+      expect(combobox(field === 'content' ? 'Source account' : 'Connected members')).toBeDefined()
+      await act(async () => button('Set up member accounts').click())
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessMode: 'members',
+          credentialId: field === 'content' ? 'new-service-account' : undefined,
+        }),
+        expect.any(Object)
+      )
+    }
+  )
+
   it('selects a GitHub installation for content while preserving member access', async () => {
     mocks.resolveSourceConfig.mockReturnValue({ repository: 'acme/docs' })
     await render({
@@ -436,7 +489,7 @@ describe('Search methods requiring member identity', () => {
     )
     await act(async () => button('Use GitHub installation').click())
     expect(combobox('GitHub App: acme')).toBeDefined()
-    await act(async () => button('Add source').click())
+    await act(async () => button('Add repository').click())
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialId: 'github-app-credential',
@@ -471,7 +524,7 @@ describe('Search methods requiring member identity', () => {
       expect(document.body.textContent).not.toContain('Sync using')
       expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
       await act(async () =>
-        button(accessMode === 'admin' ? 'Connect & Sync' : 'Add source').click()
+        button(accessMode === 'admin' ? 'Connect & Sync' : 'Add Confluence site').click()
       )
       expect(mocks.create).toHaveBeenCalledWith(
         expect.objectContaining({ connectorType: 'confluence', accessMode }),
@@ -501,7 +554,7 @@ describe('Search methods requiring member identity', () => {
     })
     expect(document.body.textContent).not.toContain('Sync using')
     expect(document.body.textContent).not.toContain('Choose another source')
-    await act(async () => button('Add source').click())
+    await act(async () => button('Add Confluence site').click())
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         connectorType: 'confluence',
@@ -991,7 +1044,7 @@ describe('Account connection dropdown', () => {
     })
 
     expect(document.body.textContent).toContain('Account for browsing')
-    expect(button('Add source')).toBeEnabled()
+    expect(button('Add Confluence site')).toBeEnabled()
     await act(async () => combobox('Select Confluence account').click())
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
     expect(options.map((option) => option.textContent?.trim())).toEqual([
@@ -1029,7 +1082,7 @@ describe('Account connection dropdown', () => {
     await render({ initialConnectorType: 'confluence', initialAccessMode: 'admin' })
 
     expect(document.body.textContent).toContain('Could not load accounts')
-    expect(document.body.textContent).not.toContain('Connect Confluence')
+    expect(document.body.textContent).not.toContain('Connect Confluence account')
     expect(button('Connect & Sync')).toBeDisabled()
     await act(async () => button('Try again').click())
     expect(mocks.refetchCredentials).toHaveBeenCalledOnce()

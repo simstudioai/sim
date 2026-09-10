@@ -39,6 +39,7 @@ import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
+import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
@@ -687,7 +688,16 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       resultSecretRegistry: registry,
     }
   },
-  afterSuccess: ({ principal, context, input, result }) => {
+  afterSuccess: async ({ principal, context, input, result }) => {
+    const actorUserId = resolvePrincipalSubjectUserId(principal)
+    if (context.organizationId && actorUserId) {
+      await recordOrganizationSearchActivity({
+        organizationId: context.organizationId,
+        userId: actorUserId,
+        surface: input.surface ?? 'other',
+        results: result.results,
+      })
+    }
     PlatformEvents.knowledgeBaseSearched({
       knowledgeBaseId: result.knowledgeBaseId,
       knowledgeBaseIds: result.knowledgeBaseIds,

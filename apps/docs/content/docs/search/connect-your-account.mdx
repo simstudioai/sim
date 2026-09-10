@@ -23,7 +23,7 @@ For a central Google source, use your primary Workspace email and open **Search*
 
 ## Open Integrations
 
-Open **Integrations** in the main sidebar, find the provider or source, and select **Connect**. Your first connection may ask for a GitHub repository, Confluence domain and space keys, or Jira domain and project keys. Enter the required fields and select **Connect**. If the provider is missing, ask an organization admin to turn it on under **Settings → Sources**.
+Open **Integrations** in the main sidebar, find the provider or source, and select **Connect**. First-time setup can also ask which content to index. For [Confluence](/search/confluence) and [Jira](/search/jira), connect your Atlassian account first, then choose the site and spaces or projects and select **Connect & Sync**. [GitHub](/search/github) asks for a repository. If the provider is missing, ask an organization admin to add it under **Settings → Sources → Add source**.
 
 To connect another supported repository, site, or project scope, find the provider row labeled **Connect a different site or content scope** and select **Connect**. Connecting an existing source does not ask you to configure it again.
 
@@ -36,7 +36,7 @@ To connect another supported repository, site, or project scope, find the provid
 
 Complete the provider's authorization in the new tab. Choose the account associated with your verified Sim email. The provider may require your organization's SSO or app approval.
 
-The authorization tab closes when the connection completes and Integrations updates. If the tab stays open, return to Integrations. Your account is saved when authorization completes; there is no separate submit step. If the popup was blocked or closed, allow popups and select **Connect** again. While authorization is pending, use **Open again**.
+The authorization tab closes when the connection completes and Integrations updates. If the tab stays open, return to Integrations. For an existing source, your account is saved when authorization completes. For first-time Atlassian setup, return to the form, choose your content, and select **Connect & Sync**. If the popup was blocked or closed, allow popups and select **Connect** again. While authorization is pending, use **Open again**.
 
 </Step>
 <Step>
@@ -74,7 +74,7 @@ An account connection request does not invite you into the Sim organization. You
 
 On the main **Integrations** page, use **Reconnect** beside an expired connection to renew it. To withdraw an account, open its row's actions menu and select **Disconnect**, then confirm. If several accounts are connected, choose the account to disconnect. Disconnecting stops that account from being used for organization indexing and workflows, and removes Search access that depends on it.
 
-Admins manage setup from **Settings → Sources**. Select **Manage** beside the integration. Providers with personal connections have **Accounts** and a source list under **Advanced** (Google) or **Sources**. Without personal connections, the source list opens directly. This does not grant the admin access to every document.
+Admins manage setup from **Settings → Sources**. Open an integration, then its connection to see **Documents**, **Settings**, and **Sync history**. **People** shows account contributors across integrations and supports filtering by integration. This does not grant the admin access to every document.
 
 ## If you get stuck
 
@@ -87,7 +87,7 @@ Admins manage setup from **Settings → Sources**. Select **Manage** beside the 
 | **Verify email** | Verify your Sim email to return to the connection page. Reopen the original link if you are not redirected. |
 | Expired or cancelled authorization | Return to the original connection page and start again. If the invitation itself expired, ask the admin for a new request. |
 | Access revoked | Ask the organization admin to restore your account contribution access before reconnecting. |
-| Needs admin attention | Ask your admin to open **Settings → Sources**, select **Manage** beside the integration, and open its source or sync configuration to inspect the error. |
+| Needs admin attention | Ask your admin to open **Settings → Sources**, select the integration, and open its connection to inspect the error. |
 
 <Callout type="info">
   Your Sim role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.

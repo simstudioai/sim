@@ -59,6 +59,8 @@ export type ComboboxOption = {
   iconElement?: ReactNode
   /** Custom select handler - when provided, this is called instead of onChange */
   onSelect?: () => void
+  /** Explicit selection state for action options whose values are not stored in the selection. */
+  selected?: boolean
   /** Whether this option is disabled */
   disabled?: boolean
   /** When true, keep the dropdown open after selecting this option */
@@ -738,9 +740,11 @@ const Combobox = memo(
         ) : null
 
       const renderFlatOption = (option: ComboboxOption, index: number) => {
-        const isSelected = multiSelect
-          ? multiSelectValues?.includes(option.value)
-          : effectiveSelectedValue === option.value
+        const isSelected =
+          option.selected ??
+          (multiSelect
+            ? multiSelectValues?.includes(option.value)
+            : effectiveSelectedValue === option.value)
         const isHighlighted = index === effectiveHighlightedIndex
         const OptionIcon = option.icon
 
@@ -988,7 +992,7 @@ const Combobox = memo(
                         Loading options...
                       </span>
                     </div>
-                  ) : error && filteredOptions.length === 0 && !hasMore ? (
+                  ) : error && filteredOptions.length === 0 ? (
                     <div className='px-1.5 py-3.5 text-center text-[var(--text-error)] text-caption'>
                       {error}
                     </div>
@@ -1009,9 +1013,11 @@ const Combobox = memo(
                                 </div>
                               )}
                           {group.items.map((option) => {
-                            const isSelected = multiSelect
-                              ? multiSelectValues?.includes(option.value)
-                              : effectiveSelectedValue === option.value
+                            const isSelected =
+                              option.selected ??
+                              (multiSelect
+                                ? multiSelectValues?.includes(option.value)
+                                : effectiveSelectedValue === option.value)
                             const globalIndex = filteredOptions.findIndex(
                               (o) => o.value === option.value
                             )

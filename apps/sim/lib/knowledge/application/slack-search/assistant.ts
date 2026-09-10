@@ -255,6 +255,7 @@ export async function runSlackSearchAssistant(
       abortSignal: controller.signal,
       timeout: SLACK_SEARCH_MAX_DURATION_SECONDS * 1000,
       autoExecuteTools: true,
+      searchSurface: 'slack',
       onEvent: async (event) => {
         try {
           await responseStream.onEvent(event)

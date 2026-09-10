@@ -223,8 +223,10 @@ describe('organization source detail navigation', () => {
       })
       await render(searchParams)
 
-      expect(container.textContent).toContain('Some source updates are incomplete')
-      expect(container.textContent).toContain('Review the source settings and try syncing again.')
+      expect(container.textContent).toContain('Some connection updates are incomplete')
+      expect(container.textContent).toContain(
+        'Review the connection settings and try syncing again.'
+      )
       expect(container.textContent).not.toContain('Provider denied')
       expect(container.textContent).not.toContain('org-private-id')
     }
@@ -232,8 +234,10 @@ describe('organization source detail navigation', () => {
 
   it('keeps a healthy active source quiet', async () => {
     await render()
-    expect(container.textContent).not.toContain('Some source updates are incomplete')
-    expect(container.textContent).not.toContain('Review the source settings and try syncing again.')
+    expect(container.textContent).not.toContain('Some connection updates are incomplete')
+    expect(container.textContent).not.toContain(
+      'Review the connection settings and try syncing again.'
+    )
   })
 
   it.each(['', '?view=settings', '?view=history'])(
@@ -277,7 +281,7 @@ describe('organization source detail navigation', () => {
     async (status) => {
       mocks.detail.mockReturnValue({ data: { ...connector, status, lastSyncError: 'Old failure' } })
       await render()
-      expect(container.textContent).not.toContain('Some source updates are incomplete')
+      expect(container.textContent).not.toContain('Some connection updates are incomplete')
     }
   )
 
@@ -303,7 +307,9 @@ describe('organization source detail navigation', () => {
         },
       })
       await render()
-      expect(container.textContent?.includes('Some source updates are incomplete')).toBe(showNotice)
+      expect(container.textContent?.includes('Some connection updates are incomplete')).toBe(
+        showNotice
+      )
       expect(container.textContent).not.toContain('private-account-id')
     }
   )
@@ -335,7 +341,7 @@ describe('organization source detail navigation', () => {
     await render()
     expect(mocks.actions).not.toHaveBeenCalled()
     expect(mocks.documents).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Loading source')
+    expect(container.textContent).toContain('Loading connection')
   })
   it('does not load protected source data for non-admins', async () => {
     mocks.admin = false
@@ -352,7 +358,7 @@ describe('organization source detail navigation', () => {
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: null }, isPending: false })
     mocks.detail.mockReturnValue({})
     await render()
-    expect(container.textContent).toContain('This source is no longer available')
+    expect(container.textContent).toContain('This connection is no longer available')
     expect(mocks.actions).not.toHaveBeenCalled()
     await click('Sources')
     expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
@@ -386,7 +392,7 @@ describe('organization source detail navigation', () => {
     const sync = Array.from(container.querySelectorAll('button')).find(
       (item) => item.textContent === 'Sync now'
     )
-    const tabs = container.querySelector('[aria-label="Source views"]')
+    const tabs = container.querySelector('[aria-label="Connection views"]')
     expect(sync).toBeTruthy()
     expect(tabs).toBeTruthy()
     expect(sync!.compareDocumentPosition(tabs!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)

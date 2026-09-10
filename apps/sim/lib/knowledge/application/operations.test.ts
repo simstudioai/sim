@@ -78,6 +78,7 @@ describe('knowledge operation registry', () => {
       'knowledge.search.sources.progress',
       'knowledge.search.integrations.list',
       'knowledge.search.integrations.overview',
+      'knowledge.search.stats.read',
       'knowledge.search.integrations.approve',
       'knowledge.connectors.members.list',
       'knowledge.connectors.members.enroll',

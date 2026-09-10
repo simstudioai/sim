@@ -16,7 +16,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
   configFields: [
     {
       id: 'domain',
-      title: 'Jira Domain',
+      title: 'Jira site',
       type: 'short-input',
       placeholder: 'yoursite.atlassian.net',
       required: true,

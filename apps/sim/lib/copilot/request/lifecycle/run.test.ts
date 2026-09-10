@@ -283,6 +283,35 @@ describe('runCopilotLifecycle', () => {
     }
   )
 
+  it.each([
+    { surface: undefined, expected: 'copilot' },
+    { surface: 'slack' as const, expected: 'slack' },
+  ])(
+    'stamps trusted Search provenance as $expected over payload and context',
+    async ({ surface, expected }) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      const supplied = expected === 'slack' ? 'copilot' : 'slack'
+      await runCopilotLifecycle(
+        { message: 'Search', mode: 'assistant', searchSurface: supplied },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          searchSurface: surface,
+          executionContext: {
+            userId: 'user-1',
+            workspaceId: 'ws-1',
+            workflowId: '',
+            searchSurface: supplied,
+          },
+        }
+      )
+      expect(captured?.searchSurface).toBe(expected)
+    }
+  )
+
   it('forwards the configured Mothership system prompt override', async () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
 

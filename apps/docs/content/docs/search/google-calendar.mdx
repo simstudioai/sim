@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Search meetings and event details available to your Google account. Members can connect personal accounts, or a Google Workspace administrator can configure a central service-account crawl. Both paths keep each person's own view of events separate.
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead.
 
 ## Choose your setup
 
@@ -29,28 +29,28 @@ These are alternative setup paths. When only a central Calendar source is config
 
 ### Allow and connect Google Calendar
 
-An admin opens **Settings → Sources** and turns on **Google Calendar**. Each person joins the Sim organization, opens **Integrations**, selects **Connect** beside Google Calendar, and authorizes the Google account matching their verified Sim email. The first connection creates the default member-account sync configuration. Return to Integrations to see indexing status and your searchable document count.
+An admin selects **Settings → Sources → Add source → Google Calendar**, chooses **Sync using → Member accounts**, sets any filters, and selects **Set up member accounts**. Each person joins the Sim organization, opens **Integrations**, selects **Connect** beside Google Calendar, and authorizes the Google account matching their verified Sim email. Return to Integrations to see indexing status and your searchable document count.
 
 </Step>
 <Step>
 
 ### Choose calendars if needed
 
-An admin selects **Manage** beside Google Calendar in **Settings → Sources**, opens **Advanced**, and selects the configuration's **Settings** tab. Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select an **Account for browsing** and choose calendars, or switch to **Calendar IDs** and enter their IDs.
+An admin opens **Settings → Sources → Google Calendar**, selects the connection, then opens **Settings**. Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select an **Account for browsing** and choose calendars, or switch to **Calendar IDs** and enter their IDs.
 
 **Account for browsing** only helps you choose calendars. It does not connect your account for Search or grant teammates access.
 
 </Step>
 <Step>
 
-### Save the configuration
+### Save the connection
 
-The default date range covers the previous and next 30 days. Save any changes to the existing configuration. Its calendar and date filters apply separately to each connected member's access. **Add sync configuration** opens the [central service-account setup](#set-up-a-central-service-account); it does not edit this member configuration.
+The default date range covers the previous and next 30 days. Save any changes to the existing connection. Its calendar and date filters apply separately to each connected member's access. **Connect service account** opens the [central service-account setup](#set-up-a-central-service-account); it does not edit this member connection.
 
 </Step>
 </Steps>
 
-Admins can request member connections from **Manage → Accounts → Request connections**. These requests do not grant organization membership. Connecting Gmail or Drive does not replace the Calendar connection. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
+Admins can request member connections from **Settings → Sources → People → Request connections** (filter by the integration first). These requests do not grant organization membership. Connecting Gmail or Drive does not replace the Calendar connection. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
 
 <Callout type="info">
   `primary` means the connected or impersonated person's main calendar. A calendar selected from the list is a specific calendar ID, even when it is your main calendar. That same ID applies to every selected user, and only users with access to it can search its events.
@@ -58,7 +58,7 @@ Admins can request member connections from **Manage → Accounts → Request con
 
 ## Set up a central service account
 
-Open **Settings → Sources** and turn on **Google Calendar**. Select **Manage → Advanced → Add sync configuration** to open the central service-account form. If personal connections are disabled for your organization, select **Add source** from the provider page instead.
+Open **Settings → Sources → Add source** and select **Google Calendar**. This opens **Connect Google Calendar service account**. To add another connection later, open **Google Calendar** from the Sources list and select **Connect service account**.
 
 This requires a Google Workspace customer and a super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path.
 
@@ -93,7 +93,7 @@ The **Directory administrator email** must be an active Workspace administrator 
 
 ### Add the credential and choose users
 
-Under **Indexing account**, select **Add service account** or an existing service account. In **Add Google Service Account**, give the credential a name and paste its JSON key. Back in the source form, enter the **Directory administrator email**.
+Under **Service account**, select **Add service account** or an existing service account. In **Add Google Service Account**, give the credential a name and paste its JSON key. Back in the source form, enter the **Directory administrator email**.
 
 Leave **Calendar IDs** empty for each user's `primary` calendar. To include shared calendars, enter their IDs, optionally alongside `primary`. IDs apply to each selected user who can read that calendar; this does not share calendars or expand anyone's Google access. Central setup uses manual IDs because an administrator's calendar picker would not represent every user's calendars.
 
@@ -106,9 +106,9 @@ Sim verifies Directory access and selected users, then probes one selected user'
 
 ## Source options
 
-An admin opens **Settings → Sources** and selects **Manage** beside **Google Calendar** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed events and **Sync history** shows recent runs.
+An admin opens **Settings → Sources → Google Calendar** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a connection's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed events and **Sync history** shows recent runs.
 
-**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Indexing account** and select **Change indexing account**.
+**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Service account** and select **Change service account**.
 
 | Option | Behavior |
 | --- | --- |
@@ -153,7 +153,7 @@ The deployment operator configures Google OAuth for member accounts and the memb
 1. In [Google Cloud Console](https://console.cloud.google.com/), select your project. Open **APIs & Services → Library**, find **Google Calendar API**, and enable it.
 2. Open **Google Auth platform → Branding** and configure the app name and contact details. Under **Audience**, choose **Internal** for your Google Workspace organization only, or **External** for other users. Add test users while an external app is testing. Review **Data Access → Add or remove scopes** using the current Sim scopes below. See Google's [consent and verification guidance](https://developers.google.com/workspace/guides/configure-oauth-consent).
 3. Open **Google Auth platform → Clients → Create client**, choose **Web application**, and add the URI below under **Authorized redirect URIs**. Add it to the existing Google client if the instance already uses one. See [Google's credential setup](https://developers.google.com/workspace/guides/create-credentials#web-application).
-4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected teammates reconnect.
+4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Update sign-in settings**, then affected teammates reconnect.
 
 ```text
 https://<your-sim-domain>/api/auth/oauth2/callback/google-calendar
