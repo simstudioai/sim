@@ -147,13 +147,21 @@ function memberResponseStatus(event: CalendarEvent): string | undefined {
 /**
  * Whether the event carries something to search. Status entries (working
  * location, out of office, focus time, birthdays) describe availability rather
- * than a meeting, and a reader with free/busy access alone sees a time block
- * with no title or description.
+ * than a meeting. A reader with free/busy access alone receives a bare time
+ * block: Google strips the title, description, location, organizer and
+ * attendees, so an event with none of those is that placeholder. An untitled
+ * meeting that still names a room or its participants stays indexed.
  */
 function isSearchableEvent(event: CalendarEvent): boolean {
   if (event.status === 'cancelled') return false
   if (event.eventType && event.eventType !== INDEXED_EVENT_TYPE) return false
-  return Boolean(event.summary?.trim() || event.description?.trim())
+  return Boolean(
+    event.summary?.trim() ||
+      event.description?.trim() ||
+      event.location?.trim() ||
+      event.organizer ||
+      (event.attendees && event.attendees.length > 0)
+  )
 }
 
 /**

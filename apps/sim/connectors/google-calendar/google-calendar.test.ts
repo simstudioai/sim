@@ -189,6 +189,31 @@ describe('Google Calendar Search isolation', () => {
     expect(restricted.documents[0].metadata?.organizer).toBe('')
   })
 
+  it('keeps an untitled meeting that still names a room or its participants', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        items: [
+          { ...EVENT, id: 'room', summary: undefined, description: undefined },
+          {
+            ...EVENT,
+            id: 'bare-location',
+            summary: undefined,
+            description: undefined,
+            organizer: undefined,
+            attendees: undefined,
+          },
+        ],
+      })
+    )
+    const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
+    expect(result.documents.map((doc) => doc.externalId)).toEqual([
+      expect.stringContaining('room'),
+      expect.stringContaining('bare-location'),
+    ])
+    expect(result.documents[0].content).toContain(ATTENDEE_NAME)
+    expect(result.documents[1].content).toContain(EVENT.location)
+  })
+
   it('withdraws a free/busy time block that carries no title or description', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
