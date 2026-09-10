@@ -36,7 +36,6 @@ export function AtlassianSourceSetupModal({
   onClose,
   onConnected,
 }: AtlassianSourceSetupModalProps) {
-  const [selectedAccount, setSelectedAccount] = useState<string>()
   const account = usePersonalSourceAccount({
     organizationId,
     connectorType,
@@ -50,6 +49,7 @@ export function AtlassianSourceSetupModal({
     connectorConfig: connector.meta,
     accessMode: 'members',
   })
+  const [selectedAccount, setSelectedAccount] = useState<string>()
   const accounts = account.accounts.data?.accounts ?? []
   const requestedAccount =
     selectedAccount ??

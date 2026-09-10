@@ -354,6 +354,87 @@ describe('Confluence server selector adapters', () => {
     ).rejects.toMatchObject({ name: 'SelectorConnectionUnavailableError', status: 403 })
   })
 
+  it.each([
+    { failedStatus: 'current', status: 401 },
+    { failedStatus: 'current', status: 403 },
+    { failedStatus: 'current', status: 429 },
+    { failedStatus: 'archived', status: 401 },
+    { failedStatus: 'archived', status: 403 },
+    { failedStatus: 'archived', status: 429 },
+  ])(
+    'preserves $status from the $failedStatus lookup when the other status has no matching space',
+    async ({ failedStatus, status }) => {
+      mockFetch.mockImplementation((input: URL) =>
+        new URL(input).searchParams.get('status') === failedStatus
+          ? new Response(null, { status })
+          : Response.json({ results: [{ id: '99999', key: 'OTHER', name: 'Other space' }] })
+      )
+
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+      ).rejects.toMatchObject({
+        name:
+          status === 429 ? 'SelectorOptionsUnavailableError' : 'SelectorConnectionUnavailableError',
+        status,
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it.each(['current', 'archived'] as const)(
+    'returns an exact %s match even when the other status lookup fails',
+    async (matchingStatus) => {
+      mockFetch.mockImplementation((input: URL) =>
+        new URL(input).searchParams.get('status') === matchingStatus
+          ? Response.json({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] })
+          : new Response(null, { status: 429 })
+      )
+
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+      ).resolves.toEqual({
+        kind: 'detail',
+        item: {
+          id: 'ENG',
+          label:
+            matchingStatus === 'archived' ? 'Engineering (ENG) — archived' : 'Engineering (ENG)',
+        },
+      })
+    }
+  )
+
+  it('reports a space key missing only when both status lookups succeed without a match', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        Response.json({ results: [{ id: '99999', key: 'OTHER', name: 'Other space' }] })
+      )
+      .mockResolvedValueOnce(Response.json({ results: [] }))
+
+    await expect(
+      confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+    ).resolves.toEqual({ kind: 'detail', item: null })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('sanitizes an arbitrary partial lookup failure rather than reporting the key missing', async () => {
+    const fetchProviderJson = vi
+      .spyOn(providerHttp, 'fetchProviderJson')
+      .mockRejectedValueOnce(new Error('raw provider failure'))
+      .mockResolvedValueOnce({ results: [] })
+
+    try {
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+      ).rejects.toMatchObject({
+        name: 'SelectorOptionsUnavailableError',
+        message: 'Options unavailable',
+        status: 502,
+      })
+    } finally {
+      fetchProviderJson.mockRestore()
+    }
+  })
+
   it('preserves the first safe provider failure when both space detail requests fail', async () => {
     mockFetch
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
