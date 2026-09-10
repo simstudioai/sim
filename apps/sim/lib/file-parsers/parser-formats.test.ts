@@ -2,11 +2,11 @@
  * @vitest-environment node
  *
  * Pins the `degraded` metadata contract to the parsers' real behaviour, using
- * genuine OOXML archives rather than mocks. `DocParser` and `PptxParser` never
- * throw by design — on a legacy OLE binary or a deck with no text they return a
- * placeholder sentence or scraped ZIP internals. Automated callers rely on
- * `degraded` to tell that apart from a real extraction, so if a parser stops
- * setting the flag these tests are what catches it.
+ * genuine OOXML archives rather than mocks. `DocParser` never throws by design —
+ * on a legacy OLE binary it returns a placeholder sentence or scraped bytes, and
+ * automated callers rely on `degraded` to tell that apart from a real
+ * extraction. `PptxParser` instead rejects with a typed error for a legacy
+ * binary or a text-free deck, so nothing scraped ever reaches the index.
  */
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
@@ -129,27 +129,33 @@ describe('PptxParser degraded reporting', () => {
     const result = await new PptxParser().parseBuffer(buffer)
 
     expect(result.content).toContain('Quarterly Market Data Review')
+    expect(result.metadata?.extractionMethod).toBe('ooxml-walker')
     expect(result.metadata?.degraded).toBeFalsy()
   })
 
   /**
-   * A deck of images has no text for officeparser to return, and the fallback
-   * then scrapes the archive — the observed output begins `[Content_Types].xml`.
-   * Indexing that would put ZIP internals into the vector store.
+   * A deck of images has no slide text. The old byte-scrape fallback returned
+   * the archive's own file names (`[Content_Types].xml`) as content; a typed
+   * rejection keeps ZIP internals out of the vector store.
    */
-  it('flags a deck with no extractable text as degraded', async () => {
+  it('reports a deck with no extractable text as a typed failure', async () => {
     const buffer = await buildPptx('<p:pic/>')
 
-    const result = await new PptxParser().parseBuffer(buffer)
+    const error = await new PptxParser().parseBuffer(buffer).catch((caught: unknown) => caught)
 
-    expect(result.metadata?.degraded).toBe(true)
+    expect(error).toBeInstanceOf(FileParserError)
+    expect(error).toMatchObject({ code: 'no_extractable_text' })
   })
 
-  it('flags a legacy OLE .ppt binary as degraded', async () => {
-    const result = await new PptxParser().parseBuffer(buildLegacyOleBinary())
+  /** No pure-JS extractor reads PowerPoint 97 binaries, so the parser says so. */
+  it('rejects a legacy OLE .ppt binary as unsupported', async () => {
+    const error = await new PptxParser()
+      .parseBuffer(buildLegacyOleBinary())
+      .catch((caught: unknown) => caught)
 
-    expect(result.metadata?.degraded).toBe(true)
-    expect(result.content).toContain('Unable to extract text')
+    expect(error).toBeInstanceOf(FileParserError)
+    expect(error).toMatchObject({ code: 'unsupported_type' })
+    expect((error as FileParserError).message).toContain('.pptx')
   })
 })
 
@@ -182,6 +188,8 @@ describe('DocxParser', () => {
     const result = await new DocxParser().parseBuffer(buffer)
 
     expect(result.content).toContain('Market Data SOP body text')
+    expect(result.metadata?.extractionMethod).toBe('mammoth-html')
+    expect(result.metadata?.html).toBeUndefined()
     expect(result.metadata?.degraded).toBeFalsy()
   })
 
@@ -274,6 +282,7 @@ describe('OpenDocumentParser', () => {
     const result = await new OpenDocumentParser().parseBuffer(buffer)
 
     expect(result.content).toContain('OpenDocument paragraph')
+    expect(result.metadata?.extractionMethod).toBe('odf-walker')
     expect(result.metadata?.degraded).toBeFalsy()
   })
 

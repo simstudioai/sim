@@ -16,7 +16,6 @@ export interface FileParseMetadata {
   extractionMethod?: string
   warning?: string
   messages?: unknown[]
-  html?: string
   type?: string
   headers?: string[]
   totalRows?: number

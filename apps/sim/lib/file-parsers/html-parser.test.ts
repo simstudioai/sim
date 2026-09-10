@@ -118,5 +118,31 @@ describe('HtmlParser', () => {
       expect(result.metadata?.listCount).toBe(1)
       expect(result.metadata?.tableCount).toBe(1)
     })
+
+    it('numbers ordered lists and keeps markers on nested items', async () => {
+      const buffer = Buffer.from(
+        `<body><ol start="3"><li>third</li><li>fourth<ul><li>nested</li></ul></li></ol></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('3. third')
+      expect(result.content).toContain('4. fourth')
+      expect(result.content).toContain('  • nested')
+      expect(result.content).not.toContain('fourth nested')
+    })
+
+    it('drops footnote return links but keeps the footnote text', async () => {
+      const buffer = Buffer.from(
+        `<body><p>Body<sup><a href="#footnote-1" id="footnote-ref-1">[1]</a></sup></p>` +
+          `<ol><li id="footnote-1"><p>Note text <a href="#footnote-ref-1">↑</a></p></li></ol></body>`
+      )
+
+      const result = await parser.parseBuffer(buffer)
+
+      expect(result.content).toContain('Body[1]')
+      expect(result.content).toContain('1. Note text')
+      expect(result.content).not.toContain('↑')
+    })
   })
 })
