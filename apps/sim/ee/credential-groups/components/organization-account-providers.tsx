@@ -12,12 +12,10 @@ import {
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import type {
-  OrganizationAccountsSettings,
-  UpdateOrganizationAccountsBody,
-} from '@/lib/api/contracts/organization-accounts'
+import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
+import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import {
   type CredentialGroupProvider,
   getCredentialGroupProviderService,
@@ -60,14 +58,17 @@ export function OrganizationAccountProviders({
   const addMcp = useAddOrganizationAccountMcpProvider()
   const removeMcp = useRemoveOrganizationAccountMcpProvider()
   const pending = update.isPending || addMcp.isPending || removeMcp.isPending
-  const options: NonNullable<UpdateOrganizationAccountsBody['options']> = group.options.map(
-    (option) => {
-      const common = { id: option.id, label: option.label, required: option.required }
-      return option.provider === 'slack'
-        ? { ...common, provider: 'slack', requiredScopes: option.requiredScopes }
-        : { ...common, provider: option.provider }
-    }
-  )
+  const options = getOrganizationAccountUpdateOptions(group)
+  const updateConfigurations = () => {
+    if (pending) return
+    update.mutate(
+      { organizationId, groupId: group.id, update: { options } },
+      {
+        onSuccess: () => toast.success('Provider configurations updated'),
+        onError: (error) => toast.error(error.message),
+      }
+    )
+  }
   const addProvider = (choice: OrganizationAccountProviderChoice) => {
     if (choice.kind === 'mcp') {
       if (choice.connectorId === 'databricks') {
@@ -160,20 +161,33 @@ export function OrganizationAccountProviders({
       <SettingsSection
         label='Providers'
         action={
-          <Chip
-            leftAdornment={<Plus className='size-[14px]' />}
-            disabled={pending}
-            onClick={() => {
-              update.reset()
-              addMcp.reset()
-              removeMcp.reset()
-              setCatalogOpen(true)
-            }}
-          >
-            Add provider
-          </Chip>
+          <div className='flex flex-wrap gap-2'>
+            {options.length > 0 && (
+              <Chip disabled={pending} onClick={updateConfigurations}>
+                Update configurations
+              </Chip>
+            )}
+            <Chip
+              leftAdornment={<Plus className='size-[14px]' />}
+              disabled={pending}
+              onClick={() => {
+                update.reset()
+                addMcp.reset()
+                removeMcp.reset()
+                setCatalogOpen(true)
+              }}
+            >
+              Add provider
+            </Chip>
+          </div>
         }
       >
+        {options.length > 0 && (
+          <p className='mb-3 text-[var(--text-muted)] text-small'>
+            Apply the current app configuration. Accounts whose app configuration changed will need
+            to reconnect.
+          </p>
+        )}
         <div className={RESOURCE_LIST_STACK}>
           {rows.map(({ id, name, icon: Icon, configure, choice }) => (
             <SettingsResourceRow

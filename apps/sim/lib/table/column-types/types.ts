@@ -70,6 +70,12 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
+/** Additional format and precision rules for native PostgreSQL timestamp validation. */
+export interface TimestampValidation {
+  readonly pattern: string
+  readonly maxFractionDigits: number
+}
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
@@ -84,8 +90,8 @@ export interface ColumnTypeDefinition {
    * comparison is correct. Single source for both filter ranges and sort order.
    */
   readonly jsonbCast: 'numeric' | 'timestamptz' | null
-  /** Strict ISO shape guard for timestamp comparisons against potentially malformed stored cells. */
-  readonly timestampPattern?: string
+  /** Guards timestamp comparisons against malformed stored cells without guessing a timezone. */
+  readonly timestampValidation?: TimestampValidation
 
   /**
    * Wire operators a column of this type accepts, or `null` for "all

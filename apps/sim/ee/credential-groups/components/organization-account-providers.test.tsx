@@ -14,15 +14,19 @@ const mocks = vi.hoisted(() => ({
   addAsync: vi.fn(),
   configure: vi.fn(),
   setup: vi.fn(),
+  accounts: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
   reset: vi.fn(),
   slack: vi.fn<(props: unknown) => null>(() => null),
   addError: null as Error | null,
+  updatePending: false,
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
+  useOrganizationAccounts: mocks.accounts,
+  useEnsureOrganizationAccounts: () => ({ isPending: false, error: null }),
   useUpdateOrganizationAccounts: () => ({
-    isPending: false,
+    isPending: mocks.updatePending,
     mutate: mocks.update,
     reset: mocks.reset,
   }),
@@ -44,8 +48,15 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
 vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
   SlackManagedUsersModal: mocks.slack,
 }))
+vi.mock('@/ee/credential-groups/components/organization-account-people', () => ({
+  OrganizationAccountPeople: () => null,
+}))
+vi.mock('@/ee/credential-groups/components/organization-account-workspace-access', () => ({
+  OrganizationAccountWorkspaceAccess: () => null,
+}))
 
 import { OrganizationAccountProviders } from '@/ee/credential-groups/components/organization-account-providers'
+import { OrganizationConnectedAccounts } from '@/ee/credential-groups/components/organization-connected-accounts'
 
 const group: NonNullable<OrganizationAccountsSettings['credentialGroup']> = {
   id: 'group-1',
@@ -83,6 +94,13 @@ const gmail: NonNullable<OrganizationAccountsSettings['credentialGroup']>['optio
   status: 'active',
   configurationStatus: 'ready',
 }
+const github: NonNullable<OrganizationAccountsSettings['credentialGroup']>['options'][number] = {
+  ...gmail,
+  id: 'github-option',
+  provider: 'github-repositories',
+  label: 'Engineering GitHub',
+  required: true,
+}
 
 describe('organization provider configuration UI', () => {
   let root: Root
@@ -99,6 +117,7 @@ describe('organization provider configuration UI', () => {
     mocks.add.mockImplementation((_input, { onSuccess }) => onSuccess())
     mocks.update.mockImplementation((_input, { onSuccess }) => onSuccess())
     mocks.addError = null
+    mocks.updatePending = false
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -204,6 +223,97 @@ describe('organization provider configuration UI', () => {
     expect(container.textContent).not.toContain('Configure')
     expect(container.textContent).not.toContain('Indexing')
   })
+
+  it('updates current provider configurations while preserving their IDs and saved settings', async () => {
+    const slack = {
+      ...gmail,
+      id: 'slack-option',
+      provider: 'slack' as const,
+      label: 'Company Slack',
+      slackBotCredentialId: 'bot-1',
+      requiredScopes: ['search:read'],
+    }
+    await render([], [github, gmail, slack])
+    await clickButton('Update configurations')
+    expect(mocks.update).toHaveBeenCalledExactlyOnceWith(
+      {
+        organizationId: 'org-1',
+        groupId: 'group-1',
+        update: {
+          options: [
+            {
+              id: github.id,
+              provider: github.provider,
+              label: github.label,
+              required: github.required,
+            },
+            {
+              id: gmail.id,
+              provider: gmail.provider,
+              label: gmail.label,
+              required: gmail.required,
+            },
+            {
+              id: slack.id,
+              provider: slack.provider,
+              label: slack.label,
+              required: slack.required,
+              slackBotCredentialId: slack.slackBotCredentialId,
+            },
+          ],
+        },
+      },
+      expect.any(Object)
+    )
+    expect(mocks.add).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Provider configurations updated')
+  })
+
+  it('disables configuration updates while a provider mutation is pending', async () => {
+    mocks.updatePending = true
+    await render([], [github])
+    const button = Array.from(document.querySelectorAll('button')).find(
+      (node) => node.textContent === 'Update configurations'
+    )
+    expect(button?.disabled).toBe(true)
+    await act(async () => button?.click())
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a configuration update failure without removing the provider', async () => {
+    mocks.update.mockImplementation((_input, { onError }) =>
+      onError(new Error('GitHub App configuration is unavailable'))
+    )
+    await render([], [github])
+    await clickButton('Update configurations')
+    expect(toast.error).toHaveBeenCalledWith('GitHub App configuration is unavailable')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('GitHub')
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'shows configuration updates only to administrators: %s',
+    async (canManage) => {
+      mocks.accounts.mockReturnValue({
+        data: {
+          canManage,
+          credentialGroup: { ...group, options: [github] },
+          availableProviders: ['github-repositories'],
+        },
+      })
+      await act(async () =>
+        root.render(
+          <NuqsTestingAdapter hasMemory>
+            <OrganizationConnectedAccounts organizationId='org-1' />
+          </NuqsTestingAdapter>
+        )
+      )
+      expect(container.textContent?.includes('Update configurations')).toBe(canManage)
+      expect(mocks.update).not.toHaveBeenCalled()
+    }
+  )
 
   it('opens Slack app configuration directly with the existing scopes', async () => {
     await render(

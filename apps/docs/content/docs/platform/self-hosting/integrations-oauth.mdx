@@ -6,6 +6,7 @@ description: Register OAuth apps so your users can connect Slack, Google, Jira, 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
 
 <Callout type="warn">
   **OAuth integrations need your own provider application on a self-hosted deployment.** Configure the OAuth services your team uses; API-key integrations can instead use keys supplied in their blocks. Users will see the connector in the UI, click "Connect", and get an error from the provider until the corresponding `*_CLIENT_ID` and `*_CLIENT_SECRET` are set.
@@ -116,15 +117,100 @@ The same variables also power "Sign in with Microsoft".
 
 ### GitHub Search
 
-Register a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) with repository **Contents: read-only**, **Metadata: read-only**, and account **Email addresses: read-only** permissions. Keep user access token expiration enabled so Sim can rotate access and refresh tokens.
+Self-hosted GitHub Search uses a GitHub App for account connections and organization installation indexing. Register your own App and configure the server variables below. Sim Cloud users use the [GitHub Search setup flow](/search/github#add-a-repository) directly.
 
-| Environment variables | Provider ID |
+<Steps>
+<Step>
+
+#### Register the App
+
+For a team, open **Your organizations → Settings** for the organization that will own the App. For a personal App, open your account's **Settings**. Then choose **Developer settings → GitHub Apps → New GitHub App**.
+
+Give the App a unique, recognizable name, such as **Your Company Sim Search**, and set **Homepage URL** to your Sim URL.
+
+Under **Identifying and authorizing users → Redirect URI (callback URL)**, enter:
+
+```text
+<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/github-repositories
+```
+
+Replace `<NEXT_PUBLIC_APP_URL>` with your configured public origin, such as `https://sim.example.com`, without a trailing slash. The scheme, hostname, port, and path must match exactly; `www` and non-`www` hosts are different. See GitHub's [callback matching rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url).
+
+| GitHub setting | Value for Sim Search |
 |---|---|
-| `GITHUB_APP_CLIENT_ID`<br />`GITHUB_APP_CLIENT_SECRET` | `github-repositories` |
+| Allow wildcard matching | Disabled |
+| Expire user authorization tokens | Enabled |
+| Request user authorization (OAuth) during installation | Disabled |
+| Enable Device Flow | Disabled |
+| Post installation → Setup URL | Empty |
+| Webhook → Active | Disabled |
 
-Register `https://<your-domain>/api/auth/oauth2/callback/github-repositories` as the callback. These App OAuth client credentials are separate from `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` used for Sim sign-in. Sim does not require an App private key.
+Authorization starts from Sim so the callback can finish the pending connection. The connector polls GitHub's API and does not need a webhook.
 
-A repository or organization administrator installs the App on the repositories to search. Each member connects their own GitHub account, with a verified email matching their Sim account. Search indexes repository files that both the member and the installed App can access. GitHub workflow blocks and existing knowledge-base token connections continue to use personal access tokens.
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-callback.jpg" alt="GitHub App registration with the Redirect URI, expiring tokens enabled, and installation authorization, Device Flow, and webhooks disabled" width={768} height={929} />
+
+*Example registration. Replace `sim.example.com` with your Sim domain.*
+
+</Step>
+<Step>
+
+#### Set read permissions
+
+Expand **Permissions → Repository permissions**. Set **Contents → Access: Read-only**; leave the mandatory **Metadata** permission at **Read-only**.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-repository-permissions.jpg" alt="GitHub repository permissions with Contents set to Read-only and Metadata shown as mandatory Read-only" width={768} height={929} />
+
+Expand **Account permissions** and set **Email addresses → Access: Read-only**.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-email-permission.jpg" alt="GitHub account permissions with only Email addresses selected for Read-only access" width={768} height={929} />
+
+| Permission area | Permission | Access |
+|---|---|---|
+| Repository | Contents | Read-only |
+| Repository | Metadata | Read-only |
+| Account | Email addresses | Read-only |
+
+Leave every other permission at **No access**. Sim does not need issue, pull-request, administration, or write permissions. GitHub's [registration guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) explains these settings.
+
+GitHub App user tokens use these permissions rather than OAuth scopes. An empty `scope` value in the token response is expected; see GitHub's [user token reference](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app).
+
+Set **Where can this GitHub App be installed? → Any account** to support connections from accounts outside the App owner. This lets any GitHub account install and authorize the App, subject to that account's organization policies. Making the App public does not make repositories public or grant anyone Search access. See GitHub's [App visibility rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/making-a-github-app-public-or-private).
+
+Select **Create GitHub App**.
+
+</Step>
+<Step>
+
+#### Configure Sim
+
+On the App's **General** settings page, copy its numeric **App ID** and **Client ID**, select **Generate a new client secret**, and generate a **Private key**. The App slug is the final part of its public URL: `https://github.com/apps/<app-slug>`.
+
+Set all five variables using values from your GitHub App, then restart Sim:
+
+```text
+GITHUB_APP_ID=<numeric App ID>
+GITHUB_APP_SLUG=<app-slug>
+GITHUB_APP_CLIENT_ID=<Client ID>
+GITHUB_APP_CLIENT_SECRET=<Client secret>
+GITHUB_APP_PRIVATE_KEY=<complete RSA PEM private key>
+```
+
+The private key must include its PEM header, footer, and contents. Sim accepts actual newlines or escaped `\n` sequences. Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
+
+The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
+
+Keep **Expire user authorization tokens** enabled so Sim receives the refresh token it needs to [renew personal connections](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens).
+
+Complete the installation through [the GitHub Search source setup](/search/github#add-a-repository).
+
+If you replace a deployment's GitHub App, an organization admin must first open **Settings → Sources → Update configurations**. When Search is disabled, this action is under **Settings → Connected accounts → Providers**. This applies the deployment's current App configuration to the existing providers while preserving their saved identities. Accounts whose App configuration changed must reconnect. Then reconnect personal GitHub accounts and connect an installation of the new App. Reconnecting alone cannot update the organization's saved App configuration.
+
+</Step>
+</Steps>
+
+If GitHub rejects `redirect_uri`, compare the App's registered callback with `NEXT_PUBLIC_APP_URL` followed by `/api/auth/oauth2/callback/github-repositories`. Keep wildcard matching disabled. If installation indexing is unavailable, confirm all five `GITHUB_APP_*` variables belong to the same App and include a complete RSA private key.
+
+GitHub workflow blocks and knowledge-base token connections continue to use personal access tokens.
 
 ### Everything else
 

@@ -58,7 +58,9 @@ interface OrganizationChatsProps
 
 function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
   const { chats, isLoading } = useOrganizationChats(organizationId)
-  return <ChatsSection {...props} chats={chats} isLoading={isLoading} />
+  return (
+    <ChatsSection {...props} organizationId={organizationId} chats={chats} isLoading={isLoading} />
+  )
 }
 
 /**
@@ -92,10 +94,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
-  /**
-   * One menu serves every href-bearing row (nav items, workspaces, chats): the
-   * actions — open in a new tab, copy the link — only need the destination.
-   */
   const [menuHref, setMenuHref] = useState<string | null>(null)
   const {
     isOpen: isHrefMenuOpen,
@@ -111,25 +109,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
       openHrefMenu(e)
     },
     [openHrefMenu]
-  )
-
-  /** Anchors the menu to the row's options button rather than the pointer. */
-  const handleChatMoreClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>, href: string) => {
-      if (isHrefMenuOpen) {
-        closeHrefMenu()
-        return
-      }
-      const rect = e.currentTarget.getBoundingClientRect()
-      setMenuHref(href)
-      openHrefMenu({
-        preventDefault: () => {},
-        stopPropagation: () => {},
-        clientX: rect.right,
-        clientY: rect.top,
-      } as React.MouseEvent)
-    },
-    [isHrefMenuOpen, closeHrefMenu, openHrefMenu]
   )
 
   const handleHrefMenuClose = () => {
@@ -287,12 +266,10 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                   />
                   {searchAccess.memberScoped && (
                     <OrganizationChats
+                      key={organization.id}
                       organizationId={organization.id}
                       isCollapsed={isCollapsed}
                       pathname={pathname}
-                      menuOpenHref={isHrefMenuOpen ? menuHref : null}
-                      onContextMenu={handleHrefContextMenu}
-                      onMoreClick={handleChatMoreClick}
                     />
                   )}
                 </div>

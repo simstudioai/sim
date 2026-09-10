@@ -358,6 +358,9 @@ export class BlockExecutor {
             workspaceId: blockCtx.workspaceId,
             workflowId: blockCtx.workflowId,
             executionId: blockCtx.executionId,
+            largeValueExecutionIds: blockCtx.largeValueExecutionIds,
+            largeValueKeys: blockCtx.largeValueKeys,
+            allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
             userId: blockCtx.userId,
           },
         })

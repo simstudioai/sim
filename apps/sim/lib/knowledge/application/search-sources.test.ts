@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   permission: vi.fn(),
   availability: vi.fn(),
   memberships: vi.fn(),
+  accounts: vi.fn(),
   access: vi.fn(),
   predicate: vi.fn(),
 }))
@@ -36,11 +37,15 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   resolveViewerConnectorMemberships: mocks.memberships,
 }))
+vi.mock('@/lib/knowledge/connectors/viewer-source-accounts', () => ({
+  resolveViewerSourceAccounts: mocks.accounts,
+}))
 vi.mock('@/lib/knowledge/access/scope', () => ({
   createKnowledgeAccessProvider: mocks.access,
 }))
 vi.mock('@/lib/knowledge/access/predicate', () => ({
   knowledgeAccessCondition: mocks.predicate,
+  knowledgeMetadataCandidateAccessCondition: mocks.predicate,
 }))
 vi.mock('@/connectors/registry', () => {
   const registry = {
@@ -113,7 +118,12 @@ beforeEach(() => {
   mocks.permission.mockResolvedValue('read')
   mocks.availability.mockResolvedValue({ sourceMirrored: true, memberScoped: true })
   mocks.memberships.mockResolvedValue(new Map())
-  mocks.access.mockReturnValue({ get: async () => access })
+  mocks.accounts.mockResolvedValue(new Map())
+  mocks.access.mockReturnValue({
+    get: async () => access,
+    getForConnectors: async () => access,
+    getForDocuments: async () => access,
+  })
   mocks.predicate.mockReturnValue(ACL)
 })
 
@@ -140,6 +150,7 @@ describe('Search source summaries', () => {
           viewerDocumentCount: 4,
           viewerFailedDocumentCount: 0,
           viewerEmailVerified: true,
+          viewerAccounts: [],
           connectionRequired: false,
           viewerMembership: null,
         },
@@ -371,6 +382,30 @@ describe('Search source summaries', () => {
 })
 
 describe('organization Search source summaries', () => {
+  it.each(['syncing', 'error', 'paused', 'disabled'])(
+    'keeps own %s accounts removable even when setup is unavailable',
+    async (status) => {
+      mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+      queueTableRows(member, [{ role: 'member' }])
+      seed([{ ...source('own', 'google_drive', 'members'), status }, source('someone-else')], false)
+      mocks.availability.mockResolvedValue({ sourceMirrored: false, memberScoped: false })
+      const account = { credentialId: 'own-account', displayName: 'My Drive' }
+      mocks.accounts.mockResolvedValue(new Map([['own', [account]]]))
+      const result = await listSearchSources.execute({
+        principal,
+        input: { organizationId: 'org-1', mine: true },
+      })
+      expect(result.sources).toHaveLength(1)
+      expect(result.sources[0]).toMatchObject({
+        connectorId: 'own',
+        availability: 'unavailable',
+        viewerAccounts: [account],
+      })
+      expect(mocks.accounts).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1', userId: 'reader' })
+      )
+    }
+  )
   it.each(['member', 'admin'])(
     'returns only the current %s viewer ACL counts without a workspace membership',
     async (role) => {
@@ -582,12 +617,16 @@ describe('bounded Search source pagination', () => {
     seed(candidates)
     mocks.memberships.mockResolvedValue(
       new Map([
+        ['source-093', 'invited'],
+        ['source-094', 'not_enrolled'],
+        ['source-095', 'revoked'],
+        ['source-096', 'unverified_email'],
         ['source-097', 'connected'],
         ['source-098', 'needs_reauth'],
       ])
     )
     const result = await listSearchSources.execute({ principal, input: { ...input, mine: true } })
-    expect(result.sources.map((row) => row.connectorId)).toEqual(['source-097'])
+    expect(result.sources.map((row) => row.connectorId)).toEqual(['source-097', 'source-098'])
     expect(result.nextCursor).toBeNull()
   })
 

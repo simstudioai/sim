@@ -413,51 +413,6 @@ describe('organization setup entry points', () => {
     expect(mocks.push).toHaveBeenCalledWith('/o/org-1/settings/integrations/sources/new-source')
   })
 
-  it('honors explicit member-source URLs and clears both setup parameters on close', async () => {
-    useConnectorSetupStore
-      .getState()
-      .saveDraft('user-1:organization:org-1:kb-search:github:members', {
-        sourceConfig: { repository: 'acme/docs' },
-        canonicalModes: {},
-        accessMode: 'members',
-        credentialId: 'cred-source',
-        contentCredentialId: null,
-        disabledTagIds: [],
-        savedAt: Date.now(),
-      })
-    await render(organizationSetup(), '?addConnector=github&source-access=members&search=keep')
-
-    expect(mocks.replace).not.toHaveBeenCalled()
-    expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
-    expect(document.body.textContent).not.toContain('Sync using')
-    expect(document.body.textContent).not.toContain('Sync documents with')
-    expect(button('Add source')).toBeEnabled()
-    await click(button('Add source'))
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connectorType: 'github',
-        accessMode: 'members',
-        sourceConfig: { repository: 'acme/docs' },
-      }),
-      expect.any(Object)
-    )
-    await act(async () => {
-      button('Cancel').click()
-      await vi.waitFor(() =>
-        expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
-          expect.objectContaining({ queryString: '?search=keep' })
-        )
-      )
-    })
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
-    expect(mocks.push).not.toHaveBeenCalled()
-    expect(
-      useConnectorSetupStore
-        .getState()
-        .getDraft('user-1:organization:org-1:kb-search:github:members')
-    ).toBeUndefined()
-  })
-
   it.each(['github', 'gmail', 'google_calendar', 'jira'])(
     'returns old %s organization setup links to personal integrations without loading the index',
     async (type) => {

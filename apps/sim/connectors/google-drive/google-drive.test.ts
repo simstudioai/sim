@@ -928,8 +928,12 @@ describe('Google Drive change feed', () => {
       { kind: 'removed', externalId: 'moved-out' },
       { kind: 'removed', externalId: 'video' },
     ])
-    expect(result.nextCursor).toBe('5000')
-    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toMatch(/^gdrive-shortcuts:v1:/)
+    expect(result.hasMore).toBe(true)
+    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
+    await expect(
+      googleDriveConnector.listChanges!('token', {}, result.nextCursor!)
+    ).resolves.toEqual({ changes: [], nextCursor: '5000', hasMore: false })
     const url = new URL(String(mockFetch.mock.calls[0][0]))
     expect(url.searchParams.get('pageToken')).toBe('4821')
     expect(url.searchParams.get('includeRemoved')).toBe('true')

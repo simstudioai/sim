@@ -192,7 +192,7 @@ function SourceDetailContent({
       : effectiveStatus === 'disabled'
         ? 'Sync disabled'
         : effectiveStatus === 'error'
-          ? 'Sync needs attention'
+          ? 'Sync failed'
           : undefined
   const description =
     [title === meta?.name ? undefined : meta?.name, status].filter(Boolean).join(' · ') || undefined

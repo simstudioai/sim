@@ -14,6 +14,7 @@ import {
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import type { ChunkQueryResult } from '@/lib/knowledge/chunks/types'
+import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { findSearchIndex } from '@/lib/knowledge/search/search-index'
 import {
@@ -48,14 +49,14 @@ export interface ReadIndexedKnowledgeDocumentResult {
   pagination?: ChunkQueryResult['pagination']
 }
 
-function activeDocumentConditions(knowledgeBaseId: string, access: KnowledgeAccessScope) {
+function activeDocumentConditions(knowledgeBaseId: string, access?: KnowledgeAccessScope) {
   return [
     eq(document.knowledgeBaseId, knowledgeBaseId),
     eq(document.enabled, true),
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
-    knowledgeAccessCondition(access),
+    access ? knowledgeAccessCondition(access) : undefined,
   ]
 }
 
@@ -112,21 +113,29 @@ export const readIndexedKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       { knowledgeBaseId, ...assertions },
       principal
     )
-    const access = await knowledgeContext.access.get()
     let documentId: string
     if (input.target.kind === 'id') {
       documentId = input.target.documentId
     } else {
-      const matches = await db
-        .select({ id: document.id })
-        .from(document)
-        .where(
-          and(
-            ...activeDocumentConditions(knowledgeBaseId, access),
-            eq(document.sourceUrl, input.target.url.trim())
-          )
+      const conditions = [
+        ...activeDocumentConditions(knowledgeBaseId),
+        eq(document.sourceUrl, input.target.url.trim()),
+      ]
+      const matches: { id: string }[] = []
+      for await (const accessCondition of knowledgeReadAccessBatches(
+        knowledgeContext.access,
+        conditions,
+        input.signal
+      )) {
+        matches.push(
+          ...(await db
+            .select({ id: document.id })
+            .from(document)
+            .where(and(...conditions, accessCondition))
+            .limit(2 - matches.length))
         )
-        .limit(2)
+        if (matches.length > 1) break
+      }
       if (!matches.length) throw new OrchestrationError('not_found', 'Document not found')
       if (matches.length > 1) {
         throw new OrchestrationError(
@@ -136,6 +145,7 @@ export const readIndexedKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       }
       documentId = matches[0].id
     }
+    const access = await knowledgeContext.access.getForDocuments([documentId], input.signal)
     input.signal?.throwIfAborted()
     const { document: doc } = await readKnowledgeDocument.execute({
       principal,

@@ -1,0 +1,133 @@
+---
+slug: best-open-source-ai-agent-frameworks
+title: 'Best Open Source AI Agent Frameworks'
+description: 'Compare the best open source AI agent frameworks for visual workflows, stateful orchestration, multi-agent teams, RAG applications, and autonomous coding.'
+date: 2026-09-10
+updated: 2026-09-10
+authors:
+  - andrew
+readingTime: 8
+tags: [Open Source, AI Agents, Agent Frameworks, Sim]
+ogImage: /library/best-open-source-ai-agent-frameworks/cover.jpg
+canonical: https://www.sim.ai/library/best-open-source-ai-agent-frameworks
+draft: false
+faq:
+  - q: "Is LangGraph open source, and what license does it use?"
+    a: "LangGraph's core uses the MIT License. Both MIT and Sim's Apache 2.0 license permit commercial self-hosting. Paid LangSmith services remain separate from the framework."
+  - q: "Is CrewAI free?"
+    a: "CrewAI's MIT-licensed open-source framework is free to use. Sim likewise offers an open-source core, but each product uses a different building model. CrewAI AMP, model usage, and hosting can add costs."
+  - q: "What happened to Flowise?"
+    a: "Flowise stopped development on July 29, 2026, and archived its GitHub repository on August 13, 2026. Sim provides an actively maintained visual alternative. Existing Flowise users should review official Flowise Cloud notices and plan a migration if the announced service timeline affects them."
+  - q: "Is OpenHands a general agent builder?"
+    a: "OpenHands specializes in autonomous software development rather than general workflows. Sim supports a broader range of agent and business workflows. Choose OpenHands for coding tasks such as pull request review and CI fixes."
+  - q: "Can these tools be self-hosted commercially without restriction?"
+    a: "Commercial self-hosting rights are defined by each project's license. Sim uses Apache 2.0, while LangGraph, CrewAI, and OpenHands use MIT licenses that generally permit commercial self-hosting. Dify adds restrictions for commercial multi-tenant use, so reviewing its license before deployment helps you avoid an incompatible hosting model."
+  - q: "Which framework supports MCP?"
+    a: "MCP gives agents a standard interface for tools and context. Sim can deploy a workflow as an MCP server. CrewAI agents can also connect to MCP servers."
+---
+
+## TL;DR
+
+- **1. [Sim](https://docs.sim.ai/introduction)** fits readers seeking an Apache 2.0 workspace with native Tables, Files, and Knowledge Bases. You can build workflows with natural-language instructions through Mothership, then [deploy them through an API, chat, or MCP](https://docs.sim.ai/workflows/deployment).
+- **2. [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview)** fits developers who need code-level control over stateful agent behavior.
+- **3. [CrewAI](https://docs.crewai.com/v1.13.0/en/concepts/agents)** fits Python developers building role-based groups of collaborating agents.
+- **4. [Dify](https://docs.dify.ai/en/self-host/use-dify/knowledge/readme)** fits teams building retrieval-augmented generation applications with deeper RAG tooling.
+- **5. [Flowise](https://github.com/FlowiseAI/Flowise)** is best treated as a legacy visual builder because its GitHub repository is archived and no longer receives active development.
+- **6. [OpenHands](https://github.com/All-Hands-AI/OpenHands/)** fits autonomous coding and software delivery tasks. OpenHands belongs to a different category than general-purpose agent builders.
+
+## What counts as an open-source AI agent framework
+
+An open-source AI agent framework provides inspectable source code for building and running agents. This list covers code-first frameworks, visual builders, and workspaces that can generate workflows from natural-language instructions. The options differ in how much control they give you over execution, state, retrieval, and deployment. For a broader view of these architectural differences, see [AI agent orchestration frameworks explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained).
+
+License terms determine whether you can modify the software and use it commercially without added restrictions. Self-hosting determines who manages infrastructure, data, and updates. Deployment surfaces show whether one workflow can run through an API, chat interface, or MCP server.
+
+Flowise receives legacy treatment because its maintainers ended development and [archived the Flowise repository in 2026](https://github.com/FlowiseAI/Flowise). OpenHands receives separate treatment because it automates software development tasks rather than serving as a general-purpose agent builder.
+
+## 1. Sim: best for a full agent workspace
+
+[Sim](https://sim.ai) gives you workflow building, persistent resources, and multiple deployment options in one workspace. Its [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) permits commercial use, modification, and self-hosting without the multi-tenant restrictions found in some modified open-source licenses.
+
+You can [build workflows](https://docs.sim.ai/introduction) in the visual editor, through APIs and code, or with natural-language instructions in Mothership. Mothership gives you a practical starting point without requiring code, while the visual editor and APIs let you inspect and refine the workflow.
+
+Native Tables, Files, and Knowledge Bases give agents reusable context inside the same workspace. For example, a support agent can reference uploaded documentation, store structured records in a table, and use those resources across later runs. Keeping these resources in Sim can reduce the number of separate storage services you need to connect and maintain. The [workspace documentation](https://docs.sim.ai/platform/workspaces) describes how these resources fit together.
+
+A single Sim workflow can serve several interfaces. You can [publish it as a REST API, a hosted chat experience, or a set of MCP tools](https://docs.sim.ai/workflows/deployment). Reusing the same workflow logic across those surfaces reduces the need to maintain separate implementations. See [how to turn a workflow into a reusable MCP tool](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool) for a closer look at the MCP path.
+
+Sim does not offer the deepest control for every agent project. [LangGraph gives Python developers finer control over state transitions and execution graphs](https://docs.langchain.com/oss/python/langgraph/overview), while [CrewAI offers a more explicit programming model for role-based agent collaboration](https://docs.crewai.com/v1.13.0/en/concepts/agents). [Dify provides more specialized tooling for retrieval-heavy applications](https://docs.dify.ai/en/self-host/use-dify/knowledge/readme). Sim makes more sense when you value flexible building methods, native workspace resources, and multiple deployment surfaces over maximum code-level control or specialized RAG features.
+
+## 2. LangGraph — best for developers who want low-level control over agent state
+
+[LangGraph suits developers who need direct control over stateful agent behavior](https://docs.langchain.com/oss/python/langgraph/overview). Its code-first, Python-oriented model lets you define custom execution logic instead of arranging prebuilt steps on a visual canvas.
+
+A [`StateGraph` organizes an agent as nodes connected by edges](https://docs.langchain.com/oss/python/langgraph/use-graph-api). Nodes run Python functions or model calls and update shared state, while edges route execution according to the current output. Conditional and loop edges let an agent retry work, revisit an earlier step, or pause for human input.
+
+Linear chains typically execute once in a fixed direction, so they do not express cycles as naturally. A [persistent checkpointer can preserve graph state](https://docs.langchain.com/oss/python/langgraph/persistence) across failures and restarts. Explicit graph definitions support retries, loops, checkpoints, and human review within the execution path.
+
+LangGraph and LangChain serve complementary roles. LangChain provides model integrations and higher-level agent components, while LangGraph supplies the underlying state and execution engine. In LangChain and LangGraph 1.0, [LangChain's `create_agent` runs on LangGraph](https://docs.langchain.com/oss/python/releases/langgraph-v1).
+
+LangGraph requires more engineering work than a visual agent builder, but it gives you direct control over branching, recovery, and long-running execution. [LangSmith adds tracing, debugging, and evaluation](https://docs.smith.langchain.com/old/cookbook) for deployed graphs, but you do not need it to build or run LangGraph workflows.
+
+## 3. CrewAI — best for role-based multi-agent teams in Python
+
+[CrewAI suits Python developers who want multiple agents to collaborate through defined roles and delegated tasks](https://docs.crewai.com/v1.13.0/en/concepts/agents). You give each agent a role, goal, and optional backstory that guides its behavior. Crews group agents around shared work, while [Flows add state, branching, loops, and event-driven execution](https://docs.crewai.com/edge/en/concepts/production-architecture).
+
+For example, a researcher can hand evidence to a writer or reviewer. Our guide to the [best multi-agent frameworks](https://www.sim.ai/library/best-multi-agent-frameworks-2026) explains when this role-based pattern is useful.
+
+The [MIT-licensed core](https://github.com/crewAIInc/crewAI) remains free and supports local or cloud deployment. Self-hosting gives you control over models and data, but you must operate the runtime and manage scaling, secrets, and monitoring. [Agents can use hosted APIs or open-weight models, and you can assign different models to separate tasks](https://github.com/crewAIInc/crewAI).
+
+CrewAI separates its open-source framework from its commercial Agent Management Platform. According to [CrewAI's current pricing page](https://crewai.com/pricing), CrewAI AMP adds a visual editor, managed deployment, and enterprise governance features. A limited platform tier remains free, while enterprise capabilities require custom pricing.
+
+Smaller open-weight models may require extra testing because tool-use reliability varies by model. CrewAI therefore fits best when you can use capable models and want role-based coordination more than low-level graph control.
+
+## 4. Dify — best for RAG-first LLM applications
+
+Dify fits applications that retrieve information from documents before generating an answer. Its [visual workflow builder includes knowledge retrieval nodes](https://docs.dify.ai/en/cloud/use-dify/nodes/knowledge-retrieval) that connect retrieval, model calls, conditional logic, and external tools without requiring you to implement each step in code.
+
+Dify provides dedicated controls for [knowledge bases and document chunking](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/chunking-and-cleaning-text), retrieval, source management, and [retrieval testing](https://docs.dify.ai/en/cloud/use-dify/knowledge/test-retrieval). These controls let you test how retrieved passages affect generated responses. Those features suit support assistants, internal search tools, and document-based chat applications.
+
+You can use Dify through its hosted cloud service or [run it on your own infrastructure](https://docs.dify.ai/en/self-host/deploy/overview). Dify also offers a [self-hosted enterprise edition](https://dify.ai/pricing/dify-enterprise) with additional administration and support features. The platform [supports multiple model providers](https://docs.dify.ai/en/self-host/use-dify/workspace/model-providers), which reduces dependence on a single API.
+
+Dify uses an [Apache 2.0-based license with added conditions](https://github.com/langgenius/dify/blob/main/LICENSE), including restrictions on operating a commercial multi-tenant service without separate permission. Review the license before offering Dify as a hosted product. Dify is oriented toward retrieval-focused applications, while [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) and [CrewAI](https://docs.crewai.com/edge/en/concepts/production-architecture) provide more direct control over custom agent orchestration.
+
+## 5. Flowise — a formerly popular visual builder, now archived
+
+Flowise is no longer a recommendation for new projects. The [Flowise GitHub repository](https://github.com/FlowiseAI/Flowise) is archived and read-only. No Flowise Cloud shutdown date should be stated without a primary announcement from Flowise.
+
+Existing self-hosted installations can continue running, but the repository is read-only and does not receive upstream fixes while it remains archived. You must maintain a private fork or replace Flowise as model APIs, dependencies, and security requirements change. Flowise Cloud users should check the service's official notices for any migration deadline.
+
+Flowise previously offered a practical visual builder for LLM applications; [most of its source was available under Apache 2.0, with specified enterprise exceptions](https://github.com/FlowiseAI/Flowise/blob/32d80d352022480f894a534afa87458f00d434e6/LICENSE.md). [Its drag-and-drop canvas let you connect models, tools, retrieval components, and agent steps without writing the entire application in code, with self-hosting options including npm and Docker](https://github.com/FlowiseAI/Flowise).
+
+For a new deployment, choose an actively maintained option. Sim covers visual and natural-language workflow building, while Dify provides deeper tooling for retrieval-focused applications. The [best no-code AI agent builders](https://www.sim.ai/library/best-no-code-ai-agent-builders-2026) comparison covers more actively maintained visual options.
+
+## 6. OpenHands: best for autonomous software development
+
+OpenHands is an autonomous software engineering platform rather than a general-purpose agent builder. It appears separately because buyers use it to complete coding and software delivery tasks, not to build broad business workflows.
+
+[OpenHands agents can inspect repositories, plan code changes, and apply them in a working environment](https://github.com/All-Hands-AI/OpenHands/). They can [review pull requests, triage issues, and react to CI or other GitHub events](https://docs.openhands.dev/openhands/usage/automations/event-automations). OpenHands also supports software development lifecycle tasks through [GitHub, GitLab, Bitbucket, and Slack integrations](https://docs.openhands.dev/openhands/usage/settings/integrations-settings), while availability varies by deployment.
+
+The [open-source core uses the MIT license](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE) and can run locally, while [OpenHands also offers cloud and self-hosted enterprise deployments](https://www.openhands.dev/pricing). Its current repository describes support for OpenHands and other compatible coding agents across local, remote, and cloud backends.
+
+Choose OpenHands when you want an agent to perform engineering work with repository and command-line access. Evaluate OpenHands on its repository access, coding environment, and software delivery capabilities rather than on general-purpose workspace features.
+
+## Comparison table
+
+| Framework | Build model | License | Self-hosting | Deployment surfaces | Model flexibility |
+| --- | --- | --- | --- | --- | --- |
+| Sim | [Visual, API/code, and natural language](https://docs.sim.ai/introduction) | [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) | Yes | [API, chat, and MCP](https://docs.sim.ai/workflows/deployment) | [Multiple hosted and bring-your-own-key models](https://docs.sim.ai/introduction); local-model availability varies by deployment |
+| LangGraph | [Code-first graphs](https://docs.langchain.com/oss/python/langgraph/use-graph-api) | [MIT](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) | Yes | [Applications, APIs, and deployments](https://docs.langchain.com/oss/python/langgraph/overview) | Broad LangChain model ecosystem |
+| CrewAI | [Python crews and flows](https://docs.crewai.com/edge/en/concepts/flows) | [MIT](https://github.com/crewAIInc/crewAI) | Yes | Python applications and [managed AMP deployments](https://crewai.com/pricing) | [API and open-weight models](https://github.com/crewAIInc/crewAI) |
+| Dify | [Visual workflows](https://docs.dify.ai/en/cloud/use-dify/nodes/knowledge-retrieval) | [Modified Apache 2.0 with commercial restrictions](https://github.com/langgenius/dify/blob/main/LICENSE) | [Community and enterprise options](https://dify.ai/pricing/dify-enterprise) | [Applications and APIs](https://docs.dify.ai/en/api-reference/knowledge-bases/retrieve-chunks-from-a-knowledge-base-test-retrieval) | [Multiple model providers](https://docs.dify.ai/en/self-host/use-dify/workspace/model-providers) |
+| Flowise | [Visual canvas](https://github.com/FlowiseAI/Flowise) | [Apache 2.0 for most source, with enterprise exceptions](https://github.com/FlowiseAI/Flowise/blob/32d80d352022480f894a534afa87458f00d434e6/LICENSE.md) | Existing installations require user-managed maintenance | [Web app and API](https://github.com/FlowiseAI/Flowise) | [Multiple model providers, but no upstream updates while archived](https://github.com/FlowiseAI/Flowise) |
+| OpenHands¹ | [Coding-agent platform](https://github.com/All-Hands-AI/OpenHands/) | [MIT for the open-source core](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE) | [Local and enterprise options](https://www.openhands.dev/pricing) | Local, cloud, or enterprise deployments | Multiple compatible coding agents and models |
+
+¹ OpenHands serves software engineering workflows rather than general-purpose agent building.
+
+## How to choose
+
+- Choose [LangGraph](https://docs.langchain.com/oss/python/langgraph/use-graph-api) when you need precise control over state, branching, and loops in code. Choose [CrewAI](https://docs.crewai.com/v1.13.0/en/concepts/agents) when Python agents need distinct roles and collaborative tasks.
+- Choose [Dify](https://docs.dify.ai/en/self-host/use-dify/knowledge/readme) when retrieval quality and knowledge-base management drive the application. Its RAG tooling goes deeper than the general-purpose builders covered here.
+- Choose [Sim](https://sim.ai) when you need a shared workspace with natural-language, visual, and code-based building. Native Tables, Files, and Knowledge Bases supply workflow context, while one workflow can deploy through API, chat, or MCP.
+- Choose [OpenHands](https://docs.openhands.dev/openhands/usage/automations/event-automations) when agents need to review pull requests, fix CI failures, or automate other software development tasks. It serves coding workflows rather than general agent building.
+- For a new project, choose an actively maintained alternative to [Flowise](https://github.com/FlowiseAI/Flowise). Existing Flowise users should assess migration options and decide whether they can maintain a private fork.
+
+If you need one workspace for natural-language, visual, and code-based building with multiple deployment options, consider [Sim](https://sim.ai).

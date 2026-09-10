@@ -16,6 +16,7 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
+import { resolveViewerSourceAccounts } from '@/lib/knowledge/connectors/viewer-source-accounts'
 import {
   SEARCH_SOURCE_CANDIDATE_PAGE_SIZE,
   SEARCH_SOURCE_PAGE_SIZE,
@@ -106,7 +107,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     if (candidates.length === 0) return { sources: [], nextCursor: null }
     const scanned = candidates.slice(0, SEARCH_SOURCE_CANDIDATE_PAGE_SIZE)
 
-    const [availability, memberships, viewers, access, approvals] = await Promise.all([
+    const [availability, memberships, viewers, approvals, accounts] = await Promise.all([
       resolveKnowledgeAccessAvailability(context),
       resolveViewerConnectorMemberships({
         userId: principal.userId,
@@ -119,12 +120,25 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         .from(user)
         .where(eq(user.id, principal.userId))
         .limit(1),
-      createKnowledgeAccessProvider(principal, context).get(),
       context.organizationId ? listOrganizationSearchApprovals(context.organizationId) : null,
+      context.organizationId
+        ? resolveViewerSourceAccounts({
+            organizationId: context.organizationId,
+            userId: principal.userId,
+            connectors: scanned,
+          })
+        : new Map<string, never[]>(),
     ])
-    /** Filtering uses the same safe display labels and verified membership as the source rows. */
+    /** Owned grants stay manageable even when the source can no longer authorize Search. */
     const matches = scanned.filter((row) => {
-      if (input.mine && memberships.get(row.id) !== 'connected') return false
+      const membership = memberships.get(row.id)
+      if (
+        input.mine &&
+        (context.organizationId
+          ? !accounts.has(row.id)
+          : membership !== 'connected' && membership !== 'needs_reauth')
+      )
+        return false
       const meta = getConnectorMeta(row.connectorType)
       const label = meta
         ? `${meta.name ?? row.connectorType} ${describeSearchSource(meta, row.sourceConfig)}`
@@ -145,6 +159,9 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           ).toString('base64url')
         : null
     if (rows.length === 0) return { sources: [], nextCursor }
+    const access = await createKnowledgeAccessProvider(principal, context).getForConnectors(
+      rows.map((row) => row.id)
+    )
     const documentStates = await db
       .select({
         connectorId: document.connectorId,
@@ -222,6 +239,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           viewerDocumentCount: available ? (state?.count ?? 0) : 0,
           viewerFailedDocumentCount: available ? (state?.failedCount ?? 0) : 0,
           viewerEmailVerified: viewers[0]?.emailVerified === true,
+          viewerAccounts: accounts.get(row.id) ?? [],
         } as const
         return [
           {

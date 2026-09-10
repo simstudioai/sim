@@ -45,17 +45,18 @@ Source availability depends on the deployment and organization policy. An unavai
 
 ## Choose the right connection method
 
-Most sources use member accounts. Google Drive and Confluence also support a central administrator connection; GitLab requires an administrator token for a self-managed instance.
+Most sources use member accounts. GitHub supports a central App installation with a personal connection for each reader. Google Drive and Confluence also support a central administrator connection; GitLab requires an administrator token for a self-managed instance.
 
 | Method | What the admin does | What teammates do |
 | --- | --- | --- |
 | **Member accounts** | Sets the source's filters once. | Connect their own accounts. Sim lists documents using each member's access. |
+| **GitHub App installation** | Installs the App, selects it under **Sync documents with**, and adds repository sources. | Connect GitHub once. Sim checks each reader's current repository access before returning installation-indexed content. |
 | **Service account** (Drive) / **Admin or service account** (Confluence) | Connects an account that can read the content and the source's permissions or directory. | Join the organization with a matching verified identity. Confluence also requires each person to connect their account. |
 | **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
 
 Adding a Google Drive or Confluence source from the admin page starts central setup. For personal connections, use **Integrations → Connect account** in the main sidebar. An approved provider can create its first member source there; required repository, site, or project fields are collected before authorization. Admins can edit that source's filters afterward in its **Settings** tab.
 
-Some member sources offer **More options → Sync documents with**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
+Some member sources offer **Sync documents with**, either directly in setup or under **More options**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. For GitHub organization sources, choose **Connect GitHub App** in this field to [connect an installation](/search/github#add-a-repository). **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
 
 <Callout type="info">
   An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules. It also does not automatically discover every employee's data: the indexing account must be able to read the configured content.
@@ -66,7 +67,7 @@ Some member sources offer **More options → Sync documents with**. **Connected 
 | Source | Content | Connection in Search |
 | --- | --- | --- |
 | [Confluence](/search/confluence) | Pages and blog posts | Admin/service account or member accounts; each teammate connects |
-| [GitHub](/search/github) | Repository text files | GitHub App installation plus each member's authorization |
+| [GitHub](/search/github) | Repository text files | App installation or member indexing; each teammate connects |
 | [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed instance administrator token; no member connection |
 | [Gmail](/search/gmail) | Email thread text | Each member's Gmail account |
 | [Google Calendar](/search/google-calendar) | Calendar events | Each member's Google Calendar account |
@@ -133,7 +134,7 @@ Workspace Search remains separate. Workspace admins add sources through **Search
 3. Ask a teammate with different source access to repeat the search. Documents restricted to you should not appear for them.
 4. Change or remove a test document's access in the source and check again after the next completed content and permission refresh.
 
-Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query.
+Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits appear after syncing. Permission refresh behavior depends on the connector: GitHub sources indexed through an App installation also check the reader's current repository access before returning indexed content.
 
 ## If indexing needs attention
 

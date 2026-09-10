@@ -5,6 +5,7 @@ import { task } from '@trigger.dev/sdk'
 import { type SQL, sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
+import { validatedTimestampSql } from '@/lib/table/column-types/timestamp-sql'
 import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { assertRowDelete, TableLockedError } from '@/lib/table/mutation-locks'
@@ -13,7 +14,7 @@ import type { DeletedTableRow } from '@/lib/table/rows/ordering'
 import { withLockedTable } from '@/lib/table/service'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
-import { TTL_TIMESTAMP_PATTERN } from '@/lib/table/ttl-values'
+import { TTL_TIMESTAMP_VALIDATION } from '@/lib/table/ttl-values'
 import type { RowData, TableSchema } from '@/lib/table/types'
 
 const logger = createLogger('CleanupTableRowTtl')
@@ -59,20 +60,9 @@ export interface TableRowTtlCleanupResult {
   limitReached: boolean
 }
 
-/** Guards the timestamp cast, including calendar validity, on PostgreSQL 14+. */
+/** Shares PostgreSQL's validated instant projection with Expiration comparisons. */
 function expiredTtlPredicate(cell: SQL, nowUtc: string): SQL {
-  return sql`CASE
-    WHEN ${cell} ~ ${TTL_TIMESTAMP_PATTERN}
-    THEN CASE
-      WHEN substring(${cell}, 9, 2)::int <= extract(day FROM (
-        make_date(substring(${cell}, 1, 4)::int, substring(${cell}, 6, 2)::int, 1)
-          + interval '1 month - 1 day'
-      ))
-      THEN (${cell})::timestamptz <= ${nowUtc}::timestamptz
-      ELSE false
-    END
-    ELSE false
-  END`
+  return sql`${validatedTimestampSql(cell, TTL_TIMESTAMP_VALIDATION)} <= ${nowUtc}::timestamptz`
 }
 
 async function listExpiredTtlTables(nowUtc: string): Promise<ExpiredTtlTableRef[]> {

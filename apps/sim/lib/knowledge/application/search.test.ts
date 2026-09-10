@@ -626,7 +626,12 @@ describe('knowledge search application use case', () => {
       },
     })
 
-    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(['document-1'], expect.anything())
+    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(
+      ['document-1'],
+      expect.anything(),
+      undefined,
+      undefined
+    )
     expect(result.results[0]).toMatchObject({
       documentName: 'guide.pdf',
       sourceUrl: 'https://example.com/guide',

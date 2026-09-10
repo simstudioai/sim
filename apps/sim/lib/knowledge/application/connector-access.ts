@@ -10,6 +10,8 @@ import {
 } from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
+import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
+import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import {
   requireKnowledgeMemberAccessAvailable,
@@ -26,6 +28,7 @@ import {
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
+import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   type ConnectorAccessMode,
@@ -54,6 +57,8 @@ export interface StartKnowledgeConnectorMemberEnrollmentInput {
   connectorId: string
   assertedWorkspaceId?: string
   assertedOrganizationId?: string
+  /** Opens provider OAuth directly and correlates its completion with the initiating tab. */
+  oauthCompletionId?: string
 }
 
 /**
@@ -70,7 +75,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     principal: Principal
     input: StartKnowledgeConnectorMemberEnrollmentInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
-  async execute({ principal, context }) {
+  async execute({ principal, context, input }) {
     const owner = resourceScopeFields(resourceScopeFromOwner(context.knowledgeBase))
     const userId = resolvePrincipalSubjectUserId(principal)
     if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
@@ -84,7 +89,42 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     if (!connectorMeta || (context.knowledgeBase.isSearchIndex && !connectorMeta.search)) {
       throw new OrchestrationError('validation', 'This connector is unavailable for Search')
     }
-    const enrollmentUrl = (invitationLink: string, optionId: string) => {
+    if (input.oauthCompletionId && !context.knowledgeBase.isSearchIndex) {
+      throw new OrchestrationError(
+        'validation',
+        'Direct account connection requires a Search source'
+      )
+    }
+    const enrollmentUrl = async (credentialGroupId: string, optionId: string) => {
+      const { enrollment, invitationLink } = await createViewerCredentialGroupEnrollment({
+        userId,
+        ...owner,
+        credentialGroupId,
+      })
+      if (input.oauthCompletionId) {
+        const token = new URL(invitationLink).pathname.split('/').at(-1)
+        if (!token) throw new Error('Account enrollment did not return an invitation token')
+        const oauth = await getCredentialGroupOAuthContextForEnrollment(
+          {
+            ...owner,
+            credentialGroupId,
+            enrollmentId: enrollment.id,
+            email: enrollment.email,
+            userId,
+          },
+          optionId
+        )
+        if (!oauth)
+          throw new OrchestrationError(
+            'forbidden',
+            'This account connection is no longer available'
+          )
+        return startCredentialGroupOAuth(oauth, token, {
+          completionRedirect: true,
+          returnTo: 'search',
+          completionId: input.oauthCompletionId,
+        })
+      }
       if (!context.knowledgeBase.isSearchIndex) return invitationLink
       const url = new URL(invitationLink)
       url.searchParams.set('optionId', optionId)
@@ -101,12 +141,9 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
           `Ask an admin to configure ${connectorMeta.name} sign-in in Connected accounts`
         )
       }
-      const { invitationLink: url } = await createViewerCredentialGroupEnrollment({
-        userId,
-        ...owner,
-        credentialGroupId: binding.credentialGroupId,
-      })
-      return { url: enrollmentUrl(url, binding.credentialGroupOptionId) }
+      return {
+        url: await enrollmentUrl(binding.credentialGroupId, binding.credentialGroupOptionId),
+      }
     }
     if (
       connector.accessMode !== 'members' ||
@@ -139,12 +176,9 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
       sourceConfig: connector.sourceConfig,
     })
     if (!validation.ok) throw new OrchestrationError('validation', validation.message)
-    const { invitationLink: url } = await createViewerCredentialGroupEnrollment({
-      userId,
-      ...owner,
-      credentialGroupId: connector.credentialGroupId,
-    })
-    return { url: enrollmentUrl(url, connector.credentialGroupOptionId) }
+    return {
+      url: await enrollmentUrl(connector.credentialGroupId, connector.credentialGroupOptionId),
+    }
   },
 })
 
@@ -198,7 +232,20 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         'Search sources must support per-person access or source permissions'
       )
     }
-    const sourceConfig = connector.sourceConfig as Record<string, unknown>
+    const previousConfig = connector.sourceConfig as Record<string, unknown>
+    const sourceConfig = await prepareGitHubInstallationSource({
+      connectorType: connector.connectorType,
+      credentialId:
+        input.credentialId === undefined && input.accessMode === connector.accessMode
+          ? connector.credentialId
+          : input.credentialId,
+      organizationId: context.organizationId,
+      isSearchIndex: context.knowledgeBase.isSearchIndex === true,
+      accessMode: input.accessMode,
+      actingUserId,
+      sourceConfig: previousConfig,
+      previousConfig,
+    })
 
     let target: ConnectorAccessTarget
     if (input.accessMode === 'members') {

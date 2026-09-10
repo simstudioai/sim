@@ -1,7 +1,8 @@
 'use client'
 
-import { Chip, ChipSwitch } from '@sim/emcn'
+import { Chip, ChipSwitch, toast } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
+import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationIntegrationsSetup } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup'
 import { organizationIntegrationsTabParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
@@ -10,7 +11,10 @@ import {
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
-import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import {
+  useOrganizationAccounts,
+  useUpdateOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 
 export function OrganizationIntegrationsSettings() {
   const { organization, viewer } = useOrganizationContext()
@@ -18,9 +22,23 @@ export function OrganizationIntegrationsSettings() {
     organizationIntegrationsTabParam.key,
     organizationIntegrationsTabParam.parser
   )
-  const accounts = useOrganizationAccounts(
-    viewer.isAdmin && tab === 'people' ? organization.id : undefined
-  )
+  const accounts = useOrganizationAccounts(viewer.isAdmin ? organization.id : undefined)
+  const update = useUpdateOrganizationAccounts()
+  const group = accounts.data?.credentialGroup
+  const updateConfigurations = () => {
+    if (!group || update.isPending) return
+    update.mutate(
+      {
+        organizationId: organization.id,
+        groupId: group.id,
+        update: { options: getOrganizationAccountUpdateOptions(group) },
+      },
+      {
+        onSuccess: () => toast.success('Provider configurations updated'),
+        onError: (error) => toast.error(error.message),
+      }
+    )
+  }
   if (!viewer.isAdmin) return null
 
   return (
@@ -35,8 +53,10 @@ export function OrganizationIntegrationsSettings() {
             { value: 'people', label: 'People' },
           ]}
         />
-        {tab === 'providers' && (
-          <span className='text-[var(--text-muted)] text-caption'>Allowed in Sim Search</span>
+        {tab === 'providers' && !accounts.error && group && group.options.length > 0 && (
+          <Chip disabled={update.isPending} onClick={updateConfigurations}>
+            Update configurations
+          </Chip>
         )}
       </div>
       {tab === 'providers' && <OrganizationIntegrationsSetup />}

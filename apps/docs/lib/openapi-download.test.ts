@@ -33,8 +33,9 @@ describe('OpenAPI download', () => {
     const tags = document.tags as Array<{ name: string }>
 
     expect(document.openapi).toBe('3.1.0')
-    expect(Object.keys(paths)).toHaveLength(133)
+    expect(Object.keys(paths)).toHaveLength(152)
     expect(tags.map((tag) => tag.name)).toEqual([
+      'Workspace Sync',
       'Workflows',
       'Workflow Runs',
       'Logs',

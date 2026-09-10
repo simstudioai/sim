@@ -64,12 +64,14 @@ export interface ConnectSimSearchConnectorInput extends ResourceOwner {
   connectorId?: string
   /** Source settings identify a compatible configuration when creating or reusing a source. */
   sourceConfig?: Record<string, string>
+  /** Correlates a direct provider authorization with the initiating Integrations tab. */
+  oauthCompletionId?: string
 }
 
 export interface ConnectSimSearchConnectorResult {
   knowledgeBaseId: string
   connectorId: string
-  /** The enrollment link that connects the caller's own account. */
+  /** The invitation link or provider authorization URL for the caller's own account. */
   url: string
 }
 
@@ -367,6 +369,7 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         connectorId: target.connectorId,
         assertedWorkspaceId: workspaceId,
         assertedOrganizationId: context.organizationId,
+        oauthCompletionId: input.oauthCompletionId,
       },
       request,
     })
