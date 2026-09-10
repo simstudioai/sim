@@ -805,6 +805,24 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  listPersonalSourceSetupAccounts: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personalSetup.accounts.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  personalSourceSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personalSetup',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   createApprovedSearchSource: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.sources.connectApproved',

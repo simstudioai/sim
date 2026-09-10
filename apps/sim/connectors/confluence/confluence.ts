@@ -39,6 +39,34 @@ import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/con
 
 const logger = createLogger('ConfluenceConnector')
 const PERMISSION_VALIDATION_TIMEOUT_MS = 10_000
+const SPACE_BATCH_SIZE = 50
+const SPACE_BATCH_QUERY_LENGTH = 1_800
+const SPACE_BATCH_CURSOR_PREFIX = 'space-batches:'
+
+/** Bounds both space lookups and CQL URLs when a source includes many spaces. */
+function spaceKeyBatches(spaceKeys: string[]): string[][] {
+  const batches: string[][] = []
+  let batch: string[] = []
+  let queryLength = 0
+  for (const key of new Set(spaceKeys)) {
+    const encodedLength = encodeURIComponent(escapeCql(key)).length + 15
+    if (encodedLength > SPACE_BATCH_QUERY_LENGTH) {
+      throw new Error('A Confluence space key is too long. Check the selected spaces.')
+    }
+    if (
+      batch.length === SPACE_BATCH_SIZE ||
+      queryLength + encodedLength > SPACE_BATCH_QUERY_LENGTH
+    ) {
+      batches.push(batch)
+      batch = []
+      queryLength = 0
+    }
+    batch.push(key)
+    queryLength += encodedLength
+  }
+  if (batch.length > 0) batches.push(batch)
+  return batches
+}
 
 /**
  * The configured space does not exist for the caller. Confluence answers a
@@ -595,7 +623,7 @@ export const confluenceConnector: ConnectorConfig = {
      * `lastModified`.
      */
     if (labelFilter.trim() || spaceKeys.length > 1 || lastSyncAt) {
-      return listDocumentsViaCql(
+      return listSpaceBatchesViaCql(
         cloudId,
         accessToken,
         domain,
@@ -746,43 +774,64 @@ export const confluenceConnector: ConnectorConfig = {
             }
           : VALIDATE_RETRY_OPTIONS
       const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext, retryOptions)
-      const params = new URLSearchParams()
-      for (const key of spaceKeys) params.append('keys', key)
-      params.append('limit', String(Math.max(spaceKeys.length, 1)))
-      const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?${params.toString()}`
-      const response = await fetchWithRetry(
-        spaceUrl,
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
-        retryOptions
-      )
-      if (!response.ok) {
-        return { valid: false, error: `Failed to validate spaces: ${response.status}` }
-      }
-      const data = await response.json()
-      const results = (data.results as Array<Record<string, unknown>> | undefined) ?? []
-      const foundKeys = new Set(results.map((r) => String(r.key)))
-      const missing = spaceKeys.filter((k) => !foundKeys.has(k))
-      if (missing.length > 0) {
-        return {
-          valid: false,
-          error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
+      let permissionSpaceId: string | undefined
+      for (const batch of spaceKeyBatches(spaceKeys)) {
+        const remainingKeys = new Set(batch)
+        const seenCursors = new Set<string>()
+        let cursor: string | undefined
+        do {
+          const params = new URLSearchParams()
+          for (const key of batch) params.append('keys', key)
+          params.set('limit', String(batch.length))
+          if (cursor) params.set('cursor', cursor)
+          const response = await fetchWithRetry(
+            `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?${params}`,
+            {
+              method: 'GET',
+              headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+            },
+            retryOptions
+          )
+          if (!response.ok) {
+            return { valid: false, error: `Failed to validate spaces: ${response.status}` }
+          }
+          const data = await response.json()
+          if (!Array.isArray(data.results)) {
+            throw new Error('Confluence returned an invalid space list. Try again.')
+          }
+          for (const space of data.results) {
+            if (
+              remainingKeys.delete(space.key) &&
+              !permissionSpaceId &&
+              typeof space.id === 'string'
+            ) {
+              permissionSpaceId = space.id
+            }
+          }
+          if (remainingKeys.size === 0) break
+          const next = data._links?.next
+          cursor = extractCursor(next)
+          if (next && (!cursor || seenCursors.has(cursor) || seenCursors.size >= batch.length)) {
+            throw new Error('Confluence returned an incomplete space list. Try again.')
+          }
+          if (cursor) seenCursors.add(cursor)
+        } while (cursor)
+        if (remainingKeys.size > 0) {
+          const missing = [...remainingKeys]
+          return {
+            valid: false,
+            error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
+          }
         }
       }
       if (syncContext?.mirrorsSourceAcls === true) {
-        const spaceId = results[0]?.id
-        if (typeof spaceId !== 'string' || !spaceId) {
+        if (!permissionSpaceId) {
           return { valid: false, error: 'Confluence returned a space without an ID. Try again.' }
         }
         await validateConfluencePermissionAccess({
           cloudId,
           accessToken,
-          spaceId,
+          spaceId: permissionSpaceId,
           contentType: (sourceConfig.contentType as string) || 'page',
           retryOptions,
         })
@@ -1036,6 +1085,86 @@ export function resolveLastModifiedClause(
  * about rather than mirroring the v2 endpoints' 250.
  */
 const CQL_PAGE_SIZE = 50
+
+/** Walks one bounded space batch at a time without discarding a provider continuation. */
+async function listSpaceBatchesViaCql(
+  cloudId: string,
+  accessToken: string,
+  domain: string,
+  spaceKeys: string[],
+  contentType: string,
+  labelFilter: string,
+  maxPages: number,
+  cursor?: string,
+  syncContext: Record<string, unknown> = {},
+  lastSyncAt?: Date
+): Promise<ExternalDocumentList> {
+  const batches = spaceKeyBatches(spaceKeys)
+  if (batches.length === 1) {
+    return listDocumentsViaCql(
+      cloudId,
+      accessToken,
+      domain,
+      batches[0],
+      contentType,
+      labelFilter,
+      maxPages,
+      cursor,
+      syncContext,
+      lastSyncAt
+    )
+  }
+
+  let batchIndex = 0
+  let providerCursor: string | undefined
+  if (cursor) {
+    const invalidCursor = new Error('Invalid Confluence space continuation. Restart the sync.')
+    if (!cursor.startsWith(SPACE_BATCH_CURSOR_PREFIX)) throw invalidCursor
+    const state: unknown = JSON.parse(cursor.slice(SPACE_BATCH_CURSOR_PREFIX.length))
+    if (
+      typeof state !== 'object' ||
+      state === null ||
+      !('batch' in state) ||
+      typeof state.batch !== 'number' ||
+      !Number.isSafeInteger(state.batch) ||
+      state.batch < 0 ||
+      state.batch >= batches.length ||
+      ('cursor' in state && typeof state.cursor !== 'string')
+    )
+      throw invalidCursor
+    batchIndex = state.batch
+    providerCursor = 'cursor' in state ? (state.cursor as string) : undefined
+  }
+
+  const result = await listDocumentsViaCql(
+    cloudId,
+    accessToken,
+    domain,
+    batches[batchIndex],
+    contentType,
+    labelFilter,
+    maxPages,
+    providerCursor,
+    syncContext,
+    lastSyncAt
+  )
+  const hasMoreBatches = batchIndex + 1 < batches.length
+  if (maxPages > 0 && Number(syncContext.totalDocsFetched) >= maxPages) {
+    if (hasMoreBatches) syncContext.listingCapped = true
+    return { ...result, hasMore: false, nextCursor: undefined }
+  }
+  if (!result.hasMore && !hasMoreBatches) return result
+  return {
+    ...result,
+    hasMore: true,
+    nextCursor:
+      SPACE_BATCH_CURSOR_PREFIX +
+      JSON.stringify({
+        batch: result.hasMore ? batchIndex : batchIndex + 1,
+        ...(result.hasMore ? { cursor: result.nextCursor } : {}),
+      }),
+  }
+}
 
 /**
  * Lists documents using CQL search via the v1 API (used when label filtering is enabled).

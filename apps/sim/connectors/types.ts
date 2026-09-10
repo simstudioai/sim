@@ -301,6 +301,8 @@ export interface ConnectorConfigField {
   mode?: 'basic' | 'advanced'
   /** Links selector + manual input fields that resolve to the same config key */
   canonicalParamId?: string
+  /** Both modes use the same provider identifiers, so switching carries the current selection. */
+  preserveValueOnModeChange?: boolean
 
   /**
    * When true, the field accepts multiple values.
@@ -309,6 +311,8 @@ export interface ConnectorConfigField {
    * Connector handlers receive `string | string[]` and should normalize via `parseMultiValue`.
    */
   multi?: boolean
+  /** Offers explicit bulk selection of the complete, bounded provider list. */
+  allowSelectAll?: boolean
 }
 
 /**

@@ -37,16 +37,11 @@ Open your organization's **Settings → Sources**, turn on **Jira**, then select
 
 ### Choose the projects
 
-Enter **Jira Domain**. Under **Account for browsing**, select an account or choose **Connect Jira account**, then select **Projects**. To enter keys such as `ENG, SUPPORT` manually, use the switch beside Projects; this works without a browsing account.
+Under **Account for browsing**, select a saved account (including your personal Search account) or choose **Connect Jira account**. Enter **Jira Domain**, then choose **Projects**. **Select all** selects every project the account can currently browse; newly created projects are not added automatically. Clear the picker search before selecting all.
+
+To enter keys such as `ENG, SUPPORT` manually, use the switch beside **Projects**; this works without a browsing account. Switching between the picker and manual entry keeps your selection.
 
 **Account for browsing** only loads the project picker, using OAuth or **Add service account**. It does not enroll anyone for Search. A service account needs Jira access and the [Jira read scopes](/integrations/atlassian-service-account#jira-and-jira-service-management); Confluence-only tokens do not work here.
-
-<Image className="mx-auto h-auto w-full max-w-md"
-  src="/static/search/jira-setup.png"
-  alt="Jira source setup with an account for browsing, site domain, and projects"
-  width={500}
-  height={420}
-/>
 
 </Step>
 <Step>
@@ -70,6 +65,21 @@ Each teammate follows this step. Existing authorized accounts may already be con
 </Steps>
 
 For workspace Search, start from **Search → Add source**; its source-creation button is **Create & Invite**. Search manages the sync schedule and hides item limits.
+
+## Connect before a source exists
+
+After an admin approves Jira, a teammate can start from **Integrations → Connect**. The same setup opens when you choose **Connect a different site or content scope**:
+
+1. Under **Your account**, select a saved account or choose **Connect account**. Authorize using the Atlassian email matching your verified Sim email.
+2. Enter the hostname under **Atlassian site**, then choose **Projects**. Use **Select all** for the complete current list, or **Enter keys manually** for comma-separated keys. You can select up to 1,000 projects in this form.
+3. Select **Connect & Sync**. Sim saves the selected scope and starts indexing with your account.
+
+<Image className="mx-auto h-auto w-full max-w-md"
+  src="/static/search/jira-personal-setup.png"
+  alt="Jira personal source setup with a saved account, Atlassian site, and selected projects"
+  width={500}
+  height={462}
+/>
 
 ## Manage the source
 

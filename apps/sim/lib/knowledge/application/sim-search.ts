@@ -69,6 +69,8 @@ export interface ConnectSimSearchConnectorInput extends ResourceOwner {
   /** Correlates a direct provider authorization with the initiating Integrations tab. */
   connectionIntent?: CredentialGroupConnectionIntent
   oauthCompletionId?: string
+  /** Internal setup assertion; a reused source must use the viewer's prepared enrollment option. */
+  memberCredentialBinding?: { credentialGroupId: string; credentialGroupOptionId: string }
 }
 
 export interface ConnectSimSearchConnectorResult {
@@ -84,6 +86,8 @@ async function findSimSearchConnector(input: ConnectSimSearchConnectorInput) {
       knowledgeBaseId: knowledgeBase.id,
       connectorId: knowledgeConnector.id,
       sourceConfig: knowledgeConnector.sourceConfig,
+      credentialGroupId: knowledgeConnector.credentialGroupId,
+      credentialGroupOptionId: knowledgeConnector.credentialGroupOptionId,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -119,6 +123,17 @@ async function findSimSearchConnector(input: ConnectSimSearchConnectorInput) {
     )
   }
   const match = matches[0]
+  if (
+    match &&
+    input.memberCredentialBinding &&
+    (match.credentialGroupId !== input.memberCredentialBinding.credentialGroupId ||
+      match.credentialGroupOptionId !== input.memberCredentialBinding.credentialGroupOptionId)
+  ) {
+    throw new OrchestrationError(
+      'conflict',
+      'This source uses a different account configuration. Ask an admin to review its settings.'
+    )
+  }
   return match ? { knowledgeBaseId: match.knowledgeBaseId, connectorId: match.connectorId } : null
 }
 
@@ -282,11 +297,11 @@ async function requireSimSearchSetupAdmin(
  * singleflight also coalesces repeated setup clicks for each source; concurrent
  * source creation is serialized by the connector insert transaction before enrollment.
  */
-export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
+export const configureSimSearchConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.simSearchConnect,
   resolveContext: ({ input }: { input: ConnectSimSearchConnectorInput }) =>
     resolveKnowledgeOwnerContext(input),
-  async execute({ principal, input, context, request }): Promise<ConnectSimSearchConnectorResult> {
+  async execute({ principal, input, context, request }) {
     const meta = CONNECTOR_META_REGISTRY[input.connectorType]
     if (!meta || !canConnectPersonally(meta)) {
       throw new OrchestrationError(
@@ -373,12 +388,23 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         }
       )
     }
+    return target
+  },
+})
+
+/** Creates or reuses the source, then authorizes the member when setup has not already done so. */
+export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.simSearchConnect,
+  resolveContext: ({ input }: { input: ConnectSimSearchConnectorInput }) =>
+    resolveKnowledgeOwnerContext(input),
+  async execute({ principal, input, context, request }): Promise<ConnectSimSearchConnectorResult> {
+    const target = await configureSimSearchConnector.execute({ principal, input, request })
     const { url } = await startKnowledgeConnectorMemberEnrollment.execute({
       principal,
       input: {
         knowledgeBaseId: target.knowledgeBaseId,
         connectorId: target.connectorId,
-        assertedWorkspaceId: workspaceId,
+        assertedWorkspaceId: context.workspaceId,
         assertedOrganizationId: context.organizationId,
         oauthCompletionId: input.oauthCompletionId,
         connectionIntent: input.connectionIntent,

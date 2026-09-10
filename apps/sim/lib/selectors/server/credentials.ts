@@ -9,6 +9,8 @@ import {
   authorizeOrganizationCredentialUse,
   resolveOrganizationCredentialTokenBundle,
 } from '@/lib/credentials/application/organization-credentials'
+import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
+import { authorizePersonalSearchSetupCredential } from '@/lib/knowledge/application/personal-search-account'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { credentialProviderMatchesService, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
@@ -104,12 +106,39 @@ export async function authorizeSelectorCredential(input: {
   scope: SelectorScope
   workspaceId?: string
   organizationId?: string
+  personalSearchSetup?: 'jira' | 'confluence'
   policy: SelectorCredentialPolicy
   protectedValues: SelectorProtectedValues
   references: ReadonlyMap<string, ResolvedSelectorReference>
 }): Promise<AuthorizedSelectorCredential> {
   const suppliedId = input.context[input.policy.field]
   if (!suppliedId) throw new SelectorConnectionUnavailableError()
+
+  if (input.personalSearchSetup) {
+    if (
+      input.scope.kind !== 'organization' ||
+      input.principal.kind !== 'session' ||
+      input.organizationId !== input.scope.organizationId ||
+      input.workspaceId ||
+      !input.policy.serviceIds.includes(input.personalSearchSetup)
+    )
+      throw new SelectorConnectionUnavailableError()
+    const row = await authorizePersonalSearchSetupCredential(input.principal, {
+      organizationId: input.scope.organizationId,
+      connectorType: input.personalSearchSetup,
+      credentialId: suppliedId,
+    })
+    input.protectedValues.add(suppliedId, 'reference')
+    return {
+      suppliedId,
+      providerId: row.providerId,
+      personalSearchSetup: {
+        principal: input.principal,
+        organizationId: input.scope.organizationId,
+        connectorType: input.personalSearchSetup,
+      },
+    }
+  }
 
   if (input.scope.kind === 'organization') {
     if (
@@ -186,6 +215,31 @@ export async function resolveSelectorOAuthAccessToken(input: {
 }): Promise<string> {
   input.credential.signal?.throwIfAborted()
   if (input.credential.fixedToken) return input.credential.fixedToken
+
+  if (input.credential.personalSearchSetup) {
+    const setup = input.credential.personalSearchSetup
+    if (input.impersonateEmail || input.serviceId !== setup.connectorType) {
+      throw new SelectorConnectionUnavailableError()
+    }
+    await authorizePersonalSearchSetupCredential(setup.principal, {
+      ...setup,
+      credentialId: input.credential.suppliedId,
+    })
+    const result = await waitForSelectorCredentialResolution(
+      resolveManagedOAuthToken({
+        organizationId: setup.organizationId,
+        credentialId: input.credential.suppliedId,
+        expectedProviderId: setup.connectorType,
+        requiredScopes: input.scopes ? [...input.scopes] : [],
+      }),
+      input.credential.signal
+    )
+    input.credential.signal?.throwIfAborted()
+    if (!result?.accessToken) throw new SelectorConnectionUnavailableError()
+    input.protectedValues.add(result.accessToken)
+    input.recordCredentialUse?.(setup.connectorType)
+    return result.accessToken
+  }
 
   if (input.credential.organization) {
     const result = await waitForSelectorCredentialResolution(

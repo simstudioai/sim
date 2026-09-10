@@ -29,6 +29,8 @@ export const jiraConnectorMeta: ConnectorMeta = {
       canonicalParamId: 'projectKey',
       mode: 'basic',
       multi: true,
+      allowSelectAll: true,
+      preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more projects',
       required: true,

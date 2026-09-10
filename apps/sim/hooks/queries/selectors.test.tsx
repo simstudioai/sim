@@ -7,15 +7,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteSelectorRequest } = vi.hoisted(() => ({
+const { mockExecuteSelectorRequest, mockRequestJson } = vi.hoisted(() => ({
   mockExecuteSelectorRequest: vi.fn(),
+  mockRequestJson: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/client/execute-selector', () => ({
   executeSelectorRequest: mockExecuteSelectorRequest,
 }))
 
-import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
+vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
+
+import {
+  type SelectorLoadAllResult,
+  useSelectorOptionDetail,
+  useSelectorOptions,
+} from '@/hooks/queries/selectors'
 
 interface HookHarness<T> {
   getResult: () => T
@@ -100,6 +107,276 @@ afterEach(() => {
 })
 
 describe('generic selector queries', () => {
+  it('uses the dedicated personal setup contract and isolates it from ordinary browsing', async () => {
+    const personalItems = [{ id: 'PERSONAL', label: 'Personal project' }]
+    mockRequestJson.mockResolvedValue({
+      success: true,
+      data: { kind: 'list', items: personalItems },
+    })
+    mockExecuteSelectorRequest.mockResolvedValue({
+      kind: 'list',
+      items: [{ id: 'ADMIN', label: 'Admin project' }],
+    })
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('jira.projectKeys', {
+        context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        surface: { kind: 'personal-search-setup', organizationId: 'org-1', connectorType: 'jira' },
+        surfaceId: 'projects',
+      })
+    )
+    await waitFor(() => expect(hook.getResult().data).toEqual(personalItems))
+    expect(mockExecuteSelectorRequest).not.toHaveBeenCalled()
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/knowledge/sim-search/personal-source-setup' }),
+      expect.objectContaining({
+        body: {
+          action: 'options',
+          organizationId: 'org-1',
+          connectorType: 'jira',
+          credentialId: 'credential-1',
+          domain: 'example.atlassian.net',
+          request: { kind: 'list' },
+        },
+        signal: expect.any(AbortSignal),
+      })
+    )
+    hook.rerender(() =>
+      useSelectorOptions('jira.projectKeys', {
+        context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        surfaceId: 'projects',
+      })
+    )
+    await waitFor(() =>
+      expect(hook.getResult().data).toEqual([{ id: 'ADMIN', label: 'Admin project' }])
+    )
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('hydrates personal setup labels through the same dedicated contract', async () => {
+    mockRequestJson.mockResolvedValue({
+      success: true,
+      data: { kind: 'detail', item: { id: 'ENG', label: 'Engineering' } },
+    })
+    const hook = renderHookWithClient(() =>
+      useSelectorOptionDetail('confluence.spaces', {
+        context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        surface: {
+          kind: 'personal-search-setup',
+          organizationId: 'org-1',
+          connectorType: 'confluence',
+        },
+        detailId: 'ENG',
+      })
+    )
+    await waitFor(() => expect(hook.getResult().data?.id).toBe('ENG'))
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          connectorType: 'confluence',
+          request: { kind: 'detail', id: 'ENG' },
+        }),
+      })
+    )
+    expect(mockExecuteSelectorRequest).not.toHaveBeenCalled()
+  })
+
+  it.each(['selector', 'organization'] as const)(
+    'rejects a mismatched personal setup %s before sending a request',
+    async (mismatch) => {
+      const hook = renderHookWithClient(() =>
+        useSelectorOptions(mismatch === 'selector' ? 'confluence.spaces' : 'jira.projectKeys', {
+          context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
+          scope: {
+            kind: 'organization',
+            organizationId: mismatch === 'organization' ? 'org-2' : 'org-1',
+          },
+          surface: {
+            kind: 'personal-search-setup',
+            organizationId: 'org-1',
+            connectorType: 'jira',
+          },
+        })
+      )
+      await waitFor(() => expect(hook.getResult().error).not.toBeNull())
+      expect(mockRequestJson).not.toHaveBeenCalled()
+      expect(mockExecuteSelectorRequest).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['flat', 'paged'] as const)('returns a complete already-loaded %s list', async (mode) => {
+    const items = [{ id: 'ENG', label: 'Engineering' }]
+    mockExecuteSelectorRequest.mockResolvedValue({ kind: 'list', items })
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions(mode === 'paged' ? 'jira.projectKeys' : 'jira.issues', {
+        context: {
+          workspaceId: 'workspace-1',
+          oauthCredential: 'credential-1',
+          domain: 'example.atlassian.net',
+        },
+      })
+    )
+    await waitFor(() => expect(hook.getResult().isSuccess).toBe(true))
+    let result: SelectorLoadAllResult | undefined
+    await act(async () => {
+      result = await hook.getResult().loadAll()
+    })
+    expect(result).toEqual({ status: 'complete', options: items })
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['provider', 'options', 'pages'] as const)(
+    'reports %s truncation without a complete selection',
+    async (kind) => {
+      mockExecuteSelectorRequest.mockImplementation(
+        async ({ request }: { request: { cursor?: string } }) => ({
+          kind: 'list',
+          items:
+            kind === 'options'
+              ? Array.from({ length: 10_001 }, (_, index) => ({
+                  id: String(index),
+                  label: String(index),
+                }))
+              : [{ id: request.cursor ?? '0', label: 'Project' }],
+          ...(kind === 'pages' ? { nextCursor: String(Number(request.cursor ?? '0') + 1) } : {}),
+          ...(kind === 'provider' ? { truncated: true } : {}),
+        })
+      )
+      const hook = renderHookWithClient(() =>
+        useSelectorOptions('jira.projectKeys', {
+          context: {
+            workspaceId: 'workspace-1',
+            oauthCredential: 'credential-1',
+            domain: 'example.atlassian.net',
+          },
+        })
+      )
+      await waitFor(() => expect(hook.getResult().isSuccess).toBe(true))
+      let result: SelectorLoadAllResult | undefined
+      await act(async () => {
+        result = await hook.getResult().loadAll()
+      })
+      expect(result).toEqual({ status: 'partial' })
+      expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(kind === 'pages' ? 200 : 1)
+    }
+  )
+
+  it('reports a failed continuation and retries from the first page', async () => {
+    let fail = true
+    mockExecuteSelectorRequest.mockImplementation(
+      async ({ request }: { request: { cursor?: string } }) => {
+        if (request.cursor && fail) throw new Error('Provider is unavailable')
+        return request.cursor
+          ? { kind: 'list', items: [{ id: 'OPS', label: 'Operations' }] }
+          : { kind: 'list', items: [{ id: 'ENG', label: 'Engineering' }], nextCursor: 'next' }
+      }
+    )
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('jira.projectKeys', {
+        context: {
+          workspaceId: 'workspace-1',
+          oauthCredential: 'credential-1',
+          domain: 'example.atlassian.net',
+        },
+      })
+    )
+    await waitFor(() => expect(hook.getResult().hasMore).toBe(true))
+    let result: SelectorLoadAllResult | undefined
+    await act(async () => {
+      result = await hook.getResult().loadAll()
+    })
+    expect(result).toEqual({ status: 'error' })
+    await waitFor(() => expect(hook.getResult().error).toBeTruthy())
+    fail = false
+    await act(async () => {
+      result = await hook.getResult().loadAll()
+    })
+    expect(result).toEqual({
+      status: 'complete',
+      options: [
+        { id: 'ENG', label: 'Engineering' },
+        { id: 'OPS', label: 'Operations' },
+      ],
+    })
+    expect(mockExecuteSelectorRequest.mock.calls.map(([args]) => args.request.cursor)).toEqual([
+      undefined,
+      'next',
+      undefined,
+      'next',
+    ])
+  })
+
+  it.each(['scope', 'surface', 'credential', 'site', 'search', 'disabled', 'unmount'] as const)(
+    'cancels bulk selection when its %s changes',
+    async (change) => {
+      let resolvePage!: (result: {
+        kind: 'list'
+        items: { id: string; label: string }[]
+        nextCursor?: string
+      }) => void
+      const pending = new Promise<{
+        kind: 'list'
+        items: { id: string; label: string }[]
+        nextCursor?: string
+      }>((resolve) => {
+        resolvePage = resolve
+      })
+      mockExecuteSelectorRequest.mockImplementation(
+        ({ request }: { request: { cursor?: string } }) =>
+          request.cursor
+            ? pending
+            : Promise.resolve({
+                kind: 'list',
+                items: [{ id: 'ENG', label: 'Engineering' }],
+                nextCursor: 'next',
+              })
+      )
+      let workspaceId = 'workspace-1'
+      let surfaceId = 'field-1'
+      let credentialId = 'credential-1'
+      let domain = 'example.atlassian.net'
+      let search = ''
+      let enabled = true
+      const useHook = () =>
+        useSelectorOptions('jira.projectKeys', {
+          context: { workspaceId, oauthCredential: credentialId, domain },
+          surfaceId,
+          search,
+          enabled,
+        })
+      const hook = renderHookWithClient(useHook)
+      await waitFor(() => expect(hook.getResult().hasMore).toBe(true))
+      let result!: Promise<SelectorLoadAllResult>
+      act(() => {
+        result = hook.getResult().loadAll()
+      })
+      await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(2))
+      if (change === 'scope') workspaceId = 'workspace-2'
+      if (change === 'surface') surfaceId = 'field-2'
+      if (change === 'credential') credentialId = 'credential-2'
+      if (change === 'site') domain = 'another.atlassian.net'
+      if (change === 'search') search = 'Operations'
+      if (change === 'disabled') enabled = false
+      if (change === 'unmount') hook.unmount()
+      else hook.rerender(useHook)
+      await act(async () => {
+        resolvePage({
+          kind: 'list',
+          items: [{ id: 'OPS', label: 'Operations' }],
+          nextCursor: 'unused',
+        })
+        expect(await result).toEqual({ status: 'cancelled' })
+      })
+      expect(
+        mockExecuteSelectorRequest.mock.calls.filter(([args]) => args.request.cursor)
+      ).toHaveLength(1)
+      if (change !== 'unmount') expect(hook.getResult().isLoadingAll).toBe(false)
+    }
+  )
+
   it('transports supported search and keeps context and request plaintext out of query keys', async () => {
     const credentialReference = '{{SHARED_GOOGLE_CREDENTIAL}}'
     const search = 'private search phrase'
@@ -365,7 +642,10 @@ describe('generic selector queries', () => {
     await waitFor(() => expect(hook.getResult().hasMore).toBe(true))
     expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
 
-    act(() => hook.getResult().loadAll())
+    let result: SelectorLoadAllResult | undefined
+    await act(async () => {
+      result = await hook.getResult().loadAll()
+    })
     await waitFor(() => expect(hook.getResult().isLoadingAll).toBe(false))
 
     expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(3)
@@ -375,6 +655,7 @@ describe('generic selector queries', () => {
       { id: 'workspace-2', label: 'Workspace 2' },
     ])
     expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: false })
+    expect(result).toEqual({ status: 'complete', options: hook.getResult().data })
   })
 
   it('refreshes from the first page before retrying a failed continuation cursor', async () => {

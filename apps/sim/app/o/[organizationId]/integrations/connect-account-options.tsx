@@ -210,6 +210,7 @@ export function ConnectAccountOptions({
       </div>
       {enrollment.setupConnector && (
         <SourceSetupModal
+          organizationId={organization.id}
           connector={enrollment.setupConnector}
           isPending={enrollment.isPending}
           onClose={enrollment.closeSetup}

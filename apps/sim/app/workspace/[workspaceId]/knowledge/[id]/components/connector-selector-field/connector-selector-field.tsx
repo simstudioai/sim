@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Chip, ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
-import type { SelectorContext } from '@/lib/selectors/types'
+import type { SelectorContext, SelectorSurface } from '@/lib/selectors/types'
+import { MAX_PERSONAL_SOURCE_SETUP_KEYS } from '@/lib/sim-search/personal-source-setup'
 import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -23,7 +24,9 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
+  controlAria?: ChipModalFieldAria
   scope?: ResourceScope
+  selectorSurface?: SelectorSurface
   field: ConnectorConfigField & { selectorKey: SelectorKey }
   value: ConfigFieldValue
   onChange: (value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => void
@@ -37,7 +40,9 @@ interface ConnectorSelectorFieldProps {
 }
 
 export function ConnectorSelectorField({
+  controlAria,
   scope: explicitScope,
+  selectorSurface,
   field,
   value,
   onChange,
@@ -53,6 +58,17 @@ export function ConnectorSelectorField({
   const scope = explicitScope ?? resourceScopeFromOwner(params)
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
+  const [bulkError, setBulkError] = useState<{ context: SelectorContext; message: string } | null>(
+    null
+  )
+  const bulkGenerationRef = useRef(0)
+
+  useEffect(
+    () => () => {
+      bulkGenerationRef.current += 1
+    },
+    []
+  )
 
   const context = useMemo<SelectorContext>(() => {
     const candidate: Record<string, string> = {}
@@ -95,10 +111,14 @@ export function ConnectorSelectorField({
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
+  const missingDependencyMessage = selectorSurface
+    ? 'Enter your Atlassian site first'
+    : `Select ${getDependencyLabel(field, configFields)} first`
   const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const {
     data: options = [],
     isLoading,
+    isFetching,
     hasMore,
     isFetchingMore,
     isLoadingAll,
@@ -109,6 +129,7 @@ export function ConnectorSelectorField({
   } = useSelectorOptions(field.selectorKey, {
     context,
     scope,
+    surface: selectorSurface,
     search: debouncedSearch,
     enabled: isEnabled,
     surfaceId: `connector:${field.id}`,
@@ -121,13 +142,15 @@ export function ConnectorSelectorField({
   )
   const missingSelectedIds = useMemo(() => {
     const loadedIds = new Set(options.map((option) => option.id))
-    return selectedIds.filter((id) => !loadedIds.has(id))
+    /** The trigger displays at most two labels; additional selections are counted. */
+    return selectedIds.slice(0, 2).filter((id) => !loadedIds.has(id))
   }, [options, selectedIds])
   const { data: selectedOptions, isLoading: isLoadingSelectedOptions } = useSelectorOptionDetails(
     field.selectorKey,
     {
       context,
       scope,
+      surface: selectorSurface,
       detailIds: isEnabled ? missingSelectedIds : [],
       surfaceId: `connector:${field.id}`,
     }
@@ -143,6 +166,7 @@ export function ConnectorSelectorField({
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
     scope,
+    surface: selectorSurface,
     detailId:
       resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
     surfaceId: `connector:${field.id}`,
@@ -171,6 +195,8 @@ export function ConnectorSelectorField({
   }, [options, selectedOptions, searchedOption, selectedLabels, selectedIds])
 
   const handleChange = (nextValue: ConfigFieldValue) => {
+    bulkGenerationRef.current += 1
+    setBulkError(null)
     const ids = new Set(Array.isArray(nextValue) ? nextValue : nextValue ? [nextValue] : [])
     const selected = comboboxOptions
       .filter((option) => ids.has(option.value))
@@ -178,50 +204,126 @@ export function ConnectorSelectorField({
     onChange(nextValue, selected)
   }
 
+  const handleSearchChange = (nextSearch: string) => {
+    bulkGenerationRef.current += 1
+    setBulkError(null)
+    setSearchTerm(nextSearch)
+  }
+
+  const hasSearch = searchTerm.trim().length > 0 || debouncedSearch.length > 0
+  const selectAll = async () => {
+    if (!isEnabled || hasSearch || isFetching || isLoadingAll) return
+    const generation = ++bulkGenerationRef.current
+    setBulkError(null)
+    const result = await loadAll()
+    if (bulkGenerationRef.current !== generation || result.status === 'cancelled') return
+    if (result.status !== 'complete') {
+      setBulkError({
+        context,
+        message:
+          result.status === 'partial'
+            ? 'There are too many results to select all. Select items individually or enter keys.'
+            : 'Could not load all options. Try again.',
+      })
+      return
+    }
+    if (
+      selectorSurface?.kind === 'personal-search-setup' &&
+      result.options.length > MAX_PERSONAL_SOURCE_SETUP_KEYS
+    ) {
+      setBulkError({
+        context,
+        message: `Select up to ${MAX_PERSONAL_SOURCE_SETUP_KEYS.toLocaleString()} items. Choose a smaller set to continue.`,
+      })
+      return
+    }
+    onChange(
+      result.options.map((option) => option.id),
+      result.options.map((option) => ({ id: option.id, label: option.label }))
+    )
+  }
+
   if (isMulti) {
     const multiValues = Array.isArray(value) ? value : value ? [value] : []
     return (
-      <ChipCombobox
-        multiSelect
-        options={comboboxOptions}
-        multiSelectValues={multiValues}
-        onMultiSelectChange={handleChange}
-        searchable
-        onSearchChange={setSearchTerm}
-        searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
-        placeholder={
-          !credentialId
-            ? 'Connect an account first'
-            : !depsResolved
-              ? `Select ${getDependencyLabel(field, configFields)} first`
-              : field.placeholder || `Select ${field.title.toLowerCase()}`
-        }
-        disabled={disabled || !credentialId || !depsResolved}
-        isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
-        hasMore={hasMore}
-        isLoadingMore={isFetchingMore}
-        isLoadingAll={isLoadingAll}
-        truncated={truncated}
-        onLoadMore={loadMore}
-        onLoadAll={loadAll}
-        emptyMessage={emptyMessage}
-      />
+      <div className='flex flex-col gap-1'>
+        <ChipCombobox
+          {...controlAria}
+          aria-label={field.title}
+          multiSelect
+          options={comboboxOptions}
+          multiSelectValues={multiValues}
+          onMultiSelectChange={handleChange}
+          searchable
+          onSearchChange={handleSearchChange}
+          searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
+          placeholder={
+            !credentialId
+              ? 'Connect an account first'
+              : !depsResolved
+                ? missingDependencyMessage
+                : field.placeholder || `Select ${field.title.toLowerCase()}`
+          }
+          disabled={disabled || !credentialId || !depsResolved}
+          isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
+          hasMore={hasMore}
+          isLoadingMore={isFetchingMore}
+          isLoadingAll={isLoadingAll}
+          truncated={truncated}
+          onLoadMore={loadMore}
+          onLoadAll={loadAll}
+          emptyMessage={emptyMessage}
+        />
+        {field.allowSelectAll && (
+          <>
+            <div className='flex items-center gap-1'>
+              <Chip
+                type='button'
+                disabled={!isEnabled || hasSearch || isFetching || isLoadingAll}
+                onClick={() => void selectAll()}
+              >
+                {isLoadingAll ? 'Selecting…' : 'Select all'}
+              </Chip>
+              <Chip
+                type='button'
+                disabled={!isEnabled || multiValues.length === 0}
+                onClick={() => handleChange([])}
+              >
+                Clear
+              </Chip>
+              <span className='text-[var(--text-muted)] text-caption'>
+                {multiValues.length} selected
+              </span>
+            </div>
+            {hasSearch && (
+              <p className='text-[var(--text-muted)] text-caption'>Clear search to select all.</p>
+            )}
+            {bulkError?.context === context && (
+              <p role='alert' className='text-[var(--text-error)] text-caption'>
+                {bulkError.message}
+              </p>
+            )}
+          </>
+        )}
+      </div>
     )
   }
 
   return (
     <ChipCombobox
+      {...controlAria}
+      aria-label={field.title}
       options={comboboxOptions}
       value={singleValue || undefined}
       onChange={handleChange}
       searchable
-      onSearchChange={setSearchTerm}
+      onSearchChange={handleSearchChange}
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
         !credentialId
           ? 'Connect an account first'
           : !depsResolved
-            ? `Select ${getDependencyLabel(field, configFields)} first`
+            ? missingDependencyMessage
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}

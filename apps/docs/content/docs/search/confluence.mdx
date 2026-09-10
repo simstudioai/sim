@@ -38,14 +38,9 @@ Open your organization's **Settings → Sources**, turn on **Confluence**, then 
 
 ### Choose the account and spaces
 
-Under **Indexing account**, select a service account or [add one](#using-a-service-account). Enter the same **Confluence Domain** as the credential, then choose **Spaces**. To enter comma-separated keys such as `ENG, PRODUCT`, use the switch beside the Spaces field.
+Under **Indexing account**, select a service account or [add one](#using-a-service-account). Enter the same **Confluence Domain** as the credential, then choose **Spaces**. **Select all** selects every space the account can currently browse; newly created spaces are not added automatically. Clear the picker search before selecting all.
 
-<Image className="mx-auto h-auto w-full max-w-md"
-  src="/static/search/confluence-setup.png"
-  alt="Confluence source setup with a service account, site domain, and spaces"
-  width={500}
-  height={374}
-/>
+To enter comma-separated keys such as `ENG, PRODUCT`, use the switch beside **Spaces**. Switching between the picker and manual entry keeps your selection.
 
 Open **More options** for content type, labels, and metadata tags. The default is **Pages only**; choose **All content** to include blog posts.
 
@@ -65,9 +60,22 @@ For workspace Search, start from **Search → Add source**. Available methods de
 
 ## Connect member accounts
 
-After an admin allows Confluence, open **Integrations → Connect**. If no source exists, enter **Confluence Domain** and **Space Keys**, then connect your account. To use another site or space scope, choose the row labeled **Connect a different site or content scope**.
+After an admin allows Confluence, open **Integrations → Connect**. For an existing source, authorize your account; you do not choose its spaces again.
 
-Admins manage these sources under **Settings → Sources → Confluence → Manage**. An **Account for browsing** populates the space picker; it does not enroll that account for Search. Manual space keys work without a browsing account.
+If no source exists, or you choose **Connect a different site or content scope**:
+
+1. Under **Your account**, select a saved account or choose **Connect account**. Authorize using the Atlassian email matching your verified Sim email.
+2. Enter the hostname under **Atlassian site**, then choose **Spaces**. Use **Select all** for the complete current list, or **Enter keys manually** for comma-separated keys. You can select up to 1,000 spaces in this form.
+3. Select **Connect & Sync**. Sim saves the selected scope and starts indexing with your account.
+
+<Image className="mx-auto h-auto w-full max-w-md"
+  src="/static/search/confluence-personal-setup.png"
+  alt="Confluence personal source setup with a saved account, Atlassian site, and selected spaces"
+  width={500}
+  height={462}
+/>
+
+Admins manage these sources under **Settings → Sources → Confluence → Manage**. In **Add source**, an **Account for browsing** populates the space picker; a saved personal Search account can be reused here. Choosing a browsing account does not enroll it for Search. Manual space keys work without a browsing account.
 
 ## Using a service account
 

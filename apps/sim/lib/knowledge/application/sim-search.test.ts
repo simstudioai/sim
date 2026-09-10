@@ -145,6 +145,7 @@ vi.mock('@/connectors/registry', () => ({
 }))
 
 import {
+  configureSimSearchConnector,
   connectSimSearchConnector,
   prepareSearchSource,
 } from '@/lib/knowledge/application/sim-search'
@@ -201,6 +202,53 @@ describe('connectSimSearchConnector', () => {
       })
     )
   })
+
+  it('reuses a prepared account only when the source enrollment group and option match', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    queueTableRows(knowledgeConnector, [
+      { ...existingConnector, credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+    ])
+    await expect(
+      configureSimSearchConnector.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          connectorType: 'google_drive',
+          memberCredentialBinding: {
+            credentialGroupId: 'group-1',
+            credentialGroupOptionId: 'option-1',
+          },
+        },
+      })
+    ).resolves.toEqual(existingConnector)
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { credentialGroupId: 'other-group', credentialGroupOptionId: 'option-1' },
+    { credentialGroupId: 'group-1', credentialGroupOptionId: 'other-option' },
+  ])(
+    'refuses an existing source with a mismatched prepared account binding %#',
+    async (sourceBinding) => {
+      mocks.resolvePermission.mockResolvedValue('read')
+      queueTableRows(knowledgeConnector, [{ ...existingConnector, ...sourceBinding }])
+      await expect(
+        configureSimSearchConnector.execute({
+          principal,
+          input: {
+            workspaceId: 'workspace-1',
+            connectorType: 'google_drive',
+            memberCredentialBinding: {
+              credentialGroupId: 'group-1',
+              credentialGroupOptionId: 'option-1',
+            },
+          },
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.enroll).not.toHaveBeenCalled()
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+    }
+  )
 
   it('prepares a supported administrative source in the existing workspace index', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')

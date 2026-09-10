@@ -77,6 +77,8 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       canonicalParamId: 'spaceKey',
       mode: 'basic',
       multi: true,
+      allowSelectAll: true,
+      preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more spaces',
       required: true,

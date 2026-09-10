@@ -13,6 +13,7 @@ import type { ConfigFieldMap } from '@/app/workspace/[workspaceId]/knowledge/[id
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   accountsQuery: vi.fn(),
+  oauthQuery: vi.fn(),
   configFields: vi.fn(),
   resolveSourceConfig: vi.fn((): Record<string, unknown> => ({})),
   sourceConfig: {} as ConfigFieldMap,
@@ -130,14 +131,17 @@ vi.mock('@/hooks/queries/source-accounts', () => ({
   },
 }))
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
-  useOAuthCredentials: () => ({
-    data: mocks.credentials,
-    isLoading: mocks.credentialsState === 'loading',
-    isSuccess: mocks.credentialsState === 'ready',
-    isFetching: mocks.credentialsState === 'loading',
-    error: mocks.credentialsState === 'error' ? new Error('Could not load accounts') : null,
-    refetch: mocks.refetchCredentials,
-  }),
+  useOAuthCredentials: (...args: unknown[]) => {
+    mocks.oauthQuery(...args)
+    return {
+      data: mocks.credentials,
+      isLoading: mocks.credentialsState === 'loading',
+      isSuccess: mocks.credentialsState === 'ready',
+      isFetching: mocks.credentialsState === 'loading',
+      error: mocks.credentialsState === 'error' ? new Error('Could not load accounts') : null,
+      refetch: mocks.refetchCredentials,
+    }
+  },
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: vi.fn() }))
 vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
@@ -809,6 +813,32 @@ describe('Search setup options', () => {
 })
 
 describe('Account connection dropdown', () => {
+  it.each(['jira', 'confluence'])(
+    'reuses the caller’s managed %s account for browsing member sources',
+    async (connectorType) => {
+      mocks.credentials = [
+        { id: 'managed-account', name: 'My Search account', type: 'managed_oauth' },
+      ]
+      await render({
+        initialConnectorType: connectorType,
+        lockedAccessMode: 'members',
+        scope: { kind: 'organization', organizationId: 'org-1' },
+      })
+      expect(mocks.oauthQuery).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({ purpose: 'browsing', organizationId: 'org-1' })
+      )
+      await act(async () => combobox('My Search account').click())
+      const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
+        (node) => node.textContent?.trim() === 'My Search account'
+      )
+      expect(option).toBeDefined()
+      await act(async () => option!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+      expect(mocks.configFields).toHaveBeenLastCalledWith(
+        expect.objectContaining({ credentialId: 'managed-account' })
+      )
+    }
+  )
   it.each(['google_drive', 'gmail', 'google_calendar'])(
     'opens only service-account creation for a central %s source and submits that credential',
     async (connectorType) => {
@@ -858,7 +888,10 @@ describe('Account connection dropdown', () => {
   )
 
   it('only offers service accounts when creating a central Confluence source', async () => {
-    mocks.credentials = [{ id: 'personal-account', name: 'Personal Confluence', type: 'oauth' }]
+    mocks.credentials = [
+      { id: 'personal-account', name: 'Personal Confluence', type: 'oauth' },
+      { id: 'managed-account', name: 'My Search account', type: 'managed_oauth' },
+    ]
     mocks.serviceAccountTarget = {
       serviceAccountProviderId: 'atlassian-service-account',
       serviceName: 'Atlassian',

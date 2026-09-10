@@ -243,6 +243,8 @@ export function AddConnectorModal({
     !serviceAccountTarget.hidden &&
     (deploymentState === 'ready' || deploymentState === 'limited')
 
+  const browsePersonalAccounts =
+    isMembersMode && (selectedType === 'jira' || selectedType === 'confluence')
   const {
     data: rawCredentials = [],
     isLoading: credentialsLoading,
@@ -251,6 +253,7 @@ export function AddConnectorModal({
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
     enabled: Boolean(connectorConfig) && !isApiKeyMode,
+    purpose: browsePersonalAccounts ? 'browsing' : undefined,
     ...owner,
   })
 
@@ -258,6 +261,7 @@ export function AddConnectorModal({
 
   const credentials = rawCredentials.filter(
     (credential) =>
+      (browsePersonalAccounts && credential.type === 'managed_oauth') ||
       !connectorConfig ||
       isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, credential.type)
   )

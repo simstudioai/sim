@@ -9,8 +9,11 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
+import { AtlassianSourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/atlassian-source-setup-modal'
 
 interface SourceSetupModalProps {
+  organizationId?: string
+  onConnected?: (connection: { connectorId: string; credentialId: string }) => void
   connector: SearchConnector
   onClose: () => void
   isPending?: boolean
@@ -23,7 +26,26 @@ interface SourceSetupModalProps {
  * The few fields a source needs before its first connect, such as a site and
  * a space. Everyone after the first person clicks straight through.
  */
-export function SourceSetupModal({
+export function SourceSetupModal(props: SourceSetupModalProps) {
+  if (
+    props.organizationId &&
+    (props.connector.type === 'jira' || props.connector.type === 'confluence')
+  ) {
+    return (
+      <AtlassianSourceSetupModal
+        key={`${props.organizationId}:${props.connector.type}`}
+        organizationId={props.organizationId}
+        connector={props.connector}
+        connectorType={props.connector.type}
+        onClose={props.onClose}
+        onConnected={props.onConnected}
+      />
+    )
+  }
+  return <ManualSourceSetupModal {...props} />
+}
+
+function ManualSourceSetupModal({
   connector,
   onClose,
   onConnect,

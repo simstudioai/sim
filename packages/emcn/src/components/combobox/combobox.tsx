@@ -222,6 +222,11 @@ const Combobox = memo(
         searchActive = false,
         onLoadMore,
         onLoadAll,
+        'aria-label': ariaLabel,
+        'aria-labelledby': ariaLabelledBy,
+        'aria-describedby': ariaDescribedBy,
+        'aria-required': ariaRequired,
+        'aria-invalid': ariaInvalid,
         ...props
       },
       ref
@@ -795,6 +800,11 @@ const Combobox = memo(
                       onBlur={handleBlur}
                       onKeyDown={handleKeyDown}
                       disabled={disabled}
+                      aria-label={ariaLabel}
+                      aria-labelledby={ariaLabelledBy}
+                      aria-describedby={ariaDescribedBy}
+                      aria-required={ariaRequired}
+                      aria-invalid={ariaInvalid}
                       {...inputProps}
                       role='combobox'
                       aria-expanded={open}
@@ -840,6 +850,11 @@ const Combobox = memo(
                   <div
                     ref={ref}
                     role='combobox'
+                    aria-label={ariaLabel}
+                    aria-labelledby={ariaLabelledBy}
+                    aria-describedby={ariaDescribedBy}
+                    aria-required={ariaRequired}
+                    aria-invalid={ariaInvalid}
                     aria-expanded={open}
                     aria-haspopup='listbox'
                     aria-controls={listboxId}
