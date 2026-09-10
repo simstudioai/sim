@@ -20,6 +20,7 @@ const MAX_FETCH_OPTIONS_JSON_CHARS =
 
 const SANDBOX_BUNDLE_DIR = path.join(__dirname, 'sandbox', 'bundles')
 const SANDBOX_BUNDLE_FILES = {
+  'function-globals': 'function-globals.cjs',
   pptxgenjs: 'pptxgenjs.cjs',
   docx: 'docx.cjs',
   'pdf-lib': 'pdf-lib.cjs',
@@ -199,6 +200,7 @@ async function executeCode(request, executionId) {
 
   let context = null
   let bootstrapScript = null
+  let globalsScript = null
   let runtimeBindingsScript = null
   let userScript = null
   let logCallback = null
@@ -214,6 +216,10 @@ async function executeCode(request, executionId) {
     const jail = context.global
 
     await jail.set('global', jail.derefInto())
+
+    /** Evaluate pure JavaScript inside this isolate; never share host constructors. */
+    globalsScript = await isolate.compileScript(getBundleSource('function-globals').source)
+    await globalsScript.run(context, { timeout: timeoutMs })
 
     logCallback = new ivm.Callback((...args) => {
       const message = args.map((arg) => stringifyLogValue(arg)).join(' ')
@@ -567,6 +573,7 @@ async function executeCode(request, executionId) {
       userScript,
       runtimeBindingsScript,
       bootstrapScript,
+      globalsScript,
       ...externalCopies,
       fetchCallback,
       brokerCallback,
