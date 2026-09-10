@@ -56,6 +56,7 @@ export interface ConnectorSettingsFieldsProps {
   availability: {
     error: Error | null
     isFetching: boolean
+    isReady: boolean
     refetch: () => unknown
   }
   isSearchIndex: boolean
@@ -225,6 +226,7 @@ export function ConnectorSettingsFields({
           onChange={onAccessChange}
           canAdmin={canAdmin}
           lockAccessMode={isSearchIndex}
+          isAvailabilityReady={availability.isReady}
           allowMembers={allowMembers}
           allowAdmin={allowAdmin}
           allowWorkspace={allowWorkspace}

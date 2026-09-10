@@ -78,7 +78,6 @@ import {
   type KnowledgeAccessScope,
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   SYSTEM_ACCESS_SCOPE,
-  type SystemAccessScope,
 } from '@/lib/knowledge/access/types'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -2742,8 +2741,9 @@ export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
 export async function getKnowledgeDocument(
   knowledgeBaseId: string,
   documentId: string,
-  access: KnowledgeAccessScope | SystemAccessScope
+  access: KnowledgeReadAccess
 ): Promise<ActiveKnowledgeDocument | null> {
+  const scope = 'get' in access ? await access.getForDocuments([documentId]) : access
   const [row] = await db
     .select({
       ...getTableColumns(document),
@@ -2758,7 +2758,7 @@ export async function getKnowledgeDocument(
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        knowledgeAccessCondition(access)
+        knowledgeAccessCondition(scope)
       )
     )
     .limit(1)
@@ -2769,8 +2769,9 @@ export async function getKnowledgeDocument(
 /** Loads one visible document by its canonical ID before any asserted parent is trusted. */
 export async function getKnowledgeDocumentById(
   documentId: string,
-  access: KnowledgeAccessScope | SystemAccessScope
+  access: KnowledgeReadAccess
 ): Promise<ActiveKnowledgeDocument | null> {
+  const scope = 'get' in access ? await access.getForDocuments([documentId]) : access
   const [row] = await db
     .select({
       ...getTableColumns(document),
@@ -2784,7 +2785,7 @@ export async function getKnowledgeDocumentById(
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        knowledgeAccessCondition(access)
+        knowledgeAccessCondition(scope)
       )
     )
     .limit(1)

@@ -67,6 +67,7 @@ interface ConnectorAccessFieldProps {
   disabled?: boolean
   /** Existing Search sources retain the sync method chosen during setup. */
   lockAccessMode?: boolean
+  isAvailabilityReady?: boolean
   /** Whether member accounts may be chosen; an existing selection remains visible for recovery. */
   allowMembers?: boolean
   /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
@@ -89,6 +90,7 @@ export function ConnectorAccessField({
   canAdmin,
   disabled = false,
   lockAccessMode = false,
+  isAvailabilityReady = true,
   allowMembers = true,
   allowAdmin = false,
   allowWorkspace = true,
@@ -147,7 +149,7 @@ export function ConnectorAccessField({
       title={slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
-        canAdmin && !currentMode?.allowed
+        canAdmin && isAvailabilityReady && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
           : lockAccessMode
             ? 'Create a new source to change the sync method.'

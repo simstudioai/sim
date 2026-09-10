@@ -69,7 +69,7 @@ describe('canonical search knowledge-base policy', () => {
     vi.stubGlobal('fetch', async () => {
       throw new Error('Unexpected provider request in index policy tests')
     })
-    await seedKnowledgeAclFixture(ids)
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
     await db
       .update(knowledgeBase)
       .set({ isSearchIndex: true, name: indexName, userId: ids.bobId })

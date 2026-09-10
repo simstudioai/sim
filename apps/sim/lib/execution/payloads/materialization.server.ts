@@ -17,7 +17,7 @@ import {
   MAX_INLINE_MATERIALIZATION_BYTES,
 } from '@/lib/execution/payloads/limits'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import { resolveKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { StorageContext } from '@/lib/uploads'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
@@ -321,7 +321,7 @@ export async function assertUserFileContentAccess(
    */
   const knowledgeAccess =
     context === 'knowledge-base' && options.principal
-      ? await resolveKnowledgeAccessScope(options.principal, { workspaceId: options.workspaceId })
+      ? createKnowledgeAccessProvider(options.principal, { workspaceId: options.workspaceId })
       : undefined
   const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, false, {
     knowledgeAccess,

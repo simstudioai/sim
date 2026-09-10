@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { document, member } from '@sim/db/schema'
+import { document, knowledgeConnector, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,6 +27,10 @@ const mocks = vi.hoisted(() => ({
   provision: vi.fn(),
   decryptApiKey: vi.fn(),
   requireApproval: vi.fn(),
+  resolveWorkspace: vi.fn(),
+  viewerMemberships: vi.fn(),
+  getAccess: vi.fn(),
+  getForConnectors: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -57,6 +61,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
+  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeConnectorContext: mocks.resolveConnector,
@@ -67,10 +72,17 @@ vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   provisionKnowledgeConnectorMembersBinding: mocks.provision,
-  resolveViewerConnectorMemberships: async () => new Map(),
+  resolveViewerConnectorMemberships: mocks.viewerMemberships,
 }))
 vi.mock('@/lib/knowledge/connectors/mirrored-access', () => ({
   assertConnectorMirrorsSourceAcls: async () => undefined,
+}))
+vi.mock('@/lib/knowledge/access/scope', () => ({
+  WORKSPACE_ACCESS_SCOPE: { kind: 'workspace', tokens: ['pub', 'ws'] },
+  createKnowledgeAccessProvider: () => ({
+    get: mocks.getAccess,
+    getForConnectors: mocks.getForConnectors,
+  }),
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireKnowledgeMemberAccessAvailable: async () => undefined,
@@ -145,6 +157,7 @@ import {
   createKnowledgeConnector,
   deleteKnowledgeConnector,
   listKnowledgeConnectorDocuments,
+  listWorkspaceMemberConnectors,
   resolveConnectorCredentialAccessToken,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
@@ -223,6 +236,8 @@ describe('knowledge connector application use cases', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolvePermission.mockResolvedValue('write')
+    mocks.resolveWorkspace.mockResolvedValue(crossWorkspaceContext)
+    mocks.viewerMemberships.mockResolvedValue(new Map())
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveConnector.mockResolvedValue(connectorContext)
     mocks.getCredentialActorContext.mockResolvedValue({
@@ -245,6 +260,55 @@ describe('knowledge connector application use cases', () => {
   })
 
   afterAll(resetDbChainMock)
+
+  it('counts workspace central Confluence documents only after candidate site admission', async () => {
+    const identity = {
+      kind: 'user' as const,
+      userId: 'reader',
+      tokens: ['ws', 's:confluence:-:alice'],
+    }
+    mocks.getAccess.mockResolvedValue(identity)
+    mocks.getForConnectors.mockResolvedValue({
+      ...identity,
+      confluenceSiteGrants: [
+        {
+          connectorId: 'cf-source',
+          contentCredentialId: 'crawler',
+          readerCredentialId: 'personal',
+          readerSubjectToken: 's:confluence:-:alice',
+          domain: 'company.atlassian.net',
+          cloudId: 'cloud-1',
+        },
+      ],
+    })
+    mocks.viewerMemberships.mockResolvedValue(new Map([['cf-source', 'connected']]))
+    queueTableRows(knowledgeConnector, [
+      {
+        id: 'cf-source',
+        knowledgeBaseId: 'knowledge-b',
+        knowledgeBaseName: 'Search',
+        knowledgeBaseIsSearchIndex: true,
+        connectorType: 'confluence',
+        accessMode: 'admin',
+        sourceConfig: { domain: 'company.atlassian.net', spaceKey: ['DEMO'] },
+        memberSyncStatus: 'idle',
+      },
+    ])
+    queueTableRows(document, [])
+    queueTableRows(document, [{ connectorId: 'cf-source' }])
+    queueTableRows(document, [{ connectorId: 'cf-source', count: 2 }])
+    const result = await listWorkspaceMemberConnectors.execute({
+      principal: { kind: 'session', userId: 'reader', sessionId: 'test' },
+      input: { workspaceId: 'workspace-b' },
+    })
+    expect(mocks.getForConnectors).toHaveBeenCalledWith(['cf-source'], undefined)
+    expect(result.connectors).toEqual([
+      expect.objectContaining({ connectorId: 'cf-source', viewerDocumentCount: 2 }),
+    ])
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])).toContain(
+      'confluence_read_grant'
+    )
+  })
 
   it('rejects a forged OAuth credential for central Drive creation before using its token', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')

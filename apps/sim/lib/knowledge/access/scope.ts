@@ -21,6 +21,10 @@ import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
+  type ConfluenceReaderCredential,
+  resolveConfluenceSiteReadGrants,
+} from '@/lib/knowledge/access/confluence-site'
+import {
   domainMemberWildcard,
   EXTERNAL_GROUP_STALE_AFTER_MS,
   emailDomain,
@@ -145,7 +149,11 @@ export interface KnowledgeAccessScopeContext {
 async function loadUserAccess(
   userId: string,
   context: KnowledgeAccessScopeContext
-): Promise<{ tokens: readonly string[]; githubReaders?: GitHubReaderCredential[] }> {
+): Promise<{
+  tokens: readonly string[]
+  githubReaders?: GitHubReaderCredential[]
+  confluenceReaders?: ConfluenceReaderCredential[]
+}> {
   const { workspaceId, organizationId } = context
   const scope = resourceScopeFromOwner(context)
   const baseline = organizationId ? ORGANIZATION_ACCESS_TOKENS : WORKSPACE_ACCESS_TOKENS
@@ -235,6 +243,7 @@ async function loadUserAccess(
 
   const identityTokens = new Set<string>()
   const githubReaders: GitHubReaderCredential[] = []
+  const confluenceReaders: ConfluenceReaderCredential[] = []
   for (const row of rows) {
     if (!availability.memberScoped || !row.providerSubjectId) continue
     try {
@@ -242,6 +251,8 @@ async function loadUserAccess(
       identityTokens.add(token)
       if (row.providerId === 'github-repositories' && row.credentialId)
         githubReaders.push({ credentialId: row.credentialId, subjectToken: token })
+      if (row.providerId === 'confluence' && row.credentialId)
+        confluenceReaders.push({ credentialId: row.credentialId, subjectToken: token })
     } catch (error) {
       logger.warn('Skipping malformed managed credential subject', {
         userId,
@@ -275,6 +286,7 @@ async function loadUserAccess(
   return {
     tokens: sortAccessTokens(new Set([...baseline, ...identityTokens])),
     githubReaders,
+    confluenceReaders,
   }
 }
 
@@ -295,7 +307,11 @@ export async function resolveKnowledgeAccessScope(
 async function resolveKnowledgeIdentity(
   principal: Principal,
   context: KnowledgeAccessScopeContext
-): Promise<{ access: KnowledgeAccessScope; githubReaders: readonly GitHubReaderCredential[] }> {
+): Promise<{
+  access: KnowledgeAccessScope
+  githubReaders: readonly GitHubReaderCredential[]
+  confluenceReaders: readonly ConfluenceReaderCredential[]
+}> {
   if (principal.kind === 'credential_group_enrollment') {
     throw new OrchestrationError(
       'forbidden',
@@ -307,12 +323,22 @@ async function resolveKnowledgeIdentity(
   if (subject?.kind !== 'sim_user') {
     if (context.organizationId)
       throw new OrchestrationError('forbidden', 'Organization search requires a user subject')
-    return { access: WORKSPACE_ACCESS_SCOPE, githubReaders: [] }
+    return { access: WORKSPACE_ACCESS_SCOPE, githubReaders: [], confluenceReaders: [] }
   }
-  const { tokens, githubReaders = [] } = await loadUserAccess(subject.userId, context)
+  return resolveUserKnowledgeIdentity(subject.userId, context)
+}
+
+async function resolveUserKnowledgeIdentity(userId: string, context: KnowledgeAccessScopeContext) {
+  resourceScopeFromOwner(context)
+  const {
+    tokens,
+    githubReaders = [],
+    confluenceReaders = [],
+  } = await loadUserAccess(userId, context)
   return {
-    access: { kind: 'user', userId: subject.userId, tokens },
+    access: { kind: 'user' as const, userId, tokens },
     githubReaders,
+    confluenceReaders,
   }
 }
 
@@ -334,9 +360,24 @@ export function createKnowledgeAccessProvider(
   principal: Principal,
   context: KnowledgeAccessScopeContext
 ): KnowledgeAccessProvider {
+  return createAccessProvider(() => resolveKnowledgeIdentity(principal, context), context)
+}
+
+/** Candidate access for a user already authenticated by a session or personal-key adapter. */
+export function createUserKnowledgeAccessProvider(
+  userId: string,
+  context: KnowledgeAccessScopeContext
+): KnowledgeAccessProvider {
+  return createAccessProvider(() => resolveUserKnowledgeIdentity(userId, context), context)
+}
+
+function createAccessProvider(
+  resolveIdentity: () => ReturnType<typeof resolveKnowledgeIdentity>,
+  context: KnowledgeAccessScopeContext
+): KnowledgeAccessProvider {
   let pending: ReturnType<typeof resolveKnowledgeIdentity> | undefined
   const identity = () => {
-    pending ??= resolveKnowledgeIdentity(principal, context).catch((error: unknown) => {
+    pending ??= resolveIdentity().catch((error: unknown) => {
       pending = undefined
       throw error
     })
@@ -358,26 +399,41 @@ export function createKnowledgeAccessProvider(
           ? AbortSignal.any([context.signal, signal])
           : (signal ?? context.signal)
       cancellation?.throwIfAborted()
-      const { access, githubReaders } = await identity()
+      const { access, githubReaders, confluenceReaders } = await identity()
       cancellation?.throwIfAborted()
-      if (access.kind !== 'user' || !githubReaders.length || !ids.length) return access
-      return {
-        ...access,
-        githubInstallationGrants: await resolveGitHubInstallationReadGrants({
-          scope: resourceScopeFromOwner(context),
-          readers: githubReaders,
-          knowledgeBaseIds: context.knowledgeBaseIds,
-          connectorIds: ids,
-          signal: cancellation,
-        }),
+      if (
+        access.kind !== 'user' ||
+        (!githubReaders.length && !confluenceReaders.length) ||
+        !ids.length
+      )
+        return access
+      const input = {
+        scope: resourceScopeFromOwner(context),
+        knowledgeBaseIds: context.knowledgeBaseIds,
+        connectorIds: ids,
+        signal: cancellation,
       }
+      const [githubInstallationGrants, confluenceSiteGrants] = await Promise.all([
+        githubReaders.length
+          ? resolveGitHubInstallationReadGrants({ ...input, readers: githubReaders })
+          : Promise.resolve([]),
+        confluenceReaders.length
+          ? resolveConfluenceSiteReadGrants({ ...input, readers: confluenceReaders })
+          : Promise.resolve([]),
+      ])
+      return { ...access, githubInstallationGrants, confluenceSiteGrants }
     },
     async getForDocuments(documentIds, signal) {
       const ids = boundedIds(documentIds)
       signal?.throwIfAborted()
       context.signal?.throwIfAborted()
-      const { access, githubReaders } = await identity()
-      if (access.kind !== 'user' || !githubReaders.length || !ids.length) return access
+      const { access, githubReaders, confluenceReaders } = await identity()
+      if (
+        access.kind !== 'user' ||
+        (!githubReaders.length && !confluenceReaders.length) ||
+        !ids.length
+      )
+        return access
       const candidates = await db
         .select({ connectorId: document.connectorId })
         .from(document)

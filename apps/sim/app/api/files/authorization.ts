@@ -6,12 +6,11 @@ import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import {
-  resolveUserKnowledgeAccessScope,
+  createUserKnowledgeAccessProvider,
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
-import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
@@ -494,61 +493,55 @@ async function verifyCopilotFileAccess(
 }
 
 /**
- * Whether an active KB document (non-archived/excluded/deleted, in a
- * non-deleted KB) in the owning workspace references exactly `cloudKey`, matched
- * on the document's persisted canonical `storageKey`. This is an exact, indexed
- * lookup — no URL parsing or wildcard matching at read time. It is a lifecycle
- * signal only: it reflects whether the file is still part of a live KB, not who
- * owns it (ownership comes from the binding).
+ * Checks whether a readable, active document references the exact storage key
+ * within the binding's canonical scope. Live source proof uses only candidate
+ * IDs; document existence is checked with the complete access predicate.
  */
-/** A reader once resolved: a person's or the workspace's tokens, or the system reading its own rows. */
-type ResolvedKnowledgeFileAccess = KnowledgeAccessScope | SystemAccessScope
-
 async function hasActiveKbDocumentForKey(
   cloudKey: string,
   scope: ResourceScope,
-  access: ResolvedKnowledgeFileAccess
+  access: KnowledgeReadAccess
 ): Promise<boolean> {
-  const rows = await db
-    .select({ id: document.id })
-    .from(document)
-    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-    .where(
-      and(
-        resourceScopeCondition(knowledgeBase, scope),
-        eq(document.storageKey, cloudKey),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        isNull(knowledgeBase.deletedAt),
-        access.kind === 'system'
-          ? undefined
-          : or(isNull(document.connectorId), isNotNull(document.contentHash)),
-        knowledgeAccessCondition(access)
-      )
-    )
-    .limit(1)
-
-  return rows.length > 0
+  const conditions = [
+    resourceScopeCondition(knowledgeBase, scope),
+    eq(document.storageKey, cloudKey),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+    isNull(knowledgeBase.deletedAt),
+    !('get' in access) && access.kind === 'system'
+      ? undefined
+      : or(isNull(document.connectorId), isNotNull(document.contentHash)),
+  ]
+  for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+    const rows = await db
+      .select({ id: document.id })
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(and(...conditions, accessCondition))
+      .limit(1)
+    if (rows.length > 0) return true
+  }
+  return false
 }
 
 /**
  * How a KB file read identifies the reader for document access. `'user'` is
- * for a session-authenticated person; a resolved scope is for a caller that
- * already holds one (an execution with a principal). The system scope is for
+ * for a session-authenticated person; an access provider carries the principal
+ * behind an execution and resolves current source permissions. The system scope is for
  * a background job reading a connector-owned row it is processing, which in
  * members mode is hidden until the sync materializes its readers. Anything
  * else — an internal token, a tool running with the workflow owner's id —
  * reads as the workspace, never as the person whose id it happens to carry.
  */
-export type KnowledgeFileAccess = 'user' | ResolvedKnowledgeFileAccess
+export type KnowledgeFileAccess = 'user' | KnowledgeReadAccess
 
 async function resolveKnowledgeFileAccess(
   knowledgeAccess: KnowledgeFileAccess | undefined,
   userId: string,
   workspaceId: string
-): Promise<ResolvedKnowledgeFileAccess> {
-  if (knowledgeAccess === 'user') return resolveUserKnowledgeAccessScope(userId, workspaceId)
+): Promise<KnowledgeReadAccess> {
+  if (knowledgeAccess === 'user') return createUserKnowledgeAccessProvider(userId, { workspaceId })
   return knowledgeAccess ?? WORKSPACE_ACCESS_SCOPE
 }
 
@@ -559,9 +552,8 @@ async function resolveKnowledgeFileAccess(
  *   1. Ownership — the trusted `workspace_files` binding (exact key) names the
  *      owning workspace; the caller must have permission on it. Ownership is
  *      never inferred from an attacker-authorable `document.fileUrl`.
- *   2. Liveness — an active document must still reference the exact key, so the
- *      retained bytes of an archived document or soft-deleted KB are not
- *      downloadable (the liveness document is not an authorization signal).
+ *   2. Readability — an active document must reference the exact key and satisfy
+ *      the caller's complete document and live source access predicates.
  *
  * A missing binding denies (the ownership backfill populates bindings for
  * pre-existing objects before this path is deployed).
@@ -589,6 +581,7 @@ async function verifyKBFileAccess(
       if (
         binding.workspaceId ||
         typeof knowledgeAccess !== 'object' ||
+        'get' in knowledgeAccess ||
         knowledgeAccess.kind !== 'system'
       )
         return false
@@ -624,7 +617,7 @@ async function verifyKBFileAccess(
       logger.warn('KB file access denied: no readable document references the file', {
         userId,
         cloudKey,
-        accessScopeKind: access.kind,
+        accessScopeKind: 'get' in access ? 'reader' : access.kind,
       })
       return false
     }

@@ -70,6 +70,16 @@ describe('Drive shortcuts through indexing and search', () => {
   let targetDownloads = 0
   let aliasDownloads = 0
   let enrolled: Awaited<ReturnType<typeof seedKnowledgeMemberFixture>>
+  const directoryUser = {
+    id: 'fixture-admin',
+    primaryEmail: 'admin@fixture.test',
+    customerId: 'fixture-customer',
+    suspended: false,
+  }
+  const delegatedToken = vi.fn(async (email: string) => {
+    expect(email).toBe(directoryUser.primaryEmail)
+    return 'fixture-delegated-admin'
+  })
   const principal = (userId: string) => ({
     kind: 'session' as const,
     userId,
@@ -114,10 +124,13 @@ describe('Drive shortcuts through indexing and search', () => {
     )
     const headers = new Headers(init?.headers)
     if (url.hostname === 'admin.googleapis.com') {
+      if (url.pathname.endsWith('/users')) return json({ users: [directoryUser] })
+      if (url.pathname.endsWith(`/users/${directoryUser.id}`)) return json(directoryUser)
       if (url.pathname.endsWith('/groups')) return json({ groups: [] })
       if (url.pathname.endsWith('/domains')) return json({ domains: [] })
     }
     if (url.hostname !== 'www.googleapis.com') throw new Error('Unexpected fixture provider')
+    if (url.pathname.endsWith('/drives')) return json({ drives: [] })
     if (url.pathname.endsWith('/changes/startPageToken')) return json({ startPageToken: 'start' })
     if (url.pathname.endsWith('/changes')) return json({ changes: [], newStartPageToken: 'resume' })
     if (url.pathname.endsWith('/files')) return json({ files: aliasPresent ? [alias()] : [] })
@@ -198,6 +211,7 @@ describe('Drive shortcuts through indexing and search', () => {
       .where(eq(knowledgeConnector.id, ids.connectorId))
     vi.spyOn(connectorTokens, 'resolveConnectorAccessToken').mockResolvedValue({
       accessToken: 'fixture-admin',
+      getDelegatedAccessToken: delegatedToken,
     })
     vi.stubGlobal('fetch', providerFetch)
   })
@@ -275,6 +289,7 @@ describe('Drive shortcuts through indexing and search', () => {
       .orderBy(embedding.id)
     const downloaded = targetDownloads
     await sync()
+    expect(delegatedToken).toHaveBeenCalledWith(directoryUser.primaryEmail)
     const indexed = await row()
     expect(indexed.aclRequirements).toHaveLength(2)
     expect(indexed.aclRequirements).toEqual(

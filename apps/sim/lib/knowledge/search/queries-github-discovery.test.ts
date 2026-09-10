@@ -61,7 +61,7 @@ describe('GitHub discovery through the request access provider', () => {
           id: 'gmail',
           documentId: 'gmail-doc',
           connectorId: 'gmail-source',
-          installationSource: false,
+          liveAuthorizationSource: false,
         },
       ])
       const hydrated = [{ id: 'gmail', content: 'permitted content' }]
@@ -95,13 +95,13 @@ describe('GitHub discovery through the request access provider', () => {
           id: 'github',
           documentId: 'github-doc',
           connectorId: 'classic-github',
-          installationSource: false,
+          liveAuthorizationSource: false,
         },
         {
           id: 'github-second',
           documentId: 'github-doc',
           connectorId: 'classic-github',
-          installationSource: false,
+          liveAuthorizationSource: false,
         },
       ])
       queueTableRows(schemaMock.embedding, [{ id: 'github', content: 'permitted content' }])
@@ -137,7 +137,7 @@ describe('GitHub discovery through the request access provider', () => {
     const { provider, access } = await createReaderProvider()
     dbChainMockFns.from.mockClear()
     queueTableRows(schemaMock.embedding, [
-      { id: 'upload', documentId: 'upload-doc', connectorId: null, installationSource: false },
+      { id: 'upload', documentId: 'upload-doc', connectorId: null, liveAuthorizationSource: false },
     ])
     const hydrated = [{ id: 'upload', content: 'permitted content' }]
     queueTableRows(schemaMock.embedding, hydrated)

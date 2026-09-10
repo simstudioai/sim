@@ -5,7 +5,10 @@ import { readFile } from 'node:fs/promises'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEnterpriseSearchMigrationFixture } from '@/lib/knowledge/__integration__/migration-fixture'
-import type { GitHubInstallationReadGrant } from '@/lib/knowledge/access/types'
+import type {
+  ConfluenceSiteReadGrant,
+  GitHubInstallationReadGrant,
+} from '@/lib/knowledge/access/types'
 
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
@@ -82,10 +85,17 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     documentId: string,
     join = false,
     githubInstallationGrants?: GitHubInstallationReadGrant[],
-    userId = 'reader'
+    userId = 'reader',
+    confluenceSiteGrants?: ConfluenceSiteReadGrant[]
   ): Promise<boolean> {
     const query = new PgDialect().sqlToQuery(
-      knowledgeAccessCondition({ kind: 'user', userId, tokens, githubInstallationGrants })
+      knowledgeAccessCondition({
+        kind: 'user',
+        userId,
+        tokens,
+        githubInstallationGrants,
+        confluenceSiteGrants,
+      })
     )
     const values = query.params.map((value: unknown) => {
       if (typeof value === 'string' || typeof value === 'number') return value
@@ -204,6 +214,154 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     )
     expect(await readable([token], 'github-document', true, grants)).toBe(false)
     expect(await readable([token], 'github-document', true)).toBe(false)
+  })
+
+  it('requires current Confluence site proof as well as space and inherited page grants', async () => {
+    const token = 's:confluence:-:cf-alice'
+    await connection.unsafe(`
+      INSERT INTO organization(id) VALUES ('cf-org');
+      INSERT INTO "user"(id,email,email_verified) VALUES ('cf-reader','cf-alice@example.com',true), ('cf-bob','cf-bob@example.com',true);
+      INSERT INTO member VALUES ('cf-alice-membership','cf-org','cf-reader'), ('cf-bob-membership','cf-org','cf-bob');
+      INSERT INTO knowledge_base(id,organization_id,name,is_search_index) VALUES ('cf-index','cf-org','Search',true);
+      INSERT INTO credential_group(id,organization_id,name,status,options)
+        VALUES ('cf-group','cf-org','Confluence','active','[{"id":"cf-option","status":"active"}]');
+      INSERT INTO credential_group_enrollment(id,credential_group_id,email,status,user_id)
+        VALUES ('cf-enrollment','cf-group','cf-alice@example.com','completed','cf-reader');
+      INSERT INTO credential(id,organization_id,type,provider_id,encrypted_service_account_key)
+        VALUES ('cf-crawler','cf-org','service_account','atlassian-service-account','encrypted');
+      INSERT INTO credential(id,organization_id,type,provider_id,provider_subject_id,authorization_app_id,
+        managed_oauth_status,granted_scopes,encrypted_oauth_token_set,granted_at,credential_group_enrollment_id,credential_group_option_id)
+        VALUES ('cf-personal','cf-org','managed_oauth','confluence','cf-alice','cf-app','active',
+          ARRAY['read:confluence-user'],'encrypted',now(),'cf-enrollment','cf-option');
+      INSERT INTO knowledge_connector(id,knowledge_base_id,connector_type,access_mode,credential_id,source_config)
+        VALUES ('cf-source','cf-index','confluence','admin','cf-crawler','{"domain":"company.atlassian.net"}');
+      INSERT INTO document(id,knowledge_base_id,connector_id,acl,acl_requirements,acl_verified_at)
+        VALUES ('cf-document','cf-index','cf-source',ARRAY['${token}'],'[["${token}"]]',now());
+      INSERT INTO embedding(id,document_id,content) VALUES ('cf-chunk','cf-document','restricted content');
+    `)
+    const grant = {
+      connectorId: 'cf-source',
+      contentCredentialId: 'cf-crawler',
+      readerCredentialId: 'cf-personal',
+      readerSubjectToken: token,
+      domain: 'company.atlassian.net',
+      cloudId: 'cloud-1',
+    }
+    const check = (grants?: ConfluenceSiteReadGrant[], userId = 'cf-reader', join = false) =>
+      readable([token], 'cf-document', join, undefined, userId, grants)
+    for (const join of [false, true]) {
+      expect(await check(undefined, 'cf-reader', join)).toBe(false)
+      expect(await check([grant], 'cf-reader', join)).toBe(true)
+      expect(await check([grant], 'cf-bob', join)).toBe(false)
+      for (const changed of [
+        { ...grant, connectorId: 'other-source' },
+        { ...grant, contentCredentialId: 'other-crawler' },
+        { ...grant, readerCredentialId: 'other-reader' },
+        { ...grant, readerSubjectToken: 's:confluence:-:cf-bob' },
+        { ...grant, domain: 'another.atlassian.net' },
+      ])
+        expect(await check([changed], 'cf-reader', join)).toBe(false)
+    }
+    await connection.unsafe(
+      `UPDATE document SET acl_requirements='[["s:confluence:-:cf-bob"]]' WHERE id='cf-document'`
+    )
+    expect(await check([grant])).toBe(false)
+    await connection.unsafe(
+      `UPDATE document SET acl_requirements='[["${token}"]]' WHERE id='cf-document'`
+    )
+    const mutations = [
+      [
+        "UPDATE credential SET revoked_at=now() WHERE id='cf-personal'",
+        "UPDATE credential SET revoked_at=NULL WHERE id='cf-personal'",
+      ],
+      [
+        "UPDATE credential SET managed_oauth_status='revoked' WHERE id='cf-personal'",
+        "UPDATE credential SET managed_oauth_status='active' WHERE id='cf-personal'",
+      ],
+      [
+        "UPDATE credential SET provider_subject_id='cf-bob' WHERE id='cf-personal'",
+        "UPDATE credential SET provider_subject_id='cf-alice' WHERE id='cf-personal'",
+      ],
+      [
+        "UPDATE credential_group_enrollment SET revoked_at=now() WHERE id='cf-enrollment'",
+        "UPDATE credential_group_enrollment SET revoked_at=NULL WHERE id='cf-enrollment'",
+      ],
+      [
+        "UPDATE credential_group SET status='archived' WHERE id='cf-group'",
+        "UPDATE credential_group SET status='active' WHERE id='cf-group'",
+      ],
+      [
+        "UPDATE credential_group SET options='[]' WHERE id='cf-group'",
+        `UPDATE credential_group SET options='[{"id":"cf-option","status":"active"}]' WHERE id='cf-group'`,
+      ],
+      [
+        "UPDATE credential SET revoked_at=now() WHERE id='cf-crawler'",
+        "UPDATE credential SET revoked_at=NULL WHERE id='cf-crawler'",
+      ],
+      [
+        "UPDATE credential SET provider_id='other-provider' WHERE id='cf-crawler'",
+        "UPDATE credential SET provider_id='atlassian-service-account' WHERE id='cf-crawler'",
+      ],
+      [
+        `UPDATE knowledge_connector SET source_config='{"domain":"another.atlassian.net"}' WHERE id='cf-source'`,
+        `UPDATE knowledge_connector SET source_config='{"domain":"company.atlassian.net"}' WHERE id='cf-source'`,
+      ],
+      [
+        "UPDATE knowledge_connector SET credential_id=NULL WHERE id='cf-source'",
+        "UPDATE knowledge_connector SET credential_id='cf-crawler' WHERE id='cf-source'",
+      ],
+      [
+        "DELETE FROM member WHERE id='cf-alice-membership'",
+        "INSERT INTO member VALUES ('cf-alice-membership','cf-org','cf-reader')",
+      ],
+    ]
+    for (const [revoke, restore] of mutations) {
+      await connection.unsafe(revoke)
+      expect(await check([grant], 'cf-reader', true)).toBe(false)
+      await connection.unsafe(restore)
+      expect(await check([grant], 'cf-reader', true)).toBe(true)
+    }
+    const secondToken = 's:confluence:-:cf-bob'
+    const groupToken = 'g:confluence:cloud-1:restricted-group'
+    await connection.unsafe(`
+      INSERT INTO credential(id,organization_id,type,provider_id,provider_subject_id,authorization_app_id,
+        managed_oauth_status,granted_scopes,encrypted_oauth_token_set,granted_at,credential_group_enrollment_id,credential_group_option_id)
+        VALUES ('cf-second-personal','cf-org','managed_oauth','confluence','cf-bob','cf-app','active',
+          ARRAY['read:confluence-user'],'encrypted',now(),'cf-enrollment','cf-option');
+      INSERT INTO knowledge_external_group(id,organization_id,provider_id,tenant_id,external_group_id,last_synced_at)
+        VALUES ('cf-external-group','cf-org','confluence','cloud-1','restricted-group',now());
+      INSERT INTO knowledge_external_group_member(group_id,subject_token) VALUES ('cf-external-group','${secondToken}');
+      UPDATE document SET acl=ARRAY['${secondToken}'], acl_requirements='[]' WHERE id='cf-document';
+    `)
+    const secondGrant = {
+      ...grant,
+      readerCredentialId: 'cf-second-personal',
+      readerSubjectToken: secondToken,
+    }
+    const mixedIdentityRead = (grants: ConfluenceSiteReadGrant[]) =>
+      readable(
+        [token, secondToken, groupToken],
+        'cf-document',
+        true,
+        undefined,
+        'cf-reader',
+        grants
+      )
+    expect(await mixedIdentityRead([grant])).toBe(false)
+    expect(await mixedIdentityRead([secondGrant])).toBe(true)
+    await connection.unsafe(`UPDATE document SET acl=ARRAY['${groupToken}'] WHERE id='cf-document'`)
+    expect(await mixedIdentityRead([grant])).toBe(false)
+    expect(await mixedIdentityRead([secondGrant])).toBe(true)
+    expect(await mixedIdentityRead([{ ...secondGrant, cloudId: 'another-cloud' }])).toBe(false)
+    await connection.unsafe(
+      `UPDATE document SET acl_requirements='[["${token}"]]' WHERE id='cf-document'`
+    )
+    expect(await mixedIdentityRead([grant, secondGrant])).toBe(false)
+    await connection.unsafe(`UPDATE document SET acl_requirements='[]' WHERE id='cf-document'`)
+    await connection.unsafe(
+      "UPDATE knowledge_external_group SET last_synced_at=now()-interval '25 hours' WHERE id='cf-external-group'"
+    )
+    expect(await mixedIdentityRead([secondGrant])).toBe(false)
   })
 
   it('revokes every source of one integration without changing ACLs or another organization', async () => {

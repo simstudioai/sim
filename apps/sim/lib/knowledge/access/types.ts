@@ -41,6 +41,17 @@ export interface UserAccessScope {
   tokens: readonly string[]
   /** Live user-token evidence, scoped to the installation source's immutable repository. */
   githubInstallationGrants?: readonly GitHubInstallationReadGrant[]
+  /** Current reader access to the immutable Confluence site behind a central crawl. */
+  confluenceSiteGrants?: readonly ConfluenceSiteReadGrant[]
+}
+
+export interface ConfluenceSiteReadGrant {
+  cloudId: string
+  connectorId: string
+  contentCredentialId: string
+  readerCredentialId: string
+  readerSubjectToken: string
+  domain: string
 }
 
 export interface GitHubInstallationReadGrant {

@@ -35,7 +35,10 @@ export function createKnowledgeAclFixtureIds() {
 }
 
 /** Inserts only unique fixture rows, and refuses the developer's ordinary database. */
-export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds()) {
+export async function seedKnowledgeAclFixture(
+  ids = createKnowledgeAclFixtureIds(),
+  options: { connectorType?: 'confluence' | 'google_drive' } = {}
+) {
   const target = new URL(process.env.DATABASE_URL ?? '')
   if (
     !['localhost', '127.0.0.1'].includes(target.hostname) ||
@@ -46,6 +49,8 @@ export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds
   const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups, groupIds } =
     ids
   const now = new Date()
+  const connectorType = options.connectorType ?? 'confluence'
+  const providerId = connectorType === 'google_drive' ? 'google-drive' : 'confluence'
   await db.insert(user).values([
     {
       id: aliceId,
@@ -109,7 +114,7 @@ export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds
   await db.insert(knowledgeConnector).values({
     id: connectorId,
     knowledgeBaseId,
-    connectorType: 'confluence',
+    connectorType,
     sourceConfig: {},
     accessMode: 'admin',
     status: 'syncing',
@@ -119,7 +124,7 @@ export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds
     groups.map((name, index) => ({
       id: groupIds[index],
       workspaceId,
-      providerId: 'confluence',
+      providerId,
       tenantId: 'fixture-tenant',
       externalGroupId: name,
       lastSyncedAt: now,

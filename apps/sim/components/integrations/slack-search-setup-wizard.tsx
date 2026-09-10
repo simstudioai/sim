@@ -156,6 +156,11 @@ export function SlackSearchSetupWizard({
               title='Client ID'
               value={clientId}
               onChange={setClientId}
+              placeholder={
+                installationId
+                  ? 'Leave blank to keep the saved value'
+                  : 'Paste your Slack app’s client ID'
+              }
               required={!installationId}
             />
             <ChipModalField
@@ -164,6 +169,11 @@ export function SlackSearchSetupWizard({
               value={clientSecret}
               onChange={setClientSecret}
               inputType='password'
+              placeholder={
+                installationId
+                  ? 'Leave blank to keep the saved value'
+                  : 'Paste your Slack app’s client secret'
+              }
               required={!installationId}
             />
             <ChipModalField
@@ -172,6 +182,11 @@ export function SlackSearchSetupWizard({
               value={signingSecret}
               onChange={setSigningSecret}
               inputType='password'
+              placeholder={
+                installationId
+                  ? 'Leave blank to keep the saved value'
+                  : 'Paste your Slack app’s signing secret'
+              }
               required={!installationId}
             />
           </>
