@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
+import { ActivityStatus } from '@/components/ui/activity-status'
 import {
   CallIntegrationTool,
   PrepareFileEdit,
@@ -11,14 +12,16 @@ import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
-import { ToolCallRow } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-row'
+import { ToolPermissionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-permission-card'
+import {
+  BrowserTakeoverQuestion,
+  CredentialDisplay,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { resolveToolDisplayState } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
+import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'
-import type { ToolCallData, ToolCallStatus } from '../../../../types'
-import { resolveToolDisplayState } from '../../utils'
-import { BrowserTakeoverQuestion, CredentialDisplay } from '../special-tags'
-import { ToolPermissionCard } from './tool-permission-card'
 
 export function CircleStop({ className }: { className?: string }) {
   return (
@@ -101,7 +104,7 @@ function useElapsedMs(active: boolean, startedAt: number | undefined): number {
 }
 
 /**
- * A single tool-call row inside an agent group: shimmer while executing, a
+ * Inline tool activity: shimmer while executing, a
  * static label once terminal. For `workspace_file` the title is derived live
  * from the streaming args; because that path bypasses the completed-title
  * rewrite in `toToolData`, the past-tense flip is applied here on success.
@@ -193,18 +196,14 @@ export function ToolCallItem({
 
   const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
 
-  // A gated row is replaced outright by its permission card, the same way an
-  // executing browser takeover swaps itself for the takeover chip.
   if (displayState === 'awaiting_approval' && toolCallId) {
     return (
-      <div className='pl-6'>
-        <ToolPermissionCard
-          toolCallId={toolCallId}
-          toolName={toolName}
-          displayTitle={liveTitle}
-          params={params}
-        />
-      </div>
+      <ToolPermissionCard
+        toolCallId={toolCallId}
+        toolName={toolName}
+        displayTitle={liveTitle}
+        params={params}
+      />
     )
   }
 
@@ -212,35 +211,31 @@ export function ToolCallItem({
 
   if (isBrowserTakeover && status === 'success') {
     return (
-      <div className='pl-6'>
-        <BrowserTakeoverQuestion
-          reason={stringParam(params, 'reason')}
-          answer={browserTakeoverAnswer(result)}
-        />
-      </div>
+      <BrowserTakeoverQuestion
+        reason={stringParam(params, 'reason')}
+        answer={browserTakeoverAnswer(result)}
+      />
     )
   }
 
   if (terminalHandoff) {
     return (
-      <div className='pl-6'>
-        <CredentialDisplay
-          data={[
-            {
-              type: 'terminal_handoff',
-              value: terminalHandoff.terminalId,
-              name: terminalHandoff.reason,
-            },
-          ]}
-        />
-      </div>
+      <CredentialDisplay
+        data={[
+          {
+            type: 'terminal_handoff',
+            value: terminalHandoff.terminalId,
+            name: terminalHandoff.reason,
+          },
+        ]}
+      />
     )
   }
 
   return (
-    <ToolCallRow
-      title={title}
-      isExecuting={isExecuting}
+    <ActivityStatus
+      label={title}
+      isActive={isExecuting}
       icon={BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />}
     />
   )
