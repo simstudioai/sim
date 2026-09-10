@@ -3198,6 +3198,28 @@ export function switchAutomationTab(tabId: string): AgentTab {
 }
 
 /**
+ * Moves a tab to a final list index. The renderer's resource strip owns tab
+ * order; this keeps the native list — what restore and `browser_list_tabs`
+ * report — in the same order.
+ */
+export function reorderTab(tabId: string, targetIndex: number): AgentTab {
+  restoreBrowserSession()
+  const currentIndex = tabs.findIndex((entry) => entry.id === tabId)
+  if (currentIndex < 0) {
+    throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  }
+  const tab = tabs[currentIndex]
+  const nextIndex = Math.max(0, Math.min(tabs.length - 1, Math.trunc(targetIndex)))
+  if (nextIndex === currentIndex) return tab
+
+  tabs.splice(currentIndex, 1)
+  tabs.splice(nextIndex, 0, tab)
+  persistBrowserSession()
+  events?.onTabsChanged()
+  return tab
+}
+
+/**
  * Closes a tab. When the agent closes its own working tab it moves on to the
  * neighbour so its next page tool has a target; a close the user made leaves
  * the agent cursor unset instead of announcing a page the agent never chose.

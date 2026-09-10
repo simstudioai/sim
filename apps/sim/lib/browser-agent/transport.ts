@@ -383,6 +383,18 @@ export async function openUrlInNewBrowserTab(
   return state?.activeTabId ?? null
 }
 
+/**
+ * Mirrors a resource-strip reorder into the native tab list, so restore and
+ * the agent's tab list keep the strip's order. Older shells keep native order.
+ */
+export function reorderBrowserTab(
+  tabId: string,
+  targetIndex: number,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.reorderTab?.(tabId, targetIndex, scopeId)
+}
+
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
 export function reportBrowserTheme(theme: BrowserTheme): void {
   bridge()?.setTheme(theme)

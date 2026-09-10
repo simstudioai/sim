@@ -228,6 +228,9 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:dispose-scope', scopeId),
     suspendScope: (scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('browser-agent:suspend-scope', scopeId),
+    reorderTab: (tabId: string, targetIndex: number, scopeId: string): void => {
+      ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex, scopeId)
+    },
     setPanelBounds: (
       bounds: BrowserPanelBounds | null,
       anchor: BrowserPanelAnchor | null,

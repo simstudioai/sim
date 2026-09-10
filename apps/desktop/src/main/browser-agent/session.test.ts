@@ -2403,6 +2403,19 @@ describe('browser-agent session', () => {
     ])
   })
 
+  it('reorders tabs to the order the resource strip asks for', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    const third = session.addTab()
+
+    session.reorderTab(third.id, 0)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([third.id, first.id, second.id])
+
+    session.reorderTab(third.id, 99)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
+    expect(() => session.reorderTab('999', 0)).toThrow(/No tab with id 999/)
+  })
+
   it('allows creation and reopening beyond eight browser tabs', () => {
     session.ensureTab()
     for (let index = 1; index < 12; index++) {

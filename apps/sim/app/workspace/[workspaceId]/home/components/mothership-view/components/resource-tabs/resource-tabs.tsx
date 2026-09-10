@@ -22,7 +22,11 @@ import {
 } from '@sim/emcn'
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
-import { openBrowserTab, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import {
+  openBrowserTab,
+  reorderBrowserTab,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { openTerminal } from '@/lib/terminal/transport'
@@ -396,11 +400,20 @@ export function ResourceTabs({
     [chatId, desktopScopeId, onRemoveResource, resources, selectedIds]
   )
 
+  /** The strip's own title for a resource — a browser tab's is its live page title. */
+  const withStripTitle = useCallback(
+    (resource: MothershipResource): MothershipResource => {
+      const title = tabs.find((tab) => tab.id === resource.id)?.title
+      return title && title !== resource.title ? { ...resource, title } : resource
+    },
+    [tabs]
+  )
+
   const handleTabDragStart = useCallback(
     (e: ReactDragEvent<HTMLDivElement>, id: string, drag: TabStripDragContext) => {
       const resource = resources.find((r) => r.id === id)
       if (!resource) return
-      const selected = resources.filter((r) => selectedIds.has(r.id))
+      const selected = resources.filter((r) => selectedIds.has(r.id)).map(withStripTitle)
       const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
@@ -424,12 +437,13 @@ export function ResourceTabs({
       // and a drop target asking for `copy` is refused outright unless copying
       // is allowed too.
       e.dataTransfer.effectAllowed = 'copyMove'
+      const { type, id: resourceId, title } = withStripTitle(resource)
       e.dataTransfer.setData(
         SIM_RESOURCE_DRAG_TYPE,
-        JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
+        JSON.stringify({ type, id: resourceId, title })
       )
     },
-    [resources, selectedIds]
+    [resources, selectedIds, withStripTitle]
   )
 
   const handleReorder = useCallback(
@@ -440,6 +454,12 @@ export function ResourceTabs({
       const [moved] = reordered.splice(fromIndex, 1)
       reordered.splice(targetIndex, 0, moved)
       onReorderResources(reordered)
+      // Browser tabs are not stored with the chat; their order lives in the
+      // desktop's native list, which restore and the agent read back.
+      if (moved.type === 'browser') {
+        const browserIndex = reordered.filter((r) => r.type === 'browser').indexOf(moved)
+        reorderBrowserTab(moved.id, browserIndex, desktopScopeId)
+      }
       if (chatId) {
         const persistable = reordered.filter((r) => !isEphemeralResource(r))
         if (persistable.length > 0) {
@@ -448,7 +468,7 @@ export function ResourceTabs({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, resources, onReorderResources]
+    [chatId, desktopScopeId, resources, onReorderResources]
   )
 
   const previewToggle =

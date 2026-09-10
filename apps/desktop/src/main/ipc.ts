@@ -54,6 +54,7 @@ import {
   getBrowserDownloadsState,
   grantSiteOriginForUserNavigation,
   peekTabsState,
+  reorderTab,
   setBrowserAppTheme,
   showBrowserDownloadInFolder,
   showBrowserDownloadsMenu,
@@ -1169,6 +1170,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return
         }
         void handlePanelAction(scope, panelAction).catch(() => {})
+      },
+    },
+    'browser-agent:reorder-tab': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender, tabId, targetIndex, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (
+          !scope ||
+          typeof tabId !== 'string' ||
+          typeof targetIndex !== 'number' ||
+          !Number.isFinite(targetIndex)
+        ) {
+          return
+        }
+        try {
+          withBrowserScope(scope, () => reorderTab(tabId, targetIndex))
+        } catch {}
       },
     },
     'browser-agent:set-panel-bounds': {

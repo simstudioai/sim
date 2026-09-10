@@ -1146,6 +1146,17 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
   })
 
+  it('restricts browser-tab reordering to typed app-origin messages', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:reorder-tab')
+
+    expect(() => handler?.(evilEvent, '1', 0)).not.toThrow()
+    expect(() => handler?.(appEvent, 1, 0)).not.toThrow()
+    expect(() => handler?.(appEvent, '1', '0')).not.toThrow()
+    expect(() => handler?.(appEvent, '1', Number.NaN)).not.toThrow()
+    expect(() => handler?.(appEvent, '1', 0)).not.toThrow()
+  })
+
   it('restricts browser-panel focus updates to boolean app-origin messages', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:set-panel-focused')

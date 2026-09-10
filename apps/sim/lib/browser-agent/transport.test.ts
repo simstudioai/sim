@@ -29,6 +29,7 @@ const {
   openUrlAvailable,
   panelAction,
   registerSitePermissionPromptSupport,
+  reorderTab,
   restoreScope,
   nativeSuspendScope,
   setPageState,
@@ -69,6 +70,7 @@ const {
   openUrlAvailable: { current: true },
   panelAction: vi.fn(),
   registerSitePermissionPromptSupport: vi.fn(),
+  reorderTab: vi.fn(),
   restoreScope: vi.fn(async (scopeId: string) => ({ scopeId, tabs: [], activeTabId: null })),
   nativeSuspendScope: vi.fn(async () => true),
   setPageState: vi.fn(),
@@ -108,6 +110,7 @@ vi.mock('@/lib/desktop', () => ({
       openUrl: openUrlAvailable.current ? openUrl : undefined,
       panelAction,
       registerSitePermissionPromptSupport,
+      reorderTab,
       restoreScope,
       suspendScope: nativeSuspendScope,
       setPanelBounds,
@@ -160,6 +163,7 @@ import {
   onBrowserToolbarCommand,
   openBrowserTab,
   openUrlInNewBrowserTab,
+  reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
   reportBrowserTheme,
@@ -335,6 +339,12 @@ describe('browser panel transport', () => {
 
   it('advertises support for the strict native-surface barrier', () => {
     expect(supportsAtomicBrowserPanelOcclusion()).toBe(true)
+  })
+
+  it('mirrors a strip reorder into the native tab list', () => {
+    reorderBrowserTab('tab-3', 1)
+
+    expect(reorderTab).toHaveBeenCalledWith('tab-3', 1, 'chat-test')
   })
 
   it('opens and scopes the native browser toolbar menu', () => {

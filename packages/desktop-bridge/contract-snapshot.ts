@@ -1086,6 +1086,11 @@ export interface SimDesktopBrowserAgentApi {
   /** Closes a soft-deleted chat's live pages while retaining its restart descriptor. */
   suspendScope(scopeId: string): Promise<boolean>
   /**
+   * Move a live tab to a final list index, mirroring the resource strip.
+   * Optional for compatibility with installed shells that predate strip-owned order.
+   */
+  reorderTab?(tabId: string, targetIndex: number, scopeId: string): void
+  /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
    * process keeps the embedded view glued to this rect.
