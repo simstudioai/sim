@@ -9,6 +9,11 @@ const mocks = vi.hoisted(() => ({
   enrollmentMutate: vi.fn(),
   sourceConnectionMutate: vi.fn(),
   invalidateQueries: vi.fn(),
+  channels: [] as Array<{
+    name: string
+    onmessage: ((event: MessageEvent<unknown>) => void) | null
+    close: ReturnType<typeof vi.fn>
+  }>,
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -40,17 +45,27 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 let enrollmentTab: { location: { href: string }; closed: boolean; close: () => void }
 
-function Harness({ connected }: { connected: ReadonlySet<string> }) {
-  latest = useMemberEnrollment({ membershipQueryKeys: [], connectedConnectorIds: connected })
+function Harness({
+  connected,
+  directOAuth,
+}: {
+  connected: ReadonlySet<string>
+  directOAuth?: boolean
+}) {
+  latest = useMemberEnrollment({
+    membershipQueryKeys: [],
+    connectedConnectorIds: connected,
+    directOAuth,
+  })
   return null
 }
 
-function mount(connected: ReadonlySet<string> = new Set()) {
+function mount(connected: ReadonlySet<string> = new Set(), directOAuth = false) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root?.render(<Harness connected={connected} />))
+  act(() => root?.render(<Harness connected={connected} directOAuth={directOAuth} />))
 }
 
 function enrollment(): Enrollment {
@@ -61,6 +76,17 @@ function enrollment(): Enrollment {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers()
+  mocks.channels.length = 0
+  vi.stubGlobal(
+    'BroadcastChannel',
+    class {
+      onmessage: ((event: MessageEvent<unknown>) => void) | null = null
+      close = vi.fn()
+      constructor(public name: string) {
+        mocks.channels.push(this)
+      }
+    }
+  )
   enrollmentTab = {
     location: { href: '' },
     closed: false,
@@ -77,9 +103,92 @@ afterEach(() => {
   latest = null
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('useMemberEnrollment', () => {
+  it('opens provider OAuth and waits for its own completion even if the account was already connected', () => {
+    mount(new Set(['connector-1']), true)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    const [input, handlers] = mocks.enrollmentMutate.mock.calls[0]
+    expect(input.oauthCompletionId).toMatch(/^[a-f\d-]{36}$/)
+    expect(mocks.channels[0].name).toBe(`sim:credential-group-oauth:${input.oauthCompletionId}`)
+    act(() => handlers.onSuccess({ url: 'https://provider.test/authorize' }))
+    expect(enrollmentTab.location.href).toBe('https://provider.test/authorize')
+    act(() => vi.advanceTimersByTime(4_000))
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'connected' })))
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+    expect(enrollment().error).toBeNull()
+    expect(mocks.invalidateQueries).toHaveBeenCalled()
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+  })
+
+  it('keeps overlapping provider authorizations separate and reports a rejected one on the original page', () => {
+    mount(new Set(), true)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({ url: 'https://provider.test/one' })
+    )
+    act(() => enrollment().connect('kb-1', 'connector-2'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[1][1].onSuccess({ url: 'https://provider.test/two' })
+    )
+    expect(mocks.channels[0].name).not.toBe(mocks.channels[1].name)
+    act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'denied' })))
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+    expect(enrollment().isAwaiting('connector-2')).toBe(true)
+    expect(enrollment().error).toContain('Authorization was canceled')
+    act(() => mocks.channels[1].onmessage?.(new MessageEvent('message', { data: 'unrecognized' })))
+    expect(enrollment().isAwaiting('connector-2')).toBe(true)
+  })
+
+  it('keeps listening for OAuth completion when provider isolation reports a closed window', () => {
+    mount(new Set(), true)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({ url: 'https://provider.test/authorize' })
+    )
+    enrollmentTab.closed = true
+    act(() => vi.advanceTimersByTime(4_000))
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(enrollment().error).toBeNull()
+    act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'connected' })))
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+    expect(enrollment().error).toBeNull()
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+  })
+
+  it('stops waiting with an actionable error when direct OAuth expires', () => {
+    mount(new Set(), true)
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    act(() =>
+      mocks.enrollmentMutate.mock.calls[0][1].onSuccess({
+        url: 'https://provider.test/authorize',
+      })
+    )
+    act(() => vi.advanceTimersByTime(10 * 60_000))
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+    expect(enrollment().error).toContain('expired')
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+  })
+
+  it('passes direct authorization correlation through first-source setup and cleans it up on failure', () => {
+    mount(new Set(), true)
+    act(() =>
+      enrollment().connectSource({ kind: 'organization', organizationId: 'org-1' }, 'gmail')
+    )
+    const [input, handlers] = mocks.sourceConnectionMutate.mock.calls[0]
+    expect(input).toMatchObject({
+      organizationId: 'org-1',
+      connectorType: 'gmail',
+      oauthCompletionId: expect.any(String),
+    })
+    act(() => handlers.onError(new Error('Unavailable')))
+    expect(mocks.channels[0].close).toHaveBeenCalledOnce()
+    expect(enrollmentTab.close).toHaveBeenCalledOnce()
+  })
+
   it.each(['blocked', 'failed', 'closed', 'success'] as const)(
     'retains source setup until enrollment navigation succeeds: %s',
     (outcome) => {

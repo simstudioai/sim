@@ -10,16 +10,85 @@ vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
 
 import { ApiClientError } from '@/lib/api/client/errors'
 import {
+  disconnectPersonalOrganizationAccountContract,
   listOrganizationAccountPeopleContract,
   updateOrganizationAccountsContract,
 } from '@/lib/api/contracts/organization-accounts'
 import {
   organizationAccountsKeys,
+  useDisconnectPersonalOrganizationAccount,
   useOrganizationAccountPeople,
   useUpdateOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
 import { slackSearchKeys } from '@/hooks/queries/slack-search'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
+
+describe('personal account disconnect', () => {
+  it.each([true, false])(
+    'refreshes this organization only after success=%s, including after unmount',
+    async (success) => {
+      vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+      mocks.request.mockReset()
+      const response = Promise.withResolvers<{ success: true }>()
+      mocks.request.mockReturnValue(response.promise)
+      const client = new QueryClient()
+      const root = createRoot(document.createElement('div'))
+      let mutation: ReturnType<typeof useDisconnectPersonalOrganizationAccount>
+      function Probe() {
+        mutation = useDisconnectPersonalOrganizationAccount('org-1')
+        return null
+      }
+      const own = searchSourceKeys.pages(
+        { kind: 'organization', organizationId: 'org-1' },
+        { mine: true, search: '' }
+      )
+      const catalog = searchSourceKeys.pages(
+        { kind: 'organization', organizationId: 'org-1' },
+        { mine: false, search: '' }
+      )
+      const people = organizationAccountsKeys.people('org-1')
+      const other = searchSourceKeys.list({ kind: 'organization', organizationId: 'org-2' })
+      for (const key of [own, catalog, people, other]) client.setQueryData(key, { existing: true })
+      try {
+        await act(async () =>
+          root.render(
+            <QueryClientProvider client={client}>
+              <Probe />
+            </QueryClientProvider>
+          )
+        )
+        let pending: Promise<unknown>
+        await act(async () => {
+          pending = mutation.mutateAsync('own-credential')
+        })
+        await act(async () =>
+          root.render(<QueryClientProvider client={client}>{null}</QueryClientProvider>)
+        )
+        await act(async () => {
+          if (success) {
+            response.resolve({ success: true })
+            await pending
+          } else {
+            const rejection = expect(pending).rejects.toThrow('Try again')
+            response.reject(new Error('Try again'))
+            await rejection
+          }
+        })
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith(
+          disconnectPersonalOrganizationAccountContract,
+          { params: { credentialId: 'own-credential' } }
+        )
+        for (const key of [own, catalog, people])
+          expect(client.getQueryState(key)?.isInvalidated).toBe(success)
+        expect(client.getQueryState(other)?.isInvalidated).toBe(false)
+      } finally {
+        await act(async () => root.unmount())
+        client.clear()
+        vi.unstubAllGlobals()
+      }
+    }
+  )
+})
 
 describe('organization account setup updates', () => {
   it.each([true, false])(

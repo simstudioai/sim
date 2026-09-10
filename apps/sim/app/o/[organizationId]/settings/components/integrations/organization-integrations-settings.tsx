@@ -35,9 +35,6 @@ export function OrganizationIntegrationsSettings() {
             { value: 'people', label: 'People' },
           ]}
         />
-        {tab === 'providers' && (
-          <span className='text-[var(--text-muted)] text-caption'>Allowed in Sim Search</span>
-        )}
       </div>
       {tab === 'providers' && <OrganizationIntegrationsSetup />}
       {tab === 'people' && (

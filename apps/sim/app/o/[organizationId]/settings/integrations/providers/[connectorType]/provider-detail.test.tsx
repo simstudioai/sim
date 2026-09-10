@@ -39,6 +39,8 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
   canConnectPersonally: () => mocks.personal,
+  canConnectWithDefaults: (meta: { name: string }) =>
+    ['Gmail', 'Google Calendar', 'Google Drive'].includes(meta.name),
   getConnectorAccessAvailability: () => mocks.access,
 }))
 vi.mock('@/lib/oauth', () => ({
@@ -53,6 +55,10 @@ vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
     google_drive: { name: 'Google Drive', auth: { mode: 'oauth', provider: 'google-drive' } },
     gmail: { name: 'Gmail', auth: { mode: 'oauth', provider: 'google-email' } },
+    google_calendar: {
+      name: 'Google Calendar',
+      auth: { mode: 'oauth', provider: 'google-calendar' },
+    },
     slack: { name: 'Slack', auth: { mode: 'oauth', provider: 'slack' } },
     gitlab: { name: 'GitLab', auth: { mode: 'apiKey' } },
   },
@@ -202,6 +208,56 @@ describe('organization provider management', () => {
     })
   }
 
+  it.each(['gmail', 'google_calendar', 'google_drive'])(
+    'lets %s wait for connections without requiring source setup',
+    async (connectorType) => {
+      mocks.overview.mockReturnValue({
+        data: {
+          providers: [
+            {
+              connectorType,
+              approved: true,
+              status: 'waiting_for_connections',
+              sourceCount: 0,
+              issue: null,
+              isSyncing: false,
+            },
+          ],
+        },
+      })
+      mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
+      mocks.sources.mockReturnValue({ data: [], isPending: false })
+      await render(connectorType)
+      expect(container.textContent).toContain('Waiting for connections')
+      expect(container.textContent).toContain(
+        'Members connect their accounts from Integrations. Indexing starts automatically.'
+      )
+      expect(container.textContent).not.toContain('Add source')
+      expect(container.textContent).not.toContain('Add sync configuration')
+      expect(container.querySelector('a[href="/o/org-one/integrations"]')).toHaveTextContent(
+        'Open Integrations'
+      )
+      expect(mocks.sources).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({ enabled: false })
+      )
+      await click('Advanced')
+      expect(container.textContent).toContain(
+        'A sync configuration controls what gets indexed and how often.'
+      )
+      expect(container.textContent).toContain('Add sync configuration')
+      await click('Add sync configuration')
+      await vi.waitFor(() => {
+        expect(mocks.updateUrl).toHaveBeenLastCalledWith(
+          expect.objectContaining({ searchParams: expect.any(URLSearchParams) })
+        )
+        expect(mocks.updateUrl.mock.calls.at(-1)![0].searchParams.get('addConnector')).toBe(
+          connectorType
+        )
+      })
+    }
+  )
+
   it.each(['active', 'disabled'])(
     'removes only Slack account setup after confirmation, including a %s option',
     async (status) => {
@@ -269,7 +325,7 @@ describe('organization provider management', () => {
   })
 
   it('uses named source links even when the admin has not reconnected their own account', async () => {
-    await render()
+    await render('google_drive', '?view=sources')
     expect(mocks.sources).toHaveBeenCalledWith(
       { kind: 'organization', organizationId: 'org-one' },
       { connectorType: 'google_drive', search: '', enabled: true }
@@ -301,7 +357,7 @@ describe('organization provider management', () => {
   it('does not claim a provider is empty before paginated source discovery finishes', async () => {
     const fetchNextPage = vi.fn()
     mocks.sources.mockReturnValue({ data: [], isPending: false, hasNextPage: true, fetchNextPage })
-    await render()
+    await render('google_drive', '?view=sources')
     expect(container.textContent).not.toContain('No sources yet')
     await click('Load more')
     expect(fetchNextPage).toHaveBeenCalledOnce()
@@ -317,14 +373,14 @@ describe('organization provider management', () => {
       hasNextPage: true,
       fetchNextPage,
     })
-    await render()
+    await render('google_drive', '?view=sources')
     expect(container.textContent).toContain('Engineering handbook')
     expect(container.textContent).toContain('More sources unavailable')
     await click('Try again')
     expect(fetchNextPage).toHaveBeenCalledOnce()
   })
 
-  it.each(['', '?view=accounts'])(
+  it.each(['', '?view=accounts', '?view=sources'])(
     'renders overview loading without presenting missing configuration at %s',
     async (params) => {
       mocks.overview.mockReturnValue({ isPending: true })
@@ -334,7 +390,7 @@ describe('organization provider management', () => {
       expect(mocks.people).not.toHaveBeenCalled()
       expect(
         container.querySelector(
-          `input[placeholder="${params ? 'Search people...' : 'Search sources...'}"]`
+          `input[placeholder="${params === '?view=sources' ? 'Search sync configurations...' : 'Search people...'}"]`
         )
       ).toBeEnabled()
     }
@@ -388,8 +444,14 @@ describe('organization provider management', () => {
   it.each([
     ['loading', 'Loading accounts…'],
     ['error', 'Accounts unavailable'],
-    ['missing group', 'Add a source to set up account connections.'],
-    ['missing provider option', 'Add a source to set up account connections.'],
+    [
+      'missing group',
+      'Members connect their accounts from Integrations. Indexing starts automatically.',
+    ],
+    [
+      'missing provider option',
+      'Members connect their accounts from Integrations. Indexing starts automatically.',
+    ],
   ])('preserves Accounts search while %s', async (state, message) => {
     const refetch = vi.fn()
     mocks.accounts.mockReturnValue(
@@ -410,7 +472,7 @@ describe('organization provider management', () => {
     expect(container.textContent).toContain(message)
     expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
     expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
-    expect(container.querySelector('input[placeholder="Search sources..."]')).toBeNull()
+    expect(container.querySelector('input[placeholder="Search sync configurations..."]')).toBeNull()
     expect(mocks.people).not.toHaveBeenCalled()
     if (state === 'error') {
       await click('Try again')
@@ -419,19 +481,19 @@ describe('organization provider management', () => {
 
     const sourcesTab = Array.from(
       container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-    ).find((item) => item.textContent === 'Sources')
+    ).find((item) => item.textContent === 'Advanced')
     expect(sourcesTab).toBeDefined()
     await act(async () => sourcesTab!.click())
-    expect(container.querySelector('input[placeholder="Search sources..."]')).toHaveValue(
-      'handbook'
-    )
+    expect(
+      container.querySelector('input[placeholder="Search sync configurations..."]')
+    ).toHaveValue('handbook')
     await click('Accounts')
     expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
   })
 
   it('preserves source navigation and retries connection availability failures', async () => {
     mocks.availabilityError = new Error('Connection availability could not be loaded')
-    await render()
+    await render('google_drive', '?view=sources')
     expect(container.textContent).toContain('Connection availability could not be loaded')
     expect(container.querySelector('a[aria-label="Open Engineering handbook"]')).toHaveAttribute(
       'href',
@@ -491,10 +553,14 @@ describe('organization provider management', () => {
         data: { providers: [{ ...provider, connectorType: type }] },
       })
       await render(type)
-      await click('Add source')
-      const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
-      expect(query.get('addConnector')).toBe(type)
-      expect(query.get('source-access')).toBe(memberParam ? 'members' : null)
+      await click('Advanced')
+      await click('Add sync configuration')
+      await vi.waitFor(() => {
+        expect(mocks.updateUrl).toHaveBeenCalled()
+        const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
+        expect(query.get('addConnector')).toBe(type)
+        expect(query.get('source-access')).toBe(memberParam ? 'members' : null)
+      })
     }
   )
 
@@ -506,10 +572,12 @@ describe('organization provider management', () => {
     mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
     await render('slack')
     await click('Set up Slack app')
-    await vi.waitFor(() => expect(mocks.updateUrl).toHaveBeenCalled())
-    const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
-    expect(query.get('connectedAccounts')).toBe('slack')
-    expect(query.has('addConnector')).toBe(false)
+    await vi.waitFor(() => {
+      expect(mocks.updateUrl).toHaveBeenCalled()
+      const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
+      expect(query.get('connectedAccounts')).toBe('slack')
+      expect(query.has('addConnector')).toBe(false)
+    })
   })
 
   it.each([

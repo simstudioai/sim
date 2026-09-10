@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -19,9 +20,11 @@ interface SearchSourceRowProps {
   waiting: boolean
   isPending: boolean
   onConnect: () => void
+  connectLabel?: string
   manageHref?: string
   /** Opens management for the source; only a surface that offers management passes it. */
   onManage?: () => void
+  accountActions?: ReactNode
 }
 
 /** Source health and the viewer's connection are separate; only the viewer's next action is primary. */
@@ -34,8 +37,10 @@ export function SearchSourceRow({
   waiting,
   isPending,
   onConnect,
+  connectLabel = 'Connect account',
   manageHref,
   onManage,
+  accountActions,
 }: SearchSourceRowProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const meta = CONNECTOR_META_REGISTRY[source.connectorType]
@@ -70,10 +75,7 @@ export function SearchSourceRow({
         ? 'Your account needs to be reconnected'
         : 'Connect your account to search this source'
   else if (source.hasSyncError)
-    status =
-      source.viewerDocumentCount > 0
-        ? `Sync needs attention · ${count}`
-        : 'Sync needs admin attention'
+    status = source.viewerDocumentCount > 0 ? `Sync failed · ${count}` : 'Sync failed'
   else if (source.viewerFailedDocumentCount > 0)
     status = `${source.viewerFailedDocumentCount} document${source.viewerFailedDocumentCount === 1 ? '' : 's'} couldn't be indexed${source.viewerDocumentCount > 0 ? ` · ${count}` : ''}`
   else if (source.isSyncing)
@@ -108,7 +110,7 @@ export function SearchSourceRow({
                   ? 'Open again'
                   : membership === 'needs_reauth'
                     ? 'Reconnect'
-                    : 'Connect account'}
+                    : connectLabel}
               </Chip>
             )}
             {canAdmin &&
@@ -122,6 +124,7 @@ export function SearchSourceRow({
               ) : (
                 <Chip onClick={onManage}>Manage</Chip>
               ))}
+            {accountActions}
           </div>
         )
       }
