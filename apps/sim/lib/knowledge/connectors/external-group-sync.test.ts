@@ -198,7 +198,7 @@ describe('refreshConnectorDirectory', () => {
 
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
     expect(mockResolveToken).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'credential-owner' })
+      expect.objectContaining({ userId: 'credential-owner', accessMode: 'admin' })
     )
   })
 

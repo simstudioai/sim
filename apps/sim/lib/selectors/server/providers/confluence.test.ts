@@ -61,6 +61,7 @@ function spaceIdDetailArgs(): ExecuteServerSelectorArgs {
 describe('Confluence server selector adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveCredentialBundle.mockResolvedValue({ accessToken: 'server-only-token' })
     mockResolveCloudId.mockResolvedValue('cloud-1')
@@ -156,13 +157,19 @@ describe('Confluence server selector adapters', () => {
     mockFetch
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          JSON.stringify({
+            results: [{ id: '12345', key: 'ENG', name: 'Engineering' }],
+            _links: { next: '/wiki/api/v2/spaces?cursor=next-page' },
+          }),
           { status: 200 }
         )
       )
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          JSON.stringify({
+            results: [{ id: '12345', key: 'ENG', name: 'Engineering' }],
+            _links: { next: '/wiki/api/v2/spaces?cursor=next-page' },
+          }),
           { status: 200 }
         )
       )
@@ -177,6 +184,127 @@ describe('Confluence server selector adapters', () => {
     await expect(
       confluenceSelectorAttachments['confluence.spaces'].execute(args)
     ).resolves.toMatchObject({ items: [{ id: 'ENG', label: 'Engineering (ENG)' }] })
+  })
+
+  it.each(['confluence.spaces', 'confluence.spacesById'] as const)(
+    '%s finishes a short list without advertising an empty archived page',
+    async (selectorKey) => {
+      mockFetch
+        .mockResolvedValueOnce(
+          Response.json({
+            results: [{ id: '12345', key: 'ENG', name: 'Engineering' }],
+          })
+        )
+        .mockResolvedValueOnce(Response.json({ results: [] }))
+      const controller = new AbortController()
+
+      await expect(
+        confluenceSelectorAttachments[selectorKey].execute({
+          ...spaceDetailArgs(controller.signal),
+          selectorKey,
+          request: { kind: 'list' },
+        })
+      ).resolves.toEqual({
+        kind: 'list',
+        items: [
+          { id: selectorKey === 'confluence.spaces' ? 'ENG' : '12345', label: 'Engineering (ENG)' },
+        ],
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(
+        mockFetch.mock.calls.map(([url]) => new URL(String(url)).searchParams.get('status'))
+      ).toEqual(['current', 'archived'])
+      for (const [url, init] of mockFetch.mock.calls) {
+        expect(new URL(String(url)).searchParams.get('limit')).toBe('250')
+        expect(init.signal.aborted).toBe(false)
+      }
+      controller.abort()
+      for (const [, init] of mockFetch.mock.calls) expect(init.signal.aborted).toBe(true)
+    }
+  )
+
+  it('continues current spaces before fetching and paginating archived spaces', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        Response.json({
+          results: [{ id: '1', key: 'ENG', name: 'Engineering' }],
+          _links: { next: '/wiki/api/v2/spaces?cursor=current-next' },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ results: [{ id: '2', key: 'OPS', name: 'Operations' }] })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          results: [{ id: '3', key: 'OLD', name: 'Old team' }],
+          _links: { next: '/wiki/api/v2/spaces?cursor=archived-next' },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ results: [{ id: '4', key: 'LEGACY', name: 'Legacy' }] })
+      )
+    const args = spaceDetailArgs()
+    const execute = confluenceSelectorAttachments['confluence.spaces'].execute
+
+    await expect(execute({ ...args, request: { kind: 'list' } })).resolves.toMatchObject({
+      nextCursor: 'current:current-next',
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    await expect(
+      execute({ ...args, request: { kind: 'list', cursor: 'current:current-next' } })
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [
+        { id: 'OPS', label: 'Operations (OPS)' },
+        { id: 'OLD', label: 'Old team (OLD) — archived' },
+      ],
+      nextCursor: 'archived:archived-next',
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    await expect(
+      execute({ ...args, request: { kind: 'list', cursor: 'archived:archived-next' } })
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'LEGACY', label: 'Legacy (LEGACY) — archived' }],
+    })
+    expect(
+      mockFetch.mock.calls.map(([url]) => {
+        const params = new URL(String(url)).searchParams
+        return [params.get('status'), params.get('cursor')]
+      })
+    ).toEqual([
+      ['current', null],
+      ['current', 'current-next'],
+      ['archived', null],
+      ['archived', 'archived-next'],
+    ])
+  })
+
+  it('includes archived spaces when there are no current spaces', async () => {
+    mockFetch
+      .mockResolvedValueOnce(Response.json({ results: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ results: [{ id: '1', key: 'OLD', name: 'Old team' }] })
+      )
+    await expect(
+      confluenceSelectorAttachments['confluence.spaces'].execute({
+        ...spaceDetailArgs(),
+        request: { kind: 'list' },
+      })
+    ).resolves.toEqual({ kind: 'list', items: [{ id: 'OLD', label: 'Old team (OLD) — archived' }] })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves an archived-page failure rather than silently claiming the list is complete', async () => {
+    mockFetch
+      .mockResolvedValueOnce(Response.json({ results: [] }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+    await expect(
+      confluenceSelectorAttachments['confluence.spaces'].execute({
+        ...spaceDetailArgs(),
+        request: { kind: 'list' },
+      })
+    ).rejects.toMatchObject({ name: 'SelectorConnectionUnavailableError', status: 403 })
   })
 
   it('preserves the first safe provider failure when both space detail requests fail', async () => {

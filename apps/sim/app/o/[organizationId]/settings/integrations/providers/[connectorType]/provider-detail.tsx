@@ -60,7 +60,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const automaticSetup = Boolean(meta && canConnectWithDefaults(meta) && searchAccess.memberScoped)
   const [view, setView] = useQueryState(
     organizationProviderTabParam.key,
-    organizationProviderTabParam.parser.withDefault(automaticSetup ? 'accounts' : 'sources')
+    organizationProviderTabParam.parser
   )
   const [search, setSearch] = useSettingsSearch()
   const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
@@ -260,7 +260,13 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
             <SettingsResourceRow
               key={source.connectorId}
               title={source.sourceDescription || meta.name}
-              description={
+              description={[
+                source.accessMode === 'members'
+                  ? 'Member accounts'
+                  : meta.auth.mode === 'oauth' &&
+                      meta.auth.adminCredentialType === 'service_account'
+                    ? 'Service account'
+                    : 'Admin account',
                 !approved
                   ? 'Deactivated'
                   : !source.enabled
@@ -275,8 +281,8 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                           ? 'Indexing'
                           : source.lastSyncAt
                             ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
-                            : 'Waiting for the first sync'
-              }
+                            : 'Waiting for the first sync',
+              ].join(' · ')}
               href={organizationRoutes(organization.id).searchSource(source.connectorId)}
               clickLabel={`Open ${source.sourceDescription || meta.name}`}
               navigable
@@ -289,7 +295,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                 : !approved
                   ? 'Activate this integration to set up sources.'
                   : automaticSetup
-                    ? 'No accounts connected yet. A sync configuration will be created when someone connects.'
+                    ? 'No sync configurations yet.'
                     : 'No sources yet.'}
             </SettingsEmptyState>
           )}
@@ -363,7 +369,9 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                   ? needsSlackSetup
                     ? 'Set up the Slack app to connect accounts.'
                     : automaticSetup
-                      ? 'Members connect their accounts from Integrations. Indexing starts automatically.'
+                      ? provider && provider.sourceCount > 0
+                        ? 'No connected member accounts.'
+                        : 'Members connect their accounts from Integrations. Indexing starts automatically.'
                       : 'Add a source to set up account connections.'
                   : 'Activate this integration to set up account connections.'}
               </SettingsEmptyState>

@@ -135,10 +135,11 @@ describe('Google Calendar Search isolation', () => {
     })
   })
 
-  it('offers member Search without claiming centralized permissions or shared content', () => {
+  it('offers personal and centrally delegated Search without sharing event representations', () => {
     expect(googleCalendarConnectorMeta.search).toBe(true)
     expect(googleCalendarConnectorMeta.permissionScopedListing?.capFieldIds).toEqual(['maxEvents'])
-    expect(googleCalendarConnectorMeta.mirrorsSourceAcls).toBeUndefined()
+    expect(googleCalendarConnectorMeta.mirrorsSourceAcls).toBe(true)
+    expect(googleCalendarConnectorMeta.auth.adminCredentialType).toBe('service_account')
     expect(googleCalendarConnectorMeta.supportsSeparateContentCredential).toBeUndefined()
   })
 
@@ -222,7 +223,7 @@ describe('Google Calendar Search isolation', () => {
       })
     )
     const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
-    expect(result).toEqual({ documents: [], hasMore: false })
+    expect(result).toMatchObject({ documents: [], hasMore: false })
   })
 
   it('asks Google for meetings only and drops status entries it still returns', async () => {
@@ -283,7 +284,7 @@ describe('Google Calendar Search isolation', () => {
       jsonResponse({ items: [{ ...EVENT, status: 'cancelled', recurringEventId: 'series' }] })
     )
     const result = await googleCalendarConnector.listDocuments('token', {}, undefined, alice)
-    expect(result).toEqual({ documents: [], hasMore: false })
+    expect(result).toMatchObject({ documents: [], hasMore: false })
   })
 
   it('follows empty continuation pages with identical time bounds after a resumed run', async () => {

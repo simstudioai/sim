@@ -205,14 +205,22 @@ export async function getServiceAccountToken(
 ): Promise<string> {
   const [credentialRow] = await db
     .select({
+      type: credential.type,
+      providerId: credential.providerId,
+      revokedAt: credential.revokedAt,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!credentialRow?.encryptedServiceAccountKey) {
-    throw new Error('Service account key not found')
+  if (
+    credentialRow?.type !== 'service_account' ||
+    credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
+    credentialRow.revokedAt !== null ||
+    !credentialRow.encryptedServiceAccountKey
+  ) {
+    throw new Error('Google service account credential is unavailable')
   }
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)

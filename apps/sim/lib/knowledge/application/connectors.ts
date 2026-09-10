@@ -48,6 +48,7 @@ import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/git
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   type ConnectorAccessMode,
+  isConnectorAccessMode,
   mirrorsSourceAcls,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -302,6 +303,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
   if (!identity) return null
   const resolved = await resolveConnectorAccessToken({
     auth: input.auth,
+    accessMode: input.accessMode,
     connector: { credentialId: input.credentialId, encryptedApiKey: null },
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
@@ -319,6 +321,10 @@ export async function validateConnectorSourceConfig(input: {
   actingUserId: string
   requestId: string
 }): Promise<SourceConfigRejection | null> {
+  const accessMode = input.connector.accessMode
+  if (!isConnectorAccessMode(accessMode)) {
+    return { message: 'Unsupported connector access mode', errorCode: 'validation' }
+  }
   const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
   const connectorConfig = CONNECTOR_REGISTRY[input.connector.connectorType]
   if (!connectorConfig) {
@@ -394,6 +400,7 @@ export async function validateConnectorSourceConfig(input: {
 
   const resolved = await resolveConnectorAccessToken({
     auth: connectorConfig.auth,
+    accessMode,
     connector: input.connector,
     userId: tokenUserId,
     requestId: input.requestId,

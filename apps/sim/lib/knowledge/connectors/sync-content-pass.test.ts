@@ -1,5 +1,10 @@
 /** @vitest-environment node */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock as resetDatabaseMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
@@ -12,6 +17,11 @@ import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
+
+function resetDbChainMock() {
+  resetDatabaseMock()
+  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+}
 
 const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
@@ -272,12 +282,16 @@ async function runPass(
     readCurrent?: boolean
     forceRehydrate?: boolean
     checkpoint?: ListingCheckpoint
+    databaseTime?: Date
     getDocument?: () => Promise<ExternalDocument | null>
   } = {}
 ) {
   vi.clearAllMocks()
   resetDbChainMock()
   vi.setSystemTime(new Date(Date.now() + 60_000))
+  if (options.databaseTime) {
+    dbChainMockFns.execute.mockResolvedValue([{ startedAt: options.databaseTime.toISOString() }])
+  }
   for (let index = 0; index < 16; index++) {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
@@ -367,6 +381,25 @@ function contentWrite(): Record<string, unknown> {
 }
 
 describe('content pass checkpoint intent', () => {
+  it('uses the database clock for a new generation despite a different worker clock', async () => {
+    const databaseTime = new Date('2026-09-08T10:00:00Z')
+    sourceBody = { value: '<p>Current content</p>' }
+    const { pass } = await runPass({ databaseTime, access: 'admin' })
+    expect(pass.checkpoint.startedAt).toBe(databaseTime.toISOString())
+    expect(mocks.onPage).toHaveBeenCalledWith(expect.any(Array), databaseTime)
+  })
+
+  it('passes the durable generation start to ACL updates when resuming with a later worker clock', async () => {
+    const checkpoint = beginListingCheckpoint({
+      fingerprint: 'a'.repeat(64),
+      generationId: 'previous-run',
+      startedAt: new Date('2026-09-08T11:00:00Z'),
+    })
+    sourceBody = { value: '<p>Current content</p>' }
+    await runPass({ checkpoint, access: 'admin' })
+    expect(mocks.onPage).toHaveBeenCalledWith(expect.any(Array), new Date(checkpoint.startedAt))
+  })
+
   it.each([
     { name: 'full', incrementalSince: undefined },
     { name: 'incremental', incrementalSince: new Date('2026-09-07T12:00:00Z') },

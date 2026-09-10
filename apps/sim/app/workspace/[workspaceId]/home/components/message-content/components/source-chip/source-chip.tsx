@@ -48,6 +48,9 @@ interface SourceChipProps {
  */
 export function SourceChip({ source }: SourceChipProps) {
   const hostname = externalLinkHostname(source.url)
+  /** Slack's connector prefixes channel titles with `#channel: `; direct messages omit `#`. */
+  const slackChannel =
+    source.connectorType === 'slack' ? source.title?.match(/^(#[^:\s]+): /)?.[1] : undefined
   const ConnectorIcon = source.connectorType
     ? BRAND_ICON_BY_BASE_TYPE.get(source.connectorType)
     : undefined
@@ -76,17 +79,17 @@ export function SourceChip({ source }: SourceChipProps) {
               onError={hideBrokenFavicon}
             />
           ) : null}
-          <OverflowText label={sourceLabel(source)} tooltipEnabled={false} />
+          <OverflowText label={slackChannel ?? sourceLabel(source)} tooltipEnabled={false} />
         </a>
       </Tooltip.Trigger>
-      <Tooltip.Content>
+      <Tooltip.Content className='whitespace-normal [overflow-wrap:anywhere]'>
         {source.title ? (
-          <span className='flex flex-col gap-0.5'>
+          <span className='flex min-w-0 flex-col gap-0.5'>
             <span>{source.title}</span>
-            <span className='break-all text-[var(--text-muted)]'>{source.url}</span>
+            <span className='text-[var(--text-muted)]'>{source.url}</span>
           </span>
         ) : (
-          <span className='break-all'>{source.url}</span>
+          <span>{source.url}</span>
         )}
       </Tooltip.Content>
     </Tooltip.Root>

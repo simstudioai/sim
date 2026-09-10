@@ -1334,6 +1334,7 @@ async function syncDedicatedMemberContent(input: {
   const resolveToken = async () => {
     const token = await resolveConnectorAccessToken({
       auth: connectorConfig.auth,
+      accessMode: 'members',
       connector,
       userId,
       requestId: run.runId,

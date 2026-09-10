@@ -62,9 +62,7 @@ export async function validateGoogleDirectoryAccess(
   adminEmail: unknown
 ): Promise<void> {
   if (!googleWorkspaceDomain(adminEmail)) {
-    throw new Error(
-      'Enter a Google Workspace administrator in Crawl as to mirror Drive permissions.'
-    )
+    throw new Error('Enter a Directory administrator email to mirror Drive permissions.')
   }
 
   const probe = async (path: string) =>
@@ -87,7 +85,7 @@ export async function validateGoogleDirectoryAccess(
       error instanceof GoogleDriveApiError &&
       (error.status === 401 || error.status === 403) &&
       !error.rateLimited
-        ? ' The Crawl as account must have permission to read Workspace groups, memberships, and domains. Check its administrator privileges and the service account’s delegated Directory scopes.'
+        ? ' The Directory administrator must have permission to read Workspace users, groups, memberships, and domains. Check its administrator privileges and the service account’s delegated Directory scopes.'
         : ''
     throw new Error(
       `Google Workspace directory access failed: ${getErrorMessage(error)}.${guidance}`,

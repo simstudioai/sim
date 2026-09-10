@@ -114,22 +114,21 @@ export function ConnectorSelectorField({
     surfaceId: `connector:${field.id}`,
   })
 
-  /**
-   * Label every selected value, including values restored from saved config that no
-   * in-session search would have resolved. Opaque revisions bind each label request to
-   * the active context without placing credential or dependency values in its query key.
-   */
   const singleValue = Array.isArray(value) ? value[0] : value
   const selectedIds = useMemo(
     () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
     [value]
   )
+  const missingSelectedIds = useMemo(() => {
+    const loadedIds = new Set(options.map((option) => option.id))
+    return selectedIds.filter((id) => !loadedIds.has(id))
+  }, [options, selectedIds])
   const { data: selectedOptions, isLoading: isLoadingSelectedOptions } = useSelectorOptionDetails(
     field.selectorKey,
     {
       context,
       scope,
-      detailIds: isEnabled ? selectedIds : [],
+      detailIds: isEnabled ? missingSelectedIds : [],
       surfaceId: `connector:${field.id}`,
     }
   )
@@ -198,7 +197,7 @@ export function ConnectorSelectorField({
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
         disabled={disabled || !credentialId || !depsResolved}
-        isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
+        isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
         hasMore={hasMore}
         isLoadingMore={isFetchingMore}
         isLoadingAll={isLoadingAll}
@@ -226,7 +225,7 @@ export function ConnectorSelectorField({
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
-      isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
+      isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
       hasMore={hasMore}
       isLoadingMore={isFetchingMore}
       isLoadingAll={isLoadingAll}

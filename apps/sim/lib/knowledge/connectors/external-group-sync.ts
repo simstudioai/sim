@@ -457,6 +457,7 @@ export async function refreshConnectorDirectory(
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
   const token = await resolveConnectorAccessToken({
     auth: connectorConfig.auth,
+    accessMode: 'admin',
     connector,
     userId: credentialUserId,
     requestId,

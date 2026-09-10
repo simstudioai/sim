@@ -8,6 +8,34 @@ const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
 
 vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
 
+vi.mock('@/connectors/google-drive/workspace-drives', () => ({
+  GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE: 100,
+  listGoogleWorkspaceDrives: async () => ({ driveIds: [] }),
+}))
+
+/** The file/ACL tests isolate Directory enumeration; company-crawl tests exercise its real HTTP boundary. */
+vi.mock('@/connectors/google-workspace/users', () => ({
+  GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,
+  selectedGoogleWorkspaceUsers: () => [],
+  listGoogleWorkspaceUsers: async () => ({
+    users: [{ id: 'admin', email: 'admin@corp.com', customerId: 'customer', active: true }],
+  }),
+  getGoogleWorkspaceUser: async () => ({
+    id: 'admin',
+    email: 'admin@corp.com',
+    customerId: 'customer',
+    active: true,
+  }),
+}))
+
+function companyContext(): Record<string, unknown> {
+  return {
+    mirrorsSourceAcls: true,
+    getDelegatedAccessToken: async () => 'token',
+    googleDrivePageAccess: { token: 'token', externalIds: new Set(['drive-file-1']) },
+  }
+}
+
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -43,8 +71,11 @@ describe('Google Drive administrator setup', () => {
 
   it('requires a delegated administrator only when mirroring source permissions', async () => {
     await expect(
-      googleDriveConnector.validateConfig('token', {}, { mirrorsSourceAcls: true })
-    ).resolves.toMatchObject({ valid: false, error: expect.stringContaining('Crawl as') })
+      googleDriveConnector.validateConfig('token', {}, companyContext())
+    ).resolves.toMatchObject({
+      valid: false,
+      error: expect.stringContaining('Directory administrator email'),
+    })
     expect(mockFetch).not.toHaveBeenCalled()
     mockFetch.mockResolvedValue(jsonResponse({ files: [] }))
     await expect(googleDriveConnector.validateConfig('token', {})).resolves.toEqual({ valid: true })
@@ -67,7 +98,7 @@ describe('Google Drive administrator setup', () => {
         googleDriveConnector.validateConfig(
           'token',
           { adminEmail: 'admin@corp.com' },
-          { mirrorsSourceAcls: true }
+          companyContext()
         )
       ).resolves.toMatchObject({
         valid: false,
@@ -96,7 +127,7 @@ describe('Google Drive administrator setup', () => {
       googleDriveConnector.validateConfig(
         'token',
         { adminEmail: 'admin@corp.com' },
-        { mirrorsSourceAcls: true }
+        companyContext()
       )
     ).resolves.toEqual({ valid: true })
     expect(mockFetch).toHaveBeenCalledTimes(4)
@@ -120,7 +151,7 @@ describe('Google Drive administrator setup', () => {
       googleDriveConnector.validateConfig(
         'token',
         { adminEmail: 'admin@corp.com' },
-        { mirrorsSourceAcls: true }
+        companyContext()
       )
     ).resolves.toEqual({ valid: true })
     expect(mockFetch).toHaveBeenCalledTimes(3)
@@ -238,7 +269,7 @@ describe('Google Drive recursive folders and raw files', () => {
         })
       )
     const config = { folderId: 'root', adminEmail: 'admin@example.com' }
-    const context = { mirrorsSourceAcls: true }
+    const context = companyContext()
     const first = await googleDriveConnector.listDocuments('token', config, undefined, context)
     const second = await googleDriveConnector.listDocuments(
       'token',
@@ -995,7 +1026,7 @@ describe('mirroring Drive permissions onto listed documents', () => {
   })
 
   /** The engine seeds this on every mirroring run; without it a crawl reads no permissions. */
-  const MIRRORING = { mirrorsSourceAcls: true }
+  const MIRRORING = companyContext()
 
   async function listWith(file: Record<string, unknown>, sourceConfig: Record<string, unknown>) {
     mockFetch.mockResolvedValueOnce(fileListResponse([file]))

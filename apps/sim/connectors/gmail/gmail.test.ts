@@ -45,12 +45,7 @@ function mockPages(pages: { threads: unknown[]; nextPageToken?: string }[]) {
   mockFetchWithRetry.mockImplementation(async (url: string) => {
     urls.push(url)
     const page = pages[call++] ?? { threads: [] }
-    return {
-      ok: true,
-      status: 200,
-      json: async () => page,
-      text: async () => JSON.stringify(page),
-    } as unknown as Response
+    return Response.json(page)
   })
   return urls
 }
@@ -726,15 +721,15 @@ describe('Gmail separately stored message bodies', () => {
 })
 
 describe('Gmail Search member isolation', () => {
-  it('offers only the existing member account access path', () => {
+  it('preserves the member OAuth path separately from service-account indexing', () => {
     expect(gmailConnectorMeta.search).toBe(true)
-    expect(gmailConnectorMeta.auth).toEqual({
+    expect(gmailConnectorMeta.auth).toMatchObject({
       mode: 'oauth',
       provider: 'google-email',
       requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
     })
     expect(gmailConnectorMeta.permissionScopedListing).toEqual({ capFieldIds: ['maxThreads'] })
-    expect(gmailConnectorMeta.mirrorsSourceAcls).toBeUndefined()
+    expect(gmailConnectorMeta.mirrorsSourceAcls).toBe(true)
     expect(gmailConnectorMeta.supportsSeparateContentCredential).toBeUndefined()
   })
 
@@ -900,6 +895,7 @@ describe('Gmail thread revisions and deferred content', () => {
       .mockResolvedValueOnce(new Response(null, { status: 404 }))
     const context: Record<string, unknown> = {}
     expect(await gmailConnector.listDocuments('token', {}, undefined, context)).toEqual({
+      currentCursor: expect.any(String),
       documents: [],
       hasMore: false,
       nextCursor: undefined,
@@ -954,7 +950,12 @@ describe('Gmail listing completeness and filters', () => {
         undefined,
         context
       )
-    ).toEqual({ documents: [], hasMore: false, nextCursor: undefined })
+    ).toEqual({
+      currentCursor: expect.any(String),
+      documents: [],
+      hasMore: false,
+      nextCursor: undefined,
+    })
     expect(context.totalThreadsFetched).toBe(0)
     expect(context.listingCapped).toBeUndefined()
     expect(parseBody).not.toHaveBeenCalled()
@@ -966,6 +967,7 @@ describe('Gmail listing completeness and filters', () => {
       mockFetchWithRetry.mockResolvedValueOnce(Response.json(body))
       const context: Record<string, unknown> = {}
       expect(await gmailConnector.listDocuments('token', {}, undefined, context)).toEqual({
+        currentCursor: expect.any(String),
         documents: [],
         hasMore: false,
         nextCursor: undefined,
