@@ -80,12 +80,50 @@ const WINDOWS_1252_C1 = [
   '\u017E',
   '\u0178',
 ] as const
-const C1_RANGE = /[\u0080-\u009F]/g
+/** Every byte value's windows-1252 code point; all of them are BMP, so one UTF-16 code unit each. */
+const WINDOWS_1252_CODE_UNITS = Uint16Array.from({ length: 256 }, (_, byte) =>
+  byte >= 0x80 && byte <= 0x9f ? WINDOWS_1252_C1[byte - 0x80].charCodeAt(0) : byte
+)
+const WINDOWS_1252_SELF_TEST_BYTES = new Uint8Array([0x80, 0x93, 0x94, 0x9f, 0xe9])
+const WINDOWS_1252_SELF_TEST_TEXT = '\u20AC\u201C\u201D\u0178\u00E9'
+const HOST_IS_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1
 
-function decodeWindows1252(buffer: Uint8Array): string {
-  return Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-    .toString('latin1')
-    .replace(C1_RANGE, (char) => WINDOWS_1252_C1[char.charCodeAt(0) - 0x80])
+/**
+ * `TextDecoder('windows-1252')` when the runtime really implements it (checked
+ * once here — Bun 1.3 does; a Node build without full ICU accepts the label but
+ * decodes as Latin-1), otherwise the table decoder below.
+ */
+const nativeWindows1252Decoder = (() => {
+  try {
+    const decoder = new TextDecoder('windows-1252')
+    return decoder.encoding === 'windows-1252' &&
+      decoder.decode(WINDOWS_1252_SELF_TEST_BYTES) === WINDOWS_1252_SELF_TEST_TEXT
+      ? decoder
+      : null
+  } catch {
+    return null
+  }
+})()
+
+/**
+ * One pass mapping each byte to its UTF-16 code unit, then a single native
+ * UTF-16 decode. Peak transient memory is the 2-byte-per-input code-unit array;
+ * the earlier `toString('latin1')` + regex replace materialized several string
+ * copies and, on 100 MB of C1 bytes, took seconds and gigabytes.
+ */
+export function decodeWindows1252WithTable(buffer: Uint8Array): string {
+  const units = new Uint16Array(buffer.length)
+  for (let index = 0; index < buffer.length; index++) {
+    units[index] = WINDOWS_1252_CODE_UNITS[buffer[index]]
+  }
+  if (HOST_IS_LITTLE_ENDIAN) return utf16leDecoder.decode(units)
+  return utf16beDecoder.decode(units)
+}
+
+export function decodeWindows1252(buffer: Uint8Array): string {
+  return nativeWindows1252Decoder
+    ? nativeWindows1252Decoder.decode(buffer)
+    : decodeWindows1252WithTable(buffer)
 }
 
 const UTF8_BOM_LENGTH = 3
@@ -95,7 +133,8 @@ const MAX_TRUNCATED_UTF8_TAIL = 3
 const UTF16_HEURISTIC_SAMPLE_BYTES = 4096
 
 export const TRUNCATED_UTF8_WARNING = 'Trailing bytes of an incomplete UTF-8 sequence were dropped'
-export const WINDOWS_1252_WARNING = 'File was not valid UTF-8; decoded as Windows-1252'
+export const WINDOWS_1252_WARNING =
+  'File was not valid UTF-8; decoded as Windows-1252; the file may use another encoding'
 
 function stripLeadingBom(text: string): string {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text

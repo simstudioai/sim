@@ -39,14 +39,33 @@ function buildDocx(text: string): Promise<Buffer> {
 }
 
 describe('sniffFileKind', () => {
-  it('recognizes a PDF by its header anywhere in the first KiB', () => {
+  it('recognizes a PDF by its header at the start, after optional BOM or whitespace', () => {
     expect(sniffFileKind(Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n'))).toBe('pdf')
-    expect(sniffFileKind(Buffer.concat([Buffer.alloc(200, 0x20), Buffer.from('%PDF-1.4')]))).toBe(
-      'pdf'
-    )
+    expect(sniffFileKind(Buffer.from('\n  %PDF-1.4'))).toBe('pdf')
     expect(
-      sniffFileKind(Buffer.concat([Buffer.alloc(2000, 0x20), Buffer.from('%PDF-1.4')]))
-    ).not.toBe('pdf')
+      sniffFileKind(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('%PDF-1.4')]))
+    ).toBe('pdf')
+  })
+
+  /**
+   * Some PDFs carry junk before the header, which pdf.js tolerates, so a declared
+   * `.pdf` keeps the 1 KiB search window. Under any other extension the signature
+   * must be at the start: a `.txt` that merely mentions "%PDF-1.4" is text.
+   */
+  it('searches the first KiB for the PDF header only under a declared .pdf extension', () => {
+    const junkThenPdf = Buffer.concat([Buffer.alloc(200, 0x41), Buffer.from('%PDF-1.4')])
+    const mention = Buffer.from(
+      'The file starts with the magic string %PDF-1.4 followed by objects.'
+    )
+
+    expect(sniffFileKind(junkThenPdf, 'pdf')).toBe('pdf')
+    expect(sniffFileKind(junkThenPdf)).toBe('text')
+    expect(sniffFileKind(junkThenPdf, 'txt')).toBe('text')
+    expect(sniffFileKind(mention, 'txt')).toBe('text')
+    expect(sniffFileKind(mention, 'pdf')).toBe('pdf')
+    expect(
+      sniffFileKind(Buffer.concat([Buffer.alloc(2000, 0x41), Buffer.from('%PDF-1.4')]), 'pdf')
+    ).toBe('text')
   })
 
   it('recognizes an OLE2 compound file', () => {
@@ -122,6 +141,11 @@ describe('sniffFileKind', () => {
     expect(sniffFileKind(Buffer.from('<p>fragment, not a document</p>'))).toBe('text')
   })
 
+  it('recognizes RTF by its opening group', () => {
+    expect(sniffFileKind(Buffer.from('{\\rtf1\\ansi\\deff0 {\\fonttbl} Hello}'))).toBe('rtf')
+    expect(sniffFileKind(Buffer.from(' {\\rtf1 not at offset zero}'))).toBe('text')
+  })
+
   it('reports plain text and Latin-1 text as text', () => {
     expect(sniffFileKind(Buffer.from('Vendor list\nBloomberg\n'))).toBe('text')
     expect(sniffFileKind(Buffer.from('Caf\xe9 r\xe9sum\xe9', 'latin1'))).toBe('text')
@@ -179,8 +203,41 @@ describe('reconcileParserRoute', () => {
     })
   })
 
+  /** An HTML error page saved as structured data is an error, not a document. */
+  it.each(['csv', 'json', 'jsonl', 'yaml', 'yml'])(
+    'rejects an HTML document under .%s as invalid_format',
+    (extension) => {
+      expect(() => reconcileParserRoute(extension, 'html')).toThrow(
+        expect.objectContaining({ code: 'invalid_format' })
+      )
+    }
+  )
+
+  it.each(['doc', 'docx', 'txt', 'pdf', 'xlsx', 'unknown'])(
+    'rejects RTF under .%s as unsupported_type',
+    (extension) => {
+      expect(() => reconcileParserRoute(extension, 'rtf')).toThrow(
+        expect.objectContaining({
+          code: 'unsupported_type',
+          message: expect.stringContaining('RTF'),
+        })
+      )
+    }
+  )
+
+  /**
+   * A NUL byte in a text file is not proof of a container: the decoder handles
+   * UTF-16 and Windows-1252 and the sanitizer strips stray NULs, so the declared
+   * text route is kept rather than refusing the file.
+   */
+  it.each(['txt', 'csv', 'md', 'json'])(
+    'keeps the .%s route for NUL-bearing text bytes',
+    (extension) => {
+      expect(reconcileParserRoute(extension, 'binary')).toEqual({ extension })
+    }
+  )
+
   it.each<[string, SniffedKind]>([
-    ['txt', 'binary'],
     ['csv', 'zip'],
     ['txt', 'ole2'],
     ['docx', 'binary'],
@@ -277,6 +334,42 @@ describe('parseBuffer reconciles the extension with the sniffed bytes', () => {
       name: 'FileParserError',
       code: 'invalid_format',
     })
+  })
+
+  it('rejects RTF bytes under .doc and .docx instead of indexing control words', async () => {
+    const rtf = Buffer.from(
+      '{\\rtf1\\ansi{\\fonttbl\\f0\\fswiss Helvetica;}\\f0\\pard Hello, world.\\par}'
+    )
+
+    for (const extension of ['doc', 'docx']) {
+      await expect(parseBuffer(rtf, extension)).rejects.toMatchObject({
+        name: 'FileParserError',
+        code: 'unsupported_type',
+      })
+    }
+  })
+
+  it('rejects an HTML error page saved as .json', async () => {
+    await expect(
+      parseBuffer(Buffer.from('<!DOCTYPE html><html><body>403 Forbidden</body></html>'), 'json')
+    ).rejects.toMatchObject({ code: 'invalid_format' })
+  })
+
+  it('decodes a .csv containing a stray NUL byte instead of refusing it', async () => {
+    const result = await parseBuffer(Buffer.from('name,city\nAna,Lisboa\x00\n'), 'csv')
+
+    expect(result.content).toContain('Lisboa')
+    expect(result.metadata?.detectedType).toBeUndefined()
+  })
+
+  it('keeps a .txt that mentions the PDF magic string as text', async () => {
+    const result = await parseBuffer(
+      Buffer.from('Every PDF begins with %PDF-1.4 or similar.'),
+      'txt'
+    )
+
+    expect(result.content).toContain('Every PDF begins with')
+    expect(result.metadata?.detectedType).toBeUndefined()
   })
 
   it('rejects an OLE binary labelled .txt', async () => {

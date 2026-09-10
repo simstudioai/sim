@@ -17,6 +17,7 @@ export type SniffedKind =
   | 'odp'
   | 'zip'
   | 'ole2'
+  | 'rtf'
   | 'html'
   | 'text'
   | 'binary'
@@ -25,6 +26,8 @@ const PDF_HEAD_WINDOW = 1024
 const TEXT_HEAD_WINDOW = 4096
 const PDF_SIGNATURE = Buffer.from('%PDF-', 'latin1')
 const OLE2_SIGNATURE = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
+/** An RTF file is a group opening with the `rtf` control word; nothing may precede it. */
+const RTF_SIGNATURE = Buffer.from('{\\rtf', 'latin1')
 
 const EOCD_SIGNATURE = 0x06054b50
 const EOCD_MIN_SIZE = 22
@@ -173,17 +176,43 @@ function sniffTextKind(buffer: Buffer): SniffedKind {
   return 'text'
 }
 
+const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf])
+
+/**
+ * Whether the PDF header is the first thing in the buffer, allowing only a UTF-8
+ * BOM and ASCII whitespace before it.
+ */
+function startsWithPdfSignature(buffer: Buffer): boolean {
+  let offset = buffer.subarray(0, UTF8_BOM.length).equals(UTF8_BOM) ? UTF8_BOM.length : 0
+  while (offset < buffer.length && offset < PDF_HEAD_WINDOW) {
+    const byte = buffer[offset]
+    if (byte !== 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d) break
+    offset++
+  }
+  return buffer.subarray(offset, offset + PDF_SIGNATURE.length).equals(PDF_SIGNATURE)
+}
+
 /**
  * Identifies a buffer from its bytes: magic numbers first (PDF, OLE2, ZIP), then
  * the ZIP's central directory for the Office and OpenDocument containers, then a
  * text heuristic on the first 4 KiB. Never throws and never decompresses.
+ *
+ * pdf.js tolerates junk before the PDF header, so a declared `.pdf` is searched
+ * through its first KiB for the signature. Under any other (or no) declared
+ * extension the header must be at the start, so a text file that merely mentions
+ * `%PDF-1.4` is not mistaken for a PDF.
  */
-export function sniffFileKind(buffer: Buffer): SniffedKind {
-  if (buffer.subarray(0, PDF_HEAD_WINDOW).indexOf(PDF_SIGNATURE) !== -1) return 'pdf'
+export function sniffFileKind(buffer: Buffer, declaredExtension?: string): SniffedKind {
+  const isPdf =
+    declaredExtension === 'pdf'
+      ? buffer.subarray(0, PDF_HEAD_WINDOW).indexOf(PDF_SIGNATURE) !== -1
+      : startsWithPdfSignature(buffer)
+  if (isPdf) return 'pdf'
   if (buffer.length >= OLE2_SIGNATURE.length && buffer.subarray(0, 8).equals(OLE2_SIGNATURE)) {
     return 'ole2'
   }
   if (isZipShaped(buffer)) return classifyZip(buffer)
+  if (buffer.subarray(0, RTF_SIGNATURE.length).equals(RTF_SIGNATURE)) return 'rtf'
   return sniffTextKind(buffer)
 }
 
@@ -275,6 +304,13 @@ function invalidFormat(extension: string, kind: SniffedKind): FileParserError {
  * Word extension is the legacy `.doc` parser's job. Legacy `.ppt` has no reader.
  */
 export function reconcileParserRoute(extension: string, kind: SniffedKind): ParserRoute {
+  if (kind === 'rtf') {
+    throw new FileParserError(
+      'unsupported_type',
+      'RTF is not supported. Save the file as .docx and retry.'
+    )
+  }
+
   const family = EXTENSION_FAMILIES[extension]
   if (!family) return { extension }
 
@@ -284,8 +320,15 @@ export function reconcileParserRoute(extension: string, kind: SniffedKind): Pars
     warning: `File content was detected as ${kind}; parsed as .${route} instead of .${extension}`,
   })
 
+  /**
+   * Only `.txt` and `.md` may hold a whole HTML document — a `.md` that starts
+   * with `<!DOCTYPE html>` is deliberately treated as HTML, since Markdown allows
+   * raw HTML and the parser strips the markup either way. Under the structured
+   * text extensions an HTML document is an error page saved as data.
+   */
   if (kind === 'html' && family === 'text' && extension !== 'html' && extension !== 'htm') {
-    return override('html')
+    if (extension === 'txt' || extension === 'md') return override('html')
+    throw invalidFormat(extension, kind)
   }
   if (FAMILY_ACCEPTS[family].has(kind)) return { extension }
 
@@ -298,7 +341,15 @@ export function reconcileParserRoute(extension: string, kind: SniffedKind): Pars
    * document, so passing them through never yields scraped garbage.
    */
   if (kind === 'zip' && family !== 'pdf' && family !== 'text') return { extension }
-  if (kind === 'binary' && (family === 'sheet' || family === 'ole')) return { extension }
+  /**
+   * A NUL byte in a declared text file is not proof of a container either: the
+   * decoder recognises UTF-16 and Windows-1252 and the sanitizer strips stray
+   * NULs, so the text route is kept. Recognised containers under a text
+   * extension are still refused below.
+   */
+  if (kind === 'binary' && (family === 'sheet' || family === 'ole' || family === 'text')) {
+    return { extension }
+  }
 
   if (kind === 'text') return override(family === 'sheet' ? 'csv' : 'txt')
   if (kind === 'ole2') {

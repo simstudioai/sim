@@ -175,7 +175,7 @@ export async function parseBuffer(
       )
     }
 
-    const kind = sniffFileKind(buffer)
+    const kind = sniffFileKind(buffer, normalizedExtension)
     const route = reconcileParserRoute(normalizedExtension, kind)
     const parser = PARSERS.get(route.extension)
 

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type Attributes, type Client, type SFTPWrapper, utils as ssh2Utils } from 'ssh2'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import {
   createSftpConnection,
   getFileType,
@@ -779,7 +780,7 @@ export const sftpConnector: ConnectorConfig = {
         return markSkipped(stub, 'File appears to be binary and was not indexed')
       }
 
-      const raw = buffer.toString('utf-8')
+      const raw = decodeTextBuffer(buffer).text
       const content = HTML_EXTENSIONS.has(getExtension(remotePath)) ? htmlToPlainText(raw) : raw
       if (!content.trim()) return null
 

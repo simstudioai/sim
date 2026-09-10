@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   decodeTextBuffer,
+  decodeWindows1252,
+  decodeWindows1252WithTable,
   sanitizeTextForUTF8,
   TRUNCATED_UTF8_WARNING,
   truncationNotice,
@@ -129,6 +131,33 @@ describe('decodeTextBuffer', () => {
       encoding: 'windows-1252',
     })
     expect(decodeTextBuffer(Buffer.from('Caf\xe9\n', 'latin1')).text).toBe('Café\n')
+  })
+
+  it('maps every Windows-1252 byte to the WHATWG code point on both decode paths', () => {
+    const everyByte = new Uint8Array(Array.from({ length: 256 }, (_, index) => index))
+    const expectedC1 =
+      '\u20AC\u0081\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u008D\u017D\u008F' +
+      '\u0090\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u009D\u017E\u0178'
+
+    for (const decode of [decodeWindows1252, decodeWindows1252WithTable]) {
+      const decoded = decode(everyByte)
+      expect(decoded.length).toBe(256)
+      expect(decoded.slice(0, 0x80)).toBe(
+        String.fromCharCode(...Array.from({ length: 0x80 }, (_, index) => index))
+      )
+      expect(decoded.slice(0x80, 0xa0)).toBe(expectedC1)
+      expect(decoded.slice(0xa0)).toBe(Buffer.from(everyByte.subarray(0xa0)).toString('latin1'))
+    }
+  })
+
+  it('decodes a large C1-heavy buffer in one bounded pass', () => {
+    const heavy = new Uint8Array(4 * 1024 * 1024).fill(0x93)
+
+    const decoded = decodeWindows1252WithTable(heavy)
+
+    expect(decoded.length).toBe(heavy.length)
+    expect(decoded.charCodeAt(0)).toBe(0x201c)
+    expect(decoded.charCodeAt(heavy.length - 1)).toBe(0x201c)
   })
 
   it('never emits a replacement character for single-byte input', () => {
