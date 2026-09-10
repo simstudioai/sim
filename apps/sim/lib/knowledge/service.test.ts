@@ -6,6 +6,7 @@ import {
   hasMockCondition,
   permissionsMock,
   permissionsMockFns,
+  queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
@@ -31,6 +32,7 @@ vi.mock('@/lib/billing/storage', () => ({
 import {
   findActiveKnowledgeBasesByExactName,
   getActiveKnowledgeBaseReference,
+  getActiveKnowledgeBaseReferences,
   getKnowledgeBaseById,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
@@ -79,6 +81,71 @@ describe('knowledge base references', () => {
 
   it('reports a missing or archived reference as absent', async () => {
     await expect(getActiveKnowledgeBaseReference('missing')).resolves.toBeNull()
+  })
+
+  it('loads twenty references in one query without changing their projection or input order', async () => {
+    const ids = Array.from({ length: 20 }, (_, index) => `kb-${index}`)
+    const references = ids.map((id) => ({ id, chunkingConfig: { maxSize: 512 } }))
+    queueTableRows(schemaMock.knowledgeBase, [...references].reverse())
+
+    await expect(getActiveKnowledgeBaseReferences(ids)).resolves.toEqual(references)
+
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.from).toHaveBeenCalledOnce()
+    const projection = dbChainMockFns.select.mock.calls[0][0]
+    const [condition] = dbChainMockFns.where.mock.calls[0]
+    expect(
+      hasMockCondition(
+        condition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.deletedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.knowledgeBase.id &&
+          JSON.stringify(node.values) === JSON.stringify(ids)
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
+
+    await getActiveKnowledgeBaseReference(ids[0])
+    expect(dbChainMockFns.select.mock.calls[1][0]).toEqual(projection)
+  })
+
+  it('preserves duplicate and absent reference positions without querying duplicate ids', async () => {
+    const reference = { id: 'kb-1', chunkingConfig: {} }
+    queueTableRows(schemaMock.knowledgeBase, [reference])
+
+    await expect(
+      getActiveKnowledgeBaseReferences(['missing', 'kb-1', 'missing', 'kb-1'])
+    ).resolves.toEqual([null, reference, null, reference])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0][0],
+        (node) =>
+          node.type === 'inArray' &&
+          JSON.stringify(node.values) === JSON.stringify(['missing', 'kb-1'])
+      )
+    ).toBe(true)
+  })
+
+  it('does not query an empty reference batch and retains the singleton query shape', async () => {
+    await expect(getActiveKnowledgeBaseReferences([])).resolves.toEqual([])
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    await expect(getActiveKnowledgeBaseReferences(['missing'])).resolves.toEqual([null])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+  })
+
+  it('propagates reference batch database failures', async () => {
+    const failure = new Error('reference database unavailable')
+    dbChainMockFns.where.mockRejectedValueOnce(failure)
+    await expect(getActiveKnowledgeBaseReferences(['kb-1', 'kb-2'])).rejects.toBe(failure)
   })
 
   it('preserves aggregate counts for knowledge-base detail consumers', async () => {

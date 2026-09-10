@@ -875,6 +875,23 @@ export type ActiveKnowledgeBaseReference = Omit<
   'tokenCount' | 'docCount' | 'connectorTypes' | 'hasPermissionScopedConnector'
 >
 
+const ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS = {
+  id: knowledgeBase.id,
+  userId: knowledgeBase.userId,
+  name: knowledgeBase.name,
+  isSearchIndex: knowledgeBase.isSearchIndex,
+  description: knowledgeBase.description,
+  embeddingModel: knowledgeBase.embeddingModel,
+  embeddingDimension: knowledgeBase.embeddingDimension,
+  chunkingConfig: knowledgeBase.chunkingConfig,
+  createdAt: knowledgeBase.createdAt,
+  updatedAt: knowledgeBase.updatedAt,
+  deletedAt: knowledgeBase.deletedAt,
+  workspaceId: knowledgeBase.workspaceId,
+  organizationId: knowledgeBase.organizationId,
+  folderId: knowledgeBase.folderId,
+}
+
 /**
  * Canonical identity and configuration for application authorization and retrieval.
  * Reading a reference never scans the base's documents to compute display counts.
@@ -883,27 +900,35 @@ export async function getActiveKnowledgeBaseReference(
   knowledgeBaseId: string
 ): Promise<ActiveKnowledgeBaseReference | null> {
   const [row] = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      isSearchIndex: knowledgeBase.isSearchIndex,
-      description: knowledgeBase.description,
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      organizationId: knowledgeBase.organizationId,
-      folderId: knowledgeBase.folderId,
-    })
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
   return row ? { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig } : null
+}
+
+/** Loads active references in one statement while preserving requested order and missing entries. */
+export async function getActiveKnowledgeBaseReferences(
+  knowledgeBaseIds: readonly string[]
+): Promise<Array<ActiveKnowledgeBaseReference | null>> {
+  if (knowledgeBaseIds.length === 0) return []
+  if (knowledgeBaseIds.length === 1)
+    return [await getActiveKnowledgeBaseReference(knowledgeBaseIds[0])]
+
+  const rows = await db
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(knowledgeBaseIds)]),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+  const byId = new Map(
+    rows.map((row) => [row.id, { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig }])
+  )
+  return knowledgeBaseIds.map((id) => byId.get(id) ?? null)
 }
 
 /**

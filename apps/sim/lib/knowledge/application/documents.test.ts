@@ -79,6 +79,10 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
   getDocumentTagDefinitions: mocks.getDocumentTagDefinitions,
+  getDocumentTagDefinitionsByKnowledgeBaseIds: async (ids: string[]) =>
+    new Map(
+      await Promise.all(ids.map(async (id) => [id, await mocks.getDocumentTagDefinitions(id)]))
+    ),
 }))
 
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({

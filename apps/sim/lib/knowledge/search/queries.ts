@@ -454,6 +454,7 @@ const LIVE_SEARCH_BUDGET_MS = 8000
  */
 async function selectAuthorizedSearchResults(input: {
   accessProvider: KnowledgeAccessProvider
+  filters?: WorkspaceSearchFilters
   signal?: AbortSignal
   topK: number
   selectPage: (
@@ -478,11 +479,17 @@ async function selectAuthorizedSearchResults(input: {
     const candidates = await input.selectPage(pageSize, offset, [...excludedSources])
     if (!candidates.length) break
     scanned += candidates.length
-    const connectorIds = [
-      ...new Set(
-        candidates.flatMap((candidate) => (candidate.connectorId ? [candidate.connectorId] : []))
-      ),
-    ]
+    /** Candidate and hydration queries enforce this source filter; connector types are immutable. */
+    const connectorIds =
+      input.filters?.source && input.filters.source !== 'github'
+        ? []
+        : [
+            ...new Set(
+              candidates.flatMap((candidate) =>
+                candidate.connectorId ? [candidate.connectorId] : []
+              )
+            ),
+          ]
     const access = await input.accessProvider.getForConnectors(connectorIds, input.signal)
     input.signal?.throwIfAborted()
     const grantedSources = new Set(
@@ -578,6 +585,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     ]
     return selectAuthorizedSearchResults({
       accessProvider: params.accessProvider,
+      filters: params.filters,
       signal: params.signal,
       topK,
       selectPage: (limit, offset, excludedSources) =>
@@ -705,6 +713,7 @@ function selectLiveVectorResults(
   const conditions = [inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...filters]
   return selectAuthorizedSearchResults({
     accessProvider,
+    filters: params.filters,
     signal: params.signal,
     topK: params.topK,
     selectPage: (limit, offset, excludedSources) =>
@@ -818,6 +827,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     ]
     return selectAuthorizedSearchResults({
       accessProvider: params.accessProvider,
+      filters: params.filters,
       signal: params.signal,
       topK,
       selectPage: (limit, offset, excludedSources) =>
