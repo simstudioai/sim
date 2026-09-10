@@ -24,18 +24,12 @@ export function Loader({ animate = false, className, ...props }: LoaderProps) {
       height='24'
       viewBox='0 0 24 24'
       fill='none'
-      className={className}
+      className={cn(animate && styles.animated, className)}
       aria-hidden='true'
       {...props}
     >
       <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='3' opacity='.25' />
-      <circle
-        className={cn(styles.dot, animate && styles.animated)}
-        cx='12'
-        cy='2'
-        r='1.5'
-        fill='currentColor'
-      />
+      <circle cx='12' cy='2' r='1.5' fill='currentColor' />
     </svg>
   )
 }
