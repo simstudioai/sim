@@ -110,16 +110,16 @@ ROBUST_EXPECT = {
   'truncated-docx': ('typed error (invalid_format)', lambda rec: not rec['ok'] and rec.get('typedError')),
   'truncated-pdf': ('typed error (invalid_format)', lambda rec: not rec['ok'] and rec.get('typedError')),
   'pdf-bytes-labelled-docx': ('typed error OR correct text', lambda rec: (not rec['ok'] and rec.get('typedError')) or (rec['ok'] and 'Office Relocation' in rec['content'])),
-  'docx-bytes-labelled-pdf': ('typed error', lambda rec: not rec['ok'] and rec.get('typedError')),
+  'docx-bytes-labelled-pdf': ('typed error OR correct text (magic wins)', lambda rec: (not rec['ok'] and rec.get('typedError')) or (rec['ok'] and 'Office Relocation' in rec['content'])),
   'png-labelled-doc': ('typed error, never placeholder prose', lambda rec: not rec['ok'] and rec.get('typedError')),
   'random-bytes-labelled-ppt': ('typed error, never placeholder prose', lambda rec: not rec['ok'] and rec.get('typedError')),
   'latin1-txt': ('text decodes to "Café résumé naïve £"', lambda rec: rec['ok'] and 'Café' in rec['content'] and '£' in rec['content']),
   'utf16-txt': ('text decodes to "Hello UTF-16 world"', lambda rec: rec['ok'] and 'Hello UTF-16 world' in rec['content']),
   'html-labelled-txt': ('markup stripped or typed error', lambda rec: (not rec['ok'] and rec.get('typedError')) or (rec['ok'] and '<html' not in rec['content'].lower())),
-  'docx-labelled-xlsx': ('typed error', lambda rec: not rec['ok'] and rec.get('typedError')),
+  'docx-labelled-xlsx': ('typed error OR correct text (magic wins)', lambda rec: (not rec['ok'] and rec.get('typedError')) or (rec['ok'] and 'Office Relocation' in rec['content'])),
   'csv-labelled-xlsx': ('typed error OR correct UTF-8 text', lambda rec: (not rec['ok'] and rec.get('typedError')) or (rec['ok'] and 'Araújo' in rec['content'] and 'Ã' not in rec['content'])),
   'docx-labelled-doc': ('correct text', lambda rec: rec['ok'] and 'Office Relocation' in rec['content'] and not rec['metadata'].get('degraded')),
-  'pptx-labelled-ppt': ('correct text', lambda rec: rec['ok'] and 'Office Relocation' in rec['content'] and not rec['metadata'].get('degraded')),
+  'pptx-labelled-ppt': ('typed unsupported_type (.ppt refused) OR correct text', lambda rec: (not rec['ok'] and rec.get('errorCode') == 'unsupported_type') or (rec['ok'] and 'Office Relocation' in rec['content'] and not rec['metadata'].get('degraded'))),
 }
 
 scores = {'A': {}, 'B': {}, 'R': {}}

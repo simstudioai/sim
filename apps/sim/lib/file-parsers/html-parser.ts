@@ -4,7 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { decodeTextBuffer, sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('HtmlParser')
 
@@ -388,7 +388,8 @@ export class HtmlParser implements FileParser {
     try {
       logger.info('Parsing HTML buffer, size:', buffer.length)
 
-      const htmlContent = buffer.toString('utf-8')
+      const decoded = decodeTextBuffer(buffer)
+      const htmlContent = decoded.text
       const $ = cheerio.load(htmlContent)
 
       // Extract meta information before removing tags
@@ -421,6 +422,8 @@ export class HtmlParser implements FileParser {
           links: links.slice(0, 50),
           hasImages: $('img').length > 0,
           imageCount: $('img').length,
+          encoding: decoded.encoding,
+          warning: decoded.warning,
           hasTable: $('table').length > 0,
           tableCount: $('table').length,
           hasList: $('ul, ol').length > 0,
