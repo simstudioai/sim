@@ -1,7 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { user } from '@sim/db/schema'
 import { generateShortId } from '@sim/utils/id'
+import { eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   withWorkspaceOperationReplay,
@@ -33,6 +35,15 @@ export interface SyncInput extends SyncChoices {
   direction: 'push' | 'pull'
   requestId?: string
   previewFingerprint?: string
+}
+
+async function loadActorName(userId: string): Promise<string | undefined> {
+  const [actor] = await db
+    .select({ name: user.name })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  return actor?.name ?? undefined
 }
 
 function forkChoices(input: ForkInput) {
@@ -153,6 +164,7 @@ export const forkWorkspace = defineForkUseCase<
         source: context.workspace,
         policy,
         userId: principal.userId,
+        actorName: await loadActorName(principal.userId),
         name: input.name,
         selection: choices.copy,
         requestId: input.requestId ?? request?.headers.get('x-request-id') ?? generateShortId(),
@@ -246,6 +258,7 @@ export const syncWorkspace = defineForkUseCase<
         ...choices,
         dependentValues: input.dependentValues,
         userId: principal.userId,
+        actorName: await loadActorName(principal.userId),
         otherWorkspaceName: context.other!.name,
         requestId: input.requestId ?? request?.headers.get('x-request-id') ?? generateShortId(),
         admission,

@@ -263,6 +263,18 @@ describe('authorized fork and sync against PostgreSQL', () => {
     expect((await syncWorkspace.execute({ principal, input: apply })).operation?.operationId).toBe(
       report.operationId
     )
+    expect(
+      await db
+        .select({ id: workflowDeploymentOperation.id })
+        .from(workflowDeploymentOperation)
+        .where(eq(workflowDeploymentOperation.workflowId, attempt.workflowId))
+    ).toEqual([{ id: attempt.id }])
+    expect(
+      await db
+        .select({ id: workflowDeploymentVersion.id })
+        .from(workflowDeploymentVersion)
+        .where(eq(workflowDeploymentVersion.workflowId, attempt.workflowId))
+    ).toEqual([{ id: attempt.deploymentVersionId }])
   })
   it.each([
     { acting: 'child', direction: 'pull' as const },

@@ -15727,7 +15727,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque continuation cursor, or null when the result is complete."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; null means there is nothing further to fetch. Never construct one yourself."
           },
           "truncated": {
             "type": "boolean",

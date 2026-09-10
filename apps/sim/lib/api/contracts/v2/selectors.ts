@@ -81,7 +81,9 @@ export const v2ListSelectorContract = defineRouteContract({
         .string()
         .max(32 * 1024)
         .nullable()
-        .describe('Opaque continuation cursor, or null when the result is complete.'),
+        .describe(
+          'Opaque cursor for the next page. Send it back as `cursor`; null means there is nothing further to fetch. Never construct one yourself.'
+        ),
       truncated: z
         .boolean()
         .describe('Whether the provider returned only a bounded subset of its options.'),
