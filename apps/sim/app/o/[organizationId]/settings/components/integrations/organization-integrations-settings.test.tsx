@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   people: vi.fn(),
   invite: vi.fn(),
   refetch: vi.fn(),
+  update: vi.fn(),
+  updatePending: false,
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: mocks.context,
@@ -21,6 +23,7 @@ vi.mock(
 )
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccounts: mocks.accounts,
+  useUpdateOrganizationAccounts: () => ({ mutate: mocks.update, isPending: mocks.updatePending }),
   useOrganizationAccountPeople: mocks.people,
   useInviteOrganizationAccountPeople: () => ({ mutateAsync: mocks.invite, reset: vi.fn() }),
   useResendOrganizationAccountInvitation: () => ({}),
@@ -37,10 +40,12 @@ describe('organization integration invitations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(toast, 'success').mockReturnValue('toast-id')
+    vi.spyOn(toast, 'error').mockReturnValue('toast-id')
+    mocks.updatePending = false
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: true } })
     mocks.accounts.mockReturnValue({
-      data: { credentialGroup: { id: 'group-a' } },
+      data: { credentialGroup: { id: 'group-a', options: [] } },
       error: null,
       refetch: mocks.refetch,
     })
@@ -93,7 +98,7 @@ describe('organization integration invitations', () => {
   it('keeps provider setup as the default and sends manual invitations from People to this org', async () => {
     await render()
     expect(container.textContent).toContain('Provider setup')
-    expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
+    expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
     expect(mocks.people).not.toHaveBeenCalled()
 
     await click('People')
@@ -119,6 +124,79 @@ describe('organization integration invitations', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
+  it('refreshes saved provider identities from Sources and reports the outcome', async () => {
+    mocks.accounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          id: 'group-a',
+          options: [
+            {
+              id: 'github-option',
+              provider: 'github-repositories',
+              label: 'Engineering',
+              required: true,
+            },
+            {
+              id: 'slack-option',
+              provider: 'slack',
+              label: 'Slack',
+              required: false,
+              slackBotCredentialId: 'slack-bot',
+              requiredScopes: ['search:read'],
+            },
+          ],
+        },
+      },
+      error: null,
+    })
+    mocks.update.mockImplementationOnce((_input, { onSuccess }) => onSuccess())
+    await render()
+    await click('Update configurations')
+    expect(mocks.update).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-a',
+        groupId: 'group-a',
+        update: {
+          options: [
+            {
+              id: 'github-option',
+              provider: 'github-repositories',
+              label: 'Engineering',
+              required: true,
+            },
+            {
+              id: 'slack-option',
+              provider: 'slack',
+              label: 'Slack',
+              required: false,
+              slackBotCredentialId: 'slack-bot',
+              requiredScopes: ['search:read'],
+            },
+          ],
+        },
+      },
+      expect.any(Object)
+    )
+    expect(toast.success).toHaveBeenCalledWith('Provider configurations updated')
+
+    mocks.update.mockImplementationOnce((_input, { onError }) =>
+      onError(new Error('Update denied'))
+    )
+    await click('Update configurations')
+    expect(toast.error).toHaveBeenCalledWith('Update denied')
+
+    mocks.updatePending = true
+    await render()
+    expect(findButton('Update configurations')).toBeDisabled()
+    await click('Update configurations')
+    expect(mocks.update).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not offer a configuration update without saved providers', async () => {
+    await render()
+    expect(container.textContent).not.toContain('Update configurations')
+  })
+
   it('opens People directly from the saved URL', async () => {
     await render('?tab=people')
     expect(container.textContent).toContain('Request connections')
@@ -137,7 +215,10 @@ describe('organization integration invitations', () => {
     await click('Request connections')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
 
-    mocks.accounts.mockReturnValue({ data: { credentialGroup: { id: 'group-a' } }, error: null })
+    mocks.accounts.mockReturnValue({
+      data: { credentialGroup: { id: 'group-a', options: [] } },
+      error: null,
+    })
     await render('?tab=people')
     expect(container.textContent).not.toContain('Loading connected accounts')
     expect(findButton('Request connections')).not.toBeDisabled()
