@@ -68,9 +68,9 @@ In the add-source form, **More options** contains optional **Metadata tags**. Se
 
 ## What gets indexed
 
-Sim indexes event titles, descriptions, times, locations, and the selected attendee information. All-day events and individual occurrences of recurring meetings are supported. Results link back to Google Calendar.
+Sim indexes event titles, descriptions, times, locations, and the selected attendee information. All-day events and individual occurrences of recurring meetings are supported. An invitation you declined stays searchable and is marked `Response: declined`. Results link back to Google Calendar.
 
-Cancelled events, attachment contents, meeting recordings, and transcripts are not indexed. Events outside the selected date window are excluded. Private event details that Google withholds are not available in Search; see [Google's calendar sharing rules](https://developers.google.com/workspace/calendar/api/concepts/sharing).
+Cancelled events, attachment contents, meeting recordings, and transcripts are not indexed. Status entries such as working location, out of office, focus time, and birthdays are not indexed. A shared calendar where you can see only free or busy times contributes nothing, since those blocks have no title or description. Events outside the selected date window are excluded. Private event details that Google withholds are not available in Search; see [Google's calendar sharing rules](https://developers.google.com/workspace/calendar/api/concepts/sharing).
 
 Search schedules syncs hourly. Event edits, cancellations, access changes, and events moving outside the date window are reconciled during background sync. The first sync may take longer, and results appear as indexing progresses.
 
