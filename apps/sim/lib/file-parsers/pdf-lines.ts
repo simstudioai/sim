@@ -53,14 +53,46 @@ export interface JoinLinesOptions {
   headingMarkers?: boolean
 }
 
-/** Flip to disable the `## ` heading prefix without touching callers. */
-export const PDF_HEADING_MARKERS_ENABLED = true
+/**
+ * Whether `## ` heading prefixes are emitted by default. Off: on documents
+ * dominated by footnote, table, or form text the estimated body height is too
+ * small and prose becomes headings, which `TextChunker` then splits per line.
+ * The code path stays available through `JoinLinesOptions.headingMarkers`.
+ */
+export const PDF_HEADING_MARKERS_ENABLED = false
+
+/**
+ * Ceiling on reconstructed lines per page. Past it the builder stops splitting
+ * and appends to the last line, so a page of one-character lines cannot turn
+ * the per-line bookkeeping into hundreds of megabytes.
+ */
+export const MAX_PDF_LINES = 500_000
+
+/** Ceiling on the document word set used for dehyphenation. */
+const MAX_COLLECTED_WORDS = 200_000
+
+/** Words longer than this are noise (base64, hashes) and never hyphenation halves. */
+const MAX_COLLECTED_WORD_CHARS = 40
+
+/** Prose-like lines (long, several words) alone decide the body text height. */
+const PROSE_MIN_CHARS = 40
+const PROSE_MIN_WORDS = 6
+
+/** A heading candidate inside a longer run of same-height lines is body text, not a heading. */
+const MAX_HEADING_RUN = 3
 
 /** A line at least this many times taller than body text is a heading candidate. */
 const HEADING_HEIGHT_RATIO = 1.15
 
 /** Headings are short; longer oversized lines are pull quotes or callouts. */
 const HEADING_MAX_CHARS = 120
+
+/**
+ * When more than this share of a document's lines would become headings the
+ * "body" height is really a bullet or caption size (slide decks), so markers
+ * would only add noise.
+ */
+const MAX_HEADING_LINE_FRACTION = 0.3
 
 /** Line gap beyond this multiple of the page's line pitch is a paragraph break. */
 const PARAGRAPH_PITCH_RATIO = 1.3
@@ -85,9 +117,18 @@ const WORD_GAP_RATIO = 0.1
 
 const SOFT_HYPHEN = '\u00AD'
 const TRAILING_HYPHEN = /(\p{L}+)-$/u
+
+/**
+ * Only the tail of a line is inspected for a hyphenated word: an unanchored
+ * `(\p{L}+)-$` retried from every position of a megabyte-long line is
+ * quadratic, and no hyphenation half is longer than this.
+ */
+const HYPHEN_TAIL_CHARS = 64
 const LEADING_LOWERCASE_WORD = /^(\p{Ll}\p{L}*)/u
-const INTACT_COMPOUND = /\p{L}+-\p{L}+/gu
-const WORD_TOKEN = /\p{L}{3,}/gu
+const LETTER = /\p{L}/u
+const WORD_TOKEN = /\p{L}+/gu
+const LEADING_WHITESPACE = /^\s/
+const TRAILING_WHITESPACE = /\s$/
 
 /**
  * Reads an item's placement, or undefined when the item is rotated, vertical,
@@ -138,7 +179,8 @@ export class PdfLineBuilder {
     if (Math.abs(geometry.y - this.prevY) > LINE_SHIFT_RATIO * ref) return '\n'
     const gap = geometry.x - this.prevEndX
     if (gap < -BACKWARDS_MOVE_RATIO * ref) return '\n'
-    if (gap > WORD_GAP_RATIO * ref && !this.endsWithWhitespace() && !/^\s/.test(str)) return ' '
+    if (gap > WORD_GAP_RATIO * ref && !this.endsWithWhitespace() && !LEADING_WHITESPACE.test(str))
+      return ' '
     return ''
   }
 
@@ -158,8 +200,15 @@ export class PdfLineBuilder {
     this.lineHeight = geometry.height || this.lineHeight
   }
 
-  /** Closes the current line; whitespace-only lines are dropped. */
+  /**
+   * Closes the current line; whitespace-only lines are dropped. Past
+   * `MAX_PDF_LINES` the line stays open and later text joins it with a space.
+   */
   endLine(): void {
+    if (this.lines.length >= MAX_PDF_LINES) {
+      if (this.parts.length > 0) this.parts.push(' ')
+      return
+    }
     const text = this.parts.join('')
     if (text.trim().length > 0) {
       this.lines.push({ text, y: this.lineY, height: this.dominantHeight })
@@ -174,13 +223,18 @@ export class PdfLineBuilder {
   }
 
   finish(): PdfLine[] {
+    if (this.lines.length >= MAX_PDF_LINES && this.parts.length > 0) {
+      const last = this.lines[this.lines.length - 1]
+      last.text = `${last.text} ${this.parts.join('')}`
+      this.parts = []
+    }
     this.endLine()
     return this.lines
   }
 
   private endsWithWhitespace(): boolean {
     const last = this.parts[this.parts.length - 1]
-    return last !== undefined && /\s$/.test(last)
+    return last !== undefined && TRAILING_WHITESPACE.test(last)
   }
 }
 
@@ -192,32 +246,70 @@ export function normalizePdfWhitespace(text: string): string {
     .replace(/\n{3,}/g, '\n\n')
 }
 
-/** Hyphenated compounds that appear intact inside a line, lowercased. */
+/**
+ * Hyphenated compounds that appear intact inside a line, lowercased. Scans
+ * outward from each hyphen rather than matching `\p{L}+-\p{L}+`, which retries
+ * from every letter of a long hyphen-free line.
+ */
 export function collectCompounds(lines: Iterable<PdfLine>): Set<string> {
   const compounds = new Set<string>()
   for (const line of lines) {
-    for (const match of line.text.matchAll(INTACT_COMPOUND)) compounds.add(match[0].toLowerCase())
+    const text = line.text
+    for (let at = text.indexOf('-'); at !== -1; at = text.indexOf('-', at + 1)) {
+      const start = letterRunStart(text, at)
+      const end = letterRunEnd(text, at + 1)
+      if (start < at && end > at + 1) compounds.add(text.slice(start, end).toLowerCase())
+    }
   }
   return compounds
 }
 
-/** Lowercase words of three or more letters seen anywhere in the document. */
+/** Start index of the run of letters ending just before `index`, at most `HYPHEN_TAIL_CHARS` long. */
+function letterRunStart(text: string, index: number): number {
+  let start = index
+  while (start > 0 && index - start < HYPHEN_TAIL_CHARS && LETTER.test(text[start - 1])) start--
+  return start
+}
+
+/** End index (exclusive) of the run of letters starting at `index`, at most `HYPHEN_TAIL_CHARS` long. */
+function letterRunEnd(text: string, index: number): number {
+  let end = index
+  while (end < text.length && end - index < HYPHEN_TAIL_CHARS && LETTER.test(text[end])) end++
+  return end
+}
+
+/**
+ * Lowercase words of three to `MAX_COLLECTED_WORD_CHARS` letters seen anywhere
+ * in the document, capped at `MAX_COLLECTED_WORDS` entries.
+ */
 export function collectWords(lines: Iterable<PdfLine>): Set<string> {
   const words = new Set<string>()
   for (const line of lines) {
-    for (const match of line.text.matchAll(WORD_TOKEN)) words.add(match[0].toLowerCase())
+    for (const match of line.text.matchAll(WORD_TOKEN)) {
+      const word = match[0]
+      if (word.length < 3 || word.length > MAX_COLLECTED_WORD_CHARS) continue
+      words.add(word.toLowerCase())
+      if (words.size >= MAX_COLLECTED_WORDS) return words
+    }
   }
   return words
 }
 
-/** Character-weighted modal line height across the document; 0 when unknown. */
+/**
+ * Character-weighted modal height of the document's prose-like lines; falls
+ * back to every line when nothing reads as prose. 0 when unknown.
+ */
 export function dominantLineHeight(lines: Iterable<PdfLine>): number {
-  const weights = new Map<number, number>()
+  const prose = new Map<number, number>()
+  const all = new Map<number, number>()
   for (const line of lines) {
     if (line.height <= 0) continue
     const key = Math.round(line.height * 10) / 10
-    weights.set(key, (weights.get(key) ?? 0) + line.text.trim().length)
+    const text = line.text.trim()
+    all.set(key, (all.get(key) ?? 0) + text.length)
+    if (isProseLike(text)) prose.set(key, (prose.get(key) ?? 0) + text.length)
   }
+  const weights = prose.size > 0 ? prose : all
   let best = 0
   let bestWeight = 0
   for (const [height, weight] of weights) {
@@ -241,38 +333,80 @@ export function joinLines(lines: readonly PdfLine[], options: JoinLinesOptions =
   const headingMarkers = options.headingMarkers ?? PDF_HEADING_MARKERS_ENABLED
   const compounds = options.compounds
   const words = options.words
+  const headingRuns = headingMarkers ? sameHeightRuns(lines) : undefined
 
-  let out = decorate(lines[0], bodyHeight, headingMarkers)
+  /**
+   * Output segments; the last one is always the text of the line being
+   * built, so hyphen checks and joins only ever touch one line's worth of
+   * string instead of the whole page.
+   */
+  const parts: string[] = [decorate(lines[0], bodyHeight, headingRuns?.[0] ?? 0)]
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]
     const separator = separatorBetween(lines, i, pitch, bodyHeight)
-    if (out.endsWith(SOFT_HYPHEN)) {
-      out = out.slice(0, -1) + line.text
+    const last = parts[parts.length - 1]
+    if (last.endsWith(SOFT_HYPHEN)) {
+      parts[parts.length - 1] = last.slice(0, -1) + line.text
       continue
     }
     if (separator === '\n') {
-      const joined = dehyphenate(out, line.text, compounds, words)
+      const joined = dehyphenate(last, line.text, compounds, words)
       if (joined !== undefined) {
-        out = joined
+        parts[parts.length - 1] = joined
         continue
       }
     }
-    out += separator
-    out += separator === ' ' ? line.text : decorate(line, bodyHeight, headingMarkers)
+    parts.push(separator)
+    parts.push(separator === ' ' ? line.text : decorate(line, bodyHeight, headingRuns?.[i] ?? 0))
   }
-  return out
+  return parts.join('')
 }
 
-function decorate(line: PdfLine, bodyHeight: number, headingMarkers: boolean): string {
-  if (
-    headingMarkers &&
-    bodyHeight > 0 &&
-    line.height >= HEADING_HEIGHT_RATIO * bodyHeight &&
-    line.text.trim().length < HEADING_MAX_CHARS
-  ) {
+/** Prefixes a heading candidate with `## `; `run` is 0 when markers are off. */
+function decorate(line: PdfLine, bodyHeight: number, run: number): string {
+  if (run > 0 && run <= MAX_HEADING_RUN && isHeadingCandidate(line, bodyHeight)) {
     return `## ${line.text.trimStart()}`
   }
   return line.text
+}
+
+function isHeadingCandidate(line: PdfLine, bodyHeight: number): boolean {
+  return (
+    bodyHeight > 0 &&
+    line.height >= HEADING_HEIGHT_RATIO * bodyHeight &&
+    line.text.trim().length < HEADING_MAX_CHARS
+  )
+}
+
+function isProseLike(text: string): boolean {
+  return text.length >= PROSE_MIN_CHARS && text.split(/\s+/).length >= PROSE_MIN_WORDS
+}
+
+/** Length of the run of consecutive same-height lines each line belongs to. */
+function sameHeightRuns(lines: readonly PdfLine[]): number[] {
+  const runs = new Array<number>(lines.length)
+  let start = 0
+  for (let i = 1; i <= lines.length; i++) {
+    if (i < lines.length && Math.abs(lines[i].height - lines[start].height) < 0.05) continue
+    for (let j = start; j < i; j++) runs[j] = i - start
+    start = i
+  }
+  return runs
+}
+
+/**
+ * Whether heading markers make sense for a document: false when so many lines
+ * qualify that the dominant height is not the body text.
+ */
+export function headingMarkersViable(lines: Iterable<PdfLine>, bodyHeight: number): boolean {
+  let total = 0
+  let candidates = 0
+  for (const line of lines) {
+    if (line.height <= 0) continue
+    total++
+    if (isHeadingCandidate(line, bodyHeight)) candidates++
+  }
+  return total === 0 || candidates / total <= MAX_HEADING_LINE_FRACTION
 }
 
 /**
@@ -288,7 +422,8 @@ function dehyphenate(
   compounds: ReadonlySet<string> | undefined,
   words: ReadonlySet<string> | undefined
 ): string | undefined {
-  const head = TRAILING_HYPHEN.exec(out)
+  if (!out.endsWith('-')) return undefined
+  const head = TRAILING_HYPHEN.exec(out.slice(-HYPHEN_TAIL_CHARS))
   const tail = LEADING_LOWERCASE_WORD.exec(next)
   if (!head || !tail) return undefined
   const compound = `${head[1]}-${tail[1]}`.toLowerCase()

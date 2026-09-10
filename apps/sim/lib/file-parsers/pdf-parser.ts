@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
@@ -7,8 +8,11 @@ import {
   collectCompounds,
   collectWords,
   dominantLineHeight,
+  headingMarkersViable,
   joinLines,
   normalizePdfWhitespace,
+  PDF_HEADING_MARKERS_ENABLED,
+  type PdfItemGeometry,
   type PdfLine,
   PdfLineBuilder,
   type PdfTextItem,
@@ -42,8 +46,13 @@ const PDF_EXTRACTION_TIMEOUT_MS = 60_000
 /**
  * Upper bound on what line reconstruction adds per line after the budget is
  * spent: a two-character paragraph break plus a three-character heading marker.
+ * The complete-mode byte ceiling therefore trips slightly earlier than it did
+ * when pages were flattened to one line, by at most this many bytes per line.
  */
 const MAX_LINE_DECORATION_BYTES = 5
+
+/** Pages assembled between event-loop yields, so a long document cannot block the loop. */
+const ASSEMBLY_YIELD_EVERY_PAGES = 32
 
 /** Pages are joined with a paragraph break. */
 const PAGE_SEPARATOR = '\n\n'
@@ -205,7 +214,8 @@ async function readPageWithinBudget(
         const hasEOL = item.hasEOL === true
         const geometry = readItemGeometry(item)
         const separator = str.length > 0 ? builder.separatorBefore(str, geometry) : ''
-        const cost = separator.length + str.length + (hasEOL ? 1 : 0)
+        /** Only text and pdf.js's own line breaks count, exactly as before geometry separators existed. */
+        const cost = str.length + (hasEOL ? 1 : 0)
         if (cost > remaining) {
           appendTruncated(builder, separator, str, geometry, remaining)
           remaining = 0
@@ -232,21 +242,18 @@ async function readPageWithinBudget(
   return { lines: builder.finish(), used: budget - remaining, completed, deadlineReached }
 }
 
-/** Appends as much of `separator + str` as `remaining` allows, mirroring the old `slice(0, remaining)`. */
+/** Applies the free separator, then as much of `str` as `remaining` allows, mirroring the old `slice(0, remaining)`. */
 function appendTruncated(
   builder: PdfLineBuilder,
   separator: string,
   str: string,
-  geometry: ReturnType<typeof readItemGeometry>,
+  geometry: PdfItemGeometry | undefined,
   remaining: number
 ): void {
-  let keep = remaining
-  if (separator.length > 0 && keep > 0) {
-    if (separator === '\n') builder.endLine()
-    else builder.append(separator)
-    keep -= 1
-  }
-  if (keep > 0) builder.append(str.slice(0, keep), geometry)
+  if (remaining <= 0) return
+  if (separator === '\n') builder.endLine()
+  else if (separator.length > 0) builder.append(separator)
+  builder.append(str.slice(0, remaining), geometry)
 }
 
 /** Page height in user space, or undefined when the page cannot report a viewport. */
@@ -272,18 +279,30 @@ function estimatePageBytes(lines: readonly PdfLine[]): number {
 /**
  * Turns the collected pages into text: repeated furniture is dropped, lines are
  * joined into paragraphs, hyphenation is undone, and pages are separated by a
- * paragraph break.
+ * paragraph break. Yields to the event loop periodically and honours `signal`
+ * between pages, since this runs after the streaming budgets have stopped.
  */
-function assemblePages(pages: readonly PdfPageLines[], complete: boolean): string {
+async function assemblePages(
+  pages: readonly PdfPageLines[],
+  complete: boolean,
+  signal: AbortSignal | undefined
+): Promise<string> {
+  signal?.throwIfAborted()
   const filteredPages = suppressFurniture(pages)
   const allLines = filteredPages.flat()
+  const bodyHeight = dominantLineHeight(allLines)
   const options = {
     compounds: collectCompounds(allLines),
     words: collectWords(allLines),
-    bodyHeight: dominantLineHeight(allLines),
+    bodyHeight,
+    headingMarkers: PDF_HEADING_MARKERS_ENABLED && headingMarkersViable(allLines, bodyHeight),
   }
   const pageTexts: string[] = []
-  for (const lines of filteredPages) {
+  for (const [index, lines] of filteredPages.entries()) {
+    if (index > 0 && index % ASSEMBLY_YIELD_EVERY_PAGES === 0) {
+      await sleep(0)
+      signal?.throwIfAborted()
+    }
     const joined = joinLines(lines, options)
     const text = complete ? normalizePdfWhitespace(sanitizeTextForUTF8(joined)).trim() : joined
     if (text.length > 0) pageTexts.push(text)
@@ -386,11 +405,16 @@ async function extractTextWithinBudget(
     }
   }
 
-  const text = assemblePages(pages, complete)
+  let text = await assemblePages(pages, complete, signal)
+
+  /** Paragraph breaks land after the budget is spent; trimming that overflow is a truncation too. */
+  if (!complete && text.length > MAX_PDF_TEXT_CHARS) {
+    text = text.slice(0, MAX_PDF_TEXT_CHARS)
+    truncated = true
+  }
 
   return {
-    /** Paragraph breaks and heading markers land after the budget is spent, so trim that overflow. */
-    text: complete ? text : text.slice(0, MAX_PDF_TEXT_CHARS),
+    text,
     totalPages,
     pagesRead,
     truncated,
