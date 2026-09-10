@@ -123,7 +123,7 @@ export class SlackSearchAssistantStream {
   private failure?: Error
   private closed = false
   private closeAttempted = false
-  private separateNextText = false
+  private pendingEvents: Promise<void> = Promise.resolve()
   private evidence = new Map<string, Record<string, unknown>>()
   private toolProgress = new Map<string, { toolName: string; chunk: ToolProgress }>()
   constructor(private readonly options: AssistantStreamOptions) {}
@@ -160,7 +160,12 @@ export class SlackSearchAssistantStream {
     })
   }
 
-  async onEvent(event: StreamEvent) {
+  onEvent(event: StreamEvent): Promise<void> {
+    this.pendingEvents = this.pendingEvents.then(() => this.handleEvent(event))
+    return this.pendingEvents
+  }
+
+  private async handleEvent(event: StreamEvent) {
     if (this.failure) throw this.failure
     if (event.type === 'tool' && 'phase' in event.payload && event.payload.phase === 'result') {
       const { toolName, success, status, output } = event.payload
@@ -175,7 +180,6 @@ export class SlackSearchAssistantStream {
       ])
     }
     if (event.type === 'tool' && !event.scope) {
-      this.separateNextText = true
       if (
         'phase' in event.payload &&
         (event.payload.phase === 'call' || event.payload.phase === 'result')
@@ -184,8 +188,6 @@ export class SlackSearchAssistantStream {
       }
     }
     if (event.type !== 'text' || event.payload.channel !== 'assistant' || event.scope) return
-    if (this.separateNextText && this.text) this.text += '\n\n'
-    this.separateNextText = false
     this.text += event.payload.text
     if (this.text.length > 128_000) throw new Error('Slack answer exceeds the supported size')
     if (Date.now() - this.lastSentAt >= 750) await this.flush(false)
@@ -208,6 +210,9 @@ export class SlackSearchAssistantStream {
         (payload.status !== undefined && payload.status !== 'executing')
       )
         return
+      /** Close the preceding text segment so batching cannot place its tail after the task. */
+      if (this.text && !this.text.endsWith('\n\n')) this.text += '\n\n'
+      await this.flush(false)
       chunk = { type: 'task_update', id: generateId(), title, status: 'in_progress' }
       this.toolProgress.set(payload.toolCallId, { toolName: payload.toolName, chunk })
     } else {
@@ -298,6 +303,7 @@ export class SlackSearchAssistantStream {
   }
 
   async finish(result: OrchestratorResult) {
+    await this.pendingEvents
     if (this.failure) throw this.failure
     this.collectSources(result.contentBlocks)
     const projection = projectResolvedSecretDiagnosticContent(

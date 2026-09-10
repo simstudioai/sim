@@ -111,6 +111,101 @@ function toolResult(
 }
 
 describe('Slack tool progress', () => {
+  it('flushes a batched sentence before starting tool progress', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      const { stream } = setup()
+      await stream.start()
+      await stream.onEvent({
+        type: 'text',
+        payload: { channel: 'assistant', text: "I'll search " },
+      })
+      await stream.onEvent({
+        type: 'text',
+        payload: { channel: 'assistant', text: 'the connected sources for the handbook.' },
+      })
+      await stream.onEvent(toolCall('search_workspace'))
+      const chunks = api.append.mock.calls.flatMap((call) => call[3])
+      expect(chunks).toEqual([
+        { type: 'markdown_text', text: "I'll search " },
+        {
+          type: 'markdown_text',
+          text: 'the connected sources for the handbook.\n\n',
+        },
+        {
+          type: 'task_update',
+          id: expect.any(String),
+          title: 'Searching documents…',
+          status: 'in_progress',
+        },
+      ])
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('keeps text contiguous across preparatory and hidden tool events', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: "I'll search" },
+    })
+    for (const attributes of [
+      { partial: true },
+      { status: 'generating' as const },
+      { ui: { hidden: true } },
+      { ui: { internal: true } },
+    ]) {
+      const event = toolCall('search_workspace')
+      await stream.onEvent({ ...event, payload: { ...event.payload, ...attributes } })
+    }
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: ' the connected sources.' },
+    })
+    await stream.finish(result)
+    expect(deliveredText()).toBe("I'll search the connected sources.")
+    expect(
+      api.append.mock.calls
+        .flatMap((call) => call[3])
+        .every((chunk) => chunk.type === 'markdown_text')
+    ).toBe(true)
+  })
+
+  it('serializes concurrent text and tool events without duplicating buffered text', async () => {
+    const { stream } = setup()
+    await stream.start()
+    let releaseAppend!: () => void
+    api.append.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseAppend = resolve
+        })
+    )
+    const text = stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: "I'll search the connected sources. " },
+    })
+    await vi.waitFor(() => expect(api.append).toHaveBeenCalledOnce(), { interval: 1 })
+    const call = stream.onEvent(toolCall('search_workspace'))
+    const completed = stream.onEvent(toolResult('search_workspace'))
+    const finished = stream.finish(result)
+    expect(api.append).toHaveBeenCalledOnce()
+    expect(api.stop).not.toHaveBeenCalled()
+    releaseAppend()
+    await Promise.all([text, call, completed, finished])
+    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    expect(deliveredText()).toBe("I'll search the connected sources. \n\n")
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'markdown_text',
+      'markdown_text',
+      'task_update',
+      'task_update',
+    ])
+    expect(chunks[3]).toEqual({ ...chunks[2], status: 'complete' })
+  })
+
   it.each([
     ['list_integrations', 'Listing connected integrations…'],
     ['search_workspace', 'Searching documents…'],
