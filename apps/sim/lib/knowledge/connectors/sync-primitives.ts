@@ -1152,7 +1152,6 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
               connectorId,
               externalId: deferredOps[i].extDoc.externalId,
               error: diagnostic?.message ?? SOURCE_CONTENT_ERROR,
-              cause: toError(outcome.reason).message,
               diagnostic,
             })
           }
@@ -1276,7 +1275,6 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
             connectorId,
             externalId: batch[j].extDoc.externalId,
             error: diagnostic?.message ?? SOURCE_CONTENT_ERROR,
-            cause: toError(outcome.reason).message,
             diagnostic,
           })
         }
