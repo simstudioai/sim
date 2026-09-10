@@ -4953,7 +4953,6 @@ export function TableGrid({
                                 row={row}
                                 columns={displayColumns}
                                 workspaceId={workspaceId}
-                                timeZone={timeZone}
                                 timezoneStatus={timezoneState.status}
                                 rowIndex={index}
                                 isFirstRow={index === 0}

@@ -55,6 +55,13 @@ vi.mock('@/lib/table/wire', () => ({
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
+  orchestrationErrorResponse: (error: unknown) =>
+    error instanceof OrchestrationError
+      ? NextResponse.json(
+          { error: error.message },
+          { status: statusForOrchestrationError(error.code) }
+        )
+      : null,
   orchestrationOutcomeErrorResponse: (
     outcome: { error?: string; errorCode?: OrchestrationErrorCode },
     fallback: string
@@ -73,7 +80,7 @@ import {
   type OrchestrationErrorCode,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
-import { PATCH } from '@/app/api/table/[tableId]/columns/route'
+import { PATCH, POST } from '@/app/api/table/[tableId]/columns/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -104,6 +111,26 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
       },
     })
     mockRenameColumn.mockResolvedValue({ schema: { columns: [] } })
+  })
+
+  it.each([
+    'Schema validation failed: A table can have at most 1 Expiration column',
+    'Expiration columns are not enabled',
+  ])('returns a validation response when adding a column fails: %s', async (message) => {
+    mockAddTableColumn.mockRejectedValueOnce(new OrchestrationError('validation', message))
+    const response = await POST(
+      new NextRequest('http://localhost/api/table/t1/columns', {
+        method: 'POST',
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          column: { name: 'expires', type: 'ttl' },
+        }),
+        headers: { 'content-type': 'application/json' },
+      }),
+      { params: Promise.resolve({ tableId: 't1' }) }
+    )
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: message })
   })
 
   it('rejects a currency code on a non-currency column without renaming first', async () => {

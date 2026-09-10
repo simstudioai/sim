@@ -15,9 +15,9 @@ import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
-import { coerceColumnTypeImportValue } from '@/lib/table/column-types/import-coercion'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
+import { normalizeTtlTimestamp } from '@/lib/table/ttl-values'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -471,8 +471,8 @@ export function inferSchemaFromCsv(
  *
  * Deliberately not routed through the column-type registry: its contract is
  * "coerced or rejected", while an import needs invalid raw text to survive so
- * row-level validation can name it. Type-specific import behavior uses a
- * lightweight capability map so CSV clients do not load the full registry.
+ * row-level validation can name it. Lightweight parsers keep the full
+ * column registry out of CSV clients.
  */
 export function coerceValue(
   value: unknown,
@@ -481,10 +481,9 @@ export function coerceValue(
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
 
-  const typeSpecificValue = coerceColumnTypeImportValue(colType, value, options)
-  if (typeSpecificValue !== undefined) return typeSpecificValue
-
   switch (colType) {
+    case 'ttl':
+      return normalizeTtlTimestamp(value)
     case 'number': {
       const n = Number(value)
       return Number.isNaN(n) ? null : n

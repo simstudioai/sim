@@ -12,6 +12,7 @@ import {
   COLUMN_TYPE_REGISTRY,
   COLUMN_TYPES,
   columnTypeOf,
+  columnValueForEquality,
   isColumnType,
   TYPE_SPECIFIC_COLUMN_KEYS,
   validateColumnTypeLimits,
@@ -423,7 +424,11 @@ export function validateUniqueConstraints(
     const duplicate = existingRows.find((row) => {
       if (excludeRowId && row.id === excludeRowId) return false
       // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
-      return value === row.data[key]
+      const existing = row.data[key]
+      return (
+        existing !== undefined &&
+        columnValueForEquality(value, column) === columnValueForEquality(existing, column)
+      )
     })
 
     if (duplicate) {
@@ -570,7 +575,7 @@ export async function checkBatchUniqueConstraintsDb(
       const value = rowData[key]
       if (value === null || value === undefined) continue
 
-      const normalizedValue = JSON.stringify(value)
+      const normalizedValue = JSON.stringify(columnValueForEquality(value, column))
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -640,7 +645,7 @@ export async function checkBatchUniqueConstraintsDb(
       // Map conflicts back to batch rows
       for (const conflict of conflictingRows) {
         const conflictData = conflict.data as RowData
-        const conflictValue = conflictData[columnId]
+        const conflictValue = columnValueForEquality(conflictData[columnId], column)
         const normalizedConflictValue =
           typeof conflictValue === 'string' ? conflictValue : JSON.stringify(conflictValue)
 
@@ -649,8 +654,11 @@ export async function checkBatchUniqueConstraintsDb(
           const rowValue = rows[i][columnId]
           if (rowValue === null || rowValue === undefined) continue
 
+          const comparableRowValue = columnValueForEquality(rowValue, column)
           const normalizedRowValue =
-            typeof rowValue === 'string' ? rowValue : JSON.stringify(rowValue)
+            typeof comparableRowValue === 'string'
+              ? comparableRowValue
+              : JSON.stringify(comparableRowValue)
 
           if (normalizedRowValue === normalizedConflictValue) {
             // Check if this row already has errors for this column

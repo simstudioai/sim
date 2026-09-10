@@ -100,7 +100,7 @@ const table: TableInfo = {
 
 const row: TableRow = {
   id: 'row-1',
-  data: { expires_at: Date.parse('2026-11-01T08:00:00Z') / 1000 },
+  data: { expires_at: '2026-11-01T01:00:00-07:00' },
   executions: {},
   position: 0,
   createdAt: '2026-01-01T00:00:00Z',
@@ -119,7 +119,7 @@ describe('RowModal expiration editing', () => {
     mockUpdateRow.mockResolvedValue(undefined)
   })
 
-  it('waits for the saved timezone, freezes it, and chooses the later repeated hour', async () => {
+  it('preserves expiration offsets while timezone settings load or change', async () => {
     mockUseTimezoneState.mockReturnValue({ timezone: 'Asia/Tokyo', status: 'loading' })
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -136,12 +136,9 @@ describe('RowModal expiration editing', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector('[aria-label="Edit expires_at"]')?.textContent).toBe(
-      'Loading timezone…'
-    )
-    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).toBeNull()
+    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')?.value).toBe('01:00')
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
-      true
+      false
     )
 
     mockUseTimezoneState.mockReturnValue({
@@ -165,7 +162,7 @@ describe('RowModal expiration editing', () => {
 
     expect(mockUpdateRow).toHaveBeenCalledWith({
       rowId: 'row-1',
-      data: { expires_at: Date.parse('2026-11-01T09:30:00Z') / 1000 },
+      data: { expires_at: '2026-11-01T01:30:00-07:00' },
     })
     expect(props.onSuccess).toHaveBeenCalledTimes(1)
 
@@ -209,7 +206,7 @@ describe('RowModal expiration editing', () => {
     container.remove()
   })
 
-  it('blocks an invalid saved timezone with the plain-text guidance', () => {
+  it('allows expiration edits even when the saved timezone is invalid', () => {
     mockUseTimezoneState.mockReturnValue({
       timezone: 'America/Los_Angeles',
       savedTimezone: 'Mars/Olympus',
@@ -229,18 +226,11 @@ describe('RowModal expiration editing', () => {
 
     act(() => root.render(createElement(RowModal, props)))
 
-    const blockedField = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Edit expires_at"]'
-    )
-    expect(blockedField?.textContent).toBe(String(row.data.expires_at))
+    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')?.value).toBe('01:00')
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
-      true
+      false
     )
     expect(mockToastError).not.toHaveBeenCalled()
-    act(() => blockedField?.click())
-    expect(mockToastError).toHaveBeenCalledWith(
-      'Your saved timezone “Mars/Olympus” is invalid. Update it in Settings → General before editing Date or Expiration cells.'
-    )
     act(() => root.unmount())
     container.remove()
   })
@@ -259,11 +249,19 @@ describe('RowModal expiration editing', () => {
       schema: {
         columns: [
           { name: 'name', type: 'string' },
+          { name: 'starts_at', type: 'date' },
           { name: 'expires_at', type: 'ttl' },
         ],
       },
     }
-    const mixedRow = { ...row, data: { name: 'Ada', expires_at: row.data.expires_at } }
+    const mixedRow = {
+      ...row,
+      data: {
+        name: 'Ada',
+        expires_at: row.data.expires_at,
+        starts_at: '2026-09-07T12:00:00-07:00',
+      },
+    }
     const props = {
       mode: 'edit' as const,
       isOpen: true,
@@ -276,12 +274,10 @@ describe('RowModal expiration editing', () => {
     act(() => root.render(createElement(RowModal, props)))
 
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="modal-input"]')
-    const blockedField = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Edit expires_at"]'
-    )
+    const blockedField = container.querySelector<HTMLButtonElement>('[aria-label="Edit starts_at"]')
     const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
     expect(nameInput?.value).toBe('Ada')
-    expect(blockedField?.textContent).toBe(String(row.data.expires_at))
+    expect(blockedField?.textContent).toBe(mixedRow.data.starts_at)
     expect(submit?.disabled).toBe(false)
 
     act(() => changeInput(nameInput as HTMLInputElement, 'Grace'))
@@ -289,7 +285,7 @@ describe('RowModal expiration editing', () => {
 
     expect(mockUpdateRow).toHaveBeenCalledWith({
       rowId: 'row-1',
-      data: { name: 'Grace' },
+      data: { name: 'Grace', expires_at: row.data.expires_at },
     })
     expect(props.onSuccess).toHaveBeenCalledTimes(1)
     expect(mockToastError).not.toHaveBeenCalled()

@@ -26,7 +26,6 @@
 import {
   formatIsoYear,
   formatUtcOffsetSuffix,
-  type ZonedWallClockOptions,
   zonedWallClockWithOffset,
 } from '@/lib/core/utils/timezone'
 
@@ -266,14 +265,6 @@ export interface NormalizeDateCellOptions {
    * zone.
    */
   timezone?: string
-  /**
-   * Which instant to use when a naive wall time occurs twice during a DST
-   * fall-back. Ordinary date cells preserve their historical earlier-instant
-   * behavior; instant-like callers may explicitly choose `later`.
-   */
-  ambiguousTime?: ZonedWallClockOptions['ambiguousTime']
-  /** How sub-minute historical offsets are serialized to RFC 3339 minutes. */
-  offsetMinuteRounding?: ZonedWallClockOptions['offsetMinuteRounding']
 }
 
 /**
@@ -335,8 +326,7 @@ export function normalizeDateCellValue(
     const wallClock = isoWallClock ?? localizedWallClock ?? parseNaiveWallClockAsUtc(trimmed)
     if (!wallClock) return null
     return zonedWallClockWithOffset(wallClock, options.timezone, {
-      ambiguousTime: options.ambiguousTime ?? 'earlier',
-      offsetMinuteRounding: options.offsetMinuteRounding,
+      ambiguousTime: 'earlier',
     })
   }
   return formatLocalFieldsAsWall(parsed, -parsed.getTimezoneOffset())
