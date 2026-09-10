@@ -19,7 +19,7 @@ export const slackSearchMessageSchema = z
       .string()
       .regex(/^\d+\.\d+$/)
       .nullable(),
-    command: z.literal('/sim-search').optional(),
+    command: z.literal('/query').optional(),
     threadTs: z
       .string()
       .regex(/^\d+\.\d+$/)
@@ -28,8 +28,7 @@ export const slackSearchMessageSchema = z
     queryTooLong: z.boolean(),
   })
   .refine(
-    (message) =>
-      message.messageTs !== null || (message.command === '/sim-search' && !message.threadTs),
+    (message) => message.messageTs !== null || (message.command === '/query' && !message.threadTs),
     'Only a queued slash command may lack a Slack message timestamp'
   )
 export type SlackSearchMessage = z.infer<typeof slackSearchMessageSchema>

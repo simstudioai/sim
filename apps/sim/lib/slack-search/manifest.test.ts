@@ -109,8 +109,8 @@ it('official app uses the existing personal indexing grants with bot commands', 
   expect(manifest.oauth_config.scopes.bot).toContain('commands')
   expect(manifest.oauth_config.scopes.bot).not.toContain('groups:history')
   expect(manifest.features.slash_commands.map((command) => command.command)).toEqual([
-    '/sim-search',
-    '/sim-connect',
+    '/query',
+    '/connect',
   ])
   expect(
     manifest.features.slash_commands.every(

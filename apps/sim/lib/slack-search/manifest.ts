@@ -76,14 +76,14 @@ export function createSharedSlackSearchManifest(origin: string) {
       ...manifest.features,
       slash_commands: [
         {
-          command: '/sim-search',
+          command: '/query',
           description: 'Ask Sim Search a question privately',
           usage_hint: '[question]',
           url: webhook,
           should_escape: false,
         },
         {
-          command: '/sim-connect',
+          command: '/connect',
           description: 'Connect your personal sources in Sim',
           usage_hint: '[provider]',
           url: webhook,

@@ -113,7 +113,7 @@ it('creates a real DM root for a slash command and never uses its trigger ID as 
       channelId: 'C1',
       userId: 'U1',
       messageTs: null,
-      command: '/sim-search',
+      command: '/query',
       query: 'Find release notes',
       queryTooLong: false,
     },

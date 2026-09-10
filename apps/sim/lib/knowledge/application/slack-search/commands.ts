@@ -40,7 +40,7 @@ export const receiveSlackSearchCommand: OperationUseCase<
         response_type: 'ephemeral',
         text: 'An admin needs to enable Sim Search for this Slack workspace.',
       }
-    if (input.command === '/sim-connect') {
+    if (input.command === '/connect') {
       const url = new URL(
         organizationRoutes(context.installation.organizationId).integrations,
         getBaseUrl()
@@ -60,8 +60,7 @@ export const receiveSlackSearchCommand: OperationUseCase<
       return { response_type: 'ephemeral', text: `<${url.href}|Connect your sources in Sim>` }
     }
     const query = input.text.trim()
-    if (!query)
-      return { response_type: 'ephemeral', text: 'Use /sim-search followed by your question.' }
+    if (!query) return { response_type: 'ephemeral', text: 'Use /query followed by your question.' }
     const turnId = await receiveSlackSearchMessage.execute({
       principal,
       input: {
@@ -70,7 +69,7 @@ export const receiveSlackSearchCommand: OperationUseCase<
         eventId: principal.eventId,
         userId: input.user_id,
         channelId: input.channel_id,
-        command: '/sim-search',
+        command: '/query',
         messageTs: null,
         query: query.length > 2000 ? '' : query,
         queryTooLong: query.length > 2000,

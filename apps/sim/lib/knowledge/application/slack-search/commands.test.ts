@@ -25,7 +25,7 @@ const input = {
   user_id: 'U1',
   channel_id: 'C1',
   trigger_id: 'trigger.1',
-  command: '/sim-search',
+  command: '/query',
   text: 'release notes',
 } as const
 const principal = {
@@ -51,7 +51,7 @@ describe('Slack commands', () => {
     expect(m.receive).toHaveBeenCalledWith({
       principal,
       input: expect.objectContaining({
-        command: '/sim-search',
+        command: '/query',
         messageTs: null,
         channelId: 'C1',
         userId: 'U1',
@@ -69,7 +69,7 @@ describe('Slack commands', () => {
   it('returns an environment-correct personal connection link without OAuth state', async () => {
     const result = await receiveSlackSearchCommand.execute({
       principal,
-      input: { ...input, command: '/sim-connect', text: 'slack' },
+      input: { ...input, command: '/connect', text: 'slack' },
     })
     expect(result.text).toBe(
       '<https://www.sim.ai/o/org/integrations?connectorType=slack|Connect your sources in Sim>'

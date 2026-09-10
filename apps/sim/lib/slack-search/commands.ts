@@ -7,7 +7,7 @@ export const slackSearchCommandSchema = z.object({
   team_id: id,
   user_id: id,
   channel_id: z.string().regex(/^[CGD][A-Z0-9]+$/),
-  command: z.enum(['/sim-search', '/sim-connect']),
+  command: z.enum(['/query', '/connect']),
   text: z.string().max(40_000),
   trigger_id: z.string().min(1).max(200),
 })

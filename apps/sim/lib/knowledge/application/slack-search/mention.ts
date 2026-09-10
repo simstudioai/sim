@@ -19,7 +19,7 @@ export async function routeSlackSearchMentionToDm(
   input: { job: SlackSearchJob; turnId: string; leaseId: string; signal: AbortSignal }
 ): Promise<SlackSearchJob> {
   const { job, turnId, leaseId, signal } = input
-  const command = job.message.command === '/sim-search' && job.message.messageTs === null
+  const command = job.message.command === '/query' && job.message.messageTs === null
   if (job.message.channelId.startsWith('D') && !command) return job
   if (
     (!command && (!job.message.origin || job.message.origin.channelId !== job.message.channelId)) ||
