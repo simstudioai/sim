@@ -241,7 +241,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
       throw new Error('Unexpected outbound organization MCP fixture request')
     })
     fixtures.storageRoot = mkdtempSync(path.join(tmpdir(), 'sim-organization-mcp-integration-'))
-    await seedKnowledgeAclFixture(ids)
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
     await db.insert(user).values(
       [outsiderId, otherAdminId].map((id) => ({
         id,
@@ -297,7 +297,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
     })
     await db.insert(organizationSearchIntegration).values({
       organizationId,
-      connectorType: 'confluence',
+      connectorType: 'google_drive',
       approved: true,
     })
     await db.insert(apiKey).values(
@@ -350,7 +350,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
     const doc = await addDocument(
       knowledgeBaseId,
       connectorId,
-      'confluence',
+      'google_drive',
       {
         externalId: 'organization-mcp-page',
         mimeType: 'text/plain',
@@ -387,7 +387,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
         [
           'organization-mcp-page',
           confluencePageAcl({
-            providerId: 'confluence',
+            providerId: 'google-drive',
             tenantId: 'fixture-tenant',
             spacePrincipals: [{ kind: 'group', id: 'space' }],
             restrictionChain: [[{ kind: 'group', id: 'page' }], [{ kind: 'group', id: 'parent' }]],
@@ -582,7 +582,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
     try {
       const included = await value(alice, 'search', {
         query: 'Orion',
-        source: 'confluence',
+        source: 'google_drive',
         modifiedAfter: '2026-01-01T00:00:00Z',
         documentIds: [documentId],
       })
@@ -639,7 +639,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
   it('hides source content immediately when organization approval is disabled', async () => {
     const approval = and(
       eq(organizationSearchIntegration.organizationId, organizationId),
-      eq(organizationSearchIntegration.connectorType, 'confluence')
+      eq(organizationSearchIntegration.connectorType, 'google_drive')
     )
     await db.update(organizationSearchIntegration).set({ approved: false }).where(approval)
     try {

@@ -414,6 +414,7 @@ export function useConnectorSettingsForm({
     availability: {
       error: integrationAvailabilityError,
       isFetching: isIntegrationAvailabilityFetching,
+      isReady: isIntegrationAvailabilityReady,
       refetch: refetchIntegrationAvailability,
     },
     isSearchIndex,

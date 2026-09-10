@@ -65,7 +65,7 @@ const old = () => new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS - 60_000)
 async function seed() {
   const ids = createKnowledgeAclFixtureIds()
   fixtures.push(ids)
-  await seedKnowledgeAclFixture(ids)
+  await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
   return ids
 }
 async function eventsFor(ids: ReturnType<typeof createKnowledgeAclFixtureIds>) {
@@ -86,7 +86,7 @@ async function failedFile(
   const file = await addDocument(
     ids.knowledgeBaseId,
     ids.connectorId,
-    'confluence',
+    'google_drive',
     {
       externalId: generateId(),
       title: 'Retained fixture.txt',

@@ -355,11 +355,7 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
     resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ context }) {
     return {
-      usage: await getTagUsageStats(
-        context.knowledgeBaseId,
-        context.organizationId ? context.access : await context.access.get(),
-        generateRequestId()
-      ),
+      usage: await getTagUsageStats(context.knowledgeBaseId, context.access, generateRequestId()),
     }
   },
 })
@@ -370,11 +366,7 @@ export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
     resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ context }) {
     return {
-      usage: await getTagUsage(
-        context.knowledgeBaseId,
-        generateRequestId(),
-        context.organizationId ? context.access : await context.access.get()
-      ),
+      usage: await getTagUsage(context.knowledgeBaseId, generateRequestId(), context.access),
     }
   },
 })

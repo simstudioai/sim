@@ -424,6 +424,11 @@ describe('getCanonicalScopesForProvider', () => {
 })
 
 describe('getScopeDescription', () => {
+  it('describes Confluence directory access', () => {
+    expect(getScopeDescription('read:group:confluence', 'confluence')).toBe(
+      'View Confluence groups and memberships'
+    )
+  })
   it.concurrent('uses provider-specific labels for Bitbucket scope names', () => {
     expect(getScopeDescription('account', 'bitbucket')).toBe(
       'View your Bitbucket account and workspace memberships'

@@ -47,52 +47,71 @@ describe('Jira server selector adapter', () => {
 
   afterAll(() => vi.unstubAllGlobals())
 
-  it('returns one project page and preserves provider search and continuation', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          values: Array.from({ length: 50 }, (_, index) => ({
-            id: `project-${index + 1}`,
-            name: `Payments ${index + 1}`,
-          })),
-          maxResults: 50,
-          isLast: false,
-        }),
-        { status: 200 }
+  it.each(['jira.projects', 'jira.projectKeys'] as const)(
+    'returns one %s page and preserves provider search and continuation',
+    async (selectorKey) => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            values: Array.from({ length: 50 }, (_, index) => ({
+              id: `project-${index + 1}`,
+              key: `PAY${index + 1}`,
+              name: `Payments ${index + 1}`,
+            })),
+            maxResults: 50,
+            isLast: false,
+          }),
+          { status: 200 }
+        )
       )
-    )
 
-    await expect(jiraSelectorAttachments['jira.projects'].execute(args())).resolves.toEqual({
-      kind: 'list',
-      items: Array.from({ length: 50 }, (_, index) => ({
-        id: `project-${index + 1}`,
-        label: `Payments ${index + 1}`,
-      })),
-      nextCursor: '100',
-    })
-    const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
-    expect(url.searchParams.get('query')).toBe('payments')
-    expect(url.searchParams.get('startAt')).toBe('50')
-    expect(url.searchParams.get('maxResults')).toBe('50')
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockResolveSelectorCredentialBundle).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes: ['read:jira-work'] })
-    )
-  })
-
-  it('preserves a requested project key when hydrating its label', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: '10001', name: 'Engineering' }), { status: 200 })
-    )
-
-    await expect(
-      jiraSelectorAttachments['jira.projects'].execute({
-        ...args(),
-        request: { kind: 'detail', id: 'ENG' },
+      await expect(
+        jiraSelectorAttachments[selectorKey].execute({ ...args(), selectorKey })
+      ).resolves.toEqual({
+        kind: 'list',
+        items: Array.from({ length: 50 }, (_, index) => ({
+          id: selectorKey === 'jira.projectKeys' ? `PAY${index + 1}` : `project-${index + 1}`,
+          label: `Payments ${index + 1}`,
+        })),
+        nextCursor: '100',
       })
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: 'ENG', label: 'Engineering' },
-    })
-  })
+      const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
+      expect(url.searchParams.get('query')).toBe('payments')
+      expect(url.searchParams.get('startAt')).toBe('50')
+      expect(url.searchParams.get('maxResults')).toBe('50')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockResolveSelectorCredentialBundle).toHaveBeenCalledWith(
+        expect.objectContaining({ scopes: ['read:jira-work'] })
+      )
+    }
+  )
+
+  it.each([
+    ['jira.projects', 'ENG'],
+    ['jira.projectKeys', 'ENG'],
+    ['jira.projectKeys', '10001'],
+  ] as const)(
+    'hydrates %s selection %s without replacing its saved value',
+    async (selectorKey, id) => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: '10001', key: 'ENG', name: 'Engineering' }), {
+          status: 200,
+        })
+      )
+
+      await expect(
+        jiraSelectorAttachments[selectorKey].execute({
+          ...args(),
+          selectorKey,
+          request: { kind: 'detail', id },
+        })
+      ).resolves.toEqual({
+        kind: 'detail',
+        item: { id, label: 'Engineering' },
+      })
+      expect(String(mockFetch.mock.calls[0]?.[0])).toBe(
+        `https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/project/${id}`
+      )
+    }
+  )
 })

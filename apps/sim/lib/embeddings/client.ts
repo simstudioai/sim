@@ -544,8 +544,10 @@ async function callEmbeddingAPI(
   expectedDimensions: number | undefined,
   isBYOK: boolean,
   signal?: AbortSignal,
-  admissionWaitMs = EMBEDDING_RETRY_BUDGET_MS
+  /** Bulk indexing waits briefly and is capped below the credential budget; everything else has a person waiting on it. */
+  bulk = false
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
+  const admissionWaitMs = bulk ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : EMBEDDING_RETRY_BUDGET_MS
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
   return retryWithExponentialBackoff(
     async (operationSignal, deadlineAt) => {
@@ -563,6 +565,7 @@ async function callEmbeddingAPI(
           ),
           signal: operationSignal,
           maxWaitMs: Math.min(admissionWaitMs, Math.max(0, deadlineAt - Date.now())),
+          bulk,
         })
       } catch (error) {
         if (error instanceof ProviderQuotaExhaustedError)
@@ -795,6 +798,7 @@ async function mapEmbeddingBatches<T, R>(
   return results.map((result) => result!.value)
 }
 
+/** Checkpoints mark the bulk indexing path; every other caller is interactive. */
 async function callCheckpointedEmbeddingBatch(
   batch: string[],
   batchIndex: number,
@@ -848,7 +852,7 @@ async function callCheckpointedEmbeddingBatch(
     provider.dimensions,
     provider.isBYOK,
     signal,
-    checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined
+    checkpoints !== undefined
   )
   if (identity) await checkpoints!.save(identity, result, signal)
   return result

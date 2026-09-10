@@ -34,8 +34,9 @@ import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -139,7 +140,7 @@ const KNOWLEDGE_BASE_SORTS = {
 } satisfies Record<V2KnowledgeBaseSortBy, readonly KeysetKey<KnowledgeBaseSortRow>[]>
 
 export interface GetKnowledgeBasesOptions {
-  access?: KnowledgeAccessScope
+  access?: KnowledgeReadAccess
   /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
   folderId?: string | null
   /** Case-insensitive substring match on the knowledge base name. */
@@ -169,7 +170,7 @@ async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
   limit?: number,
-  access?: KnowledgeAccessScope
+  access?: KnowledgeReadAccess
 ): Promise<
   Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
 > {
@@ -200,7 +201,7 @@ async function readKnowledgeBaseRows(
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        access ? knowledgeAccessCondition(access) : undefined
+        access ? ('get' in access ? sql`false` : knowledgeAccessCondition(access)) : undefined
       )
     )
     .where(where)
@@ -209,11 +210,62 @@ async function readKnowledgeBaseRows(
 
   const rows = limit === undefined ? await query : await query.limit(limit)
 
+  const counts =
+    access && 'get' in access
+      ? await readKnowledgeBaseDocumentCounts(
+          rows.map((kb) => kb.id),
+          access
+        )
+      : undefined
   return rows.map((kb) => ({
     ...kb,
     chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-    docCount: Number(kb.docCount),
+    docCount: counts ? (counts.get(kb.id)?.docCount ?? 0) : Number(kb.docCount),
+    tokenCount: counts ? (counts.get(kb.id)?.tokenCount ?? 0) : kb.tokenCount,
   }))
+}
+
+/** Counts only hydrated access batches, keeping candidate discovery free of document metadata. */
+async function readKnowledgeBaseDocumentCounts(
+  knowledgeBaseIds: readonly string[],
+  access: KnowledgeReadAccess
+): Promise<Map<string, { docCount: number; tokenCount: number }>> {
+  const counts = new Map<string, { docCount: number; tokenCount: number }>()
+  for (
+    let offset = 0;
+    offset < knowledgeBaseIds.length;
+    offset += MAX_KNOWLEDGE_ACCESS_CANDIDATES
+  ) {
+    const conditions = [
+      inArray(
+        knowledgeBase.id,
+        knowledgeBaseIds.slice(offset, offset + MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      ),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+    ]
+    for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+      const rows = await db
+        .select({
+          knowledgeBaseId: document.knowledgeBaseId,
+          docCount: count(),
+          tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+        })
+        .from(document)
+        .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+        .where(and(...conditions, accessCondition))
+        .groupBy(document.knowledgeBaseId)
+      for (const row of rows) {
+        const previous = counts.get(row.knowledgeBaseId)
+        counts.set(row.knowledgeBaseId, {
+          docCount: (previous?.docCount ?? 0) + Number(row.docCount),
+          tokenCount: (previous?.tokenCount ?? 0) + Number(row.tokenCount),
+        })
+      }
+    }
+  }
+  return counts
 }
 
 async function attachConnectorTypes(
@@ -875,6 +927,23 @@ export type ActiveKnowledgeBaseReference = Omit<
   'tokenCount' | 'docCount' | 'connectorTypes' | 'hasPermissionScopedConnector'
 >
 
+const ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS = {
+  id: knowledgeBase.id,
+  userId: knowledgeBase.userId,
+  name: knowledgeBase.name,
+  isSearchIndex: knowledgeBase.isSearchIndex,
+  description: knowledgeBase.description,
+  embeddingModel: knowledgeBase.embeddingModel,
+  embeddingDimension: knowledgeBase.embeddingDimension,
+  chunkingConfig: knowledgeBase.chunkingConfig,
+  createdAt: knowledgeBase.createdAt,
+  updatedAt: knowledgeBase.updatedAt,
+  deletedAt: knowledgeBase.deletedAt,
+  workspaceId: knowledgeBase.workspaceId,
+  organizationId: knowledgeBase.organizationId,
+  folderId: knowledgeBase.folderId,
+}
+
 /**
  * Canonical identity and configuration for application authorization and retrieval.
  * Reading a reference never scans the base's documents to compute display counts.
@@ -883,27 +952,35 @@ export async function getActiveKnowledgeBaseReference(
   knowledgeBaseId: string
 ): Promise<ActiveKnowledgeBaseReference | null> {
   const [row] = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      isSearchIndex: knowledgeBase.isSearchIndex,
-      description: knowledgeBase.description,
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      organizationId: knowledgeBase.organizationId,
-      folderId: knowledgeBase.folderId,
-    })
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
   return row ? { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig } : null
+}
+
+/** Loads active references in one statement while preserving requested order and missing entries. */
+export async function getActiveKnowledgeBaseReferences(
+  knowledgeBaseIds: readonly string[]
+): Promise<Array<ActiveKnowledgeBaseReference | null>> {
+  if (knowledgeBaseIds.length === 0) return []
+  if (knowledgeBaseIds.length === 1)
+    return [await getActiveKnowledgeBaseReference(knowledgeBaseIds[0])]
+
+  const rows = await db
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(knowledgeBaseIds)]),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+  const byId = new Map(
+    rows.map((row) => [row.id, { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig }])
+  )
+  return knowledgeBaseIds.map((id) => byId.get(id) ?? null)
 }
 
 /**
@@ -938,26 +1015,16 @@ export async function getKnowledgeBaseById(
  */
 export async function attachKnowledgeBaseConnectors(
   knowledgeBase: KnowledgeBaseWithCounts,
-  access?: KnowledgeAccessScope
+  access?: KnowledgeReadAccess
 ): Promise<KnowledgeBaseWithCounts> {
   let visible = knowledgeBase
   if (access) {
-    const [counts] = await db
-      .select({
-        docCount: count(),
-        tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      })
-      .from(document)
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBase.id),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(access)
-        )
-      )
-    visible = { ...knowledgeBase, docCount: Number(counts.docCount), tokenCount: counts.tokenCount }
+    const counts = await readKnowledgeBaseDocumentCounts([knowledgeBase.id], access)
+    visible = {
+      ...knowledgeBase,
+      docCount: counts.get(knowledgeBase.id)?.docCount ?? 0,
+      tokenCount: counts.get(knowledgeBase.id)?.tokenCount ?? 0,
+    }
   }
   const [withConnectors] = await attachConnectorTypes([visible])
   return withConnectors

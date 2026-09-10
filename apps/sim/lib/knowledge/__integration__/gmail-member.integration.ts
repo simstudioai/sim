@@ -121,6 +121,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
     }
     if (url.pathname === '/gmail/v1/users/me/threads') {
       expect(url.searchParams.get('maxResults')).toBe('100')
+      expect(url.searchParams.get('q')).toContain('subject:Orion')
       if (cursor === 'empty' && mailbox.failSecondPage) {
         return Promise.resolve(
           Response.json(
@@ -237,7 +238,8 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       .update(knowledgeConnector)
       .set({
         connectorType: 'gmail',
-        sourceConfig: { maxThreads: 0 },
+        /** A fixed query keeps this full-listing suite separate from history-feed ingestion. */
+        sourceConfig: { maxThreads: 0, query: 'subject:Orion' },
         status: 'active',
         memberSyncStatus: 'idle',
         memberSyncLockToken: null,

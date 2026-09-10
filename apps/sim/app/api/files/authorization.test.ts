@@ -9,7 +9,13 @@
  *
  * @vitest-environment node
  */
-import { dbChainMockFns } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetFileMetadataByKey, mockGetUserEntityPermissions, mockGetFileMetadata } = vi.hoisted(
@@ -46,7 +52,7 @@ vi.mock('@/executor/constants', () => ({
   isUuid: vi.fn(() => false),
 }))
 
-import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import { type KnowledgeAccessProvider, SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 
 const CLOUD_KEY = 'kb/1780162789495-secret.txt'
@@ -390,5 +396,67 @@ describe('organization connector cache access', () => {
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
     ).resolves.toBe(false)
+  })
+})
+
+describe('KB file live source authorization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1', deletedAt: null })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+  })
+
+  it.each([true, false])(
+    'returns live permission %s after an ordinary file lookup misses',
+    async (allowed) => {
+      const scope = { kind: 'user' as const, userId: USER_ID, tokens: ['reader-token'] }
+      const getForConnectors = vi.fn().mockResolvedValue(scope)
+      const access: KnowledgeAccessProvider = {
+        get: async () => scope,
+        getForConnectors,
+        getForDocuments: async () => scope,
+      }
+      queueTableRows(schemaMock.document, [])
+      queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+      queueTableRows(schemaMock.document, allowed ? [{ id: 'doc-1' }] : [])
+      await expect(
+        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+          knowledgeAccess: access,
+        })
+      ).resolves.toBe(allowed)
+      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['confluence-source'], undefined)
+      for (const [condition] of dbChainMockFns.where.mock.calls) {
+        expect(
+          hasMockCondition(
+            condition,
+            (node) =>
+              node.type === 'eq' &&
+              node.left === schemaMock.document.storageKey &&
+              node.right === CLOUD_KEY
+          )
+        ).toBe(true)
+        expect(
+          hasMockCondition(
+            condition,
+            (node) =>
+              node.type === 'eq' &&
+              node.left === schemaMock.knowledgeBase.workspaceId &&
+              node.right === 'ws-1'
+          )
+        ).toBe(true)
+      }
+    }
+  )
+
+  it('rejects a missing ownership permission before resolving the reader', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    const get = vi.fn()
+    await expect(
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+        knowledgeAccess: { get, getForConnectors: vi.fn(), getForDocuments: vi.fn() },
+      })
+    ).resolves.toBe(false)
+    expect(get).not.toHaveBeenCalled()
   })
 })

@@ -1807,13 +1807,14 @@ describe('durable embedding batches', () => {
     expect(KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS).toBeLessThan(EMBEDDING_RETRY_BUDGET_MS)
   })
 
-  it('limits checkpointed admission waits while retaining the interactive request budget', async () => {
+  it('limits checkpointed admission waits and keeps interactive callers off the bulk lane', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(openAIBody([[1]], 7))))
     await embed(['text'], { apiKey: 'fixture-key', checkpoints: memoryCheckpoints() })
     expect(mockAdmit).toHaveBeenLastCalledWith(
-      expect.objectContaining({ maxWaitMs: KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS })
+      expect.objectContaining({ maxWaitMs: KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS, bulk: true })
     )
     await embed(['text'], { apiKey: 'fixture-key' })
+    expect(mockAdmit).toHaveBeenLastCalledWith(expect.objectContaining({ bulk: false }))
     expect(mockAdmit.mock.lastCall?.[0].maxWaitMs).toBeGreaterThan(
       KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS
     )

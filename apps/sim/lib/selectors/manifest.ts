@@ -298,6 +298,12 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
+  'jira.projectKeys': providerSelector(['domain'], {
+    readiness: { all: ['oauthCredential', 'domain'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'linear.projects': providerSelector(['teamId'], {
     readiness: { all: ['oauthCredential', 'teamId'] },
     listMode: 'paginated',

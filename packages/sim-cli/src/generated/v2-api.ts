@@ -4748,6 +4748,7 @@ export type GetSelectorBody = {
     | 'wealthbox.contacts'
     | 'jira.issues'
     | 'jira.projects'
+    | 'jira.projectKeys'
     | 'linear.projects'
     | 'linear.teams'
     | 'monday.boards'
@@ -6798,6 +6799,7 @@ export type ListSelectorBody = {
     | 'wealthbox.contacts'
     | 'jira.issues'
     | 'jira.projects'
+    | 'jira.projectKeys'
     | 'linear.projects'
     | 'linear.teams'
     | 'monday.boards'
@@ -13335,6 +13337,7 @@ export const V2_OPERATIONS = {
           'wealthbox.contacts',
           'jira.issues',
           'jira.projects',
+          'jira.projectKeys',
           'linear.projects',
           'linear.teams',
           'monday.boards',
@@ -14868,6 +14871,7 @@ export const V2_OPERATIONS = {
           'wealthbox.contacts',
           'jira.issues',
           'jira.projects',
+          'jira.projectKeys',
           'linear.projects',
           'linear.teams',
           'monday.boards',

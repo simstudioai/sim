@@ -39,7 +39,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
       keyId: 'fixture-key',
     }
     const restrictedAcl = confluencePageAcl({
-      providerId: 'confluence',
+      providerId: 'google-drive',
       tenantId: 'fixture-tenant',
       spacePrincipals: [{ kind: 'group', id: 'space' }],
       restrictionChain: [[{ kind: 'group', id: 'parent' }], [{ kind: 'group', id: 'page' }]],
@@ -62,7 +62,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
     ].map((fixture) => ({ ...fixture, documentId: generateId(), embeddingId: generateId() }))
 
     beforeAll(async () => {
-      await seedKnowledgeAclFixture(ids)
+      await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
       await db
         .update(knowledgeBase)
         .set({ embeddingModel, embeddingDimension: dimensions })
@@ -91,7 +91,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
             'workspace' in fixture
               ? ['ws']
               : 'denied' in fixture
-                ? ['g:confluence:fixture-tenant:missing']
+                ? ['g:google-drive:fixture-tenant:missing']
                 : [...restrictedAcl.acl],
           aclRequirements:
             'workspace' in fixture ? [] : restrictedAcl.requirements.map((clause) => [...clause]),

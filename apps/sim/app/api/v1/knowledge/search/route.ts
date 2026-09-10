@@ -24,7 +24,7 @@ import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
-import { handleError, resolveV1KnowledgeAccessScope } from '@/app/api/v1/knowledge/utils'
+import { handleError, resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
   capabilityGovernedUserId,
@@ -228,8 +228,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let results: SearchResult[]
     let queryEmbeddingIsBYOK: boolean | null = null
-    const [access, { searchMode, boostRecency }] = await Promise.all([
-      resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId),
+    const [readAccess, { searchMode, boostRecency }] = await Promise.all([
+      resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId),
       resolveKnowledgeSearchDefaults({
         workspaceId,
         /** A personal key acts as its user; a workspace key has no person behind it. */
@@ -238,11 +238,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }),
     ])
 
+    const accessProvider = 'get' in readAccess ? readAccess : undefined
+    const access = 'get' in readAccess ? await readAccess.get() : readAccess
+
     if (!hasQuery && hasFilters) {
       results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
         access,
+        accessProvider,
         searchMode,
         boostRecency,
         structuredFilters,
@@ -258,6 +262,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         knowledgeBaseIds: accessibleKbIds,
         topK,
         access,
+        accessProvider,
         searchMode,
         boostRecency,
         query,
@@ -306,12 +311,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const documentIds = results.map((r) => r.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access, accessProvider)
+    const readableResults = results.filter((result) => documentMetadataMap[result.documentId])
 
     return NextResponse.json({
       success: true,
       data: {
-        results: results.map((result) => {
+        results: readableResults.map((result) => {
           const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
           const tags: Record<string, string | number | boolean | Date | null> = {}
 
@@ -337,7 +343,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         query: query || '',
         knowledgeBaseIds: accessibleKbIds,
         topK,
-        totalResults: results.length,
+        totalResults: readableResults.length,
       },
     })
   } catch (error) {
