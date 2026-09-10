@@ -86,17 +86,36 @@ describe('provider admission', () => {
     )
   })
 
-  it('reserves an interactive lane from its own buckets while sharing the provider gates', async () => {
+  it('caps the bulk lane below the aggregate budget so interactive callers keep headroom', async () => {
+    await waitForProviderAdmission({ ...INPUT, lane: 'bulk' })
     await waitForProviderAdmission({ ...INPUT, lane: 'interactive' })
-    const [reservations, options] = consumeTokens.mock.calls[0]
-    expect(reservations.map((item: { key: string }) => item.key)).toEqual([
-      'provider:embedding:openai:hashed-credential:interactive:tokens',
-      'provider:embedding:openai:hashed-credential:interactive:requests',
+    const [bulkReservations, bulkOptions] = consumeTokens.mock.calls[0]
+    expect(bulkReservations).toMatchObject([
+      {
+        key: 'provider:embedding:openai:hashed-credential:tokens',
+        config: { maxTokens: 600_000, refillRate: 10_000 },
+      },
+      { key: 'provider:embedding:openai:hashed-credential:requests', config: { maxTokens: 64 } },
+      {
+        key: 'provider:embedding:openai:hashed-credential:bulk:tokens',
+        cost: 50,
+        config: { maxTokens: 540_000, refillRate: 9_000 },
+      },
+      {
+        key: 'provider:embedding:openai:hashed-credential:bulk:requests',
+        config: { maxTokens: 57, refillRate: 9 },
+      },
     ])
-    expect(options.cooldownKeys).toEqual([
+    expect(bulkOptions.cooldownKeys).toEqual([
       'provider:embedding:openai:hashed-credential:cooldown',
       'provider:embedding:openai:hashed-credential:quota',
     ])
+    const [interactiveReservations, interactiveOptions] = consumeTokens.mock.calls[1]
+    expect(interactiveReservations.map((item: { key: string }) => item.key)).toEqual([
+      'provider:embedding:openai:hashed-credential:tokens',
+      'provider:embedding:openai:hashed-credential:requests',
+    ])
+    expect(interactiveOptions.cooldownKeys).toEqual(bulkOptions.cooldownKeys)
   })
 
   it('isolates another credential and does not impose token costs on OCR', async () => {

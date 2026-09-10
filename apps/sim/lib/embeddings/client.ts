@@ -853,11 +853,11 @@ async function callCheckpointedEmbeddingBatch(
     signal,
     checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined,
     /**
-     * Checkpoints mark the bulk indexing path. Everything else has a person
-     * waiting on it, so it reserves from the interactive lane and never
-     * queues behind a crawl's batches.
+     * Checkpoints mark the bulk indexing path, which may never take the whole
+     * credential budget. Everything else has a person waiting on it and uses
+     * the headroom the bulk lane leaves.
      */
-    checkpoints ? undefined : 'interactive'
+    checkpoints ? 'bulk' : 'interactive'
   )
   if (identity) await checkpoints!.save(identity, result, signal)
   return result
