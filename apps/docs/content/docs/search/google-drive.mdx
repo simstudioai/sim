@@ -21,7 +21,7 @@ Admin setup uses your organization's **Settings → Sources** page. Teammates co
 These are alternative setup paths. When only a central Drive source is configured, Integrations does not offer a personal Drive **Connect** action. Teammates use Search or Home directly. Existing member-account sources keep their connection actions.
 
 <Callout type="info">
-  A central crawl reads each selected employee's Drive through domain-wide delegation, including private My Drive files and shared-drive files they can access. Leave **Users** blank to include all active users in your Google Workspace customer, including secondary domains. Files keep their original user and group permissions; indexing a private file does not make it visible to other employees.
+  A central crawl includes each selected employee's private My Drive files and shared-drive files they can access. Files keep their original user and group permissions; indexing a private file does not make it visible to other employees.
 </Callout>
 
 ## Connect member accounts
@@ -38,7 +38,7 @@ An organization admin opens **Settings → Sources** and turns on **Google Drive
 
 ### Connect your account
 
-Open **Integrations** in the main sidebar and select **Connect** beside Google Drive. Use the Google account matching your verified Sim email. The first personal connection can create a source with default filters. Teammates follow the same [connection steps](/search/connect-your-account).
+Join the Sim organization, then open **Integrations** and select **Connect** beside Google Drive. Use the Google account matching your verified Sim email. The first personal connection can create a source with default filters. Return to Integrations to see indexing status and your searchable document count.
 
 </Step>
 <Step>
@@ -51,6 +51,8 @@ Keep **Sync documents with → Connected members** unless a dedicated account sh
 
 </Step>
 </Steps>
+
+Admins can request member connections from **Manage → Accounts → Request connections**. These requests do not grant organization membership. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
 
 ## Set up a central service account
 
@@ -79,8 +81,6 @@ Open the service account's **Keys** tab and choose **Add key → Create new key 
 ### Authorize domain-wide delegation
 
 In the service account's **Details**, expand **Advanced settings** and copy its numeric **Client ID**. Sign in to the [Workspace Admin Console](https://admin.google.com/ac/owl/domainwidedelegation) as a super administrator. Open **Security → Access and data control → API controls → Manage Domain Wide Delegation → Add new**.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-domain-delegation.png" alt="Google Workspace Admin Console Add a new client ID dialog with Client ID and OAuth scopes fields" width={768} height={929} />
 
 Paste that Client ID into **Client ID**, then enter these exact scopes as a comma-separated list under **OAuth scopes**:
 

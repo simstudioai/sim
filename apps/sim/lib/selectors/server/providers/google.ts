@@ -68,6 +68,7 @@ interface Sheet {
 interface GooglePage<T> {
   items: T[]
   nextCursor?: string
+  truncated?: boolean
 }
 
 async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: string) {
@@ -297,9 +298,13 @@ async function listDriveFiles(
   url.searchParams.set('supportsAllDrives', 'true')
   url.searchParams.set('includeItemsFromAllDrives', 'true')
   url.searchParams.set('pageSize', '100')
-  url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType)')
+  url.searchParams.set('fields', 'nextPageToken,incompleteSearch,files(id,name,mimeType)')
   if (pageToken) url.searchParams.set('pageToken', pageToken)
-  const data = await fetchProviderJson<{ files?: DriveFile[]; nextPageToken?: string }>(url, {
+  const data = await fetchProviderJson<{
+    files?: DriveFile[]
+    nextPageToken?: string
+    incompleteSearch?: boolean
+  }>(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: args.signal,
   })
@@ -308,6 +313,7 @@ async function listDriveFiles(
   return {
     items: [...sharedDrives, ...(data.files ?? [])],
     ...(nextPageToken ? { nextCursor: driveCursor('files', nextPageToken) } : {}),
+    ...(data.incompleteSearch === true ? { truncated: true } : {}),
   }
 }
 
@@ -371,7 +377,8 @@ async function executeDrive(args: ExecuteServerSelectorArgs) {
         id: file.id,
         label: file.name,
       })),
-    result.nextCursor
+    result.nextCursor,
+    result.truncated ? { truncated: { reason: 'provider-cap' } } : undefined
   )
 }
 
