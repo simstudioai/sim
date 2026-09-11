@@ -408,8 +408,8 @@ export async function register() {
   // first request that needs one does not pay the handshake inside its own
   // deadline, but boot never waits on Redis to serve requests that do not touch it.
   const [{ warmRedisConnection }, { warmExecutionSignalHub }] = await Promise.all([
-    import('./lib/core/config/redis'),
-    import('./lib/execution/execution-signal'),
+    import('@/lib/core/config/redis'),
+    import('@/lib/execution/execution-signal'),
   ])
   void warmRedisConnection()
   void warmExecutionSignalHub()
