@@ -53,14 +53,14 @@ interface HelpModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId?: string
-  workspaceId: string
+  workspaceId?: string
 }
 
 interface SubmitHelpVariables {
   data: FormValues
   images: ImageWithPreview[]
   workflowId?: string
-  workspaceId: string
+  workspaceId?: string
 }
 
 async function compressImage(file: File): Promise<File> {
@@ -93,7 +93,7 @@ async function submitHelpRequest({ data, images, workflowId, workspaceId }: Subm
   formData.append('subject', data.subject)
   formData.append('message', data.message)
   formData.append('type', data.type)
-  formData.append('workspaceId', workspaceId)
+  if (workspaceId) formData.append('workspaceId', workspaceId)
   formData.append('userAgent', navigator.userAgent)
   if (workflowId) {
     formData.append('workflowId', workflowId)

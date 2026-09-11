@@ -52,11 +52,13 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
     },
   })
   const lockFlyout = flyout?.setLocked
+  const isInteracting = menu.isOpen || rename.editingId !== null
 
   useEffect(() => {
-    lockFlyout?.(menu.isOpen || rename.editingId !== null)
-    return () => lockFlyout?.(false)
-  }, [lockFlyout, menu.isOpen, rename.editingId])
+    if (!lockFlyout || !isInteracting) return
+    lockFlyout(true)
+    return () => lockFlyout(false)
+  }, [lockFlyout, isInteracting])
 
   const visibleWorkspaces = flyout ? workspaces : workspaces.slice(0, visibleCount)
   const hasMore = workspaces.length > visibleCount
@@ -90,7 +92,11 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
               initial={getWorkspaceInitial(workspace.name)}
               logoUrl={workspace.logoUrl}
             />
-            <OverflowText label={workspace.name} className='flex-1 text-[var(--text-body)]' />
+            <OverflowText
+              label={workspace.name}
+              className='flex-1 text-[var(--text-body)]'
+              focusTarget='nearest-interactive'
+            />
           </>
         )
         const onMoreClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -136,6 +142,16 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
               onPointerMove={(event) => {
                 if (menu.isOpen || rename.editingId) event.preventDefault()
               }}
+              actionIndicator={
+                isPinned ? (
+                  <Pin
+                    aria-hidden={false}
+                    className='size-[12px] text-[var(--text-icon)]'
+                    aria-label='Pinned'
+                    role='img'
+                  />
+                ) : undefined
+              }
               action={
                 <DropdownMenuItemAction
                   aria-label={`Options for ${workspace.name}`}
@@ -151,7 +167,6 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
                 onContextMenu={(event) => openMenu(event, workspace.id)}
               >
                 {label}
-                {isPinned && <Pin className='size-[12px]' aria-label='Pinned' role='img' />}
               </SettingsGuardedLink>
             </DropdownMenuItem>
           )

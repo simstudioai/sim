@@ -5,19 +5,36 @@ import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNavigate, mockPush } = vi.hoisted(() => ({
+const { mockNavigate, mockPush, context } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockPush: vi.fn(),
+  context: {
+    organization: { id: 'org-1' },
+    viewer: { isAdmin: true },
+    settingsFeatures: {
+      billingEnabled: true,
+      hasEnterprisePlan: false,
+      hosted: true,
+      selfHosted: {},
+    },
+    connectedAccountsAvailable: true,
+    searchAccess: { memberScoped: true },
+  },
 }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
+  usePathname: () => '/o/org-1/home',
 }))
 vi.mock('next/link', () => ({
   default: ({
     onNavigate,
+    prefetch: _prefetch,
     ...props
-  }: ComponentProps<'a'> & { onNavigate?: (event: { preventDefault: () => void }) => void }) => (
+  }: ComponentProps<'a'> & {
+    prefetch?: boolean
+    onNavigate?: (event: { preventDefault: () => void }) => void
+  }) => (
     <a
       {...props}
       href={props.href}
@@ -34,6 +51,10 @@ vi.mock('next/link', () => ({
     />
   ),
 }))
+vi.mock('@/lib/auth/sign-out', () => ({ signOutAndRedirect: vi.fn() }))
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'user-1' } } }),
+}))
 vi.mock('@/lib/desktop', () => ({ getDesktopUpdates: () => null }))
 vi.mock('@/hooks/use-desktop-update-state', () => ({
   useDesktopUpdateState: () => ({ status: 'idle' }),
@@ -42,12 +63,16 @@ vi.mock('@/hooks/queries/user-profile', () => ({
   useUserProfile: () => ({ data: { id: 'user-1', name: 'Ada', email: 'ada@example.com' } }),
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({ organization: { id: 'org-1' } }),
+  useOrganizationContext: () => context,
 }))
 vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/components', () => ({
   SidebarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }))
-vi.mock('@/components/icons', () => ({ SlackIcon: () => <svg /> }))
+vi.mock('@/components/icons', () => ({
+  CodeIcon: () => <svg />,
+  McpIcon: () => <svg />,
+  SlackIcon: () => <svg />,
+}))
 
 import { OrganizationFooter } from '@/app/o/[organizationId]/components/organization-sidebar/components/organization-footer/organization-footer'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -58,6 +83,8 @@ let root: Root
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.clearAllMocks()
+  context.viewer.isAdmin = true
+  context.settingsFeatures.billingEnabled = true
   useSettingsDirtyStore.getState().reset()
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -71,7 +98,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function selectSettings() {
+async function openProfileMenu() {
   await act(async () => {
     root.render(
       <OrganizationFooter
@@ -80,6 +107,7 @@ async function selectSettings() {
         showCollapsedTooltips={false}
         onOpenDocs={() => {}}
         onJoinSlack={() => {}}
+        onContactSupport={() => {}}
       />
     )
   })
@@ -88,15 +116,59 @@ async function selectSettings() {
   await act(async () => {
     trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
   })
+}
+
+async function selectSettings() {
+  await openProfileMenu()
   const link = document.querySelector<HTMLAnchorElement>('a[href="/o/org-1/settings/general"]')
   if (!link) throw new Error('Settings link is missing')
   await act(async () => link.click())
 }
 
 describe('OrganizationFooter settings navigation', () => {
+  it('preserves unsaved settings when opening a shortcut', async () => {
+    useSettingsDirtyStore.getState().setDirty(true)
+    await openProfileMenu()
+    const members = document.querySelector<HTMLAnchorElement>('a[href="/o/org-1/settings/members"]')
+    if (!members) throw new Error('Members shortcut is missing')
+    await act(async () => members.click())
+    expect(mockPush).not.toHaveBeenCalled()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/settings/members')
+  })
+
+  it.each([
+    { isAdmin: true, billingEnabled: true, showBilling: true },
+    { isAdmin: false, billingEnabled: true, showBilling: false },
+    { isAdmin: true, billingEnabled: false, showBilling: false },
+  ])(
+    'matches settings visibility for $isAdmin admin, $billingEnabled billing',
+    async ({ isAdmin, billingEnabled, showBilling }) => {
+      context.viewer.isAdmin = isAdmin
+      context.settingsFeatures.billingEnabled = billingEnabled
+      await openProfileMenu()
+      expect(
+        [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+      ).toEqual([
+        'Settings',
+        ...(showBilling ? ['Subscription'] : []),
+        'Members',
+        'Recently deleted',
+        'Sign out',
+      ])
+      expect(document.querySelector('[role="separator"]')).toBeNull()
+      const members = document.querySelector<HTMLAnchorElement>(
+        'a[href="/o/org-1/settings/members"]'
+      )
+      if (!members) throw new Error('Members shortcut is missing')
+      await act(async () => members.click())
+      expect(mockPush).toHaveBeenCalledWith('/o/org-1/settings/members')
+    }
+  )
+
   it('navigates immediately when settings are clean', async () => {
     await selectSettings()
-    expect(mockNavigate).toHaveBeenCalledWith('/o/org-1/settings/general')
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/settings/general')
     expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
   })
 
