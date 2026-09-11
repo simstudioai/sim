@@ -13,6 +13,7 @@ import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@s
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
+import { BrowserAgentIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
 import { getVisibleMainAgentItems } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
@@ -157,6 +158,12 @@ export function AgentGroupView({
   renderBrowserTakeover,
 }: AgentGroupViewProps) {
   const AgentIcon = getAgentIcon(agentName)
+  const agentIcon =
+    agentName === 'browser' ? (
+      <BrowserAgentIcon items={items} />
+    ) : (
+      <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
+    )
   const isMainAgent = agentName === 'mothership'
   // Collapsed status line: the latest tool call, always in its RUNNING
   // phrasing — it never flips to the completed rewrite (that lives in the
@@ -261,9 +268,7 @@ export function AgentGroupView({
           onClick={toggleExpanded}
           className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
         >
-          <div className='flex size-[16px] shrink-0 items-center justify-center'>
-            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
-          </div>
+          <div className='flex size-[16px] shrink-0 items-center justify-center'>{agentIcon}</div>
           {isWorking ? (
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
@@ -278,9 +283,7 @@ export function AgentGroupView({
         </button>
       ) : (
         <div className='flex min-w-0 items-center gap-2'>
-          <div className='flex size-[16px] shrink-0 items-center justify-center'>
-            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
-          </div>
+          <div className='flex size-[16px] shrink-0 items-center justify-center'>{agentIcon}</div>
           {isWorking ? (
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
