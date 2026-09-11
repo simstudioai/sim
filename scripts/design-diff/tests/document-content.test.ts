@@ -26,6 +26,11 @@ it.each([
     `${faq}<FAQ items={[{question: "Why?", answer: "After"}, {question: "When?", answer: "Now"}]} />`,
   ],
   [
+    'article metadata and FAQ',
+    '---\nupdated: 2026-07-31\nauthors: [andrew]\nfaq: [{q: Why, a: Before}]\n---',
+    '---\nupdated: 2026-08-29\nauthors: [andrew, bill]\nfaq: [{q: Why, a: After}]\n---',
+  ],
+  [
     'callout',
     `${callout}<Callout type="info">Before</Callout>`,
     `${callout}<Callout type="info">After</Callout>`,
@@ -76,6 +81,7 @@ it.each([
   ['image dimensions', '<img src="/a.png" width={100}/>', '<img src="/a.png" width={200}/>'],
   ['image source', '![Screenshot](/a.png)', '![Screenshot](/b.png)'],
   ['new embedded image', '# Guide', '# Guide\n\n![Screenshot](/a.png)'],
+  ['article cover', '---\nogImage: /a.png\n---', '---\nogImage: /b.png\n---'],
   [
     'unknown frontmatter',
     '---\ntitle: Old\nlayout: narrow\n---',

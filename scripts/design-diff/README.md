@@ -160,6 +160,8 @@ TSX/CSS files that an application build or Tailwind source scan could consume.
 
 Policy 4 exempts routine authoring in the `documentationContent.roots` directories. The parser
 projects out prose, Markdown tables, code samples and recognized frontmatter content fields.
+Article metadata follows the repository content schema, including author/date fields and FAQ
+answers; cover image references remain presentation evidence.
 Configured Fumadocs/repository components are recognized by their import module and named export,
 including local import aliases. Only their declared content props with literal data are exempt;
 standard Callout types and tab labels are authoring options. Unknown widgets, appearance overrides,

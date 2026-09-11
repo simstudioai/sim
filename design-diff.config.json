@@ -108,13 +108,24 @@
       "title",
       "description",
       "author",
+      "authors",
       "date",
+      "updated",
       "publishedAt",
       "updatedAt",
       "readingTime",
       "tags",
       "category",
-      "keywords"
+      "keywords",
+      "slug",
+      "canonical",
+      "ogAlt",
+      "about",
+      "timeRequired",
+      "faq",
+      "draft",
+      "featured",
+      "technical"
     ],
     "components": [
       {
