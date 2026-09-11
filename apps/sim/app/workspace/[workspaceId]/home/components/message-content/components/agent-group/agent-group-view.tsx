@@ -155,7 +155,7 @@ export function AgentGroupView({
     agentName === 'browser' ? (
       <BrowserAgentIcon items={items} />
     ) : (
-      <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
+      <AgentIcon className='size-full' />
     )
   const isMainAgent = agentName === 'mothership'
   /** Open lanes surface their latest work, including work delegated to nested agents. */
@@ -256,15 +256,7 @@ export function AgentGroupView({
   ) : (
     <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>{items.map(renderItem)}</div>
   )
-  const header = (
-    <ActivityStatus
-      label={headerText}
-      isActive={isWorking}
-      icon={
-        <span className='flex size-[16px] shrink-0 items-center justify-center'>{agentIcon}</span>
-      }
-    />
-  )
+  const header = <ActivityStatus label={headerText} isActive={isWorking} icon={agentIcon} />
 
   return (
     <div className='flex min-w-0 flex-col gap-1.5'>
