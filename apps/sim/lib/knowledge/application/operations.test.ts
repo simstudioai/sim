@@ -16,6 +16,13 @@ describe('knowledge operation registry', () => {
   it('defines unique stable semantic operation IDs', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
     expect(ids).toEqual([
+      'knowledge.github.setup.oauth.complete',
+      'knowledge.github.setup.start',
+      'knowledge.github.setup.read',
+      'knowledge.github.setup.cancel',
+      'knowledge.github.setup.continue',
+      'knowledge.github.setup.select',
+      'knowledge.github.setup.complete',
       'knowledge.github.installations.list',
       'knowledge.github.installations.connect',
       'knowledge.slack.prepare',
