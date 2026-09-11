@@ -49,7 +49,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function render(canEditLogo = true) {
+async function render(canEditLogo = true, isCollapsed = false, onExpandSidebar = vi.fn()) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={queryClient}>
@@ -57,8 +57,8 @@ async function render(canEditLogo = true) {
           <OrganizationHeader
             organization={organization}
             canEditLogo={canEditLogo}
-            isCollapsed={false}
-            onExpandSidebar={vi.fn()}
+            isCollapsed={isCollapsed}
+            onExpandSidebar={onExpandSidebar}
           />
         </ToastProvider>
       </QueryClientProvider>
@@ -74,9 +74,9 @@ async function openMenu() {
   })
 }
 
-function menuItem(name: string) {
-  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
-    (item) => item.textContent === name
+function logoControl() {
+  return document.querySelector<HTMLElement>(
+    '[role="menuitem"][aria-label="Change organization logo"]'
   )
 }
 
@@ -87,21 +87,70 @@ async function pickFile(file: File) {
 }
 
 describe('OrganizationHeader logo upload', () => {
-  it('opens the same native file picker from the admin menu', async () => {
+  it('opens the native file picker by clicking the logo and keeps the menu open', async () => {
     await render()
     await openMenu()
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
     const click = vi.spyOn(input, 'click').mockImplementation(() => {})
     expect(input.accept).toContain('image/png')
-    await act(async () => menuItem('Upload logo')!.click())
+    await act(async () => logoControl()!.click())
+    expect(click).toHaveBeenCalledOnce()
+    expect(logoControl()).not.toBeNull()
+    expect(document.body.textContent).not.toContain('Upload logo')
+    expect(document.querySelector('[role="menu"]')?.textContent).toContain('Settings')
+  })
+
+  it.each(['Enter', ' '])('opens the file picker using the %j key', async (key) => {
+    await render()
+    await openMenu()
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const click = vi.spyOn(input, 'click').mockImplementation(() => {})
+    await act(async () => {
+      logoControl()!.focus()
+      logoControl()!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+    })
     expect(click).toHaveBeenCalledOnce()
   })
 
   it('does not offer logo changes to members', async () => {
     await render(false)
     await openMenu()
-    expect(menuItem('Upload logo')).toBeUndefined()
+    expect(logoControl()).toBeNull()
     expect(container.querySelector('input[type="file"]')).toBeNull()
+    expect(document.querySelector('[role="menu"]')?.textContent).toContain('Design')
+  })
+
+  it('preserves the collapsed logo as the sidebar expand control', async () => {
+    const expand = vi.fn()
+    await render(true, true, expand)
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Expand sidebar"]')!.click()
+    })
+    expect(expand).toHaveBeenCalledOnce()
+    expect(container.querySelector('input[type="file"]')).toBeNull()
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
+
+  it('disables logo changes while the upload is pending', async () => {
+    let completeUpload!: () => void
+    mocks.upload.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          completeUpload = resolve
+        })
+    )
+    await render()
+    await openMenu()
+    await pickFile(new File(['image'], 'logo.png', { type: 'image/png' }))
+    await act(async () => {
+      await vi.waitFor(() => expect(logoControl()?.getAttribute('aria-disabled')).toBe('true'))
+    })
+    expect(logoControl()?.getAttribute('aria-busy')).toBe('true')
+    expect(container.querySelector<HTMLInputElement>('input[type="file"]')!.disabled).toBe(true)
+    await act(async () => logoControl()!.click())
+    expect(mocks.upload).toHaveBeenCalledOnce()
+    await act(async () => completeUpload())
+    expect(mocks.refresh).toHaveBeenCalledOnce()
   })
 
   it('uploads under the organization scope and refreshes its identity after success', async () => {
