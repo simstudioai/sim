@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
-import { sortObjectKeysDeep } from '@sim/utils/object'
+import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import {
   type BlockRetryConfig,
   normalizeBlockRetryTries,
@@ -19,8 +19,10 @@ import {
 } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
+import { remapToolCanonicalModes } from '@/lib/workflows/editing/tool-canonical-modes'
 import {
   buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   buildDefaultCanonicalModes,
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
@@ -277,9 +279,13 @@ export function createBlockFromParams(
 }
 
 export function updateCanonicalModesForInputs(
-  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  block: {
+    data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> }
+    subBlocks?: Record<string, { value?: unknown }>
+  },
   inputKeys: string[],
-  blockConfig: BlockConfig
+  blockConfig: BlockConfig,
+  previousTools?: unknown
 ): void {
   if (!blockConfig.subBlocks?.length) return
 
@@ -308,6 +314,42 @@ export function updateCanonicalModesForInputs(
     if (!block.data.canonicalModes) block.data.canonicalModes = {}
     Object.assign(block.data.canonicalModes, canonicalModeUpdates)
   }
+
+  if (blockConfig.type === 'agent' && inputKeys.includes('tools')) {
+    const tools = block.subBlocks?.tools?.value
+    if (Array.isArray(tools)) {
+      const canonicalModes = remapToolCanonicalModes(
+        Array.isArray(previousTools) ? normalizeTools(previousTools) : [],
+        tools,
+        block.data?.canonicalModes ?? {},
+        collectExplicitToolCanonicalModes(tools)
+      )
+      block.data = { ...block.data, canonicalModes }
+    }
+  }
+}
+
+function collectExplicitToolCanonicalModes(tools: unknown[]) {
+  const modes = new Map<number, Record<string, 'basic' | 'advanced'>>()
+  tools.forEach((tool, index) => {
+    if (!isRecordLike(tool)) return
+    const choices: Record<string, 'basic' | 'advanced'> = {}
+    const config = typeof tool.type === 'string' ? getBlock(tool.type) : undefined
+    if (config && isRecordLike(tool.params)) {
+      const params = tool.params
+      const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks, false)
+      for (const group of Object.values(canonicalIndex.groupsById)) {
+        if (!isCanonicalPair(group) || !group.basicId) continue
+        const hasBasic = params[group.basicId] !== undefined
+        const hasAdvanced = group.advancedIds.some((id) => params[id] !== undefined)
+        if (hasBasic !== hasAdvanced) {
+          choices[group.canonicalId] = hasAdvanced ? 'advanced' : 'basic'
+        }
+      }
+    }
+    if (Object.keys(choices).length) modes.set(index, choices)
+  })
+  return modes
 }
 
 /**
