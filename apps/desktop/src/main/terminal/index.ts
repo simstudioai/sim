@@ -635,11 +635,15 @@ export class TerminalService {
 
   /**
    * Whether one renderer may close a tab. The strip that lists shells sits
-   * outside the terminal panel, so the shell need not be on screen; IPC has
-   * already checked that the renderer is on the shell's chat.
+   * outside the terminal panel, so a renderer on the chat may close a shell
+   * nobody is displaying; while a window does display the panel, only that
+   * window may close, so a second window on the same chat cannot end a shell
+   * someone is using.
    */
   acceptsUserClose(owner: WebContents, terminalId: string): boolean {
-    return !owner.isDestroyed() && this.sessions.has(terminalId)
+    if (owner.isDestroyed() || !this.sessions.has(terminalId)) return false
+    const shown = this.visibleOwner && !this.visibleOwner.isDestroyed() ? this.visibleOwner : null
+    return shown === null || shown === owner
   }
 
   /** Drops the claim and unsubscribes from the owner's lifecycle. */

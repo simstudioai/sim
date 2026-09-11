@@ -631,6 +631,7 @@ describe('TerminalRegistry', () => {
       removeListener: vi.fn(),
     }
     const gone = { ...owner, isDestroyed: () => true }
+    const other = { ...owner, once: vi.fn(), on: vi.fn(), removeListener: vi.fn() }
 
     // The strip lives outside the panel, so a hidden shell is still closable.
     expect(terminals.closeUserTerminal('chat-B', '1', owner as never)).toEqual({
@@ -638,6 +639,10 @@ describe('TerminalRegistry', () => {
       activeTerminalId: null,
     })
     expect(terminals.closeUserTerminal('chat-A', first, gone as never).tabs).toHaveLength(2)
+    // While another window displays the panel, only that window may close.
+    terminals.setPanelVisible('chat-A', true, other as never)
+    expect(terminals.closeUserTerminal('chat-A', first, owner as never).tabs).toHaveLength(2)
+    terminals.setPanelVisible('chat-A', false, other as never)
 
     const closed = terminals.closeUserTerminal('chat-A', first, owner as never)
     expect(closed.tabs).toHaveLength(1)
