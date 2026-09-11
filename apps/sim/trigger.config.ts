@@ -102,11 +102,15 @@ export default defineConfig({
    * environment variables whether Trigger.dev is available: a process that
    * Trigger.dev is executing has Trigger.dev available by definition.
    *
-   * Also warms the shared Redis connection, because a run's first Redis call is
-   * typically a lock acquire and would otherwise pay the handshake inside its
-   * own command deadline. Awaited so the connection is up before `run()` issues
-   * anything; imported dynamically so deploy-time evaluation of this config does
-   * not pull the client, and never throwing because a throw here fails the run.
+   * Also warms the shared Redis connection, because nearly every task's first
+   * Redis call — a lock acquire, a usage reservation — would otherwise pay the
+   * handshake inside its own command deadline. Awaited so the connection is up
+   * before `run()` issues anything; imported dynamically so deploy-time
+   * evaluation of this config does not pull the client; and never throwing,
+   * because a throw here fails the run. The execution-signal subscriber is
+   * deliberately not warmed here: only the tasks that execute a workflow ever
+   * subscribe, and they are a minority of runs, so that connection is warmed
+   * on intent at the execution entry point instead.
    *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */

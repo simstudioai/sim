@@ -22,6 +22,7 @@ import {
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
+import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -377,10 +378,19 @@ async function finalizeExecutionError(params: {
  * the background job — puts `custom_block_*` types in scope for serialization,
  * execution, and any nested child-workflow serialization (ALS propagates to the
  * whole async subtree).
+ *
+ * Also begins the execution-signal subscriber's connection first: every
+ * execution subscribes to cancellation signals once its engine starts, so
+ * starting that handshake here — the one path all of them share — lets it
+ * overlap the reads and preprocessing ahead of the subscribe instead of being
+ * paid inside its readiness budget. Connecting on intent rather than at worker
+ * start keeps the tasks that never execute a workflow, most of the fleet by
+ * volume, from opening a connection they would never use.
  */
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
+  connectExecutionSignalHub()
   const workspaceId = options.snapshot.metadata.workspaceId
   const rows = workspaceId
     ? await withDatabaseReadRetry(() => getCustomBlockRowsForWorkspace(workspaceId), {

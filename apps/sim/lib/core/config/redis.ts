@@ -2,9 +2,10 @@ import { isIP } from 'node:net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
-import Redis, { type RedisOptions } from 'ioredis'
+import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
+import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 const logger = createLogger('Redis')
 
@@ -42,13 +43,24 @@ function resolveRedisTlsOptions(url: string | undefined): { servername: string }
  * and TLS SNI when REDIS_URL targets an IP. Every Redis client we open should
  * spread this; callers add their own retry / timeout policy on top.
  */
-export function getRedisConnectionDefaults(
-  url: string | undefined
-): Pick<RedisOptions, 'keepAlive' | 'connectTimeout' | 'enableOfflineQueue' | 'tls'> {
+export interface RedisConnectionDefaults {
+  keepAlive: number
+  connectTimeout: number
+  disconnectTimeout: number
+  enableOfflineQueue: boolean
+  tls?: { servername: string }
+}
+
+export const CONNECT_TIMEOUT_MS = 10_000
+/** ioredis's own default, stated so readiness budgets can be derived from it. */
+export const DISCONNECT_TIMEOUT_MS = 2_000
+
+export function getRedisConnectionDefaults(url: string | undefined): RedisConnectionDefaults {
   const tls = resolveRedisTlsOptions(url)
   return {
     keepAlive: 1000,
-    connectTimeout: 10000,
+    connectTimeout: CONNECT_TIMEOUT_MS,
+    disconnectTimeout: DISCONNECT_TIMEOUT_MS,
     enableOfflineQueue: true,
     ...(tls ? { tls } : {}),
   }
@@ -203,12 +215,34 @@ export function describeRedisConnection(
 
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
+export const SHARED_COMMAND_TIMEOUT_MS = 5_000
+const RECONNECT_BASE_MS = 1_000
+const RECONNECT_MAX_BASE_MS = 10_000
+const RECONNECT_JITTER_RATIO = 0.3
+
 /**
- * Warm-up budget. Sized to outlast a slow handshake rather than a fast one,
- * because giving up early just returns the handshake to the first command's
- * deadline, which is the thing this exists to avoid.
+ * The shared client's reconnect delay for attempt `times`, with `jitter` in
+ * `[0, 1]` scaling the upward-only jitter band. Pure so the same formula can
+ * be evaluated for a budget — `sharedReconnectDelayMs(1, 1)` is the longest
+ * possible first reconnect — as well as from `retryStrategy`, which adds the
+ * bookkeeping around it.
  */
-const REDIS_WARMUP_TIMEOUT_MS = 10_000
+export function sharedReconnectDelayMs(times: number, jitter: number): number {
+  const base = Math.min(RECONNECT_BASE_MS * 2 ** (times - 1), RECONNECT_MAX_BASE_MS)
+  return Math.round(base + jitter * base * RECONNECT_JITTER_RATIO)
+}
+
+/**
+ * Warm-up budget: one dead attempt, its longest possible first reconnect
+ * delay, then a healthy attempt. Giving up sooner returns the handshake to the
+ * first command's deadline, which is the thing warming exists to avoid.
+ */
+const REDIS_WARMUP_TIMEOUT_MS = coldConnectionBudgetMs({
+  connectTimeoutMs: CONNECT_TIMEOUT_MS,
+  commandTimeoutMs: SHARED_COMMAND_TIMEOUT_MS,
+  disconnectTimeoutMs: DISCONNECT_TIMEOUT_MS,
+  reconnectDelayMs: sharedReconnectDelayMs(1, 1),
+})
 
 export function getConfiguredRedisUrl(): string | null {
   if (getConfiguredCacheProvider() === 'database') return null
@@ -296,7 +330,7 @@ export function getRedisClient(): Redis | null {
 
     state.client = new Redis(redisUrl, {
       ...defaults,
-      commandTimeout: 5000,
+      commandTimeout: SHARED_COMMAND_TIMEOUT_MS,
       maxRetriesPerRequest: 5,
 
       retryStrategy: (times) => {
@@ -304,9 +338,7 @@ export function getRedisClient(): Redis | null {
           logger.error(`Redis reconnection attempt ${times}`, { nextRetryMs: 30000 })
           return 30000
         }
-        const base = Math.min(1000 * 2 ** (times - 1), 10000)
-        const jitter = randomFloat() * base * 0.3
-        const delay = Math.round(base + jitter)
+        const delay = sharedReconnectDelayMs(times, randomFloat())
         state.reconnects++
         logger.warn('Redis reconnecting', { attempt: times, nextRetryMs: delay })
         return delay

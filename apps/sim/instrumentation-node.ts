@@ -407,6 +407,6 @@ export async function register() {
   // Not awaited: the connection is warmed in the background so the first request
   // that needs Redis does not pay the handshake inside its own command deadline,
   // but boot never waits on Redis to serve requests that do not touch it.
-  const { warmRedisConnection } = await import('./lib/core/config/redis')
+  const { warmRedisConnection } = await import('@/lib/core/config/redis')
   void warmRedisConnection()
 }
