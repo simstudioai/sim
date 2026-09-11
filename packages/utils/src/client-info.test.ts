@@ -8,10 +8,7 @@ import {
 
 function headers(entries: Record<string, string>) {
   const map = new Map(Object.entries(entries).map(([key, value]) => [key.toLowerCase(), value]))
-  return {
-    get: (name: string) => map.get(name.toLowerCase()) ?? null,
-    has: (name: string) => map.has(name.toLowerCase()),
-  }
+  return { get: (name: string) => map.get(name.toLowerCase()) ?? null }
 }
 
 describe('formatClientInfo', () => {

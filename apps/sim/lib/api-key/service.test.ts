@@ -31,6 +31,7 @@ vi.mock('@sim/logger', () => ({
   logger: serviceLogger,
   runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
   getRequestContext: vi.fn(() => undefined),
+  setRequestAuth: vi.fn(),
 }))
 
 const { mockGetWorkspaceBillingSettings } = vi.hoisted(() => ({

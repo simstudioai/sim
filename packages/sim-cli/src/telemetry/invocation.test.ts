@@ -78,7 +78,8 @@ function harness(overrides: Partial<CommandTelemetryOptions> = {}) {
     send,
     now: () => NOW,
     elapsed: () => 1432.4,
-    isTty: false,
+    stdoutIsTty: false,
+    stderrIsTty: false,
     write,
     ...overrides,
   })
@@ -178,6 +179,27 @@ describe('command telemetry', () => {
     expect(readTelemetryState(statePath)?.session?.sequence).toBe(2)
   })
 
+  it('shows the notice when only stdout is piped, as in `sim … | jq`', async () => {
+    const { telemetry, program, send, write } = harness({ stdoutIsTty: false, stderrIsTty: true })
+
+    await run(program, ['workflows', 'list'])
+    telemetry.complete({ exitCode: 0 })
+
+    expect(write).toHaveBeenCalledWith(FIRST_RUN_NOTICE)
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('honours an opt-out saved while the command was running', async () => {
+    const { telemetry, program, send } = harness()
+
+    await run(program, ['workflows', 'list'])
+    writeTelemetryState({ ...loadTelemetryState(statePath), enabled: false }, statePath)
+    telemetry.complete({ exitCode: 0 })
+
+    expect(send).not.toHaveBeenCalled()
+    expect(readTelemetryState(statePath)?.enabled).toBe(false)
+  })
+
   it('reports the coding agent driving the shell', async () => {
     const { telemetry, program, send } = harness({ env: { CLAUDECODE: '1' } })
 
@@ -188,7 +210,7 @@ describe('command telemetry', () => {
   })
 
   it('shows the first-run notice on a terminal and does not report that run', async () => {
-    const { telemetry, program, send, write } = harness({ isTty: true })
+    const { telemetry, program, send, write } = harness({ stderrIsTty: true })
 
     await run(program, ['workflows', 'list'])
     telemetry.complete({ exitCode: 0 })
@@ -197,7 +219,7 @@ describe('command telemetry', () => {
     expect(send).not.toHaveBeenCalled()
     expect(readTelemetryState(statePath)?.noticeShownAt).toBe(NOW.toISOString())
 
-    const next = harness({ isTty: true })
+    const next = harness({ stderrIsTty: true })
     await run(next.program, ['workflows', 'list'])
     next.telemetry.complete({ exitCode: 0 })
 
@@ -205,15 +227,15 @@ describe('command telemetry', () => {
     expect(next.send).toHaveBeenCalledOnce()
   })
 
-  it('shows no notice without a terminal or in CI, and still reports', async () => {
-    const piped = harness({ isTty: false })
+  it('shows no notice when stderr is redirected or in CI, and still reports', async () => {
+    const piped = harness({ stdoutIsTty: true, stderrIsTty: false })
     await run(piped.program, ['workflows', 'list'])
     piped.telemetry.complete({ exitCode: 0 })
 
     expect(piped.write).not.toHaveBeenCalled()
     expect(piped.send).toHaveBeenCalledOnce()
 
-    const ci = harness({ isTty: true, env: { CI: 'true' } })
+    const ci = harness({ stderrIsTty: true, env: { CI: 'true' } })
     await run(ci.program, ['workflows', 'list'])
     ci.telemetry.complete({ exitCode: 0 })
 
@@ -225,7 +247,7 @@ describe('command telemetry', () => {
     ['DO_NOT_TRACK', { DO_NOT_TRACK: '1' }],
     ['SIM_TELEMETRY_DISABLED', { SIM_TELEMETRY_DISABLED: '1' }],
   ])('reports nothing when %s is set', async (_name, env) => {
-    const { telemetry, program, send, write } = harness({ env, isTty: true })
+    const { telemetry, program, send, write } = harness({ env, stderrIsTty: true })
 
     await run(program, ['workflows', 'list'])
     telemetry.complete({ exitCode: 0 })
@@ -247,7 +269,7 @@ describe('command telemetry', () => {
   it('reports nothing from a build with no destination', async () => {
     const { telemetry, program, send, write } = harness({
       ingestTarget: () => undefined,
-      isTty: true,
+      stderrIsTty: true,
     })
 
     await run(program, ['workflows', 'list'])
@@ -279,7 +301,7 @@ describe('command telemetry', () => {
   })
 
   it('never touches the state file when reporting is switched off', async () => {
-    const { telemetry, program } = harness({ env: { DO_NOT_TRACK: '1' }, isTty: true })
+    const { telemetry, program } = harness({ env: { DO_NOT_TRACK: '1' }, stderrIsTty: true })
 
     await run(program, ['workflows', 'list'])
     telemetry.complete({ exitCode: 0 })

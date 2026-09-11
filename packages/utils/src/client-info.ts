@@ -156,9 +156,9 @@ export function parseClientInfo(value: string | null | undefined): ClientInfo | 
   return info
 }
 
+/** The one method every request abstraction exposes, so a minimal test double qualifies. */
 export interface HeaderReader {
   get(name: string): string | null
-  has(name: string): boolean
 }
 
 export interface ResolveClientInfoOptions {
@@ -196,7 +196,7 @@ export function resolveClientInfo(
   const legacyCli = LEGACY_CLI_USER_AGENT.exec(headers.get('user-agent') ?? '')
   if (legacyCli) return { surface: 'cli', version: legacyCli[1], source: 'user_agent' }
 
-  if (headers.has(FETCH_METADATA_HEADER) && !options.hasExternalCredentials) {
+  if (headers.get(FETCH_METADATA_HEADER) !== null && !options.hasExternalCredentials) {
     return { surface: 'web', source: 'fetch_metadata' }
   }
 

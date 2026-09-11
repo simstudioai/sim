@@ -13,8 +13,8 @@ export const BEARER_PREFIX = 'Bearer '
  * token. Inspects headers only and validates nothing: it classifies the
  * request as programmatic API traffic rather than interactive session traffic.
  */
-export function hasExternalApiCredentials(headers: Headers): boolean {
-  if (headers.has(API_KEY_HEADER)) return true
+export function hasExternalApiCredentials(headers: { get(name: string): string | null }): boolean {
+  if (headers.get(API_KEY_HEADER) !== null) return true
   const auth = headers.get('authorization')
   return auth?.startsWith(BEARER_PREFIX) ?? false
 }

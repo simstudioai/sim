@@ -15,6 +15,7 @@ vi.mock('@sim/logger', () => ({
   logger: { info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() },
   runWithRequestContext: <T>(_context: unknown, fn: () => T): T => fn(),
   getRequestContext: () => undefined,
+  setRequestAuth: vi.fn(),
   setRequestTraceId: vi.fn(),
 }))
 

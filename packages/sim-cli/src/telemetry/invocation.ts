@@ -104,7 +104,10 @@ export interface CommandTelemetryOptions {
   now?: () => Date
   /** Milliseconds since the process started, for the duration. */
   elapsed?: () => number
-  isTty?: boolean
+  /** Whether stdout is a terminal: the `is_tty` property, which separates people from scripts. */
+  stdoutIsTty?: boolean
+  /** Whether stderr is a terminal: where the notice would go, so whether anyone would see it. */
+  stderrIsTty?: boolean
   /** Where the first-run notice goes; stderr, so piped output stays clean. */
   write?: (message: string) => void
   /** Registers the listener that reports when the process ends; the real process by default. */
@@ -191,7 +194,8 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
   const send = options.send ?? sendCapture
   const now = options.now ?? (() => new Date())
   const elapsed = options.elapsed ?? (() => performance.now())
-  const isTty = options.isTty ?? process.stdout.isTTY === true
+  const stdoutIsTty = options.stdoutIsTty ?? process.stdout.isTTY === true
+  const stderrIsTty = options.stderrIsTty ?? process.stderr.isTTY === true
   const write = options.write ?? ((message: string) => void process.stderr.write(message))
   const onExit = options.onExit ?? listenForProcessExit
 
@@ -207,11 +211,13 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
 
   /**
    * Shows the notice on the first interactive run that would report, and
-   * remembers having done so. Not in CI, where nobody is reading, and not on a
-   * redirected terminal, where it would land in a log.
+   * remembers having done so. Gated on stderr, where it is written: not in CI,
+   * where nobody is reading, and not when stderr is redirected, where it would
+   * land in a log — while `sim … | jq`, which redirects only stdout, still
+   * shows it.
    */
   function showNoticeIfDue(state: TelemetryState): boolean {
-    if (state.noticeShownAt || !isTty || isCi(env)) return false
+    if (state.noticeShownAt || !stderrIsTty || isCi(env)) return false
     write(FIRST_RUN_NOTICE)
     writeTelemetryState({ ...state, noticeShownAt: now().toISOString() })
     return true
@@ -222,11 +228,20 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
     recorded = undefined
     if (!invocation || invocation.noticeShown) return
     const target = ingestTarget()
-    if (!target || !isReportable(invocation.state)) return
+    if (!target) return
+
+    /**
+     * Re-read rather than reuse the snapshot from before the command ran: an
+     * opt-out saved meanwhile — `sim telemetry disable` in another terminal,
+     * during a long command — must win, and the write below must not put the
+     * stale snapshot back over it.
+     */
+    const state = loadTelemetryState()
+    if (!isReportable(state)) return
 
     const timestamp = now()
-    const session = nextSession(invocation.state, timestamp)
-    writeTelemetryState({ ...invocation.state, session })
+    const session = nextSession(state, timestamp)
+    writeTelemetryState({ ...state, session })
 
     const properties: CommandEventProperties = {
       $lib: LIBRARY_NAME,
@@ -245,7 +260,7 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
       node_version: process.versions.node,
       os: process.platform,
       arch: process.arch,
-      is_tty: isTty,
+      is_tty: stdoutIsTty,
       is_ci: isCi(env),
     }
     const kind = endpointKind(invocation.action)
@@ -256,7 +271,7 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
     send(target, {
       api_key: target.key,
       event: COMMAND_EVENT,
-      distinct_id: invocation.state.deviceId,
+      distinct_id: state.deviceId,
       timestamp: timestamp.toISOString(),
       properties,
     } satisfies CaptureRequest<CommandEventProperties>)
