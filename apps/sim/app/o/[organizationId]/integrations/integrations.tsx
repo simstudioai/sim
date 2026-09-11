@@ -18,7 +18,10 @@ import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { RESOURCE_LIST_STACK } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import {
+  organizationAccountsKeys,
+  useOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
@@ -40,7 +43,13 @@ export function OrganizationIntegrations({
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const { search } = useOrganizationPageFilters()
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
-  const sources = useSearchSources(scope, { search: sourceSearch, mine: true })
+  const organizationAccounts = useOrganizationAccounts(organization.id)
+  const hasGitHubAccountInventory = organizationAccounts.data?.viewerAccounts !== undefined
+  const sources = useSearchSources(scope, {
+    search: sourceSearch,
+    mine: true,
+    ...(hasGitHubAccountInventory ? { excludeConnectorType: 'github' } : {}),
+  })
   const membershipQueryKeys = useMemo(
     () => [
       searchSourceKeys.list({ kind: 'organization', organizationId: organization.id }),
@@ -94,32 +103,34 @@ export function OrganizationIntegrations({
           />
         ) : !sources.isPending && (sources.data?.length || sources.hasNextPage) ? (
           <>
-            {sources.data?.map((source) => (
-              <SearchSourceRow
-                key={source.connectorId}
-                source={source}
-                scope={scope}
-                canAdmin={false}
-                accountActions={
-                  source.viewerAccounts?.length ? (
-                    <DisconnectAccountMenu
-                      organizationId={organization.id}
-                      integrationName={connectorDisplayName(source.connectorType)}
-                      accounts={source.viewerAccounts}
-                    />
-                  ) : undefined
-                }
-                available={
-                  source.accessMode === 'members'
-                    ? searchAccess.memberScoped
-                    : searchAccess.sourceMirrored &&
-                      (!source.connectionRequired || searchAccess.memberScoped)
-                }
-                waiting={enrollment.isAwaiting(source.connectorId)}
-                isPending={enrollment.isPending}
-                onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-              />
-            ))}
+            {sources.data
+              ?.filter((source) => !hasGitHubAccountInventory || source.connectorType !== 'github')
+              .map((source) => (
+                <SearchSourceRow
+                  key={source.connectorId}
+                  source={source}
+                  scope={scope}
+                  canAdmin={false}
+                  accountActions={
+                    source.viewerAccounts?.length ? (
+                      <DisconnectAccountMenu
+                        organizationId={organization.id}
+                        integrationName={connectorDisplayName(source.connectorType)}
+                        accounts={source.viewerAccounts}
+                      />
+                    ) : undefined
+                  }
+                  available={
+                    source.accessMode === 'members'
+                      ? searchAccess.memberScoped
+                      : searchAccess.sourceMirrored &&
+                        (!source.connectionRequired || searchAccess.memberScoped)
+                  }
+                  waiting={enrollment.isAwaiting(source.connectorId)}
+                  isPending={enrollment.isPending}
+                  onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
+                />
+              ))}
             <SearchSourcePagination {...sources} />
           </>
         ) : null}

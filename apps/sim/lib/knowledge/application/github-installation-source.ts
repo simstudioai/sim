@@ -3,6 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { requireConnectorCredential } from '@/lib/knowledge/application/connector-credential'
+import { rethrowGitHubInstallationSourceError } from '@/lib/knowledge/application/github-installation-error'
 import {
   parseGitHubInstallationBinding,
   resolveGitHubInstallationRepository,
@@ -80,7 +81,9 @@ export async function prepareGitHubInstallationSource(
     binding.accountId !== contentCredential.providerTenantId
   )
     throw new OrchestrationError('validation', 'Reconnect this GitHub installation before using it')
-  const resolved = await resolveGitHubInstallationRepository(binding, repository.trim())
+  const resolved = await resolveGitHubInstallationRepository(binding, repository.trim()).catch(
+    rethrowGitHubInstallationSourceError
+  )
   if (wasInstallation && input.previousConfig?.githubRepositoryId !== resolved.id)
     throw new OrchestrationError(
       'validation',

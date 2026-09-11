@@ -239,12 +239,14 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
               key={source.connectorId}
               title={source.sourceDescription || meta.name}
               description={[
-                source.accessMode === 'members'
-                  ? 'Member accounts'
-                  : meta.auth.mode === 'oauth' &&
-                      meta.auth.adminCredentialType === 'service_account'
-                    ? 'Service account'
-                    : 'Admin or service account',
+                connectorType === 'github'
+                  ? null
+                  : source.accessMode === 'members'
+                    ? 'Member accounts'
+                    : meta.auth.mode === 'oauth' &&
+                        meta.auth.adminCredentialType === 'service_account'
+                      ? 'Service account'
+                      : 'Admin or service account',
                 !approved
                   ? 'Deactivated'
                   : !source.enabled
@@ -260,7 +262,9 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                           : source.lastSyncAt
                             ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
                             : 'Waiting for the first sync',
-              ].join(' · ')}
+              ]
+                .filter(Boolean)
+                .join(' · ')}
               href={organizationRoutes(organization.id).searchSource(source.connectorId)}
               clickLabel={`Open ${source.sourceDescription || meta.name}`}
               navigable

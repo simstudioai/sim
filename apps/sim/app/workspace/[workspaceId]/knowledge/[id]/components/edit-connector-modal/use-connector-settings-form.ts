@@ -462,6 +462,9 @@ export function useConnectorSettingsForm({
       refetch: refetchIntegrationAvailability,
     },
     isSearchIndex,
+    usesGitHubInstallation:
+      connector.connectorType === 'github' &&
+      typeof connector.sourceConfig.githubRepositoryId === 'string',
     connectorConfig,
     sourceConfig,
     selectionLabels,

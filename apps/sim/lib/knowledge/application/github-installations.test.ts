@@ -155,7 +155,7 @@ describe('GitHub Search installation application operations', () => {
     const result = await connect()
     expect(result).toMatchObject({
       created: true,
-      credential: { displayName: 'GitHub App · example' },
+      credential: { displayName: 'example' },
     })
     expect(m.verify).toHaveBeenCalledWith('ghu_reader', '42', { signal: undefined })
     expect(m.encrypt).toHaveBeenCalledWith(JSON.stringify(binding))

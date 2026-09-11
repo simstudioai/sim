@@ -153,16 +153,17 @@ describe('knowledge document processing outbox handler', () => {
     )
   })
 
-  it.each([null, { ...DOCUMENT, processingStatus: 'completed' }])(
-    'completes without redispatch when the document is absent or completed',
-    async (document) => {
-      mocks.getKnowledgeDocument.mockResolvedValueOnce(document)
+  it.each([
+    null,
+    { ...DOCUMENT, processingStatus: 'completed' },
+    { ...DOCUMENT, processingStatus: 'failed', processingOutcome: 'skipped' },
+  ])('completes without redispatch when the document is absent or terminal', async (document) => {
+    mocks.getKnowledgeDocument.mockResolvedValueOnce(document)
 
-      await handler()(PAYLOAD, createContext())
+    await handler()(PAYLOAD, createContext())
 
-      expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
-    }
-  )
+    expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
+  })
 
   it('keeps the event retryable while an earlier processing attempt is active', async () => {
     const processingStartedAt = new Date()

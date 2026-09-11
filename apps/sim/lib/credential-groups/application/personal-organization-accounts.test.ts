@@ -54,7 +54,9 @@ describe('personal organization contributions', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)
-    mocks.invite.mockResolvedValue({ invitationLink: 'https://sim.test/enroll/token' })
+    mocks.invite.mockResolvedValue({
+      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+    })
   })
 
   it('lists only the stable signed-in identity without requiring org membership', async () => {
@@ -79,7 +81,19 @@ describe('personal organization contributions', () => {
     const url = new URL(result.invitationLink)
     expect(url.searchParams.get('optionId')).toBe('gmail-option')
     expect(url.searchParams.get('returnTo')).toBe('accounts')
+    expect(result.authorizationUrl).toBe(
+      'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/gmail-option?returnTo=accounts'
+    )
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
+  })
+
+  it('keeps the enrollment page for an MCP contribution', async () => {
+    queueTableRows(schemaMock.credential, [row])
+    await expect(
+      reconnectPersonalOrganizationAccount.execute({ principal, input })
+    ).resolves.toEqual({
+      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+    })
   })
 
   it('refuses disconnect of another contributor’s account', async () => {

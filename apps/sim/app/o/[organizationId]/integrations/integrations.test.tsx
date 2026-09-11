@@ -4,6 +4,7 @@ import { toast } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
 import { SEARCH_CONNECTORS, type SearchConnector } from '@/lib/sim-search/connectors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 
@@ -20,6 +21,23 @@ const mocks = vi.hoisted(() => ({
   enrollment: vi.fn(),
   enrollmentError: null as string | null,
   setupConnector: null as SearchConnector | null,
+  organizationAccounts: vi.fn(),
+  connectOrganizationAccount: vi.fn(),
+  reconnectOrganizationAccount: vi.fn(),
+}))
+
+vi.mock('@/hooks/queries/organization-accounts', () => ({
+  organizationAccountsKeys: { detail: (id: string) => ['organization-accounts', 'detail', id] },
+  useOrganizationAccounts: mocks.organizationAccounts,
+  useConnectOrganizationAccount: () => ({
+    mutate: mocks.connectOrganizationAccount,
+    isPending: false,
+  }),
+  useDisconnectPersonalOrganizationAccount: () => ({ mutate: vi.fn(), isPending: false }),
+  useReconnectPersonalOrganizationAccount: () => ({
+    mutate: mocks.reconnectOrganizationAccount,
+    isPending: false,
+  }),
 }))
 
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
@@ -128,6 +146,10 @@ describe('organization integrations role and source paths', () => {
     vi.spyOn(toast, 'error').mockReturnValue('toast-id')
     mocks.enrollmentError = null
     mocks.setupConnector = null
+    mocks.organizationAccounts.mockReturnValue({
+      data: { credentialGroup: null, viewerAccounts: [] },
+      isPending: false,
+    })
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },
@@ -182,6 +204,22 @@ describe('organization integrations role and source paths', () => {
     )
   }
 
+  function expectConnectionRedirect(
+    onSuccess: (response: OrganizationAccountConnectionResponse) => void,
+    authorizationUrl?: string
+  ) {
+    const invitationLink = 'https://sim.test/credential-groups/enroll/fixture-token'
+    const assign = vi.fn()
+    const browserWindow = window
+    vi.stubGlobal('window', { location: { assign } })
+    try {
+      onSuccess({ invitationLink, ...(authorizationUrl ? { authorizationUrl } : {}) })
+      expect(assign).toHaveBeenCalledExactlyOnceWith(authorizationUrl ?? invitationLink)
+    } finally {
+      vi.stubGlobal('window', browserWindow)
+    }
+  }
+
   it.each([OrganizationIntegrations, ConnectAccountOptions])(
     'shows connection errors in a toast without adding inline error text in %s',
     async (Component) => {
@@ -211,7 +249,10 @@ describe('organization integrations role and source paths', () => {
 
   it('uses the actual organization and only asks members to connect identity-dependent sources', async () => {
     await render()
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '' })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, {
+      search: '',
+      excludeConnectorType: 'github',
+    })
     expect(buttons('Add source')).toHaveLength(0)
     expect(buttons('Manage')).toHaveLength(0)
     expect(buttons('Connect')).toHaveLength(1)
@@ -241,9 +282,17 @@ describe('organization integrations role and source paths', () => {
     await act(async () => root.render(<OrganizationIntegrations />))
     mocks.filters.mockReturnValue({ tab: 'all', search: ' drive ', setSearch: vi.fn() })
     await act(async () => root.render(<OrganizationIntegrations />))
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '', mine: true })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, {
+      search: '',
+      mine: true,
+      excludeConnectorType: 'github',
+    })
     await act(async () => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS))
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: 'drive', mine: true })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, {
+      search: 'drive',
+      mine: true,
+      excludeConnectorType: 'github',
+    })
   })
 
   it('refreshes organization Accounts after either direct connection flow completes', async () => {
@@ -305,6 +354,227 @@ describe('organization integrations role and source paths', () => {
       expect.objectContaining({ type: 'confluence' }),
       undefined
     )
+  })
+
+  it.each([
+    undefined,
+    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=search',
+  ])('connects GitHub once with compatible redirect %s', async (authorizationUrl) => {
+    mocks.sources.mockReturnValue({
+      data: [
+        { ...memberSource, connectorType: 'github', connectorId: 'repo-one' },
+        { ...memberSource, connectorType: 'github', connectorId: 'repo-two' },
+      ],
+      isPending: false,
+    })
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ connectorType: 'github' }] },
+      isPending: false,
+    })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'github', approved: true }],
+      isPending: false,
+    })
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map(),
+      oauthServiceAvailability: new Map([['github-repositories', true]]),
+      isIntegrationAvailabilityReady: true,
+    })
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        viewerAccounts: [],
+        credentialGroup: {
+          status: 'active',
+          options: [{ id: 'github-option', provider: 'github-repositories', status: 'active' }],
+        },
+      },
+      isPending: false,
+    })
+    await render()
+    expect(buttons('Connect')).toHaveLength(1)
+    expect(document.body.textContent).toContain('Connect once')
+    await act(async () => buttons('Connect')[0].click())
+    expect(mocks.connectOrganizationAccount).toHaveBeenCalledExactlyOnceWith(
+      { organizationId: scope.organizationId, optionId: 'github-option' },
+      expect.any(Object)
+    )
+    expect(mocks.connect).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expectConnectionRedirect(
+      mocks.connectOrganizationAccount.mock.calls[0][1].onSuccess,
+      authorizationUrl
+    )
+  })
+
+  it('does not ask an already connected GitHub member to connect a future repository', async () => {
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        viewerAccounts: [
+          {
+            credentialId: 'github-account',
+            providerId: 'github-repositories',
+            displayName: 'My GitHub',
+            status: 'active',
+          },
+        ],
+      },
+      isPending: false,
+    })
+    mocks.sources.mockReturnValue({
+      data: [
+        { ...memberSource, connectorType: 'github', viewerMembership: 'connected' },
+        { ...memberSource, connectorType: 'github', connectorId: 'future-repo' },
+      ],
+      isPending: false,
+    })
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ connectorType: 'github' }] },
+      isPending: false,
+    })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'github', approved: true }],
+      isPending: false,
+    })
+    await render()
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain('Connect a different site')
+  })
+
+  it.each(['active', 'needs_reauth'])(
+    'keeps one GitHub account row with management when source pages omit it and provider is disabled: %s',
+    async (status) => {
+      mocks.sources.mockReturnValue({ data: [], isPending: false, hasNextPage: true })
+      mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+      mocks.organizationAccounts.mockReturnValue({
+        data: {
+          credentialGroup: {
+            status: 'active',
+            options: [{ id: 'github-option', provider: 'github-repositories', status: 'disabled' }],
+          },
+          viewerAccounts: [
+            {
+              credentialId: 'github-account',
+              providerId: 'github-repositories',
+              displayName: 'My GitHub',
+              status,
+            },
+          ],
+        },
+        isPending: false,
+      })
+      await act(async () => root.render(<OrganizationIntegrations />))
+      expect(buttons('Connect')).toHaveLength(0)
+      expect(buttons('Reconnect')).toHaveLength(0)
+      expect(document.querySelectorAll('[aria-label="GitHub account actions"]')).toHaveLength(1)
+      expect(mocks.reconnectOrganizationAccount).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    undefined,
+    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=accounts',
+  ])(
+    'allows personal reauthorization with compatible redirect %s while Search is disabled',
+    async (authorizationUrl) => {
+      mocks.sources.mockReturnValue({ data: [], isPending: false })
+      mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+      mocks.integrations.mockReturnValue({
+        data: [{ connectorType: 'github', approved: false }],
+        isPending: false,
+      })
+      mocks.organizationAccounts.mockReturnValue({
+        data: {
+          credentialGroup: {
+            status: 'active',
+            options: [{ id: 'github-option', provider: 'github-repositories', status: 'active' }],
+          },
+          viewerAccounts: [
+            {
+              credentialId: 'github-account',
+              optionId: 'github-option',
+              providerId: 'github-repositories',
+              displayName: 'My GitHub',
+              status: 'needs_reauth',
+            },
+          ],
+        },
+        isPending: false,
+      })
+      await act(async () => root.render(<OrganizationIntegrations />))
+      expect(buttons('Connect')).toHaveLength(0)
+      expect(buttons('Reconnect')).toHaveLength(1)
+      await act(async () => buttons('Reconnect')[0].click())
+      expect(mocks.reconnectOrganizationAccount).toHaveBeenCalledWith(
+        'github-account',
+        expect.any(Object)
+      )
+      expectConnectionRedirect(
+        mocks.reconnectOrganizationAccount.mock.calls[0][1].onSuccess,
+        authorizationUrl
+      )
+    }
+  )
+
+  it('preserves legacy GitHub account management when an older server omits the inventory', async () => {
+    mocks.organizationAccounts.mockReturnValue({
+      data: { credentialGroup: null },
+      isPending: false,
+    })
+    mocks.sources.mockReturnValue({
+      data: [
+        {
+          ...memberSource,
+          connectorType: 'github',
+          viewerMembership: 'connected',
+          viewerAccounts: [
+            {
+              credentialId: 'github-account',
+              groupId: 'group',
+              optionId: 'option',
+              displayName: 'My GitHub',
+              status: 'active',
+            },
+          ],
+        },
+      ],
+      isPending: false,
+    })
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(document.querySelectorAll('[aria-label="GitHub account actions"]')).toHaveLength(1)
+    expect(
+      mocks.sources.mock.calls.every(([, input]) => input.excludeConnectorType === undefined)
+    ).toBe(true)
+  })
+
+  it('renders one GitHub account instead of repeating it for each configured repository', async () => {
+    mocks.sources.mockReturnValue({
+      data: ['private-one', 'private-two'].map((connectorId) => ({
+        ...memberSource,
+        connectorId,
+        connectorType: 'github',
+        sourceDescription: connectorId,
+        viewerMembership: 'connected',
+      })),
+      isPending: false,
+    })
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        viewerAccounts: [
+          {
+            credentialId: 'github-account',
+            providerId: 'github-repositories',
+            displayName: 'My GitHub',
+            status: 'active',
+          },
+        ],
+      },
+      isPending: false,
+    })
+    await act(async () => root.render(<OrganizationIntegrations />))
+    expect(buttons('Reconnect')).toHaveLength(0)
+    expect(document.querySelectorAll('[aria-label="GitHub account actions"]')).toHaveLength(1)
+    expect(document.body.textContent).not.toContain('private-one')
+    expect(document.body.textContent).not.toContain('private-two')
   })
 
   it('keeps configured sources in alphabetical order with approved providers', async () => {
@@ -462,7 +732,11 @@ describe('organization integrations role and source paths', () => {
     })
     mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
     await act(async () => root.render(<OrganizationIntegrations />))
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: '', mine: true })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, {
+      search: '',
+      mine: true,
+      excludeConnectorType: 'github',
+    })
     expect(document.body.textContent).toContain('Gmail')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(buttons('Connect account')).toHaveLength(0)
@@ -487,7 +761,10 @@ describe('organization integrations role and source paths', () => {
     await act(async () => root.render(<ConnectAccountOptions search='gmail' />))
     expect(document.body.textContent).toContain('Gmail')
     expect(document.body.textContent).not.toContain('Jira')
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { search: 'gmail' })
+    expect(mocks.sources).toHaveBeenCalledWith(scope, {
+      search: 'gmail',
+      excludeConnectorType: 'github',
+    })
   })
 
   it('lets the viewer reconnect their own expired account from the main page', async () => {

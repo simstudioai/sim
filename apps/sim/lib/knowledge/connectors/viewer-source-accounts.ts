@@ -1,8 +1,6 @@
-import { db } from '@sim/db'
-import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
-import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
-import { SEARCH_SOURCE_CANDIDATE_PAGE_SIZE } from '@/lib/knowledge/constants'
+import { credential, credentialGroup } from '@sim/db/schema'
+import { and, eq, or } from 'drizzle-orm'
+import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
 import { getConnectorMeta } from '@/connectors/registry'
 
 interface ViewerSourceAccount {
@@ -52,36 +50,11 @@ export async function resolveViewerSourceAccounts(input: {
   })
   const result = new Map<string, ViewerSourceAccount[]>()
   if (!matches.length) return result
-  const scope = { kind: 'organization', organizationId: input.organizationId } as const
-  const accounts = await db
-    .select({
-      credentialId: credential.id,
-      displayName: credential.displayName,
-      status: credential.managedOauthStatus,
-      groupId: credentialGroup.id,
-      optionId: credential.credentialGroupOptionId,
-      providerId: credential.providerId,
-    })
-    .from(credential)
-    .innerJoin(
-      credentialGroupEnrollment,
-      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
-    )
-    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .where(
-      and(
-        resourceScopeCondition(credential, scope),
-        resourceScopeCondition(credentialGroup, scope),
-        eq(credentialGroupEnrollment.userId, input.userId),
-        eq(credential.type, 'managed_oauth'),
-        inArray(credential.managedOauthStatus, ['active', 'needs_reauth']),
-        isNull(credential.revokedAt),
-        or(...matches)
-      )
-    )
-    .limit(SEARCH_SOURCE_CANDIDATE_PAGE_SIZE + 1)
-  if (accounts.length > SEARCH_SOURCE_CANDIDATE_PAGE_SIZE)
-    throw new Error('Too many personal accounts for the source page')
+  const accounts = await listViewerOrganizationAccounts({
+    organizationId: input.organizationId,
+    userId: input.userId,
+    matching: or(...matches)!,
+  })
   for (const { source, providerId } of bindings) {
     const own = accounts.filter((account) =>
       source.accessMode === 'members'

@@ -28,6 +28,7 @@ import {
   type OrganizationAccountPeopleQuery,
   type RemoveOrganizationAccountMcpProviderParams,
   type ResendOrganizationAccountInvitationQuery,
+  reconnectPersonalOrganizationAccountContract,
   removeOrganizationAccountMcpProviderContract,
   resendOrganizationAccountInvitationContract,
   revokeOrganizationAccountEnrollmentContract,
@@ -42,6 +43,13 @@ import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organ
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
+
+export function useReconnectPersonalOrganizationAccount() {
+  return useMutation({
+    mutationFn: (credentialId: string) =>
+      requestJson(reconnectPersonalOrganizationAccountContract, { params: { credentialId } }),
+  })
+}
 
 /** Disconnects an owned grant; indexing and source setup do not gate this operation. */
 export function useDisconnectPersonalOrganizationAccount(organizationId: string) {

@@ -194,7 +194,7 @@ export const connectGitHubSearchInstallation = defineAuthorizedKnowledgeUseCase(
         .limit(1)
       const id = existing?.id ?? generateId()
       const now = new Date()
-      const displayName = `GitHub App · ${binding.accountLogin}`
+      const displayName = binding.accountLogin
       const values = {
         displayName,
         encryptedServiceAccountKey: encrypted,

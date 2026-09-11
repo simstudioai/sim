@@ -43,6 +43,7 @@ import {
   resolveActiveKnowledgeResourceContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
+import { rethrowGitHubInstallationSourceError } from '@/lib/knowledge/application/github-installation-error'
 import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
@@ -79,6 +80,11 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
 } from '@/lib/knowledge/constants'
+import {
+  documentProcessingOutcomeSelection,
+  failedDocumentCondition,
+  skippedDocumentCondition,
+} from '@/lib/knowledge/documents/processing-status'
 import {
   type ResolvedMembersBinding,
   resolveKnowledgeConnectorMembersBinding,
@@ -322,7 +328,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  })
+  }).catch(rethrowGitHubInstallationSourceError)
   return resolved
 }
 
@@ -420,7 +426,7 @@ export async function validateConnectorSourceConfig(input: {
     userId: tokenUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  })
+  }).catch(rethrowGitHubInstallationSourceError)
   if (!resolved) {
     return {
       message: 'Failed to refresh access token. Please reconnect your account.',
@@ -1268,6 +1274,8 @@ const connectorDocumentSelection = {
   userExcluded: document.userExcluded,
   uploadedAt: document.uploadedAt,
   processingStatus: document.processingStatus,
+  processingOutcome: documentProcessingOutcomeSelection(),
+  processingError: document.processingError,
 }
 
 export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase({
@@ -1316,7 +1324,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
         : undefined,
     ] as const
-    const [[activeCount], excludedCountRows, [failedCount]] = await Promise.all([
+    const [[activeCount], excludedCountRows, [outcomeCounts]] = await Promise.all([
       db
         .select({ value: count() })
         .from(document)
@@ -1328,15 +1336,12 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
             .where(and(...baseConditions, eq(document.userExcluded, true)))
         : Promise.resolve([{ value: 0 }]),
       db
-        .select({ value: count() })
+        .select({
+          failed: sql<number>`count(*) FILTER (WHERE ${failedDocumentCondition()})::int`,
+          skipped: sql<number>`count(*) FILTER (WHERE ${skippedDocumentCondition()})::int`,
+        })
         .from(document)
-        .where(
-          and(
-            ...baseConditions,
-            eq(document.userExcluded, false),
-            eq(document.processingStatus, 'failed')
-          )
-        ),
+        .where(and(...baseConditions, eq(document.userExcluded, false))),
     ])
     const excludedCount = excludedCountRows[0]
     const rows = await db
@@ -1346,7 +1351,8 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         and(
           ...baseConditions,
           filter ? eq(document.userExcluded, filter === 'excluded') : undefined,
-          filter === 'failed' ? eq(document.processingStatus, 'failed') : undefined
+          filter === 'failed' ? failedDocumentCondition() : undefined,
+          filter === 'skipped' ? skippedDocumentCondition() : undefined
         )
       )
       .orderBy(asc(document.userExcluded), asc(document.filename), asc(document.id))
@@ -1359,7 +1365,8 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
       counts: {
         active: activeCount?.value ?? 0,
         excluded: excludedCount?.value ?? 0,
-        failed: failedCount?.value ?? 0,
+        failed: outcomeCounts?.failed ?? 0,
+        skipped: outcomeCounts?.skipped ?? 0,
       },
       hasMore,
       offset,

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   organization,
@@ -9,16 +10,29 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { and, eq, inArray } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
+import * as embeddings from '@/lib/embeddings'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { listKnowledgeConnectorDocuments } from '@/lib/knowledge/application/connectors'
+import {
+  deleteKnowledgeConnector,
+  listKnowledgeConnectorDocuments,
+} from '@/lib/knowledge/application/connectors'
+import {
+  listKnowledgeDocuments,
+  readKnowledgeDocument,
+  updateKnowledgeDocument,
+} from '@/lib/knowledge/application/documents'
 import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
+import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
+import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
+import * as documentProcessor from '@/lib/knowledge/documents/document-processor'
+import { processDocumentAsync, retryDocumentProcessing } from '@/lib/knowledge/documents/service'
 
 const ids = createKnowledgeAclFixtureIds()
 const alice = { kind: 'session' as const, userId: ids.aliceId, sessionId: 'fixture-alice' }
@@ -207,14 +221,15 @@ describe('connector document filename search and document sets', () => {
       active: [failureId, ...planIds],
       excluded: [excludedId],
       failed: [failureId],
+      skipped: [],
     }
-    for (const filter of ['active', 'excluded', 'failed'] as const) {
+    for (const filter of ['active', 'excluded', 'failed', 'skipped'] as const) {
       const result = await listKnowledgeConnectorDocuments.execute({
         principal: viewer,
         input: { ...scope, filter, search: '  nEeDle  ' },
       })
       expect(result.documents.map((row) => row.id)).toEqual(expectedIds[filter])
-      expect(result.counts).toEqual({ active: 3, excluded: 1, failed: 1 })
+      expect(result.counts).toEqual({ active: 3, excluded: 1, failed: 1, skipped: 0 })
       expect(result.hasMore).toBe(false)
     }
   })
@@ -244,7 +259,7 @@ describe('connector document filename search and document sets', () => {
         input: { ...scope, filter: 'active', search },
       })
       expect(result.documents.map((row) => row.id)).toEqual([id])
-      expect(result.counts).toEqual({ active: 1, excluded: 0, failed: 0 })
+      expect(result.counts).toEqual({ active: 1, excluded: 0, failed: 0, skipped: 0 })
     }
   })
 
@@ -269,7 +284,7 @@ describe('connector document filename search and document sets', () => {
       input: { ...scope, filter: 'active', search: 'needle' },
     })
     expect(privateResult.documents.map((row) => row.id)).toEqual([privateId])
-    expect(privateResult.counts).toEqual({ active: 1, excluded: 0, failed: 1 })
+    expect(privateResult.counts).toEqual({ active: 1, excluded: 0, failed: 1, skipped: 0 })
 
     await db
       .delete(permissions)
@@ -282,5 +297,364 @@ describe('connector document filename search and document sets', () => {
         input: { ...scope, filter: 'active', search: 'needle' },
       })
     ).rejects.toThrow('Insufficient workspace permissions')
+  })
+})
+
+describe('intentional skips and genuine failures across document reads', () => {
+  const fixture = createKnowledgeAclFixtureIds()
+  const viewer = {
+    kind: 'session' as const,
+    userId: fixture.aliceId,
+    sessionId: 'fixture-outcomes',
+  }
+  const otherViewer = { ...viewer, userId: fixture.bobId }
+  const legacySkipId = generateId()
+  const sourceFailureId = generateId()
+  const indexingFailureId = generateId()
+  const privateLegacySkipId = generateId()
+  const scope = { knowledgeBaseId: fixture.knowledgeBaseId, connectorId: fixture.connectorId }
+  const expectedCounts = { active: 4, excluded: 0, failed: 2, skipped: 2 }
+  const skipIds = [legacySkipId]
+  const failureIds = [sourceFailureId, indexingFailureId]
+  const privateIds = [privateLegacySkipId]
+
+  beforeAll(async () => {
+    await seedKnowledgeAclFixture(fixture, { connectorType: 'google_drive' })
+    await db
+      .update(knowledgeBase)
+      .set({ isSearchIndex: true })
+      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+    const rows: Array<Partial<typeof document.$inferInsert> & { id: string; filename: string }> = [
+      {
+        id: legacySkipId,
+        filename: 'outcome-a-legacy.png',
+        fileUrl: '',
+        uploadedAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      {
+        id: sourceFailureId,
+        filename: 'outcome-c-source.txt',
+        contentHash: null,
+        fileUrl: '',
+        processingError: 'Source download unavailable',
+      },
+      {
+        id: indexingFailureId,
+        filename: 'outcome-d-indexing.txt',
+        storageKey: 'fixture-retained-artifact',
+        processingError: 'Embedding provider unavailable',
+      },
+      {
+        id: privateLegacySkipId,
+        filename: 'outcome-e-private-legacy.png',
+        fileUrl: '',
+        acl: [`u:${fixture.bobId}@fixture.test`],
+      },
+    ]
+    await db.insert(document).values(
+      rows.map((row) => ({
+        knowledgeBaseId: fixture.knowledgeBaseId,
+        connectorId: fixture.connectorId,
+        externalId: row.id,
+        fileUrl: `https://fixture.test/${row.id}`,
+        fileSize: 10,
+        mimeType: 'text/plain',
+        processingStatus: 'failed',
+        contentHash: `git-sha:${row.id}`,
+        storageKey: null,
+        processingError: 'A source omission reason whose wording may change',
+        acl: [`u:${fixture.aliceId}@fixture.test`],
+        aclVerifiedAt: new Date(),
+        ...row,
+      }))
+    )
+    for (const [externalId, title, userId, documentIds] of [
+      ['current-skip', 'outcome-b-skipped.png', fixture.aliceId, skipIds],
+      ['private-current-skip', 'outcome-f-private-skipped.png', fixture.bobId, privateIds],
+    ] as const) {
+      const [persisted] = await persistSkippedDocuments(
+        fixture.knowledgeBaseId,
+        fixture.connectorId,
+        'google_drive',
+        [
+          {
+            type: 'skip',
+            extDoc: {
+              externalId,
+              title,
+              content: '',
+              mimeType: 'text/plain',
+              contentHash: `git-sha:${externalId}`,
+              skippedReason: 'Current worker intentionally omitted this file',
+            },
+          },
+        ],
+        undefined,
+        'admin',
+        createContentSyncLease(fixture.connectorId, fixture.lockId)
+      )
+      documentIds.push(persisted.documentId)
+      await db
+        .update(document)
+        .set({ acl: [`u:${userId}@fixture.test`], aclVerifiedAt: new Date() })
+        .where(eq(document.id, persisted.documentId))
+    }
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'active', syncLockToken: null })
+      .where(eq(knowledgeConnector.id, fixture.connectorId))
+  })
+
+  afterAll(async () => {
+    await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+    await db.delete(organization).where(eq(organization.id, fixture.organizationId))
+    await db.delete(user).where(eq(user.id, fixture.aliceId))
+    await db.delete(user).where(eq(user.id, fixture.bobId))
+  })
+
+  it('projects legacy and current skips before authorized filtering, counting, and pagination', async () => {
+    const expectedIds: Record<ConnectorDocumentFilter, string[]> = {
+      active: [...skipIds, ...failureIds],
+      excluded: [],
+      failed: failureIds,
+      skipped: skipIds,
+    }
+    for (const filter of ['active', 'excluded', 'failed', 'skipped'] as const) {
+      const result = await listKnowledgeConnectorDocuments.execute({
+        principal: viewer,
+        input: { ...scope, filter, search: 'outcome-' },
+      })
+      expect(result.documents.map((row) => row.id)).toEqual(expectedIds[filter])
+      expect(result.counts).toEqual(expectedCounts)
+      expect(result.hasMore).toBe(false)
+      for (const row of result.documents) {
+        expect(row.processingStatus).toBe('failed')
+        expect(row.processingOutcome).toBe(skipIds.includes(row.id) ? 'skipped' : null)
+        expect(row.processingError).toBeTruthy()
+      }
+    }
+    const pages = await Promise.all(
+      [0, 1].map((offset) =>
+        listKnowledgeConnectorDocuments.execute({
+          principal: viewer,
+          input: { ...scope, filter: 'skipped', limit: 1, offset },
+        })
+      )
+    )
+    expect(pages.flatMap((page) => page.documents.map((row) => row.id))).toEqual(skipIds)
+    expect(pages.map((page) => page.hasMore)).toEqual([true, false])
+    expect(pages.map((page) => page.counts)).toEqual([expectedCounts, expectedCounts])
+    const legacyFailures = await listKnowledgeConnectorDocuments.execute({
+      principal: viewer,
+      input: { ...scope, failedOnly: true },
+    })
+    expect(legacyFailures.documents.map((row) => row.id)).toEqual(failureIds)
+  })
+
+  it('does not turn another viewer’s skips into indexing errors or expose their documents', async () => {
+    for (const [principal, failedCount] of [
+      [viewer, 2],
+      [otherViewer, 0],
+    ] as const) {
+      const sources = await listSearchSources.execute({
+        principal,
+        input: { workspaceId: fixture.workspaceId },
+      })
+      expect(sources.sources[0].viewerFailedDocumentCount).toBe(failedCount)
+      const progress = await readSearchSourceProgress.execute({
+        principal,
+        input: { workspaceId: fixture.workspaceId, connectorIds: [fixture.connectorId] },
+      })
+      expect(progress.sources).toEqual([
+        {
+          connectorId: fixture.connectorId,
+          isSyncing: false,
+          hasSyncError: false,
+          hasIndexingError: failedCount > 0,
+        },
+      ])
+    }
+    for (const filter of ['active', 'skipped', 'failed'] as const) {
+      const result = await listKnowledgeConnectorDocuments.execute({
+        principal: otherViewer,
+        input: { ...scope, filter },
+      })
+      expect(result.documents.map((row) => row.id)).toEqual(filter === 'failed' ? [] : privateIds)
+      expect(result.counts).toEqual({ active: 2, excluded: 0, failed: 0, skipped: 2 })
+    }
+    await expect(
+      readKnowledgeDocument.execute({
+        principal: viewer,
+        input: { knowledgeBaseId: fixture.knowledgeBaseId, documentId: privateLegacySkipId },
+      })
+    ).rejects.toThrow('Document not found')
+    await expect(
+      readKnowledgeDocument.execute({
+        principal: otherViewer,
+        input: { knowledgeBaseId: fixture.knowledgeBaseId, documentId: sourceFailureId },
+      })
+    ).rejects.toThrow('Document not found')
+  })
+
+  it('uses the same status for the regular knowledge base list and document detail', async () => {
+    const result = await listKnowledgeDocuments.execute({
+      principal: viewer,
+      input: { knowledgeBaseId: fixture.knowledgeBaseId },
+    })
+    expect(result.documents.map((row) => row.id).sort()).toEqual([...skipIds, ...failureIds].sort())
+    for (const row of result.documents) {
+      const expectedOutcome = skipIds.includes(row.id) ? 'skipped' : null
+      expect(row.processingStatus).toBe('failed')
+      expect(row.processingOutcome).toBe(expectedOutcome)
+      const detail = await readKnowledgeDocument.execute({
+        principal: viewer,
+        input: { knowledgeBaseId: fixture.knowledgeBaseId, documentId: row.id },
+      })
+      expect(detail.document.processingStatus).toBe('failed')
+      expect(detail.document.processingOutcome).toBe(expectedOutcome)
+      expect(detail.document.processingError).toBe(row.processingError)
+    }
+  })
+
+  it('rejects skipped and source-failed retries without changing stored outcomes or embedding dispatch', async () => {
+    const embed = vi
+      .spyOn(embeddings, 'embedKnowledge')
+      .mockRejectedValue(new Error('Unexpected embedding dispatch'))
+    const retryIds = [...skipIds, sourceFailureId]
+    const before = await db.select().from(document).where(inArray(document.id, retryIds))
+    try {
+      for (const documentId of retryIds) {
+        await expect(
+          updateKnowledgeDocument.execute({
+            principal: viewer,
+            input: { knowledgeBaseId: fixture.knowledgeBaseId, documentId, retryProcessing: true },
+          })
+        ).rejects.toThrow(
+          documentId === sourceFailureId ? 'Sync the connector' : 'intentionally skipped'
+        )
+      }
+      for (const documentId of skipIds) {
+        const stored = before.find((row) => row.id === documentId)!
+        const result = await retryDocumentProcessing(
+          fixture.knowledgeBaseId,
+          documentId,
+          stored,
+          'fixture-skipped-retry',
+          undefined
+        )
+        expect(result).toMatchObject({ success: false, status: 'skipped' })
+        expect(result.message).toContain('intentionally skipped')
+      }
+      const after = await db.select().from(document).where(inArray(document.id, retryIds))
+      expect(after.sort((left, right) => left.id.localeCompare(right.id))).toEqual(
+        before.sort((left, right) => left.id.localeCompare(right.id))
+      )
+      expect(
+        await db.select().from(embedding).where(inArray(embedding.documentId, retryIds))
+      ).toEqual([])
+      expect(embed).not.toHaveBeenCalled()
+    } finally {
+      embed.mockRestore()
+    }
+  })
+
+  it.each([false, true])(
+    'preserves legacy and current skips against delayed tokenless workers (missing context: %s)',
+    async (missingContext) => {
+      const processor = vi
+        .spyOn(documentProcessor, 'processDocument')
+        .mockRejectedValue(new Error('Unexpected skipped document processing'))
+      const embed = vi
+        .spyOn(embeddings, 'embedKnowledge')
+        .mockRejectedValue(new Error('Unexpected embedding dispatch'))
+      const before = await db.select().from(document).where(inArray(document.id, skipIds))
+      try {
+        if (missingContext) {
+          await db
+            .update(knowledgeBase)
+            .set({ deletedAt: new Date() })
+            .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+        }
+        for (const row of before) {
+          await processDocumentAsync(
+            fixture.knowledgeBaseId,
+            row.id,
+            row,
+            {},
+            undefined,
+            'fixture-delayed-tokenless-worker',
+            { chargedAtDispatch: false }
+          )
+        }
+        const after = await db.select().from(document).where(inArray(document.id, skipIds))
+        expect(after.sort((left, right) => left.id.localeCompare(right.id))).toEqual(
+          before.sort((left, right) => left.id.localeCompare(right.id))
+        )
+        expect(processor).not.toHaveBeenCalled()
+        expect(embed).not.toHaveBeenCalled()
+      } finally {
+        if (missingContext) {
+          await db
+            .update(knowledgeBase)
+            .set({ deletedAt: null })
+            .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+        }
+        processor.mockRestore()
+        embed.mockRestore()
+      }
+    }
+  )
+
+  it('preserves skip outcomes and real failures when a workspace source is removed with documents kept', async () => {
+    await expect(
+      deleteKnowledgeConnector.execute({
+        principal: viewer,
+        input: { ...scope, deleteDocuments: false },
+      })
+    ).rejects.toThrow('cannot be kept')
+    await db
+      .update(knowledgeBase)
+      .set({ isSearchIndex: false })
+      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+    await db
+      .update(knowledgeConnector)
+      .set({ accessMode: 'workspace' })
+      .where(eq(knowledgeConnector.id, fixture.connectorId))
+    /** Workspace syncs write workspace ACLs; detached rows must not retain mirrored grants. */
+    await db
+      .update(document)
+      .set({ acl: ['ws'], aclRequirements: [] })
+      .where(eq(document.connectorId, fixture.connectorId))
+    const result = await deleteKnowledgeConnector.execute({
+      principal: viewer,
+      input: { ...scope, deleteDocuments: false },
+    })
+    expect(result).toMatchObject({ documentsDeleted: 0, documentsKept: 6 })
+    const retained = await db
+      .select()
+      .from(document)
+      .where(eq(document.knowledgeBaseId, fixture.knowledgeBaseId))
+    expect(retained).toHaveLength(6)
+    for (const row of retained) {
+      expect(row.connectorId).toBeNull()
+      expect(row.acl).toEqual(['ws'])
+      expect(row.processingStatus).toBe('failed')
+    }
+    for (const documentId of skipIds) {
+      for (const principal of [viewer, otherViewer]) {
+        const detail = await readKnowledgeDocument.execute({
+          principal,
+          input: { knowledgeBaseId: fixture.knowledgeBaseId, documentId },
+        })
+        expect(detail.document.processingStatus).toBe('failed')
+        expect(detail.document.processingOutcome).toBe('skipped')
+      }
+      await expect(
+        updateKnowledgeDocument.execute({
+          principal: viewer,
+          input: { knowledgeBaseId: fixture.knowledgeBaseId, documentId, retryProcessing: true },
+        })
+      ).rejects.toThrow('intentionally skipped')
+    }
   })
 })

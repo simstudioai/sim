@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest, NextResponse } from 'next/server'
 import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/credential-groups'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
@@ -10,6 +11,7 @@ import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oaut
 import {
   CredentialGroupInvitationUnavailableError,
   CredentialGroupOAuthError,
+  CredentialGroupProviderConfigurationError,
 } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
@@ -80,11 +82,9 @@ export async function handleCredentialGroupOAuthCallback({
           connected: attempt.optionId,
         })
   } catch (error) {
-    logger.error('Managed OAuth authorization failed', {
-      provider,
-      error: getErrorMessage(error),
-    })
-    const status =
+    const identityFailure =
+      error instanceof CredentialGroupOAuthError ? error.identityFailure : undefined
+    let status: CredentialGroupOAuthFailure =
       error instanceof CredentialGroupInvitationUnavailableError
         ? 'unavailable'
         : error instanceof CredentialGroupOAuthError && error.statusCode === 403
@@ -94,6 +94,52 @@ export async function handleCredentialGroupOAuthCallback({
           : error instanceof CredentialGroupOAuthError && error.statusCode === 409
             ? 'configuration_changed'
             : 'failed'
+    if (identityFailure) {
+      switch (identityFailure.reason) {
+        case 'email_mismatch':
+          status = provider === 'github-repositories' ? 'github_email_mismatch' : 'account_mismatch'
+          break
+        case 'email_access_denied':
+          status =
+            provider === 'github-repositories'
+              ? 'github_email_access_denied'
+              : 'permissions_required'
+          break
+        case 'rate_limited':
+          status = 'rate_limited'
+          break
+        case 'provider_unavailable':
+        case 'invalid_response':
+          status = 'provider_unavailable'
+          break
+      }
+    }
+    const applicationError = asOrchestrationError(error)
+    logger.error('Managed OAuth authorization failed', {
+      provider,
+      failure: status,
+      errorClass:
+        error instanceof CredentialGroupInvitationUnavailableError
+          ? 'invitation_unavailable'
+          : error instanceof CredentialGroupOAuthError
+            ? 'credential_group_oauth'
+            : error instanceof CredentialGroupProviderConfigurationError
+              ? 'provider_configuration'
+              : applicationError
+                ? 'application'
+                : 'unexpected',
+      ...(error instanceof CredentialGroupOAuthError && { statusCode: error.statusCode }),
+      ...(error instanceof CredentialGroupProviderConfigurationError && { statusCode: 503 }),
+      ...(applicationError && {
+        applicationCode: applicationError.code,
+        statusCode: statusForOrchestrationError(applicationError.code),
+      }),
+      ...(identityFailure && {
+        identityReason: identityFailure.reason,
+        identityStage: identityFailure.stage,
+        providerStatus: identityFailure.httpStatus,
+      }),
+    })
     return failureRedirect(status)
   }
 }

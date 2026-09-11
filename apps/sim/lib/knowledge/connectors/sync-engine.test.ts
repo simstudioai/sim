@@ -276,7 +276,7 @@ describe('resolveTagMapping', () => {
 describe('classifyExternalDoc', () => {
   const base = { content: 'hello', contentDeferred: false, contentHash: 'h1' }
 
-  it('records a new skipped file as a failed row', async () => {
+  it('records a new skipped file as an intentional exclusion', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     expect(
       classifyExternalDoc({ ...base, content: '', skippedReason: 'too big' }, undefined)

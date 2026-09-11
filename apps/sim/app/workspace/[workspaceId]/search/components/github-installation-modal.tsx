@@ -102,13 +102,13 @@ export function GitHubInstallationModal({
   return (
     <ChipModal
       open
-      srTitle='Connect GitHub App'
+      srTitle='Connect GitHub'
       dismissDisabled={pending}
       onOpenChange={(open) => {
         if (!open && !pending) onClose()
       }}
     >
-      <ChipModalHeader onClose={onClose}>Connect GitHub App</ChipModalHeader>
+      <ChipModalHeader onClose={onClose}>Connect GitHub</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='custom'

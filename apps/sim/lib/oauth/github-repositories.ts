@@ -3,6 +3,10 @@ import { getOAuth2Tokens, type OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { z } from 'zod'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  OAuthIdentityVerificationError,
+  type OAuthIdentityVerificationStage,
+} from '@/lib/oauth/identity-error'
 
 export const GITHUB_REPOSITORIES_PROVIDER_ID = 'github-repositories'
 export const GITHUB_AUTHORIZATION_URL = 'https://github.com/login/oauth/authorize'
@@ -47,7 +51,7 @@ export async function verifyGitHubRepositoriesIdentity(
   expectedEmail?: string
 ) {
   if (!accessToken.startsWith('ghu_')) {
-    throw new Error('Connect with a GitHub App user authorization')
+    throw new OAuthIdentityVerificationError('provider_rejected', 'token')
   }
   const headers = {
     Accept: 'application/vnd.github+json',
@@ -55,29 +59,76 @@ export async function verifyGitHubRepositoriesIdentity(
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'Sim',
   }
-  async function get(path: string): Promise<unknown> {
+  async function get(path: string, stage: OAuthIdentityVerificationStage): Promise<unknown> {
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      headers,
-      signal,
-      redirect: 'error',
-    })
-    if (!response.ok) {
-      await response.body?.cancel()
-      throw new Error(`GitHub identity request failed with HTTP ${response.status}`)
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        headers,
+        signal,
+        redirect: 'error',
+      })
+    } catch {
+      throw new OAuthIdentityVerificationError('provider_unavailable', stage)
     }
-    return readResponseJsonWithLimit(response, {
-      maxBytes: RESPONSE_MAX_BYTES,
-      signal,
-      label: 'GitHub identity response',
-    })
+    if (!response.ok) {
+      let rateLimited =
+        response.status === 429 ||
+        (response.status === 403 &&
+          (response.headers.get('x-ratelimit-remaining') === '0' ||
+            response.headers.has('retry-after')))
+      if (response.status === 403 && !rateLimited) {
+        const body = await readResponseJsonWithLimit(response, {
+          maxBytes: RESPONSE_MAX_BYTES,
+          signal,
+          label: 'GitHub identity error response',
+        }).catch(() => null)
+        rateLimited =
+          typeof body === 'object' &&
+          body !== null &&
+          'message' in body &&
+          typeof body.message === 'string' &&
+          /rate limit|abuse detection/i.test(body.message)
+      } else {
+        await response.body?.cancel().catch(() => undefined)
+      }
+      const reason = rateLimited
+        ? 'rate_limited'
+        : response.status >= 500
+          ? 'provider_unavailable'
+          : response.status === 403 && stage === 'emails'
+            ? 'email_access_denied'
+            : 'provider_rejected'
+      throw new OAuthIdentityVerificationError(reason, stage, response.status)
+    }
+    try {
+      return await readResponseJsonWithLimit(response, {
+        maxBytes: RESPONSE_MAX_BYTES,
+        signal,
+        label: 'GitHub identity response',
+      })
+    } catch {
+      throw new OAuthIdentityVerificationError(
+        signal.aborted ? 'provider_unavailable' : 'invalid_response',
+        stage,
+        response.status
+      )
+    }
   }
-  const user = userSchema.parse(await get('/user'))
+  const parsedUser = userSchema.safeParse(await get('/user', 'profile'))
+  if (!parsedUser.success) {
+    throw new OAuthIdentityVerificationError('invalid_response', 'profile')
+  }
+  const user = parsedUser.data
   const normalizedEmail = expectedEmail?.trim().toLowerCase()
   for (let page = 1; page <= MAX_EMAIL_PAGES; page++) {
-    const emails = emailsSchema.parse(
-      await get(`/user/emails?per_page=${EMAIL_PAGE_SIZE}&page=${page}`)
+    const parsedEmails = emailsSchema.safeParse(
+      await get(`/user/emails?per_page=${EMAIL_PAGE_SIZE}&page=${page}`, 'emails')
     )
+    if (!parsedEmails.success) {
+      throw new OAuthIdentityVerificationError('invalid_response', 'emails')
+    }
+    const emails = parsedEmails.data
     const matching = emails.find(
       (entry) =>
         entry.verified &&
@@ -94,9 +145,11 @@ export async function verifyGitHubRepositoriesIdentity(
         grantedScopes: [],
       }
     }
-    if (emails.length < EMAIL_PAGE_SIZE) break
+    if (emails.length < EMAIL_PAGE_SIZE) {
+      throw new OAuthIdentityVerificationError('email_mismatch', 'emails')
+    }
   }
-  throw new Error('GitHub did not verify the required email address')
+  throw new OAuthIdentityVerificationError('invalid_response', 'emails')
 }
 
 interface GitHubRepositoriesProviderParams {

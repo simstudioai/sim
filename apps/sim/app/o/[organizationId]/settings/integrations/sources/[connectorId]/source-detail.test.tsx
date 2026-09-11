@@ -205,15 +205,20 @@ describe('organization source detail navigation', () => {
     )
   })
 
-  it('restores document search and status from the shared URL', async () => {
-    await render('?search=notes&document-filter=excluded')
-    expect(mocks.documents).toHaveBeenLastCalledWith(
-      expect.objectContaining({ search: 'notes', filter: 'excluded' })
-    )
-    expect(mocks.documents).toHaveBeenLastCalledWith(
-      expect.objectContaining({ searchControl: { value: 'notes', onChange: expect.any(Function) } })
-    )
-  })
+  it.each(['excluded', 'failed', 'skipped'])(
+    'restores document search and %s status from the shared URL',
+    async (filter) => {
+      await render(`?search=notes&document-filter=${filter}`)
+      expect(mocks.documents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: 'notes', filter })
+      )
+      expect(mocks.documents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          searchControl: { value: 'notes', onChange: expect.any(Function) },
+        })
+      )
+    }
+  )
 
   it.each(['', '?view=history'])(
     'shows a concise incomplete-update notice without provider details at %s',

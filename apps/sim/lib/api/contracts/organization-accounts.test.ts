@@ -3,7 +3,38 @@ import { describe, expect, it } from 'vitest'
 import {
   addOrganizationAccountMcpProviderContract,
   listOrganizationAccountPeopleContract,
+  reconnectPersonalOrganizationAccountContract,
+  startOrganizationAccountConnectionContract,
 } from '@/lib/api/contracts/organization-accounts'
+
+describe.each([
+  startOrganizationAccountConnectionContract,
+  reconnectPersonalOrganizationAccountContract,
+])('account connection response $path', (contract) => {
+  const invitationLink = 'https://sim.test/credential-groups/enroll/fixture-token'
+  const authorizationUrl =
+    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/option-1?returnTo=search'
+
+  it('accepts older enrollment-only responses and the additive direct OAuth URL', () => {
+    expect(contract.response.schema.parse({ invitationLink })).toEqual({ invitationLink })
+    expect(contract.response.schema.parse({ invitationLink, authorizationUrl })).toEqual({
+      invitationLink,
+      authorizationUrl,
+    })
+  })
+
+  it('rejects malformed or oversized direct URLs', () => {
+    expect(
+      contract.response.schema.safeParse({ invitationLink, authorizationUrl: '/relative' }).success
+    ).toBe(false)
+    expect(
+      contract.response.schema.safeParse({
+        invitationLink,
+        authorizationUrl: `https://sim.test/${'x'.repeat(8192)}`,
+      }).success
+    ).toBe(false)
+  })
+})
 
 describe('organization MCP provider creation contract', () => {
   const schema = addOrganizationAccountMcpProviderContract.body

@@ -8,6 +8,7 @@ import {
   getConnectorAccessAvailability,
   SEARCH_CONNECTORS,
 } from '@/lib/sim-search/connectors'
+import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -22,7 +23,12 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSearchSourceOverview, useSearchSources } from '@/hooks/queries/kb/connectors'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import {
+  organizationAccountsKeys,
+  useConnectOrganizationAccount,
+  useOrganizationAccounts,
+  useReconnectPersonalOrganizationAccount,
+} from '@/hooks/queries/organization-accounts'
 import { usePersonalSearchIntegrations } from '@/hooks/queries/personal-search-integrations'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
@@ -41,9 +47,38 @@ export function ConnectAccountOptions({
 }: ConnectAccountOptionsProps = {}) {
   const { organization, searchAccess } = useOrganizationContext()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const sources = useSearchSources(scope, { search })
+  const organizationAccounts = useOrganizationAccounts(organization.id)
+  const hasGitHubAccountInventory = organizationAccounts.data?.viewerAccounts !== undefined
+  const sources = useSearchSources(scope, {
+    search,
+    ...(hasGitHubAccountInventory ? { excludeConnectorType: 'github' } : {}),
+  })
   const overview = useSearchSourceOverview(scope)
   const integrations = useSearchIntegrations(organization.id)
+  const githubConfigured =
+    hasGitHubAccountInventory &&
+    overview.data?.providers.some((provider) => provider.connectorType === 'github') === true
+  const connectOrganizationAccount = useConnectOrganizationAccount()
+  const reconnectAccount = useReconnectPersonalOrganizationAccount()
+  const githubAccounts =
+    organizationAccounts.data?.viewerAccounts?.filter(
+      (account) => account.providerId === 'github-repositories'
+    ) ?? []
+  const githubAccount =
+    githubAccounts.find((account) => account.status === 'needs_reauth') ?? githubAccounts[0]
+  const showGitHubAccount =
+    Boolean(githubAccount) &&
+    ('github'.includes(search.toLowerCase()) ||
+      githubAccounts.some((account) =>
+        account.displayName.toLowerCase().includes(search.toLowerCase())
+      ))
+  const githubConnector = SEARCH_CONNECTORS.find((connector) => connector.type === 'github')
+  const githubOption =
+    organizationAccounts.data?.credentialGroup?.status === 'active'
+      ? organizationAccounts.data.credentialGroup.options.find(
+          (option) => option.provider === 'github-repositories' && option.status === 'active'
+        )
+      : undefined
   const slackInventory = usePersonalSearchIntegrations({
     organizationId: organization.id,
     connectorType: 'slack',
@@ -78,6 +113,7 @@ export function ConnectAccountOptions({
   const visibleSources =
     sources.data?.filter(
       (source) =>
+        (!hasGitHubAccountInventory || source.connectorType !== 'github') &&
         source.connectionRequired &&
         source.enabled &&
         source.approved !== false &&
@@ -99,6 +135,7 @@ export function ConnectAccountOptions({
   )
   const sourceChoices = SEARCH_CONNECTORS.filter((connector) => {
     if (
+      (connector.type === 'github' && githubAccounts.length > 0) ||
       (connector.type === 'slack' && !canConnectSharedSlack) ||
       !approvedTypes.has(connector.type) ||
       !connector.meta.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -135,10 +172,57 @@ export function ConnectAccountOptions({
           ? integrations
           : slackInventory.isError
             ? slackInventory
-            : null
+            : organizationAccounts.isError
+              ? organizationAccounts
+              : null
+
+  const connectGitHub = () => {
+    if (!githubOption || !githubConfigured) return
+    connectOrganizationAccount.mutate(
+      { organizationId: organization.id, optionId: githubOption.id },
+      {
+        onSuccess: ({ authorizationUrl, invitationLink }) =>
+          window.location.assign(authorizationUrl ?? invitationLink),
+        onError: (error) => toast.error(error.message),
+      }
+    )
+  }
 
   return (
     <>
+      {showGitHubAccount && githubAccount && githubConnector && (
+        <SettingsResourceRow
+          iconVariant='custom'
+          icon={<IntegrationTile blockType='github' icon={githubConnector.meta.icon} />}
+          title='GitHub'
+          description={`${githubAccounts.map((account) => account.displayName).join(', ')} · ${githubAccount.status === 'needs_reauth' ? 'Reconnect required' : 'Connected'}`}
+          trailing={
+            <div className='flex items-center gap-2'>
+              {githubAccount.status === 'needs_reauth' &&
+                githubOption &&
+                githubOption.id === githubAccount.optionId && (
+                  <Chip
+                    disabled={reconnectAccount.isPending}
+                    onClick={() =>
+                      reconnectAccount.mutate(githubAccount.credentialId, {
+                        onSuccess: ({ authorizationUrl, invitationLink }) =>
+                          window.location.assign(authorizationUrl ?? invitationLink),
+                        onError: (error) => toast.error(error.message),
+                      })
+                    }
+                  >
+                    Reconnect
+                  </Chip>
+                )}
+              <DisconnectAccountMenu
+                organizationId={organization.id}
+                integrationName='GitHub'
+                accounts={githubAccounts}
+              />
+            </div>
+          }
+        />
+      )}
       <div className={RESOURCE_LIST_STACK}>
         {failedQuery ? (
           <SettingsQueryErrorState
@@ -160,7 +244,8 @@ export function ConnectAccountOptions({
           overview.isPending ||
           integrations.isPending ||
           slackInventory.isPending ||
-          !availability.isIntegrationAvailabilityReady ? (
+          !availability.isIntegrationAvailabilityReady ||
+          organizationAccounts.isPending ? (
           <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
         ) : visibleSources.length > 0 || sourceChoices.length > 0 || sources.hasNextPage ? (
           <>
@@ -196,15 +281,27 @@ export function ConnectAccountOptions({
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
                   title={meta.name}
                   description={
-                    hasSources
-                      ? 'Connect a different site or content scope'
-                      : 'Connect your account to search this source'
+                    type === 'github' && githubConfigured
+                      ? githubOption
+                        ? 'Connect once to search the repositories your admin adds'
+                        : 'An admin needs to reconnect GitHub'
+                      : hasSources
+                        ? 'Connect a different site or content scope'
+                        : 'Connect your account to search this source'
                   }
                   trailing={
                     <Chip
                       variant='primary'
-                      disabled={enrollment.isPending}
-                      onClick={() => enrollment.connectSearchSource(scope, connector, undefined)}
+                      disabled={
+                        enrollment.isPending ||
+                        connectOrganizationAccount.isPending ||
+                        (type === 'github' && githubConfigured && !githubOption)
+                      }
+                      onClick={() =>
+                        type === 'github' && githubConfigured
+                          ? connectGitHub()
+                          : enrollment.connectSearchSource(scope, connector, undefined)
+                      }
                     >
                       Connect
                     </Chip>
@@ -214,7 +311,7 @@ export function ConnectAccountOptions({
             })}
             <SearchSourcePagination {...sources} />
           </>
-        ) : showEmpty ? (
+        ) : showEmpty && !showGitHubAccount ? (
           <SettingsEmptyState variant='inline'>
             {search ? 'No matching integrations.' : 'No integrations are available to connect.'}
           </SettingsEmptyState>

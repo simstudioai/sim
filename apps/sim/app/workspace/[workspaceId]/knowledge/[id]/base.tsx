@@ -47,7 +47,11 @@ import {
   getFieldTypeForSlot,
   KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
 } from '@/lib/knowledge/constants'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import {
+  type DocumentSortField,
+  getDocumentIndexingStatus,
+  type SortOrder,
+} from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import { captureEvent } from '@/lib/posthog/client'
@@ -175,7 +179,7 @@ const AnimatedLoader = ({ className }: { className?: string }) => (
 )
 
 const getStatusBadge = (doc: DocumentData) => {
-  switch (doc.processingStatus) {
+  switch (getDocumentIndexingStatus(doc)) {
     case 'pending':
       return (
         <Badge variant='gray' size='sm'>
@@ -186,6 +190,12 @@ const getStatusBadge = (doc: DocumentData) => {
       return (
         <Badge variant='purple' size='sm' icon={AnimatedLoader}>
           Processing
+        </Badge>
+      )
+    case 'skipped':
+      return (
+        <Badge variant='gray' size='sm'>
+          Skipped
         </Badge>
       )
     case 'failed':
@@ -1558,7 +1568,8 @@ export function KnowledgeBase({
             : undefined
         }
         onRetry={
-          contextMenuDocument?.processingStatus === 'failed' &&
+          contextMenuDocument &&
+          getDocumentIndexingStatus(contextMenuDocument) === 'failed' &&
           selectedDocumentCount === 1 &&
           userPermissions.canEdit
             ? () => handleRetryDocument(contextMenuDocument.id)

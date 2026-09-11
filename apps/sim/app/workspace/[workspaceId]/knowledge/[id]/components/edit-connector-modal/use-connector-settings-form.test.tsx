@@ -113,6 +113,23 @@ describe('shared connector settings form', () => {
     container.remove()
   })
 
+  it.each([
+    { sourceConfig: { repository: 'acme/platform', githubRepositoryId: '9010' }, expected: true },
+    { sourceConfig: { repository: 'acme/platform' }, expected: false },
+  ])(
+    'identifies installation settings from the persisted repository binding: $expected',
+    ({ sourceConfig, expected }) => {
+      render(
+        connector({ connectorType: 'github', credentialId: 'installation-1', sourceConfig }),
+        'github'
+      )
+      expect(form.fieldsProps.usesGitHubInstallation).toBe(expected)
+      expect(form.fieldsProps.access.accessMode).toBe('members')
+      expect(form.fieldsProps.sourceConfig.repository).toBe('acme/platform')
+      expect(mocks.applyAccess).not.toHaveBeenCalled()
+    }
+  )
+
   it('treats persisted JSONB label key order as an unchanged draft', () => {
     render(
       connector({

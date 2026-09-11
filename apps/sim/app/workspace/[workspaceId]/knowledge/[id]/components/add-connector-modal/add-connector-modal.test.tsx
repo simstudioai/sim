@@ -20,7 +20,8 @@ const mocks = vi.hoisted(() => ({
   selectionLabels: undefined as SourceSelectionLabels | undefined,
   canonicalModes: {} as Record<string, 'basic' | 'advanced'>,
   isFieldPopulated: vi.fn(() => true),
-  credentials: [] as Pick<Credential, 'id' | 'name' | 'type'>[],
+  credentials: [] as (Pick<Credential, 'id' | 'name' | 'type'> &
+    Partial<Pick<Credential, 'provider'>>)[],
   credentialsState: 'ready' as 'ready' | 'loading' | 'error',
   refetchCredentials: vi.fn(),
   oauthModal: vi.fn(),
@@ -191,7 +192,12 @@ vi.mock('@/app/workspace/[workspaceId]/search/components/github-installation-mod
       <button
         onClick={() => {
           mocks.credentials = [
-            { id: 'github-app-credential', name: 'GitHub App: acme', type: 'service_account' },
+            {
+              id: 'github-app-credential',
+              name: 'GitHub App: acme',
+              type: 'service_account',
+              provider: 'github-app-installation',
+            },
           ]
           props.onConnected('github-app-credential')
         }}
@@ -477,18 +483,21 @@ describe('Search methods requiring member identity', () => {
       initialAccessMode: 'members',
       scope: { kind: 'organization', organizationId: 'org-1' },
     })
-    expect(document.body.textContent).toContain('Sync documents with')
-    await act(async () => combobox('Connected members').click())
-    const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
-      (node) => node.textContent?.trim() === 'Connect GitHub App'
-    )
-    if (!option) throw new Error('Missing GitHub App option')
-    await act(async () => option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    expect(document.body.textContent).not.toContain('Sync documents with')
+    expect(document.body.textContent).not.toContain('Connected members')
+    expect(button('Add repository')).toBeDisabled()
+    await act(async () => button('Connect GitHub').click())
     expect(mocks.githubInstallationModal).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org-1' })
     )
     await act(async () => button('Use GitHub installation').click())
-    expect(combobox('GitHub App: acme')).toBeDefined()
+    expect(button('GitHub App: acme')).toBeDefined()
+    expect(
+      configFieldsProps().connectorConfig.configFields.find((field) => field.id === 'repository')
+    ).toMatchObject({
+      type: 'selector',
+      selectorKey: 'github.installationRepositories',
+    })
     await act(async () => button('Add repository').click())
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -994,15 +1003,16 @@ describe('Account connection dropdown', () => {
     expect(mocks.oauthModal).not.toHaveBeenCalled()
   })
 
-  it('offers GitHub indexing accounts directly without requiring a browsing credential', async () => {
+  it('keeps member and dedicated GitHub indexing choices in workspace Search', async () => {
     mocks.credentials = []
     await render({
       initialConnectorType: 'github',
       lockedAccessMode: 'members',
-      scope: { kind: 'organization', organizationId: 'org-1' },
+      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
       setupDraftKey: 'github-members',
     })
     expect(document.body.textContent).not.toContain('Account for browsing')
+    await act(async () => button('More options').click())
     expect(document.body.textContent).toContain('Sync documents with')
     await act(async () => combobox('Connected members').click())
     const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
@@ -1015,7 +1025,7 @@ describe('Account connection dropdown', () => {
     expect(mocks.oauthModal).toHaveBeenLastCalledWith(
       expect.objectContaining({
         open: true,
-        organizationId: 'org-1',
+        workspaceId: 'workspace-1',
         connectorType: 'github',
         sourceAccess: 'members',
       })
