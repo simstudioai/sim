@@ -10,10 +10,10 @@ function tool(toolName: string, status: ToolCallStatus = 'success'): ToolCallDat
 }
 
 describe('getToolActivitySummary', () => {
-  it('summarizes distinct actions in the order they occurred', () => {
+  it('caps distinct actions in order and counts the remaining categories, not repeated calls', () => {
     expect(
       getToolActivitySummary([tool('read'), tool('terminal_run'), tool('read'), tool('grep')])
-    ).toBe('Read files, ran commands, searched files')
+    ).toBe('Read files, ran commands +1 more')
   })
 
   it('summarizes browser navigation and interactions without repeating actions', () => {
@@ -24,7 +24,7 @@ describe('getToolActivitySummary', () => {
         tool('browser_type'),
         tool('browser_navigate'),
       ])
-    ).toBe('Navigated pages, read pages, entered text')
+    ).toBe('Navigated pages, read pages +1 more')
   })
 
   it('does not describe unsuccessful work as completed actions', () => {
@@ -79,9 +79,21 @@ describe('getToolActivitySummary', () => {
         tool('deploy_as_api'),
         tool('table_rows'),
       ])
-    ).toBe(
-      'Navigated pages, filled forms, entered text, read documents, ran workflows, deployed workflows, used tables'
-    )
+    ).toBe('Navigated pages, filled forms +5 more')
+  })
+
+  it('keeps failure and interruption counts visible when action categories are capped', () => {
+    expect(
+      getToolActivitySummary([
+        tool('read'),
+        tool('grep'),
+        tool('terminal'),
+        tool('browser_navigate'),
+        tool('apply_file_edit', 'error'),
+        tool('wait', 'interrupted'),
+        tool('browser_type', 'skipped'),
+      ])
+    ).toBe('Read files, searched files +2 more · 1 failed · 1 stopped · 1 skipped')
   })
 
   it('describes terminal runs from their operation', () => {

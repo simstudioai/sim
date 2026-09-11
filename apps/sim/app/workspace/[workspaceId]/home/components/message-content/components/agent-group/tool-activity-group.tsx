@@ -8,6 +8,8 @@ import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/compo
 import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
+const MAX_SUMMARY_ACTIONS = 2
+
 const ACTIVITY_LABELS: Readonly<Record<string, string>> = {
   read: 'read files',
   read_document: 'read documents',
@@ -80,14 +82,16 @@ export function getToolActivitySummary(tools: ToolCallData[]): string {
     else if (tool.status === ToolCallStatus.skipped || tool.status === ToolCallStatus.rejected)
       skipped++
   }
-  const summary = Array.from(labels).join(', ')
+  const summary = Array.from(labels).slice(0, MAX_SUMMARY_ACTIONS).join(', ')
+  const summaryLabel = summary ? summary[0].toUpperCase() + summary.slice(1) : 'Tool activity'
+  const additionalActions = Math.max(0, labels.size - MAX_SUMMARY_ACTIONS)
   const outcomes = [
     failed && `${failed} failed`,
     stopped && `${stopped} stopped`,
     skipped && `${skipped} skipped`,
   ].filter(Boolean)
   return [
-    summary ? summary[0].toUpperCase() + summary.slice(1) : 'Tool activity',
+    additionalActions > 0 ? `${summaryLabel} +${additionalActions} more` : summaryLabel,
     ...outcomes,
   ].join(' · ')
 }
