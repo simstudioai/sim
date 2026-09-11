@@ -630,7 +630,7 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(rows.map((row) => row.id)).toEqual(['selected'])
     expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [20], [0], [20]])
     expect(getForConnectors).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the nearest exact results when an earlier ANN page hydrated only a farther result', async () => {

@@ -59,7 +59,10 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
   generateSearchEmbedding: mocks.generateEmbedding,
-  executeKnowledgeSearch: mocks.executeSearch,
+  retrieveKnowledgeSearch: async (...args: unknown[]) => ({
+    rows: await mocks.executeSearch(...args),
+    retrieval: { status: 'complete', timedOutLegs: [] },
+  }),
   getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))
 

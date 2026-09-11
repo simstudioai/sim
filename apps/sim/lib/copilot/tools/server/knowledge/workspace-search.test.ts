@@ -61,6 +61,7 @@ describe('Assistant retrieval tools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.search.mockResolvedValue({
+      retrieval: { status: 'complete', timedOutLegs: [] },
       knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
       results: [
         {
@@ -83,7 +84,7 @@ describe('Assistant retrieval tools', () => {
       sourceUrl: 'https://source.test/doc',
       chunks: [{ content: 'body', chunkIndex: 0 }],
       hasMore: false,
-      nextOffset: null,
+      next: null,
     })
   })
   it('pins organization and private chat while reusing the canonical search index and citations', async () => {
@@ -192,6 +193,7 @@ describe('Assistant retrieval tools', () => {
     async (count) => {
       const content = 'Confidential passage é🔎'.repeat(100)
       mocks.search.mockResolvedValueOnce({
+        retrieval: { status: 'complete', timedOutLegs: [] },
         knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
         results: Array.from({ length: count }, (_, index) => ({
           knowledgeBaseId: 'index',
@@ -217,8 +219,9 @@ describe('Assistant retrieval tools', () => {
         expect.objectContaining({
           toolCallId: 'call',
           toolResultBytes: Buffer.byteLength(JSON.stringify(output)),
-          passageBytes: count * Buffer.byteLength(content),
-          maxPassageBytes: count ? Buffer.byteLength(content) : 0,
+          passageBytes: count * Buffer.byteLength(content.slice(0, 1200)),
+          originalPassageBytes: count * Buffer.byteLength(content),
+          maxPassageBytes: count ? Buffer.byteLength(content.slice(0, 1200)) : 0,
           uniqueDocumentCount: Math.min(count, 4),
         })
       )
@@ -245,6 +248,7 @@ describe('Assistant retrieval tools', () => {
   })
   it('projects the provider name for connected-source citations instead of the index name', async () => {
     mocks.search.mockResolvedValueOnce({
+      retrieval: { status: 'complete', timedOutLegs: [] },
       knowledgeBases: [{ id: 'index', name: 'Sim Search' }],
       results: [
         {
@@ -292,20 +296,20 @@ describe('Assistant retrieval tools', () => {
   })
   it('reads a selected document through the shared use case and rejects unbounded pages', async () => {
     expect(
-      await readDocumentServerTool.execute({ documentId: 'doc', offset: 20 }, context)
+      await readDocumentServerTool.execute({ documentId: 'doc', startChunkIndex: 20 }, context)
     ).toMatchObject({ success: true })
     expect(mocks.read).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({
           assertedWorkspaceId: 'workspace',
           filters: context.assistantSearch,
-          offset: 20,
-          limit: 20,
+          startChunkIndex: 20,
+          limit: 3,
         }),
       })
     )
     expect(
-      await readDocumentServerTool.execute({ documentId: 'doc', limit: 10000 }, context)
+      await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
     ).toMatchObject({ success: false })
     expect(mocks.read).toHaveBeenCalledOnce()
   })

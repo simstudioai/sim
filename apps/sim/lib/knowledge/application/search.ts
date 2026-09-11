@@ -41,12 +41,14 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
-  executeKnowledgeSearch,
   getDocumentMetadataByIds,
+  type RetrievalStatus,
+  retrieveKnowledgeSearch,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
@@ -88,6 +90,8 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
 export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 
 export interface SearchKnowledgeInput {
+  /** Only surfaces displaying retrieval status may accept incomplete evidence. */
+  allowPartialResults?: boolean
   /** Optional assertion from a trusted adapter or public contract. */
   workspaceId?: string
   organizationId?: string
@@ -154,6 +158,7 @@ interface KnowledgeSearchCost {
 }
 
 export interface SearchKnowledgeResult {
+  retrieval: RetrievalStatus
   results: KnowledgeSearchItem[]
   query: string
   knowledgeBaseIds: string[]
@@ -397,8 +402,8 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
           )
         : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
-    let rows = await measureSearchStage('retrieval', () =>
-      executeKnowledgeSearch({
+    const retrieved = await measureSearchStage('retrieval', () =>
+      retrieveKnowledgeSearch({
         knowledgeBaseIds,
         topK: candidateTopK,
         filters: input.filters,
@@ -418,6 +423,13 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       })
     )
 
+    if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
+      throw new SearchDeadlineError()
+    annotateSearchDiagnostics({
+      retrievalStatus: retrieved.retrieval.status,
+      timedOutLegs: retrieved.retrieval.timedOutLegs,
+    })
+    let rows = retrieved.rows
     input.signal?.throwIfAborted()
     /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */
     const registrySubjectUserId = resolvePrincipalSubjectUserId(principal)
@@ -697,6 +709,9 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       }
     }
     annotateSearchDiagnostics({ resultCount: results.length })
+    if (retrieved.retrieval.status === 'partial' && results.length === 0) {
+      throw new SearchDeadlineError()
+    }
     const cost = baseCost
       ? {
           input: baseCost.input,
@@ -715,6 +730,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
         }
       : undefined
     return {
+      retrieval: retrieved.retrieval,
       results,
       query: input.query ?? '',
       knowledgeBaseIds,

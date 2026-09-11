@@ -56,8 +56,7 @@ const context = {
 const input = {
   documentId: 'doc',
   assertedWorkspaceId: 'workspace',
-  offset: 0,
-  limit: 20,
+  limit: 3,
   filters: { source: 'slack', documentIds: ['doc'] },
   resultSecretRegistry: new ResolvedSecretTraceRegistry([], {
     userId: 'reader',
@@ -89,7 +88,7 @@ describe('Assistant document read', () => {
     await expect(readSearchDocument.execute({ principal, input })).resolves.toMatchObject({
       documentId: 'doc',
       chunks: [{ content: 'body', chunkIndex: 0 }],
-      nextOffset: null,
+      next: null,
     })
     expect(mocks.context).toHaveBeenCalledWith({ ...input, knowledgeBaseId: 'index' }, principal)
     expect(mocks.chunks).toHaveBeenCalledWith(
@@ -97,8 +96,7 @@ describe('Assistant document read', () => {
       expect.objectContaining({
         documentFilters: input.filters,
         enabled: 'true',
-        offset: 0,
-        limit: 20,
+        limit: 3,
       }),
       expect.any(String),
       access
@@ -192,5 +190,83 @@ describe('organization Search document reads', () => {
     ).rejects.toThrow('exactly one')
     expect(mocks.context).not.toHaveBeenCalled()
     expect(mocks.chunks).not.toHaveBeenCalled()
+  })
+})
+
+describe('precise bounded passage expansion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.permission.mockResolvedValue('read')
+    mocks.context.mockResolvedValue(context)
+    mocks.provenance.mockResolvedValue({ imported: true, documentMetadata: {} })
+  })
+
+  it('projects a secret spanning the page boundary before slicing it', async () => {
+    const secret = 'private-token-that-crosses-the-boundary'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    mocks.provenance.mockImplementationOnce(async () => {
+      registry.recordResolved('TOKEN', secret)
+      return { imported: true, documentMetadata: {} }
+    })
+    mocks.chunks.mockResolvedValue({
+      chunks: [{ id: 'secret-chunk', chunkIndex: 0, content: `${'x'.repeat(7990) + secret}tail` }],
+      pagination: { total: 1, hasMore: false },
+    })
+    const result = await readSearchDocument.execute({
+      principal,
+      input: { ...input, resultSecretRegistry: registry },
+    })
+    expect(result.chunks[0].content).toContain('{{TOKEN}}')
+    expect(JSON.stringify(result)).not.toContain('private-token')
+  })
+
+  it('continues a long chunk before advancing across disabled chunk gaps', async () => {
+    const content = 'Evidence 🔎\n'.repeat(1100)
+    mocks.chunks.mockResolvedValue({
+      chunks: [
+        { id: 'c7', chunkIndex: 7, content },
+        { id: 'c11', chunkIndex: 11, content: 'next enabled passage' },
+      ],
+      pagination: { total: 2, hasMore: false },
+    })
+    const first = await readSearchDocument.execute({
+      principal,
+      input: { ...input, startChunkIndex: 7 },
+    })
+    expect(first.chunks).toHaveLength(1)
+    expect(first.chunks[0].content.length).toBeLessThanOrEqual(8000)
+    expect(first.next).toEqual({ startChunkIndex: 7, startOffset: first.chunks[0].endOffset })
+    const second = await readSearchDocument.execute({
+      principal,
+      input: { ...input, ...first.next! },
+    })
+    expect(first.chunks[0].content + second.chunks[0].content).toBe(content)
+    expect(second.chunks[1].chunkIndex).toBe(11)
+    expect(second.next).toBeNull()
+    expect(mocks.chunks).toHaveBeenCalledWith(
+      'doc',
+      expect.objectContaining({ startChunkIndex: 7, requireEnabledDocument: true }),
+      expect.any(String),
+      access
+    )
+  })
+
+  it('rejects positions without an anchor and stale within-chunk continuation', async () => {
+    await expect(
+      readSearchDocument.execute({ principal, input: { ...input, startOffset: 2 } })
+    ).rejects.toThrow('startOffset requires startChunkIndex')
+    expect(mocks.chunks).not.toHaveBeenCalled()
+    mocks.chunks.mockResolvedValue({
+      chunks: [{ id: 'c8', chunkIndex: 8, content: 'replacement' }],
+      pagination: { total: 1, hasMore: false },
+    })
+    await expect(
+      readSearchDocument.execute({
+        principal,
+        input: { ...input, startChunkIndex: 7, startOffset: 100 },
+      })
+    ).rejects.toThrow('no longer available')
   })
 })
