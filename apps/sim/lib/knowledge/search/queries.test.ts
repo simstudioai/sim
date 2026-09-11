@@ -606,6 +606,76 @@ describe('live repository authorization follows ranked candidates', () => {
     )
   })
 
+  it('restarts exact ranking at zero and advances past already considered ANN candidates', async () => {
+    const probe = Array.from({ length: 200 }, (_, index) =>
+      candidate(`probe-${index}`, 'allowed-source')
+    )
+    const approximate = Array.from({ length: 20 }, (_, index) =>
+      candidate(`approximate-${index}`, 'allowed-source')
+    )
+    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, approximate)
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, approximate)
+    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+    queueTableRows(schemaMock.embedding, [
+      { id: 'selected', content: 'Reachable after the exact restart', distance: 0.1 },
+    ])
+
+    const rows = await handleVectorOnlySearch({ ...params, structuredFilters: undefined })
+
+    expect(rows.map((row) => row.id)).toEqual(['selected'])
+    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [20], [0], [20]])
+    expect(getForConnectors).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps the nearest exact results when an earlier ANN page hydrated only a farther result', async () => {
+    const probe = Array.from({ length: 200 }, (_, index) =>
+      candidate(`probe-${index}`, 'allowed-source')
+    )
+    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, [
+      { ...candidate('far', 'allowed-source'), distance: 0.7 },
+      ...Array.from({ length: 19 }, (_, index) => candidate(`hidden-${index}`, 'allowed-source')),
+    ])
+    queueTableRows(schemaMock.embedding, [{ id: 'far', content: 'Far result', distance: 0.7 }])
+    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, [
+      candidate('near', 'allowed-source'),
+      candidate('nearer', 'allowed-source'),
+      candidate('far', 'allowed-source'),
+    ])
+    queueTableRows(schemaMock.embedding, [
+      { id: 'near', content: 'Near result', distance: 0.2 },
+      { id: 'nearer', content: 'Nearest result', distance: 0.1 },
+    ])
+
+    const rows = await handleVectorOnlySearch({
+      ...params,
+      topK: 2,
+      structuredFilters: undefined,
+    })
+
+    expect(rows.map((row) => row.id)).toEqual(['nearer', 'near'])
+    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [20], [0]])
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-1)![0],
+        (node) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.embedding.id &&
+          Array.isArray(node.values) &&
+          node.values.length === 2 &&
+          !node.values.includes('far')
+      )
+    ).toBe(true)
+  })
+
   it.each(['vector', 'tag-vector', 'tags', 'keyword'] as const)(
     '%s ranks identifiers before verification and loads content under the full predicate',
     async (mode) => {

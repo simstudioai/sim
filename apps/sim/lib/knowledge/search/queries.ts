@@ -432,6 +432,12 @@ function getVisibilityConditions(
   ]
 }
 
+/** Each ranking strategy owns its cursor; ANN offsets cannot paginate exact ordering. */
+interface SearchReadCandidatePage {
+  candidates: SearchReadCandidate[]
+  nextOffset: number
+}
+
 interface SearchReadCandidate {
   id: string
   documentId: string
@@ -474,13 +480,15 @@ async function selectAuthorizedSearchResults(input: {
     limit: number,
     offset: number,
     excludedSources: readonly string[]
-  ) => Promise<SearchReadCandidate[]>
+  ) => Promise<SearchReadCandidatePage>
+  compareResults?: (a: SearchResult, b: SearchResult) => number
   hydrate: (ids: string[], access: KnowledgeAccessScope) => Promise<SearchResult[]>
 }): Promise<SearchResult[]> {
   const deadline = Date.now() + LIVE_SEARCH_BUDGET_MS
   const pageSize = Math.min(LIVE_SEARCH_PAGE_SIZE, Math.max(input.topK, 20))
   const results = new Map<string, SearchResult>()
   const excludedSources = new Set<string>()
+  const considered = new Set<string>()
   let scanned = 0
   let offset = 0
   while (
@@ -489,11 +497,18 @@ async function selectAuthorizedSearchResults(input: {
     Date.now() < deadline
   ) {
     input.signal?.throwIfAborted()
-    const candidates = await measureSearchStage(`${input.leg}.candidates`, () =>
+    const page = await measureSearchStage(`${input.leg}.candidates`, () =>
       input.selectPage(pageSize, offset, [...excludedSources])
     )
-    if (!candidates.length) break
-    scanned += candidates.length
+    if (!page.candidates.length) break
+    scanned += page.candidates.length
+    offset = page.nextOffset
+    const candidates = page.candidates.filter((candidate) => !considered.has(candidate.id))
+    for (const candidate of candidates) considered.add(candidate.id)
+    if (!candidates.length) {
+      if (page.candidates.length < pageSize) break
+      continue
+    }
     /** Candidate and hydration queries enforce this source filter; connector types are immutable. */
     const connectorIds =
       input.filters?.source &&
@@ -538,13 +553,15 @@ async function selectAuthorizedSearchResults(input: {
     for (const candidate of candidates) {
       const row = byId.get(candidate.id)
       if (row) results.set(row.id, row)
-      if (results.size === input.topK) break
+      if (!input.compareResults && results.size === input.topK) break
+    }
+    if (input.compareResults) {
+      const ranked = [...results.values()].sort(input.compareResults).slice(0, input.topK)
+      results.clear()
+      for (const row of ranked) results.set(row.id, row)
     }
     if (excludedSources.size > excludedBefore) offset = 0
-    else {
-      offset += candidates.length
-      if (candidates.length < pageSize) break
-    }
+    else if (page.candidates.length < pageSize) break
   }
   input.signal?.throwIfAborted()
   return [...results.values()]
@@ -613,8 +630,8 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
       filters: params.filters,
       signal: params.signal,
       topK,
-      selectPage: (limit, offset, excludedSources) =>
-        db
+      selectPage: async (limit, offset, excludedSources) => {
+        const candidates = await db
           .select(SEARCH_READ_CANDIDATE_FIELDS)
           .from(embedding)
           .innerJoin(document, eq(embedding.documentId, document.id))
@@ -631,7 +648,9 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           )
           .orderBy(embedding.id)
           .limit(limit)
-          .offset(offset),
+          .offset(offset)
+        return { candidates, nextOffset: offset + candidates.length }
+      },
       hydrate: (ids, authorized) =>
         hydrateSearchCandidates(
           ids,
@@ -744,12 +763,14 @@ async function selectLiveVectorResults(
   filters: (SQL | undefined)[]
 ): Promise<SearchResult[]> {
   const conditions = [inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...filters]
+  let useExactRanking = false
   const rows = await selectAuthorizedSearchResults({
     leg: 'vector',
     accessProvider,
     filters: params.filters,
     signal: params.signal,
     topK: params.topK,
+    compareResults: (a, b) => a.distance - b.distance,
     selectPage: (limit, offset, excludedSources) =>
       withVectorScanSettings(async (executor) => {
         const visibility = [
@@ -761,8 +782,10 @@ async function selectLiveVectorResults(
           excludeSearchSources(excludedSources),
         ]
         /** Adding zero prevents an underfilled HNSW scan from being chosen again for fallback. */
-        const exactPage = (candidateIds?: string[]) =>
-          measureSearchStage('vector.exact', () =>
+        const exactPage = async (candidateIds?: string[]) => {
+          const exactOffset = useExactRanking ? offset : 0
+          useExactRanking = true
+          const candidates = await measureSearchStage('vector.exact', () =>
             executor
               .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
               .from(embedding)
@@ -776,8 +799,10 @@ async function selectLiveVectorResults(
               )
               .orderBy(sql`(${distance}) + 0`, embedding.id)
               .limit(limit)
-              .offset(offset)
+              .offset(exactOffset)
           )
+          return { candidates, nextOffset: exactOffset + candidates.length }
+        }
         if (params.filters?.documentIds?.length || params.structuredFilters?.length) {
           return exactPage()
         }
@@ -790,10 +815,11 @@ async function selectLiveVectorResults(
             .where(and(inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...visibility))
             .limit(LIVE_SEARCH_PAGE_SIZE)
         )
-        if (probe.length === 0) return []
+        if (probe.length === 0) return { candidates: [], nextOffset: offset }
         if (probe.length < LIVE_SEARCH_PAGE_SIZE) {
           return exactPage(probe.map((candidate) => candidate.id))
         }
+        if (useExactRanking) return exactPage()
         const ranked = executor
           .select({ id: embedding.id, distance: distance.as('distance') })
           .from(embedding)
@@ -819,7 +845,11 @@ async function selectLiveVectorResults(
             .innerJoin(document, eq(document.id, embedding.documentId))
             .orderBy(ranked.distance, ranked.id)
         )
-        return page.length < limit ? exactPage() : page.sort((a, b) => a.distance - b.distance)
+        if (page.length < limit) return exactPage()
+        return {
+          candidates: page.sort((a, b) => a.distance - b.distance),
+          nextOffset: offset + page.length,
+        }
       }),
     hydrate: (ids, authorized) =>
       hydrateSearchCandidates(ids, authorized, distance.as('distance'), params.filters, conditions),
@@ -917,8 +947,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       filters: params.filters,
       signal: params.signal,
       topK,
-      selectPage: (limit, offset, excludedSources) =>
-        db
+      selectPage: async (limit, offset, excludedSources) => {
+        const candidates = await db
           .select({ ...SEARCH_READ_CANDIDATE_FIELDS, keywordRank: rankExpr.as('keyword_rank') })
           .from(embedding)
           .innerJoin(document, eq(embedding.documentId, document.id))
@@ -935,7 +965,9 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           )
           .orderBy(sql`${rankExpr} DESC`, embedding.id)
           .limit(limit)
-          .offset(offset),
+          .offset(offset)
+        return { candidates, nextOffset: offset + candidates.length }
+      },
       hydrate: (ids, authorized) =>
         hydrateSearchCandidates(
           ids,

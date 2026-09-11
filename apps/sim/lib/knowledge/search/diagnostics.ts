@@ -65,6 +65,11 @@ export interface SearchDiagnosticMetadata {
   boostRecency?: boolean
   embeddingDimensions?: number
   resultCount?: number
+  /** Tool output before the executor's final egress projection; counts only, never content. */
+  toolResultBytes?: number
+  passageBytes?: number
+  maxPassageBytes?: number
+  uniqueDocumentCount?: number
 }
 
 interface StageTiming {

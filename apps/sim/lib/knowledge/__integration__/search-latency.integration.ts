@@ -132,6 +132,10 @@ const diagnosticSchema = z
     surface: z.enum(['dashboard', 'copilot']),
     outcome: z.literal('success'),
     elapsedMs: z.number(),
+    toolResultBytes: z.number().int().nonnegative().optional(),
+    passageBytes: z.number().int().nonnegative().optional(),
+    maxPassageBytes: z.number().int().nonnegative().optional(),
+    uniqueDocumentCount: z.number().int().nonnegative().optional(),
     stages: z.record(
       z.string(),
       z.object({
@@ -197,6 +201,15 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
   const diagnostics = diagnosticSchema.parse(completed[0][1])
   expect(diagnostics.stages.embedding.count).toBe(1)
   expect(diagnostics.stages.retrieval.count).toBe(1)
+  if (diagnostics.surface === 'copilot') {
+    const passageBytes = result.data.results.map((row) => Buffer.byteLength(row.content))
+    expect(diagnostics.passageBytes).toBe(passageBytes.reduce((total, bytes) => total + bytes, 0))
+    expect(diagnostics.maxPassageBytes).toBe(Math.max(0, ...passageBytes))
+    expect(diagnostics.uniqueDocumentCount).toBe(
+      new Set(result.data.results.map((row) => row.documentId)).size
+    )
+    expect(diagnostics.toolResultBytes).toBeGreaterThan(diagnostics.passageBytes!)
+  }
   expect(captured.length).toBeLessThan(300)
   const searches = captured.filter(
     (item) =>

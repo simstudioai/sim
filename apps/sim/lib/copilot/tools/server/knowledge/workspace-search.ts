@@ -17,6 +17,7 @@ import {
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
 import {
+  annotateSearchDiagnostics,
   measureSearchStage,
   recordSearchStageDuration,
   withSearchDiagnostics,
@@ -84,7 +85,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
           )
           return await measureSearchStage('tool_presentation', () => {
             const names = new Map(result.knowledgeBases.map((base) => [base.id, base.name]))
-            return {
+            const output = {
               success: true,
               message: `Found ${result.results.length} passages. ${CITATION_INSTRUCTION}`,
               data: {
@@ -114,6 +115,14 @@ export const searchWorkspaceServerTool: BaseServerTool = {
                 })),
               },
             }
+            const passageBytes = output.data.results.map((item) => Buffer.byteLength(item.content))
+            annotateSearchDiagnostics({
+              toolResultBytes: Buffer.byteLength(JSON.stringify(output)),
+              passageBytes: passageBytes.reduce((total, bytes) => total + bytes, 0),
+              maxPassageBytes: Math.max(0, ...passageBytes),
+              uniqueDocumentCount: new Set(output.data.results.map((item) => item.documentId)).size,
+            })
+            return output
           })
         } catch (error) {
           logger.error('Workspace search failed', { error })
