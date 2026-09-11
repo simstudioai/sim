@@ -50,6 +50,7 @@ import {
   revokeKnowledgeConnectorCredentialAccess,
   stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
+import type { PreparedConnectorPermissions } from '@/lib/knowledge/connectors/permission-config'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import {
@@ -171,6 +172,7 @@ async function assertLiveSyncAllowed(
 }
 
 export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperationContext {
+  permissionChange?: PreparedConnectorPermissions
   knowledgeBase: ConnectorKnowledgeBase
   connectorType: string
   credentialId?: string
@@ -320,11 +322,17 @@ export async function performCreateKnowledgeConnector(
   }
 
   if (accessToken !== null) {
-    const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig, {
+    const validationContext = {
       ...tokenContext,
       mirrorsSourceAcls: accessMode === 'admin',
       ...(accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
-    })
+    }
+    params.permissionChange?.populateSyncContext(validationContext, 'setup')
+    const configValidation = await connectorConfig.validateConfig(
+      accessToken,
+      sourceConfig,
+      validationContext
+    )
     if (!configValidation.valid) {
       return fail(
         configValidation.error ||
@@ -539,6 +547,7 @@ export async function performCreateKnowledgeConnector(
         })
         .returning()
 
+      await params.permissionChange?.write(tx, connectorId)
       return row
     })
   } catch (error) {
@@ -641,6 +650,8 @@ export async function performCreateKnowledgeConnector(
 }
 
 export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperationContext {
+  permissionChange?: PreparedConnectorPermissions
+  expectedUpdatedAt?: Date
   knowledgeBase: ConnectorKnowledgeBase
   connectorId: string
   updates: {
@@ -711,6 +722,8 @@ export async function performUpdateKnowledgeConnector(
   const updatedFields = Object.keys(updates).filter(
     (key) => updates[key as keyof typeof updates] !== undefined
   )
+  const changedFields: string[] = updatedFields
+  if (params.permissionChange) changedFields.push('permissionConfig')
   if (updatedFields.length === 0) {
     return fail(
       'At least one of sourceConfig, syncIntervalMinutes, or status is required',
@@ -722,8 +735,14 @@ export async function performUpdateKnowledgeConnector(
   if (!existing) {
     return fail('Connector not found', 'not_found')
   }
+  if (
+    params.expectedUpdatedAt &&
+    params.expectedUpdatedAt.getTime() !== existing.updatedAt.getTime()
+  ) {
+    return fail('Connector changed during the update; reload before saving.', 'conflict')
+  }
   /**
-   * A running sync owns the row, so no edit is applied while it holds the lock.
+   * A running sync owns the content configuration; membership-only updates may still commit.
    *
    * `performSyncKnowledgeConnector` already refuses on the same condition; this
    * is the other half. `status: 'active'` sets `nextSyncAt = new Date()`, which
@@ -732,7 +751,7 @@ export async function performUpdateKnowledgeConnector(
    * only two controls the UI leaves enabled on a wedged connector both pushed
    * its recovery out by another full TTL.
    *
-   * A non-status edit is refused too, not just a status flip. `sourceConfig` is
+   * Source-config and sync-interval edits are refused too. `sourceConfig` is
    * read once at the start of a run and threaded through it, so changing it
    * mid-flight yields a pass that lists against one config and reconciles
    * against another — and reconciliation hard-deletes. `syncIntervalMinutes`
@@ -740,7 +759,14 @@ export async function performUpdateKnowledgeConnector(
    * so allowing it would silently discard the change. Refusing is the only
    * answer that is honest about either.
    */
-  if (existing.status === 'syncing') {
+  const membershipOnly = Boolean(
+    params.permissionChange &&
+      !params.permissionChange.requiresContentSync &&
+      updates.sourceConfig === undefined &&
+      updates.syncIntervalMinutes === undefined &&
+      updates.status === undefined
+  )
+  if (existing.status === 'syncing' && !membershipOnly) {
     return fail('Sync already in progress', 'conflict')
   }
   /**
@@ -754,7 +780,9 @@ export async function performUpdateKnowledgeConnector(
    */
   if (
     existing.status === 'pending' &&
-    (updates.sourceConfig !== undefined || updates.syncIntervalMinutes !== undefined)
+    (updates.sourceConfig !== undefined ||
+      updates.syncIntervalMinutes !== undefined ||
+      params.permissionChange?.requiresContentSync)
   ) {
     return fail('Sync already in progress', 'conflict')
   }
@@ -825,9 +853,21 @@ export async function performUpdateKnowledgeConnector(
     }
   }
 
+  if (
+    params.permissionChange?.requiresContentSync &&
+    updates.sourceConfig === undefined &&
+    validateSourceConfig
+  ) {
+    const rejection = await validateSourceConfig(
+      existing,
+      existing.sourceConfig as Record<string, unknown>
+    )
+    if (rejection) return fail(rejection.message, rejection.errorCode)
+  }
+
   const resultingStatus = updates.status ?? existing.status
   const shouldDispatchSourceSync =
-    updates.sourceConfig !== undefined &&
+    (updates.sourceConfig !== undefined || params.permissionChange?.requiresContentSync === true) &&
     resultingStatus !== 'paused' &&
     resultingStatus !== 'disabled'
   /**
@@ -854,6 +894,14 @@ export async function performUpdateKnowledgeConnector(
   const updateTimestamp = new Date()
   const values: Partial<typeof knowledgeConnector.$inferInsert> = {
     updatedAt: updateTimestamp,
+  }
+  if (params.permissionChange?.encryptedApiKey)
+    values.encryptedApiKey = params.permissionChange.encryptedApiKey
+  if (params.permissionChange?.requiresAclReset) values.accessRewritePending = true
+  if (params.permissionChange?.requiresContentSync) {
+    values.lastSyncAt = null
+    values.listingCheckpoint = null
+    values.directoryCheckpoint = null
   }
   if (sourceConfigToStore !== undefined) {
     values.sourceConfig = sourceConfigToStore
@@ -916,7 +964,7 @@ export async function performUpdateKnowledgeConnector(
       isNull(knowledgeConnector.deletedAt),
     ]
     updateConditions.push(eq(knowledgeConnector.status, existing.status))
-    if (sourceConfigToStore !== undefined)
+    if (sourceConfigToStore !== undefined || params.permissionChange)
       updateConditions.push(eq(knowledgeConnector.updatedAt, existing.updatedAt))
     if (syncsPerMember) {
       updateConditions.push(eq(knowledgeConnector.memberSyncStatus, existing.memberSyncStatus))
@@ -935,6 +983,7 @@ export async function performUpdateKnowledgeConnector(
         .set(values)
         .where(and(...updateConditions))
         .returning()
+      if (updatedConnector) await params.permissionChange?.write(tx, connectorId)
       if (updatedConnector && syncsPerMember && sourceConfigToStore !== undefined) {
         await tx
           .update(knowledgeConnectorMember)

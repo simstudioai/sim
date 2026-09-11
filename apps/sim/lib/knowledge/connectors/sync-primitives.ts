@@ -339,6 +339,13 @@ export function mergeHydratedSkippedDocument(
 ): ExternalDocument {
   return {
     ...stub,
+    ...(hydrated.skippedExistingDisposition === 'replace'
+      ? {
+          title: hydrated.title,
+          sourceUrl: hydrated.sourceUrl,
+          acl: hydrated.acl,
+        }
+      : {}),
     content: '',
     contentHash:
       hydrated.skippedRetryContentHash ??
@@ -346,7 +353,10 @@ export function mergeHydratedSkippedDocument(
     contentDeferred: false,
     skippedReason: hydrated.skippedReason,
     skippedExistingDisposition: hydrated.skippedExistingDisposition,
-    metadata: { ...stub.metadata, ...hydrated.metadata },
+    metadata:
+      hydrated.skippedExistingDisposition === 'replace'
+        ? hydrated.metadata
+        : { ...stub.metadata, ...hydrated.metadata },
   }
 }
 

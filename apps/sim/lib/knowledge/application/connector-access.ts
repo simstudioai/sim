@@ -34,6 +34,7 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   type ConnectorAccessMode,
   mirrorsSourceAcls,
+  supportsConnectorAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
 import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
 import {
@@ -226,6 +227,12 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
+    if (!supportsConnectorAccessMode(connectorMeta, input.accessMode)) {
+      throw new OrchestrationError(
+        'validation',
+        `${connectorMeta.name} requires source permission access.`
+      )
+    }
     if (
       context.knowledgeBase.isSearchIndex &&
       (!connectorMeta.search || input.accessMode === 'workspace')

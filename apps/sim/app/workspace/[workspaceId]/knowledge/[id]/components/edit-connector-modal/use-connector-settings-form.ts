@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'es-toolkit'
+import type { UpdateConnectorBody } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
@@ -19,6 +20,7 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   type ConnectorData,
@@ -139,6 +141,17 @@ export function useConnectorSettingsForm({
     connector.accessMode === 'members' ? connector.credentialId : null
   )
   const [error, setError] = useState<string | null>(null)
+  const gitlabPermissions = useGitLabPermissionForm(
+    connector.permissionConfig ?? {
+      provider: 'gitlab',
+      mode: 'administrator',
+      revision: 0,
+      userMapping: null,
+      projectPermissions: null,
+    }
+  )
+  const showGitLabPermissions =
+    connector.connectorType === 'gitlab' && connector.accessMode === 'admin'
 
   /**
    * Seeds from the stored canonical config. For canonical-pair fields (selector +
@@ -295,6 +308,7 @@ export function useConnectorSettingsForm({
   )
 
   const hasChanges =
+    (showGitLabPermissions && gitlabPermissions.dirty) ||
     syncInterval !== connector.syncIntervalMinutes ||
     didCanonicalModesChange(canonicalModes, persistedCanonicalModes) ||
     Object.entries(resolveSourceConfig()).some(
@@ -302,11 +316,21 @@ export function useConnectorSettingsForm({
         !hiddenCapFieldIds.has(key) && !valuesEqual(connector.sourceConfig[key], value)
     )
 
-  const handleSave = useCallback(() => {
-    if (!searchSettingsAllowed || !settingsComplete || accessDirty) return
+  const handleSave = () => {
+    if (
+      !searchSettingsAllowed ||
+      !settingsComplete ||
+      accessDirty ||
+      (showGitLabPermissions && !gitlabPermissions.complete)
+    )
+      return
     setError(null)
 
-    const updates: { sourceConfig?: Record<string, unknown>; syncIntervalMinutes?: number } = {}
+    const updates: UpdateConnectorBody = {}
+    if (showGitLabPermissions && gitlabPermissions.dirty) {
+      updates.permissionConfig = gitlabPermissions.input
+      if (gitlabPermissions.apiKey.trim()) updates.apiKey = gitlabPermissions.apiKey
+    }
 
     if (syncInterval !== connector.syncIntervalMinutes) {
       updates.syncIntervalMinutes = syncInterval
@@ -340,27 +364,17 @@ export function useConnectorSettingsForm({
     updateConnector(
       { knowledgeBaseId, connectorId: connector.id, updates },
       {
-        onSuccess: onSaved,
+        onSuccess: (updated) => {
+          gitlabPermissions.reset(updated.permissionConfig)
+          onSaved(updated)
+        },
         onError: (err) => {
           logger.error('Failed to update connector', { error: err.message })
           setError(err.message)
         },
       }
     )
-  }, [
-    searchSettingsAllowed,
-    settingsComplete,
-    accessDirty,
-    syncInterval,
-    connector,
-    resolveSourceConfig,
-    canonicalModes,
-    persistedCanonicalModes,
-    hiddenCapFieldIds,
-    onSaved,
-    updateConnector,
-    knowledgeBaseId,
-  ])
+  }
 
   /**
    * The mode switch is its own admin operation: it rewrites document access
@@ -411,6 +425,7 @@ export function useConnectorSettingsForm({
   }, [connector])
 
   const fieldsProps: ConnectorSettingsFieldsProps = {
+    gitlabPermissions: showGitLabPermissions ? gitlabPermissions : undefined,
     availability: {
       error: integrationAvailabilityError,
       isFetching: isIntegrationAvailabilityFetching,
@@ -462,7 +477,12 @@ export function useConnectorSettingsForm({
     dirty: hasChanges || accessDirty,
     saving: isSaving,
     canSave:
-      hasChanges && !accessDirty && !isSaving && searchSettingsAllowed && Boolean(settingsComplete),
+      hasChanges &&
+      !accessDirty &&
+      !isSaving &&
+      searchSettingsAllowed &&
+      Boolean(settingsComplete) &&
+      (!showGitLabPermissions || gitlabPermissions.complete),
     save: handleSave,
     fieldsProps,
   }

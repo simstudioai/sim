@@ -1,22 +1,32 @@
 ---
 title: GitLab
-description: Index a self-managed GitLab project with its source permissions
+description: Connect a self-managed GitLab project with an administrator token or a non-admin token and CSV permissions
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed primary GitLab email.
+Connect one GitLab project per source. Choose an **Administrator token** to refresh permissions from GitLab, or a **Non-admin token** with two CSV files to manage access in Sim. Teammates do not connect individual GitLab accounts.
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates do not need a personal GitLab connection. For workspace Search, use **Search → Add source** instead.
+Organization admins set up sources in **Settings → Sources**. For workspace Search, use **Search → Add source**. The same token paths are available when adding a GitLab connector to a regular knowledge base.
 
-## Before you start
+## Choose a token path
 
-Use a self-managed GitLab instance running version **17.4 or later**. Setup needs both a Sim organization admin and an active GitLab **instance administrator**. A project Maintainer or group Owner is insufficient.
+| | Administrator token | Non-admin token |
+|---|---|---|
+| GitLab identity | Active instance administrator | Dedicated identity that can read the selected project's content; an Auditor identity is supported |
+| PAT scopes | `read_api`; also `admin_mode` if Admin Mode is enabled | `read_api`; no `admin_mode` required |
+| Permission source | GitLab directory, memberships, and source policy | Uploaded user mapping and project permissions |
+| Membership changes | Refreshed from GitLab during background sync | An administrator must replace the CSV files |
+| Confidential issues and their comments | Included only for users whose supported GitLab permissions allow access | Excluded |
 
-<Callout type="info">
-  This Search path requires GitLab's administrator directory and settings APIs. GitLab.com projects do not support this setup. General knowledge-base GitLab connectors can still use project-readable tokens, but their knowledge-base access rules are different from Search's source permissions.
+Use a self-managed GitLab instance reachable by Sim over HTTPS. The administrator path requires GitLab **17.4 or later** and access to administrator directory and settings APIs. A project Maintainer or group Owner is not an instance administrator.
+
+The CSV path validates the token's identity and access to the selected project without requesting the administrator directory or instance settings. It was tested with an **Auditor** identity on GitLab **19.2.5 Ultimate**, including an identity assigned a custom admin role containing only `read_admin_users`. That custom role is not required by the CSV path: user identities come from the uploaded mapping.
+
+<Callout type="warn">
+  CSV files define access in Sim. Each mapped user listed for the selected project can read all of that source's indexed, non-confidential content. Sim does not infer that user's GitLab role or feature restrictions in this path. Include only users who should have that access, and replace the files whenever memberships or email mappings change.
 </Callout>
 
 ## Add a project
@@ -24,69 +34,122 @@ Use a self-managed GitLab instance running version **17.4 or later**. Setup need
 <Steps>
 <Step>
 
-### Create the administrator token
+### Create a personal access token
 
-Sign in to your self-managed GitLab instance as an instance administrator, then open **Avatar → Edit profile → Access → Personal access tokens**. On current releases choose **Generate token → Legacy token**; older versions show **Add new token** or the token form directly.
+Sign in to GitLab as the identity you chose. Open **Avatar → Edit profile → Access → Personal access tokens**, then create a traditional scoped PAT. Navigation labels vary by GitLab version; see GitLab's [token creation instructions](https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token).
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="https://handbook.gitlab.com/images/security/product-security/security-platforms-and-architecture/service-account-access-token-page.png" alt="Official GitLab example of the Access Tokens page with the Add new token button" width={1759} height={586} />
+Give the token a recognizable name, set an expiration date allowed by your instance, and select the scopes in the table above. Copy the value when GitLab displays it. Sim uses read-only GitLab API requests and scheduled sync; no webhook or write scope is needed.
 
-*Official [GitLab Handbook example](https://handbook.gitlab.com/handbook/security/product-security/security-platforms-architecture/product-security-engineering/runbooks/rotate-service-account-personal-access-tokens/). Navigation and button labels vary by version. The example's existing `api` tokens are unrelated to Sim; use the scopes below.*
-
-| Token setting | Value for Sim Search |
-|---|---|
-| Token name | A recognizable name, such as `Sim Search` |
-| Expiration date | A date allowed by your instance's token policy |
-| Scopes | `read_api`; also `admin_mode` if Admin Mode is enabled |
-
-Select **Generate token** or **Create personal access token**, then copy the value into Sim. GitLab only shows it once. This connector uses the traditional scoped PAT flow; do not substitute a project/group token or assume a fine-grained token has the required administrator API permissions. See GitLab's [current token creation steps](https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token).
-
-The token must read the project, users, inherited project membership, instance settings, and related group settings. Sim checks these before accepting source permission mirroring. See GitLab's [token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/).
+For the non-admin path, give the identity read access to every content type you select. An Auditor identity can provide instance-wide read access on a licensed instance. A project-scoped service identity can be used when its project permissions are sufficient. See GitLab's [Auditor permissions](https://docs.gitlab.com/user/permissions/#auditor-users) and [token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/).
 
 </Step>
 <Step>
 
-### Configure the source in Sim
+### Open GitLab setup
 
-Open **Settings → Sources → Add source** and select **GitLab**. This opens **Add GitLab project**. Add one project per connection; to add another, open **GitLab** from the Sources list and select **Add project**. Paste the **Personal Access Token**, enter your **Host** and **Project**, and choose the content to index.
+Open **Settings → Sources → Add source**, then select **GitLab**. If GitLab is already listed, open it and select **Add project**. In **Add GitLab project**, choose **Administrator token** or **Non-admin token**.
+
+Fill in the shared fields. Switching tabs preserves the token, host, project, content choice, and other options.
+
+<Image className="mx-auto h-auto w-full" src="/static/search/gitlab-non-admin-setup.jpg" alt="Add GitLab project with Administrator token and Non-admin token tabs, without a separate connection-method toggle" width={1280} height={720} />
 
 | Field | What to enter |
 |---|---|
+| Personal Access Token | The PAT created above. |
 | Host | Your self-managed domain, such as `gitlab.example.com`. |
-| Project | `group/project` or the numeric project ID. Use **Add project** for another project. |
-| Content | Defaults to **Wiki & Issues**. Choose **Code, Wiki, Issues & Merge Requests** to include all supported types. |
-| Branch | Optional branch or tag for repository files; blank uses the project's default branch. |
-| Path Filter / File Extensions | Optional limits for repository files. |
-| Issue State / Labels / Milestone | Optional filters for issues. |
-| Max Items | Optional positive whole-number limit. Leave blank for all matching items. |
+| Project | The full `group/project` path or numeric project ID. Each connection crawls one project. |
+| Content | **Wiki & Issues** by default. Select **Code, Wiki, Issues & Merge Requests** for all supported types. |
 
-**More options** contains the repository and issue filters, **Max Items**, and **Metadata tags**. Unlike member-account sources, GitLab retains this optional item limit.
-
-Select **Connect & Sync**. Sim validates the token and source policy, then starts indexing.
+**More options** contains repository branch, path, and file-extension filters; issue state, label, and milestone filters; **Max Items**; and **Metadata tags**. Leave Max Items blank to index all matching items. Regular KB connectors also expose their sync schedule.
 
 </Step>
 <Step>
 
-### Let teammates search
+### Upload permissions for a non-admin token
 
-Invite teammates to the Sim organization using their verified work email. Sim matches that email against their confirmed primary GitLab email and applies project, feature, and confidential-issue permissions. Confirmed secondary addresses are not matched. No GitLab **Connect** step is required.
+The **Non-admin token** tab requires both files. Use **Download template** beside each upload, replace its example rows, then select **Upload CSV**. Files remain in the form until you save; validation errors appear beside the affected upload.
 
-Admins open **Settings → Sources**, open **GitLab**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. Permission and membership changes are picked up during background refreshes.
+<Image className="mx-auto h-auto w-full" src="/static/search/gitlab-csv-uploads.jpg" alt="GitLab user mapping and project permissions uploads with downloadable templates, file limits, and the confidentiality exclusion notice" width={1280} height={720} />
+
+**User mapping** maps numeric GitLab user IDs to the verified email addresses those people use in Sim:
+
+```csv
+user_id,email
+123,alice@example.com
+456,bob@example.com
+```
+
+**Project permissions** lists one project and user ID per grant:
+
+```csv
+project_path,user_id
+engineering/platform,123
+engineering/platform,456
+```
+
+Use the full namespace path in `project_path`, even if you entered a numeric ID in the Project field. Use GitLab user IDs, not usernames. Include inherited group members when they should have access. Administrators can obtain IDs from GitLab's [members API](https://docs.gitlab.com/api/members/).
+
+Both files follow these rules:
+
+- Exactly two columns, in the order shown. Headerless files and the exact template headers are accepted.
+- UTF-8 CSV, at most **4 MiB and 100,000 data rows per file**. The total request must also fit Sim's **10 MiB** request limit.
+- Identical rows are deduplicated. Conflicting user-ID/email mappings and malformed rows are rejected.
+- A project-permission row whose user has no email mapping grants no access.
+- Rows for other projects do not grant access to this source or expand its crawl.
+
+Administrator-token setup does not require CSV uploads.
+
+</Step>
+<Step>
+
+### Connect and verify
+
+Select **Connect & Sync**. Sim validates the token and configuration, saves the encrypted token and permissions, and starts indexing.
+
+Open the source's **Documents** view to inspect the documents you can read, or **Sync history** to inspect sync outcomes. Have a listed teammate search for a known document, and verify that an unlisted teammate cannot find it.
+
+Teammates must belong to the owning Sim organization or workspace and have a verified email. The administrator path matches their confirmed primary GitLab email; the CSV path matches the uploaded email. Organization or workspace membership alone does not grant access to source documents.
 
 </Step>
 </Steps>
 
 ## What is indexed
 
-The connector supports text repository files, wiki pages, issues, merge requests, and non-internal issue and merge-request comments. It does not index internal comments, binaries, or epics. **Metadata tags** controls optional result metadata.
+The connector supports text repository files, wiki pages, issues, merge requests, and their non-internal comments. It does not index internal comments, binaries, or epics.
+
+With CSV permissions, confidential issues and their comments are always excluded. Sim checks confidentiality during listing and again when fetching an issue. If a previously indexed issue becomes confidential, the next sync removes it from the index. An intentional confidential-issue exclusion does not create a failed sync.
+
+Content and upstream confidentiality changes follow the source's sync schedule. CSV membership changes follow the replacement behavior below.
+
+## Update permissions or rotate the token
+
+Open **Settings → Sources → GitLab**, select the project, and open **Settings**. Regular KBs expose the same fields in their connector settings.
+
+To update membership, select **Replace CSV** beside either file, then **Save**. You can replace one file while retaining the other. Sim validates the resulting pair before committing anything. Invalid uploads preserve the saved configuration and grants. Settings displays filenames, upload dates, and row counts; it does not return saved CSV contents or the PAT.
+
+A membership-only replacement takes effect on the next document or search read, without waiting for a crawl or re-embedding documents. Removed users lose access, and newly listed users gain access to existing indexed content. If another admin saved first, reload Settings and apply your changes to the latest revision.
+
+To rotate the PAT, enter the replacement in **Personal Access Token** and save. Leave it blank to keep the saved token.
+
+You can also switch token tabs or change the project. CSV mode requires both files; switching to the administrator path requires an administrator token. These changes temporarily block document access while Sim clears the old permissions and resyncs. If interrupted, keep the source active and resume syncing before expecting results.
 
 ## Troubleshooting
 
 | Problem | Next step |
 |---|---|
-| Administrator token required | Use an active instance administrator's PAT with `read_api`, plus `admin_mode` when required. A project or group token cannot replace it. |
-| Source permissions cannot be mirrored | Read the reported policy. Sim rejects unsupported external authorization, IP restrictions, download-ban policies, or session-specific step-up requirements. |
-| Project not found | Check the host, project path or ID, and token access. |
-| A teammate sees no results | Confirm their verified Sim email matches their confirmed primary GitLab email and the user has the required GitLab project or feature access. |
-| Token expired | Remove and add the source again with a new token. This connector does not support replacing its token in place or refreshing PATs automatically. |
+| Administrator token required | Use an instance administrator PAT, or select **Non-admin token** and provide both CSV files. |
+| Project not found or unreadable | Check Host, Project, token expiration, and the identity's access to the selected project and content types. |
+| CSV validation error | Correct the reported row, column order, user ID, email, quoting, or conflicting mapping, then upload again. The saved files remain in effect. |
+| Upload or request too large | Keep each file within 4 MiB and 100,000 rows, and the encoded request within 10 MiB. Remove unrelated project rows if needed. |
+| A listed teammate sees no results | Check their verified Sim email, current organization/workspace membership, user mapping, and exact project path. Then check whether indexing has completed. |
+| A removed teammate still sees results | Save the replacement file and run a new search. Check for another source or KB that independently grants access to the same content. |
+| Confidential issue is missing | This is expected with CSV permissions. The administrator path can include it when the supported source permissions allow access. |
+| Permissions changed while saving | Reload Settings and save against the latest files; a stale save cannot restore removed grants. |
+| Token expired | Enter a new PAT in the source's Settings and save. PATs do not refresh automatically. |
+| Source permissions cannot be mirrored | On the administrator path, review the reported GitLab policy. Unsupported external authorization, IP restrictions, download bans, or session-specific requirements remain unavailable. |
 
-Custom GitLab roles may grant more access than Sim's conservative role mapping recognizes. A source requiring unsupported policies must remain unavailable until its access model can be represented accurately.
+Custom GitLab roles can grant more access than the administrator path's conservative role mapping recognizes. CSV permissions are an explicit administrator-managed grant set, not automatic mirroring of those roles.
+
+## Self-hosted rollout
+
+Apply the additive connector-permission migration first, deploy compatible Trigger workers, then deploy the application that exposes the two token paths. Keep this order so a CSV connection cannot be picked up by an older worker. Existing permission-aware connections continue on the administrator path until explicitly changed.

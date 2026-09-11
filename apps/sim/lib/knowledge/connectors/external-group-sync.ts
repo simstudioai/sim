@@ -481,11 +481,13 @@ export async function refreshConnectorDirectory(
       )
   }
   try {
+    const syncContext = syncContextForToken(token)
+    await connectorConfig.permissionConfig?.populateSyncContext(connector.id, syncContext)
     const outcome = await refreshMirroredDirectory({
       ...resourceScopeFields(resourceScopeFromOwner(connector)),
       connectorConfig,
       sourceConfig,
-      syncContext: syncContextForToken(token),
+      syncContext,
       accessToken: token.accessToken,
       force: connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
     })

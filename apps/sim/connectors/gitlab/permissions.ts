@@ -3,6 +3,10 @@ import { groupToken, sortAccessTokens, userToken } from '@/lib/knowledge/access/
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
+  getGitLabCsvContext,
+  gitLabCsvGroupToken,
+} from '@/connectors/gitlab/permission-config/types'
+import {
   discoverGitLabPermissionPolicy,
   type GitLabSourcePolicy,
 } from '@/connectors/gitlab/permission-policy'
@@ -18,6 +22,7 @@ type Feature = (typeof FEATURES)[number]
 
 export interface GitLabPermissionProject {
   id: number
+  path_with_namespace?: string
   visibility: 'private' | 'internal' | 'public'
   repository_access_level?: string
   merge_requests_access_level?: string
@@ -25,6 +30,27 @@ export interface GitLabPermissionProject {
   issues_access_level?: string
   namespace?: { id: number; kind: 'user' | 'group' }
   shared_with_groups?: Array<{ group_id: number }>
+}
+
+/** CSV access is managed by Sim administrators, so only identity and project reads are needed. */
+export async function validateGitLabCsvToken(
+  token: string,
+  sourceConfig: Record<string, unknown>
+): Promise<{ host: string; projectId: number; projectPath: string }> {
+  const { base, project } = sourceAddress(sourceConfig)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true)
+  if (viewer.state !== 'active' || viewer.locked === true || !Number.isSafeInteger(viewer.id)) {
+    throw new Error('An active GitLab identity with read_api access is required')
+  }
+  const record = await read<GitLabPermissionProject>(`${base}/projects/${project}`, token, true)
+  if (!Number.isSafeInteger(record.id) || record.id <= 0 || !record.path_with_namespace) {
+    throw new Error('GitLab did not return the project identity')
+  }
+  return {
+    host: normalizeGitLabHost(sourceConfig.host),
+    projectId: record.id,
+    projectPath: record.path_with_namespace,
+  }
 }
 
 export interface GitLabPermissionUser {
@@ -290,6 +316,15 @@ export async function openGitLabDirectory(
   config: Record<string, unknown>,
   context?: Record<string, unknown>
 ): Promise<ConnectorDirectory> {
+  const csv = getGitLabCsvContext(context)
+  if (csv) {
+    return {
+      providerId: 'gitlab',
+      tenantId: `csv-${csv.connectorId}`,
+      listGroups: async () => [],
+      listGroupMembers: async (group) => ({ group, memberTokens: [], complete: true }),
+    }
+  }
   const { tenant, base, project } = sourceAddress(config)
   const identity = await read<{ id: number }>(`${base}/projects/${project}`, token)
   if (!Number.isInteger(identity.id)) throw new Error('GitLab did not return a project identity')
@@ -340,6 +375,18 @@ export async function getGitLabDocumentAcls(
   documents: readonly ExternalDocument[],
   context?: Record<string, unknown>
 ): Promise<Record<string, string[]>> {
+  const csv = getGitLabCsvContext(context)
+  if (csv) {
+    const result: Record<string, string[]> = {}
+    for (const doc of documents) {
+      const known = /^(file|wiki|issue|merge_request):/.test(doc.externalId)
+      const excluded =
+        doc.skippedReason ||
+        (doc.externalId.startsWith('issue:') && doc.metadata?.confidential !== false)
+      result[doc.externalId] = known && !excluded ? [gitLabCsvGroupToken(csv.connectorId)] : []
+    }
+    return result
+  }
   const state = await snapshot(token, config, context)
   const { tenant } = sourceAddress(config)
   const users = new Map(state.users.map((person) => [person.id, person]))

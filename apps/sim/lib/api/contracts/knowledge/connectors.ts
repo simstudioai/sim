@@ -1,5 +1,9 @@
 import { z } from 'zod'
 import {
+  connectorPermissionConfigSchema,
+  connectorPermissionSummarySchema,
+} from '@/lib/api/contracts/knowledge/connector-permissions'
+import {
   knowledgeBaseParamsSchema,
   knowledgeConnectorParamsSchema,
   successResponseSchema,
@@ -43,10 +47,12 @@ export const createConnectorBodySchema = z.object({
   connectorType: z.string().min(1),
   credentialId: z.string().min(1).optional(),
   apiKey: z.string().min(1).optional(),
+  permissionConfig: connectorPermissionConfigSchema.optional(),
   sourceConfig: z.record(z.string(), z.unknown()),
   syncIntervalMinutes: z.number().int().min(0).default(1440),
   accessMode: connectorRequestedAccessModeSchema.optional().default('workspace'),
 })
+export type CreateConnectorBody = z.input<typeof createConnectorBodySchema>
 
 export const updateConnectorAccessBodySchema = z.object({
   accessMode: connectorRequestedAccessModeSchema,
@@ -56,10 +62,13 @@ export const updateConnectorAccessBodySchema = z.object({
 export type UpdateConnectorAccessBody = z.input<typeof updateConnectorAccessBodySchema>
 
 export const updateConnectorBodySchema = z.object({
+  apiKey: z.string().min(1).max(4096).optional(),
+  permissionConfig: connectorPermissionConfigSchema.optional(),
   sourceConfig: z.record(z.string(), z.unknown()).optional(),
   syncIntervalMinutes: z.number().int().min(0).optional(),
   status: z.enum(['active', 'paused']).optional(),
 })
+export type UpdateConnectorBody = z.input<typeof updateConnectorBodySchema>
 
 export const deleteConnectorQuerySchema = z.object({
   /** Also hard-delete the documents the connector produced; kept by default. */
@@ -110,6 +119,7 @@ export const connectorDataSchema = z
     id: z.string(),
     knowledgeBaseId: z.string(),
     connectorType: z.string(),
+    permissionConfig: connectorPermissionSummarySchema.optional(),
     credentialId: z.string().nullable(),
     sourceConfig: z.record(z.string(), z.unknown()),
     syncMode: z.string().nullable(),

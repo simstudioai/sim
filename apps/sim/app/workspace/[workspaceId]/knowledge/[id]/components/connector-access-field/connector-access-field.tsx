@@ -12,6 +12,7 @@ import {
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { supportsConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
@@ -135,6 +136,13 @@ export function ConnectorAccessField({
       allowed: adminSupported && allowAdmin,
     },
   ]
+  for (const entry of modes)
+    entry.allowed &&= supportsConnectorAccessMode(connectorConfig, entry.mode)
+  if (
+    connectorConfig.supportedAccessModes?.length === 1 &&
+    modes.some((entry) => entry.mode === value.accessMode && entry.allowed)
+  )
+    return canAdmin && footer ? <div className='px-2'>{footer}</div> : null
   /** Keep a retired current method visible so an admin can select an available replacement. */
   const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
   const currentMode = modes.find((entry) => entry.mode === value.accessMode)

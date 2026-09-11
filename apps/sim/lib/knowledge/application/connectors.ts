@@ -49,6 +49,7 @@ import {
   type ConnectorAccessMode,
   isConnectorAccessMode,
   mirrorsSourceAcls,
+  supportsConnectorAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
@@ -61,6 +62,16 @@ import {
   type ViewerConnectorMembership,
 } from '@/lib/knowledge/connectors/member-provisioning'
 import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
+import type {
+  ConnectorPermissionConfig,
+  PreparedConnectorPermissions,
+} from '@/lib/knowledge/connectors/permission-config'
+import {
+  hasConnectorPermissionConfig,
+  prepareConnectorPermissions,
+  readConnectorPermissionSummaries,
+  readConnectorPermissionSummary,
+} from '@/lib/knowledge/connectors/permission-config.server'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
@@ -129,6 +140,7 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
   connectorType: string
   credentialId?: string
   apiKey?: string
+  permissionConfig?: ConnectorPermissionConfig
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
   /**
@@ -144,6 +156,8 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
 export interface UpdateKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
   connectorId: string
   updates: {
+    apiKey?: string
+    permissionConfig?: ConnectorPermissionConfig
     sourceConfig?: Record<string, unknown>
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
@@ -320,6 +334,7 @@ export async function validateConnectorSourceConfig(input: {
   organizationId?: string
   actingUserId: string
   requestId: string
+  permissionChange?: PreparedConnectorPermissions
 }): Promise<SourceConfigRejection | null> {
   const accessMode = input.connector.accessMode
   if (!isConnectorAccessMode(accessMode)) {
@@ -413,14 +428,25 @@ export async function validateConnectorSourceConfig(input: {
     }
   }
 
+  const validationContext = {
+    ...syncContextForToken(resolved),
+    mirrorsSourceAcls: mirrorsSourceAcls(input.connector.accessMode),
+    ...(input.connector.accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
+  }
+  if (validationContext.mirrorsSourceAcls) {
+    if (input.permissionChange) {
+      input.permissionChange.populateSyncContext(validationContext, input.connector.id)
+    } else {
+      await connectorConfig.permissionConfig?.populateSyncContext(
+        input.connector.id,
+        validationContext
+      )
+    }
+  }
   const validation = await connectorConfig.validateConfig(
     resolved.accessToken,
     input.sourceConfig,
-    {
-      ...syncContextForToken(resolved),
-      mirrorsSourceAcls: mirrorsSourceAcls(input.connector.accessMode),
-      ...(input.connector.accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
-    }
+    validationContext
   )
   return validation.valid
     ? null
@@ -462,6 +488,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
         : await orderedQuery.limit(input.limit + 1).offset(offset)
     const hasMore = input.limit !== undefined && rows.length > input.limit
     const page = input.limit === undefined ? rows : rows.slice(0, input.limit)
+    const permissionSummaries = await readConnectorPermissionSummaries(page)
     const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
       viewerUserId && (context.workspaceId || context.organizationId)
@@ -475,6 +502,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
     return {
       connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => ({
         ...rest,
+        permissionConfig: permissionSummaries.get(rest.id),
         viewerMembership: memberships.get(rest.id) ?? null,
       })),
       hasMore,
@@ -647,6 +675,10 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     return {
       connector: {
         ...connectorData,
+        permissionConfig: await readConnectorPermissionSummary(
+          connector.connectorType,
+          connector.id
+        ),
         viewerMembership: memberships.get(connector.id) ?? null,
         syncLogs,
         memberSyncLogs,
@@ -712,6 +744,12 @@ async function executeCreateKnowledgeConnector(
   const connectorMeta = getConnectorMeta(input.connectorType)
   if (!connectorMeta) {
     throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
+  }
+  if (!supportsConnectorAccessMode(connectorMeta, input.accessMode ?? 'workspace')) {
+    throw new OrchestrationError(
+      'validation',
+      `${connectorMeta.name} requires source permission access.`
+    )
   }
   if (
     input.apiKey &&
@@ -792,11 +830,20 @@ async function executeCreateKnowledgeConnector(
     sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
   })
   if (membersBinding) membersBinding = { ...membersBinding, sourceConfig }
+  const permissionChange = input.permissionConfig
+    ? await prepareConnectorPermissions(input.connectorType, {
+        accessMode: input.accessMode ?? 'workspace',
+        sourceConfig,
+        permissionConfig: input.permissionConfig,
+        apiKey: input.apiKey,
+      })
+    : undefined
   const outcome = await performCreateKnowledgeConnector({
     knowledgeBase: connectorTarget(context),
     connectorType: input.connectorType,
     credentialId: input.credentialId,
     apiKey: input.apiKey,
+    permissionChange,
     /** Members mode stores the config with its listing caps cleared. */
     sourceConfig,
     syncIntervalMinutes: input.syncIntervalMinutes,
@@ -826,7 +873,13 @@ async function executeCreateKnowledgeConnector(
   })
   requireSuccessfulOutcome(outcome, 'Knowledge connector creation failed')
   return {
-    connector: outcome.connector,
+    connector: {
+      ...outcome.connector,
+      permissionConfig: await readConnectorPermissionSummary(
+        outcome.connector.connectorType,
+        outcome.connector.id
+      ),
+    },
     workspaceId,
     ...(outcome.reused ? { reused: true } : {}),
   }
@@ -952,10 +1005,64 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, input, context, request }) {
     const requestId = generateRequestId()
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
+    const { apiKey, permissionConfig, ...updates } = input.updates
+    let permissionChange: PreparedConnectorPermissions | undefined
+    let expectedUpdatedAt: Date | undefined
+    if (
+      permissionConfig ||
+      apiKey !== undefined ||
+      (updates.sourceConfig !== undefined &&
+        (await hasConnectorPermissionConfig(context.connector.connectorType)))
+    ) {
+      if (permissionConfig || apiKey !== undefined) {
+        const subjectUserId = resolvePrincipalSubjectUserId(principal)
+        if (!subjectUserId)
+          throw new OrchestrationError(
+            'forbidden',
+            'Permission settings require a signed-in administrator.'
+          )
+        if (context.organizationId)
+          await requireOrganizationMembership(
+            principal,
+            context.organizationId,
+            'admin',
+            'knowledge.use'
+          )
+        else if (context.workspaceId) await requireCurrentHumanRole(subjectUserId, context, 'admin')
+      }
+      const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
+      if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
+      expectedUpdatedAt = connector.updatedAt
+      permissionChange = await prepareConnectorPermissions(connector.connectorType, {
+        accessMode: connector.accessMode,
+        sourceConfig: updates.sourceConfig ?? (connector.sourceConfig as Record<string, unknown>),
+        permissionConfig,
+        apiKey,
+        existing: connector,
+      })
+      if (permissionChange && !permissionConfig && apiKey === undefined) {
+        const subjectUserId = resolvePrincipalSubjectUserId(principal)
+        if (!subjectUserId)
+          throw new OrchestrationError(
+            'forbidden',
+            'Permission settings require a signed-in administrator.'
+          )
+        if (context.organizationId)
+          await requireOrganizationMembership(
+            principal,
+            context.organizationId,
+            'admin',
+            'knowledge.use'
+          )
+        else if (context.workspaceId) await requireCurrentHumanRole(subjectUserId, context, 'admin')
+      }
+    }
     const outcome = await performUpdateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
-      updates: input.updates,
+      updates,
+      permissionChange,
+      expectedUpdatedAt,
       prepareSourceConfig: (connector, sourceConfig) =>
         prepareGitHubInstallationSource({
           principal,
@@ -981,7 +1088,10 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         const owner = resourceScopeFields(resourceScopeFromOwner(context))
         return validateConnectorSourceConfig({
           principal,
-          connector,
+          connector: permissionChange?.encryptedApiKey
+            ? { ...connector, encryptedApiKey: permissionChange.encryptedApiKey }
+            : connector,
+          permissionChange,
           sourceConfig,
           ...owner,
           actingUserId,
@@ -995,7 +1105,15 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       recordSemanticAudit: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector update failed')
-    return { connector: outcome.connector }
+    return {
+      connector: {
+        ...outcome.connector,
+        permissionConfig: await readConnectorPermissionSummary(
+          outcome.connector.connectorType,
+          outcome.connector.id
+        ),
+      },
+    }
   },
   projectAudit: ({ input, context, result }) => ({
     action: AuditAction.CONNECTOR_UPDATED,
