@@ -35,7 +35,7 @@ describe('getToolActivitySummary', () => {
         tool('terminal_run', 'cancelled'),
         tool('browser_type', 'rejected'),
       ])
-    ).toBe('Read files · 1 failed · 1 stopped · 1 skipped')
+    ).toBe('Read files · 2 failed · 1 stopped')
   })
 
   it('does not invent actions when all calls failed or were stopped', () => {
@@ -54,6 +54,7 @@ describe('getToolActivitySummary', () => {
   })
 
   it.each([
+    ['rejected', 'Failed running checks'],
     ['skipped', 'Skipped running checks'],
     ['interrupted', 'Stopped running checks'],
   ] as const)('labels a single %s tool as finished', (status, expected) => {
@@ -94,6 +95,25 @@ describe('getToolActivitySummary', () => {
         tool('browser_type', 'skipped'),
       ])
     ).toBe('Read files, searched files +2 more · 1 failed · 1 stopped · 1 skipped')
+  })
+
+  it('uses the same outcome wording for rejected individual and grouped calls', () => {
+    const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
+    expect(getToolActivitySummary([rejected])).toBe('Failed running checks')
+    expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
+      'Tool activity · 1 failed · 1 skipped'
+    )
+  })
+
+  it('deduplicates related tools and preserves opposite operations in the summary', () => {
+    expect(
+      getToolActivitySummary([
+        { ...tool('deploy_as_api'), params: { action: 'deploy' } },
+        { ...tool('deploy_as_chat'), params: { action: 'deploy' } },
+        { ...tool('deploy_as_mcp'), params: { action: 'undeploy' } },
+        tool('read'),
+      ])
+    ).toBe('Deployed workflows, undeployed workflows +1 more')
   })
 
   it('describes terminal runs from their operation', () => {

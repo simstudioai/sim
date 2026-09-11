@@ -327,6 +327,11 @@ function appendFinalizedHeaders(base: HeadersInit | undefined, additions?: Heade
   const headers = new Headers(base)
   if (!additions) return headers
   new Headers(additions).forEach((value, key) => {
+    /** A finalizer may clear several cookies at once; each needs its own header line. */
+    if (key === 'set-cookie') {
+      headers.append(key, value)
+      return
+    }
     if (headers.has(key)) {
       throw new Error(`Internal JSON response finalizer cannot replace header "${key}"`)
     }

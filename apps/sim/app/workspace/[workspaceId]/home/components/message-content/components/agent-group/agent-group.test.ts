@@ -120,6 +120,42 @@ describe('AgentGroup inline main activity', () => {
     container.remove()
   })
 
+  it.each([
+    ['executing', 'Reading notes'],
+    ['success', 'Read notes'],
+    ['error', 'Failed reading notes'],
+    ['cancelled', 'Stopped reading notes'],
+    ['skipped', 'Skipped reading notes'],
+    ['rejected', 'Failed reading notes'],
+    ['interrupted', 'Stopped reading notes'],
+  ] as const)('renders a single %s tool once without a disclosure', (status, expected) => {
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          items: [
+            {
+              type: 'tool',
+              data: {
+                id: 'read',
+                toolName: 'read',
+                displayTitle: 'Reading notes',
+                status,
+              },
+            },
+          ],
+          isStreaming: status === 'executing',
+        })
+      )
+    )
+    expect(container.textContent).toBe(expected)
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('[data-state]')).toBeNull()
+    expect(Boolean(container.querySelector('[class*="shimmer"]'))).toBe(status === 'executing')
+  })
+
   it('replaces the active status in place and expands the full completed history', () => {
     const first: AgentGroupItem = {
       type: 'tool',
@@ -144,6 +180,7 @@ describe('AgentGroup inline main activity', () => {
 
     render([first])
     expect(container.textContent).toBe('Searching files')
+    expect(container.querySelector('button')).toBeNull()
     const activity = container.firstElementChild
 
     render([first, next])
@@ -179,6 +216,15 @@ describe('AgentGroup inline main activity', () => {
       type: 'tool',
       data: { id: 'first', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
     }
+    const second: AgentGroupItem = {
+      type: 'tool',
+      data: {
+        id: 'second',
+        toolName: 'read',
+        displayTitle: 'Reading more notes',
+        status: 'success',
+      },
+    }
     const render = (items: AgentGroupItem[]) =>
       act(() =>
         root.render(
@@ -190,14 +236,15 @@ describe('AgentGroup inline main activity', () => {
           })
         )
       )
-    render([first])
+    render([first, second])
     act(() => container.querySelector('button')?.click())
     render([
       first,
+      second,
       {
         type: 'tool',
         data: {
-          id: 'second',
+          id: 'third',
           toolName: 'terminal_run',
           displayTitle: 'Running checks',
           status: 'executing',
@@ -206,7 +253,7 @@ describe('AgentGroup inline main activity', () => {
     ])
     expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
-      'Read notesRunning checks'
+      'Read notesRead more notesRunning checks'
     )
   })
 
@@ -225,6 +272,10 @@ describe('AgentGroup inline main activity', () => {
           params: { seconds: 3 },
         },
       }
+      const read: AgentGroupItem = {
+        type: 'tool',
+        data: { id: 'read', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
+      }
       const render = (items: AgentGroupItem[]) =>
         act(() =>
           root.render(
@@ -239,31 +290,43 @@ describe('AgentGroup inline main activity', () => {
       render([wait])
       act(() => vi.advanceTimersByTime(2000))
       expect(container.textContent).toBe('Waiting 1s')
+      expect(container.querySelector('button')).toBeNull()
+      render([wait, read])
+      expect(container.textContent).toBe('Waiting 1s')
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1)
       const header = container.querySelector('button')
       act(() => header?.click())
       expect(header?.hasAttribute('aria-label')).toBe(false)
       expect(header?.textContent).toBe('Waiting 1s')
       expect(header).toHaveAccessibleName('Waiting 1s')
-      expect(container.querySelector('[data-state="open"]')?.textContent).toBe('Waiting 1s')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'Waiting 1sRead notes'
+      )
       expect(setIntervalSpy).toHaveBeenCalledTimes(1)
       act(() => header?.click())
       act(() => header?.click())
-      expect(container.querySelector('[data-state="open"]')?.textContent).toBe('Waiting 1s')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'Waiting 1sRead notes'
+      )
       const viewport = container.querySelector('.overflow-y-auto')
       render([
         { ...wait, data: { ...wait.data, status: 'success' } },
+        read,
         { ...wait, data: { ...wait.data, id: 'wait-second' } },
       ])
       expect(header?.textContent).toBe('Waiting 3s')
       expect(header).toHaveAccessibleName('Waiting 3s')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
-      expect(container.querySelector('[data-state="open"]')?.textContent).toBe('WaitedWaiting 3s')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'WaitedRead notesWaiting 3s'
+      )
       expect(setIntervalSpy).toHaveBeenCalledTimes(2)
       render([
         { ...wait, data: { ...wait.data, status: 'success' } },
+        read,
         { ...wait, data: { ...wait.data, id: 'wait-second', status: 'success' } },
       ])
-      expect(header?.textContent).toBe('Waited')
+      expect(header?.textContent).toBe('Waited, read files')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
       expect(clearIntervalSpy).toHaveBeenCalledTimes(2)
     } finally {

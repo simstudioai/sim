@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
@@ -12,7 +13,14 @@ import {
   resolveGoverningPermissionGroupOrganization,
   resolveInviteFlags,
   WORKSPACE_MODE,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
+
+/** Foreign keys from `workspace` to `user`; a violation means the acting user's row is gone. */
+const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
+  'workspace_owner_id_user_id_fk',
+  'workspace_billed_account_user_id_user_id_fk',
+])
 
 const logger = createLogger('WorkspaceCreate')
 
@@ -208,6 +216,13 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
       createWorkspaceInTransaction(tx, { ...params, governingPermissionGroupOrganizationId })
     )
   } catch (error) {
+    if (
+      getPostgresErrorCode(error) === '23503' &&
+      WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
+    ) {
+      logger.warn('Workspace creation raced account deletion', { userId: params.userId })
+      throw new WorkspaceOwnerMissingError(params.userId)
+    }
     logger.error('Failed to create workspace', { userId: params.userId, error })
     throw error
   }

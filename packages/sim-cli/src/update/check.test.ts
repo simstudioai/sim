@@ -79,9 +79,7 @@ afterEach(() => {
 describe('announcing a newer release', () => {
   it('names both versions and the command that closes the gap', async () => {
     await run()
-    expect(notices.join('')).toBe(
-      'Update available: sim 2.1.2 → 2.1.5. Run: npm install -g sim@latest\n'
-    )
+    expect(notices.join('')).toBe('Update available: sim 2.1.2 → 2.1.5. Run: sim update\n')
   })
 
   it('asks the registry for the dist-tags and nothing else', async () => {

@@ -6,8 +6,8 @@
  * in 2.1.5 — sees a help listing without it and concludes the CLI cannot do it.
  * The version is the only thing that can tell them otherwise.
  *
- * Everything here fails silently. A courtesy notice that breaks a command, or
- * that writes anything to stdout, is worse than no notice at all.
+ * Registry and cache failures suppress the courtesy notice. Installation only
+ * happens when the user explicitly runs `sim update`.
  */
 
 import { spawn } from 'node:child_process'
@@ -468,8 +468,6 @@ export async function announceUpdateIfAvailable(options: UpdateCheckOptions = {}
     if (!isNewerVersion(available, current)) return
 
     const write = options.write ?? ((message: string) => void process.stderr.write(message))
-    write(
-      `Update available: sim ${currentVersion} → ${latest}. Run: ${upgradeCommand(modulePath, env)}\n`
-    )
+    write(`Update available: sim ${currentVersion} → ${latest}. Run: sim update\n`)
   } catch {}
 }
