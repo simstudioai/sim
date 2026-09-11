@@ -7995,6 +7995,11 @@
             "enum": ["auto", "force", "none"],
             "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
           },
+          "usageControlExpression": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time."
+          },
           "params": {
             "type": "object",
             "propertyNames": {
@@ -8041,6 +8046,11 @@
                 "type": "string",
                 "enum": ["auto", "force", "none"],
                 "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+              },
+              "usageControlExpression": {
+                "type": "string",
+                "maxLength": 2048,
+                "description": "Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time."
               }
             },
             "required": ["type", "customToolId"],
@@ -8109,6 +8119,11 @@
                 "type": "string",
                 "enum": ["auto", "force", "none"],
                 "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+              },
+              "usageControlExpression": {
+                "type": "string",
+                "maxLength": 2048,
+                "description": "Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time."
               }
             },
             "required": ["type", "schema", "code"],
@@ -8174,6 +8189,11 @@
             "type": "string",
             "enum": ["auto", "force", "none"],
             "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+          },
+          "usageControlExpression": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time."
           }
         },
         "required": ["type", "params"],
@@ -8282,6 +8302,11 @@
             "type": "string",
             "enum": ["auto", "force", "none"],
             "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+          },
+          "usageControlExpression": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time."
           }
         },
         "required": ["type", "params"],

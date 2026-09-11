@@ -402,6 +402,166 @@ describe('handleEditOperation dependent inputs', () => {
       projectId: 'PROJECT-NEW',
     })
   })
+
+  it.each(['removal', 'reorder', 'insertion', 'edited reorder'] as const)(
+    'preserves a surviving tool permission mode after %s',
+    (mutation) => {
+      const retainedTool = {
+        type: 'custom-tool',
+        customToolId: 'custom-retained',
+        usageControl: 'force',
+        usageControlExpression: 'none',
+      }
+      const workflow = {
+        blocks: {
+          agent: {
+            id: 'agent',
+            type: 'agent',
+            name: 'Agent',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            subBlocks: {
+              tools: {
+                id: 'tools',
+                type: 'tool-input',
+                value: [
+                  { type: 'custom-tool', customToolId: 'custom-removed', usageControl: 'auto' },
+                  retainedTool,
+                ],
+              },
+            },
+            outputs: {},
+            data: { canonicalModes: { '1:agentToolUsageControl': 'advanced' as const } },
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      }
+
+      const originalTools = workflow.blocks.agent.subBlocks.tools.value
+      const nextTools =
+        mutation === 'removal'
+          ? [retainedTool]
+          : mutation === 'insertion'
+            ? [
+                { type: 'custom-tool', customToolId: 'custom-new', usageControl: 'auto' },
+                ...originalTools,
+              ]
+            : [
+                mutation === 'edited reorder'
+                  ? { ...retainedTool, usageControlExpression: '<start.toolMode>' }
+                  : retainedTool,
+                originalTools[0],
+              ]
+
+      const { state } = applyOperationsToWorkflowState(workflow, [
+        {
+          operation_type: 'edit',
+          block_id: 'agent',
+          params: { inputs: { tools: structuredClone(nextTools) } },
+        },
+      ])
+
+      expect(state.blocks.agent.data.canonicalModes).toEqual({
+        [`${mutation === 'insertion' ? 2 : 0}:agentToolUsageControl`]: 'advanced',
+      })
+    }
+  )
+
+  it('switches nested Agent Tool Mode based on the canonical field supplied', () => {
+    const workflow = {
+      blocks: {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            tools: {
+              id: 'tools',
+              type: 'tool-input',
+              value: [
+                {
+                  type: 'custom-tool',
+                  customToolId: 'custom-1',
+                  usageControl: 'auto',
+                  usageControlExpression: '<route.oldToolMode>',
+                },
+              ],
+            },
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const basicRoundTrip = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControl: 'auto',
+                usageControlExpression: '<route.oldToolMode>',
+              },
+            ],
+          },
+        },
+      },
+    ]).state
+
+    expect(basicRoundTrip.blocks['agent-1'].data.canonicalModes).not.toHaveProperty(
+      '0:agentToolUsageControl'
+    )
+
+    const advanced = applyOperationsToWorkflowState(basicRoundTrip, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControlExpression: '<route.toolMode>',
+              },
+            ],
+          },
+        },
+      },
+    ]).state
+
+    expect(advanced.blocks['agent-1'].data.canonicalModes).toMatchObject({
+      '0:agentToolUsageControl': 'advanced',
+    })
+
+    const basic = applyOperationsToWorkflowState(advanced, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [{ type: 'custom-tool', customToolId: 'custom-1', usageControl: 'force' }],
+          },
+        },
+      },
+    ]).state
+
+    expect(basic.blocks['agent-1'].data.canonicalModes).not.toHaveProperty(
+      '0:agentToolUsageControl'
+    )
+  })
 })
 
 function makeParallelWorkflow() {

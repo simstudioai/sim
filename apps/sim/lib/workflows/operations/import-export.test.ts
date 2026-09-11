@@ -10,6 +10,7 @@ vi.mock('@/blocks/registry-maps', async () => {
   const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
   return partialBlockRegistry(
     await import('@/blocks/blocks/knowledge'),
+    await import('@/blocks/blocks/agent'),
     await import('@/blocks/blocks/start_trigger')
   )
 })
@@ -18,6 +19,8 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: vi.fn().mockResolvedValue({}),
 }))
 
+import { requestJson } from '@/lib/api/client/request'
+import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
 import {
   extractWorkflowName,
   parseWorkflowJson,
@@ -149,6 +152,46 @@ describe('workflow import/export parsing', () => {
       value: 'kb-uuid-123',
     })
   })
+})
+
+it('preserves variable permissions and the dormant selector through import', async () => {
+  const state = createLegacyState()
+  const tool = { type: 'function', usageControl: 'none', usageControlExpression: '<start.mode>' }
+  const tools = { id: 'tools', type: 'tool-input', value: [tool] }
+  const canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+  const content = JSON.stringify({
+    state: {
+      ...state,
+      blocks: {
+        ...state.blocks,
+        agent: {
+          ...state.blocks['start-1'],
+          id: 'agent',
+          name: 'Agent',
+          type: 'agent',
+          subBlocks: { tools },
+          data: { canonicalModes },
+        },
+      },
+    },
+  })
+  const createWorkflow = vi.fn().mockResolvedValue({ id: 'imported-workflow' })
+  await expect(
+    persistImportedWorkflow({
+      content,
+      filename: 'workflow.json',
+      workspaceId: 'ws-1',
+      createWorkflow,
+    })
+  ).resolves.toMatchObject({ workflowId: 'imported-workflow' })
+  const written = vi.mocked(requestJson).mock.calls.at(-1)?.[1].body as WorkflowStateContractInput
+  expect(Object.values(written.blocks)).toContainEqual(
+    expect.objectContaining({
+      type: 'agent',
+      subBlocks: expect.objectContaining({ tools }),
+      data: expect.objectContaining({ canonicalModes: expect.objectContaining(canonicalModes) }),
+    })
+  )
 })
 
 describe('persistImportedWorkflow description handling', () => {

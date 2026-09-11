@@ -26,6 +26,10 @@ import {
   buildDefaultCanonicalModes,
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  AGENT_TOOL_USAGE_CONTROL_CANONICAL_ID,
+  buildAgentToolUsageControlCanonicalKey,
+} from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -324,6 +328,10 @@ export function updateCanonicalModesForInputs(
         block.data?.canonicalModes ?? {},
         collectExplicitToolCanonicalModes(tools)
       )
+      tools.forEach((_, index) => {
+        const key = buildAgentToolUsageControlCanonicalKey(index)
+        if (canonicalModes[key] === 'basic') delete canonicalModes[key]
+      })
       block.data = { ...block.data, canonicalModes }
     }
   }
@@ -334,6 +342,13 @@ function collectExplicitToolCanonicalModes(tools: unknown[]) {
   tools.forEach((tool, index) => {
     if (!isRecordLike(tool)) return
     const choices: Record<string, 'basic' | 'advanced'> = {}
+    const hasFixedPermission = tool.usageControl !== undefined
+    const hasPermissionExpression = tool.usageControlExpression !== undefined
+    if (!hasPermissionExpression || !hasFixedPermission) {
+      choices[AGENT_TOOL_USAGE_CONTROL_CANONICAL_ID] = hasPermissionExpression
+        ? 'advanced'
+        : 'basic'
+    }
     const config = typeof tool.type === 'string' ? getBlock(tool.type) : undefined
     if (config && isRecordLike(tool.params)) {
       const params = tool.params
@@ -363,7 +378,9 @@ export function normalizeTools(tools: any[]): any[] {
         return {
           type: tool.type,
           customToolId: tool.customToolId,
-          usageControl: tool.usageControl || 'auto',
+          usageControl:
+            tool.usageControl || (tool.usageControlExpression === undefined ? 'auto' : undefined),
+          usageControlExpression: tool.usageControlExpression,
           isExpanded: tool.isExpanded ?? true,
         }
       }

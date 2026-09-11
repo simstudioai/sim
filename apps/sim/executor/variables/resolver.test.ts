@@ -2108,6 +2108,13 @@ describe('VariableResolver agent model levels', () => {
       reasoningEffort: '<Producer.result>',
       verbosity: '<variable.Detail>',
       thinkingLevel: '{{THINKING}}',
+      tools: [
+        {
+          type: 'search',
+          usageControl: 'auto',
+          usageControlExpression: '<variable.Detail>',
+        },
+      ],
     })
     const workflow: SerializedWorkflow = {
       version: '1',
@@ -2138,6 +2145,7 @@ describe('VariableResolver agent model levels', () => {
     expect(result.reasoningEffort).toBe('high')
     expect(result.verbosity).toBe('low')
     expect(result.thinkingLevel).toBe('medium')
+    expect(result.tools[0].usageControlExpression).toBe('low')
     expect(result.model).toBe('gpt-5')
   })
 })
