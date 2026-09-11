@@ -107,7 +107,10 @@ export function SlackManagedUsersModal({
   const sharedAppInstalled = organizationSetup && selectedApp?.appKind === 'shared'
   const accounts = useOrganizationAccounts(open && sharedAppInstalled ? organizationId : undefined)
   const memberGroup = accounts.data?.credentialGroup
-  const sharedAppReady = Boolean(
+  const memberOption = memberGroup?.options.find(
+    (option) => option.provider === 'slack' && option.status === 'active'
+  )
+  const sharedAppCanAuthorize = Boolean(
     sharedAppInstalled &&
       apps.isSuccess &&
       !apps.isFetching &&
@@ -118,14 +121,11 @@ export function SlackManagedUsersModal({
       accounts.isSuccess &&
       !accounts.isFetching &&
       !accounts.error &&
-      memberGroup?.id === credentialGroupId &&
-      memberGroup.options.some(
-        (option) =>
-          option.provider === 'slack' &&
-          option.status === 'active' &&
-          option.configurationStatus === 'ready'
-      )
+      memberGroup?.id === credentialGroupId
   )
+  const sharedAppReady = sharedAppCanAuthorize && memberOption?.configurationStatus === 'ready'
+  const sharedAppNeedsUpdate =
+    sharedAppCanAuthorize && memberOption?.configurationStatus === 'needs_update'
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [pending, setPending] = useState(false)
@@ -274,7 +274,12 @@ export function SlackManagedUsersModal({
   }
 
   const handleSubmit = async () => {
-    if (pending || sharedAppInstalled || (!organizationSetup && !selectedBot)) return
+    if (
+      pending ||
+      (sharedAppInstalled && !sharedAppNeedsUpdate) ||
+      (!organizationSetup && !selectedBot)
+    )
+      return
     if (
       organizationSetup
         ? !selectedApp || !requiredScopes.length
@@ -341,7 +346,9 @@ export function SlackManagedUsersModal({
     ? 'Loading...'
     : pending
       ? 'Waiting for Slack...'
-      : 'Verify and add'
+      : sharedAppNeedsUpdate
+        ? 'Update member access'
+        : 'Verify and add'
   const primaryDisabled =
     isLoading ||
     noBots ||
@@ -414,7 +421,9 @@ export function SlackManagedUsersModal({
                 <ChipModalField type='custom' title='Member accounts'>
                   <p className='text-[var(--text-secondary)] text-sm'>
                     {sharedAppInstalled
-                      ? 'The Sim Search installation needs attention. Manage the app to finish setup.'
+                      ? sharedAppNeedsUpdate
+                        ? 'Member access is outdated. Update it so members can reconnect their Slack accounts.'
+                        : 'The Sim Search installation needs attention. Manage the app to finish setup.'
                       : 'Verify member authorization for the installed app. Each member can then connect their Slack account to index channels and DMs they can access.'}
                   </p>
                   {selectedApp && (
@@ -512,7 +521,7 @@ export function SlackManagedUsersModal({
                   onClick: () => setAppSetupOpen(true),
                 },
               }
-            : sharedAppInstalled
+            : sharedAppInstalled && !sharedAppNeedsUpdate
               ? { defaultAction: 'dismiss' as const }
               : noBots
                 ? { defaultAction: 'dismiss' as const }

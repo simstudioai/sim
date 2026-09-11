@@ -551,6 +551,8 @@ describe('Slack member access selection', () => {
     { enabled: true, needsValidation: true, sharedAppAvailable: true },
     { enabled: true, needsValidation: false, sharedAppAvailable: false },
   ])('keeps incomplete shared app setup actionable: %j', async (status) => {
+    const accounts = mocks.accounts()
+    accounts.data.credentialGroup.options[0].configurationStatus = 'needs_update'
     mocks.apps.mockReturnValue({
       isSuccess: true,
       isPending: false,
@@ -575,11 +577,12 @@ describe('Slack member access selection', () => {
     await render(undefined, [], 'org-1')
     expect(document.body.textContent).toContain('Manage Sim Search app')
     expect(document.body.textContent).not.toContain('Verify and add')
+    expect(document.body.textContent).not.toContain('Update member access')
     expect(mocks.onOpenChange).not.toHaveBeenCalled()
     expect(mocks.start).not.toHaveBeenCalled()
   })
 
-  it.each(['removed', 'needs_update', 'pending', 'error', 'refreshing'])(
+  it.each(['removed', 'needs_update', 'needs_update_failed', 'pending', 'error', 'refreshing'])(
     'does not skip shared setup when member configuration is %s',
     async (state) => {
       mocks.apps.mockReturnValue({
@@ -623,8 +626,7 @@ describe('Slack member access selection', () => {
                           {
                             provider: 'slack',
                             status: 'active',
-                            configurationStatus:
-                              state === 'needs_update' ? 'needs_update' : 'ready',
+                            configurationStatus: 'needs_update',
                           },
                         ],
                 },
@@ -635,12 +637,39 @@ describe('Slack member access selection', () => {
       expect(mocks.start).not.toHaveBeenCalled()
       if (state === 'error') {
         expect(document.body.textContent).toContain('Could not load member setup')
+        expect(document.body.textContent).not.toContain('Update member access')
         await clickButton('Retry')
         expect(mocks.refetchAccounts).toHaveBeenCalledOnce()
       } else if (state === 'pending' || state === 'refreshing') {
         expect(document.body.textContent).toContain('Checking the installed Slack app')
+        expect(document.body.textContent).not.toContain('Update member access')
+      } else if (state === 'needs_update' || state === 'needs_update_failed') {
+        expect(document.body.textContent).toContain('Member access is outdated')
+        if (state === 'needs_update_failed')
+          mocks.start.mockRejectedValueOnce(new Error('Try again'))
+        await clickButton('Update member access')
+        expect(mocks.start).toHaveBeenCalledExactlyOnceWith({
+          organizationId: 'org-1',
+          credentialGroupId: 'group-1',
+          body: {
+            appId: 'A_SHARED',
+            teamId: 'T_TEAM',
+            requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
+          },
+        })
+        expect(mocks.install).not.toHaveBeenCalled()
+        if (state === 'needs_update_failed') {
+          expect(toast.error).toHaveBeenCalledWith('Try again')
+          expect(popup.close).toHaveBeenCalledOnce()
+          expect(mocks.onOpenChange).not.toHaveBeenCalled()
+          await clickButton('Update member access')
+        }
+        await completeAuthorization()
+        expect(toast.success).toHaveBeenCalledWith('Slack configured')
+        expect(mocks.onOpenChange).toHaveBeenCalledWith(false)
       } else {
         expect(document.body.textContent).toContain('Manage Sim Search app')
+        expect(document.body.textContent).not.toContain('Update member access')
       }
     }
   )
