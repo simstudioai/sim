@@ -1,4 +1,5 @@
 ---
+description: Zustand store patterns
 paths:
   - "apps/sim/**/store.ts"
   - "apps/sim/**/stores/**/*.ts"

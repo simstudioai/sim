@@ -1,4 +1,5 @@
 ---
+description: EMCN component library patterns
 paths:
   - "packages/emcn/**"
 ---
