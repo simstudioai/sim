@@ -97,6 +97,14 @@ vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
 }))
 
+const { connectExecutionSignalHubMock } = vi.hoisted(() => ({
+  connectExecutionSignalHubMock: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/execution-signal', () => ({
+  connectExecutionSignalHub: connectExecutionSignalHubMock,
+}))
+
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: decryptSecretMock,
 }))
@@ -374,6 +382,21 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     ])
     expect(safeStartMock).toHaveBeenCalledTimes(1)
     expect(executorConstructorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('begins connecting the signal subscriber synchronously, before the first await', async () => {
+    const executionPromise = executeWorkflowCore({
+      snapshot: createSnapshot() as unknown as ExecutionSnapshot,
+      callbacks: {},
+      loggingSession: loggingSession as unknown as LoggingSession,
+    })
+
+    // Asserted with no await in between: the handshake has to start ahead of
+    // the custom-block read, or it stops overlapping the work that precedes the
+    // cancellation subscribe and is paid inside that subscribe's budget instead.
+    expect(connectExecutionSignalHubMock).toHaveBeenCalledOnce()
+
+    await executionPromise
   })
 
   it('routes onBlockStart through logging session persistence path', async () => {

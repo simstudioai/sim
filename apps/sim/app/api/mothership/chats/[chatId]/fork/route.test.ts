@@ -65,7 +65,7 @@ vi.mock('@/lib/copilot/chat/messages-store', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: mockPublishStatusChanged },
+  publishChatStatusChanged: mockPublishStatusChanged,
 }))
 
 vi.mock('@/lib/copilot/request/go/fetch', () => ({
@@ -291,11 +291,13 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       userId: 'user-1',
     })
 
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      chatId: body.id,
-      type: 'created',
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      {
+        chatId: body.id,
+        type: 'created',
+      }
+    )
     expect(mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'task_forked',

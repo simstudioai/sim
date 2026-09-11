@@ -298,8 +298,11 @@ describe('executeFileTool', () => {
   })
 
   it.each(PARSER_TOOL_IDS)('dispatches %s with trusted execution scope', async (toolId) => {
+    const headers = new Headers({
+      'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+    })
     const response = await executeFileTool(
-      request(toolId, { filePath: 'https://example.com/report.txt', fileType: '' })
+      request(toolId, { filePath: 'https://example.com/report.txt', fileType: '' }, { headers })
     )
 
     expect(response.status).toBe(200)
@@ -311,6 +314,7 @@ describe('executeFileTool', () => {
         executionId: 'execution-1',
         attributedUserId: 'user-1',
         fileAccessUserId: 'user-1',
+        headers,
       })
     )
     expect(mocks.executeManage).not.toHaveBeenCalled()

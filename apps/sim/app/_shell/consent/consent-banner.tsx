@@ -1,6 +1,6 @@
 'use client'
 
-import { useHeadlessConsentUI } from '@c15t/nextjs/headless'
+import { useConsentManager, useHeadlessConsentUI } from '@c15t/nextjs/headless'
 import { Chip } from '@sim/emcn'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
@@ -29,12 +29,29 @@ const CATEGORIES_OPEN = { height: 'auto', opacity: 1 } as const
  * the light layer on `<html>` through `ThemeProvider`'s forced theme, or is a
  * themed app page where inheriting is what should happen — the card no longer
  * decides for itself.
+ *
+ * Nothing is asked *unprompted* when the policy lookup failed. `/init` answers
+ * from a third-party origin, and when that origin refuses the request — a bot
+ * challenge returns `403` with an HTML body — the runtime substitutes a generic
+ * opt-in policy rather than surfacing the failure. Volunteering a banner from
+ * it asks a question the visitor's jurisdiction may not require, and asks it of
+ * people who already answered, because the substituted policy's fingerprint
+ * never matches the one their stored consent was recorded under. The next load
+ * that reaches the real policy asks properly if it still needs to.
+ *
+ * A dialog the visitor opened themselves still renders, fallback or not: the
+ * Cookie Policy promises the choice can be changed at any time, and a control
+ * that silently does nothing breaks that promise. A choice saved during a
+ * fallback is recorded against the substituted policy and will be asked for
+ * again once the real one resolves, which is the lesser of the two failures.
  */
 export function ConsentBanner() {
   const { banner, dialog, openDialog, performAction, saveCustomPreferences } =
     useHeadlessConsentUI()
+  const { initDataSource } = useConsentManager()
   const prefersReducedMotion = useReducedMotion()
 
+  const isPolicyResolved = initDataSource !== 'offline-fallback'
   const isExpanded = dialog.isVisible
   const surfaceName = isExpanded ? 'dialog' : 'banner'
   const { allowedActions } = isExpanded ? dialog : banner
@@ -42,7 +59,7 @@ export function ConsentBanner() {
 
   return (
     <AnimatePresence>
-      {(banner.isVisible || dialog.isVisible) && (
+      {((isPolicyResolved && banner.isVisible) || dialog.isVisible) && (
         <motion.section
           aria-label='Cookie preferences'
           initial={{ opacity: 0, y: enterOffset }}

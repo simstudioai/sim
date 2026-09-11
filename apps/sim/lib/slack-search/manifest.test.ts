@@ -92,7 +92,7 @@ describe('Search app manifest', () => {
   })
 })
 
-it('official app uses the existing personal indexing grants with bot commands', () => {
+it('official app declares expanded permissions without subscribing to member message events', () => {
   const manifest = createSharedSlackSearchManifest('https://www.sim.ai')
   expect(manifest.oauth_config.scopes.user).toEqual([
     'channels:history',
@@ -105,9 +105,44 @@ it('official app uses the existing personal indexing grants with bot commands', 
     'mpim:read',
     'users:read',
     'users:read.email',
+    'canvases:read',
+    'canvases:write',
+    'chat:write',
+    'files:read',
+    'search:read.files',
+    'search:read.im',
+    'search:read.mpim',
+    'search:read.private',
+    'search:read.public',
+    'search:read.users',
+    'team:read',
+    'usergroups:read',
   ])
-  expect(manifest.oauth_config.scopes.bot).toContain('commands')
-  expect(manifest.oauth_config.scopes.bot).not.toContain('groups:history')
+  expect(manifest.oauth_config.scopes.bot).toEqual([
+    'assistant:write',
+    'chat:write',
+    'im:history',
+    'im:write',
+    'app_mentions:read',
+    'users:read',
+    'users:read.email',
+    'commands',
+    'channels:history',
+    'channels:manage',
+    'channels:read',
+    'channels:write.invites',
+    'chat:write.public',
+    'groups:history',
+    'groups:read',
+    'groups:write',
+    'groups:write.invites',
+    'links:read',
+    'links:write',
+    'mpim:history',
+    'mpim:read',
+    'mpim:write',
+    'reactions:write',
+  ])
   expect(manifest.features.slash_commands.map((command) => command.command)).toEqual([
     '/query',
     '/connect',

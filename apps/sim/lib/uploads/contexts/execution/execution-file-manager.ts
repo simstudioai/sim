@@ -1,5 +1,7 @@
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
@@ -7,6 +9,16 @@ import {
   generateFileId,
   generateUniqueExecutionFileKey,
 } from '@/lib/uploads/contexts/execution/utils'
+import {
+  initializeWorkspaceFileSecretProvenanceInTx,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  deleteFileMetadata,
+  deleteFileMetadataByIdentity,
+  type FileMetadataRecord,
+  insertImmutableFileMetadata,
+} from '@/lib/uploads/server/metadata'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileStorage')
@@ -69,8 +81,12 @@ export async function uploadExecutionFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  userId?: string
+  userId?: string,
+  secretProvenance?: WorkspaceFileSecretProvenance
 ): Promise<UserFile> {
+  if (secretProvenance && (!userId || !context.workspaceId)) {
+    throw new Error('Execution file provenance requires an owner and workspace')
+  }
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
   logger.debug(`File upload context:`, {
     workspaceId: context.workspaceId,
@@ -82,7 +98,7 @@ export async function uploadExecutionFile(
   })
 
   const storageKey = generateUniqueExecutionFileKey(context, fileName)
-  const fileId = generateFileId()
+  const fileId = secretProvenance ? generateId() : generateFileId()
 
   logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
 
@@ -97,8 +113,10 @@ export async function uploadExecutionFile(
     metadata.userId = userId
   }
 
+  const StorageService = await getStorageService()
+  let uploadedKey: string | undefined
+  let recordedFile: FileMetadataRecord | undefined
   try {
-    const StorageService = await getStorageService()
     const fileInfo = await StorageService.uploadFile({
       file: fileBuffer,
       fileName: storageKey,
@@ -106,8 +124,36 @@ export async function uploadExecutionFile(
       context: 'execution',
       preserveKey: true, // Don't add timestamp prefix
       customKey: storageKey, // Use exact execution-scoped key
+      cleanupOnMetadataFailure: true,
       metadata, // Pass metadata for cloud storage and database tracking
+      ...(secretProvenance ? { persistMetadata: false } : {}),
     })
+    uploadedKey = fileInfo.key
+
+    if (secretProvenance && userId) {
+      recordedFile = await db.transaction(async (tx) => {
+        const record = await insertImmutableFileMetadata(
+          {
+            id: fileId,
+            key: fileInfo.key,
+            userId,
+            workspaceId: context.workspaceId,
+            context: 'execution',
+            originalName: fileName,
+            contentType,
+            size: fileBuffer.length,
+          },
+          tx
+        )
+        await initializeWorkspaceFileSecretProvenanceInTx(
+          tx,
+          record.id,
+          record.contentUpdatedAt,
+          secretProvenance
+        )
+        return record
+      })
+    }
 
     const presignedUrl = await StorageService.generatePresignedDownloadUrl(
       fileInfo.key,
@@ -130,6 +176,26 @@ export async function uploadExecutionFile(
     })
     return userFile
   } catch (error) {
+    if (uploadedKey) {
+      try {
+        await StorageService.deleteFile({ key: uploadedKey, context: 'execution' })
+        if (recordedFile) {
+          await deleteFileMetadataByIdentity({
+            id: recordedFile.id,
+            key: recordedFile.key,
+            context: 'execution',
+            contentUpdatedAt: recordedFile.contentUpdatedAt,
+          })
+        } else if (!secretProvenance) {
+          await deleteFileMetadata(uploadedKey)
+        }
+      } catch (cleanupError) {
+        logger.error('Failed to clean up an unpublished execution file', {
+          key: uploadedKey,
+          error: getErrorMessage(cleanupError),
+        })
+      }
+    }
     logger.error(`Failed to upload execution file ${fileName}:`, error)
     throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
   }

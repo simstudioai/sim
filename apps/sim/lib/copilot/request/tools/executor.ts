@@ -125,11 +125,11 @@ function summarizeToolResultForSpan(result: {
   const output = (result as { output: unknown }).output
   if (typeof output === 'string') {
     summary.outputKind = 'string'
-    summary.outputBytes = output.length
+    summary.outputBytes = Buffer.byteLength(output)
   } else if (output && typeof output === 'object') {
     summary.outputKind = Array.isArray(output) ? 'array' : 'object'
     try {
-      summary.outputBytes = JSON.stringify(output).length
+      summary.outputBytes = Buffer.byteLength(JSON.stringify(output))
     } catch {
       summary.outputBytes = 0
     }
@@ -143,7 +143,7 @@ function summarizeToolResultForSpan(result: {
     }
   } else if (output !== undefined && output !== null) {
     summary.outputKind = typeof output
-    summary.outputBytes = String(output).length
+    summary.outputBytes = Buffer.byteLength(String(output))
   }
   return summary
 }

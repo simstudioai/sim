@@ -1,10 +1,12 @@
 /** Exercises real PostgreSQL locks and constraints using only isolated, explicitly cleaned fixtures. */
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   copilotChats,
   credential,
   organization,
+  organizationColumns,
   outboxEvent,
   slackSearchInstallation,
   slackSearchTurn,
@@ -72,7 +74,7 @@ describe('durable Slack Search turns in PostgreSQL', () => {
       }))
     )
     await db
-      .insert(organization)
+      .insert(withInsertColumns(organization, organizationColumns))
       .values({ id: organizationId, name: 'Slack queue fixture', slug: organizationId })
     await db.insert(credential).values({
       id: credentialId,

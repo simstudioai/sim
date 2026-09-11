@@ -6,30 +6,38 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const TTL_SECONDS = 600
-const attemptSchema = z.object({
-  userId: z.string().min(1),
-  sessionId: z.string().min(1),
-  organizationId: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().min(1),
-  sharedApp: z.object({ id: z.string().min(1), revision: z.string().min(1) }).optional(),
-  memberApp: z.object({ appId: z.string().min(1), teamId: z.string().min(1) }).optional(),
-  clientId: z.string().min(1),
-  encryptedClientSecret: z.string().min(1),
-  encryptedSigningSecret: z.string().min(1),
-  redirectUri: z.string().url(),
-  createdAt: z.number(),
-  installation: z
-    .object({
-      id: z.string(),
-      revision: z.string(),
-      credentialId: z.string(),
-      appId: z.string(),
-      teamId: z.string(),
-      appRevision: z.string().optional(),
-    })
-    .optional(),
-})
+const attemptSchema = z
+  .object({
+    userId: z.string().min(1),
+    sessionId: z.string().min(1),
+    organizationId: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    memberApp: z.object({ appId: z.string().min(1), teamId: z.string().min(1) }).optional(),
+    clientId: z.string().min(1),
+    redirectUri: z.string().url(),
+    createdAt: z.number(),
+    installation: z
+      .object({
+        id: z.string(),
+        revision: z.string(),
+        credentialId: z.string(),
+        appId: z.string(),
+        teamId: z.string(),
+        appRevision: z.string().optional(),
+      })
+      .optional(),
+  })
+  .and(
+    z.union([
+      z.object({ sharedApp: z.object({ id: z.string().min(1), revision: z.string().min(1) }) }),
+      z.object({
+        sharedApp: z.undefined().optional(),
+        encryptedClientSecret: z.string().min(1),
+        encryptedSigningSecret: z.string().min(1),
+      }),
+    ])
+  )
 export type SlackSearchOAuthAttempt = z.infer<typeof attemptSchema>
 const CONSUME = `
 local value = redis.call('GET', KEYS[1])

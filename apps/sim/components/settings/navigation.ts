@@ -44,6 +44,7 @@ export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin
 export type SelfHostSettingsSection = 'general' | 'billing' | 'chat-keys'
 
 export type OrganizationSettingsSection =
+  | 'recently-deleted'
   | 'integrations'
   | 'connected-accounts'
   | 'search-mcp'
@@ -900,6 +901,7 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
     'connected-accounts': 'organization',
     usage: 'organization',
     whitelabeling: 'organization',
+    'recently-deleted': 'organization',
     'audit-logs': 'governance',
     'access-control': 'governance',
     sso: 'governance',
@@ -915,6 +917,15 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
   Object.keys(ORGANIZATION_SECTION_GROUPS) as OrganizationSettingsSection[]
 ).map((id) => {
   const group = ORGANIZATION_SECTION_GROUPS[id]
+  if (id === 'recently-deleted') {
+    return {
+      id,
+      label: 'Recently deleted',
+      description: 'Restore your deleted chats.',
+      icon: Trash,
+      group,
+    }
+  }
   if (id === 'connected-accounts') {
     return {
       id,
@@ -1011,7 +1022,7 @@ export function resolveOrganizationSectionAccess({
   isTargetOrganizationAdmin,
 }: ResolveOrganizationSectionAccessOptions): OrganizationSectionAccess {
   if (!isTargetOrganizationMember) return 'unavailable'
-  if (section === 'search-mcp') return 'view'
+  if (section === 'search-mcp' || section === 'recently-deleted') return 'view'
   if (section === 'members') return isTargetOrganizationAdmin ? 'manage' : 'view'
   return isTargetOrganizationAdmin ? 'manage' : 'unavailable'
 }
@@ -1054,7 +1065,8 @@ export function isOrganizationSettingsSectionAvailable(
   section: OrganizationSettingsSection,
   features: OrganizationSettingsFeatures
 ): boolean {
-  if (section === 'members' || section === 'search-mcp') return true
+  if (section === 'members' || section === 'search-mcp' || section === 'recently-deleted')
+    return true
   if (section === 'billing') return features.billingEnabled
   /* Sim Search itself is enterprise on the hosted product; self-hosted gates it by flag, not by section. */
   if (section === 'integrations' || section === 'search-slack')

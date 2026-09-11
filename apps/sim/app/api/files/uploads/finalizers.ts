@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -9,6 +10,11 @@ import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types
 import { captureServerEvent } from '@/lib/posthog/server'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
+import { finalizeOrganizationAssistantAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
+import {
+  finalizeOrganizationLogoUpload,
+  organizationLogoUploadResult,
+} from '@/lib/uploads/contexts/organization-logo/application'
 import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
@@ -104,9 +110,14 @@ export async function finalizeUploadPurpose({
       )
     case 'profile_picture':
       return { value: storedAssetResult(session, 'profile-pictures') }
+    case 'organization_logo':
+      return finalizeOrganizationLogoUpload(principal, session, request)
     case 'workspace_logo':
       return finalizeWorkspaceLogo(session, actor, request)
     case 'mothership_attachment':
+      if (session.workspaceId === null) {
+        return { value: await finalizeOrganizationAssistantAttachment(principal, session) }
+      }
       return finalizeMothershipAttachment(session)
     case 'execution_attachment':
       return finalizeExecutionAttachment(session)
@@ -132,6 +143,8 @@ export async function loadCompletedUploadPurpose(
   switch (session.purpose) {
     case 'workspace_file':
       return toV2File(await loadCompletedWorkspaceFileUpload(session))
+    case 'organization_logo':
+      return organizationLogoUploadResult(session)
     case 'profile_picture':
     case 'workspace_logo':
     case 'mothership_attachment':
@@ -354,7 +367,7 @@ async function insertOrLoadFileMetadata(
 
   const now = new Date()
   const [inserted] = await db
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values({
       id: generateId(),
       key: input.key,

@@ -19,7 +19,7 @@ import {
   rewriteMessageFileRefs,
   rewriteResourceFileRefs,
 } from '@/lib/copilot/chat/rewrite-file-references'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -267,13 +267,7 @@ export const POST = withRouteHandler(
         logger.warn('Failed to fork copilot-service conversation, skipping', { err })
       }
 
-      if (newChat.workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId: newChat.workspaceId,
-          chatId: newId,
-          type: 'created',
-        })
-      }
+      publishChatStatusChanged({ ...parent, userId }, { chatId: newId, type: 'created' })
 
       captureServerEvent(
         userId,

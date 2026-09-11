@@ -1,9 +1,18 @@
 /** @vitest-environment node */
+import { db } from '@sim/db'
 import { slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({ flag: vi.fn(), env: { SLACK_SEARCH_APP_ID: 'A1' } }))
+const m = vi.hoisted(() => ({
+  flag: vi.fn(),
+  env: {
+    SLACK_SEARCH_APP_ID: 'A1',
+    SLACK_SEARCH_CLIENT_ID: 'client',
+    SLACK_SEARCH_CLIENT_SECRET: 'secret',
+    SLACK_SEARCH_SIGNING_SECRET: 'signing',
+  },
+}))
 vi.mock('@/lib/core/config/env', () => ({ env: m.env }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: m.flag }))
 
@@ -16,7 +25,12 @@ import {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
-  m.env.SLACK_SEARCH_APP_ID = 'A1'
+  Object.assign(m.env, {
+    SLACK_SEARCH_APP_ID: 'A1',
+    SLACK_SEARCH_CLIENT_ID: 'client',
+    SLACK_SEARCH_CLIENT_SECRET: 'secret',
+    SLACK_SEARCH_SIGNING_SECRET: 'signing',
+  })
   m.flag.mockResolvedValue(true)
 })
 describe('shared Slack rollout', () => {
@@ -25,15 +39,22 @@ describe('shared Slack rollout', () => {
     if (flag) m.env.SLACK_SEARCH_APP_ID = ''
     await expect(readSharedSlackSearchApp()).resolves.toBeNull()
   })
-  it.each(
-    [
-      [],
-      [{ id: 'A1', kind: 'custom', organizationId: 'org' }],
-      [{ id: 'A1', kind: 'shared', organizationId: 'org' }],
-    ].map((rows) => ({ rows }))
-  )('fails closed for invalid registration %#', async ({ rows }) => {
-    queueTableRows(slackApp, rows)
-    await expect(readSharedSlackSearchApp()).rejects.toThrow('not registered')
+  it.each([
+    'SLACK_SEARCH_CLIENT_ID',
+    'SLACK_SEARCH_CLIENT_SECRET',
+    'SLACK_SEARCH_SIGNING_SECRET',
+  ] as const)('fails closed without %s', async (key) => {
+    m.env[key] = ''
+    await expect(readSharedSlackSearchApp()).rejects.toThrow('Configure SLACK_SEARCH_APP_ID')
+  })
+  it('uses deployment credentials without requiring a registered database row', async () => {
+    await expect(readSharedSlackSearchApp()).resolves.toMatchObject({
+      id: 'A1',
+      clientId: 'client',
+      clientSecret: 'secret',
+      signingSecret: 'signing',
+    })
+    expect(db.select).not.toHaveBeenCalled()
   })
   it('preserves custom bot handling while the shared flag is off', async () => {
     m.flag.mockResolvedValue(false)

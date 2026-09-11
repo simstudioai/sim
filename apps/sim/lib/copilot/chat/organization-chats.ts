@@ -4,12 +4,20 @@ import { copilotChats } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 
 export const organizationChatOperations = {
+  subscribe: defineOrganizationOperation({
+    id: 'organization.chats.subscribe',
+    minimumRole: 'member',
+    principalKinds: ['session'],
+    capability: 'copilot.use',
+  }),
   read: defineOrganizationOperation({
     id: 'organization.chats.read',
     minimumRole: 'member',
@@ -39,6 +47,20 @@ export const authorizeOrganizationChat = {
   operation: organizationChatOperations.read,
   execute({ principal, input }: { principal: Principal; input: OrganizationChatInput }) {
     return authorizeOrganizationOperation(principal, organizationChatOperations.read, input)
+  },
+}
+
+/** Revalidates the organization surface's rollout and private-chat membership for live updates. */
+export const authorizeOrganizationChatEvents = {
+  operation: organizationChatOperations.subscribe,
+  async execute({ principal, input }: { principal: Principal; input: OrganizationChatInput }) {
+    const context = await authorizeOrganizationOperation(
+      principal,
+      organizationChatOperations.subscribe,
+      input
+    )
+    await requireOrganizationSearchAvailable(context.organizationId)
+    return context
   },
 }
 
@@ -83,6 +105,7 @@ export const createOrganizationChat = {
       })
       .returning({ id: copilotChats.id })
     if (!chat) throw new Error('Failed to create organization conversation')
+    publishChatStatusChanged(context, { chatId: chat.id, type: 'created' })
     return chat
   },
 }

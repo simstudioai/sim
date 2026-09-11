@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   folderIdSchema,
   noInputSchema,
+  organizationIdSchema,
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -16,6 +17,10 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { executionIdSchema } from '@/lib/api/contracts/workflows'
+import {
+  ASSISTANT_IMAGE_CONTENT_TYPES,
+  ASSISTANT_IMAGE_MAX_BYTES,
+} from '@/lib/uploads/shared/assistant-images'
 import {
   MAX_WORKSPACE_FILE_SIZE,
   MAX_WORKSPACE_FORMDATA_FILE_SIZE,
@@ -59,12 +64,41 @@ export const createInternalFileUploadBodySchema = z.discriminatedUnion('purpose'
     .strict(),
   z
     .object({
+      purpose: z.literal('organization_logo'),
+      ...internalFileUploadBaseShape,
+      size: z.number().int().min(1).max(MAX_ASSET_FILE_SIZE),
+      organizationId: organizationIdSchema,
+    })
+    .strict(),
+  z
+    .object({
       purpose: z.literal('mothership_attachment'),
       ...internalFileUploadBaseShape,
       size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
-      workspaceId: workspaceIdSchema,
+      workspaceId: workspaceIdSchema.optional(),
+      organizationId: organizationIdSchema.optional(),
     })
-    .strict(),
+    .strict()
+    .superRefine((body, ctx) => {
+      if (Boolean(body.workspaceId) === Boolean(body.organizationId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['workspaceId'],
+          message: 'Provide exactly one workspaceId or organizationId',
+        })
+      }
+      if (
+        body.organizationId &&
+        (body.size > ASSISTANT_IMAGE_MAX_BYTES ||
+          !ASSISTANT_IMAGE_CONTENT_TYPES.some((type) => type === body.contentType))
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['contentType'],
+          message: 'Assistant attachments must be PNG, JPEG, GIF, or WebP images up to 5 MB',
+        })
+      }
+    }),
   z
     .object({
       purpose: z.literal('execution_attachment'),
@@ -134,6 +168,14 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('workspace_logo'),
+      size: z.number().int().positive(),
+      result: internalUploadedAssetSchema.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      ...internalFileUploadSessionBaseShape,
+      purpose: z.literal('organization_logo'),
       size: z.number().int().positive(),
       result: internalUploadedAssetSchema.nullable(),
     })

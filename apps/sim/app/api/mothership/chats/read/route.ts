@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -28,7 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const chat = await getAccessibleCopilotChatAuth(chatId, userId, { principal })
     if (!chat) return NextResponse.json({ success: true })
 
-    await db
+    const [updatedChat] = await db
       .update(copilotChats)
       .set({ lastSeenAt: sql`GREATEST(${copilotChats.updatedAt}, NOW())` })
       .where(
@@ -38,6 +39,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           or(isNull(copilotChats.lastSeenAt), lt(copilotChats.lastSeenAt, copilotChats.updatedAt))
         )
       )
+      .returning({ id: copilotChats.id })
+    if (updatedChat && chat.type === 'mothership') {
+      publishChatStatusChanged(chat, { chatId, type: 'updated' })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

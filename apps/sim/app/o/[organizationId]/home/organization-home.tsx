@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from '@/lib/auth/auth-client'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
@@ -9,6 +10,8 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 
 interface OrganizationHomeProps {
@@ -28,6 +31,7 @@ function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
   const { data: session } = useSession()
   const [draft, setDraft] = useState('')
   const chat = useChat({ organizationId: organization.id }, chatId)
+  const files = useFileAttachments({ userId: session?.user?.id, organizationId: organization.id })
   const { sendMessage } = chat
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
   const firstName = userName?.split(' ')[0] ?? ''
@@ -40,8 +44,8 @@ function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
   useEffect(() => {
     if (chatId) return
     const handoff = MothershipHandoffStorage.consume({ organizationId: organization.id })
-    if (handoff?.message) {
-      void sendMessage(handoff.message, undefined, undefined, {
+    if (handoff && (handoff.message || handoff.fileAttachments?.length)) {
+      void sendMessage(handoff.message ?? '', handoff.fileAttachments, undefined, {
         requestMode: 'assistant',
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
@@ -51,21 +55,34 @@ function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
     }
   }, [chatId, organization.id, sendMessage])
 
-  const send = (message: string) => {
-    void sendMessage(message, undefined, undefined, { requestMode: 'assistant' })
+  const send = (message: string, fileAttachments?: FileAttachmentForApi[]) => {
+    void sendMessage(message, fileAttachments, undefined, { requestMode: 'assistant' })
   }
 
   const submit = () => {
     const message = draft.trim()
-    if (!message) return
+    if (files.attachedFiles.some((file) => file.uploading)) return
+    const attachments: FileAttachmentForApi[] = files.attachedFiles
+      .filter((file) => file.key)
+      .map((file) => ({
+        id: file.id,
+        key: file.key!,
+        filename: file.name,
+        media_type: file.type,
+        size: file.size,
+        path: file.path,
+      }))
+    if (!message && !attachments.length) return
     setDraft('')
-    send(message)
+    send(message, attachments.length ? attachments : undefined)
+    files.clearAttachedFiles()
   }
 
   const hasChat = Boolean(chatId || chat.messages.length)
   const composer = (
     <Composer
       value={draft}
+      files={files}
       isInitialView={!hasChat}
       isSending={chat.isSending || chat.isReconnecting}
       onChange={setDraft}
@@ -96,7 +113,21 @@ function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
           onSendQueuedMessage={chat.sendNow}
           onEditQueuedMessage={(id) => {
             const queued = chat.editQueuedMessage(id)
-            if (queued) setDraft(queued.content)
+            if (queued) {
+              setDraft(queued.content)
+              files.restoreAttachedFiles(
+                (queued.fileAttachments ?? []).map((file) => ({
+                  id: file.id,
+                  key: file.key,
+                  name: file.filename,
+                  type: file.media_type,
+                  size: file.size,
+                  path: file.path || getMothershipAttachmentPreviewUrl(file) || '',
+                  previewUrl: getMothershipAttachmentPreviewUrl(file),
+                  uploading: false,
+                }))
+              )
+            }
             return queued
           }}
           onCancelQueueEdit={chat.cancelQueueEdit}

@@ -1,98 +1,104 @@
 'use client'
 
 import { useState } from 'react'
-import { chipVariants, cn, OverflowText } from '@sim/emcn'
-import { Workspaces } from '@sim/emcn/icons'
-import Link from 'next/link'
-import { IdentityTile } from '@/components/identity-tile/identity-tile'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
-import { WorkspacesRailFlyout } from '@/app/o/[organizationId]/components/organization-sidebar/components/workspaces-rail-flyout'
-import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Plus, Workspaces } from '@sim/emcn/icons'
+import { useRouter } from 'next/navigation'
+import { WorkspaceList } from '@/app/o/[organizationId]/components/organization-sidebar/components/workspaces-section/workspace-list'
 import {
   CollapsedSidebarMenu,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-
-/** Rows shown at first, and added per "See more" — the workspace sidebar's Chats paging. */
-const PAGE_SIZE = 5
+import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
+import { useCreateWorkspace, useWorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface WorkspacesSectionProps {
   organizationId: string
   isCollapsed: boolean
   pathname: string | null
-  onContextMenu: (e: React.MouseEvent, href: string) => void
 }
 
-/**
- * The organization's workspaces the viewer belongs to: the first section of the
- * scroll region, so it carries no section gap — the divider padding above it is
- * the whole distance, exactly as the workspace sidebar spaces its own Chats.
- * Expanded, five rail chips and a muted "See more" that pages the rest in, the way
- * the workspace sidebar pages its Chats; collapsed, a hover flyout off the rail glyph.
- */
 export function WorkspacesSection({
   organizationId,
   isCollapsed,
   pathname,
-  onContextMenu,
 }: WorkspacesSectionProps) {
+  const router = useRouter()
   const hover = useHoverMenu()
-  const { workspaces, isLoading } = useOrganizationWorkspaces(organizationId)
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const hasMore = workspaces.length > visibleCount
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const { data: creationPolicy } = useWorkspaceCreationPolicy()
+  const { mutateAsync: createWorkspace, isPending: isCreating } = useCreateWorkspace()
+  const canCreate = creationPolicy?.canCreate && creationPolicy.organizationId === organizationId
+  const createDisabledReason = creationPolicy?.reason ?? 'Workspace creation is unavailable.'
+
+  const openCreate = () => {
+    if (!canCreate || isCreating) return
+    useSettingsDirtyStore.getState().requestLeave(() => {
+      hover.close()
+      setIsCreateOpen(true)
+    })
+  }
 
   return (
-    <SidebarSection title='Workspaces' railCollapsed={isCollapsed} className='shrink-0'>
-      {isCollapsed ? (
-        <div className='px-2'>
-          <CollapsedSidebarMenu
-            icon={<Workspaces className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
-            hover={hover}
-            ariaLabel='Workspaces'
-          >
-            <WorkspacesRailFlyout organizationId={organizationId} />
-          </CollapsedSidebarMenu>
-        </div>
-      ) : (
-        <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-          {!isLoading && workspaces.length === 0 && (
-            <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
-              No workspaces yet
-            </div>
-          )}
-          {workspaces.slice(0, visibleCount).map((workspace) => {
-            const href = `/workspace/${workspace.id}`
-            return (
-              <Link
-                key={workspace.id}
-                href={href}
-                className={chipVariants({ active: pathname === href, fullWidth: true })}
-                onContextMenu={(e) => onContextMenu(e, href)}
-              >
-                <IdentityTile
-                  initial={getWorkspaceInitial(workspace.name)}
-                  logoUrl={workspace.logoUrl}
-                />
-                <OverflowText label={workspace.name} className='flex-1 text-[var(--text-body)]' />
-              </Link>
-            )
-          })}
-          {workspaces.length > PAGE_SIZE && (
-            <button
-              type='button'
-              onClick={() => setVisibleCount((count) => (hasMore ? count + PAGE_SIZE : PAGE_SIZE))}
-              className={cn(
-                chipVariants({ fullWidth: true }),
-                'text-[var(--text-muted)] text-small'
-              )}
+    <>
+      <SidebarSection
+        title='Workspaces'
+        railCollapsed={isCollapsed}
+        className='shrink-0'
+        action={
+          !isCollapsed && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='quiet'
+                  size='icon'
+                  aria-label='New workspace'
+                  disabled={!canCreate || isCreating}
+                  onClick={openCreate}
+                >
+                  <Plus className='size-[16px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                {canCreate ? 'New workspace' : createDisabledReason}
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )
+        }
+      >
+        {isCollapsed ? (
+          <div className='px-2'>
+            <CollapsedSidebarMenu
+              icon={<Workspaces className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+              hover={hover}
+              ariaLabel='Workspaces'
+              primaryAction={
+                canCreate ? { label: 'New workspace', onSelect: openCreate } : undefined
+              }
             >
-              {hasMore ? 'See more' : 'See less'}
-            </button>
-          )}
-        </div>
-      )}
-    </SidebarSection>
+              <WorkspaceList organizationId={organizationId} pathname={pathname} flyout={hover} />
+            </CollapsedSidebarMenu>
+          </div>
+        ) : (
+          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+            <WorkspaceList organizationId={organizationId} pathname={pathname} />
+          </div>
+        )}
+      </SidebarSection>
+      <CreateWorkspaceModal
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        isCreating={isCreating}
+        onConfirm={async (name) => {
+          if (!canCreate) throw new Error(createDisabledReason)
+          const workspace = await createWorkspace({ name })
+          setIsCreateOpen(false)
+          router.push(`/workspace/${workspace.id}`)
+        }}
+      />
+    </>
   )
 }

@@ -17,7 +17,8 @@
  * writes any of them or deletes a locked row.
  */
 
-import { organization, userStats, workspace } from '@sim/db/schema'
+import { withInsertColumns } from '@sim/db/insert-columns'
+import { organization, userStats, userStatsColumns, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
@@ -631,7 +632,7 @@ export async function checkAndIncrementStorageUsageInTx(
 
   if (!orgScoped) {
     await tx
-      .insert(userStats)
+      .insert(withInsertColumns(userStats, userStatsColumns))
       .values({
         id: generateId(),
         userId,

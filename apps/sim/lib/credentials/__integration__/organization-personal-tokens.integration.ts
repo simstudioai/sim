@@ -1,11 +1,13 @@
 /** Real storage, encryption, migration, and authorization; no external GitLab calls. */
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
   member,
   organization,
+  organizationColumns,
   permissions,
   resourcePolicy,
   user,
@@ -95,7 +97,7 @@ describe('organization personal tokens', () => {
         updatedAt: now,
       }))
     )
-    await db.insert(organization).values(
+    await db.insert(withInsertColumns(organization, organizationColumns)).values(
       [ids.org, ids.foreignOrg].map((id) => ({
         id,
         name: 'Token fixture organization',

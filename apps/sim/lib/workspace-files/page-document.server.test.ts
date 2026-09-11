@@ -21,7 +21,10 @@ vi.mock('@/lib/workspace-files/page-document', () => ({
   renderSimPageDocument: mockRenderSimPageDocument,
 }))
 
-import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
+import {
+  renderSimPageDocumentWithAssets,
+  renderSimPageDocumentWithContributors,
+} from '@/lib/workspace-files/page-document.server'
 
 const WORKSPACE_ID = 'ws-1'
 const MB = 1024 * 1024
@@ -35,6 +38,7 @@ function imageRecord(id: string, size: number) {
     contentType: 'image/png',
     size,
     sizeBytes: size,
+    contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
   }
 }
 
@@ -117,5 +121,75 @@ describe('renderSimPageDocumentWithAssets memory bounds', () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(1)
     expect(html).toContain(`data:image/png;base64,${Buffer.from('png-bytes').toString('base64')}`)
     expect(html).toContain('src="/api/files/view/theirs"')
+  })
+})
+
+describe('rendered page contributors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('reports only the canonical revisions whose bytes were embedded', async () => {
+    mockRenderSimPageDocument.mockReturnValue(
+      documentReferencing(['mine', 'failed', 'foreign', 'missing', 'mine'])
+    )
+    const record = imageRecord('mine', 5)
+    mockGetFileMetadataById.mockImplementation(async (id: string) => {
+      if (id === 'missing') return null
+      if (id === 'foreign') return { ...imageRecord(id, 5), workspaceId: 'other-workspace' }
+      return id === 'mine' ? record : imageRecord(id, 5)
+    })
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
+      if (key.includes('failed')) throw new Error('unavailable')
+      return Buffer.from('image')
+    })
+
+    const rendered = await renderSimPageDocumentWithContributors('source', {
+      workspaceId: WORKSPACE_ID,
+    })
+
+    expect(rendered.contributingFiles).toEqual([
+      {
+        fileId: record.id,
+        key: record.key,
+        context: 'workspace',
+        contentUpdatedAt: record.contentUpdatedAt,
+      },
+    ])
+    expect(rendered.html).toContain('data:image/png;base64,aW1hZ2U=')
+    expect(rendered.html).toContain('/api/files/view/failed')
+    expect(rendered.html).toContain('/api/files/view/foreign')
+    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(4)
+  })
+
+  it('bounds metadata reads for missing images', async () => {
+    mockRenderSimPageDocument.mockReturnValue(
+      documentReferencing(Array.from({ length: 300 }, (_, i) => `missing-${i}`))
+    )
+    mockGetFileMetadataById.mockResolvedValue(null)
+
+    const rendered = await renderSimPageDocumentWithContributors('source', {
+      workspaceId: WORKSPACE_ID,
+    })
+
+    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(256)
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+    expect(rendered.contributingFiles).toEqual([])
+  })
+
+  it('charges repeated image occurrences against the rendered byte budget', async () => {
+    const source = documentReferencing(Array<string>(12).fill('image'))
+    mockRenderSimPageDocument.mockReturnValue(source)
+    mockGetFileMetadataById.mockResolvedValue(imageRecord('image', 8 * MB))
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(8 * MB))
+
+    const rendered = await renderSimPageDocumentWithContributors('source', {
+      workspaceId: WORKSPACE_ID,
+    })
+
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+    expect(rendered.html.length).toBeLessThanOrEqual(source.length + Math.ceil((32 * MB * 4) / 3))
+    expect(rendered.html).toContain('/api/files/view/image')
+    expect(rendered.contributingFiles).toHaveLength(1)
   })
 })

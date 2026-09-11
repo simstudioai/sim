@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { withInsertColumns } from '@sim/db/insert-columns'
+import { member, organization, organizationColumns } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
@@ -100,7 +101,7 @@ export async function createOrganizationWithOwnerTx(
     throw new OrganizationSlugTakenError(slug)
   }
 
-  await tx.insert(organization).values({
+  await tx.insert(withInsertColumns(organization, organizationColumns)).values({
     id: organizationId,
     name,
     slug,

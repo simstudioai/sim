@@ -146,6 +146,42 @@ function buildPendingToolCall(): ToolCallState {
   }
 }
 
+describe('tool result size diagnostics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    completeAsyncToolCall.mockResolvedValue(null)
+    markAsyncToolRunning.mockResolvedValue(null)
+    upsertAsyncToolCall.mockResolvedValue(null)
+  })
+
+  it.each(['é🔎', { content: 'é🔎' }])(
+    'records UTF-8 bytes after result projection for %j',
+    async (output) => {
+      executeTool.mockResolvedValueOnce({ success: true, output })
+      const toolCall = buildPendingToolCall()
+      const context = buildStreamingContext(toolCall)
+      const endSpan = vi.spyOn(context.trace, 'endSpan')
+
+      const completion = await executeToolAndReport(toolCall.id, context, {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      })
+
+      expect(completion.status).toBe(MothershipStreamV1ToolOutcome.success)
+      const serialized =
+        typeof completion.data === 'string' ? completion.data : JSON.stringify(completion.data)
+      expect(endSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tool.execute',
+          attributes: expect.objectContaining({ outputBytes: Buffer.byteLength(serialized) }),
+        }),
+        'ok'
+      )
+    }
+  )
+})
+
 describe('toolWatchdogTimeoutMs', () => {
   it('gives request-scoped MCP tools the long-running watchdog', () => {
     expect(toolWatchdogTimeoutMs('mcp-363de040-web_search_exa')).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)

@@ -1,4 +1,5 @@
 import type { UserFileLike } from '@/lib/core/utils/user-file'
+import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 interface DropboxFileMetadata {
@@ -90,6 +91,12 @@ export interface DropboxDownloadResponse extends ToolResponse {
     content?: string // Base64 encoded file content
     metadata?: DropboxFileMetadata
     temporaryLink?: string
+  }
+}
+
+export interface DropboxDownloadV2Response<File = UserFile> extends ToolResponse {
+  output: Omit<DropboxDownloadResponse['output'], 'file' | 'content'> & {
+    file?: File
   }
 }
 

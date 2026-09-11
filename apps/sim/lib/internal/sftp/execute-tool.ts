@@ -14,6 +14,7 @@ import {
 import {
   sftpDeleteInputSchema,
   sftpDownloadInputSchema,
+  sftpDownloadV2InputSchema,
   sftpListInputSchema,
   sftpMkdirInputSchema,
   sftpUploadInputSchema,
@@ -21,6 +22,7 @@ import {
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('SftpToolExecution')
@@ -28,8 +30,11 @@ const logger = createLogger('SftpToolExecution')
 async function executeParsed<S extends z.ZodType>(
   request: InternalToolOperationCall,
   schema: S,
-  execute: (input: z.output<S>, context: SftpOperationContext) => Promise<Response>
-): Promise<Response> {
+  execute: (
+    input: z.output<S>,
+    context: SftpOperationContext
+  ) => Promise<InternalToolOperationResult>
+): Promise<InternalToolOperationResult> {
   const parsed = schema.safeParse(request.input)
   if (!parsed.success) {
     return Response.json(
@@ -51,7 +56,9 @@ async function executeParsed<S extends z.ZodType>(
   })
 }
 
-export const executeSftpTool: InternalToolOperationHandler = async (request) => {
+export const executeSftpTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   let serializedInput: string
   try {
@@ -74,6 +81,10 @@ export const executeSftpTool: InternalToolOperationHandler = async (request) => 
         return executeParsed(request, sftpDeleteInputSchema, executeSftpDelete)
       case 'sftp_download':
         return executeParsed(request, sftpDownloadInputSchema, executeSftpDownload)
+      case 'sftp_download_v2':
+        return executeParsed(request, sftpDownloadV2InputSchema, (input, context) =>
+          executeSftpDownload(input, context, 'v2')
+        )
       case 'sftp_list':
         return executeParsed(request, sftpListInputSchema, executeSftpList)
       case 'sftp_mkdir':

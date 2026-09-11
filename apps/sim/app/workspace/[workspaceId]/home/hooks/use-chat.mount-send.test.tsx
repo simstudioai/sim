@@ -301,6 +301,37 @@ async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void>
 }
 
 describe('useChat remount send recovery', () => {
+  it('sends and recovers an image-only organization turn', async () => {
+    navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
+    const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' })
+    const attachments = [
+      {
+        id: 'image-a',
+        key: 'image-key',
+        filename: 'screenshot.png',
+        media_type: 'image/png',
+        size: 5,
+      },
+    ]
+    await act(async () => {
+      void getResult().sendMessage('', attachments)
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toMatchObject({
+      organizationId: 'org-1',
+      mode: 'assistant',
+      message: '',
+      fileAttachments: attachments,
+    })
+    expect(state.postBodies[0]).not.toHaveProperty('workspaceId')
+    unmount()
+    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toMatchObject({
+      message: '',
+      fileAttachments: attachments,
+    })
+  })
+
   it('sends and recovers an organization turn without adding workspace scope', async () => {
     navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
     const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' })

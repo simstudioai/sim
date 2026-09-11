@@ -1,4 +1,9 @@
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import {
+  EMPTY_PINNED_WORKSPACE_IDS,
+  usePinnedWorkspaceIds,
+  useWorkspacesQuery,
+} from '@/hooks/queries/workspace'
+import { useWorkspaceOrder } from '@/hooks/use-workspace-order'
 
 /**
  * The organization's workspaces the viewer belongs to, for the sidebar's
@@ -7,8 +12,15 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
  */
 export function useOrganizationWorkspaces(organizationId: string) {
   const { data = [], isLoading } = useWorkspacesQuery()
+  const { data: pinnedWorkspaceIds = EMPTY_PINNED_WORKSPACE_IDS } = usePinnedWorkspaceIds()
+  const orderedWorkspaces = useWorkspaceOrder(data, pinnedWorkspaceIds)
+  const workspaces = orderedWorkspaces.filter(
+    (workspace) => workspace.organizationId === organizationId
+  )
 
-  const workspaces = data.filter((workspace) => workspace.organizationId === organizationId)
-
-  return { workspaces, isLoading }
+  return {
+    workspaces,
+    pinnedWorkspaceIds,
+    isLoading,
+  }
 }

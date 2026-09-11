@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -327,6 +328,13 @@ export interface DataverseDownloadFileResponse extends ToolResponse {
     mimeType: string
     fileColumn: string
     success: boolean
+  }
+}
+
+export interface DataverseDownloadFileV2Response<File = UserFile> extends ToolResponse {
+  output: {
+    file: File
+    fileColumn: string
   }
 }
 

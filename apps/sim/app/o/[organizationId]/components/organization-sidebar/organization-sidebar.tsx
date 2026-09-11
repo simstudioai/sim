@@ -80,7 +80,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const pathname = usePathname()
   const posthog = usePostHog()
-  const { organization, searchAccess } = useOrganizationContext()
+  const { organization, viewer, searchAccess } = useOrganizationContext()
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { handlePointerDown } = useSidebarResize()
   const showCollapsedTooltips = useCollapsedTooltips(isCollapsed)
@@ -181,6 +181,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
           >
             <OrganizationHeader
               organization={organization}
+              canEditLogo={viewer.isAdmin}
               isCollapsed={isCollapsed}
               onExpandSidebar={toggleCollapsed}
             />
@@ -262,7 +263,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                     organizationId={organization.id}
                     isCollapsed={isCollapsed}
                     pathname={pathname}
-                    onContextMenu={handleHrefContextMenu}
                   />
                   {searchAccess.memberScoped && (
                     <OrganizationChats

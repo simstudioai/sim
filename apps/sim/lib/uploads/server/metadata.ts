@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   getWorkspaceFileSize,
@@ -179,7 +180,7 @@ async function insertFileMetadataWithExecutor(
 
   try {
     const [inserted] = await executor
-      .insert(workspaceFiles)
+      .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
       .values({
         id: fileId,
         key,
@@ -235,7 +236,7 @@ async function insertImmutableFileMetadataWithExecutor(
   } = options
   assertFileMetadataOrganizationOwner(options)
   const [inserted] = await executor
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values({
       id: id || generateId(),
       key,
@@ -316,7 +317,7 @@ export async function insertFileMetadataMany(
   const uniqueRows = [...uniqueRowsByKey.values()]
 
   const inserted = await db
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values(
       uniqueRows.map((row) => ({
         id: row.id || generateId(),
@@ -423,17 +424,30 @@ export async function resolveStoredFileContext(key: string): Promise<StorageCont
 }
 
 /**
- * Get active (non-deleted) file metadata for multiple keys in a single query.
- * Batches what would otherwise be N `getFileMetadataByKey` calls.
+ * Gets one canonical file record per key, active by default. Historical provenance reads may
+ * include deleted records; an active record wins, followed by the newest historical revision.
+ * Selecting that record in SQL bounds the result independently of each key's history.
  */
 export async function getFileMetadataByKeys(
   keys: string[],
   context: StorageContext,
-  executor: Pick<typeof db, 'select'> = db,
-  options?: { lock?: 'share' }
+  executor: Pick<typeof db, 'select' | 'selectDistinctOn'> = db,
+  options?: { lock?: 'share'; includeDeleted?: false } | { lock?: never; includeDeleted: true }
 ): Promise<FileMetadataRecord[]> {
   if (keys.length === 0) {
     return []
+  }
+  if (options?.includeDeleted) {
+    return executor
+      .selectDistinctOn([workspaceFiles.key], workspaceFileColumns)
+      .from(workspaceFiles)
+      .where(and(inArray(workspaceFiles.key, keys), eq(workspaceFiles.context, context)))
+      .orderBy(
+        workspaceFiles.key,
+        sql`${workspaceFiles.deletedAt} IS NULL DESC`,
+        desc(workspaceFiles.contentUpdatedAt),
+        workspaceFiles.id
+      )
   }
   const query = executor
     .select(workspaceFileColumns)

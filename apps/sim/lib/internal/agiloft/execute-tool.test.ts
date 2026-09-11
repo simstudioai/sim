@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const operationMocks = vi.hoisted(() => ({
   executeAgiloftAsyncStatus: vi.fn(),
@@ -28,7 +29,7 @@ const operationMocks = vi.hoisted(() => ({
 vi.mock('@/lib/internal/agiloft/operations', () => operationMocks)
 
 import { AgiloftOperationError } from '@/lib/internal/agiloft/errors'
-import { executeAgiloftTool } from '@/lib/internal/agiloft/execute-tool'
+import { executeAgiloftTool as executeAgiloftToolOperation } from '@/lib/internal/agiloft/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const CREDENTIALS = {
@@ -145,6 +146,14 @@ const TOOL_CASES = [
   ],
 ] as const
 
+async function executeAgiloftTool(
+  request: Parameters<typeof executeAgiloftToolOperation>[0]
+): Promise<Response> {
+  const result = await executeAgiloftToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
+}
+
 describe('executeAgiloftTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -162,6 +171,22 @@ describe('executeAgiloftTool', () => {
       expect.objectContaining(input),
       expect.objectContaining({ requestId: 'request-1', userId: 'user-current' })
     )
+  })
+
+  it('forwards file bytes without serializing the file result', async () => {
+    const fileResult = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    operationMocks.executeAgiloftRetrieveAttachment.mockResolvedValueOnce(fileResult)
+    expect(
+      await executeAgiloftToolOperation(
+        createRequest({
+          toolId: 'agiloft_retrieve_attachment',
+          input: { ...BASE, recordId: '1', fieldName: 'files', position: '0' },
+        })
+      )
+    ).toBe(fileResult)
   })
 
   it('uses the trusted delegation origin and forwards cancellation', async () => {

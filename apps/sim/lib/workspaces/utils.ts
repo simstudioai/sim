@@ -150,7 +150,9 @@ export async function listAccessibleWorkspaceRowsForUser(
     .filter((ws) => !seen.has(ws.id))
     .map((ws) => ({ workspace: ws, permissionType: 'admin' as const, viaOrgAdmin: true }))
 
-  return [...elevatedExplicit, ...derived]
+  return [...elevatedExplicit, ...derived].sort(
+    (a, b) => b.workspace.createdAt.getTime() - a.workspace.createdAt.getTime()
+  )
 }
 
 export async function listUserWorkspaces(userId: string, scope: WorkspaceScope = 'active') {

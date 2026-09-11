@@ -31,6 +31,13 @@ workspace ids, error messages, environment variable values, credentials, or the
 address of the deployment you talk to. The report leaves your machine from a
 separate short-lived process that is not given your API key.
 
+## Location
+
+The report carries no location of its own. The analytics service derives an
+approximate location (country and city) from the address the report arrived
+from, the way any HTTP request exposes one, and Sim uses that only to see
+which regions use the CLI.
+
 ## Identity
 
 The first run mints a random device id and stores it in `telemetry.json` under

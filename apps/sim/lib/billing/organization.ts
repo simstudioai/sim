@@ -1,5 +1,12 @@
 import { db } from '@sim/db'
-import { member, organization, subscription as subscriptionTable, user } from '@sim/db/schema'
+import { withInsertColumns } from '@sim/db/insert-columns'
+import {
+  member,
+  organization,
+  organizationColumns,
+  subscription as subscriptionTable,
+  user,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
@@ -442,7 +449,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
 
     organizationId = `org_${generateId()}`
     const now = new Date()
-    await tx.insert(organization).values({
+    await tx.insert(withInsertColumns(organization, organizationColumns)).values({
       id: organizationId,
       name: userData.name || `${userData.email || 'User'}'s Team`,
       slug: `${userId}-team-${generateId()}`

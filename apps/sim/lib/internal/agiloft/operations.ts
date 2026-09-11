@@ -65,6 +65,10 @@ import {
   getLockHttpMethod,
   parseFieldList,
 } from '@/lib/internal/agiloft/urls'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import type {
   AgiloftAsyncStatusResponse,
@@ -893,7 +897,7 @@ export async function executeAgiloftAttachFile(
 export async function executeAgiloftRetrieveAttachment(
   input: AgiloftRetrieveBody,
   context: AgiloftOperationContext
-): Promise<ToolResponse> {
+): Promise<InternalToolFileResult> {
   let resolvedIP: string
   try {
     resolvedIP = await resolveAgiloftInstance(input.instanceUrl, context.signal)
@@ -930,15 +934,8 @@ export async function executeAgiloftRetrieveAttachment(
       error: `Agiloft error: ${buffer.toString('utf8').slice(0, 300)}`,
     })
   }
-  return {
-    success: true,
-    output: {
-      file: {
-        name: fileName,
-        mimeType: resolveEffectiveMimeType(contentType, fileName),
-        data: buffer.toString('base64'),
-        size: buffer.length,
-      },
-    },
-  }
+  return createInternalToolFileResult(
+    { buffer, name: fileName, mimeType: resolveEffectiveMimeType(contentType, fileName) },
+    (file) => ({ success: true, output: { file } })
+  )
 }

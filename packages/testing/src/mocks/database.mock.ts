@@ -293,7 +293,7 @@ const lazyRowsThenable = (getRows: RowsSupplier): any => ({
 // `.limit(1).for('update')` row-lock form.
 const limitBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}) => {
   const thenable = lazyRowsThenable(getRows)
-  thenable.offset = spyOrDefault(offset, () => lazyRowsThenable(getRows))
+  thenable.offset = spyOrDefault(offset, () => limitBuilder(getRows, fields))
   thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   return thenable

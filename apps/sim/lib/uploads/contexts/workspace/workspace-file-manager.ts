@@ -5,6 +5,7 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   uploadSession,
   type WorkspaceFileRow,
@@ -266,7 +267,7 @@ async function insertWorkspaceFileMetadataInTx(
   metadata: WorkspaceFileMetadataInsert
 ): Promise<WorkspaceFileRow | undefined> {
   const [inserted] = await tx
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values({
       ...omit(metadata, ['size']),
       sizeBytes: metadata.size,
@@ -1056,7 +1057,7 @@ export async function trackChatUpload(
 
       await db.transaction(async (tx) => {
         const [inserted] = await tx
-          .insert(workspaceFiles)
+          .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
           .values({
             id: fileId,
             key: s3Key,

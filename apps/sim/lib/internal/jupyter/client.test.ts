@@ -14,7 +14,11 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithPinnedIP: securityMocks.secureFetchWithPinnedIP,
 }))
 
-import { InvalidJupyterTargetError, requestJupyterApi } from '@/lib/internal/jupyter/client'
+import {
+  InvalidJupyterTargetError,
+  requestJupyterApi,
+  requestJupyterFile,
+} from '@/lib/internal/jupyter/client'
 
 describe('Jupyter client', () => {
   beforeEach(() => {
@@ -108,5 +112,52 @@ describe('Jupyter client', () => {
       )
     ).rejects.toMatchObject({ name: 'AbortError' })
     expect(securityMocks.validateUrlWithDNS).not.toHaveBeenCalled()
+  })
+
+  it('downloads raw bytes with token auth, the server base path, and a separate 100 MiB cap', async () => {
+    const controller = new AbortController()
+    await requestJupyterFile(
+      {
+        serverUrl: 'https://jupyter.example.com/user/alice/',
+        token: 'secret-token',
+        path: 'datasets/report #1.xlsx',
+      },
+      controller.signal
+    )
+
+    const url =
+      'https://jupyter.example.com/user/alice/files/datasets/report%20%231.xlsx?download=1'
+    expect(securityMocks.validateUrlWithDNS).toHaveBeenCalledWith(
+      url,
+      'serverUrl',
+      'selfHostedService'
+    )
+    expect(securityMocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(url, '192.0.2.10', {
+      method: 'GET',
+      headers: { Authorization: 'token secret-token' },
+      body: undefined,
+      profile: 'selfHostedService',
+      maxRedirects: 0,
+      maxResponseBytes: 100 * 1024 * 1024,
+      signal: controller.signal,
+    })
+  })
+
+  it.each(['../secret', '%2e%2e/secret', 'data/../secret'])(
+    'rejects raw download traversal before DNS: %s',
+    async (path) => {
+      await expect(
+        requestJupyterFile({ serverUrl: 'jupyter.example.com', token: 'token', path })
+      ).rejects.toMatchObject({ name: 'UnsafeJupyterPathError' })
+      expect(securityMocks.validateUrlWithDNS).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects a raw file target blocked by DNS policy', async () => {
+    securityMocks.validateUrlWithDNS.mockResolvedValue({ isValid: false, error: 'blocked' })
+    await expect(
+      requestJupyterFile({ serverUrl: 'jupyter.example.com', token: 'token', path: 'data.csv' })
+    ).rejects.toBeInstanceOf(InvalidJupyterTargetError)
+    expect(securityMocks.secureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })

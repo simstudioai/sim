@@ -25,8 +25,12 @@ import {
 } from '@/lib/internal/slack/client'
 import { SlackOperationError } from '@/lib/internal/slack/errors'
 import { forEachSlackAttachmentFile } from '@/lib/internal/slack/file-input'
+import {
+  createInternalToolFileResult,
+  createInternalToolFilesResult,
+  type InternalToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import type { ToolFileData } from '@/tools/types'
 
 const logger = createLogger('SlackOperations')
 
@@ -294,9 +298,9 @@ async function uploadSlackFiles(
   input: SlackSendMessageBody,
   channel: string,
   context: SlackOperationContext
-): Promise<{ fileIds: string[]; files: ToolFileData[]; message?: unknown }> {
+): Promise<{ fileIds: string[]; files: InternalToolFile[]; message?: unknown }> {
   const fileIds: string[] = []
-  const files: ToolFileData[] = []
+  const files: InternalToolFile[] = []
 
   await forEachSlackAttachmentFile(
     input.files ?? [],
@@ -344,8 +348,7 @@ async function uploadSlackFiles(
       files.push({
         name: file.name,
         mimeType: file.contentType || file.type || 'application/octet-stream',
-        data: file.buffer.toString('base64'),
-        size: file.buffer.length,
+        buffer: file.buffer,
       })
     }
   )
@@ -413,16 +416,17 @@ export async function executeSlackSendMessage(
     return { success: true as const, output: sentMessageOutput(data, input.text) }
   }
 
-  return {
-    success: true as const,
+  const { message, fileIds, files } = uploaded
+  return createInternalToolFilesResult(files, (storedFiles) => ({
+    success: true,
     output: {
-      message: uploaded.message,
-      ts: record(uploaded.message).ts,
+      message,
+      ts: record(message).ts,
       channel,
-      fileCount: uploaded.fileIds.length,
-      files: uploaded.files,
+      fileCount: fileIds.length,
+      files: storedFiles,
     },
-  }
+  }))
 }
 
 export async function executeSlackDownload(input: SlackDownloadBody, signal?: AbortSignal) {
@@ -458,10 +462,8 @@ export async function executeSlackDownload(input: SlackDownloadBody, signal?: Ab
   if (!response.ok) failure(400, 'Failed to download file content')
   const buffer = Buffer.from(await response.arrayBuffer())
   signal?.throwIfAborted()
-  return {
-    success: true as const,
-    output: {
-      file: { name, mimeType, data: buffer.toString('base64'), size: buffer.length },
-    },
-  }
+  return createInternalToolFileResult({ buffer, name, mimeType }, (file) => ({
+    success: true,
+    output: { file },
+  }))
 }

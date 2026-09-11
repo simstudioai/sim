@@ -47,14 +47,19 @@ vi.mock('ioredis', () => ({
 
 import {
   acquireLock,
+  CONNECT_TIMEOUT_MS,
   closeRedisConnection,
+  DISCONNECT_TIMEOUT_MS,
   describeRedisConnection,
   extendLock,
   getRedisClient,
   onRedisReconnect,
   resetForTesting,
+  SHARED_COMMAND_TIMEOUT_MS,
+  sharedReconnectDelayMs,
   warmRedisConnection,
 } from '@/lib/core/config/redis'
+import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 describe('redis config', () => {
   beforeEach(() => {
@@ -471,7 +476,50 @@ describe('redis config', () => {
     })
   })
 
+  describe('sharedReconnectDelayMs', () => {
+    it('grows exponentially from the base and caps, with upward-only jitter', () => {
+      expect(sharedReconnectDelayMs(1, 0)).toBe(1_000)
+      expect(sharedReconnectDelayMs(2, 0)).toBe(2_000)
+      expect(sharedReconnectDelayMs(5, 0)).toBe(10_000)
+      expect(sharedReconnectDelayMs(6, 0)).toBe(10_000)
+      expect(sharedReconnectDelayMs(1, 1)).toBe(1_300)
+    })
+  })
+
   describe('warmRedisConnection', () => {
+    it('outlasts one dead handshake so the reconnect can be what warms it', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+
+      // The dead attempt's own diagnosis and half-close, then the longest first
+      // reconnect delay: the moment a healthy second attempt can begin.
+      await vi.advanceTimersByTimeAsync(
+        Math.max(CONNECT_TIMEOUT_MS, 2 * SHARED_COMMAND_TIMEOUT_MS + DISCONNECT_TIMEOUT_MS) +
+          sharedReconnectDelayMs(1, 1)
+      )
+      const client = getRedisClient()
+      Object.assign(client ?? {}, { status: 'ready' })
+      client?.emit('ready')
+
+      await expect(warm).resolves.toBe(true)
+    })
+
+    it('still gives up once the budget is spent', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+
+      await vi.advanceTimersByTimeAsync(
+        coldConnectionBudgetMs({
+          connectTimeoutMs: CONNECT_TIMEOUT_MS,
+          commandTimeoutMs: SHARED_COMMAND_TIMEOUT_MS,
+          disconnectTimeoutMs: DISCONNECT_TIMEOUT_MS,
+          reconnectDelayMs: sharedReconnectDelayMs(1, 1),
+        })
+      )
+
+      await expect(warm).resolves.toBe(false)
+    })
+
     it('resolves immediately when the connection is already usable', async () => {
       mockRedisInstance.status = 'ready'
 

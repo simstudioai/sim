@@ -345,6 +345,21 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] List/search tools expose API limits and do not auto-fetch every page into memory
 - [ ] Transform logic does not build unbounded arrays, maps, sets, or `Promise.all` fan-outs
 - [ ] File and HTTP body reads use explicit byte caps or existing stream-limit helpers
+- [ ] Internal file results reach `createInternalToolFileResult` / `createInternalToolFilesResult`
+      before JSON serialization; external raw downloads explicitly use `request.responseType: 'binary'`
+      and return a buffered `output.file`. Provider base64 JSON needs separate handling
+- [ ] Transforms retain stored `UserFile` identity/access fields, and tests cover a >10 MiB file
+      crossing executor admission without another upload. New file outputs contain references only,
+      without inline content aliases; preserve legacy versions when removing existing inline fields
+- [ ] Scan every file-producing path, including attachment fetches inside `transformResponse`, URL
+      descriptors, export operations, and old/new block versions; checking download-named tools alone
+      misses late reads that occur after the first response admission
+- [ ] Late attachment reads share a per-call byte budget, bound actual streamed bytes independently
+      of provider size metadata, and forward `ToolResponseContext.signal` through every fetch/read
+- [ ] Both workflow and Copilot tests produce compact `UserFile` outputs; nested message attachment
+      aliases reference the same stored files, with no duplicate upload or raw bytes left behind
+- [ ] New output contracts omit redundant copies of file name, MIME type, size, URL, and success;
+      retained provider metadata has a distinct purpose, and types match the stored-file runtime shape
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 

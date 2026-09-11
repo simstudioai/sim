@@ -33,6 +33,7 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diagnostics'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
@@ -41,6 +42,7 @@ import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
+import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
   executeKnowledgeSearch,
@@ -252,13 +254,20 @@ async function resolveKnowledgeSearchContext(
   }
 }
 
-export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
+const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
-    resolveKnowledgeSearchContext(input, principal),
+    measureSearchStage('knowledge_context', () => resolveKnowledgeSearchContext(input, principal)),
   async execute({ principal, input, context }) {
+    annotateSearchDiagnostics({
+      scopeKind: context.organizationId ? 'organization' : 'workspace',
+      knowledgeBaseCount: context.knowledgeBases.length,
+    })
     input.signal?.throwIfAborted()
-    if (context.organizationId) await requireOrganizationSearchAvailable(context.organizationId)
+    if (context.organizationId)
+      await measureSearchStage('availability', () =>
+        requireOrganizationSearchAvailable(context.organizationId!)
+      )
     const requestId = generateRequestId()
     const hasQuery = Boolean(input.query?.trim())
     const filters = input.tagFilters ?? []
@@ -276,11 +285,17 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     )
     const billingAttribution = hasQuery
       ? input.resolveBillingAttribution && context.workspaceId
-        ? await input.resolveBillingAttribution(context.workspaceId)
-        : await resolveKnowledgeBillingAttribution(principal, context)
+        ? await measureSearchStage('billing_attribution', () =>
+            input.resolveBillingAttribution!(context.workspaceId!)
+          )
+        : await measureSearchStage('billing_attribution', () =>
+            resolveKnowledgeBillingAttribution(principal, context)
+          )
       : undefined
     if (shouldMeter && billingAttribution) {
-      const usage = await checkAttributedUsageLimits(billingAttribution)
+      const usage = await measureSearchStage('usage_admission', () =>
+        checkAttributedUsageLimits(billingAttribution)
+      )
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(
           usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
@@ -292,7 +307,9 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     let structuredFilters: StructuredFilter[] = []
     let definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>()
     if (filters.length > 0) {
-      const built = await resolveKnowledgeTagFilters(filters, knowledgeBaseIds)
+      const built = await measureSearchStage('tag_filters', () =>
+        resolveKnowledgeTagFilters(filters, knowledgeBaseIds)
+      )
       structuredFilters = built.structuredFilters
       definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
     }
@@ -333,32 +350,44 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         }
       : undefined
     const preparedRegistry = input.prepareModelInputProvenance
-      ? await input.prepareModelInputProvenance({ userId, workspaceId: context.workspaceId })
+      ? await measureSearchStage('input_provenance', () =>
+          input.prepareModelInputProvenance!({ userId, workspaceId: context.workspaceId })
+        )
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
     input.signal?.throwIfAborted()
     const [queryEmbedding, access, searchDefaults] = await Promise.all([
       hasQuery
-        ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-            generateSearchEmbedding(
-              input.query!,
-              embeddingTarget!,
-              context.workspaceId,
-              input.signal
+        ? measureSearchStage('embedding', () =>
+            runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
+              generateSearchEmbedding(
+                input.query!,
+                embeddingTarget!,
+                context.workspaceId,
+                input.signal
+              )
             )
           )
         : Promise.resolve(null),
-      context.access.get(),
-      resolveKnowledgeSearchDefaults({
-        workspaceId: context.workspaceId,
-        organizationId: context.organizationId,
+      measureSearchStage('access_scope', () => context.access.get()),
+      measureSearchStage('defaults', () =>
+        resolveKnowledgeSearchDefaults({
+          workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
 
-        /** The signed-in person, if any; never the billing owner or a key's creator. */
-        userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-        requestedMode: input.searchMode,
-      }),
+          /** The signed-in person, if any; never the billing owner or a key's creator. */
+          userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+          requestedMode: input.searchMode,
+        })
+      ),
     ])
     input.signal?.throwIfAborted()
+    annotateSearchDiagnostics({
+      accessScopeKind: access.kind,
+      searchMode: searchDefaults.searchMode,
+      boostRecency: searchDefaults.boostRecency,
+      embeddingDimensions: embeddingTarget?.dimensions,
+    })
     const useReranker = Boolean(input.rerankerEnabled && hasQuery)
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
@@ -368,24 +397,26 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           )
         : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
-    let rows = await executeKnowledgeSearch({
-      knowledgeBaseIds,
-      topK: candidateTopK,
-      filters: input.filters,
-      access,
-      accessProvider: context.access,
-      signal: input.signal,
-      searchMode: searchDefaults.searchMode,
-      boostRecency: searchDefaults.boostRecency,
-      query: input.query,
-      queryVector: hasQuery
-        ? {
-            vector: JSON.stringify(queryEmbedding?.embedding ?? null),
-            dimensions: embeddingTarget!.dimensions,
-          }
-        : undefined,
-      structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
-    })
+    let rows = await measureSearchStage('retrieval', () =>
+      executeKnowledgeSearch({
+        knowledgeBaseIds,
+        topK: candidateTopK,
+        filters: input.filters,
+        access,
+        accessProvider: context.access,
+        signal: input.signal,
+        searchMode: searchDefaults.searchMode,
+        boostRecency: searchDefaults.boostRecency,
+        query: input.query,
+        queryVector: hasQuery
+          ? {
+              vector: JSON.stringify(queryEmbedding?.embedding ?? null),
+              dimensions: embeddingTarget!.dimensions,
+            }
+          : undefined,
+        structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
+      })
+    )
 
     input.signal?.throwIfAborted()
     /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */
@@ -404,10 +435,12 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       ReturnType<typeof importKnowledgeSearchResultSecretProvenance>
     > | null = null
     if (registry) {
-      provenanceSnapshot = await importKnowledgeSearchResultSecretProvenance({
-        registry,
-        results: rows,
-      })
+      provenanceSnapshot = await measureSearchStage('result_provenance', () =>
+        importKnowledgeSearchResultSecretProvenance({
+          registry,
+          results: rows,
+        })
+      )
       if (!provenanceSnapshot.imported) {
         registry.markIncomplete('knowledge-result-provenance-unavailable')
         if (useReranker) {
@@ -456,18 +489,20 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     if (useReranker && input.rerankerModel && rows.length > 0) {
       const candidateCount = rows.length
       try {
-        const reranked = await runWithKnowledgeModelInputProvenance(registry, () =>
-          rerank(
-            input.query!,
-            rows.map((row) => ({ id: row.id, text: row.content })),
-            {
-              model: input.rerankerModel!,
-              topN: input.topK,
-              workspaceId: context.workspaceId,
+        const reranked = await measureSearchStage('reranking', () =>
+          runWithKnowledgeModelInputProvenance(registry, () =>
+            rerank(
+              input.query!,
+              rows.map((row) => ({ id: row.id, text: row.content })),
+              {
+                model: input.rerankerModel!,
+                topN: input.topK,
+                workspaceId: context.workspaceId,
 
-              apiKey: input.rerankerApiKey,
-              signal: input.signal,
-            }
+                apiKey: input.rerankerApiKey,
+                signal: input.signal,
+              }
+            )
           )
         )
         rerankerBilled = true
@@ -537,29 +572,34 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     }
     if (shouldMeter && billingAttribution && baseCost && baseCost.total > 0) {
       try {
-        await recordUsage({
-          userId,
-          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
-          ...toBillingContext(billingAttribution),
-          entries: [
-            {
-              category: 'model',
-              source: 'knowledge-base',
-              description: embeddingModel,
-              cost: baseCost.total,
-              sourceReference: `kb-search:${requestId}`,
-            },
-          ],
-        })
-        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        await measureSearchStage('usage_recording', () =>
+          recordUsage({
+            userId,
+            ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+            ...toBillingContext(billingAttribution),
+            entries: [
+              {
+                category: 'model',
+                source: 'knowledge-base',
+                description: embeddingModel,
+                cost: baseCost.total,
+                sourceReference: `kb-search:${requestId}`,
+              },
+            ],
+          })
+        )
+        await measureSearchStage('overage_billing', () =>
+          checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        )
       } catch (error) {
         logger.error('Failed to record Knowledge search usage', { error })
       }
     }
 
     if (filters.length === 0) {
-      definitionsByKnowledgeBase =
-        await getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+      definitionsByKnowledgeBase = await measureSearchStage('tag_definitions', () =>
+        getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+      )
     }
     const tagMaps = new Map(
       [...definitionsByKnowledgeBase].map(([knowledgeBaseId, definitions]) => [
@@ -572,11 +612,13 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
      * a model may see, but the source card's modified time and connector type
      * are only carried here, under the same access predicate as the search.
      */
-    const basicDocumentMetadata = await getDocumentMetadataByIds(
-      rows.map((row) => row.documentId),
-      access,
-      context.access,
-      input.signal
+    const basicDocumentMetadata = await measureSearchStage('metadata', () =>
+      getDocumentMetadataByIds(
+        rows.map((row) => row.documentId),
+        access,
+        context.access,
+        input.signal
+      )
     )
     const results = rows
       .filter((row) => basicDocumentMetadata[row.documentId])
@@ -625,12 +667,14 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         if (renderedMetadata.length === 0) continue
         if (document.provenance.status === 'unknown' && !knowledgeEnforced) unrecordedCount += 1
         if (
-          !(await importDurableSecretProvenance(
-            registry,
-            document.provenance,
-            renderedMetadata,
-            'knowledge',
-            { reportUnrecorded: false }
+          !(await measureSearchStage('metadata_provenance', () =>
+            importDurableSecretProvenance(
+              registry,
+              document.provenance,
+              renderedMetadata,
+              'knowledge',
+              { reportUnrecorded: false }
+            )
           ))
         ) {
           registry.markIncomplete('knowledge-result-provenance-unavailable')
@@ -652,6 +696,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         })
       }
     }
+    annotateSearchDiagnostics({ resultCount: results.length })
     const cost = baseCost
       ? {
           input: baseCost.input,
@@ -691,12 +736,14 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
   afterSuccess: async ({ principal, context, input, result }) => {
     const actorUserId = resolvePrincipalSubjectUserId(principal)
     if (context.organizationId && actorUserId) {
-      await recordOrganizationSearchActivity({
-        organizationId: context.organizationId,
-        userId: actorUserId,
-        surface: input.surface ?? 'other',
-        results: result.results,
-      })
+      await measureSearchStage('activity_recording', () =>
+        recordOrganizationSearchActivity({
+          organizationId: context.organizationId,
+          userId: actorUserId,
+          surface: input.surface ?? 'other',
+          results: result.results,
+        })
+      )
     }
     PlatformEvents.knowledgeBaseSearched({
       knowledgeBaseId: result.knowledgeBaseId,
@@ -720,3 +767,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     })
   },
 })
+
+export const searchKnowledge = instrumentSearchUseCase(
+  'knowledge_application',
+  searchKnowledgeUseCase
+)

@@ -139,11 +139,7 @@ export const mothershipExecuteBodySchema = z.object({
 })
 export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
-export const mothershipEventsQuerySchema = z
-  .object({
-    workspaceId: z.string().optional(),
-  })
-  .passthrough()
+export const mothershipEventsQuerySchema = mothershipChatOwnerSchema
 
 export const mothershipChatGetQuerySchema = z
   .object({

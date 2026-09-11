@@ -40,6 +40,7 @@ const {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
   authorizeOrganizationChat,
+  readOrganizationAssistantImage,
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   persistChatResources,
@@ -62,6 +63,7 @@ const {
   resolveBillingAttribution: vi.fn(),
   resolveOrganizationBillingAttribution: vi.fn(),
   authorizeOrganizationChat: vi.fn(),
+  readOrganizationAssistantImage: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   persistChatResources: vi.fn(),
@@ -135,6 +137,10 @@ vi.mock('@/lib/copilot/chat/organization-chats', () => ({
   authorizeOrganizationChat: { execute: authorizeOrganizationChat },
 }))
 
+vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
+  readOrganizationAssistantImage,
+}))
+
 vi.mock('@/lib/credentials/application/personal-credentials', () => ({
   listPersonalCredentials: { execute: listPersonal },
 }))
@@ -192,9 +198,7 @@ vi.mock('@/lib/copilot/resources/persistence', () => ({
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: {
-    publishStatusChanged: mockPublishStatusChanged,
-  },
+  publishChatStatusChanged: mockPublishStatusChanged,
 }))
 
 import { chatOperations } from '@/lib/copilot/application/operations'
@@ -236,6 +240,14 @@ describe('handleUnifiedChatPost', () => {
       organizationId: 'org-1',
       userId: 'user-1',
       role: 'member',
+    })
+    readOrganizationAssistantImage.mockResolvedValue({
+      id: 'upload-1',
+      key: 'assistant/org-1/user-1/upload-1/image.png',
+      name: 'image.png',
+      contentType: 'image/png',
+      size: 5,
+      buffer: Buffer.from('image'),
     })
     getEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: { API_KEY: 'encrypted-secret' },
@@ -339,6 +351,170 @@ describe('handleUnifiedChatPost', () => {
         }),
       })
     )
+  })
+
+  it.each(['Describe this image', ''])(
+    'prepares organization image bytes and persists canonical metadata (message: %s)',
+    async (message) => {
+      getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+      dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
+      const key = 'assistant/org-1/user-1/upload-1/image.png'
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message,
+            organizationId: 'org-1',
+            mode: 'assistant',
+            fileAttachments: [
+              { id: 'forged-id', key, filename: 'forged.txt', media_type: 'text/plain', size: 0 },
+            ],
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(readOrganizationAssistantImage).toHaveBeenCalledWith({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        organizationId: 'org-1',
+        key,
+        signal: expect.any(AbortSignal),
+      })
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message,
+          assistantImages: [
+            {
+              type: 'image',
+              filename: 'image.png',
+              source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' },
+            },
+          ],
+        }),
+        expect.anything()
+      )
+      expect(appendCopilotChatMessages).toHaveBeenCalledWith(
+        'chat-1',
+        [
+          expect.objectContaining({
+            content: message,
+            fileAttachments: [
+              { id: 'upload-1', key, filename: 'image.png', media_type: 'image/png', size: 5 },
+            ],
+          }),
+        ],
+        expect.anything(),
+        expect.anything()
+      )
+      expect(getUserEntityPermissions).not.toHaveBeenCalled()
+      expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects inaccessible images before creating or persisting a conversation', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    readOrganizationAssistantImage.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Image not found')
+    )
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '',
+          organizationId: 'org-1',
+          mode: 'assistant',
+          fileAttachments: [
+            {
+              id: 'image',
+              key: 'other-user-image',
+              filename: 'image.png',
+              media_type: 'image/png',
+              size: 5,
+            },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(403)
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(appendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  it('continues rejecting empty messages without organization images', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: '', organizationId: 'org-1', mode: 'assistant' }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(readOrganizationAssistantImage).not.toHaveBeenCalled()
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+  })
+
+  it('keeps workspace files unavailable in workspace Assistant mode', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Read this file',
+          workspaceId: 'ws-1',
+          mode: 'assistant',
+          fileAttachments: [
+            {
+              id: 'file-1',
+              key: 'workspace/file.png',
+              filename: 'file.png',
+              media_type: 'image/png',
+              size: 5,
+            },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(readOrganizationAssistantImage).not.toHaveBeenCalled()
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+  })
+
+  it('broadcasts organization turn start, completion, and failure under its private owner', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ model: 'mothership' }])
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    const args = createSSEStream.mock.calls[0][0]
+    const owner = { organizationId: 'org-1', userId: 'user-1', workspaceId: undefined }
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'started',
+      streamId: args.streamId,
+    })
+    await args.orchestrateOptions.onComplete({
+      success: true,
+      content: 'Answer',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+    expect(mockPublishStatusChanged).toHaveBeenLastCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: args.streamId,
+    })
+    await args.orchestrateOptions.onError(new Error('provider failed'))
+    expect(mockPublishStatusChanged).toHaveBeenLastCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: args.streamId,
+    })
   })
 
   it.each([{ workspaceId: 'ws-1' }, { workflowId: 'wf-1' }, { mode: 'agent' }])(
@@ -1069,12 +1245,14 @@ describe('handleUnifiedChatPost', () => {
       requestId: 'request-1',
     })
 
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-      type: 'completed',
-      streamId: streamArgs?.streamId,
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      {
+        chatId: 'chat-1',
+        type: 'completed',
+        streamId: streamArgs?.streamId,
+      }
+    )
   })
 
   it('rejects requests that have neither workflow nor workspace attachment', async () => {

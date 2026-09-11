@@ -1,12 +1,22 @@
 import { createLogger } from '@sim/logger'
-import type { GmailAttachment, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
+import {
+  AttachmentDownloadBudget,
+  readAttachmentJson,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
+import type {
+  GmailAttachment,
+  GmailMessage,
+  GmailReadParams,
+  GmailToolResponse,
+} from '@/tools/gmail/types'
 import {
   createMessagesSummary,
   GMAIL_API_BASE,
   processMessage,
   processMessageForSummary,
 } from '@/tools/gmail/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 const logger = createLogger('GmailReadTool')
 
@@ -110,12 +120,18 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     }),
   },
 
-  transformResponse: async (response: Response, params?: GmailReadParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: GmailReadParams,
+    context?: ToolResponseContext
+  ) => {
+    const budget = new AttachmentDownloadBudget(context)
+    context?.signal?.throwIfAborted()
     const data = await response.json()
 
     // If we're fetching a single message directly (by ID)
     if (params?.messageId) {
-      return await processMessage(data, params)
+      return await processMessage(data, params, budget)
     }
 
     // If we're listing messages, we need to fetch each message's details
@@ -142,23 +158,33 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
           // Get the first message details
           const messageId = data.messages[0].id
           const messageResponse = await fetch(
-            `${GMAIL_API_BASE}/messages/${messageId}?format=full`,
+            `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}?format=full`,
             {
               headers: {
                 Authorization: `Bearer ${params?.accessToken || ''}`,
                 'Content-Type': 'application/json',
               },
+              signal: context?.signal,
             }
           )
 
           if (!messageResponse.ok) {
-            const errorData = await messageResponse.json()
+            const errorData = await readAttachmentJson<{ error?: { message?: string } }>(
+              messageResponse,
+              'Gmail message error',
+              context?.signal
+            )
             throw new Error(errorData.error?.message || 'Failed to fetch message details')
           }
 
-          const message = await messageResponse.json()
-          return await processMessage(message, params)
+          const message = await readAttachmentJson<GmailMessage>(
+            messageResponse,
+            'Gmail message',
+            context?.signal
+          )
+          return await processMessage(message, params, budget)
         } catch (error: any) {
+          rethrowAttachmentDownloadError(error, context?.signal)
           return {
             success: true,
             output: {
@@ -175,25 +201,28 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       } else {
         // If maxResults > 1, fetch details for all messages
         try {
-          const messagePromises = data.messages.slice(0, maxResults).map(async (msg: any) => {
+          const messages: GmailMessage[] = []
+          for (const msg of data.messages.slice(0, maxResults)) {
+            context?.signal?.throwIfAborted()
             const messageResponse = await fetch(
-              `${GMAIL_API_BASE}/messages/${msg.id}?format=full`,
+              `${GMAIL_API_BASE}/messages/${encodeURIComponent(msg.id)}?format=full`,
               {
-                headers: {
-                  Authorization: `Bearer ${params?.accessToken || ''}`,
-                  'Content-Type': 'application/json',
-                },
+                headers: { Authorization: `Bearer ${params?.accessToken || ''}` },
+                signal: context?.signal,
               }
             )
-
             if (!messageResponse.ok) {
+              await messageResponse.body?.cancel()
               throw new Error(`Failed to fetch details for message ${msg.id}`)
             }
-
-            return await messageResponse.json()
-          })
-
-          const messages = await Promise.all(messagePromises)
+            messages.push(
+              await readAttachmentJson<GmailMessage>(
+                messageResponse,
+                'Gmail message',
+                context?.signal
+              )
+            )
+          }
 
           // Create summary from processed messages first
           const summaryMessages = messages.map(processMessageForSummary)
@@ -202,7 +231,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
           if (params?.includeAttachments) {
             for (const msg of messages) {
               try {
-                const processedResult = await processMessage(msg, params)
+                const processedResult = await processMessage(msg, params, budget)
                 if (
                   processedResult.output.attachments &&
                   processedResult.output.attachments.length > 0
@@ -210,6 +239,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   allAttachments.push(...processedResult.output.attachments)
                 }
               } catch (error: any) {
+                rethrowAttachmentDownloadError(error, context?.signal)
                 logger.error(`Error processing message ${msg.id} for attachments:`, error)
               }
             }
@@ -233,6 +263,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
             },
           }
         } catch (error: any) {
+          rethrowAttachmentDownloadError(error, context?.signal)
           return {
             success: true,
             output: {
@@ -295,8 +326,12 @@ export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> =
   oauth: gmailReadTool.oauth,
   params: gmailReadTool.params,
   request: gmailReadTool.request,
-  transformResponse: async (response: Response, params?: GmailReadParams) => {
-    const legacy = await gmailReadTool.transformResponse!(response, params)
+  transformResponse: async (
+    response: Response,
+    params?: GmailReadParams,
+    context?: ToolResponseContext
+  ) => {
+    const legacy = await gmailReadTool.transformResponse!(response, params, context)
     if (!legacy.success) {
       return {
         success: false,

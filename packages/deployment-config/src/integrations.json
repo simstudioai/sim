@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-08",
+  "updatedAt": "2026-09-11",
   "integrations": [
     {
       "type": "onepassword",
@@ -3413,7 +3413,7 @@
       "tags": ["version-control", "ci-cd", "automation"]
     },
     {
-      "type": "box",
+      "type": "box_v2",
       "slug": "box",
       "name": "Box",
       "description": "Manage files, folders, and e-signatures with Box",
@@ -7081,7 +7081,7 @@
       "tags": ["monitoring", "incident-management"]
     },
     {
-      "type": "dropbox",
+      "type": "dropbox_v2",
       "slug": "dropbox",
       "name": "Dropbox",
       "description": "Upload, download, share, and manage files in Dropbox",
@@ -7207,7 +7207,7 @@
       "tags": ["llm", "agentic", "automation"]
     },
     {
-      "type": "dub",
+      "type": "dub_v2",
       "slug": "dub",
       "name": "Dub",
       "description": "Link management with Dub",
@@ -12955,7 +12955,7 @@
       "tags": ["forms", "automation", "webhooks"]
     },
     {
-      "type": "jupyter",
+      "type": "jupyter_v2",
       "slug": "jupyter",
       "name": "Jupyter",
       "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",
@@ -15106,7 +15106,7 @@
       "tags": ["llm", "knowledge-base", "agentic"]
     },
     {
-      "type": "microsoft_dataverse",
+      "type": "microsoft_dataverse_v2",
       "slug": "microsoft-dataverse",
       "name": "Microsoft Dataverse",
       "description": "Manage records in Microsoft Dataverse tables",
@@ -18657,7 +18657,7 @@
       "tags": ["payments", "automation", "data-analytics"]
     },
     {
-      "type": "quiver",
+      "type": "quiver_v2",
       "slug": "quiver",
       "name": "Quiver",
       "description": "Generate and vectorize SVGs",
@@ -21700,7 +21700,7 @@
       "tags": ["web-scraping", "seo"]
     },
     {
-      "type": "servicenow",
+      "type": "servicenow_v2",
       "slug": "servicenow",
       "name": "ServiceNow",
       "description": "Create, read, update, and delete ServiceNow records",
@@ -21885,7 +21885,7 @@
       "tags": ["customer-support", "ticketing", "incident-management"]
     },
     {
-      "type": "sftp",
+      "type": "sftp_v2",
       "slug": "sftp",
       "name": "SFTP",
       "description": "Transfer files via SFTP (SSH File Transfer Protocol)",
@@ -23918,7 +23918,7 @@
       "tags": ["payments", "subscriptions", "automation"]
     },
     {
-      "type": "ssh",
+      "type": "ssh_v2",
       "slug": "ssh",
       "name": "SSH",
       "description": "Connect to remote servers via SSH",

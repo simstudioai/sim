@@ -3,13 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockParseWorkspaceFileKey, mockResolveServableDocBytes } = vi.hoisted(
-  () => ({
+const { mockDownloadFile, mockParseWorkspaceFileKey, mockResolveServableDocBytes, mockRenderPage } =
+  vi.hoisted(() => ({
     mockDownloadFile: vi.fn(),
     mockParseWorkspaceFileKey: vi.fn(),
     mockResolveServableDocBytes: vi.fn(),
-  })
-)
+    mockRenderPage: vi.fn(),
+  }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFile: mockDownloadFile,
@@ -26,6 +26,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
+}))
+
+vi.mock('@/lib/workspace-files/page-document.server', () => ({
+  renderSimPageDocumentWithContributors: mockRenderPage,
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -218,5 +222,45 @@ describe('downloadServableFilesWithinBudget', () => {
     ).rejects.toThrow(PayloadSizeLimitError)
 
     expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('servable page provenance', () => {
+  it('preserves the inlined image identity for execution-stored pages', async () => {
+    const workspaceId = '2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f'
+    const contributor = {
+      fileId: 'image-file',
+      key: `workspace/${workspaceId}/image.png`,
+      context: 'workspace' as const,
+      contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+    }
+    mockParseWorkspaceFileKey.mockReturnValue(null)
+    mockDownloadFile.mockResolvedValue(Buffer.from('---\ntitle: Example\n---\nPage body'))
+    mockRenderPage.mockResolvedValue({
+      html: '<html>rendered image</html>',
+      contributingFiles: [contributor],
+    })
+
+    const rendered = await downloadServableFileFromStorage(
+      {
+        id: 'page-file',
+        name: 'page.html',
+        key: `execution/${workspaceId}/3f2e9d4c-6a7b-4d8e-9f0a-1b2c3d4e5f6a/4a3b2c1d-7e8f-4a9b-8c0d-1e2f3a4b5c6d/page.html`,
+        url: '',
+        type: 'text/x-sim-page',
+        size: 100,
+        context: 'execution',
+      },
+      'request',
+      createLogger('test'),
+      { maxBytes: 1024 }
+    )
+
+    expect(mockRenderPage).toHaveBeenCalledWith(expect.any(String), { workspaceId })
+    expect(rendered).toEqual({
+      buffer: Buffer.from('<html>rendered image</html>'),
+      contentType: 'text/html',
+      contributingFiles: [contributor],
+    })
   })
 })

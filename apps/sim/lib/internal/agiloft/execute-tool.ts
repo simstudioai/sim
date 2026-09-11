@@ -42,9 +42,11 @@ import {
   executeAgiloftUpdateRecord,
   executeAgiloftUpsertRecord,
 } from '@/lib/internal/agiloft/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 
 function parseInput<C extends AnyApiRouteContract>(contract: C, input: unknown) {
@@ -69,7 +71,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
   contract: C,
   request: InternalToolOperationCall,
   operation: (input: ContractBody<C>, context: AgiloftOperationContext) => Promise<unknown>
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   request.signal?.throwIfAborted()
   const parsed = parseInput(contract, request.input)
   if (!parsed.success) return parsed.response
@@ -80,7 +82,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
       signal: request.signal,
     })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof AgiloftOperationError) {
@@ -93,7 +95,9 @@ async function executeOperation<C extends AnyApiRouteContract>(
   }
 }
 
-export const executeAgiloftTool: InternalToolOperationHandler = async (request) => {
+export const executeAgiloftTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   switch (request.toolId) {
     case 'agiloft_async_status':
       return executeOperation(agiloftAsyncStatusContract, request, executeAgiloftAsyncStatus)

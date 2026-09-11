@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadServableFileFromStorage, mockReadWorkspaceFileByKey, mockVerifyFileAccess } =
@@ -22,7 +23,10 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', 
   readWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
 }))
 
-import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
+import {
+  readUserFileContent,
+  readUserFileContentWithContributors,
+} from '@/lib/execution/payloads/materialization.server'
 import type { UserFile } from '@/executor/types'
 
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas')
@@ -40,12 +44,39 @@ const generatedPdf: UserFile = {
 describe('readUserFileContent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     generatedPdf.size = PDF_SOURCE.length
     mockVerifyFileAccess.mockResolvedValue(true)
     mockReadWorkspaceFileByKey.mockResolvedValue({ file: { id: 'file-1' } })
     mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: PDF_BYTES,
       contentType: 'application/pdf',
+    })
+  })
+
+  it('returns rendered contributor identities for the consuming boundary to classify', async () => {
+    const identity = {
+      fileId: 'image',
+      key: 'workspace/workspace-1/image.png',
+      context: 'workspace' as const,
+      contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+    }
+    const html = '<img src="data:image/png;base64,aGlkZGVuLXNlY3JldA==">'
+    mockDownloadServableFileFromStorage.mockResolvedValue({
+      buffer: Buffer.from(html),
+      contentType: 'text/html',
+      contributingFiles: [identity],
+    })
+
+    await expect(
+      readUserFileContentWithContributors(
+        { ...generatedPdf, name: 'page', type: 'text/x-sim-page' },
+        { userId: 'user-1', encoding: 'text' }
+      )
+    ).resolves.toEqual({
+      content: html,
+      contributingFiles: [identity],
+      renderedContributingFiles: [identity],
     })
   })
 

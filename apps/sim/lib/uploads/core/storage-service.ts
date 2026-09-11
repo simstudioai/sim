@@ -98,7 +98,8 @@ async function insertFileMetadataHelper(
   fileName: string,
   contentType: string,
   fileSize: number,
-  uploadId?: string
+  uploadId?: string,
+  cleanupOnMetadataFailure = false
 ): Promise<void> {
   const { insertFileMetadata, insertImmutableFileMetadata } = await import(
     '@/lib/uploads/server/metadata'
@@ -131,6 +132,18 @@ async function insertFileMetadataHelper(
           error: cleanupError,
         })
       }
+    } else if (cleanupOnMetadataFailure) {
+      try {
+        await deleteFile({ key, context })
+        const { deleteFileMetadata } = await import('@/lib/uploads/server/metadata')
+        await deleteFileMetadata(key)
+      } catch (cleanupError) {
+        logger.error('Failed to clean up an unpublished tool output upload', {
+          key,
+          context,
+          error: getErrorMessage(cleanupError),
+        })
+      }
     }
     throw error
   }
@@ -149,12 +162,19 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     customKey,
     metadata,
     persistMetadata = true,
+    cleanupOnMetadataFailure = false,
     createOnlyUploadId,
     signal,
   } = options
   signal?.throwIfAborted()
   if (createOnlyUploadId && (context !== 'knowledge-base' || !metadata)) {
     throw new Error('Reserved create-only uploads require knowledge-base ownership metadata')
+  }
+  if (
+    cleanupOnMetadataFailure &&
+    ((context !== 'execution' && context !== 'copilot') || !preserveKey || !customKey)
+  ) {
+    throw new Error('Upload cleanup requires a newly allocated execution or Copilot key')
   }
 
   logger.info(`Uploading file to ${context} storage: ${fileName}`)
@@ -190,7 +210,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         fileName,
         contentType,
         file.length,
-        uploadId
+        uploadId,
+        cleanupOnMetadataFailure
       )
     }
 
@@ -219,7 +240,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         fileName,
         contentType,
         file.length,
-        uploadId
+        uploadId,
+        cleanupOnMetadataFailure
       )
     }
 
@@ -248,7 +270,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         fileName,
         contentType,
         file.length,
-        uploadId
+        uploadId,
+        cleanupOnMetadataFailure
       )
     }
 
@@ -295,7 +318,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       fileName,
       contentType,
       file.length,
-      uploadId
+      uploadId,
+      cleanupOnMetadataFailure
     )
   }
 

@@ -548,6 +548,9 @@ export const env = createEnv({
     DROPBOX_CLIENT_SECRET:                 z.string().optional(),                  // Dropbox OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
     SLACK_SEARCH_APP_ID:                   z.string().optional(),
+    SLACK_SEARCH_CLIENT_ID:                z.string().optional(),
+    SLACK_SEARCH_CLIENT_SECRET:            z.string().optional(),
+    SLACK_SEARCH_SIGNING_SECRET:           z.string().optional(),
     SLACK_SEARCH_SHARED_APP:               z.boolean().optional(),
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
     SLACK_SIGNING_SECRET:                  z.string().optional(),                  // Official Sim Slack app signing secret (verifies inbound events for the native OAuth trigger)

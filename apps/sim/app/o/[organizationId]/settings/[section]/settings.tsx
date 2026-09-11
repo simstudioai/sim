@@ -9,6 +9,12 @@ import {
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
+const OrganizationRecentlyDeleted = dynamic(() =>
+  import('@/app/o/[organizationId]/settings/components/organization-recently-deleted').then(
+    (m) => m.OrganizationRecentlyDeleted
+  )
+)
+
 const OrganizationIntegrationsSettings = dynamic(() =>
   import(
     '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
@@ -78,6 +84,9 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
 
   return (
     <SettingsSectionProvider section={section} meta={meta}>
+      {section === 'recently-deleted' && (
+        <OrganizationRecentlyDeleted key={organizationId} organizationId={organizationId} />
+      )}
       {section === 'integrations' && <OrganizationIntegrationsSettings />}
       {section === 'connected-accounts' && (
         <OrganizationConnectedAccounts organizationId={organizationId} />

@@ -62,7 +62,10 @@ export function createSlackSearchManifest(
   }
 }
 
-/** The official app combines personal source indexing with bot conversations and commands. */
+/**
+ * Declares the company app's permissions, including planned capabilities.
+ * Runtime OAuth validation continues to require only scopes used by implemented features.
+ */
 export function createSharedSlackSearchManifest(origin: string) {
   const manifest = createSlackSearchManifest(
     SLACK_SEARCH_DEFAULT_NAME,
@@ -94,8 +97,39 @@ export function createSharedSlackSearchManifest(origin: string) {
     oauth_config: {
       ...manifest.oauth_config,
       scopes: {
-        bot: [...SLACK_SHARED_SEARCH_BOT_SCOPES],
-        user: [...SLACK_SEARCH_USER_SCOPES],
+        bot: [
+          ...SLACK_SHARED_SEARCH_BOT_SCOPES,
+          'channels:history',
+          'channels:manage',
+          'channels:read',
+          'channels:write.invites',
+          'chat:write.public',
+          'groups:history',
+          'groups:read',
+          'groups:write',
+          'groups:write.invites',
+          'links:read',
+          'links:write',
+          'mpim:history',
+          'mpim:read',
+          'mpim:write',
+          'reactions:write',
+        ],
+        user: [
+          ...SLACK_SEARCH_USER_SCOPES,
+          'canvases:read',
+          'canvases:write',
+          'chat:write',
+          'files:read',
+          'search:read.files',
+          'search:read.im',
+          'search:read.mpim',
+          'search:read.private',
+          'search:read.public',
+          'search:read.users',
+          'team:read',
+          'usergroups:read',
+        ],
       },
     },
     settings: {

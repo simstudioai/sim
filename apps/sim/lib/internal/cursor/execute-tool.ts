@@ -4,7 +4,11 @@ import {
   cursorOperationErrorMessage,
   downloadCursorArtifact,
 } from '@/lib/internal/cursor/operations'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const inputSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
@@ -12,7 +16,9 @@ const inputSchema = z.object({
   path: z.string().min(1, 'Artifact path is required'),
 })
 
-export const executeCursorTool: InternalToolOperationHandler = async (request) => {
+export const executeCursorTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   if (
     request.toolId !== 'cursor_download_artifact' &&
@@ -29,12 +35,15 @@ export const executeCursorTool: InternalToolOperationHandler = async (request) =
   }
 
   try {
-    return Response.json(
-      await downloadCursorArtifact(parsed.data, {
-        requestId: request.requestId,
-        signal: request.signal,
-      })
-    )
+    const context = {
+      requestId: request.requestId,
+      signal: request.signal,
+    }
+    const result =
+      request.toolId === 'cursor_download_artifact_v2'
+        ? await downloadCursorArtifact(parsed.data, context, 'v2')
+        : await downloadCursorArtifact(parsed.data, context)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     const status = error instanceof CursorOperationError ? error.status : 500

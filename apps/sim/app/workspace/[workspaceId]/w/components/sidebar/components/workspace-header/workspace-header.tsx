@@ -29,11 +29,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-menu'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { WORKSPACE_SEARCH_THRESHOLD } from '@/lib/workspaces/constants'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
+import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
@@ -49,20 +51,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
-
-/**
- * Show the search input once the workspace list reaches this count, and size the
- * list viewport to exactly this many rows — so the sixth workspace is the one that
- * both fills the viewport and brings in search.
- *
- * The viewport's `max-h-[200px]` is derived from it: 6 rows at `chipGeometryClass`'s
- * 30px plus the 2px `gap-0.5` between them (6 * 30 + 5 * 2), plus the list's own
- * `pt-1.5 pb-1` (6 + 4) — the gaps to the search field and the rule, carried as
- * the scroll box's padding so rows scroll through them under the edge fade.
- * Tailwind arbitrary values must be statically analyzable, so the arithmetic
- * cannot live in the class — change them together.
- */
-const WORKSPACE_SEARCH_THRESHOLD = 6
 
 interface DisabledReasonTooltipProps {
   reason: string | null
@@ -628,64 +616,54 @@ function WorkspaceHeaderImpl({
                         }
                       >
                         {editingWorkspaceId === workspace.id ? (
-                          <div className={chipVariants({ active: true, fullWidth: true })}>
-                            <IdentityTile
-                              initial={initial}
-                              logoUrl={workspace.logoUrl}
-                              alt={workspace.name || 'Workspace logo'}
-                            />
-                            <input
-                              ref={(el) => {
-                                renameInputRef.current = el
-                                if (el && !hasInputFocusedRef.current) {
-                                  hasInputFocusedRef.current = true
-                                  el.focus()
-                                  el.select()
-                                }
-                              }}
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onKeyDown={async (e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, editingName.trim())
-                                    setEditingWorkspaceId(null)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault()
+                          <SidebarRenameRow
+                            leadingAdornment={
+                              <IdentityTile
+                                initial={initial}
+                                logoUrl={workspace.logoUrl}
+                                alt={workspace.name || 'Workspace logo'}
+                              />
+                            }
+                            ref={(el) => {
+                              renameInputRef.current = el
+                              if (el && !hasInputFocusedRef.current) {
+                                hasInputFocusedRef.current = true
+                                el.focus()
+                                el.select()
+                              }
+                            }}
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                setIsListRenaming(true)
+                                try {
+                                  await onRenameWorkspace(workspace.id, editingName.trim())
                                   setEditingWorkspaceId(null)
+                                } finally {
+                                  setIsListRenaming(false)
                                 }
-                              }}
-                              onBlur={async () => {
-                                if (!editingWorkspaceId) return
-                                const trimmedName = editingName.trim()
-                                if (trimmedName && trimmedName !== workspace.name) {
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, trimmedName)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                }
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault()
                                 setEditingWorkspaceId(null)
-                              }}
-                              className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
-                              maxLength={100}
-                              autoComplete='off'
-                              autoCorrect='off'
-                              autoCapitalize='off'
-                              spellCheck='false'
-                              disabled={isListRenaming}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                              }}
-                            />
-                          </div>
+                              }
+                            }}
+                            onBlur={async () => {
+                              if (!editingWorkspaceId) return
+                              const trimmedName = editingName.trim()
+                              if (trimmedName && trimmedName !== workspace.name) {
+                                setIsListRenaming(true)
+                                try {
+                                  await onRenameWorkspace(workspace.id, trimmedName)
+                                } finally {
+                                  setIsListRenaming(false)
+                                }
+                              }
+                              setEditingWorkspaceId(null)
+                            }}
+                            disabled={isListRenaming}
+                          />
                         ) : (
                           <div
                             className={cn(
@@ -847,44 +825,22 @@ function WorkspaceHeaderImpl({
         </button>
       )}
 
-      {(() => {
-        const capturedPermissions = capturedWorkspaceRef.current?.permissions
-        const contextCanAdmin = capturedPermissions === 'admin'
-        const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
-        const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
-        /**
-         * An organization admin holds this workspace through their org role, not
-         * a permission row, so there is nothing to give up and the removal
-         * endpoint refuses it. `permissions === 'admin'` cannot tell them apart
-         * from an explicit workspace admin, who may leave. This menu has no
-         * tooltip affordance to explain a greyed row, so the entry is withheld
-         * rather than shown dead.
-         */
-        const canLeave = !isOwner && !capturedWorkspace?.isOrgAdmin && !!onLeaveWorkspace
-
-        return (
-          <ContextMenu
-            isOpen={isContextMenuOpen}
-            position={contextMenuPosition}
-            menuRef={contextMenuRef}
-            onClose={closeContextMenu}
-            onRename={handleRenameAction}
-            renameInputRef={renameInputRef}
-            onDelete={handleDeleteAction}
-            onLeave={handleLeaveAction}
-            onTogglePin={handleTogglePinAction}
-            onUploadLogo={handleUploadLogoAction}
-            showPin={true}
-            isPinned={Boolean(menuOpenWorkspaceId && pinnedWorkspaceIds.has(menuOpenWorkspaceId))}
-            showRename={true}
-            showUploadLogo={!!onUploadLogo}
-            showLeave={canLeave}
-            disableRename={!contextCanAdmin}
-            disableDelete={!contextCanAdmin || workspaces.length <= 1}
-            disableUploadLogo={!contextCanAdmin}
-          />
-        )
-      })()}
+      <WorkspaceContextMenu
+        workspace={workspaces.find((workspace) => workspace.id === menuOpenWorkspaceId)}
+        workspaceCount={workspaces.length}
+        sessionUserId={sessionUserId}
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={contextMenuRef}
+        onClose={closeContextMenu}
+        onRename={handleRenameAction}
+        renameInputRef={renameInputRef}
+        onDelete={handleDeleteAction}
+        onLeave={handleLeaveAction}
+        onTogglePin={handleTogglePinAction}
+        onUploadLogo={handleUploadLogoAction}
+        isPinned={Boolean(menuOpenWorkspaceId && pinnedWorkspaceIds.has(menuOpenWorkspaceId))}
+      />
 
       <CreateWorkspaceModal
         open={isCreateModalOpen}

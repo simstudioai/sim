@@ -26,6 +26,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { executeFunction } from '@/lib/function-execution/application/execute-function'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const principal: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -153,5 +154,29 @@ describe('executeFunction', () => {
 
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     expect(mocks.executeRequest).not.toHaveBeenCalled()
+  })
+
+  it('passes trusted registry state outside the parsed Function wire body', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'workspace-owner',
+      workspaceId: 'workspace-1',
+    })
+    await executeFunction.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        body: {
+          code: 'return 1',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        },
+        headers: new Headers(),
+        resolvedSecretTraceRegistry: registry,
+      },
+    })
+
+    expect(mocks.executeRequest.mock.calls[0][2].resolvedSecretTraceRegistry).toBe(registry)
+    expect(mocks.executeRequest.mock.calls[0][1]).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 })

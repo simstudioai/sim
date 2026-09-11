@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -61,7 +62,7 @@ export default async function OrganizationLayout({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <OrganizationProvider context={context}>
+      <OrganizationProvider context={context} chatEnabled={isChatEnabled}>
         <GlobalCommandsProvider>
           <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
             <ImpersonationBanner />

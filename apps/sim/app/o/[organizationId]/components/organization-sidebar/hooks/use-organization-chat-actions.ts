@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-chats'
 import { useFlyoutInlineRename } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-flyout-inline-rename'
 import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
 import {
+  useDeleteMothershipChat,
   useMarkMothershipChatRead,
   useMarkMothershipChatUnread,
   useRenameMothershipChat,
@@ -21,7 +24,9 @@ export function useOrganizationChatActions({
   organizationId,
   chats,
 }: UseOrganizationChatActionsProps) {
+  const router = useRouter()
   const owner = { organizationId }
+  const { mutate: deleteChat, isPending: isDeleting } = useDeleteMothershipChat(owner)
   const { mutateAsync: renameChat } = useRenameMothershipChat(owner)
   const { mutate: pinChat } = useSetMothershipChatPinned(owner)
   const { mutate: readChat } = useMarkMothershipChatRead(owner)
@@ -29,6 +34,7 @@ export function useOrganizationChatActions({
   const menu = useContextMenu()
   const hover = useHoverMenu()
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  const [chatToDelete, setChatToDelete] = useState<OrganizationChat | null>(null)
   const selectedChat = chats.find((chat) => chat.id === selectedChatId)
   const rename = useFlyoutInlineRename({
     itemType: 'chat',
@@ -80,6 +86,27 @@ export function useOrganizationChatActions({
   const chatHref = selectedChat?.href
   const chatPinned = selectedChat?.isPinned
 
+  const startDelete = useCallback(() => {
+    if (selectedChat) setChatToDelete(selectedChat)
+  }, [selectedChat])
+
+  const cancelDelete = useCallback(() => {
+    if (!isDeleting) setChatToDelete(null)
+  }, [isDeleting])
+
+  const confirmDelete = useCallback(() => {
+    if (!chatToDelete || isDeleting) return
+    deleteChat(chatToDelete.id, {
+      onSuccess: () => {
+        setChatToDelete(null)
+        if (window.location.pathname === chatToDelete.href) {
+          router.push(organizationRoutes(organizationId).home)
+        }
+      },
+      onError: (error) => toast.error(error.message),
+    })
+  }, [chatToDelete, deleteChat, isDeleting, organizationId, router])
+
   const startRename = useCallback(() => {
     if (chatId && chatName !== undefined) rename.startRename({ id: chatId, name: chatName })
   }, [chatId, chatName, rename.startRename])
@@ -119,6 +146,11 @@ export function useOrganizationChatActions({
     onMorePointerDown,
     onMoreClick,
     startRename,
+    chatToDelete,
+    isDeleting,
+    startDelete,
+    cancelDelete,
+    confirmDelete,
     togglePin,
     markRead,
     markUnread,
