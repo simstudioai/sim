@@ -16,6 +16,7 @@ import {
   CONTENT_ENGINE_ACCESS_MODES,
   isContentEngineAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
+import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
@@ -49,6 +50,8 @@ export interface ConnectorSyncPayload {
 }
 
 export interface DispatchSyncOptions {
+  /** Manual requests wait briefly after a successful run before starting another. */
+  manual?: boolean
   billingAttribution: BillingAttributionSnapshot
   expectedNextSyncAt?: Date
   fullSync?: boolean
@@ -151,30 +154,34 @@ export interface SyncDispatchResult {
  * it takes nothing, so the caller can skip a hand-off that would only be refused
  * at the lock.
  */
-async function markSyncPending(connectorId: string): Promise<string | null> {
+async function markSyncPending(connectorId: string, manual: boolean): Promise<string | null> {
   const dispatchToken = generateId()
-  const now = new Date()
 
-  const taken = await db
-    .update(knowledgeConnector)
-    .set({
-      status: 'pending',
-      syncLockToken: dispatchToken,
-      syncLockLeaseAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(knowledgeConnector.id, connectorId),
-        inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
-        inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
-        isNull(knowledgeConnector.syncLockToken),
-        connectorIsLive()
+  const claim = async (tx: Pick<typeof db, 'select' | 'update'>) => {
+    if (manual) await assertManualSyncCooldown(tx, connectorId, 'content')
+    const now = new Date()
+    const taken = await tx
+      .update(knowledgeConnector)
+      .set({
+        status: 'pending',
+        syncLockToken: dispatchToken,
+        syncLockLeaseAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
+          inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
+          isNull(knowledgeConnector.syncLockToken),
+          connectorIsLive()
+        )
       )
-    )
-    .returning({ id: knowledgeConnector.id })
+      .returning({ id: knowledgeConnector.id })
 
-  return taken.length > 0 ? dispatchToken : null
+    return taken.length > 0 ? dispatchToken : null
+  }
+  return manual ? db.transaction(claim) : claim(db)
 }
 
 /**
@@ -397,7 +404,7 @@ export async function dispatchSync(
   ]
 
   if (isTriggerAvailable()) {
-    const dispatchToken = await markSyncPending(connectorId)
+    const dispatchToken = await markSyncPending(connectorId, options.manual === true)
     if (!dispatchToken) {
       const reason = await describeUnacceptedSync(connectorId)
       logger.info('Skipping sync dispatch: connector is not accepting a queued sync', {
@@ -439,7 +446,7 @@ export async function dispatchSync(
     return { queued: true }
   }
 
-  const dispatchToken = await markSyncPending(connectorId)
+  const dispatchToken = await markSyncPending(connectorId, options.manual === true)
   if (!dispatchToken) {
     const reason = await describeUnacceptedSync(connectorId)
     logger.info('Skipping sync execution: connector is not accepting a queued sync', {

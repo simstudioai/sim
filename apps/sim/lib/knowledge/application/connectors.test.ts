@@ -1213,6 +1213,23 @@ describe('knowledge connector application use cases', () => {
         expect(mocks.syncConnector).toHaveBeenCalledTimes(1)
       })
 
+      it('preserves a cooldown conflict without projecting a successful sync audit', async () => {
+        allowOnly(['confluence'])
+        const message = 'Sync finished recently. Try again in 60 seconds.'
+        mocks.syncConnector.mockResolvedValueOnce({
+          success: false,
+          errorCode: 'conflict',
+          error: message,
+        })
+
+        await expect(
+          syncKnowledgeConnector.execute({ principal: delegatedPrincipal, input: syncInput })
+        ).rejects.toMatchObject({ code: 'conflict', message })
+
+        expect(mocks.syncConnector).toHaveBeenCalledOnce()
+        expect(mocks.recordAudit).not.toHaveBeenCalled()
+      })
+
       /**
        * Pausing and deleting stay reachable: the point is to stop the member
        * re-running the pull, never to strand the connector.

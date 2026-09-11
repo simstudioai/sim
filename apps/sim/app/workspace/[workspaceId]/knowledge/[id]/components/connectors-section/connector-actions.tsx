@@ -1,19 +1,8 @@
 'use client'
 
 import { useId } from 'react'
-import {
-  Checkbox,
-  Chip,
-  ChipConfirmModal,
-  ChipModalError,
-  ChipModalField,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
-import { MoreHorizontal } from '@sim/emcn/icons'
-import { SettingsActionChip } from '@/components/settings/settings-header'
+import { Checkbox, ChipConfirmModal, ChipModalError, ChipModalField } from '@sim/emcn'
+import { SettingsActionChips } from '@/components/settings/settings-header'
 import {
   type ConnectorActionState,
   type ConnectorActionsOptions,
@@ -24,31 +13,10 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 export function ConnectorActions(props: ConnectorActionsOptions) {
   const state = useConnectorActions(props)
   if (!state.canEdit) return null
-  const [sync, ...menuActions] = state.actions
   return (
     <div className='flex flex-col gap-2'>
-      <div className='flex items-center gap-1'>
-        {sync && <SettingsActionChip action={sync} />}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip
-              aria-label='Source actions'
-              leftIcon={MoreHorizontal}
-              disabled={state.actionsDisabled}
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {menuActions.map((action) => (
-              <DropdownMenuItem
-                key={action.id}
-                disabled={action.disabled}
-                onSelect={action.onSelect}
-              >
-                {action.text}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className='flex flex-wrap items-center gap-1'>
+        <SettingsActionChips actions={state.actions} />
       </div>
       <ConnectorActionFeedback state={state} />
     </div>
@@ -62,7 +30,7 @@ interface ConnectorActionFeedbackProps {
 export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps) {
   const deleteDocumentsId = useId()
   if (!state.canEdit) return null
-  const { removal } = state
+  const { removal, fullResync } = state
   return (
     <>
       {state.error && (
@@ -70,6 +38,22 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
           {state.error.message}
         </SettingsEmptyState>
       )}
+      <ChipConfirmModal
+        open={fullResync.open}
+        onOpenChange={fullResync.onOpenChange}
+        title='Full resync?'
+        text='Fetch all content again for this connection, including unchanged documents. This can take longer than a regular sync.'
+        confirm={{
+          label: 'Full resync',
+          variant: 'primary',
+          pending: fullResync.pending,
+          disabled: fullResync.disabled,
+          pendingLabel: 'Queuing…',
+          onClick: fullResync.onConfirm,
+        }}
+      >
+        <ChipModalError>{fullResync.error?.message}</ChipModalError>
+      </ChipConfirmModal>
       <ChipConfirmModal
         open={removal.open}
         onOpenChange={removal.onOpenChange}

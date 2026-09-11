@@ -752,12 +752,17 @@ describe('shared connector lifecycle actions', () => {
       connectorId: 'connector-1',
       rehydrate: false,
     })
+    lifecycle.sync.mutate.mockClear()
     act(() => findButton(container, 'Full resync').click())
-    expect(lifecycle.sync.mutate).toHaveBeenLastCalledWith({
-      knowledgeBaseId: 'knowledge-1',
-      connectorId: 'connector-1',
-      rehydrate: true,
-    })
+    expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
+    const dialog = container.querySelector('[role="dialog"]')!
+    act(() => findButton(dialog, 'Full resync').click())
+    expect(lifecycle.sync.mutate).toHaveBeenLastCalledWith(
+      { knowledgeBaseId: 'knowledge-1', connectorId: 'connector-1', rehydrate: true },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    )
+    act(() => lifecycle.sync.mutate.mock.lastCall![1].onSuccess())
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it.each(['pending', 'running', 'disabled'] as const)(
@@ -771,10 +776,58 @@ describe('shared connector lifecycle actions', () => {
         />
       )
       expect(container.textContent).not.toContain('Full resync')
-      const syncButton = container.querySelector('button')!
+      const syncButton = findButton(
+        container,
+        memberSyncStatus === 'pending'
+          ? 'Sync queued'
+          : memberSyncStatus === 'running'
+            ? 'Syncing…'
+            : 'Sync now'
+      )
       expect(syncButton.disabled).toBe(true)
       act(() => syncButton.click())
       expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
+    }
+  )
+
+  it('cancels a full resync without dispatching work', () => {
+    const container = renderComponent(
+      <ConnectorActions
+        connector={makeConnector({ status: 'active' })}
+        knowledgeBaseId='knowledge-1'
+        canEdit
+      />
+    )
+    act(() => findButton(container, 'Full resync').click())
+    act(() => findButton(container.querySelector('[role="dialog"]')!, 'Cancel').click())
+    expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it.each([
+    { status: 'syncing', accessMode: 'admin', memberSyncStatus: 'idle', blocked: true },
+    { status: 'active', accessMode: 'members', memberSyncStatus: 'running', blocked: true },
+    { status: 'pending', accessMode: 'admin', memberSyncStatus: 'idle', blocked: false },
+    { status: 'active', accessMode: 'members', memberSyncStatus: 'pending', blocked: false },
+  ] as const)(
+    'only blocks pause for a running sync: $status / $memberSyncStatus',
+    ({ blocked, ...overrides }) => {
+      const container = renderComponent(
+        <ConnectorActions
+          connector={makeConnector(overrides)}
+          knowledgeBaseId='knowledge-1'
+          canEdit
+        />
+      )
+      expect(findButton(container, 'Pause syncing').disabled).toBe(blocked)
+      act(() => findButton(container, 'Pause syncing').click())
+      if (blocked) expect(lifecycle.update.mutate).not.toHaveBeenCalled()
+      else
+        expect(lifecycle.update.mutate).toHaveBeenCalledWith({
+          knowledgeBaseId: 'knowledge-1',
+          connectorId: 'connector-1',
+          updates: { status: 'paused' },
+        })
     }
   )
 
@@ -784,7 +837,7 @@ describe('shared connector lifecycle actions', () => {
       <ConnectorActions connector={connector} knowledgeBaseId='knowledge-1' canEdit />
     )
     expect(findButton(container, 'Sync now').disabled).toBe(true)
-    act(() => findButton(container, 'Resume').click())
+    act(() => findButton(container, 'Resume syncing').click())
     expect(lifecycle.update.mutate).toHaveBeenCalledWith({
       knowledgeBaseId: 'knowledge-1',
       connectorId: 'connector-1',
@@ -800,8 +853,8 @@ describe('shared connector lifecycle actions', () => {
         />
       )
     )
-    expect(findButton(container, 'Pause').disabled).toBe(true)
-    act(() => findButton(container, 'Pause').click())
+    expect(findButton(container, 'Pause syncing').disabled).toBe(true)
+    act(() => findButton(container, 'Pause syncing').click())
     expect(lifecycle.update.mutate).toHaveBeenCalledOnce()
   })
 
@@ -818,7 +871,7 @@ describe('shared connector lifecycle actions', () => {
         canEdit
       />
     )
-    act(() => findButton(container, 'Remove').click())
+    act(() => findButton(container, 'Remove connection').click())
     const dialog = container.querySelector('[role="dialog"]')!
     expect(Boolean(dialog.querySelector('input'))).toBe(!members)
     act(() => findButton(dialog, 'Remove').click())
@@ -836,7 +889,7 @@ describe('shared connector lifecycle actions', () => {
     const container = renderComponent(
       <ConnectorActions connector={connector} knowledgeBaseId='knowledge-1' canEdit />
     )
-    act(() => findButton(container, 'Remove').click())
+    act(() => findButton(container, 'Remove connection').click())
     const dialog = container.querySelector('[role="dialog"]')!
     act(() => dialog.querySelector<HTMLInputElement>('input')!.click())
     act(() => findButton(dialog, 'Remove').click())
@@ -858,9 +911,8 @@ describe('shared connector lifecycle actions', () => {
       />
     )
     expect(findButton(container, 'Sync now').disabled).toBe(true)
-    expect(findButton(container, 'Source actions').disabled).toBe(true)
-    expect(findButton(container, 'Pause').disabled).toBe(true)
-    expect(findButton(container, 'Remove').disabled).toBe(true)
+    expect(findButton(container, 'Pause syncing').disabled).toBe(true)
+    expect(findButton(container, 'Remove connection').disabled).toBe(true)
   })
 
   it('does not expose mutation controls to a viewer', () => {

@@ -144,8 +144,8 @@ describe('organization source detail navigation', () => {
           disabled: options.disabled,
           onSelect: vi.fn(),
         },
-        { id: 'pause', text: 'Pause', disabled: options.disabled, onSelect: vi.fn() },
-        { id: 'delete', text: 'Remove', disabled: options.disabled, onSelect: vi.fn() },
+        { id: 'pause', text: 'Pause syncing', disabled: options.disabled, onSelect: vi.fn() },
+        { id: 'delete', text: 'Remove connection', disabled: options.disabled, onSelect: vi.fn() },
       ],
     }))
     mocks.form.mockImplementation(() => ({
@@ -369,7 +369,7 @@ describe('organization source detail navigation', () => {
     expect(mocks.actions).toHaveBeenLastCalledWith(
       expect.objectContaining({ disabled: true, primarySync: false })
     )
-    for (const label of ['Sync now', 'Pause', 'Remove']) {
+    for (const label of ['Sync now', 'Pause syncing', 'Remove connection']) {
       const action = Array.from(container.querySelectorAll('button')).find(
         (item) => item.textContent === label
       )
@@ -502,8 +502,8 @@ describe('organization source detail navigation', () => {
       await render('?view=settings')
       for (const label of [
         'Sync now',
-        'Pause',
-        'Remove',
+        'Pause syncing',
+        'Remove connection',
         'Saving...',
         ...(dirty ? ['Discard'] : []),
       ]) {

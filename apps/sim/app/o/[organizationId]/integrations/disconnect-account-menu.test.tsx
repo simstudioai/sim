@@ -80,7 +80,7 @@ describe('personal integration disconnect', () => {
   }
   async function openDisconnect() {
     const trigger = document.querySelector<HTMLButtonElement>(
-      '[aria-label="Gmail account actions"]'
+      '[aria-label="Gmail integration actions"]'
     )!
     await act(async () =>
       trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
@@ -106,8 +106,12 @@ describe('personal integration disconnect', () => {
   ] as const)('allows disconnect while %s without requiring admin access', async (_, overrides) => {
     await render(overrides)
     await openDisconnect()
-    expect(document.body.textContent).toContain('Sim will stop using me@example.test for Search.')
-    expect(document.body.textContent).not.toContain('workflows')
+    expect(document.body.textContent).toContain(
+      'Disconnect me@example.test from all Gmail connections in this organization.'
+    )
+    expect(document.body.textContent).toContain(
+      'Workflows using this account will also lose access.'
+    )
     expect(mocks.mutate).not.toHaveBeenCalled()
     expect(confirm().disabled).toBe(false)
     await act(async () => confirm().click())

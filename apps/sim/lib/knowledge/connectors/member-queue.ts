@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector, knowledgeConnectorMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -16,6 +16,7 @@ import {
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
   SYNC_DISPATCH_FAILED_ERROR,
@@ -49,6 +50,8 @@ export interface MemberSyncPayload {
 }
 
 export interface DispatchMemberSyncOptions {
+  /** Manual requests wait briefly after a successful run and make every active member due. */
+  manual?: boolean
   billingAttribution: BillingAttributionSnapshot
   /** The scheduled instant this dispatch was made for; a changed schedule makes it stale. */
   expectedNextMemberSyncAt?: Date
@@ -100,34 +103,51 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
  */
 async function markMemberSyncPending(
   connectorId: string,
-  expectedNextMemberSyncAt: Date | undefined
+  expectedNextMemberSyncAt: Date | undefined,
+  manual: boolean
 ): Promise<string | null> {
   const dispatchToken = generateId()
-  const now = new Date()
-  const taken = await db
-    .update(knowledgeConnector)
-    .set({
-      memberSyncStatus: 'pending',
-      memberSyncLockToken: dispatchToken,
-      memberSyncLockLeaseAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(knowledgeConnector.id, connectorId),
-        eq(knowledgeConnector.accessMode, 'members'),
-        inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
-        inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
-        ...(expectedNextMemberSyncAt
-          ? [eq(knowledgeConnector.nextMemberSyncAt, expectedNextMemberSyncAt)]
-          : []),
-        isNull(knowledgeConnector.memberSyncLockToken),
-        isNull(knowledgeConnector.syncLockToken),
-        connectorIsLive()
+  const claim = async (tx: Pick<typeof db, 'select' | 'update'>) => {
+    if (manual) await assertManualSyncCooldown(tx, connectorId, 'member')
+    const now = new Date()
+    const taken = await tx
+      .update(knowledgeConnector)
+      .set({
+        memberSyncStatus: 'pending',
+        memberSyncLockToken: dispatchToken,
+        memberSyncLockLeaseAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          eq(knowledgeConnector.accessMode, 'members'),
+          inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
+          inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
+          ...(expectedNextMemberSyncAt
+            ? [eq(knowledgeConnector.nextMemberSyncAt, expectedNextMemberSyncAt)]
+            : []),
+          isNull(knowledgeConnector.memberSyncLockToken),
+          isNull(knowledgeConnector.syncLockToken),
+          connectorIsLive()
+        )
       )
-    )
-    .returning({ id: knowledgeConnector.id })
-  return taken.length > 0 ? dispatchToken : null
+      .returning({ id: knowledgeConnector.id })
+    if (taken.length === 0) return null
+    if (manual) {
+      await tx
+        .update(knowledgeConnectorMember)
+        .set({ nextAttemptAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(knowledgeConnectorMember.connectorId, connectorId),
+            eq(knowledgeConnectorMember.status, 'active')
+          )
+        )
+    }
+    return dispatchToken
+  }
+  return manual ? db.transaction(claim) : claim(db)
 }
 
 async function describeUnacceptedMemberSync(
@@ -304,7 +324,11 @@ export async function dispatchMemberSync(
   }
   assertBillingAttributionOwner(payload.billingAttribution, row)
 
-  const dispatchToken = await markMemberSyncPending(connectorId, options.expectedNextMemberSyncAt)
+  const dispatchToken = await markMemberSyncPending(
+    connectorId,
+    options.expectedNextMemberSyncAt,
+    options.manual === true
+  )
   if (!dispatchToken) {
     const reason = await describeUnacceptedMemberSync(connectorId, options.expectedNextMemberSyncAt)
     logger.info('Skipping member sync dispatch: connector is not accepting a queued run', {
