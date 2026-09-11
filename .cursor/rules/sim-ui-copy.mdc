@@ -1,5 +1,5 @@
 ---
-description: UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings
+description: "UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings"
 globs: ["apps/sim/**/*.tsx","apps/sim/components/emcn/**"]
 ---
 

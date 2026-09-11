@@ -1,5 +1,5 @@
 ---
-description: Isolated-vm sandbox worker security policy. Hard rules for anything that lives in the worker child process that runs user code.
+description: "Isolated-vm sandbox worker security policy. Hard rules for anything that lives in the worker child process that runs user code."
 globs: ["apps/sim/lib/execution/isolated-vm-worker.cjs","apps/sim/lib/execution/isolated-vm.ts","apps/sim/lib/execution/sandbox/**","apps/sim/sandbox-tasks/**"]
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Import patterns for the Sim application
+description: "Import patterns for the Sim application"
 globs: ["apps/sim/**/*.ts","apps/sim/**/*.tsx"]
 ---
 

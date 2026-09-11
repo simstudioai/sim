@@ -1,5 +1,5 @@
 ---
-description: Behavior-preserving React render-performance idioms
+description: "Behavior-preserving React render-performance idioms"
 alwaysApply: true
 ---
 

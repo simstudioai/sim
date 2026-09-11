@@ -1,5 +1,5 @@
 ---
-description: Component patterns and structure for React components
+description: "Component patterns and structure for React components"
 globs: ["apps/sim/**/*.tsx"]
 ---
 

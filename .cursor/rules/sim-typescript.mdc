@@ -1,5 +1,5 @@
 ---
-description: TypeScript conventions and type safety
+description: "TypeScript conventions and type safety"
 globs: ["apps/sim/**/*.ts","apps/sim/**/*.tsx"]
 ---
 

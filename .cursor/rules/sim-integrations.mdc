@@ -1,5 +1,5 @@
 ---
-description: Adding new integrations (tools, blocks, triggers)
+description: "Adding new integrations (tools, blocks, triggers)"
 globs: ["apps/sim/tools/**","apps/sim/blocks/**","apps/sim/triggers/**"]
 ---
 

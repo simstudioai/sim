@@ -1,5 +1,5 @@
 ---
-description: Testing patterns with Vitest and @sim/testing
+description: "Testing patterns with Vitest and @sim/testing"
 globs: ["apps/sim/**/*.test.ts","apps/sim/**/*.test.tsx"]
 ---
 

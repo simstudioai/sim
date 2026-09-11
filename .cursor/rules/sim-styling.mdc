@@ -1,5 +1,5 @@
 ---
-description: Tailwind CSS and styling conventions
+description: "Tailwind CSS and styling conventions"
 globs: ["apps/sim/**/*.tsx","apps/sim/**/*.css"]
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: List and menu ordering: mirror the sidebar or toolbar, one separator before the destructive action
+description: List and menu ordering that mirrors the sidebar or toolbar, with one separator before the destructive action
 paths:
   - "apps/sim/app/**/*.tsx"
   - "apps/sim/ee/**/*.tsx"

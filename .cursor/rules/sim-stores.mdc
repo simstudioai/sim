@@ -1,5 +1,5 @@
 ---
-description: Zustand store patterns
+description: "Zustand store patterns"
 globs: ["apps/sim/**/store.ts","apps/sim/**/stores/**/*.ts"]
 ---
 

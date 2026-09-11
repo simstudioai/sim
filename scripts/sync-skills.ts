@@ -132,7 +132,25 @@ function parseRule(name: string, raw: string): Rule {
     }
   }
   if (!description) throw new Error(`${name}: missing 'description' in frontmatter`)
+  if (!isPlainYamlScalar(description)) {
+    throw new Error(
+      `${name}: 'description' must be a plain YAML scalar (no leading quote or indicator, no ': ' or ' #') so both Claude and Cursor parse it`
+    )
+  }
   return { name, description, paths, body }
+}
+
+/**
+ * Whether a value survives as an unquoted YAML plain scalar. The canonical rule
+ * frontmatter is written by hand and read by Claude as-is, so a description that
+ * needs quoting would silently break its `paths` there too; refuse it at the
+ * source instead of only quoting the projection.
+ */
+function isPlainYamlScalar(value: string): boolean {
+  if (value !== value.trim()) return false
+  if (/^[-?:,[\]{}#&*!|>'"%@`]/.test(value)) return false
+  if (value.includes(': ') || value.includes(' #')) return false
+  return !value.endsWith(':')
 }
 
 async function loadCanonicalRules(): Promise<Rule[]> {
@@ -150,7 +168,7 @@ function renderCursorRule(rule: Rule): string {
   const scope = rule.paths.length > 0 ? `globs: ${JSON.stringify(rule.paths)}` : 'alwaysApply: true'
   return [
     '---',
-    `description: ${rule.description}`,
+    `description: ${JSON.stringify(rule.description)}`,
     scope,
     '---',
     '',

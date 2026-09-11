@@ -1,5 +1,5 @@
 ---
-description: React Query patterns for the Sim application
+description: "React Query patterns for the Sim application"
 globs: ["apps/sim/hooks/queries/**/*.ts"]
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: EMCN component library patterns
+description: "EMCN component library patterns"
 globs: ["packages/emcn/**"]
 ---
 

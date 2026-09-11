@@ -1,5 +1,5 @@
 ---
-description: Shareable client view-state lives in the URL via nuqs
+description: "Shareable client view-state lives in the URL via nuqs"
 globs: ["apps/sim/app/**/*.tsx","apps/sim/app/**/*.ts","apps/sim/app/**/search-params.ts","apps/sim/ee/**/*.tsx","apps/sim/ee/**/*.ts"]
 ---
 

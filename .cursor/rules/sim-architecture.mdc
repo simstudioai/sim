@@ -1,5 +1,5 @@
 ---
-description: Core architecture principles for the Sim app
+description: "Core architecture principles for the Sim app"
 globs: ["apps/sim/**"]
 ---
 

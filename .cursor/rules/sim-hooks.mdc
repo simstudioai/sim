@@ -1,5 +1,5 @@
 ---
-description: Custom hook patterns and best practices
+description: "Custom hook patterns and best practices"
 globs: ["apps/sim/**/use-*.ts","apps/sim/**/hooks/**/*.ts"]
 ---
 
