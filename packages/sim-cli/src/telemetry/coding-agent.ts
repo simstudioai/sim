@@ -60,19 +60,25 @@ const AGENT_MARKERS: readonly AgentMarker[] = [
 ]
 
 /**
+ * The shape Claude Code declares itself in: the name, its version with dots
+ * replaced by dashes, and a role, joined by underscores — the form the Stripe
+ * CLI's parser also expects. Only this shape is trimmed to its name; an
+ * underscore anywhere else is part of the name.
+ */
+const VERSIONED_DECLARATION = /^(.+?)_\d+(?:-\d+)*(?:_[a-z0-9-]+)?$/
+
+/**
  * A name an agent declared for itself, when it is a well-formed token.
  *
- * Claude Code declares `claude-code_2-1-268_agent`: the name, then its version
- * with dots replaced by dashes, then a role suffix, joined by underscores (the
- * form the Stripe CLI's parser also expects). Only the name is kept, so a
- * breakdown by agent does not split into one slice per release.
+ * A declaration that carries a version and role (`claude-code_2-1-268_agent`)
+ * is reduced to its name, so a breakdown by agent does not split into one
+ * slice per release. Any other declaration is kept whole, underscores included.
  */
 function declaredAgentName(value: string | undefined): string | undefined {
   const trimmed = value?.trim().toLowerCase()
   if (!trimmed || trimmed.length > MAX_AGENT_NAME_LENGTH) return undefined
   if (!AGENT_NAME_PATTERN.test(trimmed)) return undefined
-  const name = trimmed.split('_', 1)[0]
-  return name || undefined
+  return VERSIONED_DECLARATION.exec(trimmed)?.[1] ?? trimmed
 }
 
 /**

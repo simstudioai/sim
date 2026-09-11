@@ -39,8 +39,12 @@ describe('detectCodingAgent', () => {
     )
   })
 
-  it('ignores a declaration that is nothing but separators', () => {
-    expect(detectCodingAgent({ AI_AGENT: '_', CLAUDECODE: '1' })).toBe('claude-code')
+  it('keeps an underscored name that carries no version', () => {
+    expect(detectCodingAgent({ AI_AGENT: 'github_copilot_vscode_agent' })).toBe(
+      'github_copilot_vscode_agent'
+    )
+    expect(detectCodingAgent({ AI_AGENT: 'my_agent_2' })).toBe('my_agent')
+    expect(detectCodingAgent({ AI_AGENT: '_', CLAUDECODE: '1' })).toBe('_')
   })
 
   it('ignores a declared name that is not a well-formed token', () => {
