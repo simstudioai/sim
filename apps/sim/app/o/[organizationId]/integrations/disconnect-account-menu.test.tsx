@@ -80,7 +80,7 @@ describe('personal integration disconnect', () => {
   }
   async function openDisconnect() {
     const trigger = document.querySelector<HTMLButtonElement>(
-      '[aria-label="Gmail account actions"]'
+      '[aria-label="Gmail integration actions"]'
     )!
     await act(async () =>
       trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
@@ -106,8 +106,12 @@ describe('personal integration disconnect', () => {
   ] as const)('allows disconnect while %s without requiring admin access', async (_, overrides) => {
     await render(overrides)
     await openDisconnect()
-    expect(document.body.textContent).toContain('Sim will stop using me@example.test for Search.')
-    expect(document.body.textContent).not.toContain('workflows')
+    expect(document.body.textContent).toContain(
+      'Disconnect me@example.test from all Gmail connections in this organization.'
+    )
+    expect(document.body.textContent).toContain(
+      'Workflows using this account will also lose access.'
+    )
     expect(mocks.mutate).not.toHaveBeenCalled()
     expect(confirm().disabled).toBe(false)
     await act(async () => confirm().click())
@@ -131,5 +135,40 @@ describe('personal integration disconnect', () => {
       'Could not disconnect. Try again.'
     )
     expect(confirm().disabled).toBe(false)
+  })
+
+  it('uses the same distinguishing account label in the menu and confirmation', async () => {
+    await act(async () =>
+      root.render(
+        <DisconnectAccountMenu
+          organizationId='org'
+          integrationName='Gmail'
+          accounts={[accounts[0], { ...accounts[0], credentialId: 'second' }]}
+          accountLabels={
+            new Map([
+              ['my-gmail', 'me@example.test · Inbox'],
+              ['second', 'me@example.test · Archive'],
+            ])
+          }
+        />
+      )
+    )
+    const trigger = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Gmail integration actions"]'
+    )!
+    await act(async () =>
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Disconnect me@example.test · Inbox',
+      'Disconnect me@example.test · Archive',
+    ])
+    await act(async () => items[1].click())
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      'Disconnect me@example.test · Archive from all Gmail connections'
+    )
+    await act(async () => confirm().click())
+    expect(mocks.mutate).toHaveBeenCalledWith('second', expect.any(Object))
   })
 })

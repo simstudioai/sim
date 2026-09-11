@@ -107,6 +107,7 @@ import {
   GET as listConnectorDocuments,
   PATCH as updateConnectorDocuments,
 } from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
+import { POST as syncConnector } from '@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route'
 import { PUT as updateDocument } from '@/app/api/knowledge/[id]/documents/[documentId]/route'
 import {
   PATCH as bulkDocuments,
@@ -373,6 +374,20 @@ describe('migrated internal Knowledge routes', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.updateConnectorDocuments).not.toHaveBeenCalled()
+  })
+
+  it('returns a cooldown conflict as 409 without recording a successful sync event', async () => {
+    const message = 'Sync finished recently. Try again in 60 seconds.'
+    mocks.syncConnector.mockRejectedValueOnce(new OrchestrationError('conflict', message))
+
+    const response = await syncConnector(createMockRequest('POST'), {
+      params: Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' }),
+    })
+
+    expect(mocks.syncConnector).toHaveBeenCalledOnce()
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({ error: message })
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('runs upload analytics only after a newly-created completion', async () => {

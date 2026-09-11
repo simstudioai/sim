@@ -198,9 +198,11 @@ describe('Slack member access selection', () => {
 
   function appSetupDialog(organization = false) {
     return Array.from(document.querySelectorAll('[role="dialog"]')).find((dialog) =>
-      dialog.textContent?.includes(
-        organization ? 'Set up Sim Search in Slack' : 'Create a custom Slack bot'
-      )
+      organization
+        ? ['Create Slack app', 'Update Slack app'].includes(
+            dialog.querySelector('h2')?.textContent ?? ''
+          )
+        : dialog.textContent?.includes('Create a custom Slack bot')
     )
   }
 
@@ -375,9 +377,9 @@ describe('Slack member access selection', () => {
     await clickButton('Install Sim Search')
     const dialog = appSetupDialog(true)
     expect(dialog).toBeDefined()
-    expect(dialog?.textContent).toContain('Step 1 of 3')
+    expect(dialog?.textContent).toContain('Create Slack app')
     expect(dialog?.textContent).not.toContain('App manifest')
-    expect(dialog?.textContent).toContain('Create app in Slack')
+    expect(dialog?.querySelector('a')?.textContent).toBe('Create app')
     expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Sim Search')
     expect(mocks.start).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()
@@ -499,7 +501,7 @@ describe('Slack member access selection', () => {
     expect(document.body.textContent).not.toContain('Install Sim Search first')
     await clickButton('Manage Sim Search app')
     const dialog = appSetupDialog(true)
-    expect(dialog?.textContent).toContain('Reconnect Slack Search')
+    expect(dialog?.textContent).toContain('Update Slack app')
     expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Search bot')
     await clickButton('Close', dialog)
     await clickButton('Verify and add')

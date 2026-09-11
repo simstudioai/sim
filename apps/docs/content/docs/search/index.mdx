@@ -32,7 +32,7 @@ Select **Connect & Sync** for a central account, or the form’s **Add** or **Se
 
 ### Connect and search
 
-For member-account sources, open **Integrations** in the main sidebar and select **Connect** if prompted—even if you created the source. Complete authorization in the new tab. Central Google sources need no personal connection: join with a matching verified Workspace email and open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
+For member-account sources, open **Integrations** in the main sidebar and select **Connect** for the integration if prompted—even if you created the source. Complete authorization in the new tab. Central Google sources need no personal connection: join with a matching verified Workspace email and open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
 
 </Step>
 </Steps>
@@ -43,7 +43,7 @@ Source availability depends on the deployment and organization policy. An unavai
 
 ## Choose the right connection method
 
-Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation, and GitLab requires an administrator token for a self-managed instance.
+Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation. GitLab supports a self-managed instance administrator token, or a non-admin token with uploaded CSV permissions.
 
 | Method | What the admin does | What teammates do |
 | --- | --- | --- |
@@ -51,11 +51,11 @@ Sources can use member accounts or a central connection. Gmail, Google Calendar,
 | **GitHub App installation** | Installs the App, selects it under **Sync documents with**, and adds repository sources. | Connect GitHub once. Sim checks each reader's current repository access before returning installation-indexed content. |
 | **Google Workspace service account** | Configures domain-wide delegation, supplies a Directory administrator email, and selects users and content filters. | Join with a matching verified email. No personal Google connection is needed for that source. Gmail remains private to the mailbox owner; Calendar preserves each person's event view; Drive uses file permissions. |
 | **Confluence service account** | Connects an account that can read the selected content and its permissions. | Join the organization and connect Confluence to establish identity. |
-| **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
+| **Administrator token / Non-admin token** (GitLab) | Connects one self-managed project. Administrator tokens refresh permissions from GitLab; non-admin tokens use uploaded CSV permissions. | Join with a verified email matching GitLab or the uploaded user mapping. No personal connection is needed. |
 
 Open an integration from the Sources list to manage its connections. Use **Connect service account** for Google, **Add Confluence site**, **Add projects** for Jira, **Add repository** for GitHub, **Add project** for GitLab, or **Add channels or DMs** for Slack.
 
-For personal connections, teammates use **Integrations → Connect** in the main sidebar after the admin adds the provider. First-time setup may ask you to select content after connecting your account. Admins can edit those connections' filters afterward in **Settings**.
+For personal connections, teammates select **Connect** beside the integration in the main **Integrations** page. Existing sources reuse the admin's content selection. If no source exists yet, setup may ask for content after account authorization. Admins can edit connection filters afterward in **Settings**.
 
 Some member sources offer **Sync documents with**, either directly in setup or under **More options**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. For GitHub organization sources, choose **Connect GitHub App** in this field to [connect an installation](/search/github#add-a-repository). **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
 
@@ -90,11 +90,11 @@ Connection requests do not grant organization membership. See [Connect your acco
 
 ## Manage sources and documents
 
-Open **Settings → Sources**, choose the integration, then select its site, project, repository, or account connection. Each row identifies **Member accounts**, **Service account**, or **Admin account** and shows its sync status.
+Open **Settings → Sources**, choose the integration, then select its site, project, repository, or account connection. Each row identifies its account method and shows its sync status.
 
 Edit **Settings** to change an existing connection's filters. Adding another connection creates a separate selection. For Gmail, one member-account connection is usually enough: its filters apply separately to each connected mailbox, including accounts connected later. A central Google connection applies to its selected **Users**, or all active users when that field is blank.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.png" alt="Gmail connections with the Connect service account action" width={1037} height={264} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.png" alt="Gmail connections with the Connect service account action" width={1049} height={258} />
 
 | Connection tab | What you can do |
 | --- | --- |
@@ -104,7 +104,9 @@ Edit **Settings** to change an existing connection's filters. Adding another con
 
 **Sync using** shows the method selected when the source was created. Add a new connection to change that method. To replace a supported indexing credential, select its replacement and use **Change service account** or **Change account**, as shown.
 
-Use the connection header to sync, pause, resume, or remove it. To deactivate an entire integration, open it from **Settings → Sources**, select **Deactivate**, and confirm. Its content becomes unavailable in Search, Assistant, and MCP; saved connections remain. Select **Activate** on that integration to enable it again.
+The connection header offers **Sync now**, **Pause syncing** or **Resume syncing**, **Remove connection**, and, where supported, **Full resync**. Full resync fetches all content again and requires confirmation. Manual runs have a 60-second cooldown after a successful sync finishes; failed or partial runs can be retried immediately. **Pause syncing** becomes available when the current sync finishes.
+
+To deactivate an entire integration, open it from **Settings → Sources**, select **Deactivate**, and confirm. Its content becomes unavailable in Search, Assistant, and MCP; saved connections remain. Select **Activate** on that integration to enable it again.
 
 <Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-sync-history.jpg" alt="Gmail Sync history showing run dates and document additions, deletions, or no changes" width={824} height={446} />
 
@@ -133,11 +135,11 @@ Search runs background syncs on an hourly schedule. Large sources, provider limi
 
 ## If indexing needs attention
 
-A completed sync means the source was checked; some documents may still be indexing. Integrations lists personal connections; a central Google source can be searchable without appearing there. In the main **Integrations** page, each connected source row shows how many documents you can search and whether indexing failed for any documents you can access.
+A completed sync means the source was checked; some documents may still be indexing. The main **Integrations** page shows one row per integration with a connection or indexing status. Sources that do not require personal authorization remain searchable without a **Connect** step. Detailed document counts and errors are available to admins under **Settings → Sources**.
 
 As an admin, open **Settings → Sources**, select the integration, then open its connection. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1022} height={430} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1049} height={350} />
 
 Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
 

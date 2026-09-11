@@ -12,7 +12,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
   mirrorsSourceAcls: true,
   supportedAccessModes: ['admin'],
   adminSetupHint:
-    'Use a self-managed GitLab instance administrator token with read_api access (and admin_mode when required). Enter your instance host.',
+    'Use an administrator token, or a non-admin token with CSV permissions. Both require read_api access and a self-managed GitLab host.',
   icon: GitLabIcon,
 
   /**

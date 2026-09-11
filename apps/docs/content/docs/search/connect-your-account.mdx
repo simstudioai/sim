@@ -23,11 +23,13 @@ For a central Google source, use your primary Workspace email and open **Search*
 
 ## Open Integrations
 
-Open **Integrations** in the main sidebar, find the provider or source, and select **Connect**. First-time setup can also ask which content to index. For [Confluence](/search/confluence) and [Jira](/search/jira), connect your Atlassian account first, then choose the site and spaces or projects and select **Connect & Sync**. [GitHub](/search/github) asks for a repository. If the provider is missing, ask an organization admin to add it under **Settings → Sources → Add source**.
+Open **Integrations** in the main sidebar, find the integration, and select **Connect**. If an admin has configured its content, you only authorize your account. If no source exists yet, [Confluence](/search/confluence) and [Jira](/search/jira) ask you to connect your Atlassian account, choose the site and spaces or projects, and select **Connect & Sync**. [GitHub](/search/github) asks for a repository. If the provider is missing, ask an organization admin to add it under **Settings → Sources → Add source**.
 
-To connect another supported repository, site, or project scope, find the provider row labeled **Connect a different site or content scope** and select **Connect**. Connecting an existing source does not ask you to configure it again.
+Each integration appears once. Sources that share your account authorization reuse that connection; adding another repository does not require reconnecting. **Connect** appears when authorization is missing, and **Reconnect** appears when an existing account needs renewal. A sync failure alone does not require reconnecting. To add different content, open the row’s actions menu (**…**) and select **Add repository**, **Add Confluence site**, or **Add projects**.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/connect-account.png" alt="Organization Integrations with search, personal connections, and Connect actions" width={704} height={495} />
+If you see **More connections to check**, select **Check connections** to check the next set of sources. Sim shows **Connect** or **Reconnect** when it finds an account that needs authorization.
+
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/connect-account.png" alt="Organization Integrations with search, personal connections, and Connect actions" width={692} height={435} />
 
 </Step>
 <Step>
@@ -43,7 +45,7 @@ The authorization tab closes when the connection completes and Integrations upda
 
 ## Start searching
 
-The source row shows indexing status and how many documents are available to you. Open **Search** in the organization sidebar and search for something you can already open in the source. Use **Home** to ask the assistant about your connected documents. The first sync may take time, especially for large accounts.
+Your integration row shows its connection and indexing status. Admins manage individual repositories, sites, and other content under **Settings → Sources**. Open **Search** in the organization sidebar and search for something you can already open in the source. Use **Home** to ask the assistant about your connected documents. The first sync may take time, especially for large accounts.
 
 </Step>
 </Steps>
@@ -58,9 +60,9 @@ For a source configured inside a workspace, join that workspace and connect thro
 | GitHub App installation | Connect GitHub once for this Sim organization. The App handles indexing; your account establishes which repositories you may search. |
 | Confluence service account | Connect Confluence to verify your identity; the service account handles the crawl. |
 | Google Workspace service account (Gmail, Calendar, Drive) | No personal connection is needed for that source. Your verified Sim email identifies your mailbox and calendar view, or is matched to Drive permissions. |
-| GitLab instance administrator | No personal connection is needed. Your verified Sim email must match the confirmed primary GitLab email. |
+| GitLab | No personal connection is needed. For an administrator token, your verified Sim email must match your confirmed primary GitLab email. For a non-admin token, it must match the uploaded user mapping and have a project grant. |
 
-Gmail, Calendar, and Drive are separate Search sources. Connecting one Google service does not connect all of them. A central source can be searchable without a personal connection row in **Integrations**.
+Gmail, Calendar, and Drive are separate Search sources. Connecting one Google service does not connect all of them. Central Google and GitLab sources remain searchable without a personal account connection.
 
 ## If you received a connection request
 
@@ -72,9 +74,13 @@ An account connection request does not invite you into the Sim organization. You
 
 ## Manage your connected accounts
 
-On the main **Integrations** page, use **Reconnect** beside an expired connection to renew it. To withdraw an account, open its row's actions menu and select **Disconnect**, then confirm. If several accounts are connected, choose the account to disconnect. Disconnecting stops that account from being used for organization indexing and workflows, and removes Search access that depends on it.
+On the main **Integrations** page, select **Reconnect** beside the integration if your account has expired. To withdraw an account, open its actions menu and select **Disconnect**, then confirm. If several accounts are connected, choose the account to disconnect. Disconnecting stops that account from being used for organization indexing and workflows, and removes Search access that depends on it.
 
 Admins manage setup from **Settings → Sources**. Open an integration, then its connection to see **Documents**, **Settings**, and **Sync history**. **People** shows account contributors across integrations and supports filtering by integration. This does not grant the admin access to every document.
+
+Syncing runs automatically. Admins can use **Sync now** when they need an update; another manual run is available 60 seconds after a successful sync finishes. Failed or partial runs can be retried immediately. The connection header also offers **Pause syncing** or **Resume syncing**, and **Remove connection**. Where supported, **Full resync** fetches and reindexes all content and asks for confirmation first.
+
+Removing a Search connection also removes its indexed documents from Sim. The originals remain in the connected app.
 
 ## If you get stuck
 

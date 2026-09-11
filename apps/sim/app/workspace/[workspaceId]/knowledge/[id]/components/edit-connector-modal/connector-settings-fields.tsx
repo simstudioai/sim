@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
   Chip,
   ChipCombobox,
   ChipModalError,
   ChipModalField,
+  ChipSelect,
   type ComboboxOption,
 } from '@sim/emcn'
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
@@ -37,7 +36,6 @@ import {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
-import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
@@ -470,21 +468,19 @@ export function ConnectorSettingsFields({
                 )
           }
         >
-          <ButtonGroup
+          <ChipSelect
+            fullWidth
+            dropdownWidth='trigger'
+            aria-label='Sync frequency'
             value={String(syncInterval)}
-            onValueChange={(val) => setSyncInterval(Number(val))}
-          >
-            {SYNC_INTERVALS.map((interval) => (
-              <ButtonGroupItem
-                key={interval.value}
-                value={String(interval.value)}
-                disabled={interval.requiresMax && !hasMaxAccess}
-              >
-                {interval.label}
-                {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-              </ButtonGroupItem>
-            ))}
-          </ButtonGroup>
+            onChange={(value) => setSyncInterval(Number(value))}
+            options={SYNC_INTERVALS.map((interval) => ({
+              value: String(interval.value),
+              label:
+                interval.requiresMax && !hasMaxAccess ? `${interval.label} (Max)` : interval.label,
+              disabled: interval.requiresMax && !hasMaxAccess,
+            }))}
+          />
         </ChipModalField>
       )}
 

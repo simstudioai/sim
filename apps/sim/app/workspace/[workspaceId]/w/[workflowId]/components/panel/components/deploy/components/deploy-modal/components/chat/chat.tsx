@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipEmailsInput,
   ChipInput,
@@ -733,17 +733,17 @@ function AuthSelector({
         <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Access control
         </Label>
-        <ButtonGroup
+        <ChipButtonGroup
           value={authType}
           onValueChange={(val) => onAuthTypeChange(val as AuthType)}
           disabled={disabled}
         >
           {authOptions.map((type) => (
-            <ButtonGroupItem key={type} value={type}>
+            <ChipButtonGroupItem key={type} value={type}>
               {AUTH_LABELS[type]}
-            </ButtonGroupItem>
+            </ChipButtonGroupItem>
           ))}
-        </ButtonGroup>
+        </ChipButtonGroup>
       </div>
 
       {authType === 'password' && (

@@ -2,8 +2,6 @@
 
 import { useId, useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
   Checkbox,
   Chip,
   ChipCombobox,
@@ -14,6 +12,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   type ComboboxOption,
   OverflowText,
 } from '@sim/emcn'
@@ -52,7 +51,6 @@ import {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
-import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import { GitHubInstallationModal } from '@/app/workspace/[workspaceId]/search/components/github-installation-modal'
@@ -720,11 +718,6 @@ export function AddConnectorModal({
                             ? 'Account'
                             : 'Service account'
                       }
-                      hint={
-                        isSearchIndex && isMembersMode
-                          ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
-                          : undefined
-                      }
                     >
                       {credentialsError && rawCredentials.length === 0 ? (
                         <SettingsQueryErrorState
@@ -883,21 +876,21 @@ export function AddConnectorModal({
                             )
                       }
                     >
-                      <ButtonGroup
+                      <ChipSelect
+                        fullWidth
+                        dropdownWidth='trigger'
+                        aria-label='Sync frequency'
                         value={String(syncInterval)}
-                        onValueChange={(val) => setSyncInterval(Number(val))}
-                      >
-                        {SYNC_INTERVALS.map((interval) => (
-                          <ButtonGroupItem
-                            key={interval.value}
-                            value={String(interval.value)}
-                            disabled={interval.requiresMax && !hasMaxAccess}
-                          >
-                            {interval.label}
-                            {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-                          </ButtonGroupItem>
-                        ))}
-                      </ButtonGroup>
+                        onChange={(value) => setSyncInterval(Number(value))}
+                        options={SYNC_INTERVALS.map((interval) => ({
+                          value: String(interval.value),
+                          label:
+                            interval.requiresMax && !hasMaxAccess
+                              ? `${interval.label} (Max)`
+                              : interval.label,
+                          disabled: interval.requiresMax && !hasMaxAccess,
+                        }))}
+                      />
                     </ChipModalField>
                   )}
 

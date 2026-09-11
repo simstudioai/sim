@@ -6,6 +6,7 @@ import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connecto
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { getSearchSourceStatus } from '@/app/workspace/[workspaceId]/search/components/search-source-row-status'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -58,30 +59,14 @@ export function SearchSourceRow({
     source.connectionRequired &&
     membership !== null &&
     CONNECTABLE_MEMBERSHIPS.has(membership)
-  const count = `${source.viewerDocumentCount} searchable document${source.viewerDocumentCount === 1 ? '' : 's'}`
-  let status: string
-  if (!supported) status = 'Available in its knowledge base'
-  else if (source.approved === false) status = 'Deactivated by an organization admin'
-  else if (!usable) status = `Not available in this ${scope.kind}`
-  else if (!source.enabled) status = 'Syncing is paused'
-  else if (!source.viewerEmailVerified || membership === 'unverified_email')
-    status = 'Verify your email to search this source'
-  else if (membership === 'revoked') status = 'Your access was removed by an admin'
-  else if (source.connectionRequired && membership === null) status = 'Needs admin attention'
-  else if (connectable)
-    status = waiting
-      ? 'Finish connecting in the other tab'
-      : membership === 'needs_reauth'
-        ? 'Your account needs to be reconnected'
-        : 'Connect your account to search this source'
-  else if (source.hasSyncError)
-    status = source.viewerDocumentCount > 0 ? `Sync failed · ${count}` : 'Sync failed'
-  else if (source.viewerFailedDocumentCount > 0)
-    status = `${source.viewerFailedDocumentCount} document${source.viewerFailedDocumentCount === 1 ? '' : 's'} couldn't be indexed${source.viewerDocumentCount > 0 ? ` · ${count}` : ''}`
-  else if (source.isSyncing)
-    status = source.viewerDocumentCount > 0 ? `Indexing · ${count}` : 'Indexing'
-  else if (source.viewerDocumentCount > 0) status = count
-  else status = source.lastSyncAt ? 'No searchable documents yet' : 'Waiting for the first sync'
+  const status = getSearchSourceStatus({
+    source,
+    scopeKind: scope.kind,
+    supported,
+    usable,
+    connectable,
+    waiting,
+  })
 
   return (
     <SettingsResourceRow
@@ -101,9 +86,11 @@ export function SearchSourceRow({
           </ChipLink>
         ) : (
           <div className='flex items-center gap-2'>
-            {usable && supported && !source.viewerEmailVerified && (
-              <ChipLink href='/verify'>Verify email</ChipLink>
-            )}
+            {usable &&
+              supported &&
+              source.enabled &&
+              source.approved !== false &&
+              !source.viewerEmailVerified && <ChipLink href='/verify'>Verify email</ChipLink>}
             {connectable && (
               <Chip variant='primary' disabled={isPending} onClick={onConnect}>
                 {waiting
