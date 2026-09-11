@@ -99,7 +99,7 @@ type KnowledgeSearchResultsProps = (
 }
 
 /**
- * The composer's Search mode: the documents the signed-in person may read that
+ * Search results include documents the signed-in person may read that
  * match their query in the canonical Enterprise Search index, as rows
  * that open the source. A header says how many and that the search ran as
  * them; while a connected source is still indexing it says so, and the list
