@@ -1,8 +1,9 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
+import { runProcess } from '#design-diff/process'
 import type { Report } from '#design-diff/types'
 
 interface Comparison {
@@ -150,10 +151,11 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       const started = performance.now()
       const env = { ...process.env }
       for (const key of ['DESIGN_DIFF_PR', 'DESIGN_DIFF_ENGINE_SHA', 'HEAD_SHA']) delete env[key]
-      const timeArgs = process.platform === 'darwin' ? ['-l'] : ['-v']
-      const proc = spawn(
-        '/usr/bin/time',
+      const metricsFile = `${stem}.time.txt`
+      const timeArgs = process.platform === 'darwin' ? ['-l'] : ['-v', '-o', metricsFile]
+      const execution = await runProcess(
         [
+          '/usr/bin/time',
           ...timeArgs,
           process.execPath,
           '--no-env-file',
@@ -165,22 +167,20 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
           '--output',
           reportFile,
         ],
-        { cwd: engine, env, stdio: ['ignore', 'ignore', 'pipe'], detached: true }
+        engine,
+        env
       )
-      let metrics = ''
-      proc.stderr.on('data', (chunk: Buffer) => {
-        if (metrics.length < 65536) metrics += chunk.toString()
-      })
-      const timeout = setTimeout(
-        () => {
-          if (proc.pid) process.kill(-proc.pid, 'SIGKILL')
-        },
-        15 * 60 * 1000
-      )
-      result.exitCode = await new Promise<number | null>((resolve, reject) => {
-        proc.on('error', reject)
-        proc.on('close', resolve)
-      }).finally(() => clearTimeout(timeout))
+      result.exitCode = execution.exitCode
+      const metrics =
+        process.platform === 'linux' && existsSync(metricsFile)
+          ? readFileSync(metricsFile, 'utf8')
+          : execution.stderr
+      if (execution.exitCode !== 0 || execution.timedOut)
+        writeFileSync(
+          `${stem}.stderr.txt`,
+          execution.stderr + (execution.truncated ? '\n[stderr truncated at 65536 bytes]\n' : ''),
+          { mode: 0o600 }
+        )
       result.seconds = Math.round((performance.now() - started) / 10) / 100
       const rss =
         process.platform === 'darwin'
@@ -189,6 +189,7 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       result.peakMemoryBytes = rss
         ? Number(rss[1]) * (process.platform === 'darwin' ? 1 : 1024)
         : null
+      if (execution.timedOut) throw new Error('Analysis deadline exceeded')
       if (!existsSync(reportFile)) throw new Error('Engine did not produce a report')
       const bytes = readFileSync(reportFile)
       const report = JSON.parse(bytes.toString()) as Report

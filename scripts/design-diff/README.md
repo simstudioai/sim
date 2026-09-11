@@ -102,6 +102,7 @@ scripts/design-diff/
   infrastructure.ts                     Rendering lockfile dependency closure
   report.ts                             Value previews and bounded JSON serialization
   benchmark.ts                          Immutable-engine historical replay
+  process.ts                            Native Bun process status and bounded diagnostics
   benchmark/comparisons.json            Frozen original/holdout comparison manifest
   memory.ts                             Bun parser-batch garbage collection
   tailwind.ts                           Pinned compiler and trusted merge convention
@@ -149,7 +150,9 @@ does not establish equivalence of arbitrary interactive behavior.
 
 The resolver supports immutable constants, object properties, arrays, primitive template
 strings, simple arithmetic, conditional branches, static imports/re-exports, namespace
-imports, workspace exports and project `paths` aliases. It records CVA bases, variants,
+imports, workspace exports and project `paths` aliases. Static array selections and awaited
+`Promise.all` results trace the selected value independently; arbitrary promise failure and
+scheduling effects are not modeled. It records CVA bases, variants,
 defaults, compound variants and selections; runtime selections remain symbolic. Recognized
 `cn`/`clsx` helpers are interpreted as data. The trusted EMCN `cn` merge convention includes
 the repository's custom font-size groups. A helper with an unrecognized origin is not trusted
@@ -339,6 +342,8 @@ bun --no-env-file scripts/design-diff/benchmark.ts \
 Fetch manifest commit objects beforehand; missing history fails explicitly. The runner verifies
 the frozen comparison commits and GitHub file sets. Cache identity includes engine SHA, trusted
 config, lockfile, runtime and comparison commits, with report-content verification before reuse.
-It records per-comparison elapsed time and peak RSS separately from deterministic reports.
+It awaits native Bun process exit status and records per-comparison elapsed time and peak RSS
+separately from deterministic reports. Failed runs retain bounded stderr diagnostics in a
+separate file, without printing source findings to logs.
 `/usr/bin/time` is required (macOS or Linux); source findings are not printed. Review original
 and holdout rates separately, and inspect every disagreement against the source label.
