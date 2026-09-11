@@ -1960,20 +1960,16 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         if (operation === 'file_write') {
           // Writing stores one file, so the single form.
           const fileInput = normalizeFileInput(params.writeFileInput, { single: true })
-          // The contract counts any defined `content` as "text was provided", and
-          // an untouched Content box serializes as an empty string — so sending it
-          // unconditionally would make every file write collide with its own empty
-          // text box. The selected file is what disambiguates: with one present,
-          // an empty Content box means "not used" and is dropped, while a
-          // non-empty one is still forwarded so the contract can report that both
-          // were filled. With no file, `content` always goes through, which keeps
-          // writing a deliberately empty text file possible.
+          /**
+           * Explicitly clear unused Content because the executor merges these params
+           * over the original inputs. Preserve empty text when no file is selected.
+           */
           const contentText = typeof params.content === 'string' ? params.content : undefined
           const omitContent = Boolean(fileInput) && !contentText
           return {
             fileName: params.fileName,
             folderPath: optionalText(params.writeFolderRef),
-            ...(omitContent ? {} : { content: params.content }),
+            content: omitContent ? undefined : params.content,
             ...(fileInput ? { fileInput } : {}),
             contentType: params.contentType,
             overwrite: params.overwrite === true || params.overwrite === 'true',
