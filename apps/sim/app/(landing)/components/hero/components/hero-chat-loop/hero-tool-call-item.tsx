@@ -23,7 +23,7 @@ export function HeroToolCallItem({
     <ActivityStatus
       label={getToolStatusDisplayTitle(displayTitle, status, toolName)}
       isActive={status === 'executing'}
-      icon={Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+      icon={<Icon className='size-full' />}
     />
   )
   return renderStatus ? renderStatus(activity) : activity

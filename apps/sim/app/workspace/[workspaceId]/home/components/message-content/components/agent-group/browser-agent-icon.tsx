@@ -119,7 +119,7 @@ function BrowserAgentFavicon({ url, canLoad }: BrowserAgentFaviconProps) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>('loading')
 
   return (
-    <span className='relative flex size-[16px] items-center justify-center' aria-hidden='true'>
+    <span className='relative flex size-full items-center justify-center' aria-hidden='true'>
       {/** History alone must not contact a site; keep an already loaded image after the tab closes. */}
       {url && status !== 'failed' && (canLoad || status === 'loaded') && (
         <img
@@ -127,14 +127,14 @@ function BrowserAgentFavicon({ url, canLoad }: BrowserAgentFaviconProps) {
           referrerPolicy='no-referrer'
           alt=''
           className={cn(
-            'size-[16px] rounded-[3px]',
+            'size-full rounded-[3px]',
             status !== 'loaded' && 'pointer-events-none absolute opacity-0'
           )}
           onLoad={() => setStatus('loaded')}
           onError={() => setStatus('failed')}
         />
       )}
-      {(!url || status !== 'loaded') && <Globe className='size-[16px] text-[var(--text-icon)]' />}
+      {(!url || status !== 'loaded') && <Globe className='size-full' />}
     </span>
   )
 }

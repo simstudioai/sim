@@ -246,9 +246,9 @@ export function ToolCallItem({
       isActive={isExecuting}
       icon={
         BlockIcon ? (
-          <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />
+          <BrandIcon icon={BlockIcon} className='size-full' />
         ) : (
-          <ToolIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+          <ToolIcon className='size-full' />
         )
       }
     />
