@@ -5,6 +5,7 @@ import { configureCommand } from './commands/configure'
 import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { attachSecretCommands } from './commands/secrets'
+import { telemetryCommand } from './commands/telemetry'
 import { OUTPUT_FORMATS } from './config/index'
 import {
   assertNoReservedProgramFlags,
@@ -145,6 +146,7 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
   program.addCommand(configureCommand())
   const update = updateCommand()
   program.addCommand(update)
+  program.addCommand(telemetryCommand())
 
   for (const command of buildGeneratedCommands()) {
     program.addCommand(command)

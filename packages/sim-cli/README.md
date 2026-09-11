@@ -317,6 +317,7 @@ The main environment variables are:
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
 | `SIM_DEBUG` | Print request diagnostics to stderr |
 | `SIM_NO_UPDATE_CHECK` | Turn off update notices |
+| `SIM_TELEMETRY_DISABLED` | Turn off anonymous usage reporting (`DO_NOT_TRACK=1` also works) |
 
 On eligible interactive invocations, `sim` uses a daily cache before asking
 `registry.npmjs.org` what is published under the `latest` tag and prints an
@@ -334,6 +335,22 @@ use the public default; non-empty malformed or non-HTTP(S) values fail closed.
 The full list of cases where it stays quiet is in the
 [configuration guide](https://docs.sim.ai/cli/configuration).
 
+## Usage data
+
+The CLI reports anonymous usage data — which commands run, whether they
+succeed, and how long they take — so the team can see how it is used. Nothing
+you type is sent: no argument or flag values, paths, ids, error messages, or
+credentials. The first interactive run prints a notice and is not reported.
+
+```bash
+sim telemetry status
+sim telemetry disable
+```
+
+`DO_NOT_TRACK=1` or `SIM_TELEMETRY_DISABLED=1` in the environment also turns it
+off. The full description of what is sent is in the
+[usage data guide](https://docs.sim.ai/cli/usage-data).
+
 ## Documentation
 
 - [CLI documentation](https://docs.sim.ai/cli)
@@ -342,6 +359,7 @@ The full list of cases where it stays quiet is in the
 - [Profiles and configuration](https://docs.sim.ai/cli/configuration)
 - [Scripting](https://docs.sim.ai/cli/scripting)
 - [Troubleshooting](https://docs.sim.ai/cli/troubleshooting)
+- [Usage data](https://docs.sim.ai/cli/usage-data)
 
 ## License
 

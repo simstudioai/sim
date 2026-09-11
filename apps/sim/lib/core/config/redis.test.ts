@@ -38,6 +38,7 @@ vi.mock('@sim/logger', () => ({
   logger: mockLogger,
   runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
   getRequestContext: () => undefined,
+  setRequestAuth: vi.fn(),
   setRequestTraceId: () => {},
 }))
 vi.mock('ioredis', () => ({

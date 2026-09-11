@@ -7,7 +7,7 @@
 import { logs, SeverityNumber } from '@opentelemetry/api-logs'
 import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import chalk from 'chalk'
-import { getRequestContext } from './request-context'
+import { getRequestContext, type RequestContext } from './request-context'
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -306,6 +306,29 @@ const materializeMetadata = (metadata: LoggerMetadata): LoggerMetadata => {
 }
 
 /**
+ * The request context's contribution to every log line in it. Only fields the
+ * request actually established are set, so a line outside a request, or before
+ * authentication, carries no empty keys to filter back out.
+ */
+const requestContextMetadata = (context: RequestContext): LoggerMetadata => {
+  const metadata: LoggerMetadata = { requestId: context.requestId }
+  if (context.method) metadata.method = context.method
+  if (context.path) metadata.path = context.path
+  if (context.traceId) metadata.traceId = context.traceId
+  if (context.client) {
+    metadata.surface = context.client.surface
+    if (context.client.version) metadata.clientVersion = context.client.version
+    if (context.client.agent) metadata.codingAgent = context.client.agent
+  }
+  if (context.auth) {
+    metadata.auth = context.auth.kind
+    if (context.auth.service) metadata.authService = context.auth.service
+  }
+  if (context.callChain) metadata.callDepth = context.callChain.length
+  return metadata
+}
+
+/**
  * Logger class for standardized console logging
  *
  * Provides methods for logging at different severity levels
@@ -402,13 +425,7 @@ export class Logger {
 
     const reqCtx = getRequestContext()
     const effectiveMetadata = reqCtx
-      ? {
-          requestId: reqCtx.requestId,
-          method: reqCtx.method,
-          path: reqCtx.path,
-          traceId: reqCtx.traceId,
-          ...this.metadata,
-        }
+      ? { ...requestContextMetadata(reqCtx), ...this.metadata }
       : this.metadata
     const metadataEntries = Object.entries(filterUndefined(effectiveMetadata))
     const metadataStr =
@@ -526,8 +543,13 @@ export function createLogger(module: string, config?: LoggerConfig): Logger {
   return new Logger(module, config)
 }
 
-export type { RequestContext } from './request-context'
-export { getRequestContext, runWithRequestContext, setRequestTraceId } from './request-context'
+export type { RequestAuth, RequestContext } from './request-context'
+export {
+  getRequestContext,
+  runWithRequestContext,
+  setRequestAuth,
+  setRequestTraceId,
+} from './request-context'
 
 const OTEL_LOG_SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string }> = {
   [LogLevel.DEBUG]: { number: SeverityNumber.DEBUG, text: 'DEBUG' },

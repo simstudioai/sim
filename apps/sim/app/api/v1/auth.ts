@@ -1,5 +1,9 @@
-import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
+import {
+  describePrincipalAuth,
+  type PersonalApiKeyPrincipal,
+  type WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
@@ -72,6 +76,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
     }
 
     await updateApiKeyLastUsed(result.keyId)
+    setRequestAuth(describePrincipalAuth(principal))
 
     return {
       authenticated: true,
