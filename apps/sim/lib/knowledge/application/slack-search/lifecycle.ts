@@ -68,13 +68,15 @@ export const revokeSlackSearchAccess: OperationUseCase<
       if (app.app.kind === 'custom' && app.app.organizationId !== installation.organizationId)
         throw new Error('Slack installation ownership is inconsistent')
       const uninstall = input.event.type === 'app_uninstalled'
+      const staleInstallation = installation.updatedAt > occurredAt
+      if (uninstall && staleInstallation) return
       const revokedUsers =
         input.event.type === 'tokens_revoked' ? (input.event.tokens.oauth ?? []) : []
       const revokeBot =
-        uninstall ||
-        (input.event.type === 'tokens_revoked' &&
-          (input.event.tokens.bot ?? []).includes(installation.botUserId))
-      if (revokeBot && installation.updatedAt > occurredAt) return
+        !staleInstallation &&
+        (uninstall ||
+          (input.event.type === 'tokens_revoked' &&
+            (input.event.tokens.bot ?? []).includes(installation.botUserId)))
       let revokedMemberIds: string[] = []
       if (uninstall || revokedUsers.length) {
         const revokeCredentials = tx

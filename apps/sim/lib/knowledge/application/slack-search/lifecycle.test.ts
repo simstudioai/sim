@@ -146,7 +146,7 @@ describe('Slack access revocation', () => {
   })
   it.each([
     { type: 'app_uninstalled' as const },
-    { type: 'tokens_revoked' as const, tokens: { bot: ['UBOT'], oauth: ['U1'] } },
+    { type: 'tokens_revoked' as const, tokens: { bot: ['UBOT'] } },
   ])('ignores stale installation-wide revocations before any writes: %j', async (event) => {
     resetDbChainMock()
     queueTableRows(slackSearchInstallation, [
@@ -162,26 +162,43 @@ describe('Slack access revocation', () => {
     await revokeSlackSearchAccess.execute({ principal, input: { ...input, event } })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-  it('still revokes matching personal grants when only the installation is newer', async () => {
-    resetDbChainMock()
-    queueTableRows(slackSearchInstallation, [
-      {
-        id: 'i1',
-        organizationId: 'org',
-        appId: 'A1',
-        teamId: 'T1',
-        botUserId: 'UBOT',
-        updatedAt: new Date(input.event_time * 1000 + 1000),
-      },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ providerSubjectId: 'U1' }])
-    await revokeSlackSearchAccess.execute({
-      principal,
-      input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1'] } } },
-    })
-    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([
-      credential,
-      slackSearchTurn,
-    ])
-  })
+  it.each([{ oauth: ['U1'] }, { oauth: ['U1'], bot: ['UBOT'] }])(
+    'revokes matching member grants independently of a newer bot installation: %j',
+    async (tokens) => {
+      resetDbChainMock()
+      queueTableRows(slackSearchInstallation, [
+        {
+          id: 'i1',
+          organizationId: 'org',
+          appId: 'A1',
+          teamId: 'T1',
+          botUserId: 'UBOT',
+          updatedAt: new Date(input.event_time * 1000 + 1000),
+        },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ providerSubjectId: 'U1' }])
+      await revokeSlackSearchAccess.execute({
+        principal,
+        input: { ...input, event: { type: 'tokens_revoked', tokens } },
+      })
+      expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([
+        credential,
+        slackSearchTurn,
+      ])
+      expect(dbChainMockFns.where).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          conditions: expect.arrayContaining([
+            {
+              type: 'inArray',
+              column: expect.objectContaining({
+                strings: ['', " #>> '{message,userId}'"],
+                values: [slackSearchTurn.payload],
+              }),
+              values: ['U1'],
+            },
+          ]),
+        })
+      )
+    }
+  )
 })
