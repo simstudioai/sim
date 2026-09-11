@@ -197,7 +197,12 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     const signal = (this.readySignal ??= this.createReadySignal())
     this.readyWaiters++
     return new Promise<void>((resolve, reject) => {
+      // A waiter that timed out is still subscribed to the signal, so it must
+      // leave exactly once whichever of its deadline or the signal fires first.
+      let left = false
       const leave = () => {
+        if (left) return
+        left = true
         clearTimeout(timeout)
         if (--this.readyWaiters === 0 && this.readySignal === signal) {
           signal.detach()
@@ -223,13 +228,20 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
 
   private createReadySignal(): ReadySignal {
     let detach = () => {}
-    const promise = new Promise<void>((resolve, reject) => {
+    const signal: ReadySignal = { promise: Promise.resolve(), detach: () => detach() }
+    // A settled signal describes a moment that has passed; the next waiter must
+    // observe the connection afresh rather than a readiness that may be gone.
+    const settle = () => {
+      detach()
+      if (this.readySignal === signal) this.readySignal = undefined
+    }
+    signal.promise = new Promise<void>((resolve, reject) => {
       const onReady = () => {
-        detach()
+        settle()
         resolve()
       }
       const onEnd = () => {
-        detach()
+        settle()
         reject(new Error('Redis subscriber connection ended'))
       }
       detach = () => {
@@ -241,8 +253,8 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     })
     // Detached before settling, this promise is simply dropped; an `end` that
     // arrives after every waiter has left must not surface as unhandled.
-    promise.catch(() => undefined)
-    return { promise, detach }
+    signal.promise.catch(() => undefined)
+    return signal
   }
 
   private async handleReady(): Promise<void> {

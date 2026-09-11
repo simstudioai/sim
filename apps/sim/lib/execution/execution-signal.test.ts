@@ -427,6 +427,50 @@ describe('ExecutionSignalHub', () => {
     }
   })
 
+  it('keeps its waiter accounting exact when one waiter times out before the signal settles', async () => {
+    vi.useFakeTimers()
+    try {
+      connection.status = 'connect'
+      const hub = getExecutionSignalHub()
+      // Waiter A will time out; waiter B, started later, is still waiting when it does.
+      const early = hub.subscribe('execution-early', vi.fn())
+      const earlySettled = vi.fn()
+      void early.then(earlySettled, earlySettled)
+      await vi.advanceTimersByTimeAsync(readyBudgetMs() - 1000)
+      const late = hub.subscribe('execution-late', vi.fn())
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(early).rejects.toThrow('Timed out waiting for Redis subscriber readiness')
+
+      // The signal settles for B — and must not run A's cleanup a second time.
+      connection.status = 'ready'
+      connection.client?.emit('ready')
+      await late
+      expect(connection.client?.listenerCount('ready')).toBe(1)
+      expect(connection.client?.listenerCount('end')).toBe(0)
+
+      // Connection drops again: a new subscribe must wait for a fresh ready,
+      // not reuse a readiness that has already passed.
+      connection.status = 'connect'
+      connection.client?.emit('close')
+      mockSubscribe.mockClear()
+      const again = hub.subscribe('execution-again', vi.fn())
+      const againSettled = vi.fn()
+      void again.then(againSettled, againSettled)
+      await vi.advanceTimersByTimeAsync(readyBudgetMs() - 1)
+      expect(againSettled).not.toHaveBeenCalled()
+      expect(mockSubscribe).not.toHaveBeenCalled()
+
+      connection.status = 'ready'
+      connection.client?.emit('ready')
+      await again
+      expect(mockSubscribe).toHaveBeenCalledOnce()
+      expect(connection.client?.listenerCount('ready')).toBe(1)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('warms to true once the subscriber becomes ready', async () => {
     connection.status = 'connecting'
     const warm = warmExecutionSignalHub()
