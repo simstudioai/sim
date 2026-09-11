@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest'
-import { allChanges, compareFiles, config } from '#design-diff/tests/helpers'
+import { GitReader } from '#design-diff/git'
+import { SourceTree } from '#design-diff/source'
+import { allChanges, compareFiles, config, FixtureRepo } from '#design-diff/tests/helpers'
 
 const settings = { ...config, themes: [] }
 const token = 'apps/sim/token.ts'
@@ -247,3 +249,72 @@ it('flags added stylesheet imports even when a barrel exports only resolved valu
   expect(report.findings[0].source.after?.file).toBe(index)
   expect(report.findings[0].category).toBe('infrastructure')
 })
+
+it('narrows candidate propagation at every helper hop, including uncertain namespace edges', () => {
+  const repo = new FixtureRepo()
+  try {
+    const base = repo.commit({
+      [token]: 'export const colour="red"',
+      [other]:
+        'import {colour} from "./token";export const related=()=>colour;export const unrelated=()=>4',
+      [index]: 'export * from "./other"',
+      [consumer]:
+        'import * as values from "./index";export const Page=()=> <div style={{color:values.related()}}/>',
+      [unrelated]:
+        'import {unrelated} from "./other";export const Other=()=> <div style={{padding:unrelated()}}/>',
+    })
+    const head = repo.commit({ [token]: 'export const colour="blue"' })
+    const reader = new GitReader(repo.cwd)
+    const before = new SourceTree(reader, base, settings)
+    const after = new SourceTree(reader, head, settings)
+    before.buildGraph()
+    after.buildGraph()
+    const affected = before.graph.causes(new Set([token]), after.graph)
+    expect(affected.has(consumer)).toBe(true)
+    expect(affected.has(unrelated)).toBe(false)
+  } finally {
+    repo.close()
+  }
+})
+
+it('widens converging dependency paths and retains module-effect uncertainty', async () => {
+  const files = {
+    [token]: 'export const colour="red"',
+    [other]:
+      'import {colour} from "./token";export const first=()=>colour;export const second=()=>colour',
+    [index]:
+      'import {first,second} from "./other";export const a=()=>first();export const b=()=>second()',
+    [consumer]: 'import {b} from "./index";export const Page=()=> <div style={{color:b()}}/>',
+  }
+  expect(
+    (await compareFiles(files, { [token]: 'export const colour="blue"' }, settings)).flagged
+  ).toBe(true)
+  expect(
+    (
+      await compareFiles(
+        {
+          ...files,
+          [other]:
+            'import {colour} from "./token";document.body.style.color=colour;export const first=()=>1;export const second=()=>2',
+        },
+        { [token]: 'export const colour="blue"' },
+        settings
+      )
+    ).flagged
+  ).toBe(true)
+})
+
+it.each(['first', 'second'])(
+  'preserves every top-level destructured binding: %s',
+  async (selected) => {
+    const files = {
+      [token]: 'export const colour="red"',
+      [other]:
+        'import {colour} from "./token";export const {first,second}={first:colour,second:colour}',
+      [consumer]: `import {${selected} as colour} from './other';export const Page=()=> <div style={{color:colour}}/>`,
+    }
+    expect(
+      (await compareFiles(files, { [token]: 'export const colour="blue"' }, settings)).flagged
+    ).toBe(true)
+  }
+)

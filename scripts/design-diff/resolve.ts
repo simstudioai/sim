@@ -75,7 +75,13 @@ export class Resolver {
         const declaration = child(p, 'declaration')
         if (declaration.isVariableDeclaration()) {
           for (const d of children(declaration, 'declarations'))
-            exports.set(propertyName((d.node as t.VariableDeclarator).id), child(d, 'init'))
+            for (const name of Object.keys(
+              t.getBindingIdentifiers((d.node as t.VariableDeclarator).id)
+            ))
+              exports.set(
+                name,
+                t.isIdentifier((d.node as t.VariableDeclarator).id) ? child(d, 'init') : d
+              )
         } else if (declaration.isFunctionDeclaration() && declaration.node.id)
           exports.set(declaration.node.id.name, declaration)
         for (const specifier of children(p, 'specifiers')) {
@@ -451,6 +457,55 @@ export class Resolver {
         return { $environment: key, definitions: selected }
       }
     }
+    if (path.isCallExpression()) {
+      const target = this.callable(child(path, 'callee'), file)
+      if (
+        target &&
+        (!this.affected || this.affected.has(target.file)) &&
+        !this.tree.config.environmentAdapters?.some((adapter) => adapter.module === target.file)
+      )
+        return {
+          $selectedCall: this.functionValue(target.path, target.file, depth + 1, key),
+          arguments: children(path, 'arguments').map((argument) =>
+            this.value(argument, file, depth + 1)
+          ),
+        }
+    }
+    return undefined
+  }
+
+  /** Resolve a callable declaration as syntax, retaining import provenance and cycle bounds. */
+  private callable(
+    path: NodePath,
+    file: string,
+    seen = new Set<t.Node>()
+  ): { path: NodePath; file: string } | undefined {
+    if (!path?.node || seen.has(path.node) || seen.size >= this.tree.config.limits.resolutionDepth)
+      return undefined
+    seen.add(path.node)
+    if (path.isFunction()) return { path, file }
+    if (path.isTSAsExpression() || path.isTSSatisfiesExpression() || path.isTSNonNullExpression())
+      return this.callable(child(path, 'expression'), file, seen)
+    if (!path.isIdentifier()) return undefined
+    const binding = path.scope.getBinding(path.node.name)
+    if (!binding?.constant) return undefined
+    if (binding.path.isFunctionDeclaration()) return { path: binding.path, file }
+    if (binding.path.isVariableDeclarator())
+      return this.callable(child(binding.path, 'init'), file, seen)
+    if (binding.path.isImportSpecifier() || binding.path.isImportDefaultSpecifier()) {
+      const declaration = binding.path.parentPath
+      if (!declaration.isImportDeclaration()) return undefined
+      const target = this.tree.resolve(file, declaration.node.source.value)
+      const name = binding.path.isImportSpecifier()
+        ? propertyName(binding.path.node.imported)
+        : 'default'
+      const resolved = target ? this.tree.graph?.resolvedExport(target, name) : undefined
+      if (!resolved?.origin) return undefined
+      for (const route of resolved.routes) this.dependencies.add(route)
+      this.dependencies.add(resolved.origin.file)
+      const exported = this.module(resolved.origin.file).exports.get(resolved.origin.exported)
+      if (exported) return this.callable(exported, resolved.origin.file, seen)
+    }
     return undefined
   }
 
@@ -552,7 +607,14 @@ export class Resolver {
   }
 
   /** Trace return values and their guards without invoking application functions. */
-  private functionValue(path: NodePath, file: string, depth: number): Data {
+  private functionValue(path: NodePath, file: string, depth: number, property?: string): Data {
+    const returned = (value: NodePath): Data => {
+      if (property === undefined) return this.value(value, file, depth + 1)
+      const selected = this.selected(value, property, file, depth + 1)
+      if (selected !== undefined) return selected
+      this.unresolved.add('Selected helper return property is unresolved')
+      return { $member: this.value(value, file, depth + 1), key: property }
+    }
     let renders = false
     t.traverseFast(path.node, (node) => {
       if (t.isJSXElement(node) || t.isJSXFragment(node)) renders = true
@@ -563,7 +625,7 @@ export class Resolver {
     if (!body.isBlockStatement())
       return {
         $function: previewValue(
-          [{ value: this.value(body, file, depth + 1), conditions: [] }],
+          [{ value: returned(body), conditions: [] }],
           undefined,
           this.semantics
         ),
@@ -595,7 +657,7 @@ export class Resolver {
               case: this.value(child(parent, 'test'), file, depth + 1),
             })
         }
-        returns.push({ value: this.value(child(p, 'argument'), file, depth + 1), conditions })
+        returns.push({ value: returned(child(p, 'argument')), conditions })
       },
     })
     this.unresolved.add('Function return paths are analyzed statically, not executed')
@@ -799,6 +861,10 @@ export class Resolver {
         /** Its indexed dependency region is unchanged in this comparison; preserve callable identity and analyze changed arguments at the caller. */
         if (this.affected && !this.affected.has(file) && exported.isFunction())
           return { $unchangedFunction: { file, export: name } }
+        if (exported.isVariableDeclarator()) {
+          const value = this.destructured(exported, name, file, depth + 1)
+          if (value !== undefined) return value
+        }
         if (exported.isExportSpecifier()) {
           const parent = exported.parentPath
           if (parent.isExportNamedDeclaration() && parent.node.source) {

@@ -1,7 +1,10 @@
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { fingerprint, location, parseSource, propertyName, traverse } from '#design-diff/ast'
+import { environmentFields } from '#design-diff/environment'
+import { finiteKeys } from '#design-diff/finite'
 import { reclaimMemory } from '#design-diff/memory'
+import { Resolver } from '#design-diff/resolve'
 import type { SourceTree } from '#design-diff/source'
 import type { Location } from '#design-diff/types'
 
@@ -18,6 +21,14 @@ interface Module {
 }
 /** Parsed import/export facts contain no AST or revision-specific resolved paths. */
 const moduleSnapshots = new Map<string, { module: Module; specifiers: string[] }>()
+
+interface BindingFacts {
+  values: Map<string, string>
+  reverse: Map<string, Set<string>>
+  unowned: Set<string>
+  effects: string
+  members: Map<string, { keys?: string[]; owners?: string[] }[]>
+}
 
 interface Origin {
   file: string
@@ -48,9 +59,9 @@ export class DependencyGraph {
   private readonly raw = new Map<string, Set<string>>()
   private readonly traces = new Map<string, Trace>()
   private readonly watches = new Map<string, Map<string, Set<string>>>()
-  private readonly closures = new Map<string, Set<string>>()
   private readonly edgeSymbols = new Map<string, Set<string>>()
   private readonly counted = new Set<string>()
+  private readonly bindingSnapshots = new Map<string, BindingFacts | undefined>()
 
   constructor(
     readonly tree: SourceTree,
@@ -200,7 +211,6 @@ export class DependencyGraph {
       this.connect(file)
       if (++parsed % 128 === 0) reclaimMemory()
     }
-    this.closures.clear()
     reclaimMemory()
   }
 
@@ -288,23 +298,6 @@ export class DependencyGraph {
     }
   }
 
-  /** All inputs of an explicitly unresolved imported value; not general UI evidence. */
-  closure(file: string): Set<string> {
-    const cached = this.closures.get(file)
-    if (cached) return cached
-    const result = new Set([file])
-    const queue = [file]
-    for (let index = 0; index < queue.length; index++)
-      for (const target of this.raw.get(queue[index]) ?? []) {
-        if (!result.has(target)) {
-          result.add(target)
-          queue.push(target)
-        }
-      }
-    this.closures.set(file, result)
-    return result
-  }
-
   private add(file: string, specifier: string, name: string) {
     const target = this.tree.resolve(file, specifier)
     if (!target) return
@@ -339,7 +332,7 @@ export class DependencyGraph {
         this.watches.set(route, watchers)
       }
     } else {
-      for (const dependency of this.closure(target)) edge(dependency, '*')
+      edge(target, '*')
       if (this.script.test(target))
         this.note(
           file,
@@ -355,7 +348,10 @@ export class DependencyGraph {
         (this.dependencies.get(file) as Set<string>).add(target)
       return
     }
-    if (module.barrel) return
+    if (module.barrel) {
+      for (const target of this.raw.get(file) ?? []) this.dependencies.get(file)!.add(target)
+      return
+    }
     const ast = parseSource(this.tree.texts.get(file) as string, file)
     const namespaces = new Map([...module.imports].filter(([, target]) => target.name === '*'))
     const referenced = new Set<string>()
@@ -484,7 +480,9 @@ export class DependencyGraph {
     const result = new Map<string, Set<string>>()
     for (const root of changed) {
       const symbols = this.changedSymbols(root, other)
+      const members = symbols ? this.changedMembers(root, other) : undefined
       const visited = new Set([root])
+      const active = new Map<string, Set<string> | undefined>([[root, symbols]])
       const queue = [root]
       const a = this.watches.get(root)
       const b = other.watches.get(root)
@@ -498,30 +496,52 @@ export class DependencyGraph {
           continue
         if (!visited.has(file)) {
           visited.add(file)
+          active.set(file, undefined)
           queue.push(file)
         }
       }
-      for (let index = 0; index < queue.length; index++)
-        for (const file of reverse.get(queue[index]) ?? []) {
-          if (
-            index === 0 &&
-            symbols &&
-            ![this, other].some((graph) => {
-              if (!graph.dependencies.get(file)?.has(root)) return false
-              const imported = graph.edgeSymbols.get(`${file}\0${root}`)
-              return (
-                !imported ||
-                imported.has('*') ||
-                [...symbols].some((symbol) => imported.has(symbol))
+      for (let index = 0; index < queue.length; index++) {
+        const upstream = queue[index]
+        const inputs = active.get(upstream)
+        for (const file of reverse.get(upstream) ?? []) {
+          const candidates = [this, other].filter((graph) => {
+            if (!graph.dependencies.get(file)?.has(upstream)) return false
+            const imported = graph.edgeSymbols.get(`${file}\0${upstream}`)
+            return (
+              !inputs ||
+              !imported ||
+              imported.has('*') ||
+              [...inputs].some((symbol) => imported.has(symbol))
+            )
+          })
+          if (!candidates.length) continue
+          const projections = inputs
+            ? candidates.map((graph) =>
+                graph.propagatedSymbols(
+                  file,
+                  upstream,
+                  inputs,
+                  upstream === root ? members : undefined
+                )
               )
-            })
-          )
-            continue
+            : [undefined]
+          const next = projections.some((projection) => projection === undefined)
+            ? undefined
+            : new Set(projections.flatMap((projection) => [...projection!]))
+          if (next?.size === 0) continue
           if (!visited.has(file)) {
             visited.add(file)
+            active.set(file, next)
             queue.push(file)
+          } else {
+            const previous = active.get(file)
+            if (previous && (!next || [...next].some((symbol) => !previous.has(symbol)))) {
+              active.set(file, next ? new Set([...previous, ...next]) : undefined)
+              queue.push(file)
+            }
           }
         }
+      }
       for (const file of visited) {
         const roots = result.get(file) ?? new Set<string>()
         roots.add(root)
@@ -569,54 +589,191 @@ export class DependencyGraph {
     }
   }
 
+  private bindingFacts(file: string): BindingFacts | undefined {
+    if (this.bindingSnapshots.has(file)) return this.bindingSnapshots.get(file)
+    const source = this.tree.texts.get(file)
+    if (!source || !this.script.test(file)) return undefined
+    const values = new Map<string, string>()
+    const reverse = new Map<string, Set<string>>()
+    const unowned = new Set<string>()
+    const members = new Map<string, { keys?: string[]; owners?: string[] }[]>()
+    const resolver = new Resolver(this.tree)
+    const ast = parseSource(source, file)
+    traverse(ast, {
+      Program(p) {
+        const entries = Object.entries(p.scope.bindings)
+        const owners = new Map<t.Node, Set<string>>()
+        for (const [name, binding] of entries) {
+          const names = owners.get(binding.path.node) ?? new Set<string>()
+          names.add(name)
+          owners.set(binding.path.node, names)
+        }
+        for (const [name, binding] of entries) {
+          const declaration = binding.path.parentPath
+          values.set(
+            name,
+            fingerprint([
+              binding.path.node,
+              binding.constantViolations.map((path) => path.node),
+              declaration?.isImportDeclaration() ? declaration.node.source.value : null,
+            ])
+          )
+          const dependents = new Set<string>()
+          for (const reference of binding.referencePaths) {
+            if (reference.isExportDeclaration()) continue
+            if (reference.findParent((parent) => parent.isTSType() || parent.isExportSpecifier()))
+              continue
+            const owner = reference.findParent((parent) => owners.has(parent.node))
+            if (owner) for (const name of owners.get(owner.node)!) dependents.add(name)
+            else unowned.add(name)
+            if (binding.path.isImportSpecifier() || binding.path.isImportDefaultSpecifier()) {
+              const member = reference.parentPath
+              const keys =
+                member?.isMemberExpression() && member.node.object === reference.node
+                  ? member.node.computed
+                    ? finiteKeys(member.get('property') as NodePath, file, resolver)?.keys?.map(
+                        String
+                      )
+                    : [propertyName(member.node.property)]
+                  : undefined
+              const references = members.get(name) ?? []
+              references.push({ keys, owners: owner ? [...owners.get(owner.node)!] : undefined })
+              members.set(name, references)
+            }
+          }
+          reverse.set(name, dependents)
+        }
+        p.stop()
+      },
+    })
+    const effects = ast.program.body.filter(
+      (node) =>
+        !t.isImportDeclaration(node) &&
+        !t.isExportDeclaration(node) &&
+        !t.isVariableDeclaration(node) &&
+        !t.isFunctionDeclaration(node) &&
+        !t.isClassDeclaration(node) &&
+        !t.isTSInterfaceDeclaration(node) &&
+        !t.isTSTypeAliasDeclaration(node) &&
+        !t.isEmptyStatement(node)
+    )
+    const result = {
+      values,
+      reverse,
+      unowned,
+      members,
+      effects: fingerprint([ast.program.directives, effects]),
+    }
+    this.bindingSnapshots.set(file, result)
+    if (this.bindingSnapshots.size % 64 === 0) reclaimMemory()
+    return result
+  }
+
+  /** Follow an imported binding only into local values that reference it. Unknown effects remain broad. */
+  private propagatedSymbols(
+    file: string,
+    upstream: string,
+    symbols: Set<string>,
+    changedMembers?: Map<string, Set<string>>
+  ): Set<string> | undefined {
+    try {
+      const facts = this.bindingFacts(file)
+      const module = this.modules.get(file)
+      const edge = this.edgeSymbols.get(`${file}\0${upstream}`)
+      if (!facts || !module || module.barrel || !edge || edge.has('*')) return undefined
+      const seeds = new Set<string>()
+      let matched = false
+      for (const [local, imported] of module.imports) {
+        if (!imported.source) continue
+        const target = this.tree.resolve(file, imported.source)
+        if (!target) continue
+        const trace = this.trace(target, imported.name)
+        for (const origin of trace.origins) {
+          if (origin.file !== upstream || !symbols.has(origin.symbol)) continue
+          matched = true
+          const keys = changedMembers?.get(origin.symbol)
+          if (!keys) {
+            seeds.add(local)
+            continue
+          }
+          for (const reference of facts.members.get(local) ?? []) {
+            if (!reference.keys) {
+              seeds.add(local)
+              break
+            }
+            if (!reference.keys.some((key) => keys.has(key))) continue
+            if (!reference.owners) return undefined
+            for (const owner of reference.owners) seeds.add(owner)
+          }
+        }
+      }
+      if (!matched) return undefined
+      const queue = [...seeds]
+      for (let index = 0; index < queue.length; index++) {
+        if (facts.unowned.has(queue[index])) return undefined
+        for (const dependent of facts.reverse.get(queue[index]) ?? [])
+          if (!seeds.has(dependent)) {
+            seeds.add(dependent)
+            queue.push(dependent)
+          }
+      }
+      return seeds
+    } catch {
+      return undefined
+    }
+  }
+
+  /** Project changed schema keys only when other changed local helpers cannot affect the environment. */
+  private changedMembers(
+    file: string,
+    other: DependencyGraph
+  ): Map<string, Set<string>> | undefined {
+    try {
+      const before = this.bindingFacts(file)
+      const after = other.bindingFacts(file)
+      if (!before || !after) return undefined
+      const a = environmentFields(this.tree.texts.get(file)!, file)
+      const b = environmentFields(other.tree.texts.get(file)!, file)
+      const result = new Map<string, Set<string>>()
+      for (const [name, value] of a) {
+        const next = b.get(name)
+        if (!next || value.options !== next.options) continue
+        const related = new Set(
+          [...new Set([...before.values.keys(), ...after.values.keys()])].filter(
+            (key) => key !== name && before.values.get(key) !== after.values.get(key)
+          )
+        )
+        const queue = [...related]
+        for (let index = 0; index < queue.length; index++)
+          for (const dependent of new Set([
+            ...(before.reverse.get(queue[index]) ?? []),
+            ...(after.reverse.get(queue[index]) ?? []),
+          ]))
+            if (!related.has(dependent)) {
+              related.add(dependent)
+              queue.push(dependent)
+            }
+        if (related.has(name)) continue
+        result.set(
+          name,
+          new Set(
+            [...new Set([...value.fields.keys(), ...next.fields.keys()])].filter(
+              (key) => value.fields.get(key) !== next.fields.get(key)
+            )
+          )
+        )
+      }
+      return result
+    } catch {
+      return undefined
+    }
+  }
+
   /** Identifies changed top-level bindings and local dependents; module effects stay conservative. */
   changedSymbols(file: string, other: DependencyGraph, otherFile = file): Set<string> | undefined {
-    const bindings = (graph: DependencyGraph, file: string) => {
-      const source = graph.tree.texts.get(file)
-      if (!source || !graph.script.test(file)) return undefined
-      const values = new Map<string, string>()
-      const reverse = new Map<string, Set<string>>()
-      const ast = parseSource(source, file)
-      traverse(ast, {
-        Program(p) {
-          const entries = Object.entries(p.scope.bindings)
-          const owners = new Map(entries.map(([name, binding]) => [binding.path.node, name]))
-          for (const [name, binding] of entries) {
-            const declaration = binding.path.parentPath
-            values.set(
-              name,
-              fingerprint([
-                binding.path.node,
-                binding.constantViolations.map((path) => path.node),
-                declaration?.isImportDeclaration() ? declaration.node.source.value : null,
-              ])
-            )
-            const dependents = new Set<string>()
-            for (const reference of binding.referencePaths) {
-              const owner = reference.findParent((parent) => owners.has(parent.node))
-              if (owner) dependents.add(owners.get(owner.node) as string)
-            }
-            reverse.set(name, dependents)
-          }
-          p.stop()
-        },
-      })
-      const effects = ast.program.body.filter(
-        (node) =>
-          !t.isImportDeclaration(node) &&
-          !t.isExportDeclaration(node) &&
-          !t.isVariableDeclaration(node) &&
-          !t.isFunctionDeclaration(node) &&
-          !t.isClassDeclaration(node) &&
-          !t.isTSInterfaceDeclaration(node) &&
-          !t.isTSTypeAliasDeclaration(node) &&
-          !t.isEmptyStatement(node)
-      )
-      return { values, reverse, effects: fingerprint([ast.program.directives, effects]) }
-    }
     try {
-      const a = bindings(this, file)
-      const b = bindings(other, otherFile)
+      const a = this.bindingFacts(file)
+      const b = other.bindingFacts(otherFile)
       if (!a || !b || a.effects !== b.effects) return undefined
       const changed = new Set(
         [...new Set([...a.values.keys(), ...b.values.keys()])].filter(

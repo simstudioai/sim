@@ -49,17 +49,72 @@ export function mutations(binding: Binding, selected?: string): NodePath[] {
   return [...result]
 }
 
+/** Passing a scalar property cannot expose its containing literal record to mutation. */
+function primitiveRecord(binding: Binding, seen = new Set<Binding>()): boolean {
+  if (
+    seen.has(binding) ||
+    seen.size > 16 ||
+    !binding.constant ||
+    !binding.path.isVariableDeclarator()
+  )
+    return false
+  seen.add(binding)
+  let initial = binding.path.get('init') as NodePath
+  while (
+    initial.isTSAsExpression() ||
+    initial.isTSSatisfiesExpression() ||
+    initial.isTSNonNullExpression()
+  )
+    initial = initial.get('expression') as NodePath
+  if (initial.isIdentifier()) {
+    const alias = initial.scope.getBinding(initial.node.name)
+    return !!alias && primitiveRecord(alias, seen)
+  }
+  return (
+    initial.isObjectExpression() &&
+    initial.node.properties.every(
+      (property) =>
+        t.isObjectProperty(property) &&
+        !property.computed &&
+        (t.isStringLiteral(property.value) ||
+          t.isNumericLiteral(property.value) ||
+          t.isBooleanLiteral(property.value) ||
+          t.isNullLiteral(property.value))
+    )
+  )
+}
+
 /** Reject writes and escaping object references before relying on an initial literal collection. */
-export function immutableCollection(binding: Binding): boolean {
+export function immutableCollection(binding: Binding, seen = new Set<Binding>()): boolean {
+  if (seen.has(binding)) return false
+  seen.add(binding)
   if (!binding.constant || mutations(binding).length) return false
   return binding.referencePaths.every((reference) => {
     let value = reference
     while (value.parentPath?.isMemberExpression() && value.parentPath.node.object === value.node)
       value = value.parentPath
-    const parent = value.parentPath
-    if (parent?.isVariableDeclarator() || parent?.isObjectProperty()) return false
+    if (value === reference.parentPath && value.isMemberExpression() && primitiveRecord(binding))
+      return true
+    let parent = value.parentPath
+    if (
+      parent?.isVariableDeclarator() &&
+      parent.node.init === value.node &&
+      t.isIdentifier(parent.node.id)
+    ) {
+      const alias = parent.scope.getBinding(parent.node.id.name)
+      return !!alias && immutableCollection(alias, new Set(seen))
+    }
+    while (
+      parent?.isObjectProperty() ||
+      parent?.isObjectExpression() ||
+      parent?.isArrayExpression()
+    ) {
+      value = parent
+      parent = value.parentPath
+    }
     if (!parent?.isCallExpression()) return true
-    if (parent.node.callee === value.node || value !== reference) return false
+    if (parent.node.callee === value.node) return false
+    if (value !== reference) return false
     const callee = parent.node.callee
     return (
       t.isMemberExpression(callee) &&

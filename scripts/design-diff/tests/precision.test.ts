@@ -478,3 +478,74 @@ it.each(['definitions.table.fallback=runtimeKey', 'mutate(definitions)'])(
     expect(report.flagged).toBe(true)
   }
 )
+
+it('keeps hoisted literal aliases and returned empty records equivalent', async () => {
+  const before =
+    'export function Page(){const padding={top:16};const empty={};const state={empty};const inset=padding.top;return <div style={{paddingTop:Math.max(inset,1)}} data-state={state}/>}'
+  const after =
+    'const PADDING={top:16} as const;const EMPTY={};export function Page(){const padding=PADDING;const state={empty:EMPTY};const inset=padding.top;return <div style={{paddingTop:Math.max(inset,1)}} data-state={state}/>}'
+  expect((await compareFiles({ [view]: before }, { [view]: after }, settings)).flagged).toBe(false)
+})
+
+it('projects selected helper return properties independently of sibling callbacks', async () => {
+  const source = (colour: string, destination: string) =>
+    `export function useOptions(){const navigate=()=>router.push('${destination}');return {colour:'${colour}',navigate}}`
+  const files = {
+    [data]: source('red', '/a'),
+    [view]:
+      'import {useOptions as options} from "./data";export function Page(){const {colour}=options();return <div style={{color:colour}}/>}',
+  }
+  expect((await compareFiles(files, { [data]: source('red', '/b') }, settings)).flagged).toBe(false)
+  expect((await compareFiles(files, { [data]: source('blue', '/a') }, settings)).flagged).toBe(true)
+})
+
+it('preserves selected helper return guards, defaults and call arguments', async () => {
+  const source = (guard: string) =>
+    `export function options(active){if(${guard})return {colour:'red'};return {colour:'blue'}}`
+  const page = (arg: string) =>
+    `import {options} from './data';export function Page(){const {colour='green'}=options(${arg});return <div style={{color:colour}}/>}`
+  const files = { [data]: source('active'), [view]: page('enabled') }
+  expect((await compareFiles(files, { [data]: source('!active') }, settings)).flagged).toBe(true)
+  expect((await compareFiles(files, { [view]: page('other') }, settings)).flagged).toBe(true)
+})
+
+it('retains every changed source while avoiding repeated consumer expansion', async () => {
+  const files = {
+    [data]: 'export const colour="red"',
+    [view]: 'import {colour} from "./data";export const Page=()=> <div style={{color:colour}}/>',
+    'apps/sim/second.tsx':
+      'import {colour} from "./data";export const Second=()=> <span style={{color:colour}}/>',
+    'apps/sim/third.tsx': 'export const Third=()=> <button style={{padding:1}}/>',
+  }
+  const report = await compareFiles(
+    files,
+    {
+      [data]: 'export const colour="blue"',
+      'apps/sim/third.tsx': 'export const Third=()=> <button style={{padding:2}}/>',
+    },
+    settings
+  )
+  expect(report.flagged).toBe(true)
+  expect(report.findings.map((finding) => finding.source.after?.file).sort()).toEqual(
+    [data, 'apps/sim/third.tsx'].sort()
+  )
+  expect(
+    report.findings.find((finding) => finding.source.after?.file === data)?.impact.after
+      .referenceCount
+  ).toBe(2)
+  expect(
+    report.limitations.some((limitation) =>
+      limitation.includes('Repeated downstream expansion omitted')
+    )
+  ).toBe(true)
+})
+
+it('keeps environment helper changes relevant after schema-key projection', async () => {
+  const source = (colour: string) =>
+    `import {createEnv} from '@t3-oss/env-nextjs';const read=()=> '${colour}';export const env=createEnv({server:{COLOUR:rule('red'),UNUSED:rule(1)},runtimeEnv:{COLOUR:read()}})`
+  const files = {
+    [data]: source('red'),
+    [view]: 'import {env} from "./data";export const Page=()=> <div style={{color:env.COLOUR}}/>',
+  }
+  expect((await compareFiles(files, { [data]: source('blue') }, settings)).flagged).toBe(true)
+})
