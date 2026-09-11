@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ENGINE_SHA: e279fddb00dfc22ca181838352c436d7f480c286
+  ENGINE_SHA: 691769f02973d60cc25548ec2f5397f9048c6412
 
 jobs:
   replay:
