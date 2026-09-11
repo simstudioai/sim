@@ -460,16 +460,12 @@ describe('ExecutionSignalHub', () => {
       expect(againSettled).not.toHaveBeenCalled()
       expect(mockSubscribe).not.toHaveBeenCalled()
 
-      connection.status = 'ready'
-      connection.client?.emit('ready')
-      await again
-      // The reconnect also re-subscribes the surviving channel; what matters is
-      // that the new one went out only once readiness was genuinely observed.
-      expect(mockSubscribe).toHaveBeenCalledWith(
-        'execution:signal:execution-again',
-        'execution:cancel'
-      )
+      // And when that lone waiter gives up, it must be the one that tears the
+      // signal down — which only holds if every earlier waiter left exactly once.
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(again).rejects.toThrow('Timed out waiting for Redis subscriber readiness')
       expect(connection.client?.listenerCount('ready')).toBe(1)
+      expect(connection.client?.listenerCount('end')).toBe(0)
       expect(vi.getTimerCount()).toBe(0)
     } finally {
       vi.useRealTimers()
