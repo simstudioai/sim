@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { slackSearchInstallation } from '@sim/db/schema'
+import { credential, slackSearchInstallation, slackSearchTurn } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,18 +49,86 @@ describe('Slack access revocation', () => {
       expect.objectContaining({ status: 'cancelled', outcome: 'access_revoked' })
     )
   })
-  it('invalidates member grants without disabling the bot for personal revocation', async () => {
+  it('cancels only affected members without rotating the shared installation revision', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ providerSubjectId: 'U1' }])
     await revokeSlackSearchAccess.execute({
       principal,
-      input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1'] } } },
+      input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1', 'U2'] } } },
     })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
     )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ lastOutcome: 'tokens_revoked' })
-    )
-    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'enabled' in value)).toBe(false)
+    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([
+      credential,
+      slackSearchTurn,
+    ])
+    expect(dbChainMockFns.where).toHaveBeenLastCalledWith({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: slackSearchTurn.installationId, right: 'i1' },
+        { type: 'inArray', column: slackSearchTurn.status, values: ['pending', 'running'] },
+        {
+          type: 'inArray',
+          column: expect.objectContaining({
+            strings: ['', " #>> '{message,userId}'"],
+            values: [slackSearchTurn.payload],
+          }),
+          values: ['U1'],
+        },
+      ],
+    })
+    expect(dbChainMockFns.where).toHaveBeenNthCalledWith(2, {
+      type: 'and',
+      conditions: expect.arrayContaining([
+        { type: 'eq', left: credential.organizationId, right: 'org' },
+        { type: 'eq', left: credential.authorizationAppId, right: 'slack:A1:T1' },
+        { type: 'inArray', column: credential.providerSubjectId, values: ['U1', 'U2'] },
+        {
+          type: 'or',
+          conditions: [
+            { type: 'isNull', column: credential.grantedAt },
+            {
+              type: 'lte',
+              left: credential.grantedAt,
+              right: new Date(input.event_time * 1000),
+            },
+          ],
+        },
+      ]),
+    })
+  })
+  it('does not cancel work when no current member grants were revoked', async () => {
+    await revokeSlackSearchAccess.execute({
+      principal,
+      input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1'] } } },
+    })
+    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([credential])
+  })
+  it.each([{ bot: ['UBOT'] }, { bot: ['UBOT'], oauth: ['U1'] }])(
+    'cancels all installation work when its bot is revoked: %j',
+    async (tokens) => {
+      await revokeSlackSearchAccess.execute({
+        principal,
+        input: { ...input, event: { type: 'tokens_revoked', tokens } },
+      })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: false, revision: expect.any(String) })
+      )
+      expect(dbChainMockFns.where).toHaveBeenLastCalledWith({
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: slackSearchTurn.installationId, right: 'i1' },
+          { type: 'inArray', column: slackSearchTurn.status, values: ['pending', 'running'] },
+        ],
+      })
+    }
+  )
+  it('does not invalidate the installation when a different bot token is revoked', async () => {
+    await revokeSlackSearchAccess.execute({
+      principal,
+      input: { ...input, event: { type: 'tokens_revoked', tokens: { bot: ['OTHER'] } } },
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
   it.each([{ appId: 'A2' }, { receivedAt: new Date(0) }, { receivedAt: new Date(Number.NaN) }])(
     'rejects invalid verified authority %#',

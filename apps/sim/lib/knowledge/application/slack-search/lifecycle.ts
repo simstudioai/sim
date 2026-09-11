@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credential, slackSearchInstallation, slackSearchTurn } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -74,8 +74,9 @@ export const revokeSlackSearchAccess: OperationUseCase<
         uninstall ||
         (input.event.type === 'tokens_revoked' &&
           (input.event.tokens.bot ?? []).includes(installation.botUserId))
+      let revokedMemberIds: string[] = []
       if (uninstall || revokedUsers.length) {
-        await tx
+        const revokeCredentials = tx
           .update(credential)
           .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
           .where(
@@ -90,25 +91,43 @@ export const revokeSlackSearchAccess: OperationUseCase<
               ...(uninstall ? [] : [inArray(credential.providerSubjectId, revokedUsers)])
             )
           )
+        if (revokeBot) await revokeCredentials
+        else {
+          const revokedCredentials = await revokeCredentials.returning({
+            providerSubjectId: credential.providerSubjectId,
+          })
+          revokedMemberIds = revokedCredentials.flatMap(({ providerSubjectId }) =>
+            providerSubjectId ? [providerSubjectId] : []
+          )
+        }
       }
-      if (installation.updatedAt > occurredAt) return
-      if (!revokeBot && !revokedUsers.length) return
-      await tx
-        .update(slackSearchInstallation)
-        .set({
-          revision: generateId(),
-          ...(revokeBot ? { enabled: false } : {}),
-          lastOutcome: uninstall ? 'app_uninstalled' : 'tokens_revoked',
-          updatedAt: new Date(),
-        })
-        .where(eq(slackSearchInstallation.id, installation.id))
+      if (revokeBot) {
+        if (installation.updatedAt > occurredAt) return
+        await tx
+          .update(slackSearchInstallation)
+          .set({
+            revision: generateId(),
+            enabled: false,
+            lastOutcome: uninstall ? 'app_uninstalled' : 'tokens_revoked',
+            updatedAt: new Date(),
+          })
+          .where(eq(slackSearchInstallation.id, installation.id))
+      } else if (!revokedMemberIds.length) return
       await tx
         .update(slackSearchTurn)
         .set({ status: 'cancelled', outcome: 'access_revoked', updatedAt: new Date() })
         .where(
           and(
             eq(slackSearchTurn.installationId, installation.id),
-            inArray(slackSearchTurn.status, ['pending', 'running'])
+            inArray(slackSearchTurn.status, ['pending', 'running']),
+            ...(revokeBot
+              ? []
+              : [
+                  inArray(
+                    sql<string>`${slackSearchTurn.payload} #>> '{message,userId}'`,
+                    revokedMemberIds
+                  ),
+                ])
           )
         )
     })
