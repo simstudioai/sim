@@ -11,7 +11,7 @@ import {
   OverflowText,
   toast,
 } from '@sim/emcn'
-import { PanelLeft, Settings, Upload } from '@sim/emcn/icons'
+import { ImageUp, PanelLeft, Settings } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
@@ -138,7 +138,7 @@ export function OrganizationHeader({
               disabled={isUploadingLogo}
               onSelect={() => fileInputRef.current?.click()}
             >
-              <Upload className='size-[14px]' />
+              <ImageUp />
               {isUploadingLogo ? 'Uploading...' : 'Upload logo'}
             </DropdownMenuItem>
           )}
