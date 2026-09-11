@@ -111,9 +111,11 @@ describe('Slack Search settings and shared wizard', () => {
     await render()
     expect(container.querySelectorAll('button')).toHaveLength(1)
     await click('Set up')
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Create Slack app')
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Step 1')
     expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('App manifest')
     expect(document.querySelector('a[href="https://api.slack.com/apps"]')).toHaveTextContent(
-      'Create app in Slack'
+      'Create app'
     )
     expect(document.querySelectorAll('input')).toHaveLength(0)
     expect(mocks.manifest).toHaveBeenCalledWith('org-1', 'Sim Search')
@@ -129,27 +131,82 @@ describe('Slack Search settings and shared wizard', () => {
     await render()
     await click('Set up')
     expect(document.querySelector('[role="alert"]')).toHaveTextContent('public HTTPS')
-    expect(button('Continue').disabled).toBe(true)
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Step 1')
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Continue')
     await click('Retry')
     expect(mocks.refetch).toHaveBeenCalledOnce()
     expect(mocks.install).not.toHaveBeenCalled()
   })
+
+  it.each(['shared', 'custom'] as const)(
+    'waits for preparation before showing the %s setup path',
+    async (mode) => {
+      mocks.manifest.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        refetch: mocks.refetch,
+      })
+      await render()
+      await click('Set up')
+      expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
+      expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Loading Slack setup')
+      expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Step 1')
+      expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent(
+        'Create your Slack app'
+      )
+      expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Install Sim Search')
+      expect(mocks.install).not.toHaveBeenCalled()
+
+      mocks.manifest.mockReturnValue({
+        data: {
+          manifest: '{}',
+          existingApp: null,
+          createAppUrl: 'https://api.slack.com/apps',
+          sharedAppId: mode === 'shared' ? 'A_SHARED' : null,
+        },
+        isPending: false,
+        refetch: mocks.refetch,
+      })
+      await render()
+      expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
+      expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Loading Slack setup')
+      if (mode === 'shared') {
+        expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Step 1')
+        await click('Install Sim Search')
+        expect(mocks.install).toHaveBeenCalledWith(
+          expect.objectContaining({ organizationId: 'org-1', mode: 'shared' }),
+          expect.any(Object)
+        )
+      } else {
+        expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Create Slack app')
+        await click('Continue')
+        expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Client ID')
+        expect(mocks.install).not.toHaveBeenCalled()
+      }
+    }
+  )
 
   it('reconnects the existing app and credential without offering duplicate setup', async () => {
     await render(true)
     expect(container.textContent).not.toContain('Set up')
     expect(container.textContent).toContain('Enabled')
     await action('Reconnect')
-    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Reconnect Slack Search')
-    await click('Copy app configuration')
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Update Slack app')
+    expect(button('Continue')).toBeDisabled()
+    await click('Continue')
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Client ID')
+    await click('Copy configuration')
+    expect(button('Continue')).not.toBeDisabled()
     expect(mocks.copy).toHaveBeenCalledExactlyOnceWith('{}')
     expect(document.querySelector('a[href="https://api.slack.com/apps/A1"]')).not.toBeNull()
     expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Configuration copied')
     expect(document.querySelector('pre')).toBeNull()
     await click('Continue')
-    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Leave fields blank')
+    expect(
+      document.querySelectorAll('input[placeholder="Leave blank to keep the saved value"]')
+    ).toHaveLength(3)
     await click('Continue')
-    await click('Install in Slack')
+    await click('Reconnect in Slack')
     expect(mocks.install).toHaveBeenCalledWith(
       expect.objectContaining({
         installationId: 'installation-1',
@@ -165,11 +222,12 @@ describe('Slack Search settings and shared wizard', () => {
     mocks.copy.mockRejectedValueOnce(new Error('Clipboard access denied'))
     await render(true)
     await action('Reconnect')
-    await click('Copy app configuration')
+    await click('Copy configuration')
     expect(document.querySelector('[role="alert"]')).toHaveTextContent('Allow clipboard access')
     expect(document.querySelector('a[href="https://api.slack.com/apps/A1"]')).toBeNull()
-    expect(button('Copy app configuration')).toBeDefined()
-    await click('Copy app configuration')
+    expect(button('Copy configuration')).toBeDefined()
+    expect(button('Continue')).toBeDisabled()
+    await click('Copy configuration')
     expect(document.querySelector('[role="alert"]')).toBeNull()
     expect(document.querySelector('a[href="https://api.slack.com/apps/A1"]')).not.toBeNull()
   })
@@ -186,8 +244,8 @@ describe('Slack Search settings and shared wizard', () => {
     })
     await render()
     await click('Set up')
-    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Update your Slack app')
-    await click('Copy app configuration')
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Update Slack app')
+    await click('Copy configuration')
     expect(mocks.copy).toHaveBeenCalledExactlyOnceWith(
       '{"display_information":{"name":"Shared Slack app"}}'
     )

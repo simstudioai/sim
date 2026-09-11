@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
+import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 
@@ -38,7 +38,7 @@ export function useDeleteWorkflow({
   isActive = false,
   onSuccess,
 }: UseDeleteWorkflowProps) {
-  const router = useRouter()
+  const navigateToWorkflow = useWorkflowNavigation()
   const { data: workflowList = [] } = useWorkflows(workspaceId)
   const deleteWorkflowMutation = useDeleteWorkflowMutation()
   const [isDeleting, setIsDeleting] = useState(false)
@@ -96,9 +96,9 @@ export function useDeleteWorkflow({
 
       if (isActiveWorkflowBeingDeleted) {
         if (nextWorkflowId) {
-          router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
+          navigateToWorkflow(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
         } else {
-          router.push(`/workspace/${workspaceId}`)
+          navigateToWorkflow(`/workspace/${workspaceId}`)
         }
       }
 
@@ -125,7 +125,7 @@ export function useDeleteWorkflow({
     workflowList,
     workspaceId,
     isActive,
-    router,
+    navigateToWorkflow,
     deleteWorkflowMutation,
     onSuccess,
   ])

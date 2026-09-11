@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { Tooltip } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PersonalSourceSetupAccounts } from '@/lib/api/contracts/knowledge/personal-source-setup'
@@ -57,7 +58,7 @@ let root: Root
 let container: HTMLDivElement
 function button(label: string) {
   const found = Array.from(document.querySelectorAll('button')).find(
-    (node) => node.textContent?.trim() === label
+    (node) => node.textContent?.trim() === label || node.getAttribute('aria-label') === label
   )
   if (!found) throw new Error(`Missing button: ${label}`)
   return found
@@ -77,13 +78,15 @@ function render(type: 'jira' | 'confluence' = 'jira') {
   const connector = SEARCH_CONNECTORS.find((item) => item.type === type)!
   act(() =>
     root.render(
-      <AtlassianSourceSetupModal
-        organizationId='org-1'
-        connector={connector}
-        connectorType={type}
-        onClose={m.close}
-        onConnected={m.complete}
-      />
+      <Tooltip.Provider>
+        <AtlassianSourceSetupModal
+          organizationId='org-1'
+          connector={connector}
+          connectorType={type}
+          onClose={m.close}
+          onConnected={m.complete}
+        />
+      </Tooltip.Provider>
     )
   )
 }
@@ -115,14 +118,25 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 describe('Atlassian personal source setup', () => {
-  it('starts with account authorization and hides content fields until an account exists', () => {
-    render()
-    expect(document.querySelector('[data-testid="picker"]')).toBeNull()
-    expect(button('Connect & Sync')).toBeDisabled()
-    act(() => button('Connect account').click())
-    expect(m.authorize).toHaveBeenCalledOnce()
-    expect(m.connect).not.toHaveBeenCalled()
-  })
+  it.each(['jira', 'confluence'] as const)(
+    'starts %s authorization from the account dropdown',
+    (type) => {
+      render(type)
+      expect(document.querySelector('[data-testid="picker"]')).toBeNull()
+      expect(button('Connect & Sync')).toBeDisabled()
+      expect(document.body.textContent).not.toContain(
+        `Connect ${type === 'jira' ? 'Jira' : 'Confluence'} account`
+      )
+      act(() => document.querySelector<HTMLElement>('[role="combobox"]')!.click())
+      const connectOption = document.querySelector<HTMLElement>('[role="option"]')!
+      expect(connectOption.textContent).toContain(
+        `Connect ${type === 'jira' ? 'Jira' : 'Confluence'} account`
+      )
+      act(() => connectOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+      expect(m.authorize).toHaveBeenCalledOnce()
+      expect(m.connect).not.toHaveBeenCalled()
+    }
+  )
   it.each(['jira', 'confluence'] as const)(
     'reuses an account and preserves selected %s keys through manual mode and submission',
     async (type) => {
@@ -135,13 +149,15 @@ describe('Atlassian personal source setup', () => {
       expect(picker.dataset.credential).toBe('my-account')
       expect(picker.dataset.surface).toBe('personal-search-setup')
       act(() => picker.click())
-      act(() => button('Enter keys manually').click())
+      act(() => button(`Switch ${type === 'jira' ? 'Projects' : 'Spaces'} to manual input`).click())
       const manual = document.querySelector<HTMLInputElement>(
         `input[aria-label="${type === 'jira' ? 'Project Keys' : 'Space Keys'}"]`
       )!
       expect(manual.value).toBe('ENG, SUPPORT')
       fill(manual, 'ENG, PRODUCT')
-      act(() => button(`Choose ${type === 'jira' ? 'projects' : 'spaces'} from list`).click())
+      act(() =>
+        button(`Switch ${type === 'jira' ? 'Project Keys' : 'Space Keys'} to selector`).click()
+      )
       expect(document.querySelector('[data-testid="picker"]')?.textContent).toBe('ENG,PRODUCT')
       await act(async () => button('Connect & Sync').click())
       expect(m.connect).toHaveBeenCalledWith({

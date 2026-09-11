@@ -26,36 +26,6 @@ export const resourceUrlKeys = {
   clearOnDefault: true,
 } as const
 
-/**
- * `q` is the composer's Search-mode query, so a search is a shareable,
- * bookmarkable link. Present only while a search is showing: it is dropped
- * when the box empties, on Summarize, and when the mode leaves Search. The
- * composer reads it once on mount to restore the query and the Search mode.
- * Filter-like, so it replaces the history entry.
- */
-export const searchQueryParam = {
-  key: 'q',
-  parser: parseAsString,
-} as const
-
-/** The composer's modes: the agent, enterprise search, or the assistant answering from the sources. */
-export const MOTHERSHIP_MODES = ['build', 'search', 'assistant'] as const
-
-export type MothershipMode = (typeof MOTHERSHIP_MODES)[number]
-
-/**
- * `mode` is the composer's mode, so a refresh, back, forward, or shared link
- * lands in the same mode. A missing value falls back to the latest user turn;
- * an explicit Build selection stays in the URL to distinguish it from that fallback.
- */
-export const modeParam = {
-  key: 'mode',
-  parser: parseAsStringLiteral(MOTHERSHIP_MODES).withOptions({
-    history: 'replace',
-    clearOnDefault: true,
-  }),
-} as const
-
 /** The recency windows a search can be narrowed to. */
 export const UPDATED_WINDOWS = [
   { id: 'any', label: 'Any time', days: null },
@@ -65,21 +35,10 @@ export const UPDATED_WINDOWS = [
 const UPDATED_WINDOW_IDS = UPDATED_WINDOWS.map((window) => window.id)
 
 /**
- * The result filters, beside `q`, so a narrowed search is the same shareable
- * link as the search itself. `source` is a connector type or `upload`, absent
- * for every source; both are dropped with the query.
+ * Shared result filters for organization search. `source` is a connector type
+ * or `upload`, absent for every source.
  */
 export const searchFilterParsers = {
   source: parseAsString,
   updated: parseAsStringLiteral(UPDATED_WINDOW_IDS).withDefault('any'),
-} as const
-
-/** Every search param at its default: what leaving a search writes. */
-export const CLEARED_SEARCH_FILTERS = { source: null, updated: null } as const
-
-/** A mode transition clears its search query and filters in the same URL update. */
-export const composerModeParsers = {
-  [modeParam.key]: modeParam.parser,
-  [searchQueryParam.key]: searchQueryParam.parser,
-  ...searchFilterParsers,
 } as const

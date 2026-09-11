@@ -1,4 +1,5 @@
 ---
+description: Settings page layout and SettingsPanel design-system compliance
 paths:
   - "apps/sim/app/workspace/*/settings/**"
   - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"

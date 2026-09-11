@@ -2,22 +2,29 @@
  * @vitest-environment jsdom
  */
 import { act, createElement } from 'react'
-import { createRoot } from 'react-dom/client'
-import { describe, expect, it, vi } from 'vitest'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
-import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import type { ToolCallData, ToolCallStatus } from '../../../../types'
+import {
+  type AgentGroupItem,
+  AgentGroupView,
+  isAgentGroupResolved,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
+import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
+import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   isBrowserAgentAvailable: () => true,
 }))
 
-vi.mock('../special-tags', () => ({
-  CredentialDisplay: ({ data }: { data: Array<{ name?: string }> }) => data[0]?.name ?? '',
-  BrowserTakeoverQuestion: ({ reason, answer }: { reason?: string; answer?: string }) =>
-    createElement('div', { 'data-takeover-answer': 'true' }, `${reason}: ${answer}`),
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags',
+  () => ({
+    CredentialDisplay: ({ data }: { data: Array<{ name?: string }> }) => data[0]?.name ?? '',
+    BrowserTakeoverQuestion: ({ reason, answer }: { reason?: string; answer?: string }) =>
+      createElement('div', { 'data-takeover-answer': 'true' }, `${reason}: ${answer}`),
+  })
+)
 
 let toolSeq = 0
 
@@ -97,6 +104,434 @@ describe('isAgentGroupResolved', () => {
   })
 })
 
+describe('AgentGroup inline main activity', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it.each([
+    ['executing', 'Reading notes'],
+    ['success', 'Read notes'],
+    ['error', 'Failed reading notes'],
+    ['cancelled', 'Stopped reading notes'],
+    ['skipped', 'Skipped reading notes'],
+    ['rejected', 'Failed reading notes'],
+    ['interrupted', 'Stopped reading notes'],
+  ] as const)('renders a single %s tool once without a disclosure', (status, expected) => {
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          items: [
+            {
+              type: 'tool',
+              data: {
+                id: 'read',
+                toolName: 'read',
+                displayTitle: 'Reading notes',
+                status,
+              },
+            },
+          ],
+          isStreaming: status === 'executing',
+        })
+      )
+    )
+    expect(container.textContent).toBe(expected)
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('[data-state]')).toBeNull()
+    expect(Boolean(container.querySelector('[class*="shimmer"]'))).toBe(status === 'executing')
+  })
+
+  it('replaces the active status in place and expands the full completed history', () => {
+    const first: AgentGroupItem = {
+      type: 'tool',
+      data: { id: 'first', toolName: 'grep', displayTitle: 'Searching files', status: 'executing' },
+    }
+    const next: AgentGroupItem = {
+      type: 'tool',
+      data: { id: 'next', toolName: 'read', displayTitle: 'Reading notes', status: 'executing' },
+    }
+    const render = (items: AgentGroupItem[], isStreaming = true) => {
+      act(() => {
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items,
+            isStreaming,
+          })
+        )
+      })
+    }
+
+    render([first])
+    expect(container.textContent).toBe('Searching files')
+    expect(container.querySelector('button')).toBeNull()
+    const activity = container.firstElementChild
+
+    render([first, next])
+    expect(container.firstElementChild).toBe(activity)
+    expect(container.textContent).toBe('Reading notes')
+    expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('svg')).not.toBeNull()
+    expect(container.textContent).not.toContain('Sim')
+
+    render(
+      [
+        { ...first, data: { ...first.data, status: 'success' } },
+        { ...next, data: { ...next.data, status: 'success' } },
+      ],
+      false
+    )
+    expect(container.textContent).toBe('Searched files, read files')
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    const header = container.querySelector('button')
+    act(() => header?.click())
+    expect(header?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Searched filesRead notes'
+    )
+    act(() => header?.click())
+    expect(header?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.textContent).toBe('Searched files, read files')
+  })
+
+  it('keeps history expanded as new tools arrive', () => {
+    const first: AgentGroupItem = {
+      type: 'tool',
+      data: { id: 'first', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
+    }
+    const second: AgentGroupItem = {
+      type: 'tool',
+      data: {
+        id: 'second',
+        toolName: 'read',
+        displayTitle: 'Reading more notes',
+        status: 'success',
+      },
+    }
+    const render = (items: AgentGroupItem[]) =>
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items,
+            isStreaming: true,
+          })
+        )
+      )
+    render([first, second])
+    act(() => container.querySelector('button')?.click())
+    render([
+      first,
+      second,
+      {
+        type: 'tool',
+        data: {
+          id: 'third',
+          toolName: 'terminal_run',
+          displayTitle: 'Running checks',
+          status: 'executing',
+        },
+      },
+    ])
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Read notesRead more notesRunning checks'
+    )
+  })
+
+  it('shares one countdown and preserves the viewport across active tool changes', () => {
+    vi.useFakeTimers()
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval')
+    try {
+      const wait: AgentGroupItem = {
+        type: 'tool',
+        data: {
+          id: 'wait-first',
+          toolName: 'wait',
+          displayTitle: 'Waiting',
+          status: 'executing',
+          params: { seconds: 3 },
+        },
+      }
+      const read: AgentGroupItem = {
+        type: 'tool',
+        data: { id: 'read', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
+      }
+      const render = (items: AgentGroupItem[]) =>
+        act(() =>
+          root.render(
+            createElement(AgentGroup, {
+              agentName: 'mothership',
+              agentLabel: 'Sim',
+              items,
+              isStreaming: true,
+            })
+          )
+        )
+      render([wait])
+      act(() => vi.advanceTimersByTime(2000))
+      expect(container.textContent).toBe('Waiting 1s')
+      expect(container.querySelector('button')).toBeNull()
+      render([wait, read])
+      expect(container.textContent).toBe('Waiting 1s')
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1)
+      const header = container.querySelector('button')
+      act(() => header?.click())
+      expect(header?.hasAttribute('aria-label')).toBe(false)
+      expect(header?.textContent).toBe('Waiting 1s')
+      expect(header).toHaveAccessibleName('Waiting 1s')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'Waiting 1sRead notes'
+      )
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1)
+      act(() => header?.click())
+      act(() => header?.click())
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'Waiting 1sRead notes'
+      )
+      const viewport = container.querySelector('.overflow-y-auto')
+      render([
+        { ...wait, data: { ...wait.data, status: 'success' } },
+        read,
+        { ...wait, data: { ...wait.data, id: 'wait-second' } },
+      ])
+      expect(header?.textContent).toBe('Waiting 3s')
+      expect(header).toHaveAccessibleName('Waiting 3s')
+      expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'WaitedRead notesWaiting 3s'
+      )
+      expect(setIntervalSpy).toHaveBeenCalledTimes(2)
+      render([
+        { ...wait, data: { ...wait.data, status: 'success' } },
+        read,
+        { ...wait, data: { ...wait.data, id: 'wait-second', status: 'success' } },
+      ])
+      expect(header?.textContent).toBe('Waited, read files')
+      expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
+      expect(clearIntervalSpy).toHaveBeenCalledTimes(2)
+    } finally {
+      setIntervalSpy.mockRestore()
+      clearIntervalSpy.mockRestore()
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['browser', 'workflow', 'research', 'deploy', 'file', 'table'])(
+    'summarizes and expands the full %s activity history',
+    (agentName) => {
+      const items: AgentGroupItem[] = [
+        {
+          type: 'tool',
+          data: { id: 'read', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
+        },
+        {
+          type: 'tool',
+          data: {
+            id: 'run',
+            toolName: 'terminal',
+            displayTitle: 'Running checks',
+            status: 'success',
+            params: { operation: 'run' },
+          },
+        },
+      ]
+      act(() =>
+        root.render(
+          createElement(AgentGroupView, {
+            agentName,
+            agentLabel: 'Agent',
+            items,
+            ToolCallComponent: ({ toolCallId, displayTitle }: ToolCallItemProps) =>
+              createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle),
+          })
+        )
+      )
+      const header = container.querySelector('button')
+      expect(header?.textContent).toBe('Agent — Read files, ran commands')
+      expect(header).toHaveAccessibleName('Agent — Read files, ran commands')
+      expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
+      act(() => header?.click())
+      expect(
+        Array.from(container.querySelectorAll('[data-tool-call-id]'), (row) =>
+          row.getAttribute('data-tool-call-id')
+        )
+      ).toEqual(['read', 'run'])
+      act(() => header?.click())
+      expect(header?.getAttribute('aria-expanded')).toBe('false')
+    }
+  )
+
+  it('reveals a nested terminal handoff through collapsed ancestors', () => {
+    act(() =>
+      root.render(
+        createElement(AgentGroupView, {
+          agentName: 'workflow',
+          agentLabel: 'Workflow',
+          isLaneOpen: true,
+          isStreaming: true,
+          items: [
+            group([
+              {
+                type: 'tool',
+                data: {
+                  id: 'handoff',
+                  toolName: 'terminal',
+                  displayTitle: 'Finish signing in',
+                  status: 'executing',
+                  params: { operation: 'handoff' },
+                },
+              },
+            ]),
+          ],
+          ToolCallComponent: ({ toolCallId, displayTitle, renderStatus }: ToolCallItemProps) => {
+            const status = createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle)
+            return renderStatus ? renderStatus(status) : status
+          },
+        })
+      )
+    )
+    const headers = Array.from(container.querySelectorAll('button'))
+    expect(headers).toHaveLength(2)
+    expect(headers.every((header) => header.getAttribute('aria-expanded') === 'true')).toBe(true)
+    act(() => headers[0].click())
+    expect(headers[0].getAttribute('aria-expanded')).toBe('true')
+    expect(
+      container.querySelector('[data-tool-call-id="handoff"]')?.closest('[data-state="closed"]')
+    ).toBeNull()
+  })
+
+  it('keeps a browser question and answer after the main agent resumes tool activity', () => {
+    const takeover = browserTakeover('Choose a result.')
+    const items: AgentGroupItem[] = [
+      {
+        ...takeover,
+        data: {
+          ...takeover.data,
+          status: 'success',
+          result: { success: true, output: { userInstruction: 'Open the second result.' } },
+        },
+      },
+      {
+        type: 'tool',
+        data: {
+          id: 'resumed',
+          toolName: 'grep',
+          displayTitle: 'Searching files',
+          status: 'success',
+        },
+      },
+    ]
+
+    act(() => {
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          items,
+          isStreaming: false,
+        })
+      )
+    })
+
+    expect(container.querySelector('[data-takeover-answer="true"]')?.textContent).toBe(
+      'Choose a result.: Open the second result.'
+    )
+    expect(container.textContent).toContain('Searched files')
+    expect(
+      container.querySelector('[data-takeover-answer="true"]')?.closest('[data-state]')
+    ).toBeNull()
+  })
+
+  it('keeps pending permissions and terminal handoffs visible when newer tools arrive', () => {
+    const items: AgentGroupItem[] = [
+      {
+        type: 'tool',
+        data: {
+          id: 'permission',
+          toolName: 'grep',
+          displayTitle: 'Allow search',
+          status: 'awaiting_approval',
+        },
+      },
+      {
+        type: 'tool',
+        data: {
+          id: 'handoff',
+          toolName: 'terminal',
+          displayTitle: 'Finish signing in',
+          status: 'executing',
+          params: { operation: 'handoff' },
+        },
+      },
+      {
+        type: 'tool',
+        data: {
+          id: 'previous',
+          toolName: 'grep',
+          displayTitle: 'Searching files',
+          status: 'success',
+        },
+      },
+      {
+        type: 'tool',
+        data: {
+          id: 'latest',
+          toolName: 'read',
+          displayTitle: 'Reading notes',
+          status: 'executing',
+        },
+      },
+    ]
+    act(() => {
+      root.render(
+        createElement(AgentGroupView, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          items,
+          isStreaming: true,
+          ToolCallComponent: ({ toolCallId, displayTitle, renderStatus }: ToolCallItemProps) => {
+            const status = createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle)
+            return renderStatus ? renderStatus(status) : status
+          },
+        })
+      )
+    })
+
+    expect(
+      Array.from(container.querySelectorAll('[data-tool-call-id]'), (row) =>
+        row.getAttribute('data-tool-call-id')
+      )
+    ).toEqual(['permission', 'handoff', 'latest'])
+    expect(
+      container.querySelector('[data-tool-call-id="permission"]')?.closest('[data-state]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-tool-call-id="handoff"]')?.closest('[data-state]')
+    ).toBeNull()
+  })
+})
+
 describe('AgentGroup browser takeover', () => {
   it('collapses the browser log and renders the question outside its viewport', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -111,7 +546,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [tool('success'), browserTakeover(reason)],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -185,7 +619,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [takeover],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -207,7 +640,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [completedTakeover],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )

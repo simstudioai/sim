@@ -52,6 +52,7 @@ import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { resetStorageMethod } from '@/lib/core/storage'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import {
   completeCredentialGroupEnrollment,
   getCredentialGroupOAuthContext,
@@ -77,13 +78,17 @@ import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { subjectToken } from '@/lib/knowledge/access/tokens'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
+import {
+  createKnowledgeConnector,
+  listKnowledgeConnectorDocuments,
+} from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { readIndexedKnowledgeDocument } from '@/lib/knowledge/application/read-indexed-document'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import { grantKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
-import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
+import * as memberSyncEngine from '@/lib/knowledge/connectors/member-sync-engine'
 import {
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_TOMBSTONE_PURGE_DAYS,
@@ -120,6 +125,7 @@ interface RepositoryFixture {
   deniedStatus: 403 | 404
   throttledReaders: Set<string>
   throttledBlobReaders: Set<string>
+  failedBlobs: Set<string>
   truncated: boolean
 }
 
@@ -186,6 +192,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       deniedStatus: 404,
       throttledReaders: new Set(),
       throttledBlobReaders: new Set(),
+      failedBlobs: new Set(),
       truncated: false,
     }
     repositories.set(name, value)
@@ -250,18 +257,22 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       if (url.pathname === '/app/installations/42/access_tokens') {
         expect(request.method).toBe('POST')
         const body = await request.json()
-        expect(body).toMatchObject({
-          permissions: { contents: 'read', metadata: 'read' },
-        })
-        expect(body.repository_ids).toHaveLength(1)
-        const repositoryId = body.repository_ids[0]
+        const contentToken = body.permissions.contents === 'read'
+        expect(body.permissions).toEqual(
+          contentToken ? { contents: 'read', metadata: 'read' } : { metadata: 'read' }
+        )
+        if (contentToken) expect(body.repository_ids).toHaveLength(1)
+        else expect(body.repositories).toHaveLength(1)
+        const repositoryId = contentToken
+          ? body.repository_ids[0]
+          : repositories.get(body.repositories[0])?.id
         expect(
           [...repositories.values()].some(
             (repository) => repository.id === repositoryId && repository.installed
           )
         ).toBe(true)
         return Response.json({
-          token: `ghs_fixture_installation_${repositoryId}`,
+          token: `ghs_fixture_${contentToken ? 'installation' : 'metadata'}_${repositoryId}`,
           expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
           permissions: body.permissions,
           repositories: [{ id: repositoryId }],
@@ -275,7 +286,10 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       return Response.json(installation())
     }
     if (request.method !== 'GET') throw new Error(`Unexpected GitHub method: ${request.method}`)
-    const installationRepository = bearer.match(/^ghs_fixture_installation_(\d+)$/)?.[1]
+    const installationRepository = bearer.match(
+      /^ghs_fixture_(?:installation|metadata)_(\d+)$/
+    )?.[1]
+    const metadataToken = bearer.startsWith('ghs_fixture_metadata_')
     const installationToken = Boolean(installationRepository)
     const member = enrolled.members.find((candidate) =>
       [tokenFor(candidate.userId), `${tokenFor(candidate.userId)}_refreshed`].some(
@@ -330,6 +344,13 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         private: !source.public,
         default_branch: source.defaultBranch,
       })
+    expect(metadataToken).toBe(false)
+    if (match[2].startsWith('/branches/')) {
+      const branch = decodeURIComponent(match[2].slice('/branches/'.length))
+      return branch === source.defaultBranch
+        ? Response.json({ name: branch, commit: { sha: shaFor(branch) }, protected: false })
+        : Response.json({ message: 'Not Found' }, { status: 404 })
+    }
     if (match[2].startsWith('/git/ref/heads/')) {
       referenceObserved?.(match[1])
       if (source.stallRef)
@@ -377,6 +398,12 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
           { status: 403 }
         )
       const sha = decodeURIComponent(match[2].slice('/git/blobs/'.length))
+      if (source.failedBlobs.has(sha)) {
+        return Response.json(
+          { message: 'Fixture provider unavailable' },
+          { status: 503, headers: { 'Retry-After': '3600' } }
+        )
+      }
       const content = [...source.files.values(), ...source.symlinks.values()].find(
         (value) => shaFor(value) === sha
       )
@@ -547,6 +574,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+      vi.restoreAllMocks()
       vi.unstubAllGlobals()
     }
   })
@@ -593,7 +621,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       .update(knowledgeConnectorMember)
       .set({ nextAttemptAt: new Date(0) })
       .where(eq(knowledgeConnectorMember.connectorId, connectorId))
-    return executeMemberSync(connectorId, {
+    return memberSyncEngine.executeMemberSync(connectorId, {
       billingAttribution: billing,
       forceContentRefresh,
     })
@@ -644,7 +672,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     }
   }
 
-  it('indexes an organization installation once and denies live user, app, and org revocations before search or reads', async () => {
+  async function useOrganizationInstallation() {
     organizationSource = true
     Object.assign(env, {
       GITHUB_APP_ID: '1',
@@ -663,6 +691,19 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       .update(credentialGroup)
       .set({ workspaceId: null, organizationId: ids.organizationId })
       .where(eq(credentialGroup.id, enrolled.groupId))
+    await db
+      .update(resourcePolicy)
+      .set({
+        workspaceId: null,
+        organizationId: ids.organizationId,
+        document: buildOrganizationAccountAccessPolicy(enrolled.groupId, []),
+      })
+      .where(
+        and(
+          eq(resourcePolicy.resourceType, 'credential_group'),
+          eq(resourcePolicy.resourceId, enrolled.groupId)
+        )
+      )
     await db
       .update(credential)
       .set({ workspaceId: null, organizationId: ids.organizationId })
@@ -719,6 +760,231 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       actorUserId: ids.aliceId,
       organizationId: ids.organizationId,
     })
+    return installationCredentialId
+  }
+
+  it('reuses connected organization members for a later installation source without another enrollment', async () => {
+    const installationCredentialId = await useOrganizationInstallation()
+    expect((await sync()).error).toBeUndefined()
+    const [shared] = await rows()
+    const enrollmentsBefore = await db
+      .select({
+        id: credentialGroupEnrollment.id,
+        userId: credentialGroupEnrollment.userId,
+        status: credentialGroupEnrollment.status,
+      })
+      .from(credentialGroupEnrollment)
+      .where(eq(credentialGroupEnrollment.credentialGroupId, enrolled.groupId))
+      .orderBy(credentialGroupEnrollment.id)
+    const credentialsBefore = await db
+      .select({
+        id: credential.id,
+        enrollmentId: credential.credentialGroupEnrollmentId,
+        subjectId: credential.providerSubjectId,
+      })
+      .from(credential)
+      .where(eq(credential.credentialGroupOptionId, enrolled.optionId))
+      .orderBy(credential.id)
+    const later = repository('later', [ids.aliceId])
+    const input = {
+      knowledgeBaseId: ids.knowledgeBaseId,
+      assertedOrganizationId: ids.organizationId,
+      connectorType: 'github',
+      accessMode: 'members' as const,
+      credentialId: installationCredentialId,
+      sourceConfig: { repository: 'fixture/later' },
+      syncIntervalMinutes: 0,
+    }
+    await expect(
+      createKnowledgeConnector.execute({ principal: actor(ids.bobId), input })
+    ).rejects.toThrow()
+    const dispatchedSync = vi.spyOn(memberSyncEngine, 'executeMemberSync')
+    const { connector } = await createKnowledgeConnector.execute({
+      principal: actor(ids.aliceId),
+      input,
+    })
+    try {
+      expect(dispatchedSync).toHaveBeenCalledExactlyOnceWith(connector.id, expect.any(Object))
+      expect((await dispatchedSync.mock.results[0].value).error).toBeUndefined()
+    } finally {
+      dispatchedSync.mockRestore()
+    }
+    const connectorId = connector.id
+    expect(connector).toMatchObject({
+      credentialGroupId: enrolled.groupId,
+      credentialGroupOptionId: enrolled.optionId,
+      sourceConfig: { repository: 'fixture/later', githubRepositoryId: String(later.id) },
+    })
+    const [current] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+    expect(current).toMatchObject({ memberSyncStatus: 'idle' })
+    expect(current.lastMemberSyncAt).not.toBeNull()
+    const memberships = await db
+      .select()
+      .from(knowledgeConnectorMember)
+      .where(eq(knowledgeConnectorMember.connectorId, connectorId))
+    expect(memberships).toHaveLength(2)
+    expect(memberships.map((row) => row.credentialId).sort()).toEqual(
+      credentialsBefore.map((row) => row.id).sort()
+    )
+    expect(
+      await db
+        .select({
+          id: credentialGroupEnrollment.id,
+          userId: credentialGroupEnrollment.userId,
+          status: credentialGroupEnrollment.status,
+        })
+        .from(credentialGroupEnrollment)
+        .where(eq(credentialGroupEnrollment.credentialGroupId, enrolled.groupId))
+        .orderBy(credentialGroupEnrollment.id)
+    ).toEqual(enrollmentsBefore)
+    expect(
+      await db
+        .select({
+          id: credential.id,
+          enrollmentId: credential.credentialGroupEnrollmentId,
+          subjectId: credential.providerSubjectId,
+        })
+        .from(credential)
+        .where(eq(credential.credentialGroupOptionId, enrolled.optionId))
+        .orderBy(credential.id)
+    ).toEqual(credentialsBefore)
+    const [indexed] = await rows(connectorId)
+    expect(await search(actor(ids.aliceId))).toEqual([shared.id, indexed.id].sort())
+    expect(await search(actor(ids.bobId))).toEqual([shared.id])
+    await assertAccess(actor(ids.aliceId), indexed, true)
+    await assertAccess(actor(ids.bobId), indexed, false)
+    const indexedRead = (userId: string) =>
+      readIndexedKnowledgeDocument.execute({
+        principal: actor(userId),
+        input: {
+          organizationId: ids.organizationId,
+          target: { kind: 'id', documentId: indexed.id },
+          limit: 10,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry(),
+        },
+      })
+    expect(
+      (await indexedRead(ids.aliceId)).chunks?.map((chunk) => chunk.content).join('\n')
+    ).toContain('Orion later')
+    await expect(indexedRead(ids.bobId)).rejects.toThrow('Document not found')
+    /** Organization cache bytes are internal; members read through the authorized Search operation. */
+    await expect(
+      downloadFileFromUrl(indexed.fileUrl, { userId: ids.aliceId, knowledgeAccess: 'user' })
+    ).rejects.toThrow('Access denied')
+    await expect(
+      downloadFileFromUrl(indexed.fileUrl, { userId: ids.bobId, knowledgeAccess: 'user' })
+    ).rejects.toThrow('Access denied')
+    for (const userId of [ids.aliceId, ids.bobId]) {
+      const { sources } = await listSearchSources.execute({
+        principal: actor(userId),
+        input: { organizationId: ids.organizationId, connectorId },
+      })
+      expect(sources).toMatchObject([
+        {
+          connectorId,
+          viewerMembership: 'connected',
+          viewerDocumentCount: userId === ids.aliceId ? 1 : 0,
+        },
+      ])
+    }
+    expect(
+      requests
+        .filter((entry) => entry.path.startsWith('/repos/fixture/later/git/blobs/'))
+        .map((entry) => entry.userId)
+    ).toEqual(['installation'])
+  })
+
+  it('keeps actual skips, legacy skips, and provider failures distinct in authorized lists and source counts', async () => {
+    await useOrganizationInstallation()
+    const source = repositories.get('shared')!
+    source.readers.delete(ids.bobId)
+    source.files.set('empty.txt', '')
+    source.files.set('image.png', 'binary\0contents')
+    expect((await sync()).error).toBeUndefined()
+    const initial = await rows()
+    const empty = initial.find((row) => row.externalId === 'empty.txt')!
+    const binary = initial.find((row) => row.externalId === 'image.png')!
+    expect(empty).toMatchObject({ processingStatus: 'failed', storageKey: null })
+    expect(binary).toMatchObject({ processingStatus: 'failed', storageKey: null })
+    expect(empty.contentHash).not.toBeNull()
+    await db.update(document).set({ processingStatus: 'failed' }).where(eq(document.id, empty.id))
+    const summary = async (userId: string) =>
+      (
+        await listSearchSources.execute({
+          principal: actor(userId),
+          input: { organizationId: ids.organizationId, connectorId: enrolled.connectorId },
+        })
+      ).sources[0]
+    expect(await summary(ids.aliceId)).toMatchObject({
+      viewerDocumentCount: 1,
+      viewerFailedDocumentCount: 0,
+      hasSyncError: false,
+    })
+    source.files.set('unavailable.txt', 'Orion content whose blob cannot be fetched.')
+    source.failedBlobs.add(shaFor(source.files.get('unavailable.txt')!))
+    await sync()
+    await db.update(document).set({ processingStatus: 'failed' }).where(eq(document.id, empty.id))
+    const failed = (await rows()).find((row) => row.externalId === 'unavailable.txt')!
+    expect(failed).toMatchObject({
+      processingStatus: 'failed',
+      storageKey: null,
+      contentHash: null,
+    })
+    for (const userId of [ids.aliceId, ids.bobId]) {
+      const provider = createKnowledgeAccessProvider(actor(userId), {
+        organizationId: ids.organizationId,
+        knowledgeBaseIds: [ids.knowledgeBaseId],
+      })
+      const listed = await getDocuments(ids.knowledgeBaseId, {}, 'github-skip-outcomes', provider)
+      expect(listed.pagination.total).toBe(userId === ids.aliceId ? 4 : 0)
+      if (userId === ids.aliceId) {
+        expect(listed.documents).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: empty.id,
+              processingStatus: 'failed',
+              processingOutcome: 'skipped',
+            }),
+            expect.objectContaining({
+              id: binary.id,
+              processingStatus: 'failed',
+              processingOutcome: 'skipped',
+            }),
+            expect.objectContaining({ id: failed.id, processingStatus: 'failed' }),
+          ])
+        )
+      }
+      for (const filter of ['failed', 'skipped'] as const) {
+        const outcomes = await listKnowledgeConnectorDocuments.execute({
+          principal: actor(userId),
+          input: {
+            connectorId: enrolled.connectorId,
+            knowledgeBaseId: ids.knowledgeBaseId,
+            filter,
+          },
+        })
+        expect(outcomes.counts).toMatchObject({
+          failed: userId === ids.aliceId ? 1 : 0,
+          skipped: userId === ids.aliceId ? 2 : 0,
+        })
+        expect(outcomes.documents.map((row) => row.id).sort()).toEqual(
+          userId === ids.aliceId
+            ? (filter === 'failed' ? [failed.id] : [empty.id, binary.id]).sort()
+            : []
+        )
+      }
+      expect(await summary(userId)).toMatchObject({
+        viewerDocumentCount: userId === ids.aliceId ? 1 : 0,
+        viewerFailedDocumentCount: userId === ids.aliceId ? 1 : 0,
+      })
+    }
+  })
+
+  it('indexes an organization installation once and denies live user, app, and org revocations before search or reads', async () => {
+    const installationCredentialId = await useOrganizationInstallation()
     const unrelatedSources = Array.from({ length: 105 }, () => generateId())
     await db.insert(knowledgeConnector).values(
       unrelatedSources.map((id) => ({

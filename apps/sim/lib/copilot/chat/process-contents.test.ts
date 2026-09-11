@@ -529,11 +529,11 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
-  it('describes whole Browser and Terminal mentions without inventing tab ids', async () => {
+  it('points every browser and terminal mention at its exact tab', async () => {
     const result = await processContextsServer(
       [
-        { kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' },
-        { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
+        { kind: 'browser_tab', tabId: '3', label: 'Sim Docs' },
+        { kind: 'terminal_tab', terminalId: '4', label: 'sim' },
       ],
       'user-1'
     )
@@ -541,17 +541,17 @@ describe('processContextsServer - browser and terminal selections', () => {
     expect(result).toMatchObject([
       {
         type: 'browser_tab',
-        tag: '@Browser',
-        content: expect.stringContaining('resource as a whole'),
+        tag: '@Sim Docs',
+        content: expect.stringContaining('tabId 3'),
       },
       {
         type: 'terminal_tab',
-        tag: '@Terminal',
-        content: expect.stringContaining('resource as a whole'),
+        tag: '@sim',
+        content: expect.stringContaining('terminalId 4'),
       },
     ])
-    expect(result[0].content).toContain('browser_list_tabs')
-    expect(result[1].content).toContain('terminal list operation')
+    expect(result[0].content).toContain('browser_switch_tab')
+    expect(result[1].content).toContain('pass that terminalId')
   })
 
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {

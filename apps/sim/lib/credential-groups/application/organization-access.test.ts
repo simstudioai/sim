@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   setup: vi.fn(),
   write: vi.fn(),
   policy: vi.fn(),
+  accountsGroup: vi.fn(),
+  invite: vi.fn(),
 }))
 vi.mock('@/lib/credential-groups/scoped-availability', () => ({
   isScopedCredentialGroupsAvailable: mocks.available,
@@ -25,14 +27,17 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 }))
 vi.mock('@/lib/credential-groups/service', () => ({
   ensureWorkspaceAccountsGroup: vi.fn(),
-  getOrganizationAccountsGroup: vi.fn(),
+  getOrganizationAccountsGroup: mocks.accountsGroup,
   updateCredentialGroup: vi.fn(),
 }))
 vi.mock('@/lib/credential-groups/provider-availability', () => ({
   listConfiguredCredentialGroupProviders: vi.fn(),
 }))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: vi.fn().mockResolvedValue(true),
+}))
 vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: vi.fn(),
+  createViewerCredentialGroupEnrollment: mocks.invite,
 }))
 vi.mock('@/lib/resource-policies/repository', () => ({
   requireResourcePolicy: mocks.policy,
@@ -40,10 +45,15 @@ vi.mock('@/lib/resource-policies/repository', () => ({
   ResourcePolicyRevisionConflictError: class extends Error {},
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getOrganizationAccountWorkspaceAccess,
   updateOrganizationAccountWorkspaceAccess,
 } from '@/lib/credential-groups/application/organization-access'
+import {
+  getOrganizationAccountsSettings,
+  startOrganizationAccountConnection,
+} from '@/lib/credential-groups/application/organization-accounts'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
 
@@ -83,6 +93,73 @@ describe('organization workspace sharing administration', () => {
       expect(mocks.write).not.toHaveBeenCalled()
     }
   )
+
+  it('returns only the acting member account metadata for the canonical organization group, even when providers are disabled', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.accountsGroup.mockResolvedValue({ id: 'group-1', status: 'disabled', options: [] })
+    const account = {
+      credentialId: 'credential-1',
+      displayName: 'My GitHub',
+      providerId: 'github-repositories',
+      groupId: 'group-1',
+      optionId: 'option-1',
+      status: 'needs_reauth',
+    }
+    queueTableRows(schemaMock.credential, [account])
+    const result = await getOrganizationAccountsSettings.execute({
+      principal,
+      input: { organizationId: 'org-1' },
+    })
+    expect(result.viewerAccounts).toEqual([account])
+    expect(result.canManage).toBe(false)
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.id, 'group-1')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'admin-user')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credential.organizationId, 'org-1')
+  })
+
+  it('starts an active account through the existing enrollment OAuth boundary', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.accountsGroup.mockResolvedValue({
+      id: 'group-1',
+      status: 'active',
+      options: [{ id: 'option-1', status: 'active' }],
+    })
+    mocks.invite.mockResolvedValue({
+      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+    })
+    await expect(
+      startOrganizationAccountConnection.execute({
+        principal,
+        input: { organizationId: 'org-1', optionId: 'option-1' },
+      })
+    ).resolves.toEqual({
+      invitationLink:
+        'https://sim.test/credential-groups/enroll/fixture-token?optionId=option-1&returnTo=search',
+      authorizationUrl:
+        'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/option-1?returnTo=search',
+    })
+    expect(mocks.invite).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      userId: 'admin-user',
+      credentialGroupId: 'group-1',
+    })
+  })
+
+  it('does not issue a direct authorization link when enrollment access was revoked', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.accountsGroup.mockResolvedValue({
+      id: 'group-1',
+      status: 'active',
+      options: [{ id: 'option-1', status: 'active' }],
+    })
+    mocks.invite.mockRejectedValue(new OrchestrationError('forbidden', 'Enrollment revoked'))
+    await expect(
+      startOrganizationAccountConnection.execute({
+        principal,
+        input: { organizationId: 'org-1', optionId: 'option-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
 
   it('uses the routed org and checks every workspace before granting access', async () => {
     queueTableRows(schemaMock.member, [{ role: 'admin' }])

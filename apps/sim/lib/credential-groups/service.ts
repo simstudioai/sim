@@ -244,22 +244,26 @@ export async function getCredentialGroup(
 export function ensureWorkspaceAccountsGroup(
   scope: Extract<ResourceScope, { kind: 'organization' }>,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbOrTx
 ): Promise<OrganizationCredentialGroupRecord & { created: boolean }>
 export function ensureWorkspaceAccountsGroup(
   workspaceId: string,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbOrTx
 ): Promise<WorkspaceCredentialGroupRecord & { created: boolean }>
 export function ensureWorkspaceAccountsGroup(
   scope: ResourceScope,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbOrTx
 ): Promise<CredentialGroupRecord & { created: boolean }>
 export async function ensureWorkspaceAccountsGroup(
   scopeInput: string | ResourceScope,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbOrTx
 ): Promise<CredentialGroupRecord & { created: boolean }> {
   const scope = credentialGroupScope(scopeInput)
   if (option?.provider === 'slack') {
@@ -267,7 +271,7 @@ export async function ensureWorkspaceAccountsGroup(
   }
   const preparedOption = option ? await buildOption(scope, { ...option, required: false }) : null
   let wasCreated = false
-  const row = await db.transaction(async (tx) => {
+  const provision = async (tx: DbOrTx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`search-accounts:${resourceScopeKey(scope)}`}, 0))`
     )
@@ -377,9 +381,10 @@ export async function ensureWorkspaceAccountsGroup(
           )
     wasCreated = true
     return created
-  })
+  }
+  const row = executor ? await provision(executor) : await db.transaction(provision)
   return {
-    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id, executor))),
     created: wasCreated,
   }
 }

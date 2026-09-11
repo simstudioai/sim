@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
+  hasMaxAccess: true,
   replace: vi.fn(),
   push: vi.fn(),
   availabilityReady: true,
@@ -72,6 +73,14 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: mocks.userId } } }),
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
+vi.mock('@/hooks/use-github-installation-setup', () => ({
+  useGitHubInstallationSetup: () => ({
+    connect: vi.fn(),
+    cancel: vi.fn(),
+    pending: false,
+    error: null,
+  }),
+}))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map([
@@ -124,7 +133,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
     canAdmin: mocks.canAdmin,
     memberAccessAvailable: mocks.features.knowledgeMemberAccess,
     mirroredAccessAvailable: mocks.features.knowledgeSourceMirroredAccess,
-    hasMaxAccess: true,
+    hasMaxAccess: mocks.hasMaxAccess,
   }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
@@ -236,6 +245,27 @@ async function click(element: HTMLElement) {
   await act(async () => element.click())
 }
 
+async function openSyncFrequency() {
+  await act(async () => {
+    button('Sync frequency').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    )
+  })
+}
+
+function menuItem(label: string): HTMLElement {
+  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (node) => node.textContent?.trim() === label
+  )
+  expect(match, `Menu item ${label}`).toBeDefined()
+  return match!
+}
+
+async function chooseSyncFrequency(label: string) {
+  await openSyncFrequency()
+  await click(menuItem(label))
+}
+
 async function fill(placeholder: string, value: string) {
   const input = document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)
   expect(input, `Input ${placeholder}`).not.toBeNull()
@@ -298,6 +328,7 @@ beforeEach(() => {
   mocks.userId = 'user-1'
   useConnectorSetupStore.getState().reset()
   mocks.canAdmin = true
+  mocks.hasMaxAccess = true
   mocks.availabilityReady = true
   mocks.availabilityLoading = false
   mocks.availabilityError = null
@@ -1026,9 +1057,11 @@ describe('Search source setup with real connector dialogs', () => {
     )
   })
 
-  it('opens GitLab with its single central method and submits the custom host and PAT', async () => {
+  it('opens GitLab token tabs and submits the custom host and PAT with managed access', async () => {
     await render(setup(), '?addConnector=gitlab')
-    expect(document.body.textContent).toContain('Admin or service account')
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
+    expect(document.body.textContent).not.toContain('Connection method')
     expect(document.body.textContent).not.toContain('Member accounts')
     expect(button('Connect & Sync')).toBeDisabled()
     await fill('Enter your GitLab PAT', 'test-pat')
@@ -1197,14 +1230,16 @@ describe('member content credentials in real add and edit dialogs', () => {
     )
     await click(card!)
     expect(document.body.textContent).not.toContain('Connected members')
-    expect(button('Workspace')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(document.body.textContent).not.toContain('Connection method')
     await fill('Enter your GitLab PAT', 'new-pat')
+    await fill('gitlab.example.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', '1')
     expect(button('Connect & Sync')).toBeEnabled()
     await click(button('Connect & Sync'))
     expect(mocks.create.mock.calls[1][0]).toMatchObject({
       connectorType: 'gitlab',
-      accessMode: 'workspace',
+      accessMode: 'admin',
       apiKey: 'new-pat',
     })
     expect(mocks.create.mock.calls[1][0].sourceConfig).not.toHaveProperty('excludeChannels')
@@ -1283,9 +1318,9 @@ describe('member content credentials in real add and edit dialogs', () => {
     expect(document.body.textContent).toContain(
       'Content follows this schedule. Member permissions are checked every hour.'
     )
-    await click(button('Manual only'))
+    await chooseSyncFrequency('Manual only')
     expect(document.body.textContent).toContain('Documents become unavailable after 24 hours')
-    await click(button('Every hour'))
+    await chooseSyncFrequency('Every hour')
     expect(document.body.textContent).toContain('Permissions are checked on every sync.')
   })
 
@@ -1978,8 +2013,9 @@ describe('canonical Search connector safety', () => {
     )
     expect(gitlab).toBeDefined()
     await click(gitlab!)
-    expect(document.body.textContent).toContain('Admin or service account')
-    expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
+    expect(document.body.textContent).not.toContain('Connection method')
     expect(
       Array.from(document.querySelectorAll('button')).some(
         (node) => node.textContent === 'Workspace'
@@ -2027,8 +2063,9 @@ describe('resuming Search source setup', () => {
 
   it('reopens the source from the URL even when the source filter hides its row', async () => {
     await render(setup(), '?search=nothing-matches&addConnector=gitlab&credentialDraftId=draft-1')
-    expect(document.body.textContent).toContain('Admin or service account')
-    expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
+    expect(document.body.textContent).not.toContain('Connection method')
     expect(document.body.textContent).toContain('Add GitLab project')
     expect(document.body.textContent).not.toContain('Sync Frequency')
     expect(document.body.textContent).not.toContain('Sync automatically')
@@ -2133,6 +2170,24 @@ describe('resuming Search source setup', () => {
     expect(account?.textContent).toContain('New account')
   })
 
+  it('keeps Live unavailable without Max while allowing a manual schedule', async () => {
+    mocks.hasMaxAccess = false
+    await render(
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='ordinary-kb'
+        initialConnectorType='google_drive'
+      />
+    )
+    await openSyncFrequency()
+    expect(menuItem('Live (Max)')).toHaveAttribute('aria-disabled', 'true')
+    await click(menuItem('Live (Max)'))
+    expect(button('Sync frequency')).toHaveTextContent('Daily')
+    await click(menuItem('Manual only'))
+    expect(button('Sync frequency')).toHaveTextContent('Manual only')
+  })
+
   it('keeps the general KB schedule and both document-detail sections collapsed by default', async () => {
     await render(
       <AddConnectorModal
@@ -2143,7 +2198,9 @@ describe('resuming Search source setup', () => {
       />
     )
     expect(document.body.textContent).toContain('Sync Frequency')
-    expect(button('Live')).toBeDefined()
+    await openSyncFrequency()
+    expect(menuItem('Live')).not.toHaveAttribute('aria-disabled', 'true')
+    await click(menuItem('Daily'))
     expect(button('Document details (optional)')).toHaveAttribute('aria-expanded', 'false')
     await click(button('Document details (optional)'))
     expect(document.body.textContent).toContain('Metadata tags')

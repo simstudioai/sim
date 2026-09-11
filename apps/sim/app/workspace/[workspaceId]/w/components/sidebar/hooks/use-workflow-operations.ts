@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { generateId } from '@sim/utils/id'
-import { useRouter } from 'next/navigation'
+import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useCreateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -11,7 +11,7 @@ interface UseWorkflowOperationsProps {
 }
 
 export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProps) {
-  const router = useRouter()
+  const navigateToWorkflow = useWorkflowNavigation()
   const { data: workflows = {}, isLoading: workflowsLoading } = useWorkflowMap(workspaceId)
   const createWorkflowMutation = useCreateWorkflow()
 
@@ -42,9 +42,9 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
     })
 
     useWorkflowRegistry.getState().markWorkflowCreating(id)
-    router.push(`/workspace/${workspaceId}/w/${id}`)
+    navigateToWorkflow(`/workspace/${workspaceId}/w/${id}`)
     return Promise.resolve(id)
-  }, [createWorkflowMutate, workspaceId, router])
+  }, [createWorkflowMutate, workspaceId, navigateToWorkflow])
 
   return {
     workflows,

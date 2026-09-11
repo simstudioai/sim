@@ -335,7 +335,7 @@ describe('parseBlocks span-identity tree', () => {
     expect(segments[0].items.some((item) => item.type === 'tool')).toBe(true)
   })
 
-  it('interleaves mothership tools with main text instead of clustering them at the top', () => {
+  it('retains main activity around prose and subagents in stream order', () => {
     const blocks: ContentBlock[] = [
       mainText('Let me search.'),
       mainToolCall('t1', 'grep'),
@@ -348,25 +348,20 @@ describe('parseBlocks span-identity tree', () => {
 
     const segments = parseBlocks(blocks)
 
-    // Order is preserved chronologically: the second mothership tool stays below
-    // the research subagent and the trailing text rather than jumping back up
-    // into the first group.
     const shape = segments.map((s) => (s.type === 'agent_group' ? s.agentName : s.type))
     expect(shape).toEqual(['text', 'mothership', 'research', 'text', 'mothership'])
 
-    // The two mothership tools land in two distinct groups, one each.
     const mothershipGroups = segments.filter(
       (s) => s.type === 'agent_group' && s.agentName === 'mothership'
     )
     expect(mothershipGroups).toHaveLength(2)
-    const [first, second] = mothershipGroups
-    if (first.type !== 'agent_group' || second.type !== 'agent_group') {
-      throw new Error('expected mothership groups')
-    }
-    expect(first.items).toHaveLength(1)
-    expect(second.items).toHaveLength(1)
-    expect(first.items[0].type === 'tool' && first.items[0].data.toolName).toBe('grep')
-    expect(second.items[0].type === 'tool' && second.items[0].data.toolName).toBe('glob')
+    expect(
+      mothershipGroups.flatMap((group) =>
+        group.type === 'agent_group'
+          ? group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
+          : []
+      )
+    ).toEqual(['t1', 't2'])
   })
 
   it('absorbs the dispatch tool of a nested file subagent from its parent span group', () => {
@@ -721,7 +716,7 @@ describe('narration text seams', () => {
 })
 
 describe('parseBlocks legacy — thinking between top-level tools', () => {
-  it('keeps consecutive mothership tools in one group across intervening thinking', () => {
+  it('retains every main tool across intervening thinking', () => {
     const blocks: ContentBlock[] = [
       { type: 'thinking', content: 'planning the search', timestamp: 1 },
       mainToolCall('t1', 'grep'),
@@ -734,10 +729,14 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     expect(groups).toHaveLength(1)
     if (groups[0].type !== 'agent_group') throw new Error('expected group')
     expect(groups[0].agentName).toBe('mothership')
-    expect(groups[0].items).toHaveLength(3)
+    expect(groups[0].items.map((item) => item.type === 'tool' && item.data.id)).toEqual([
+      't1',
+      't2',
+      't3',
+    ])
   })
 
-  it('still splits the mothership run on real main text', () => {
+  it('keeps separate activity groups around assistant prose', () => {
     const blocks: ContentBlock[] = [
       mainToolCall('t1', 'grep'),
       mainText('Here is what I found so far.'),
@@ -746,6 +745,7 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     const segments = parseBlocks(blocks)
     const groups = segments.filter((s) => s.type === 'agent_group')
     expect(groups).toHaveLength(2)
+    expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
   })
 
   it('does not let main thinking affect subagent lane grouping', () => {
@@ -787,10 +787,28 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
 })
 
 describe('assistantMessageHasVisibleExecutingTool', () => {
+  it.each([undefined, 'main'])('retains an earlier running tool with spanId=%s', (spanId) => {
+    const blocks: ContentBlock[] = [
+      {
+        type: 'tool_call',
+        toolCall: { id: 'older', name: 'grep', status: 'executing' },
+        spanId,
+        timestamp: 1,
+      },
+      mainText('Reading the result.'),
+      mainToolCall('latest', 'read'),
+    ]
+    const segments = parseBlocks(blocks)
+    expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
+    expect(assistantMessageHasVisibleExecutingTool(segments)).toBe(true)
+  })
+
   it('does not treat an open subagent lane as an executing tool row', () => {
-    expect(assistantMessageHasVisibleExecutingTool([subagentStart('workflow', 'S1', 'main')])).toBe(
-      false
-    )
+    expect(
+      assistantMessageHasVisibleExecutingTool(
+        parseBlocks([subagentStart('workflow', 'S1', 'main')])
+      )
+    ).toBe(false)
   })
 
   it('keeps a visible executing tool as active work', () => {
@@ -803,7 +821,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
         timestamp: 3,
       },
     ]
-    expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(true)
+    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(true)
   })
 
   it('does not let open parallel lanes suppress the single turn-level indicator', () => {
@@ -811,7 +829,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
       subagentStart('workflow', 'S1', 'main'),
       subagentStart('search', 'S2', 'main'),
     ]
-    expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(false)
+    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(false)
   })
 
   it('ignores the executing dispatch tool represented by its subagent lane', () => {
@@ -826,8 +844,81 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
         parentToolCallId: 'dispatch-1',
       },
     ]
-    expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(false)
+    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(false)
   })
+})
+
+describe('parseBlocks main activity controls', () => {
+  it.each([undefined, 'main'])(
+    'retains interaction controls and answers across prose and completion with spanId=%s',
+    (spanId) => {
+      const blocks: ContentBlock[] = [
+        {
+          type: 'tool_call',
+          toolCall: { id: 'permission', name: 'read', status: 'awaiting_approval' },
+          spanId,
+          timestamp: 1,
+        },
+        mainText('A permission decision is pending.'),
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'handoff',
+            name: 'terminal',
+            status: 'executing',
+            params: { operation: 'handoff' },
+          },
+          timestamp: 2,
+        },
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'answered-takeover',
+            name: 'browser_request_takeover',
+            status: 'success',
+            params: { reason: 'Choose a result.' },
+            result: { success: true, output: { userInstruction: 'Open the second result.' } },
+          },
+          timestamp: 2,
+        },
+        mainToolCall('older', 'grep'),
+        mainText('Checking another source.'),
+        {
+          type: 'tool_call',
+          toolCall: { id: 'latest', name: 'read', status: 'executing' },
+          timestamp: 3,
+        },
+      ]
+
+      const visibleTools = (content: ContentBlock[]) =>
+        parseBlocks(content).flatMap((segment) =>
+          segment.type === 'agent_group'
+            ? segment.items.flatMap((item) => (item.type === 'tool' ? [item.data] : []))
+            : []
+        )
+
+      expect(visibleTools(blocks).map((tool) => tool.id)).toEqual([
+        'permission',
+        'handoff',
+        'answered-takeover',
+        'older',
+        'latest',
+      ])
+      const completed = blocks.map((block) =>
+        block.toolCall?.id === 'latest'
+          ? { ...block, toolCall: { ...block.toolCall, status: 'success' as const } }
+          : block
+      )
+      expect(visibleTools(completed).map((tool) => tool.id)).toEqual([
+        'permission',
+        'handoff',
+        'answered-takeover',
+        'older',
+        'latest',
+      ])
+      expect(visibleTools(completed).at(-1)?.status).toBe('success')
+    }
+  )
 })
 
 describe('deriveThinkingLabel', () => {

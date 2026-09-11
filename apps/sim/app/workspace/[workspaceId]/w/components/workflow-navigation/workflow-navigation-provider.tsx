@@ -62,7 +62,21 @@ export function WorkflowNavigationProvider({ children }: WorkflowNavigationProvi
 }
 
 export function useWorkflowNavigation() {
-  return useContext(NavigateContext)
+  const navigate = useContext(NavigateContext)
+  const router = useRouter()
+  const fallback = useCallback<NavigateToWorkflow>(
+    (href, options) => {
+      if (options?.replace) {
+        router.replace(href, { scroll: options.scroll, transitionTypes: options.transitionTypes })
+      } else if (options) {
+        router.push(href, { scroll: options.scroll, transitionTypes: options.transitionTypes })
+      } else {
+        router.push(href)
+      }
+    },
+    [router]
+  )
+  return navigate ?? fallback
 }
 
 export function usePendingWorkflowNavigation() {

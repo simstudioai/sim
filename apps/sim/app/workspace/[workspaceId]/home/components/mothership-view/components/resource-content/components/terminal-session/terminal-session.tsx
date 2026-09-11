@@ -1,15 +1,6 @@
 'use client'
 
-import {
-  memo,
-  type DragEvent as ReactDragEvent,
-  type MouseEvent as ReactMouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type DesktopZoomAction,
   type DesktopZoomPercent,
@@ -18,15 +9,7 @@ import {
   type TerminalShortcutCommand,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
-import {
-  cn,
-  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-  TabStrip,
-  type TabStripItem,
-  type TabStripSelectionSource,
-  toast,
-} from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
+import { cn, NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { FitAddon } from '@xterm/addon-fit'
@@ -37,13 +20,7 @@ import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import '@xterm/xterm/css/xterm.css'
-import {
-  describeRunningCommand,
-  type TerminalTabState,
-  type TerminalTabsState,
-} from '@sim/terminal-protocol'
-import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { describeRunningCommand, type TerminalTabsState } from '@sim/terminal-protocol'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
@@ -54,6 +31,7 @@ import {
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
+import { onTerminalFocusRequest } from '@/lib/terminal/focus'
 import {
   clearTerminalScrollback,
   closeTerminal,
@@ -63,25 +41,18 @@ import {
   onTerminalShortcutCommand,
   openTerminal,
   pasteIntoTerminal,
-  reorderTerminal,
   reportTerminalFocused,
   reportTerminalVisible,
   resizeTerminal,
-  startTerminalSession,
-  switchTerminal,
   writeToTerminal,
 } from '@/lib/terminal/transport'
-import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
-import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-tab-icon'
-import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 import type { ChatContext, TerminalTextSelection } from '@/stores/panel'
 
 const logger = createLogger('TerminalSession')
 const EMPTY_TERMINAL_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
-const EMPTY_AGENT_COMMAND_TERMINAL_IDS: Record<string, string> = {}
 const TERMINAL_BASE_FONT_SIZE = 12
 const TERMINAL_ZOOM_BOUNDS = { min: 50, max: 300 } as const
 
@@ -103,78 +74,6 @@ function hideMountedMenuSurfaces(): void {
   )) {
     menu.style.setProperty('visibility', 'hidden', 'important')
   }
-}
-
-/**
- * How long a command must run before the tab names it.
- *
- * A tab that says what it is busy with is useful for a build you left running
- * in the background, and pure noise for `ls` — swapping the label and spinning
- * the icon for thirty milliseconds reads as a glitch. Waiting a beat keeps the
- * signal and drops the flicker.
- */
-const COMMAND_SETTLE_MS = 1_000
-
-/** Full working directory, plus a concise name for whatever the shell is running. */
-export function terminalTooltip(tab: TerminalTabState): string {
-  const where = tab.cwd ?? 'Terminal'
-  return tab.running ? `${where} — ${describeRunningCommand(tab.running)}` : where
-}
-
-function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  return a.size === b.size && [...a].every((id) => b.has(id))
-}
-
-/**
- * Whether a tab should be named after what it is running rather than where it
- * is. A full-screen program is named the moment it appears: the delay exists
- * to stop `ls` flickering the label, and an editor or coding agent is not a
- * transient command — it holds the terminal until it is quit, so there is
- * nothing to wait out.
- */
-function namesItsCommand(tab: TerminalTabState, settled: ReadonlySet<string>): boolean {
-  return Boolean(tab.running) && (tab.interactive || settled.has(tab.terminalId))
-}
-
-/**
- * The terminals whose command has been running long enough to show. Returns a
- * stable set, so a tab strip that would render identically does not re-render.
- */
-function useSettledCommands(tabs: TerminalTabState[]): ReadonlySet<string> {
-  const [settled, setSettled] = useState<ReadonlySet<string>>(() => new Set())
-  const startedAt = useRef(new Map<string, number>())
-
-  useEffect(() => {
-    const started = startedAt.current
-    const live = new Set(tabs.map((tab) => tab.terminalId))
-    for (const id of [...started.keys()]) {
-      if (!live.has(id)) started.delete(id)
-    }
-    for (const tab of tabs) {
-      if (!tab.running) started.delete(tab.terminalId)
-      else if (!started.has(tab.terminalId)) started.set(tab.terminalId, Date.now())
-    }
-
-    const recompute = () => {
-      const now = Date.now()
-      const next = new Set<string>()
-      let soonest = Number.POSITIVE_INFINITY
-      for (const [id, at] of started) {
-        const elapsed = now - at
-        if (elapsed >= COMMAND_SETTLE_MS) next.add(id)
-        else soonest = Math.min(soonest, COMMAND_SETTLE_MS - elapsed)
-      }
-      setSettled((current) => (sameIds(current, next) ? current : next))
-      return soonest
-    }
-
-    const soonest = recompute()
-    if (!Number.isFinite(soonest)) return
-    const timer = setTimeout(recompute, Math.max(0, soonest))
-    return () => clearTimeout(timer)
-  }, [tabs])
-
-  return settled
 }
 
 /**
@@ -692,10 +591,6 @@ const TerminalView = memo(function TerminalView({
   }, [scopeId])
 
   // Scoped to the terminal that was right-clicked, not the active one.
-  // Offered even for the only terminal: closing the last one restarts its
-  // shell in place rather than removing the tab, so there is always something
-  // for the action to do — and hiding it here while the tab strip's own close
-  // stays available would just be the two menus disagreeing.
   const closeThisTerminal = useCallback(() => {
     if (
       running &&
@@ -760,15 +655,6 @@ interface TerminalSessionProps {
   scopeId: string
 }
 
-/** Administrative suspension retains the resource even though live PTYs are gone. */
-export function shouldRemoveTerminalResource(
-  tabCount: number,
-  hasStarted: boolean,
-  suspended: boolean
-): boolean {
-  return !suspended && tabCount === 0 && hasStarted
-}
-
 export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [appearanceTheme, setAppearanceTheme] = useState<TerminalAppearanceTheme>('app')
@@ -781,20 +667,7 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     (state) => state.sessions[scopeId]?.tabs ?? EMPTY_TERMINAL_TABS
   )
   const suspended = useCopilotTerminalStore((state) => state.sessions[scopeId]?.suspended ?? false)
-  const agentCommandTerminalIds = useCopilotTerminalStore(
-    (state) => state.sessions[scopeId]?.agentCommandTerminalIds ?? EMPTY_AGENT_COMMAND_TERMINAL_IDS
-  )
-  const activityResetEpoch = useCopilotTerminalStore(
-    (state) => state.sessions[scopeId]?.activityResetEpoch ?? 0
-  )
   const { tabs, activeTerminalId } = tabsState
-  const agentCommandTargets = useMemo(
-    () => new Set(Object.values(agentCommandTerminalIds)),
-    [agentCommandTerminalIds]
-  )
-  const settledCommands = useSettledCommands(tabs)
-  const { removeResource } = useMothershipResources()
-  const [startError, setStartError] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState({ terminalId: '', nonce: 0 })
   const availableProfiles = useMemo(
     () => withSelectedProfile(profiles, appearanceTheme),
@@ -857,271 +730,18 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     return () => reportTerminalVisible(false, scopeId)
   }, [scopeId, suspended, visible])
 
-  useEffect(() => {
-    if (suspended) {
-      setStartError(null)
-      return
-    }
-    let active = true
-    startTerminalSession({ cols: 80, rows: 24 }, scopeId)
-      .then(() => {
-        if (active) setStartError(null)
-      })
-      .catch((error: Error) => {
-        if (active) setStartError(error.message)
-      })
-    return () => {
-      active = false
-    }
-  }, [scopeId, suspended])
-
-  // Closing the last terminal closes the panel: there is nothing left to show
-  // and no way back from inside it.
-  const hasStarted = useRef(false)
-  useEffect(() => {
-    if (suspended) {
-      hasStarted.current = false
-      return
-    }
-    if (tabs.length > 0) {
-      hasStarted.current = true
-      return
-    }
-    if (shouldRemoveTerminalResource(tabs.length, hasStarted.current, suspended)) {
-      hasStarted.current = false
-      removeResource('terminal', TERMINAL_SESSION_RESOURCE_ID)
-    }
-  }, [tabs.length, suspended, removeResource])
-
-  // Shell process state is not activity state: a coding tool can run for hours.
-  // The agent-command lifecycle is precise, though, so the targeted terminal
-  // replaces its regular glyph while Mothership is actively driving it.
-  const items = useMemo<TabStripItem[]>(() => {
-    const labels = tabs.map((tab) =>
-      namesItsCommand(tab, settledCommands) ? (tab.running ?? tab.title) : tab.title
-    )
-    const counts = new Map<string, number>()
-    for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1)
-    const occurrences = new Map<string, number>()
-    return tabs.map((tab, index) => {
-      const label = labels[index]
-      const occurrence = (occurrences.get(label) ?? 0) + 1
-      occurrences.set(label, occurrence)
-      const isAgentCommandRunning = agentCommandTargets.has(tab.terminalId)
-      return {
-        id: tab.terminalId,
-        title: counts.get(label) === 1 ? label : `${label} ${occurrence}`,
-        // The label is a basename, and the tab may be running something it
-        // is not naming yet, so hovering identifies the working directory and
-        // foreground program without exposing the literal command.
-        tooltip: terminalTooltip(tab),
-        icon: (
-          <TerminalTabIcon
-            key={`${tab.terminalId}:${activityResetEpoch}`}
-            active={isAgentCommandRunning}
-          />
-        ),
-        active: tab.terminalId === activeTerminalId,
-      }
-    })
-  }, [tabs, activeTerminalId, agentCommandTargets, activityResetEpoch, settledCommands])
-
-  const [contextTerminalId, setContextTerminalId] = useState<string | null>(null)
-  const {
-    isOpen: isContextMenuOpen,
-    position: contextMenuPosition,
-    menuRef: contextMenuRef,
-    handleContextMenu,
-    closeMenu: closeContextMenu,
-  } = useContextMenu()
-
-  useEffect(() => {
-    if (!visible) return
-    const handlePrepare = () => {
-      if (isContextMenuOpen || contextMenuRef.current) hideMountedMenuSurfaces()
-      if (isContextMenuOpen) closeContextMenu()
-    }
-    window.addEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
-    return () => window.removeEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
-  }, [closeContextMenu, isContextMenuOpen, visible])
-  const contextTab = tabs.find((tab) => tab.terminalId === contextTerminalId)
-  const canReorderTabs = Boolean(getDesktopBridge()?.terminal.reorderTerminal)
-
-  useEffect(() => {
-    if (isContextMenuOpen && contextTerminalId && !contextTab) {
-      setContextTerminalId(null)
-      closeContextMenu()
-    }
-  }, [closeContextMenu, contextTab, contextTerminalId, isContextMenuOpen])
-
-  const handleNew = useCallback(() => {
-    void openTerminal(undefined, scopeId)
-      .then((state) => {
-        if (state.activeTerminalId) {
-          setFocusRequest((current) => ({
-            terminalId: state.activeTerminalId ?? '',
-            nonce: current.nonce + 1,
-          }))
-        }
-      })
-      .catch(() => {
-        toast.error('Could not open a new terminal. Please try again.')
-      })
-  }, [scopeId])
-  const handleSwitch = useCallback(
-    (terminalId: string, source?: TabStripSelectionSource) => {
-      if (source !== 'keyboard') {
+  // The strip asks for the keyboard when the user picks a shell with the
+  // pointer or opens one; the request lands once that shell is on screen.
+  useEffect(
+    () =>
+      onTerminalFocusRequest((terminalId) => {
         setFocusRequest((current) => ({ terminalId, nonce: current.nonce + 1 }))
-      }
-      void switchTerminal(terminalId, scopeId).catch(() => {
-        toast.error('Could not switch terminals. Please try again.')
-      })
-    },
-    [scopeId]
-  )
-  const handleReorder = useCallback(
-    (terminalId: string, targetIndex: number) => {
-      void reorderTerminal(terminalId, targetIndex, scopeId).catch(() => {
-        toast.error('Could not reorder that terminal. Please try again.')
-      })
-    },
-    [scopeId]
-  )
-  // Closing the only terminal resets it rather than emptying the panel; the
-  // desktop app decides that, so the button means the same thing at any count.
-  const handleClose = useCallback(
-    (terminalId: string) => {
-      const tab = tabs.find((entry) => entry.terminalId === terminalId)
-      if (
-        tab?.running &&
-        !window.confirm(
-          `${describeRunningCommand(tab.running)} is still running. Close this terminal and stop it?`
-        )
-      ) {
-        return
-      }
-      void closeTerminal(terminalId, scopeId).catch(() => {
-        toast.error('Could not close that terminal. Please try again.')
-      })
-    },
-    [scopeId, tabs]
-  )
-
-  // A duplicate is a new shell in the same directory, not a copy of the
-  // session: scrollback and whatever is running belong to the original pty.
-  const handleDuplicate = useCallback(
-    (cwd: string | null) => {
-      void openTerminal(cwd ?? undefined, scopeId)
-        .then((state) => {
-          if (state.activeTerminalId) {
-            setFocusRequest((current) => ({
-              terminalId: state.activeTerminalId ?? '',
-              nonce: current.nonce + 1,
-            }))
-          }
-        })
-        .catch(() => {
-          toast.error('Could not duplicate that terminal. Please try again.')
-        })
-    },
-    [scopeId]
-  )
-
-  const handleCloseMany = useCallback(
-    (terminalIds: string[]) => {
-      const runningCount = tabs.filter(
-        (tab) => terminalIds.includes(tab.terminalId) && Boolean(tab.running)
-      ).length
-      if (
-        runningCount > 0 &&
-        !window.confirm(
-          `${runningCount} selected ${runningCount === 1 ? 'terminal has' : 'terminals have'} a running process. Close ${runningCount === 1 ? 'it' : 'them'} anyway?`
-        )
-      ) {
-        return
-      }
-      for (const terminalId of terminalIds) {
-        void closeTerminal(terminalId, scopeId).catch(() => {
-          toast.error('Could not close one of those terminals. Please try again.')
-        })
-      }
-    },
-    [scopeId, tabs]
-  )
-
-  const closeOtherTabs = useCallback(() => {
-    if (!contextTab) return
-    handleCloseMany(
-      tabs.filter((tab) => tab.terminalId !== contextTab.terminalId).map((tab) => tab.terminalId)
-    )
-  }, [contextTab, handleCloseMany, tabs])
-
-  const closeTabsToRight = useCallback(() => {
-    if (!contextTab) return
-    const contextIndex = tabs.findIndex((tab) => tab.terminalId === contextTab.terminalId)
-    handleCloseMany(tabs.slice(contextIndex + 1).map((tab) => tab.terminalId))
-  }, [contextTab, handleCloseMany, tabs])
-
-  const contextIndex = contextTab
-    ? tabs.findIndex((tab) => tab.terminalId === contextTab.terminalId)
-    : -1
-
-  // A terminal can move inside the strip or be copied into chat as context.
-  const startTabDrag = useCallback(
-    (event: ReactDragEvent<HTMLDivElement>, terminalId: string) => {
-      const tab = tabs.find((entry) => entry.terminalId === terminalId)
-      if (!tab) return
-      event.dataTransfer.effectAllowed = 'copyMove'
-      event.dataTransfer.setData(
-        SIM_RESOURCE_DRAG_TYPE,
-        JSON.stringify({ type: 'terminal', id: tab.terminalId, title: tab.title })
-      )
-    },
-    [tabs]
-  )
-
-  const openTabContextMenu = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>, terminalId: string) => {
-      window.getSelection()?.removeAllRanges()
-      setContextTerminalId(terminalId)
-      handleContextMenu(event)
-    },
-    [handleContextMenu]
+      }),
+    []
   )
 
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <TabStrip
-        tabs={items}
-        onSelect={handleSwitch}
-        onNew={handleNew}
-        onTabContextMenu={openTabContextMenu}
-        onTabDragStart={startTabDrag}
-        {...(canReorderTabs ? { onReorder: handleReorder } : {})}
-        newTabLabel='New terminal'
-        onClose={handleClose}
-        overlays={
-          <ContextMenu
-            isOpen={isContextMenuOpen && Boolean(contextTab)}
-            position={contextMenuPosition}
-            menuRef={contextMenuRef}
-            onClose={closeContextMenu}
-            onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
-            onCloseOtherTabs={contextTab ? closeOtherTabs : undefined}
-            onCloseTabsToRight={contextTab ? closeTabsToRight : undefined}
-            disableCloseOtherTabs={tabs.length <= 1}
-            disableCloseTabsToRight={contextIndex < 0 || contextIndex === tabs.length - 1}
-            {...(contextTab
-              ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
-              : {})}
-            onDelete={() => {}}
-            showRename={false}
-            showDuplicate={Boolean(contextTab)}
-            showDelete={false}
-          />
-        }
-      />
-
       <div className='relative min-h-0 flex-1'>
         {tabs.map((tab) => (
           <TerminalView
@@ -1139,12 +759,6 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
             focusRequest={focusRequest.terminalId === tab.terminalId ? focusRequest.nonce : 0}
           />
         ))}
-        {startError && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--bg)] px-6 text-center'>
-            <TerminalWindow className='size-[18px] text-[var(--text-tertiary)]' />
-            <p className='text-[var(--text-muted)] text-small'>{startError}</p>
-          </div>
-        )}
       </div>
     </div>
   )

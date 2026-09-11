@@ -47,7 +47,7 @@ import {
   createDefaultPersonalWorkspaceInTransaction,
   createWorkspace,
 } from '@/lib/workspaces/create'
-import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import { WORKSPACE_MODE, WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 
 const params = {
   userId: 'creator-1',
@@ -125,6 +125,34 @@ describe('createWorkspace capability-gate placement', () => {
       observedOrganizationId: 'org-1',
       governingPermissionGroupOrganizationId: 'org-1',
     })
+  })
+
+  /**
+   * A cached session cookie can outlive the user row by a few minutes. The
+   * insert then fails on a `workspace` -> `user` foreign key, which the caller
+   * must be able to tell apart from a fault so it answers 401, not 500.
+   */
+  it('reports a missing owner as a typed error instead of a fault', async () => {
+    mockResolveGoverningPermissionGroupOrganization.mockResolvedValue('org-1')
+    dbChainMockFns.transaction.mockRejectedValue(
+      Object.assign(new Error('insert or update on table "workspace" violates foreign key'), {
+        code: '23503',
+        constraint_name: 'workspace_billed_account_user_id_user_id_fk',
+      })
+    )
+
+    await expect(createWorkspace(params)).rejects.toBeInstanceOf(WorkspaceOwnerMissingError)
+  })
+
+  it('rethrows other foreign key violations untouched', async () => {
+    mockResolveGoverningPermissionGroupOrganization.mockResolvedValue('org-1')
+    const failure = Object.assign(new Error('violates foreign key'), {
+      code: '23503',
+      constraint_name: 'workspace_organization_id_organization_id_fk',
+    })
+    dbChainMockFns.transaction.mockRejectedValue(failure)
+
+    await expect(createWorkspace(params)).rejects.toBe(failure)
   })
 
   /**

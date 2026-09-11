@@ -1,5 +1,5 @@
-import type { ScimConnectionPrincipal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
+import { describePrincipalAuth, type ScimConnectionPrincipal } from '@sim/auth/principal'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { AnyApiRouteContract, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { type ParsedRequest, parseRequest } from '@/lib/api/server/validation'
@@ -177,6 +177,7 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
            * authenticates and admits.
            */
           principal = await dependencies.authenticate(request)
+          setRequestAuth(describePrincipalAuth(principal))
           await enforceConnectionRateLimit(principal)
 
           const parsed = await parseRequest(options.contract, request, context ?? {}, {

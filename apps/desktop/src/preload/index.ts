@@ -49,7 +49,6 @@ import {
   type ScopedTerminalTabsState,
   TERMINAL_TOOL_NAME,
   type TerminalOperation,
-  type TerminalStartOptions,
   type TerminalToolArgs,
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
@@ -228,12 +227,6 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:dispose-scope', scopeId),
     suspendScope: (scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('browser-agent:suspend-scope', scopeId),
-    setTabPinned: (tabId: string, pinned: boolean, scopeId: string): void => {
-      ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned, scopeId)
-    },
-    showTabContextMenu: (tabId: string, scopeId: string): void => {
-      ipcRenderer.send('browser-agent:show-tab-context-menu', tabId, scopeId)
-    },
     reorderTab: (tabId: string, targetIndex: number, scopeId: string): void => {
       ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex, scopeId)
     },
@@ -425,20 +418,8 @@ const api: SimDesktopApi = {
     onFillAvailability: subscribeFillAvailability,
   },
   terminal: {
-    start: async (
-      options: TerminalStartOptions,
-      scopeId: string
-    ): Promise<ScopedTerminalTabsState> => {
-      const response = (await ipcRenderer.invoke('terminal:start', options, scopeId)) as
-        | { ok: true; tabs: ScopedTerminalTabsState }
-        | { ok: false; code?: string; error?: string }
-      if (!response?.ok) {
-        const failure = new Error(response?.error ?? 'Could not open a terminal.')
-        failure.name = response?.code ?? 'SPAWN_FAILED'
-        throw failure
-      }
-      return response.tabs
-    },
+    restoreScope: (scopeId: string): Promise<ScopedTerminalTabsState> =>
+      ipcRenderer.invoke('terminal:restore-scope', scopeId),
     // The tool name rides alongside the call because the main process
     // re-fetches the server's authorized arguments by tool call id and uses
     // those, not these — what the renderer passes is only a request.
@@ -468,8 +449,12 @@ const api: SimDesktopApi = {
     },
     openTerminal: (cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:open', cwd, scopeId),
-    switchTerminal: (terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState> =>
-      ipcRenderer.invoke('terminal:switch', terminalId, scopeId),
+    switchTerminal: (
+      terminalId: string,
+      scopeId: string,
+      options?: { claim?: boolean }
+    ): Promise<ScopedTerminalTabsState> =>
+      ipcRenderer.invoke('terminal:switch', terminalId, scopeId, options),
     reorderTerminal: (
       terminalId: string,
       targetIndex: number,

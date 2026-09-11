@@ -35,10 +35,7 @@ function encryption(available = true): DesktopChatSessionEncryptionProvider {
 const ORIGIN = 'https://www.sim.ai'
 const BROWSER: BrowserSessionSnapshot = {
   v: 1,
-  tabs: [
-    { url: 'https://example.com/inbox', pinned: true },
-    { url: 'about:blank', pinned: false },
-  ],
+  tabs: [{ url: 'https://example.com/inbox' }, { url: 'about:blank' }],
   activeIndex: 1,
   downloads: [
     {
@@ -224,7 +221,7 @@ describe('DesktopChatSessionStore', () => {
     const store = open()
     const existingBrowser: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://existing.example/', pinned: true }],
+      tabs: [{ url: 'https://existing.example/' }],
       activeIndex: 0,
       downloads: [],
     }
@@ -246,7 +243,7 @@ describe('DesktopChatSessionStore', () => {
     store.setBrowser(ORIGIN, 'chat-a', BROWSER)
     store.setBrowser('https://self-hosted.example/path', 'chat-a', {
       v: 1,
-      tabs: [{ url: 'https://other.example/', pinned: false }],
+      tabs: [{ url: 'https://other.example/' }],
       activeIndex: 0,
       downloads: [],
     })
@@ -264,7 +261,6 @@ describe('DesktopChatSessionStore', () => {
       v: 1,
       tabs: Array.from({ length: 12 }, (_, index) => ({
         url: `https://tab-${index}.example/`,
-        pinned: index < 2,
       })),
       activeIndex: 99,
       downloads: [],
@@ -285,11 +281,10 @@ describe('DesktopChatSessionStore', () => {
     expect(terminal?.activeIndex).toBe(11)
   })
 
-  it('bounds persisted browser tabs while retaining pinned and active entries', () => {
+  it('bounds persisted browser tabs while retaining the active entry', () => {
     const store = open()
     const tabs = Array.from({ length: 40 }, (_, index) => ({
       url: `https://tab-${index}.example/`,
-      pinned: index < 4,
     }))
 
     expect(
@@ -303,7 +298,6 @@ describe('DesktopChatSessionStore', () => {
 
     const snapshot = store.getBrowser(ORIGIN, 'chat-bounded')
     expect(snapshot?.tabs).toHaveLength(32)
-    expect(snapshot?.tabs.filter((tab) => tab.pinned)).toHaveLength(4)
     expect(snapshot?.tabs[snapshot.activeIndex]?.url).toBe('https://tab-39.example/')
   })
 
@@ -319,12 +313,12 @@ describe('DesktopChatSessionStore', () => {
           browser: {
             v: 1,
             tabs: [
-              { url: 'https://user:password@example.com/private', pinned: false },
-              { url: 'file:///Users/ada/.ssh/id_ed25519', pinned: false },
-              { url: 'javascript:alert(1)', pinned: true },
-              { url: 'about:blank', pinned: false },
-              { url: 'http://localhost:3000/path', pinned: true },
-              { url: `https://example.com/${'x'.repeat(8_200)}`, pinned: false },
+              { url: 'https://user:password@example.com/private' },
+              { url: 'file:///Users/ada/.ssh/id_ed25519' },
+              { url: 'javascript:alert(1)' },
+              { url: 'about:blank' },
+              { url: 'http://localhost:3000/path' },
+              { url: `https://example.com/${'x'.repeat(8_200)}` },
             ],
             activeIndex: 20,
             downloads: [],
@@ -360,10 +354,7 @@ describe('DesktopChatSessionStore', () => {
     expect(store.initialize()).toBe(true)
     expect(store.getBrowser(ORIGIN, 'chat-valid')).toEqual({
       v: 1,
-      tabs: [
-        { url: 'about:blank', pinned: false },
-        { url: 'http://localhost:3000/path', pinned: true },
-      ],
+      tabs: [{ url: 'about:blank' }, { url: 'http://localhost:3000/path' }],
       activeIndex: 1,
       downloads: [],
     })

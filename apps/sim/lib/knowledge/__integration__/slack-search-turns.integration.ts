@@ -123,7 +123,10 @@ describe('durable Slack Search turns in PostgreSQL', () => {
     await db.$client.end()
   })
 
-  function job(threadTs = '1000.000001', messageTs = '1000.000002'): SlackSearchJob {
+  function job(
+    threadTs = '1000.000001',
+    messageTs = '1000.000002'
+  ): SlackSearchJob & { message: SlackSearchJob['message'] & { messageTs: string } } {
     return {
       installationId,
       credentialId,

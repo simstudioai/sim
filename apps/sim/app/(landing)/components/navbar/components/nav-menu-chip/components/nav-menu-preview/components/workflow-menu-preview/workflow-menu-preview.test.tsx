@@ -14,12 +14,8 @@ const { paintedCards, toolbarCallbacks } = vi.hoisted(() => ({
 vi.mock('@sim/emcn', () => ({
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
   Button: (props: ComponentProps<'button'>) => <button {...props} />,
-  Check: () => null,
-  Duplicate: () => null,
   handleKeyboardActivation: () => undefined,
-  PlayOutline: () => null,
   Switch: () => null,
-  Trash: () => null,
   Tooltip: {
     Root: ({ children }: { children: ReactNode }) => children,
     Trigger: ({ children }: { children: ReactNode }) => children,
@@ -28,6 +24,11 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
+  Check: () => null,
+  Duplicate: () => null,
+  Loader: () => null,
+  PlayOutline: () => null,
+  Trash: () => null,
   Circle: () => null,
   Square: () => null,
   Unlock: () => null,

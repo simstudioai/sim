@@ -79,10 +79,12 @@ export function AddOrganizationSourceModal({
                       : !available
                         ? 'Unavailable in this deployment'
                         : access.admin
-                          ? meta.auth.mode === 'oauth' &&
-                            meta.auth.adminCredentialType === 'service_account'
-                            ? 'Connect a service account'
-                            : 'Connect an admin account'
+                          ? meta.auth.mode === 'apiKey'
+                            ? 'Connect an API token'
+                            : meta.auth.mode === 'oauth' &&
+                                meta.auth.adminCredentialType === 'service_account'
+                              ? 'Connect a service account'
+                              : 'Connect an admin account'
                           : type === 'slack'
                             ? 'Set up your Slack app'
                             : 'Connect member accounts'

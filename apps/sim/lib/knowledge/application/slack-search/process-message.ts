@@ -16,6 +16,7 @@ import {
 import { SLACK_SEARCH_QUERY_TOO_LONG } from '@/lib/slack-search/constants'
 import { slackSearchReply } from '@/lib/slack-search/messages'
 import type { SlackSearchJob, SlackSearchMessage } from '@/lib/slack-search/types'
+import { slackSearchThreadTimestamp } from '@/lib/slack-search/types'
 
 const receiveOperation = Object.freeze({
   id: 'knowledge.slack.receive',
@@ -43,7 +44,7 @@ function requireMessageBinding(principal: SlackInstallationPrincipal, message: S
 export const receiveSlackSearchMessage: OperationUseCase<
   typeof receiveOperation,
   SlackSearchMessage,
-  void
+  string | undefined
 > = {
   operation: receiveOperation,
   async execute({ principal, input }) {
@@ -64,7 +65,8 @@ export const receiveSlackSearchMessage: OperationUseCase<
       receivedAt: principal.receivedAt.getTime(),
       message: { ...input, query },
     })
-    await dispatchSlackSearchTurn(turnId)
+    if (!input.command) await dispatchSlackSearchTurn(turnId)
+    return turnId
   },
 }
 
@@ -103,7 +105,7 @@ export const respondToSlackSearchMessage: OperationUseCase<
       const response = await postSlackMessage(
         context.secret.botToken,
         slackSearchReply(
-          { ...job.message, threadTs: job.message.threadTs ?? job.message.messageTs },
+          { ...job.message, threadTs: slackSearchThreadTimestamp(job.message) },
           SLACK_SEARCH_QUERY_TOO_LONG
         ),
         AbortSignal.any([input.controller.signal, AbortSignal.timeout(10_000)])

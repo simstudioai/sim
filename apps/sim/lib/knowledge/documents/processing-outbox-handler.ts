@@ -108,7 +108,12 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     payload.documentId,
     SYSTEM_ACCESS_SCOPE
   )
-  if (!document || document.processingStatus === 'completed') return
+  if (
+    !document ||
+    document.processingStatus === 'completed' ||
+    document.processingOutcome === 'skipped'
+  )
+    return
   if (document.processingStatus === 'processing') {
     const reclaimed = await reclaimStaleDocumentProcessingClaim({
       knowledgeBaseId: payload.knowledgeBaseId,

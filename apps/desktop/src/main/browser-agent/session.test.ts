@@ -505,7 +505,7 @@ describe('browser-agent session', () => {
   it('preserves a persisted destination behind a lazy activation', () => {
     const existingSnapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://existing.example/', pinned: false }],
+      tabs: [{ url: 'https://existing.example/' }],
       activeIndex: 0,
       downloads: [],
     }
@@ -607,10 +607,7 @@ describe('browser-agent session', () => {
     vi.mocked((second.view as unknown as MockView).webContents.getURL).mockReturnValue(
       'https://two.example/'
     )
-    session.withBrowserScope('chat-a', () => {
-      session.setTabPinned(first.id, true)
-      session.switchTab(second.id)
-    })
+    session.withBrowserScope('chat-a', () => session.switchTab(second.id))
 
     session = freshSession(win, {}, persistence)
     vi.mocked(persistence.load).mockClear()
@@ -629,8 +626,8 @@ describe('browser-agent session', () => {
       scopeId: 'chat-a',
       activeTabId: '2',
       tabs: [
-        { tabId: '1', url: 'https://one.example/', pinned: true, active: false },
-        { tabId: '2', url: 'https://two.example/', pinned: false, active: true },
+        { tabId: '1', url: 'https://one.example/', active: false },
+        { tabId: '2', url: 'https://two.example/', active: true },
       ],
     })
     expect(session.withBrowserScope('chat-a', () => session.activeTab()?.view)).not.toBe(
@@ -641,7 +638,6 @@ describe('browser-agent session', () => {
   it('selects and starts the active restore before three bounded background loads', async () => {
     const tabs = Array.from({ length: 7 }, (_, index) => ({
       url: `https://restore-${index}.example/`,
-      pinned: index < 2,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-restore-order': {
@@ -677,13 +673,13 @@ describe('browser-agent session', () => {
     ).toMatchObject({
       activeTabId: '6',
       tabs: [
-        { tabId: '1', pinned: true },
-        { tabId: '2', pinned: true },
-        { tabId: '3', pinned: false },
-        { tabId: '4', pinned: false },
-        { tabId: '5', pinned: false },
-        { tabId: '6', pinned: false, active: true },
-        { tabId: '7', pinned: false },
+        { tabId: '1' },
+        { tabId: '2' },
+        { tabId: '3' },
+        { tabId: '4' },
+        { tabId: '5' },
+        { tabId: '6', active: true },
+        { tabId: '7' },
       ],
     })
     expect(createdContents[5].loadURL).toHaveBeenCalledWith(tabs[5].url)
@@ -704,7 +700,6 @@ describe('browser-agent session', () => {
   it('preempts a background restore for a user-selected queued tab', async () => {
     const tabs = Array.from({ length: 7 }, (_, index) => ({
       url: `https://priority-${index}.example/`,
-      pinned: false,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-restore-priority': {
@@ -760,7 +755,6 @@ describe('browser-agent session', () => {
   it('keeps a deferred restore intact when Back and Forward cannot move', () => {
     const tabs = Array.from({ length: 6 }, (_, index) => ({
       url: `https://deferred-history-${index}.example/`,
-      pinned: false,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-deferred-history': { v: 1, tabs, activeIndex: 0, downloads: [] },
@@ -794,7 +788,6 @@ describe('browser-agent session', () => {
     try {
       const tabs = Array.from({ length: 7 }, (_, index) => ({
         url: `https://model-restore-${index}.example/`,
-        pinned: false,
       }))
       const { persistence } = memoryBrowserPersistence({
         'chat-model-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
@@ -853,7 +846,6 @@ describe('browser-agent session', () => {
     try {
       const tabs = Array.from({ length: 4 }, (_, index) => ({
         url: `https://active-restore-${index}.example/`,
-        pinned: false,
       }))
       const { persistence } = memoryBrowserPersistence({
         'chat-active-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
@@ -903,7 +895,7 @@ describe('browser-agent session', () => {
         `chat-foreground-${index}`,
         {
           v: 1 as const,
-          tabs: [{ url: `https://foreground-${index}.example/`, pinned: false }],
+          tabs: [{ url: `https://foreground-${index}.example/` }],
           activeIndex: 0,
           downloads: [],
         },
@@ -952,11 +944,9 @@ describe('browser-agent session', () => {
     try {
       const firstTabs = Array.from({ length: 6 }, (_, index) => ({
         url: `https://hung-a-${index}.example/`,
-        pinned: false,
       }))
       const secondTabs = Array.from({ length: 2 }, (_, index) => ({
         url: `https://waiting-b-${index}.example/`,
-        pinned: false,
       }))
       const { persistence } = memoryBrowserPersistence({
         'chat-hung-a': { v: 1, tabs: firstTabs, activeIndex: 0, downloads: [] },
@@ -1002,7 +992,7 @@ describe('browser-agent session', () => {
       const { persistence } = memoryBrowserPersistence({
         'chat-throwing-stop': {
           v: 1,
-          tabs: [{ url: restoredUrl, pinned: false }],
+          tabs: [{ url: restoredUrl }],
           activeIndex: 0,
           downloads: [],
         },
@@ -1045,8 +1035,8 @@ describe('browser-agent session', () => {
     vi.useFakeTimers()
     try {
       const tabs = [
-        { url: 'http://127.0.0.1:4601/active', pinned: false },
-        { url: 'http://127.0.0.1:4601/background', pinned: false },
+        { url: 'http://127.0.0.1:4601/active' },
+        { url: 'http://127.0.0.1:4601/background' },
       ]
       const { persistence } = memoryBrowserPersistence({
         'chat-stale-restore-prompt': { v: 1, tabs, activeIndex: 0, downloads: [] },
@@ -1107,8 +1097,8 @@ describe('browser-agent session', () => {
     vi.useFakeTimers()
     try {
       const tabs = [
-        { url: 'http://127.0.0.1:4611/active', pinned: false },
-        { url: 'http://127.0.0.1:4611/background', pinned: false },
+        { url: 'http://127.0.0.1:4611/active' },
+        { url: 'http://127.0.0.1:4611/background' },
       ]
       const { persistence } = memoryBrowserPersistence({
         'chat-bounded-restore-prompt': { v: 1, tabs, activeIndex: 0, downloads: [] },
@@ -1166,7 +1156,6 @@ describe('browser-agent session', () => {
   it('discards a queued restore before an explicit replacement navigation can race it', async () => {
     const tabs = Array.from({ length: 6 }, (_, index) => ({
       url: `https://stale-restore-${index}.example/`,
-      pinned: false,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-replace-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
@@ -1209,7 +1198,6 @@ describe('browser-agent session', () => {
   it('does not start queued restores after their task browser is suspended', async () => {
     const tabs = Array.from({ length: 6 }, (_, index) => ({
       url: `https://suspended-${index}.example/`,
-      pinned: false,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-restore-suspended': {
@@ -1257,7 +1245,6 @@ describe('browser-agent session', () => {
   it('restores more than eight persisted tabs', () => {
     const tabs = Array.from({ length: 12 }, (_, index) => ({
       url: `https://tab-${index}.example/`,
-      pinned: index < 2,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-many-tabs': {
@@ -1282,10 +1269,9 @@ describe('browser-agent session', () => {
     })
   })
 
-  it('bounds restored tabs while retaining pinned tabs and the active page', () => {
+  it('bounds restored tabs while retaining the active page', () => {
     const tabs = Array.from({ length: 40 }, (_, index) => ({
       url: `https://tab-${index}.example/`,
-      pinned: index < 5,
     }))
     const { persistence } = memoryBrowserPersistence({
       'chat-bounded-tabs': {
@@ -1303,7 +1289,6 @@ describe('browser-agent session', () => {
     })
 
     expect(restored.tabs).toHaveLength(32)
-    expect(restored.tabs.filter((tab) => tab.pinned)).toHaveLength(5)
     expect(restored.tabs.find((tab) => tab.active)?.url).toBe('https://tab-39.example/')
   })
 
@@ -1329,10 +1314,7 @@ describe('browser-agent session', () => {
   })
 
   it('does not truncate a saved browser session while the global tab budget is occupied', () => {
-    const savedTabs = [
-      { url: 'https://saved-one.example/', pinned: false },
-      { url: 'https://saved-two.example/', pinned: false },
-    ]
+    const savedTabs = [{ url: 'https://saved-one.example/' }, { url: 'https://saved-two.example/' }]
     const { persistence, snapshots } = memoryBrowserPersistence({
       'chat-pending-restore': {
         v: 1,
@@ -1373,9 +1355,9 @@ describe('browser-agent session', () => {
       'chat-retry': {
         v: 1,
         tabs: [
-          { url: 'https://one.example/', pinned: false },
-          { url: 'https://two.example/', pinned: true },
-          { url: 'https://three.example/', pinned: false },
+          { url: 'https://one.example/' },
+          { url: 'https://two.example/' },
+          { url: 'https://three.example/' },
         ],
         activeIndex: 2,
         downloads: [],
@@ -1399,9 +1381,9 @@ describe('browser-agent session', () => {
     expect(session.withBrowserScope('chat-retry', () => session.getTabsState())).toMatchObject({
       activeTabId: '3',
       tabs: [
-        { tabId: '2', url: 'https://two.example/', pinned: true, active: false },
-        { tabId: '1', url: 'https://one.example/', pinned: false, active: false },
-        { tabId: '3', url: 'https://three.example/', pinned: false, active: true },
+        { tabId: '1', url: 'https://one.example/', active: false },
+        { tabId: '2', url: 'https://two.example/', active: false },
+        { tabId: '3', url: 'https://three.example/', active: true },
       ],
     })
 
@@ -1414,7 +1396,7 @@ describe('browser-agent session', () => {
     const onSessionClosed = vi.fn()
     const lazySnapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://lazy.example/', pinned: false }],
+      tabs: [{ url: 'https://lazy.example/' }],
       activeIndex: 0,
       downloads: [],
     }
@@ -1453,7 +1435,7 @@ describe('browser-agent session', () => {
   it('migrates a persisted pending snapshot without hydrating either scope', () => {
     const snapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://pending.example/', pinned: false }],
+      tabs: [{ url: 'https://pending.example/' }],
       activeIndex: 0,
       downloads: [],
     }
@@ -1513,7 +1495,7 @@ describe('browser-agent session', () => {
     expect(persistence.disposeScope).not.toHaveBeenCalled()
     expect(snapshots.get('chat-deleted')).toEqual({
       v: 1,
-      tabs: [{ url: 'https://retained.example/', pinned: false }],
+      tabs: [{ url: 'https://retained.example/' }],
       activeIndex: 0,
       downloads: [],
     })
@@ -1577,7 +1559,7 @@ describe('browser-agent session', () => {
 
   it('handles browser shortcuts from a focused native tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     const firstContents = (first.view as unknown as MockView).webContents
     const beforeInput = firstContents.on.mock.calls.find(
       ([eventName]) => eventName === 'before-input-event'
@@ -1625,9 +1607,10 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(1)
     expect(firstContents.focus).toHaveBeenCalled()
 
+    // Closing the last tab leaves the strip empty; the renderer drops the
+    // browser panel with it, so the omnibox is handed back cleared.
     beforeInput?.(event, { ...input, key: 'w' })
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.listTabs()[0].tabId).not.toBe(first.id)
+    expect(session.listTabs()).toHaveLength(0)
     expect(win.webContents.send).toHaveBeenLastCalledWith(
       'browser-agent:focus-omnibox',
       'clear',
@@ -1637,7 +1620,7 @@ describe('browser-agent session', () => {
 
   it('opens the renderer find bar when the page takes Mod+F', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     const beforeInput = contents.on.mock.calls.find(
       ([eventName]) => eventName === 'before-input-event'
@@ -1664,7 +1647,7 @@ describe('browser-agent session', () => {
 
   it('restarts the search while typing and steps without restarting on next/previous', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
 
     session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
@@ -1691,7 +1674,7 @@ describe('browser-agent session', () => {
 
   it('forwards match counts only for the tab the find is running on', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     const second = session.addTab()
     const firstContents = (first.view as unknown as MockView).webContents
     const secondContents = (second.view as unknown as MockView).webContents
@@ -1728,7 +1711,7 @@ describe('browser-agent session', () => {
 
   it('drops late match counts from an older request on the active tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     const found = contents.on.mock.calls.find(
       ([eventName]) => eventName === 'found-in-page'
@@ -1752,7 +1735,7 @@ describe('browser-agent session', () => {
 
   it('drops the find when its page navigates away, but not on a same-document change', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     const navigate = contents.on.mock.calls.find(
       ([eventName]) => eventName === 'did-start-navigation'
@@ -1778,7 +1761,7 @@ describe('browser-agent session', () => {
     // counting matches on a page that no longer exists, and nothing clears it
     // until the user happens to type a new query.
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.requireTab()
+    session.ensureTab()
     const second = session.addTab()
     session.switchTab(second.id)
     session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
@@ -1791,7 +1774,7 @@ describe('browser-agent session', () => {
 
   it('drops the find when the tab it is running on crashes', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     session.addTab()
     session.switchTab(first.id)
     session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
@@ -1952,7 +1935,7 @@ describe('browser-agent session', () => {
 
   it('drops the find when the user switches to another tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     const second = session.addTab()
     const firstContents = (first.view as unknown as MockView).webContents
 
@@ -1967,7 +1950,7 @@ describe('browser-agent session', () => {
 
   it('returns focus to the page only when the user dismissed the bar', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
 
     // Panel teardown: the bar unmounts under a user who has already moved on,
@@ -1985,7 +1968,7 @@ describe('browser-agent session', () => {
 
   it('returns focus to the page even when no search was running', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
 
     // Opened and closed without typing. Focus still has to leave the bar: it is
@@ -2005,7 +1988,7 @@ describe('browser-agent session', () => {
 
   it('closes only the native browser tab targeted by the application menu accelerator', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     const second = session.addTab()
     const firstContents = (first.view as unknown as MockView).webContents
     const secondContents = (second.view as unknown as MockView).webContents
@@ -2030,25 +2013,17 @@ describe('browser-agent session', () => {
     // Focus ownership transfers with the close, so a repeated Mod+W closes
     // the newly active tab even if Electron has not emitted its focus event.
     expect(session.handleFocusedShortcut('close-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.listTabs()[0].tabId).not.toBe(first.id)
-
-    // The replacement is an untouched about:blank tab. It still owns the
-    // browser context, so it must not require a page load or another click.
-    const blankTabId = session.listTabs()[0].tabId
-    expect(session.handleFocusedShortcut('close-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.listTabs()[0].tabId).not.toBe(blankTabId)
+    expect(session.listTabs()).toHaveLength(0)
 
     session.setPanelFocused(false)
     panel.setPanelBounds(null)
     expect(session.handleFocusedShortcut('close-tab')).toBe(false)
-    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()).toHaveLength(0)
   })
 
   it('keeps close-tab routed to a visible browser through a transient focus loss', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     const second = session.addTab()
 
     session.setPanelFocused(true)
@@ -2059,7 +2034,7 @@ describe('browser-agent session', () => {
 
     session.setPanelFocused(false)
     expect(session.handleFocusedShortcut('close-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()).toHaveLength(0)
 
     panel.setPanelBounds(null)
     expect(session.handleFocusedShortcut('close-tab')).toBe(false)
@@ -2067,7 +2042,7 @@ describe('browser-agent session', () => {
 
   it('keeps browser tab shortcuts routed while the visible panel has no DOM focus', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.requireTab()
+    session.ensureTab()
     session.setPanelFocused(false)
     const before = session.listTabs().length
 
@@ -2094,7 +2069,7 @@ describe('browser-agent session', () => {
 
   it('reloads only the focused browser tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.requireTab()
+    const first = session.ensureTab()
     const second = session.addTab()
     const firstContents = (first.view as unknown as MockView).webContents
     const secondContents = (second.view as unknown as MockView).webContents
@@ -2121,7 +2096,7 @@ describe('browser-agent session', () => {
   it('does not reload a browser tab owned by another app window', () => {
     const otherWindow = mainWindowMock()
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, win)
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
 
     session.setPanelFocused(true, win)
@@ -2134,7 +2109,7 @@ describe('browser-agent session', () => {
 
   it('zooms only the focused browser tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.requireTab()
+    const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     contents.getZoomFactor.mockReturnValue(1)
 
@@ -2382,7 +2357,7 @@ describe('browser-agent session', () => {
 
   it('claims reopen while focused even when there is no closed tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.requireTab()
+    session.ensureTab()
     session.setPanelFocused(true)
 
     expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(true)
@@ -2403,76 +2378,11 @@ describe('browser-agent session', () => {
     expect(session.handleFocusedShortcut('close-tab', win)).toBe(true)
   })
 
-  it('reorders tabs while preserving the pinned-tab boundary', () => {
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const third = session.addTab()
-
-    session.reorderTab(third.id, 0)
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([third.id, first.id, second.id])
-
-    session.setTabPinned(first.id, true)
-    session.reorderTab(second.id, 0)
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
-
-    session.reorderTab(first.id, 2)
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
-    expect(() => session.reorderTab('999', 0)).toThrow(/No tab with id 999/)
-  })
-
-  it('moves pinned tabs left and requires unpinning before any close path', async () => {
-    const { persistence, snapshots } = memoryBrowserPersistence()
-    const pinnedSession = freshSession(win, {}, persistence)
-    const first = pinnedSession.ensureTab()
-    const second = pinnedSession.addTab()
-
-    pinnedSession.setTabPinned(second.id, true)
-
-    expect(pinnedSession.listTabs()).toEqual([
-      expect.objectContaining({ tabId: second.id, pinned: true }),
-      expect.objectContaining({ tabId: first.id, pinned: false }),
-    ])
-    expect(snapshots.get('chat-test')?.tabs).toEqual([
-      { url: 'https://example.com/', pinned: true },
-      { url: 'https://example.com/', pinned: false },
-    ])
-    expect(() => pinnedSession.closeTab(second.id)).toThrow(/Pinned tabs cannot be closed/)
-
-    pinnedSession.setTabPinned(second.id, false)
-    pinnedSession.closeTab(second.id)
-    expect(pinnedSession.listTabs().map((tab) => tab.tabId)).toEqual([first.id])
-    expect(snapshots.get('chat-test')?.tabs).toEqual([
-      { url: 'https://example.com/', pinned: false },
-    ])
-  })
-
-  it('opens native tab actions and keeps them bound to the right-clicked chat', () => {
-    const first = session.withBrowserScope('chat-a', () => session.ensureTab())
-    session.withBrowserScope('chat-b', () => session.ensureTab())
-    vi.mocked(Menu.buildFromTemplate).mockClear()
-
-    session.withBrowserScope('chat-a', () => session.showTabContextMenu(first.id))
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls[0]?.[0] as
-      | MenuItemConstructorOptions[]
-      | undefined
-    expect(template?.filter((item) => item.type !== 'separator').map((item) => item.label)).toEqual(
-      ['Pin Tab', 'Duplicate Tab', 'Close Tab']
-    )
-
-    session.activateBrowserScope('chat-b')
-    const duplicate = template?.find((item) => item.label === 'Duplicate Tab')
-    const clickDuplicate = duplicate?.click as (() => void) | undefined
-    clickDuplicate?.()
-
-    expect(session.withBrowserScope('chat-a', () => session.listTabs())).toHaveLength(2)
-    expect(session.withBrowserScope('chat-b', () => session.listTabs())).toHaveLength(1)
-  })
-
-  it('restores pinned tabs when the browser resource opens again', async () => {
+  it('restores saved tabs when the browser panel opens again', async () => {
     const { persistence } = memoryBrowserPersistence({
       'chat-test': {
         v: 1,
-        tabs: [{ url: 'https://docs.sim.ai/guide', pinned: true }],
+        tabs: [{ url: 'https://docs.sim.ai/guide' }],
         activeIndex: 0,
         downloads: [],
       },
@@ -2482,31 +2392,41 @@ describe('browser-agent session', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
 
     const [restored] = restoredSession.listTabs()
-    expect(restored).toMatchObject({ pinned: true, active: true })
+    expect(restored).toMatchObject({ active: true })
     const contents = (restoredSession.requireTab().view as unknown as MockView).webContents
     expect(contents.loadURL).toHaveBeenCalledWith('https://docs.sim.ai/guide')
-    expect(() => restoredSession.closeTab(restored.tabId)).toThrow(/Pinned tabs cannot be closed/)
 
     const regular = restoredSession.addTab()
     expect(restoredSession.listTabs()).toEqual([
-      expect.objectContaining({ tabId: restored.tabId, pinned: true }),
-      expect.objectContaining({ tabId: regular.id, pinned: false, active: true }),
+      expect.objectContaining({ tabId: restored.tabId, active: false }),
+      expect.objectContaining({ tabId: regular.id, active: true }),
     ])
   })
 
-  it('allows creation, duplication, and reopening beyond eight browser tabs', () => {
+  it('reorders tabs to the order the resource strip asks for', () => {
     const first = session.ensureTab()
+    const second = session.addTab()
+    const third = session.addTab()
+
+    session.reorderTab(third.id, 0)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([third.id, first.id, second.id])
+
+    session.reorderTab(third.id, 99)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
+    expect(() => session.reorderTab('999', 0)).toThrow(/No tab with id 999/)
+  })
+
+  it('allows creation and reopening beyond eight browser tabs', () => {
+    session.ensureTab()
     for (let index = 1; index < 12; index++) {
       session.addTab()
     }
 
     expect(session.listTabs()).toHaveLength(12)
-    const duplicate = session.duplicateTab(first.id)
-    expect(duplicate).not.toBeNull()
+    const extra = session.addTab()
     expect(session.listTabs()).toHaveLength(13)
-    if (!duplicate) throw new Error('expected the tab to be duplicated')
 
-    session.closeTab(duplicate.id)
+    session.closeTab(extra.id)
     expect(session.listTabs()).toHaveLength(12)
     expect(session.reopenClosedTab()).not.toBeNull()
     expect(session.listTabs()).toHaveLength(13)
@@ -2700,18 +2620,17 @@ describe('browser-agent session', () => {
     ).toHaveBeenCalledWith('resize', onResize)
   })
 
-  it('creates one real default tab when the browser panel becomes visible', () => {
+  it('never invents a tab for a visible panel, and closing the last tab leaves none', () => {
     expect(session.listTabs()).toHaveLength(0)
 
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    expect(session.listTabs()).toHaveLength(0)
 
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.getTabsState().activeTabId).toBe(session.listTabs()[0].tabId)
-
-    const firstTabId = session.listTabs()[0].tabId
-    session.closeTab(firstTabId)
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.listTabs()[0].tabId).not.toBe(firstTabId)
+    const tab = session.ensureTab()
+    expect(session.getTabsState().activeTabId).toBe(tab.id)
+    session.closeTab(tab.id)
+    expect(session.listTabs()).toHaveLength(0)
+    expect(session.getTabsState().activeTabId).toBeNull()
   })
 
   it('clears a stale attachment without touching a destroyed host window', () => {
@@ -2813,19 +2732,19 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).not.toHaveBeenCalled()
   })
 
-  it('brings an agent-opened working tab into view, unless the user claimed the visible one', () => {
-    // browser_open_tab is the agent choosing a page to work in — the panel
-    // follows it so the work is visible, which a popup deliberately does not.
+  it('opens agent working tabs behind the visible page', () => {
+    // browser_open_tab is the agent choosing a page to work in. Which page is
+    // shown is the renderer's decision, so the native selection never moves.
     const first = session.ensureTab()
-    const working = session.addAutomationTab({ reveal: true })
-    expect(session.activeTab()).toBe(working)
+    const working = session.addAutomationTab()
     expect(working.id).not.toBe(first.id)
+    expect(session.activeTab()).toBe(first)
+    expect(session.automationTab()).toBe(working)
 
-    // Once the user claims what they are looking at, the next agent tab opens
-    // behind it rather than yanking the page out from under them.
     session.claimActiveTabForUser()
-    const background = session.addAutomationTab({ reveal: true })
-    expect(session.activeTab()).not.toBe(background)
+    const background = session.addAutomationTab()
+    expect(session.activeTab()).toBe(first)
+    expect(session.automationTab()).toBe(background)
   })
 
   it('keeps agent popups in the background and context-menu links user-owned', () => {
@@ -3384,7 +3303,7 @@ describe('browser-agent session', () => {
     const { persistence } = memoryBrowserPersistence({
       'chat-test': {
         v: 1,
-        tabs: [{ url: restoredUrl, pinned: true }],
+        tabs: [{ url: restoredUrl }],
         activeIndex: 0,
         downloads: [],
       },
@@ -3515,7 +3434,7 @@ describe('browser-agent session', () => {
     expect(clearCache).toHaveBeenCalled()
   })
 
-  it('does not rewrite the settings file when the pinned tabs have not changed', async () => {
+  it('does not rewrite the settings file when the saved tabs have not changed', async () => {
     const { persistence } = memoryBrowserPersistence()
     session = freshSession(win, {}, persistence)
     const tab = session.ensureTab()
@@ -3535,19 +3454,22 @@ describe('browser-agent session', () => {
     expect(persistence.save).not.toHaveBeenCalled()
   })
 
-  it('persists once when a tab actually becomes pinned', async () => {
+  it('persists once when the saved strip actually changes', async () => {
     const { persistence } = memoryBrowserPersistence()
     session = freshSession(win, {}, persistence)
     const tab = session.ensureTab()
-    ;(tab.view as unknown as MockView).webContents.getURL.mockReturnValue('https://example.com/')
     vi.mocked(persistence.save).mockClear()
+    ;(tab.view as unknown as MockView).webContents.getURL.mockReturnValue(
+      'https://example.com/changed'
+    )
 
-    session.setTabPinned(tab.id, true)
+    session.switchTab(tab.id)
+    session.switchTab(tab.id)
 
     expect(persistence.save).toHaveBeenCalledTimes(1)
     expect(persistence.save).toHaveBeenLastCalledWith(
       'chat-test',
-      expect.objectContaining({ tabs: [{ url: 'https://example.com/', pinned: true }] })
+      expect.objectContaining({ tabs: [{ url: 'https://example.com/changed' }] })
     )
   })
 
@@ -4613,39 +4535,6 @@ describe('reopening a closed tab', () => {
 
     // Falls back to a blank tab rather than re-sending the credentials.
     expect((reopened?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
-  })
-
-  it('duplicates a tab by loading the same URL in a new one', () => {
-    session.ensureTab()
-    const source = session.addTab()
-    ;(source.view as unknown as MockView).webContents.getURL.mockReturnValue(
-      'https://example.com/inbox'
-    )
-
-    const copy = session.duplicateTab(source.id)
-
-    expect(copy?.id).not.toBe(source.id)
-    expect((copy?.view as unknown as MockView).webContents.loadURL).toHaveBeenCalledWith(
-      'https://example.com/inbox'
-    )
-  })
-
-  it('never copies a URL carrying embedded credentials into a duplicate', () => {
-    session.ensureTab()
-    const source = session.addTab()
-    ;(source.view as unknown as MockView).webContents.getURL.mockReturnValue(
-      'https://user:pass@example.com/'
-    )
-
-    const copy = session.duplicateTab(source.id)
-
-    // Falls back to a blank tab rather than re-sending the credentials.
-    expect((copy?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
-  })
-
-  it('returns null when duplicating a tab that is not open', () => {
-    session.ensureTab()
-    expect(session.duplicateTab('no-such-tab')).toBeNull()
   })
 
   it('drops a non-http scheme from the reopen list', () => {

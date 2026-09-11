@@ -28,7 +28,7 @@ import { BubbleChatDelay, Download, Lock, Plus, Unlock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
@@ -70,6 +70,7 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
@@ -132,7 +133,7 @@ function copilotDraftKey(
  * @returns Panel on the right side of the workflow
  */
 export const Panel = memo(function Panel() {
-  const router = useRouter()
+  const navigateToWorkflow = useWorkflowNavigation()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const routeWorkflowId = params.workflowId as string | undefined
@@ -646,7 +647,7 @@ export const Panel = memo(function Panel() {
         folderId: sourceWorkflow.folderId,
       })
       if (result?.id) {
-        router.push(`/workspace/${workspaceId}/w/${result.id}`)
+        navigateToWorkflow(`/workspace/${workspaceId}/w/${result.id}`)
       }
     } catch (error) {
       logger.error('Error duplicating workflow:', error)
@@ -654,7 +655,14 @@ export const Panel = memo(function Panel() {
       setIsDuplicating(false)
       setIsMenuOpen(false)
     }
-  }, [activeWorkflowId, userPermissions.canEdit, isDuplicating, workflows, router, workspaceId])
+  }, [
+    activeWorkflowId,
+    userPermissions.canEdit,
+    isDuplicating,
+    workflows,
+    navigateToWorkflow,
+    workspaceId,
+  ])
 
   /**
    * Toggles the locked state of all blocks in the workflow

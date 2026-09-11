@@ -162,6 +162,25 @@ describe('workflow navigation feedback', () => {
     vi.unstubAllGlobals()
   })
 
+  it('preserves replace navigation outside the workflow provider', () => {
+    router.replace.mockImplementation(() => undefined)
+    act(() =>
+      root.render(
+        <RouterContext.Provider value={router}>
+          <WorkflowNavigationLink href={PATH_B} replace scroll={false}>
+            Replace workflow
+          </WorkflowNavigationLink>
+        </RouterContext.Provider>
+      )
+    )
+    click('Replace workflow')
+    expect(router.replace).toHaveBeenCalledWith(PATH_B, {
+      scroll: false,
+      transitionTypes: undefined,
+    })
+    expect(router.push).not.toHaveBeenCalled()
+  })
+
   it('shows the wordmark while the old route is still displayed and keeps it through hydration', async () => {
     expect(container.querySelector('[role="status"]')).toBeNull()
     click('B')

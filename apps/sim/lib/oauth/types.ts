@@ -33,6 +33,7 @@ export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export type OAuthProvider =
   | 'github-repositories'
+  | 'github-app-installation'
   | 'google'
   | 'google-email'
   | 'google-drive'

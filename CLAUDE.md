@@ -429,7 +429,7 @@ Principles when building or migrating shared UI:
 
 ## Testing
 
-Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.cursor/rules/sim-testing.mdc` for full details.
+Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.claude/rules/sim-testing.md` for full details.
 
 ### Global Mocks (vitest.setup.ts)
 

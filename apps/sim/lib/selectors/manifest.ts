@@ -147,6 +147,10 @@ export const selectorManifest = {
     detail: true,
   }),
   'gmail.labels': providerSelector(['impersonateUserEmail']),
+  'github.installationRepositories': {
+    ...providerSelector([], { listMode: 'paginated', detail: true, unknownDetail: true }),
+    scopeKinds: ['organization'],
+  },
   'google.calendar': providerSelector(['impersonateUserEmail'], {
     listMode: 'paginated',
     detail: true,

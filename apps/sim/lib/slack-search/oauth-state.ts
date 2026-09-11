@@ -12,6 +12,7 @@ const attemptSchema = z.object({
   organizationId: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
+  sharedApp: z.object({ id: z.string().min(1), revision: z.string().min(1) }).optional(),
   memberApp: z.object({ appId: z.string().min(1), teamId: z.string().min(1) }).optional(),
   clientId: z.string().min(1),
   encryptedClientSecret: z.string().min(1),

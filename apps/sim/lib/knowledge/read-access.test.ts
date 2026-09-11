@@ -49,6 +49,21 @@ describe('knowledgeReadAccessBatches', () => {
     expect(gt).toHaveBeenCalledWith(document.connectorId, first.at(-1)!.connectorId)
   })
 
+  it('yields only the ordinary predicate for a reader without live-source credentials', async () => {
+    const resolve = vi.fn(async () => identity)
+    const provider: KnowledgeAccessProvider = {
+      get: async () => identity,
+      getForConnectors: resolve,
+      getForDocuments: async () => identity,
+      hasLiveSourceReaders: async () => false,
+    }
+    const batches = []
+    for await (const predicate of knowledgeReadAccessBatches(provider, [])) batches.push(predicate)
+    expect(batches).toHaveLength(1)
+    expect(resolve).not.toHaveBeenCalled()
+    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
+  })
+
   it('does not enumerate sources after a satisfied ordinary existence probe', async () => {
     const resolve = vi.fn(async () => identity)
     const provider: KnowledgeAccessProvider = {

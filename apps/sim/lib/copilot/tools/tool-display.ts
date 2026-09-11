@@ -565,7 +565,6 @@ const TOOL_TITLES: Record<string, string> = {
   edit_workflow: 'Editing workflow',
   manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',
-  list_integrations: 'Checking your integrations',
   search_workspace: 'Searching documents',
   read_document: 'Reading document',
   open_resource: 'Opening resource',
@@ -1439,6 +1438,16 @@ function statesTerminalOutcome(title: string): boolean {
   return TERMINAL_TITLE_PREFIXES.has(firstWordOf(title).replace(/:$/, ''))
 }
 
+/** Apply one terminal outcome prefix while preserving already-resolved titles. */
+function getToolOutcomeTitle(title: string, outcome: 'Failed' | 'Stopped' | 'Skipped'): string {
+  if (statesTerminalOutcome(title)) return title
+  const firstWord = firstWordOf(title)
+  if (COMPLETED_VERB_REWRITES[firstWord]) {
+    return `${outcome} ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
+  }
+  return `${outcome}: ${title}`
+}
+
 /**
  * Rewrite a resolved display title for a FAILED tool call. A gerund title
  * becomes "Failed <gerund>…" ("Searching for X" → "Failed searching for X");
@@ -1446,29 +1455,19 @@ function statesTerminalOutcome(title: string): boolean {
  * its present-tense activity title verbatim and read as still running.
  */
 export function getToolFailedTitle(title: string): string {
-  if (statesTerminalOutcome(title)) return title
-  const firstWord = firstWordOf(title)
-  if (COMPLETED_VERB_REWRITES[firstWord]) {
-    return `Failed ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
-  }
-  return `Failed: ${title}`
+  return getToolOutcomeTitle(title, 'Failed')
 }
 
 /** Rewrite a resolved display title for a CANCELLED tool call ("Stopped <gerund>…"). */
 export function getToolStoppedTitle(title: string): string {
-  if (statesTerminalOutcome(title)) return title
-  const firstWord = firstWordOf(title)
-  if (COMPLETED_VERB_REWRITES[firstWord]) {
-    return `Stopped ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
-  }
-  return `Stopped: ${title}`
+  return getToolOutcomeTitle(title, 'Stopped')
 }
 
 /**
  * Resolve the final title for a tool status at a rendering boundary. Persisted
  * and live snapshots intentionally keep the present-tense activity title so a
  * RUNNING row remains truthful; terminal states project a tense that says the
- * work is over — completed (past tense), failed, or stopped.
+ * work is over — completed (past tense), failed, stopped, or skipped.
  */
 export function getToolStatusDisplayTitle(
   title: string,
@@ -1480,6 +1479,9 @@ export function getToolStatusDisplayTitle(
   }
   if (status === 'success') return getToolCompletedTitle(title) ?? title
   if (status === 'error' || status === 'rejected') return getToolFailedTitle(title)
-  if (status === 'cancelled' || status === 'aborted') return getToolStoppedTitle(title)
+  if (status === 'cancelled' || status === 'aborted' || status === 'interrupted') {
+    return getToolStoppedTitle(title)
+  }
+  if (status === 'skipped') return getToolOutcomeTitle(title, 'Skipped')
   return title
 }

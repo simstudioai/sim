@@ -1,0 +1,118 @@
+---
+slug: why-no-code-ai-agents-need-live-web-access
+title: 'Why No-Code AI Agents Need Live Web Access (And How to Wire It Up)'
+description: 'How to pair a no-code AI agent builder with a dedicated live-web layer—TinyFish Search, Fetch, Browser, and Agent—and wire it into Sim workflows.'
+date: 2026-09-11
+updated: 2026-09-11
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, No-Code, Web Automation, TinyFish, Sim]
+ogImage: /library/why-no-code-ai-agents-need-live-web-access/cover.jpg
+canonical: https://www.sim.ai/library/why-no-code-ai-agents-need-live-web-access
+draft: false
+faq:
+  - q: "What happens when a site rate-limits or blocks a request?"
+    a: "Honor any Retry-After response, and use bounded exponential backoff when the site does not provide retry timing. If Fetch cannot retrieve a protected page, route the task through Browser or Agent for browser rendering and navigation. Keep a failure branch in the workflow so repeated blocks do not stall later steps."
+  - q: "Can I use Agent without calling Browser separately?"
+    a: "Yes. Agent manages multi-step navigation and extraction through its own API. Use Browser directly when you need explicit control over sessions, browser profiles, or individual page interactions."
+  - q: "How should I handle portal credentials in Vault?"
+    a: "Store credentials in Vault and reference the Vault item from the TinyFish block instead of placing secrets in prompts or workflow fields. Scope workflow and workspace access to the people and runs that need those credentials. Review your platform’s access and retention controls before using production accounts."
+  - q: "Do I need to migrate off my current no-code tool?"
+    a: "No. TinyFish provides a web access layer through an API key. You can call it from an existing builder through a native integration, an HTTP block, or custom code. The Sim integration (https://sim.ai/integrations/tinyfish) provides one working example."
+---
+
+## TL;DR
+
+- No-code AI agent builders handle prompts, branches, and integrations, but their workflows often depend on cached search results or brittle scrapers for web access.
+- [TinyFish](https://www.tinyfish.ai/) supplies the missing live-web layer through Search, Fetch, Browser, and Agent. Together, these tools support browser-rendered discovery, content retrieval, protected or authenticated sites, and multi-step navigation.
+- In TinyFish's published [Online-Mind2Web evaluation](https://www.tinyfish.ai/benchmarks), Agent achieved an 89.9% overall success rate. TinyFish describes the evaluation as [300 tasks across 136 live websites](https://www.tinyfish.ai/blog/mind2web).
+- Sim's TinyFish integration shows how a no-code AI agent builder can connect visual workflow logic to a dedicated live-web layer.
+
+## The wiring problem no-code builders don't solve
+
+A no-code AI agent builder lets you compose workflows without writing the orchestration code. You can arrange prompts, branches, approval steps, and integrations without writing the orchestration code yourself. However, each workflow still depends on the web tools available to its underlying model. A polished visual flow cannot make a cached search result current or give a basic HTTP request an authenticated browser session.
+
+Cached search indexes create problems when a workflow depends on changing information. A pricing monitor may retrieve last week’s plan page, while an inventory check may report an item that has already sold out. Point-in-time scrapers can fail when a site renders content in the browser, changes its page structure, or loads data only after user interaction.
+
+Authenticated portals create a different failure mode. Without persistent cookies, stored credentials, and browser state, an agent sees the logged-out version of a supplier portal rather than its invoices or order records. Some portals return a normal response code with a login shell, so the workflow may continue without recognizing that extraction failed.
+
+Bot protection can stop retrieval before the model receives any useful content. Modern challenges inspect browser behavior and session signals that generic request tools often lack. Repeated retries rarely fix that mismatch because the site keeps rejecting the same type of client.
+
+Visual branches can respond to a known retrieval error, but they cannot recover data that the web tool never retrieved. A workflow may even finish successfully while working with stale search results or a logged-out page. Automations that rely on current public data or authenticated portals need a web-access layer that can retrieve that data before the workflow evaluates it.
+
+For a broader look at how these pieces fit together, see [AI agent orchestration frameworks explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained).
+
+## Live web access as a missing infrastructure layer
+
+You should provision workflow logic and live web access as separate infrastructure. A no-code builder handles decisions and application integrations. A dedicated web layer retrieves current pages through real browser sessions and converts them into usable data.
+
+When a builder delegates retrieval to the selected model or a basic scraper, it may work for stable public pages. It can break down when a workflow needs current data, an authenticated session, or access through bot controls. Purpose-built web infrastructure fills the capability gap without requiring each builder to operate its own browser platform.
+
+Separating the two layers also makes each one easier to change. You can replace a model or revise workflow logic without rebuilding browser access, and you can update browsing or extraction without moving the workflow. [TinyFish provides Search, Fetch, Browser, and Agent](https://docs.tinyfish.ai/) through one live-web platform, while the no-code builder remains responsible for orchestration and downstream actions.
+
+## TinyFish Search, Fetch, Browser, and Agent
+
+[One TinyFish API key](https://docs.tinyfish.ai/) gives a workflow four distinct ways to reach the live web. You choose the primitive based on whether the workflow needs discovery, extraction, direct browser control, or autonomous navigation.
+
+[Search](https://www.tinyfish.ai/search) finds current information from the live web and returns structured results. A no-code AI agent builder can pass titles, URLs, snippets, and metadata into later blocks without parsing a conventional results page. Search fits workflows that need to discover recent reviews, product listings, or newly published pages.
+
+[Fetch](https://www.tinyfish.ai/fetch) loads a known URL in a real browser and converts it into clean content. A workflow can send that output directly to a model for classification, summarization, or field extraction. Search and Fetch are free. Use them first for public pages that do not require interaction or authentication.
+
+[Browser](https://www.tinyfish.ai/browser) provides cloud browser sessions with standard CDP connections and anti-bot handling. Your workflow controls the browser when it needs to click interface elements, maintain a login, or inspect content unavailable in a basic HTTP response. Browser usage consumes TinyFish credits.
+
+[Agent](https://www.tinyfish.ai/agent) handles goals that require multiple browser actions and decisions. You provide the objective and desired output, and Agent navigates the site, adapts its next action, and extracts the requested data. TinyFish's published [Online-Mind2Web benchmark](https://www.tinyfish.ai/benchmarks) reports an 89.9% overall success rate. Online-Mind2Web measures multi-step tasks on live websites, making the evaluation relevant to workflows that navigate and extract data across several actions. Agent also consumes credits.
+
+## How pricing works: free APIs and usage credits
+
+According to [TinyFish pricing](https://www.tinyfish.ai/pricing), Search and Fetch consume zero credits, while Agent and Browser consume credits based on usage. TinyFish offers pay-as-you-go access as well as Starter, Pro, and custom options, so teams can choose between usage-based billing and a recurring credit allocation.
+
+Estimate spend by running a representative workflow against the sites you expect to access, recording its credit usage, and multiplying that amount by the scheduled run volume. Include retries and unusually long browser sessions in the estimate. Because page complexity, blocking, and task frequency affect usage, test representative workflows before setting a budget.
+
+## Wiring TinyFish into Sim
+
+Sim provides a working example of this two-layer setup. Its [TinyFish integration](https://sim.ai/integrations/tinyfish) adds live web capabilities through one workflow block. If you are new to visual agents, start with [how to create an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) or compare the [best no-code AI agent builders](https://www.sim.ai/library/best-no-code-ai-agent-builders-2026).
+
+The block exposes nine tools that cover agent runs, web retrieval, Vault items, and browser profiles. Run Agent and Start Agent Run launch work, while Get Run, Cancel Run, and List Runs manage execution. Search finds current web results, and Fetch URLs retrieves page content. List Vault Items and List Browser Profiles expose the stored resources available to the workflow.
+
+### Adding the TinyFish block and authenticating
+
+Add the TinyFish block where the workflow first needs live web data. Create a TinyFish connection in Sim, paste the API key into the connection field, and save it. Run a simple Search or Fetch URLs call to confirm that Sim can authenticate and pass the returned JSON to the next block.
+
+Configure each TinyFish block to call one operation. Use Search for discovery and Fetch URLs for known pages. Run Agent handles work that can finish within the current execution. Longer jobs can use Start Agent Run, followed by Get Run to poll for completion. Cancel Run and List Runs provide control over active or previous jobs.
+
+Authenticated portal workflows should reference stored resources instead of placing credentials in prompts. Use List Vault Items to identify the stored credential resource required by the portal workflow. Use List Browser Profiles when the workflow needs a configured browser identity or session. Configure the agent run with the supported resource references, target URL, and extraction instructions.
+
+Map the block output into later Sim nodes after the call works in isolation. For example, a returned JSON object can feed a table step, while run status can control a branch that waits, retries, or reports an error.
+
+### Template: competitor pricing watch
+
+A weekly trigger in Sim starts the pricing check and passes each competitor URL to [TinyFish Agent](https://www.tinyfish.ai/agent). Agent navigates pricing pages, including pages that render prices with JavaScript or apply bot protection. The workflow returns each plan as a structured record with its price, billing period, included limits, and source URL.
+
+A storage step preserves the current records as a dated snapshot. On the next run, a comparison step loads the previous snapshot and matches plans by a stable identifier. It detects plan additions and removals, along with changes to prices or terms. Sim then posts the relevant differences to Slack with the old value, new value, and source page.
+
+[TinyFish Agent](https://www.tinyfish.ai/agent) reduces the workflow's dependence on fixed selectors by navigating the rendered page and extracting the requested fields. A renamed class or redesigned pricing table can stop a selector-based scraper, while Agent can navigate the rendered page and extract the requested pricing fields. Site changes can still require review, but they are less likely to break the workflow than a selector-only scraper.
+
+### Template: supplier portal collector
+
+A supplier portal collector uses [TinyFish Vault credentials](https://docs.tinyfish.ai/key-concepts/credentials) to reach invoice data that public scrapers cannot access. In Sim, configure the TinyFish block with Run Agent or Start Agent Run, then reference the Vault item containing the portal credentials. The agent opens the supplier portal in a browser session, signs in, and navigates to the outstanding invoices page.
+
+The extraction prompt should define a strict output schema for downstream steps. Ask the agent to return one JSON record per invoice with the invoice ID and amount, plus fields such as due date and payment status. A downstream Sim step can map those records into a table for reconciliation or approval.
+
+For longer portal sessions, [Start Agent Run](https://docs.tinyfish.ai/agent-api) lets Sim launch the task asynchronously. Get Run can check its status and retrieve the completed output. The asynchronous pattern lets Sim track a slow login or multi-page invoice task without holding one synchronous TinyFish call open until completion.
+
+### Template: review monitor
+
+A review monitor assigns discovery and retrieval to TinyFish, then sends the retrieved content to a model for classification. [TinyFish Search](https://www.tinyfish.ai/search) finds recent review pages and returns structured results with their URLs. The Sim workflow compares those URLs with its stored history, discards pages it has already processed, and sends each new URL to [Fetch](https://www.tinyfish.ai/fetch). Fetch converts the page into clean content so later steps do not need to parse navigation menus, ads, or raw HTML.
+
+A model step in Sim then classifies the retrieved review by sentiment and can extract details such as the product mentioned or the reason for a complaint. Sim can route the structured output into a table or Slack based on that classification. If Fetch cannot retrieve a page because the site requires interaction or blocks direct requests, route the URL to [TinyFish Agent](https://www.tinyfish.ai/agent) for browser-based navigation and extraction. Each TinyFish primitive handles one part of the pipeline, while Sim controls scheduling, state, and downstream actions. For more extraction patterns, see [the best AI agents for data extraction and RAG](https://www.sim.ai/library/best-ai-agents-for-data-extraction-and-rag-in-2026).
+
+## Pair any no-code framework with one live-web layer
+
+The Sim block is one working example, not a special case. Any builder that can call an API and consume structured output can pair with [TinyFish](https://docs.tinyfish.ai/) the same way, sending a query, URL, or task and getting back JSON its own nodes evaluate or store.
+
+You can swap the visual builder without rebuilding web access or add TinyFish to an existing workflow through a native integration, an HTTP block, or custom code.
+
+## Where to start
+
+Add a dedicated live-web layer when your workflow needs current data, authenticated sessions, or browser interaction. Try the TinyFish block in [Sim](https://sim.ai) for a visual setup, or connect a [TinyFish API key](https://docs.tinyfish.ai/) directly to your existing agent framework. Choose Search, Fetch, Browser, or Agent based on the pages your workflow must reach.

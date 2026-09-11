@@ -48,7 +48,7 @@ const commands: CommandItem[] = [
 
 /**
  * CommandList component that displays available commands with keyboard shortcuts
- * Centers the Sim mark in the canvas with commands below it, matching the loading mark.
+ * Centers the Sim mark and commands together within the canvas.
  */
 export function CommandList() {
   const params = useParams()
@@ -158,11 +158,12 @@ export function CommandList() {
   }, [])
 
   return (
-    <div
-      ref={preventZoomRef}
-      className='pointer-events-none absolute inset-0 flex items-center justify-center'
-    >
-      <div className='pointer-events-auto relative' onDragOver={handleDragOver} onDrop={handleDrop}>
+    <div ref={preventZoomRef} className='pointer-events-none absolute inset-0 flex overflow-y-auto'>
+      <div
+        className='pointer-events-auto m-auto flex flex-col items-center py-4'
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <WordmarkFrame label='Sim'>
           <g fill='currentColor' transform={WORDMARK_MORPH_TRANSFORM}>
             {WORDMARK_PATHS.map((d) => (
@@ -171,7 +172,7 @@ export function CommandList() {
           </g>
         </WordmarkFrame>
 
-        <div className='-translate-x-1/2 absolute top-full left-1/2 flex w-max flex-col gap-2 pt-5'>
+        <div className='flex w-max flex-col gap-2 pt-5'>
           {commands.map((command) => {
             const Icon = command.icon
             const shortcuts = Array.isArray(command.shortcut)

@@ -3,7 +3,6 @@ import type { ToolMetadata } from '@/tools/metadata'
 export const ASSISTANT_TOOLS = new Set([
   'search_workspace',
   'read_document',
-  'list_integrations',
   'search_integration_tools',
   'call_integration_tool',
   'oauth_get_auth_link',

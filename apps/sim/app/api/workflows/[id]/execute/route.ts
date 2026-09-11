@@ -15,8 +15,9 @@ import {
   WORKFLOW_EXECUTION_ID_HEADER,
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
+import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
 import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
-import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
+import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
   assertBillingAttributionSnapshot,

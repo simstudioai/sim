@@ -15,6 +15,7 @@ export interface LoaderProps extends SVGProps<SVGSVGElement> {
 /**
  * Shared loading ring with a dot that accelerates downward and slows on the climb.
  * Inherits the caller's color and sizing; reduced motion holds the dot still.
+ * Consumers can override the 1.4s period with `--loader-duration`.
  */
 export function Loader({ animate = false, className, ...props }: LoaderProps) {
   return (

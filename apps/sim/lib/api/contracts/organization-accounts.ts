@@ -19,6 +19,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ORGANIZATION_ACCOUNT_INDEXING_SOURCE_LIMIT,
   ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT,
+  ORGANIZATION_VIEWER_ACCOUNT_LIMIT,
 } from '@/lib/credential-groups/limits'
 
 const organizationAccountsParamsSchema = z.object({ id: organizationIdSchema })
@@ -41,6 +42,19 @@ export const getOrganizationAccountsContract = defineRouteContract({
       availableProviders: z.array(credentialGroupProviderSchema),
       canManage: z.boolean(),
       indexingAvailable: z.boolean(),
+      viewerAccounts: z
+        .array(
+          z.object({
+            credentialId: z.string().min(1).max(128),
+            displayName: z.string().max(512),
+            providerId: z.string().min(1).max(128),
+            groupId: z.string().min(1).max(128),
+            optionId: z.string().min(1).max(128),
+            status: z.enum(['active', 'needs_reauth']),
+          })
+        )
+        .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
+        .optional(),
     }),
   },
 })
@@ -58,12 +72,20 @@ export const updateOrganizationAccountsContract = defineRouteContract({
   body: updateCredentialGroupBodySchema,
   response: { mode: 'json', schema: organizationAccountsResponseSchema },
 })
+export const organizationAccountConnectionResponseSchema = z.object({
+  invitationLink: z.string().url(),
+  authorizationUrl: z.string().url().max(8192).optional(),
+})
+export type OrganizationAccountConnectionResponse = z.output<
+  typeof organizationAccountConnectionResponseSchema
+>
+
 export const startOrganizationAccountConnectionContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/connect',
   params: organizationAccountsParamsSchema,
   body: z.object({ optionId: z.string().min(1, 'Account option is required').max(128) }).strict(),
-  response: { mode: 'json', schema: z.object({ invitationLink: z.string().url() }) },
+  response: { mode: 'json', schema: organizationAccountConnectionResponseSchema },
 })
 
 export const startOrganizationSlackConfigurationContract = defineRouteContract({
@@ -313,7 +335,7 @@ export const reconnectPersonalOrganizationAccountContract = defineRouteContract(
   method: 'POST',
   path: '/api/users/me/organization-accounts/[credentialId]/reconnect',
   params: z.object({ credentialId: z.string().min(1).max(128) }),
-  response: { mode: 'json', schema: z.object({ invitationLink: z.string().url() }) },
+  response: { mode: 'json', schema: organizationAccountConnectionResponseSchema },
 })
 export const disconnectPersonalOrganizationAccountContract = defineRouteContract({
   method: 'DELETE',

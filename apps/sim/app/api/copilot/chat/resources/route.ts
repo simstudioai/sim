@@ -23,7 +23,6 @@ import {
 } from '@/lib/copilot/resources/persistence'
 import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import {
-  canonicalizeDesktopSessionResource,
   mergeChatResource,
   reorderStoredChatResources,
   sanitizeChatResources,
@@ -50,7 +49,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
     const { chatId, resource: requestedResource, clearViewId } = parsed.data.body
-    const resource = canonicalizeDesktopSessionResource(requestedResource)
+    const resource = requestedResource
     const resourceUpdate: MothershipResourceUpdate =
       clearViewId === true ? { ...resource, clearViewId: true } : resource
 

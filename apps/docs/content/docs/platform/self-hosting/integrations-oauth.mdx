@@ -142,14 +142,15 @@ Replace `<NEXT_PUBLIC_APP_URL>` with your configured public origin, such as `htt
 | Expire user authorization tokens | Enabled |
 | Request user authorization (OAuth) during installation | Disabled |
 | Enable Device Flow | Disabled |
-| Post installation → Setup URL | Empty |
+| Post installation → Setup URL | `<NEXT_PUBLIC_APP_URL>/api/knowledge/github/setup/callback` |
+| Post installation → Redirect on update | Enabled |
 | Webhook → Active | Disabled |
 
-Authorization starts from Sim so the callback can finish the pending connection. The connector polls GitHub's API and does not need a webhook.
+Authorization starts from Sim so the callback can finish the pending connection. The **Setup URL** returns installation approval to that same setup attempt. Keep **Request user authorization (OAuth) during installation** disabled: Sim starts account authorization when it is needed, before installation. See GitHub's [Setup URL guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url).
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-callback.jpg" alt="GitHub App registration with the Redirect URI, expiring tokens enabled, and installation authorization, Device Flow, and webhooks disabled" width={768} height={929} />
+For an existing deployment, deploy the application with the setup callback before changing the App registration. Use a separate GitHub App for each deployment origin, such as staging and production, so installation approval returns to the instance that started it. Keep the existing user authorization callback above unchanged.
 
-*Example registration. Replace `sim.example.com` with your Sim domain.*
+The connector polls GitHub's API and does not need a webhook.
 
 </Step>
 <Step>

@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -395,10 +395,12 @@ export function ImportCsvDialog({
             </ChipModalField>
 
             <ChipModalField type='custom' title='Mode'>
-              <ButtonGroup value={mode} onValueChange={handleModeChange}>
-                <ButtonGroupItem value='append'>Append</ButtonGroupItem>
-                {canReplace && <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>}
-              </ButtonGroup>
+              <ChipButtonGroup value={mode} onValueChange={handleModeChange}>
+                <ChipButtonGroupItem value='append'>Append</ChipButtonGroupItem>
+                {canReplace && (
+                  <ChipButtonGroupItem value='replace'>Replace all rows</ChipButtonGroupItem>
+                )}
+              </ChipButtonGroup>
             </ChipModalField>
 
             <ChipModalField type='custom' title='Column mapping'>

@@ -1,19 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, createRef, useRef } from 'react'
-import { useQueryState } from 'nuqs'
+import { act, createRef } from 'react'
 import { NuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptEditorInstance } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-const { mockSubmit, mockResetTranscript, mockMemberAccessAvailable } = vi.hoisted(() => ({
+const { mockSubmit, mockResetTranscript } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
   mockResetTranscript: vi.fn(),
-  /** Search mode exists only where per-member access is on; these tests are that workspace. */
-  mockMemberAccessAvailable: vi.fn(() => true),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -23,9 +20,6 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: vi.fn() }))
-vi.mock('@/hooks/use-member-access', () => ({
-  useMemberAccessAvailable: () => mockMemberAccessAvailable(),
-}))
 vi.mock('@/hooks/use-settings-navigation', () => ({
   useSettingsNavigation: () => ({ navigateToSettings: vi.fn() }),
 }))
@@ -68,12 +62,8 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/user-input/components', a
   const { usePromptEditor } = await import(
     '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
   )
-  const { ModeSwitcher } = await import(
-    '@/app/workspace/[workspaceId]/home/components/user-input/components/mode-switcher/mode-switcher'
-  )
   return {
     usePromptEditor,
-    ModeSwitcher,
     PromptEditor: ({
       editor,
       placeholder,
@@ -105,8 +95,6 @@ import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/user-input'
-import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
-import { searchQueryParam } from '@/app/workspace/[workspaceId]/home/search-params'
 
 const mockUrlUpdate = vi.fn<(event: UrlUpdateEvent) => void>()
 const QUEUED_MESSAGE: QueuedMessage = {
@@ -120,34 +108,26 @@ const QUEUED_MESSAGE: QueuedMessage = {
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function mount(requestMode?: QueuedMessage['requestMode']) {
+function mount() {
   const inputRef = createRef<UserInputHandle>()
 
   function Composer() {
-    const [mode, setMode] = useMothershipMode()
-    const [query] = useQueryState(searchQueryParam.key, searchQueryParam.parser)
-    const modes = useRef<string[]>([])
-    modes.current.push(`${mode}:${query ?? ''}`)
     return (
       <>
-        <output>{modes.current.join('|')}</output>
         <button
           type='button'
           onClick={() => {
-            void setMode(requestMode === 'assistant' ? 'assistant' : 'build')
-            inputRef.current?.loadQueuedMessage({ ...QUEUED_MESSAGE, requestMode })
+            inputRef.current?.loadQueuedMessage(QUEUED_MESSAGE)
           }}
         >
           Edit queued
         </button>
         <UserInput
           ref={inputRef}
-          defaultValue={query ?? ''}
+          defaultValue='Initial draft'
           onSubmit={mockSubmit}
           isSending={false}
           onStopGeneration={vi.fn()}
-          canSearch
-          clearOnSubmit={mode !== 'search'}
         />
       </>
     )
@@ -187,22 +167,6 @@ async function clickButton(label: string) {
   })
 }
 
-async function selectMode(label: string) {
-  const trigger = container?.querySelector('[aria-label="Mode: Search"]')
-  if (!trigger) throw new Error('Mode switcher did not render')
-  act(() => {
-    trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
-  })
-  const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
-    (candidate) => candidate.textContent === label
-  )
-  if (!item) throw new Error(`Mode ${label} did not render`)
-  await act(async () => {
-    item.click()
-    await vi.advanceTimersByTimeAsync(1)
-  })
-}
-
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -219,52 +183,29 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('search composer transitions', () => {
-  it.each(['Build', 'Assistant'])('clears the query when the menu selects %s', async (mode) => {
+describe('workspace composer', () => {
+  it('keeps workspace controls and ignores legacy search-mode URLs', () => {
     mount()
-    expect(textarea().value).toBe('budget')
-    expect(textarea().placeholder).toBe('Search your documents…')
-
-    await selectMode(mode)
-
-    expect(textarea().value).toBe('')
-    expect(textarea().placeholder).toBe(
-      mode === 'Assistant' ? 'Ask about your documents or take action…' : 'Ask Sim to '
-    )
-    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.has('q')).toBe(false)
-    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('Initial draft')
+    expect(textarea().placeholder).toBe('Ask Sim to ')
+    expect(container?.querySelector('[aria-label^="Mode:"]')).toBeNull()
+    for (const label of ['Add resources', 'Attach file', 'Skills']) {
+      expect(container?.querySelector(`[aria-label="${label}"]`)).not.toBeNull()
+    }
+    expect(mockUrlUpdate).not.toHaveBeenCalled()
   })
 
-  it.each([undefined, 'assistant'] as const)(
-    'retains queued content and files after restoring request mode %s',
-    async (requestMode) => {
-      mount(requestMode)
-
-      await clickButton('Edit queued')
-
-      expect(textarea().value).toBe(QUEUED_MESSAGE.content)
-      expect(container?.querySelector('output')?.textContent).not.toContain('build:budget')
-      expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe(
-        requestMode === 'assistant'
-          ? 'mode=assistant&resource=report'
-          : 'mode=build&resource=report'
-      )
-      await clickButton('Send')
-      expect(mockSubmit).toHaveBeenCalledWith(
-        QUEUED_MESSAGE.content,
-        requestMode === 'assistant' ? undefined : QUEUED_MESSAGE.fileAttachments,
-        undefined
-      )
-    }
-  )
-
-  it('starts a clean composer when changing modes', async () => {
-    const inputRef = mount()
-    act(() => inputRef.current?.loadQueuedMessage({ ...QUEUED_MESSAGE, content: 'budget' }))
-
-    await selectMode('Build')
+  it('retains queued content and attachments when editing, then clears after sending', async () => {
+    mount()
+    await clickButton('Edit queued')
+    expect(textarea().value).toBe(QUEUED_MESSAGE.content)
     await clickButton('Send')
-
-    expect(mockSubmit).toHaveBeenCalledWith('', undefined, undefined)
+    expect(mockSubmit).toHaveBeenCalledWith(
+      QUEUED_MESSAGE.content,
+      QUEUED_MESSAGE.fileAttachments,
+      undefined
+    )
+    expect(textarea().value).toBe('')
+    expect(mockResetTranscript).toHaveBeenCalled()
   })
 })

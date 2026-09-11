@@ -1,5 +1,5 @@
 .animated {
-  animation: gravity-orbit 1.4s linear infinite;
+  animation: gravity-orbit var(--loader-duration, 1.4s) linear infinite;
   transform-box: border-box;
   transform-origin: center;
 }

@@ -1,5 +1,9 @@
 import { z } from 'zod'
 import {
+  connectorPermissionConfigSchema,
+  connectorPermissionSummarySchema,
+} from '@/lib/api/contracts/knowledge/connector-permissions'
+import {
   knowledgeBaseParamsSchema,
   knowledgeConnectorParamsSchema,
   successResponseSchema,
@@ -43,10 +47,12 @@ export const createConnectorBodySchema = z.object({
   connectorType: z.string().min(1),
   credentialId: z.string().min(1).optional(),
   apiKey: z.string().min(1).optional(),
+  permissionConfig: connectorPermissionConfigSchema.optional(),
   sourceConfig: z.record(z.string(), z.unknown()),
   syncIntervalMinutes: z.number().int().min(0).default(1440),
   accessMode: connectorRequestedAccessModeSchema.optional().default('workspace'),
 })
+export type CreateConnectorBody = z.input<typeof createConnectorBodySchema>
 
 export const updateConnectorAccessBodySchema = z.object({
   accessMode: connectorRequestedAccessModeSchema,
@@ -56,17 +62,20 @@ export const updateConnectorAccessBodySchema = z.object({
 export type UpdateConnectorAccessBody = z.input<typeof updateConnectorAccessBodySchema>
 
 export const updateConnectorBodySchema = z.object({
+  apiKey: z.string().min(1).max(4096).optional(),
+  permissionConfig: connectorPermissionConfigSchema.optional(),
   sourceConfig: z.record(z.string(), z.unknown()).optional(),
   syncIntervalMinutes: z.number().int().min(0).optional(),
   status: z.enum(['active', 'paused']).optional(),
 })
+export type UpdateConnectorBody = z.input<typeof updateConnectorBodySchema>
 
 export const deleteConnectorQuerySchema = z.object({
   /** Also hard-delete the documents the connector produced; kept by default. */
   deleteDocuments: booleanQueryFlagSchema.optional().default(false),
 })
 
-export const connectorDocumentFilterSchema = z.enum(['active', 'excluded', 'failed'])
+export const connectorDocumentFilterSchema = z.enum(['active', 'excluded', 'failed', 'skipped'])
 export type ConnectorDocumentFilter = z.output<typeof connectorDocumentFilterSchema>
 
 export const connectorDocumentsQuerySchema = z.object({
@@ -110,6 +119,7 @@ export const connectorDataSchema = z
     id: z.string(),
     knowledgeBaseId: z.string(),
     connectorType: z.string(),
+    permissionConfig: connectorPermissionSummarySchema.optional(),
     credentialId: z.string().nullable(),
     sourceConfig: z.record(z.string(), z.unknown()),
     syncMode: z.string().nullable(),
@@ -226,6 +236,8 @@ export const connectorDocumentDataSchema = z
     userExcluded: z.boolean(),
     uploadedAt: z.string(),
     processingStatus: z.string(),
+    processingOutcome: z.literal('skipped').nullable().default(null),
+    processingError: z.string().nullable().default(null),
   })
   .passthrough()
 export type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
@@ -236,6 +248,7 @@ export const connectorDocumentsDataSchema = z.object({
     active: z.number().int().nonnegative(),
     excluded: z.number().int().nonnegative(),
     failed: z.number().int().nonnegative().default(0),
+    skipped: z.number().int().nonnegative().default(0),
   }),
   hasMore: z.boolean().optional(),
 })
@@ -384,6 +397,12 @@ export const searchSourceCursorSchema = z.object({
 export const listSearchSourcesQuerySchema = resourceOwnerSchema.safeExtend({
   cursor: z.string().min(1).max(1024).optional(),
   connectorType: z.string().trim().min(1, 'connectorType cannot be empty').max(100).optional(),
+  excludeConnectorType: z
+    .string()
+    .trim()
+    .min(1, 'excludeConnectorType cannot be empty')
+    .max(100)
+    .optional(),
   search: z.string().trim().max(200).optional(),
   mine: booleanQueryFlagSchema.optional(),
 })
