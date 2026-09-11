@@ -97,7 +97,7 @@
       "export": "wireServerFallback",
       "environmentModule": "apps/sim/lib/core/config/env.ts",
       "environmentExport": "env",
-      "implementationModule": "packages/deployment-config/src/env-capabilities.ts",
+      "implementationModule": "apps/sim/lib/core/config/env-capabilities.ts",
       "implementationExport": "wireFallback"
     }
   ]

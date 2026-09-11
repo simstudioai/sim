@@ -237,7 +237,7 @@ it('projects configured capability environment fields and retains helper changes
     ...settings,
     aliases: [
       ...settings.aliases,
-      { from: 'apps/sim/', prefix: '@capability/', target: 'packages/deployment-config/src/' },
+      { from: 'apps/sim/', prefix: '@capability/', target: 'apps/sim/lib/core/config/' },
     ],
   }
   const environment = (batch: number, email: boolean) =>
@@ -271,4 +271,16 @@ it('projects configured capability environment fields and retains helper changes
       )
     ).flagged
   ).toBe(true)
+})
+
+it('leaves type queries over literal constants erased and parseable', async () => {
+  const source = (kind: string) =>
+    `const KINDS=['one','two'] as const;type Kind = typeof KINDS[number];export const Page=()=> <span>${kind}</span>`
+  const report = await compareFiles({ [view]: source('a') }, { [view]: source('b') }, settings)
+  expect(report.flagged).toBe(true)
+  expect(
+    report.findings
+      .flatMap((finding) => finding.limitations)
+      .some((reason) => /parser|extraction failed/i.test(reason))
+  ).toBe(false)
 })

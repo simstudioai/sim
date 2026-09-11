@@ -32,7 +32,6 @@ interface Module {
 /** A bounded interpreter for data expressions. It never invokes a source function. */
 export class Resolver {
   private readonly modules = new Map<string, Module>()
-  private readonly values = new WeakMap<t.Node, Map<string, Evidence & { cost: number }>>()
   private readonly evaluations = new WeakMap<t.Node, Evidence>()
   private readonly unknowns = new WeakMap<t.Node, Map<string, Evidence>>()
   private readonly opaqueValues = new Map<string, Evidence>()
@@ -77,7 +76,7 @@ export class Resolver {
       },
     })
     const result = { ast, exports, stars }
-    if (this.modules.size >= 128) this.modules.delete(this.modules.keys().next().value!)
+    if (this.modules.size >= 32) this.modules.delete(this.modules.keys().next().value!)
     this.modules.set(file, result)
     return result
   }
@@ -729,15 +728,6 @@ export class Resolver {
 
   private value(path: NodePath, file: string, depth: number): Data {
     if (!path?.node) return null
-    const started = this.steps
-    const cacheKey = `${depth}:${this.tree.config.limits.resolutionSteps - started}`
-    const cached = this.values.get(path.node)?.get(cacheKey)
-    if (cached && !this.active.has(path.node)) {
-      this.steps += cached.cost
-      for (const file of cached.dependencies) this.dependencies.add(file)
-      for (const reason of cached.unresolved) this.unresolved.add(reason)
-      return cached.value
-    }
     if (
       ++this.steps > this.tree.config.limits.resolutionSteps ||
       depth > this.tree.config.limits.resolutionDepth
@@ -752,21 +742,7 @@ export class Resolver {
     this.dependencies = new Set([file])
     this.unresolved = new Set()
     try {
-      const value = this.inner(path, file, depth)
-      if (![...this.unresolved].some((reason) => /cycle/i.test(reason))) {
-        const entries = this.values.get(path.node) ?? new Map()
-        // Bound per-node cache variants; budget/depth are part of the key so warming
-        // a cache cannot change evidence in a later evaluation.
-        if (entries.size < 8)
-          entries.set(cacheKey, {
-            value,
-            cost: this.steps - started,
-            dependencies: [...this.dependencies],
-            unresolved: [...this.unresolved],
-          })
-        this.values.set(path.node, entries)
-      }
-      return value
+      return this.inner(path, file, depth)
     } finally {
       for (const file of this.dependencies) dependencies.add(file)
       for (const reason of this.unresolved) unresolved.add(reason)

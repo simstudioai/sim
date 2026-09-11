@@ -180,7 +180,7 @@ JSON inputs are compared semantically, retaining array order and attributing cha
 the spec and configured renderer. Malformed/missing configured inputs flag with a limitation.
 
 The graph reuses up to 10,000 import/export snapshots keyed by source blob, resolving their
-paths again for each revision. The resolver retains at most 128 parsed modules per revision,
+paths again for each revision. The resolver retains at most 32 parsed modules per revision,
 and requests Bun garbage collection between parser batches. These resource controls do
 not change evidence or decisions. The Node-based test runner uses its own garbage collector.
 
