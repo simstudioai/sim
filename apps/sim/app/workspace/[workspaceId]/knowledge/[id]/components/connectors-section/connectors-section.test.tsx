@@ -106,18 +106,21 @@ vi.mock('@sim/emcn', () => ({
   ChipConfirmModal: ({
     open,
     title,
+    text,
     children,
     confirm,
     onOpenChange,
   }: {
     open: boolean
     title: string
+    text?: string
     children: ReactNode
     confirm: { label: string; onClick: () => void; pending?: boolean; disabled?: boolean }
     onOpenChange: (open: boolean) => void
   }) =>
     open ? (
       <div role='dialog' aria-label={title}>
+        {text}
         {children}
         <button
           type='button'
@@ -858,34 +861,45 @@ describe('shared connector lifecycle actions', () => {
     expect(lifecycle.update.mutate).toHaveBeenCalledOnce()
   })
 
-  it.each([true, false])('removes member documents automatically: %s', (members) => {
-    const onRemoved = vi.fn()
-    const container = renderComponent(
-      <ConnectorActions
-        connector={makeConnector({
-          status: 'active',
-          accessMode: members ? 'members' : 'admin',
-        })}
-        knowledgeBaseId='knowledge-1'
-        onRemoved={onRemoved}
-        canEdit
-      />
-    )
-    act(() => findButton(container, 'Remove connection').click())
-    const dialog = container.querySelector('[role="dialog"]')!
-    expect(Boolean(dialog.querySelector('input'))).toBe(!members)
-    act(() => findButton(dialog, 'Remove').click())
-    expect(lifecycle.remove.mutate).toHaveBeenCalledWith(
-      { knowledgeBaseId: 'knowledge-1', connectorId: 'connector-1', deleteDocuments: members },
-      expect.any(Object)
-    )
-    act(() => lifecycle.remove.mutate.mock.calls[0][1].onSuccess())
-    expect(onRemoved).toHaveBeenCalledOnce()
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
-  })
+  it.each(['members', 'admin', 'workspace'] as const)(
+    'matches required document removal for %s access',
+    (accessMode) => {
+      const onRemoved = vi.fn()
+      const container = renderComponent(
+        <ConnectorActions
+          connector={makeConnector({
+            status: 'active',
+            accessMode,
+          })}
+          knowledgeBaseId='knowledge-1'
+          onRemoved={onRemoved}
+          canEdit
+        />
+      )
+      act(() => findButton(container, 'Remove connection').click())
+      const dialog = container.querySelector('[role="dialog"]')!
+      expect(Boolean(dialog.querySelector('input'))).toBe(accessMode === 'workspace')
+      if (accessMode !== 'workspace') {
+        expect(dialog.textContent).toContain('deletes its synced documents from Sim')
+        expect(dialog.textContent).not.toContain('remain unless')
+      }
+      act(() => findButton(dialog, 'Remove').click())
+      expect(lifecycle.remove.mutate).toHaveBeenCalledWith(
+        {
+          knowledgeBaseId: 'knowledge-1',
+          connectorId: 'connector-1',
+          deleteDocuments: accessMode !== 'workspace',
+        },
+        expect.any(Object)
+      )
+      act(() => lifecycle.remove.mutate.mock.calls[0][1].onSuccess())
+      expect(onRemoved).toHaveBeenCalledOnce()
+      expect(container.querySelector('[role="dialog"]')).toBeNull()
+    }
+  )
 
   it('can explicitly delete content-mode documents and retains a failed removal for retry', () => {
-    const connector = makeConnector({ status: 'active' })
+    const connector = makeConnector({ status: 'active', accessMode: 'workspace' })
     const container = renderComponent(
       <ConnectorActions connector={connector} knowledgeBaseId='knowledge-1' canEdit />
     )

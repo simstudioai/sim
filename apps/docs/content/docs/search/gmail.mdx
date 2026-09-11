@@ -38,6 +38,8 @@ An admin selects **Settings → Sources → Add source → Gmail**, chooses **Sy
 
 Join the Sim organization, then open **Integrations** and select **Connect** for Gmail. Authorize the Google account matching your verified Sim email. The default filters cover the last 6 months across all labels, excluding Promotions, Social, Spam, and Trash. Its row shows your connection and indexing status.
 
+Google asks for permission to manage and send mail because this account connection also supports Sim workflow actions. Search only reads mail. The central service-account path uses read-only mail access.
+
 </Step>
 <Step>
 
@@ -45,7 +47,7 @@ Join the Sim organization, then open **Integrations** and select **Connect** for
 
 An admin opens **Settings → Sources → Gmail**, selects the connection, then selects the connection's **Settings** tab. Change **Labels**, **Date Range**, or other filters and save.
 
-One member-account connection is usually enough. Its filters apply to all active Gmail connections, including accounts connected later. It does not assign different filters to selected people or let teammates search each other's mail. **Connect service account** opens the [central service-account setup](#set-up-a-central-service-account); it does not edit this member connection.
+One member-account configuration is usually enough. Its filters apply to every account enrolled in it, including accounts connected later. **Connect service account** starts [central indexing](#set-up-a-central-service-account); edit the existing connection to change its filters.
 
 Connections are additive: a narrower one does not restrict an existing broader one, and overlapping connections can index the same thread more than once. For one organization-wide policy, edit the existing connection.
 
@@ -91,13 +93,13 @@ If your organization requires multi-party approval, another super administrator 
 
 ### Configure Gmail in Sim
 
-Under **Service account**, select **Add service account** and paste the JSON key into **Add Google Service Account**, or select an existing service account. Set **Directory administrator email** to an active Workspace administrator who can read users in the Directory API. This account supplies directory access; each mailbox is read using that mailbox owner's delegated identity.
+Under **Service account**, select **Add service account**, paste or upload the JSON key, and select **Add service account** to save it. You can also choose an existing service account. Set **Directory administrator email** to an active Workspace administrator who can read users in the Directory API. This account supplies directory access; each mailbox is read using that mailbox owner's delegated identity.
 
-Keep the default **Date Range** of **Last 6 months**, or adjust it and **Labels**. Use label names or system IDs such as `INBOX`; custom `Label_…` IDs are mailbox-specific. A label that does not exist in one mailbox simply matches no threads there.
+Keep the default **Date Range** of **Last 6 months**, or adjust it and **Labels**. Use label names or system IDs such as `INBOX`; mailbox-specific `Label_…` IDs are not supported. A label that does not exist in one mailbox simply matches no threads there.
 
 Under **More options → Users**, enter up to 100 primary Workspace email addresses, or leave blank for all active users in the same Workspace customer, including secondary domains. Suspended, archived, and guest users are excluded. Select **Connect & Sync**. Sim validates the directory administrator and selected users, then checks Gmail access for a sample user before saving.
 
-Teammates join the Sim organization with their matching verified primary email. They do not need to connect personal Google accounts for this source.
+Invite teammates through **Settings → Members → Invite**, using their primary Workspace emails. They accept, sign in with those matching verified emails, and search from **Home** or **Search**. They do not need to connect personal Google accounts for this source.
 
 </Step>
 </Steps>

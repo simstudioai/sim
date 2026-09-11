@@ -17,6 +17,8 @@ The repository must contain at least one commit. Each person needs a verified Gi
 
 On Sim Cloud, connect through the Sim Search GitHub App in the setup flow below. If you self-host Sim, a deployment administrator must first [configure GitHub Search](/platform/self-hosting/integrations-oauth#github-search).
 
+The App needs read-only access to repository **Contents**, **Metadata**, and account **Email addresses**. No write permissions are needed. These are GitHub App permissions, not a list of OAuth scopes to paste into Sim.
+
 To connect an installation for central indexing, you must be a Sim organization admin and either own the GitHub personal account or be an owner of the GitHub organization where the App is installed. You must also be able to read the repository you add.
 
 ## Add a repository
@@ -37,14 +39,14 @@ In **Sync documents with**, choose **Connect GitHub App** to index through an in
 
 1. Select **Connect your GitHub account** if prompted. Finish authorization in the new tab, then return and select **Refresh**.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-installation-connect.jpg" alt="Connect GitHub App dialog requiring a personal GitHub connection to verify manageable installations" width={402} height={172} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-installation-connect.jpg" alt="Connect GitHub App dialog requiring a personal GitHub connection to verify manageable installations" width={515} height={234} />
 
 2. Select **Install GitHub App**. Choose your GitHub account or organization and the repositories to include. If it is already installed, check its repository selection.
 3. Return to Sim and select **Refresh**. Choose the installation and select **Use installation**. Only installations on your own account or organizations you own are available.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-installation-select.jpg" alt="GitHub App installation chooser with Install GitHub App, Refresh, and Use installation controls; account name redacted" width={402} height={180} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-installation-select.jpg" alt="GitHub App installation chooser with Install GitHub App, Refresh, and Use installation controls with an example organization" width={515} height={245} />
 
-The installation is now selected under **Sync documents with**. You can reuse it when adding another repository source in the same Sim organization.
+The installation is now selected under **Sync documents with**. Reuse it when adding another repository in the same Sim organization.
 
 Alternatively, leave **Connected members** selected to use members' accounts for indexing. To use a dedicated indexing account, select it under **Sync documents with**, or choose **Connect GitHub account** to add one. Each method still requires teammates to connect their own accounts for Search access.
 
@@ -71,7 +73,7 @@ Open **More options** if you need a different branch, path or extension filters,
 
 ### Connect your account
 
-Open **Integrations** in the main sidebar, select **Connect** for GitHub, and authorize the App. Teammates repeat this step after joining the Sim organization. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
+Invite teammates through **Settings → Members → Invite** using their Sim email addresses. They accept, then open **Integrations** in the main sidebar, select **Connect** for GitHub, and authorize the App. If GitHub is already connected, they do not need to connect again for each repository. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
 
 An App installation or dedicated indexing account can start syncing after the source is saved. With **Connected members**, indexing begins after someone connects. Each teammate still connects before searching. An existing GitHub connection in the same Sim organization is reused across its GitHub sources.
 
@@ -88,13 +90,12 @@ GitHub App installation access supplies file contents for indexing. Each reader'
 
 For installation-indexed sources, Sim checks the installation's current status and verifies repository content access with the reader's GitHub account before returning results or opening indexed content. If GitHub cannot confirm access, that repository's content is withheld. Removing a person's repository access, disconnecting their account, or removing the repository from the App's access prevents subsequent reads once GitHub reflects the change. File edits still appear after background indexing.
 
-This is an installation plus personal authorization flow. GitHub Search does not impersonate everyone in an email domain. [Google Drive delegation and GitLab administrator indexing](/search#choose-the-right-connection-method) use different supported identity and permission models.
-
 ## Troubleshooting
 
 | Problem | Next step |
 |---|---|
-| GitHub is unavailable in Search | Ask your Sim organization admin to enable GitHub under **Settings → Sources**. For self-hosted Sim, also check the [GitHub App configuration](/platform/self-hosting/integrations-oauth#github-search). |
+| GitHub is missing or deactivated | Ask your Sim organization admin to add GitHub through **Settings → Sources → Add source**, or open its existing Sources row and select **Activate**. |
+| GitHub says it is unavailable in this deployment | Check the [GitHub App configuration](/platform/self-hosting/integrations-oauth#github-search) with your deployment administrator, or contact Sim support on Sim Cloud. Activating the integration cannot fix missing deployment credentials. |
 | Repository cannot be read | Confirm the App is installed on that repository and your GitHub account has access. For SAML organizations, establish your GitHub SSO session before reconnecting. |
 | A teammate cannot authorize the App | Check the GitHub organization's App policies and required approvals. Self-hosted deployments must allow the teammate's account in their App visibility settings. |
 | No eligible installations found | Finish connecting your own GitHub account, install the configured App on your account or an organization you own, then select **Refresh**. An installation of a different App or one you only have repository access to cannot be selected. |

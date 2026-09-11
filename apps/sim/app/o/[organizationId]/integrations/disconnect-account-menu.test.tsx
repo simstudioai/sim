@@ -136,4 +136,39 @@ describe('personal integration disconnect', () => {
     )
     expect(confirm().disabled).toBe(false)
   })
+
+  it('uses the same distinguishing account label in the menu and confirmation', async () => {
+    await act(async () =>
+      root.render(
+        <DisconnectAccountMenu
+          organizationId='org'
+          integrationName='Gmail'
+          accounts={[accounts[0], { ...accounts[0], credentialId: 'second' }]}
+          accountLabels={
+            new Map([
+              ['my-gmail', 'me@example.test · Inbox'],
+              ['second', 'me@example.test · Archive'],
+            ])
+          }
+        />
+      )
+    )
+    const trigger = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Gmail integration actions"]'
+    )!
+    await act(async () =>
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Disconnect me@example.test · Inbox',
+      'Disconnect me@example.test · Archive',
+    ])
+    await act(async () => items[1].click())
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      'Disconnect me@example.test · Archive from all Gmail connections'
+    )
+    await act(async () => confirm().click())
+    expect(mocks.mutate).toHaveBeenCalledWith('second', expect.any(Object))
+  })
 })

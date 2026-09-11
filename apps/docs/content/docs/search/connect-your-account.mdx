@@ -27,7 +27,7 @@ Open **Integrations** in the main sidebar, find the integration, and select **Co
 
 Each integration appears once. Sources that share your account authorization reuse that connection; adding another repository does not require reconnecting. **Connect** appears when authorization is missing, and **Reconnect** appears when an existing account needs renewal. A sync failure alone does not require reconnecting. To add different content, open **More** and select **Add repository**, **Add Confluence site**, or **Add projects**.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/connect-account.png" alt="Organization Integrations with search, personal connections, and Connect actions" width={692} height={409} />
+<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/connect-account.png" alt="Organization Integrations with search, personal connections, and Connect actions" width={692} height={435} />
 
 </Step>
 <Step>
@@ -77,6 +77,8 @@ On the main **Integrations** page, select **Reconnect** beside the integration i
 Admins manage setup from **Settings → Sources**. Open an integration, then its connection to see **Documents**, **Settings**, and **Sync history**. **People** shows account contributors across integrations and supports filtering by integration. This does not grant the admin access to every document.
 
 Syncing runs automatically. Admins can use **Sync now** when they need an update; another manual run is available 60 seconds after a successful sync finishes. Failed or partial runs can be retried immediately. The connection header also offers **Pause syncing** or **Resume syncing**, and **Remove connection**. Where supported, **Full resync** fetches and reindexes all content and asks for confirmation first.
+
+Removing a Search connection also removes its indexed documents from Sim. The originals remain in the connected app.
 
 ## If you get stuck
 

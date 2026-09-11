@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Set up a workspace Slack app and connect members for channel search
+description: Install the Slack app and connect members to search channels and messages
 ---
 
 import { Step, Steps } from 'fumadocs-ui/components/steps'
@@ -10,18 +10,25 @@ Slack Search indexes messages and threads each connected member can access. Publ
 
 ## Install the official app
 
-When the shared-app rollout is enabled for Sim Search, an organization admin can open **Settings → Sim Search in Slack → Install Sim Search**, select a Slack workspace, and approve the bot installation. Slack may require workspace-admin approval. Each organization connects one Slack workspace; Enterprise Grid-wide installations are not supported yet.
+When **Install Sim Search** is available, use the official app:
 
-Each member then opens **Integrations → Slack → Connect**, chooses what to index, and authorizes their own Slack account. Use the same email for Slack and your verified Sim account. Public and private channels are included by default; direct messages and group DMs are opt-in. The bot installation alone does not authorize access to members' messages.
+1. A Sim organization admin opens **Settings → Sim Search in Slack → Install Sim Search**, selects the Slack workspace, and approves the installation. Slack may require workspace-admin approval.
+2. The admin opens **Settings → Sources → Add source → Slack**, chooses channel and DM settings, and selects **Add channels or DMs**. If Slack is already listed, open it, select **Activate** if needed, then **Add channels or DMs**. Keep **Connected members** under **More options → Sync documents with**.
+3. If needed, invite teammates through **Settings → Members → Invite** using their Slack email addresses. App installation does not add people to the Sim organization.
+4. Each member opens **Integrations**, selects **Connect** for Slack, and authorizes their own account using the same email as their verified Sim account.
 
-Slack uses the same indexing pipeline as other connected sources. Both the Sim web Assistant and Slack bot search the organization's knowledge base, applying the current person's access permissions. Newly connected content becomes searchable after indexing completes. Connection and sync status appear in Integrations.
+Members use the admin's settings without selecting channels again. Public and private channels are included by default; DMs are opt-in. The bot installation alone does not enable Slack as a source or authorize access to members' messages.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/slack-shared-install.png" alt="Install Sim Search using the shared Slack app" width={515} height={171} />
+
+Each organization uses one Slack app and workspace for member indexing. Enterprise Grid-wide installation is not supported. Content becomes searchable after indexing; **Integrations** shows connection status. Both the web Assistant and Slack bot apply the current member's access permissions.
 
 - DM **Sim Search**, or mention it in a channel it has joined.
 - Use **/query [question]** to start a private DM thread. Channel invocations keep personalized answers and account details in DMs.
 - Use **/connect [provider]**, or **Home → Connect sources**, to open your personal Integrations in Sim. OAuth begins only after you click Connect there.
 - Follow source links to the original messages. Use Slack's Stop control to cancel the active answer and queued follow-ups.
 
-Existing custom-app installations are not silently converted. To switch to the official app, remove the old Slack Search binding and source app configuration explicitly, install the official app, and have members authorize it afresh. Workflow integrations keep their existing app configuration.
+Existing custom apps stay in place. Switching requires removing the old Slack connections and app setup, installing the official app, and having members reconnect. See **Manage connections** below.
 
 The instructions below describe setting up a custom app when the official app is unavailable.
 
@@ -29,7 +36,7 @@ The instructions below describe setting up a custom app when the official app is
 
 You need a Sim organization admin and permission to create and install an app in the target Slack workspace. Ask a Slack workspace admin for approval when app installation is restricted. Use the same email address for Slack and your verified Sim account.
 
-The same app supports **Sim Search in Slack** and **indexing Slack messages**. Installing the bot lets it answer questions about connected sources. Indexing Slack content additionally requires a source and each member’s authorization.
+Self-hosted Sim requires a public HTTPS app URL; Slack cannot send events to localhost.
 
 ## Set up the organization's Slack app
 
@@ -47,19 +54,15 @@ Open **Settings → Sources → Add source** and select **Slack**. Complete **Se
 
 ### Configure an app in Slack
 
-Select **Install Sim Search** to open the three-step setup. In step 1, select **Create app in Slack** and choose the target workspace. Sim supplies a manifest with the required scopes, redirects, events, and interactivity URL. Keep **Token Rotation** disabled.
+Select **Install Sim Search** to open setup. In **Create Slack app**, select **Create app** and choose the target workspace. Sim supplies a manifest with the required scopes, redirects, events, and interactivity URL. Keep **Token Rotation** disabled.
 
 You can also open this wizard from **Settings → Sim Search in Slack → Set up**.
 
-<Image className="mx-auto h-auto w-full max-w-xl" src="https://docs.slack.dev/assets/images/basic-information-page-e7d531fe4721830376d61a91de5d933e.png" alt="Slack app settings showing Basic Information and App Credentials" width={2692} height={1538} />
+Return to Sim and select **Continue**. In **Slack app credentials**, paste **Client ID**, **Client Secret**, and **Signing Secret** from the new app’s **Basic Information → App Credentials**:
 
-*Official Slack example: [Basic Information](https://docs.slack.dev/tools/bolt-python/creating-an-app/#create-a-new-app). Use your own app's credentials.*
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/slack-setup.png" alt="Sim Search in Slack setup with placeholders for Client ID, Client Secret, and Signing Secret" width={515} height={375} />
 
-Return to Sim and select **Continue**. In step 2, copy **Client ID**, **Client Secret**, and **Signing Secret** from the new app’s **Basic Information → App Credentials**:
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/slack-setup.png" alt="Sim Search in Slack setup with placeholders for Client ID, Client Secret, and Signing Secret" width={600} height={392} />
-
-Select **Continue**, then **Install in Slack** in step 3. Approve the installation in Slack. Sim saves the bot connection and opens **Settings → Sim Search in Slack**. Complete any required Slack administrator approval before continuing.
+Select **Continue**, then **Install in Slack**. Approve the installation in Slack. Sim saves the bot connection and opens **Settings → Sim Search in Slack**. Complete any required Slack administrator approval before continuing.
 
 </Step>
 <Step>
@@ -79,16 +82,18 @@ After verification, select **Add channels or DMs** on Slack’s provider page to
 
 Open **Add channels or DMs** on Slack's provider page. Choose **Channel Messages**, **Direct Messages**, **Channels**, and **Earliest Message Date**. Open **More options** for exclusions, archived channels, metadata tags, and **Sync documents with**. Keep **Connected members** for the usual setup.
 
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/slack-source-setup.png" alt="Slack source setup showing included channels, excluded DMs, and optional filters" width={515} height={541} />
+
 | Field | Behavior |
 |---|---|
-| Channel Messages | Included by default. Turn off for a DM-only source. |
+| Channel Messages | Included by default. Select **Exclude** for a DM-only source. |
 | Direct Messages | Excluded by default. Include to index one-to-one and group DMs the connected member can access. |
 | Channels | Leave blank for all accessible public and private channels, or choose channel names/IDs. |
 | Excluded Channels | Names or IDs to omit; exclusions override included channels. |
 | Archived Channels | Included by default. The picker lists active channels; use manual names/IDs to select archived channels. |
 | Earliest Message Date | Optional UTC date (`YYYY-MM-DD`). Applies to the thread's first message; replies are included with that thread. |
 
-Select **Add channels or DMs**. Each person opens **Integrations** in the main sidebar, selects **Connect** for Slack, and approves the configured app. Creating the source or verifying the Slack app does not authorize teammates automatically.
+Select **Add channels or DMs**. Each person opens **Integrations** in the main sidebar, selects **Connect** for Slack, and approves the configured app. They use the admin's settings; they do not re-enter channel filters. Creating the source or verifying the Slack app does not authorize teammates automatically.
 
 The Slack app's **Home → Connect sources** opens this same Integrations page.
 
@@ -98,9 +103,17 @@ You can instead select an existing account under **Sync documents with** to supp
 
 Admins open **Settings → Sources**, open **Slack**, then open the source to inspect **Documents**, edit **Settings**, or review **Sync history**. Search reads indexed content, so source changes appear after background syncing. Slack retention and API limits determine how much history is available.
 
+## Manage connections
+
+- **Members:** Slack appears once in **Integrations**, even when several channel selections are configured. Use **Reconnect** when requested. **Disconnect** in the account menu removes that account from all Slack connections in the organization, including workflows using it.
+- **Source admins:** Open a Slack connection to edit filters, review sync history, or use **Sync now**, **Pause syncing**, and **Resume syncing**. Indexing normally runs automatically; successful manual syncs have a one-minute cooldown. **Remove connection** removes that indexed connection; it does not uninstall the Slack app.
+- **Bot admins:** Under **Settings → Sim Search in Slack**, the app's actions offer **Reconnect**, **Disable** or **Enable**, and **Remove from Search**. These control the Slack bot; they do not remove indexed Slack connections.
+
+To switch apps, first remove Slack connections under **Settings → Sources → Slack**, then select **Remove app setup** on that page. Remove the old bot's **Search** binding under **Settings → Sim Search in Slack → Remove from Search**. Install the replacement app and have members reconnect. Workflow integrations retain their own app configuration.
+
 ## Permissions reference
 
-New Search member connections request these read-only **User Token Scopes**. They are separate from the bot scopes used to answer messages in Slack.
+New Search member connections request these read-only **User Token Scopes**. DM scopes are requested even when DM indexing is off; the source settings determine what is indexed. Bot scopes are separate and allow Sim to receive and answer questions in Slack.
 
 | Purpose | User scopes |
 |---|---|

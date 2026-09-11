@@ -50,6 +50,32 @@ export function MemberIntegrationRow({
         .map((account) => [account.credentialId, account])
     ).values(),
   ]
+  const accountLabels = new Map<string, string>()
+  for (const account of accounts) {
+    if (accounts.filter((other) => other.displayName === account.displayName).length < 2) continue
+    const descriptions = [
+      ...new Set(
+        rows
+          .filter((source) =>
+            source.viewerAccounts.some((other) => other.credentialId === account.credentialId)
+          )
+          .map((source) => source.sourceDescription)
+          .filter(Boolean)
+      ),
+    ]
+    const context = [
+      account.status === 'needs_reauth' ? 'Reconnect required' : undefined,
+      descriptions.length > 1 ? `${descriptions[0]} +${descriptions.length - 1}` : descriptions[0],
+    ].filter(Boolean)
+    accountLabels.set(account.credentialId, [...context, account.displayName].join(' · '))
+  }
+  for (const label of new Set(accountLabels.values())) {
+    const matching = accounts.filter((account) => accountLabels.get(account.credentialId) === label)
+    if (matching.length < 2) continue
+    matching.forEach((account, index) =>
+      accountLabels.set(account.credentialId, `Connection ${index + 1} · ${label}`)
+    )
+  }
   const isUsable = (source: (typeof rows)[number]) =>
     source.availability === 'available' &&
     (source.accessMode === 'members'
@@ -146,6 +172,7 @@ export function MemberIntegrationRow({
             organizationId={organizationId}
             integrationName={name}
             accounts={accounts}
+            accountLabels={accountLabels}
             actions={actions}
           />
           {ready && needsEmailVerification && (

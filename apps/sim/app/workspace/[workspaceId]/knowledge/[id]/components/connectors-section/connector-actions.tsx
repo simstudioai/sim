@@ -59,8 +59,8 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
         onOpenChange={removal.onOpenChange}
         title='Remove connection'
         text={
-          removal.syncsPerMember
-            ? 'This removes the connection, stops future syncs, and deletes its member documents.'
+          removal.requiresDocumentDeletion
+            ? 'This removes the connection, stops future syncs, and deletes its synced documents from Sim.'
             : 'This removes the connection and stops future syncs. Synced documents remain unless you delete them below.'
         }
         confirm={{
@@ -71,7 +71,7 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
           onClick: removal.onConfirm,
         }}
       >
-        {!removal.syncsPerMember && (
+        {!removal.requiresDocumentDeletion && (
           <ChipModalField type='custom' title='Documents'>
             <div className='flex items-center gap-2'>
               <Checkbox

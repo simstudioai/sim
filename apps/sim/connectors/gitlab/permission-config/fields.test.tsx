@@ -17,9 +17,10 @@ import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/u
 interface HarnessProps {
   saved?: GitLabPermissionData
   submit: (input: GitLabPermissionUploadInput) => void
+  disabled?: boolean
 }
 
-function Harness({ saved, submit }: HarnessProps) {
+function Harness({ saved, submit, disabled }: HarnessProps) {
   const form = useGitLabPermissionForm(saved)
   const [project, setProject] = useState('group/project')
   return (
@@ -35,7 +36,7 @@ function Harness({ saved, submit }: HarnessProps) {
           onChange={form.setApiKey}
         />
         <ChipModalField type='input' title='Project' value={project} onChange={setProject} />
-        <GitLabPermissionUploads form={form} />
+        <GitLabPermissionUploads form={form} disabled={disabled} />
         <button type='button' disabled={!form.complete} onClick={() => submit(form.input)}>
           Save
         </button>
@@ -142,6 +143,13 @@ describe('GitLab permission setup modal', () => {
     })
     await render(<Harness submit={vi.fn()} />)
     await click('Non-admin token')
+    expect(document.body.textContent).not.toContain('CSV · Up to')
+    const fieldLabel = Array.from(document.querySelectorAll('label')).find((node) =>
+      node.textContent?.startsWith('User mapping')
+    )!
+    expect(fieldLabel.querySelector('button')).toBeNull()
+    await act(async () => fieldLabel.click())
+    expect(templates).toEqual([])
     for (const node of document.querySelectorAll<HTMLButtonElement>('button'))
       if (node.textContent === 'Download template') await act(async () => node.click())
     expect(templates).toEqual([
@@ -151,9 +159,7 @@ describe('GitLab permission setup modal', () => {
     await upload('User mapping', '1,a@example.com\n1,b@example.com')
     expect(document.body.textContent).toContain('conflicts with another identity mapping')
     expect(button('Save').disabled).toBe(true)
-    expect(document.body.textContent).toContain(
-      'Confidential issues and their comments are excluded'
-    )
+    expect(document.body.textContent).toContain('Confidential issues are excluded')
   })
 
   it('replaces one saved file and submits the revision without resending the other file', async () => {
@@ -179,8 +185,14 @@ describe('GitLab permission setup modal', () => {
       />
     )
     expect(document.body.textContent).toContain('saved-projects.csv')
+    expect(document.body.textContent).toContain('3 rows · Saved')
+    await upload('User mapping', '1,a@example.com\n1,b@example.com', 'replacement.csv')
+    expect(button('Save').disabled).toBe(true)
+    expect(document.body.textContent).toContain('saved-users.csv')
+    expect(submit).not.toHaveBeenCalled()
     await upload('User mapping', '1,new@example.com', 'replacement.csv')
     expect(document.body.textContent).toMatch(/replacement.csv.*Ready to save/)
+    expect(input('User mapping').value).toBe('')
     await click('Save')
     expect(submit).toHaveBeenCalledWith({
       provider: 'gitlab',
@@ -189,5 +201,40 @@ describe('GitLab permission setup modal', () => {
       userMapping: { filename: 'replacement.csv', content: '1,new@example.com' },
       projectPermissions: undefined,
     })
+  })
+
+  it('shows validation progress and blocks repeated picks until the file is read', async () => {
+    await render(<Harness submit={vi.fn()} />)
+    await click('Non-admin token')
+    let finishReading: (value: ArrayBuffer) => void = () => {}
+    const file = new File([], 'users.csv', { type: 'text/csv' })
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          finishReading = resolve
+        }),
+    })
+    await act(async () => {
+      Object.defineProperty(input('User mapping'), 'files', { value: [file], configurable: true })
+      input('User mapping').dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    const uploadButton = input('User mapping').closest('button')!
+    expect(uploadButton.disabled).toBe(true)
+    expect(uploadButton.getAttribute('aria-busy')).toBe('true')
+    expect(document.body.textContent).toContain('Validating…')
+    expect(input('User mapping').disabled).toBe(true)
+    await act(async () => finishReading(new TextEncoder().encode('1,alice@example.com').buffer))
+    expect(uploadButton.disabled).toBe(false)
+    expect(uploadButton.textContent).toContain('users.csv')
+    expect(uploadButton.textContent).toContain('1 row · Ready to save')
+  })
+
+  it('disables both file controls while the enclosing form is saving', async () => {
+    await render(<Harness submit={vi.fn()} disabled />)
+    await click('Non-admin token')
+    for (const title of ['User mapping', 'Project permissions']) {
+      expect(input(title).disabled).toBe(true)
+      expect(input(title).closest('button')!.disabled).toBe(true)
+    }
   })
 })

@@ -303,6 +303,41 @@ describe('grouped member integrations', () => {
     expect(buttons('Reconnect')).toHaveLength(0)
     expect(container.textContent).toContain('Connected')
   })
+
+  it('distinguishes same-name accounts by content and renewal state only when needed', async () => {
+    rows = [
+      { ...memberSource, sourceDescription: 'Engineering', viewerAccounts: [account] },
+      {
+        ...memberSource,
+        connectorId: 'source-b',
+        sourceDescription: 'Handbook',
+        viewerAccounts: [{ ...account, credentialId: 'expired', status: 'needs_reauth' }],
+      },
+    ]
+    await render()
+    expect(mocks.accountMenu.mock.calls.at(-1)?.[0].accountLabels).toEqual(
+      new Map([
+        ['account', 'Engineering · My work account'],
+        ['expired', 'Reconnect required · Handbook · My work account'],
+      ])
+    )
+  })
+
+  it('gives otherwise identical accounts distinct connection labels', async () => {
+    rows = [
+      {
+        ...memberSource,
+        viewerAccounts: [account, { ...account, credentialId: 'second' }],
+      },
+    ]
+    await render()
+    expect(mocks.accountMenu.mock.calls.at(-1)?.[0].accountLabels).toEqual(
+      new Map([
+        ['account', 'Connection 1 · Inbox · My work account'],
+        ['second', 'Connection 2 · Inbox · My work account'],
+      ])
+    )
+  })
   it.each(['personal', 'central'] as const)(
     'keeps existing %s content connected when another source needs authorization',
     async (kind) => {
@@ -465,6 +500,20 @@ describe('grouped member integrations', () => {
     )
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
+  it.each([
+    { data: undefined, isPending: true, isError: false },
+    { data: undefined, isPending: false, isError: true, error: new Error('Slack unavailable') },
+  ])(
+    'keeps other integrations usable when Slack inventory is unavailable: %o',
+    async (inventory) => {
+      mocks.slackInventory.mockReturnValue(inventory)
+      await render()
+      expect(buttons('Connect')).toHaveLength(1)
+      await act(async () => buttons('Connect')[0].click())
+      expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'source-a')
+      expect(container.textContent).toContain('Gmail')
+    }
+  )
   it.each([false, true])(
     'preserves shared Slack onboarding without a duplicate row (configured: %s)',
     async (configured) => {
@@ -508,6 +557,27 @@ describe('grouped member integrations', () => {
       expect(document.querySelector('[role="dialog"]')).toBeNull()
     }
   )
+  it('keeps Slack setup errors relevant to the selected integration filter', async () => {
+    mocks.integrations.mockReturnValue({
+      data: [
+        { connectorType: 'gmail', approved: true },
+        { connectorType: 'slack', approved: true },
+      ],
+      isPending: false,
+    })
+    mocks.slackInventory.mockReturnValue({
+      isPending: false,
+      isError: true,
+      error: new Error('Could not load Slack setup'),
+    })
+    await render('', <MemberIntegrationsList search='Gmail' />)
+    expect(container.textContent).not.toContain('Could not load Slack setup')
+    expect(buttons('Connect')).toHaveLength(1)
+    await render('', <MemberIntegrationsList search='Slack' />)
+    expect(container.textContent).toContain('Could not load Slack setup')
+    expect(container.textContent).not.toContain('No integrations are available to connect')
+    expect(container.textContent).not.toContain('No matching integrations')
+  })
   it.each([
     { data: { available: [] }, isPending: false, isError: false },
     {

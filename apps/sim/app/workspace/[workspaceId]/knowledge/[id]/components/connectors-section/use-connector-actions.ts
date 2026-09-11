@@ -35,6 +35,7 @@ export function useConnectorActions({
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [confirmFullResync, setConfirmFullResync] = useState(false)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
+  const requiresDocumentDeletion = connector.accessMode !== 'workspace'
   const state = getConnectorSyncState(connector)
   const actionsDisabled = disabled || sync.isPending || update.isPending || remove.isPending
   const syncRunning =
@@ -138,7 +139,7 @@ export function useConnectorActions({
     removal: {
       open: confirmRemove,
       onOpenChange: setRemoveOpen,
-      syncsPerMember: state.syncsPerMember,
+      requiresDocumentDeletion,
       deleteDocuments,
       setDeleteDocuments,
       pending: remove.isPending,
@@ -150,7 +151,7 @@ export function useConnectorActions({
           {
             knowledgeBaseId,
             connectorId: connector.id,
-            deleteDocuments: state.syncsPerMember || deleteDocuments,
+            deleteDocuments: requiresDocumentDeletion || deleteDocuments,
           },
           {
             onSuccess: () => {

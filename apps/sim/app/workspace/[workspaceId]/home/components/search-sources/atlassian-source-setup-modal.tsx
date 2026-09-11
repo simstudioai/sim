@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import {
+  Button,
   Chip,
   ChipCombobox,
   ChipInput,
@@ -10,8 +11,10 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  Tooltip,
   toast,
 } from '@sim/emcn'
+import { ArrowLeftRight, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { PersonalSourceSetupQuery } from '@/lib/api/contracts/knowledge/personal-source-setup'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
@@ -114,38 +117,33 @@ export function AtlassianSourceSetupModal({
     >
       <ChipModalHeader onClose={close}>Connect {connector.meta.name}</ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='custom'
-          title='Your account'
-          required
-          hint='Choose the Atlassian account matching your Sim email address.'
-        >
+        <ChipModalField type='custom' title='Your account' required>
           {(aria) => (
             <>
-              {accounts.length > 0 && (
-                <ChipCombobox
-                  {...aria}
-                  aria-label='Your account'
-                  value={credentialId ?? ''}
-                  onChange={chooseAccount}
-                  options={accounts.map((item) => ({ value: item.id, label: item.name }))}
-                  placeholder='Select your account'
-                  disabled={pending}
-                />
-              )}
-              <div className='flex items-center gap-2'>
-                <Chip onClick={addAccount} disabled={pending || account.accounts.isPending}>
-                  {account.pending
+              <ChipCombobox
+                {...aria}
+                aria-label='Your account'
+                value={account.pending ? '' : (credentialId ?? '')}
+                onChange={chooseAccount}
+                options={[
+                  ...accounts.map((item) => ({ value: item.id, label: item.name })),
+                  {
+                    value: '__connect_new__',
+                    label: `Connect ${connector.meta.name} account`,
+                    icon: Plus,
+                    onSelect: addAccount,
+                  },
+                ]}
+                placeholder={
+                  account.pending
                     ? 'Waiting for authorization…'
-                    : accounts.length
-                      ? 'Connect another account'
-                      : 'Connect account'}
-                </Chip>
-                {account.pending && <Chip onClick={account.cancel}>Cancel</Chip>}
-              </div>
-              {account.accounts.isPending && (
-                <p className='text-[var(--text-muted)] text-caption'>Loading accounts…</p>
-              )}
+                    : account.accounts.isPending
+                      ? 'Loading accounts…'
+                      : 'Select your account'
+                }
+                disabled={pending || account.accounts.isPending}
+              />
+              {account.pending && <Chip onClick={account.cancel}>Cancel authorization</Chip>}
               {account.accounts.isError && (
                 <Chip onClick={() => void account.accounts.refetch()}>Retry loading accounts</Chip>
               )}
@@ -164,7 +162,30 @@ export function AtlassianSourceSetupModal({
               required
               disabled={isPending}
             />
-            <ChipModalField type='custom' title={advanced ? manual.title : picker.title} required>
+            <ChipModalField
+              type='custom'
+              title={advanced ? manual.title : picker.title}
+              required
+              titleActions={
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='quiet'
+                      size='icon'
+                      disabled={isPending}
+                      aria-label={`Switch ${advanced ? manual.title : picker.title} to ${advanced ? 'selector' : 'manual input'}`}
+                      onClick={() => config.toggleCanonicalMode(canonicalId)}
+                    >
+                      <ArrowLeftRight className='size-[14px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {advanced ? 'Switch to selector' : 'Switch to manual input'}
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              }
+            >
               {(aria) => (
                 <>
                   {advanced ? (
@@ -203,14 +224,6 @@ export function AtlassianSourceSetupModal({
                       disabled={isPending}
                     />
                   ) : null}
-                  <Chip
-                    onClick={() => config.toggleCanonicalMode(canonicalId)}
-                    disabled={isPending}
-                  >
-                    {advanced
-                      ? `Choose ${connectorType === 'jira' ? 'projects' : 'spaces'} from list`
-                      : 'Enter keys manually'}
-                  </Chip>
                 </>
               )}
             </ChipModalField>

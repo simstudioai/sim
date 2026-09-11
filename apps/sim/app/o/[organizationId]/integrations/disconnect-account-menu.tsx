@@ -13,6 +13,7 @@ interface DisconnectAccountMenuProps {
   organizationId: string
   integrationName: string
   accounts: ViewerSearchSourceAccount[]
+  accountLabels?: ReadonlyMap<string, string>
   actions?: RowAction[]
 }
 
@@ -21,11 +22,14 @@ export function DisconnectAccountMenu({
   organizationId,
   integrationName,
   accounts,
+  accountLabels,
   actions = [],
 }: DisconnectAccountMenuProps) {
   const disconnect = useDisconnectPersonalOrganizationAccount(organizationId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = accounts.find((account) => account.credentialId === selectedId)
+  const accountLabel = (account: ViewerSearchSourceAccount) =>
+    accountLabels?.get(account.credentialId) ?? account.displayName
   if (!accounts.length && !actions.length) return null
 
   return (
@@ -35,7 +39,8 @@ export function DisconnectAccountMenu({
         actions={[
           ...actions,
           ...accounts.map((account) => ({
-            label: accounts.length === 1 ? 'Disconnect' : `Disconnect ${account.displayName}`,
+            label: accounts.length === 1 ? 'Disconnect' : `Disconnect ${accountLabel(account)}`,
+            tooltip: accounts.length > 1 ? `Disconnect ${accountLabel(account)}` : undefined,
             destructive: true,
             disabled: disconnect.isPending,
             onSelect: () => {
@@ -51,7 +56,7 @@ export function DisconnectAccountMenu({
           if (!open && !disconnect.isPending) setSelectedId(null)
         }}
         title={`Disconnect ${integrationName}`}
-        text={`Disconnect ${selected?.displayName ?? integrationName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
+        text={`Disconnect ${selected ? accountLabel(selected) : integrationName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
         confirm={{
           label: 'Disconnect',
           pendingLabel: 'Disconnecting…',

@@ -45,6 +45,7 @@ export function MemberIntegrationsList({
     connectorType: 'slack',
   })
   const canConnectSharedSlack =
+    !slackInventory.isError &&
     slackInventory.data?.available.some(
       (entry) => entry.target.connectorType === 'slack' && !entry.target.connectorId
     ) === true
@@ -74,16 +75,11 @@ export function MemberIntegrationsList({
       ? [{ type, meta, connector, canCreate, configured: configured.has(type) }]
       : []
   })
-  const failedQuery = overview.isError
-    ? overview
-    : integrations.isError
-      ? integrations
-      : slackInventory.isError
-        ? slackInventory
-        : null
-  const visible = providers.filter((provider) =>
-    provider.meta.name.toLowerCase().includes(search.trim().toLowerCase())
-  )
+  const failedQuery = overview.isError ? overview : integrations.isError ? integrations : null
+  const query = search.trim().toLowerCase()
+  const showSlackSetupError =
+    slackInventory.isError && approved.has('slack') && 'slack'.includes(query)
+  const visible = providers.filter((provider) => provider.meta.name.toLowerCase().includes(query))
 
   return (
     <>
@@ -96,10 +92,19 @@ export function MemberIntegrationsList({
             onRetry={() => void failedQuery.refetch()}
             variant='inline'
           />
-        ) : overview.isPending || integrations.isPending || slackInventory.isPending ? (
+        ) : overview.isPending || integrations.isPending ? (
           <SettingsEmptyState variant='inline'>Loading integrations…</SettingsEmptyState>
         ) : (
           <>
+            {showSlackSetupError && (
+              <SettingsQueryErrorState
+                error={slackInventory.error}
+                fallback='Could not load Slack setup'
+                isRetrying={slackInventory.isFetching}
+                onRetry={() => void slackInventory.refetch()}
+                variant='inline'
+              />
+            )}
             {availability.integrationAvailabilityError && (
               <SettingsQueryErrorState
                 error={availability.integrationAvailabilityError}
@@ -122,15 +127,19 @@ export function MemberIntegrationsList({
                 />
               </div>
             ))}
-            {showEmpty && visible.length === 0 && !availability.integrationAvailabilityError && (
-              <SettingsEmptyState variant='inline'>
-                {!availability.isIntegrationAvailabilityReady
-                  ? 'Loading integrations…'
-                  : search
-                    ? 'No matching integrations.'
-                    : 'No integrations are available to connect.'}
-              </SettingsEmptyState>
-            )}
+            {showEmpty &&
+              visible.length === 0 &&
+              !availability.integrationAvailabilityError &&
+              !showSlackSetupError && (
+                <SettingsEmptyState variant='inline'>
+                  {!availability.isIntegrationAvailabilityReady ||
+                  (approved.has('slack') && 'slack'.includes(query) && slackInventory.isPending)
+                    ? 'Loading integrations…'
+                    : search
+                      ? 'No matching integrations.'
+                      : 'No integrations are available to connect.'}
+                </SettingsEmptyState>
+              )}
           </>
         )}
       </div>
