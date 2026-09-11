@@ -107,7 +107,6 @@ const FAILURE_BLOCKS: Record<string, unknown>[] = [
 ]
 
 const TOOL_PROGRESS_TITLES = new Map([
-  ['list_integrations', 'Listing connected integrations…'],
   ['search_workspace', 'Searching documents…'],
   ['read_document', 'Reading documents…'],
 ])

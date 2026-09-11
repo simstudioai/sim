@@ -74,7 +74,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
-    | 'list_integrations'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
@@ -213,7 +212,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
-    | 'list_integrations'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
@@ -3539,21 +3537,6 @@ export const ListIntegrationTools: ToolCatalogEntry = {
       },
     },
     required: ['integration'],
-    type: 'object',
-  },
-}
-
-export const ListIntegrations: ToolCatalogEntry = {
-  id: 'list_integrations',
-  name: 'list_integrations',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    additionalProperties: false,
-    properties: {
-      connectorType: { maxLength: 100, minLength: 1, type: 'string' },
-      cursor: { maxLength: 1024, minLength: 1, type: 'string' },
-    },
     type: 'object',
   },
 }
@@ -7664,7 +7647,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Knowledge.id]: Knowledge,
   [ListDeploymentVersions.id]: ListDeploymentVersions,
   [ListIntegrationTools.id]: ListIntegrationTools,
-  [ListIntegrations.id]: ListIntegrations,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
