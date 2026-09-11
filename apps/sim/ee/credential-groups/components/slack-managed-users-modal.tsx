@@ -26,7 +26,10 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import {
+  organizationAccountsKeys,
+  useOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 import { useSlackSearchInstallations } from '@/hooks/queries/slack-search'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
@@ -101,6 +104,28 @@ export function SlackManagedUsersModal({
   const selectedApp =
     availableApps.find((app) => app.appId === appId) ??
     (availableApps.length === 1 && !appId ? availableApps[0] : undefined)
+  const sharedAppInstalled = organizationSetup && selectedApp?.appKind === 'shared'
+  const accounts = useOrganizationAccounts(open && sharedAppInstalled ? organizationId : undefined)
+  const memberGroup = accounts.data?.credentialGroup
+  const sharedAppReady = Boolean(
+    sharedAppInstalled &&
+      apps.isSuccess &&
+      !apps.isFetching &&
+      !apps.error &&
+      apps.data?.sharedAppAvailable &&
+      selectedApp.enabled &&
+      !selectedApp.needsValidation &&
+      accounts.isSuccess &&
+      !accounts.isFetching &&
+      !accounts.error &&
+      memberGroup?.id === credentialGroupId &&
+      memberGroup.options.some(
+        (option) =>
+          option.provider === 'slack' &&
+          option.status === 'active' &&
+          option.configurationStatus === 'ready'
+      )
+  )
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [pending, setPending] = useState(false)
@@ -201,9 +226,8 @@ export function SlackManagedUsersModal({
   }
 
   /**
-   * The subscription's identity is `open` alone. Routing the handler through a
-   * ref keeps a `bots` refetch from closing and reopening the channel mid-flow,
-   * which would drop an already-queued authorization message from the popup.
+   * Routing the handler through a ref keeps a bots refetch from reopening the
+   * channel mid-flow and dropping an already-queued authorization message.
    */
   const messageHandler = useRef(handleAuthorizationMessage)
   useEffect(() => {
@@ -211,14 +235,18 @@ export function SlackManagedUsersModal({
   })
 
   useEffect(() => {
-    if (!open) return
+    if (!open || sharedAppReady) return
     const channel = new BroadcastChannel(CHANNEL_NAME)
     channel.onmessage = (event: MessageEvent<unknown>) => {
       if (!isSlackManagedUsersMessage(event.data)) return
       messageHandler.current(event.data)
     }
     return () => channel.close()
-  }, [open])
+  }, [open, sharedAppReady])
+
+  useEffect(() => {
+    if (open && sharedAppReady && !appSetupOpen) onOpenChange(false)
+  }, [open, sharedAppReady, appSetupOpen, onOpenChange])
 
   useEffect(
     () => () => {
@@ -246,7 +274,7 @@ export function SlackManagedUsersModal({
   }
 
   const handleSubmit = async () => {
-    if (pending || (!organizationSetup && !selectedBot)) return
+    if (pending || sharedAppInstalled || (!organizationSetup && !selectedBot)) return
     if (
       organizationSetup
         ? !selectedApp || !requiredScopes.length
@@ -300,8 +328,14 @@ export function SlackManagedUsersModal({
     }
   }
 
+  if (sharedAppReady && !appSetupOpen) return null
+
   const noBots = !organizationSetup && !isLoading && bots.length === 0
   const needsApp = organizationSetup && apps.isSuccess && availableApps.length === 0
+  const checkingSetup =
+    apps.isPending ||
+    (sharedAppInstalled && (apps.isFetching || accounts.isPending || accounts.isFetching))
+  const failedSetup = apps.error ? apps : sharedAppInstalled && accounts.error ? accounts : null
   const title = organizationSetup ? 'Set up Slack app' : 'Set up Slack'
   const primaryLabel = isLoading
     ? 'Loading...'
@@ -330,15 +364,19 @@ export function SlackManagedUsersModal({
         </ChipModalHeader>
         <ChipModalBody>
           {organizationSetup ? (
-            apps.isPending ? (
+            checkingSetup ? (
               <ChipModalField type='custom' title='Sim Search app'>
                 <p role='status' className='text-[var(--text-secondary)] text-sm'>
                   Checking the installed Slack app…
                 </p>
               </ChipModalField>
-            ) : apps.error ? (
-              <ChipModalField type='custom' title='Sim Search app' error={apps.error.message}>
-                <Chip onClick={() => void apps.refetch()} disabled={apps.isFetching}>
+            ) : failedSetup ? (
+              <ChipModalField
+                type='custom'
+                title='Sim Search app'
+                error={failedSetup.error?.message}
+              >
+                <Chip onClick={() => void failedSetup.refetch()} disabled={failedSetup.isFetching}>
                   Retry
                 </Chip>
               </ChipModalField>
@@ -375,8 +413,9 @@ export function SlackManagedUsersModal({
                 )}
                 <ChipModalField type='custom' title='Member accounts'>
                   <p className='text-[var(--text-secondary)] text-sm'>
-                    Verify member authorization for the installed app. Each member can then connect
-                    their Slack account to index channels and DMs they can access.
+                    {sharedAppInstalled
+                      ? 'The Sim Search installation needs attention. Manage the app to finish setup.'
+                      : 'Verify member authorization for the installed app. Each member can then connect their Slack account to index channels and DMs they can access.'}
                   </p>
                   {selectedApp && (
                     <Chip onClick={() => setAppSetupOpen(true)} disabled={pending}>
@@ -473,15 +512,17 @@ export function SlackManagedUsersModal({
                   onClick: () => setAppSetupOpen(true),
                 },
               }
-            : noBots
+            : sharedAppInstalled
               ? { defaultAction: 'dismiss' as const }
-              : {
-                  primaryAction: {
-                    label: primaryLabel,
-                    onClick: () => void handleSubmit(),
-                    disabled: primaryDisabled,
-                  },
-                })}
+              : noBots
+                ? { defaultAction: 'dismiss' as const }
+                : {
+                    primaryAction: {
+                      label: primaryLabel,
+                      onClick: () => void handleSubmit(),
+                      disabled: primaryDisabled,
+                    },
+                  })}
         />
       </ChipModal>
       {open &&
