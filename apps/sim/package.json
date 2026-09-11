@@ -20,7 +20,6 @@
     "build": "bun run build:sandbox-bundles && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "build:sandbox-bundles": "bun run ./lib/execution/sandbox/bundles/build.ts",
     "start": "next start",
-    "prepare": "cd ../.. && bun husky",
     "test": "vitest run",
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:watch": "vitest",

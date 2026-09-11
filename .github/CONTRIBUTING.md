@@ -208,44 +208,9 @@ To use local models with Sim:
    docker compose -f docker-compose.prod.yml up -d
    ```
 
-### Option 3: Using VS Code / Cursor Dev Containers
+### Option 3: Manual Setup
 
-Dev Containers provide a consistent and easy-to-use development environment:
-
-1. **Prerequisites:**
-
-   - Visual Studio Code or Cursor
-   - Docker Desktop
-   - [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension for VS Code
-
-2. **Setup Steps:**
-
-   - Clone the repository:
-
-     ```bash
-     git clone https://github.com/<your-username>/sim.git
-     cd sim
-     ```
-
-   - Open the project in VS Code/Cursor.
-   - When prompted, click "Reopen in Container" (or press F1 and select "Remote-Containers: Reopen in Container").
-   - Wait for the container to build and initialize.
-
-3. **Start Developing:**
-
-   - Run `bun run dev:full` in the terminal or use the `sim-start` alias.
-   - This starts both the main application and the realtime socket server.
-   - All dependencies and configurations are automatically set up.
-   - Your changes will be automatically hot-reloaded.
-
-4. **GitHub Codespaces:**
-
-   - This setup also works with GitHub Codespaces if you prefer development in the browser.
-   - Just click "Code" → "Codespaces" → "Create codespace on staging".
-
-### Option 4: Manual Setup
-
-If you prefer not to use Docker or Dev Containers. **All commands run from the repository root unless explicitly noted.**
+If you prefer not to use Docker. **All commands run from the repository root unless explicitly noted.**
 
 1. **Clone and Install:**
 
