@@ -92,6 +92,15 @@ export interface Config {
   variantFunctions: string[]
   nativeAppearance: string[]
   infrastructure: string[]
+  fileInputs?: { list: string; export: string; root: string; renderer: string }[]
+  environmentAdapters?: {
+    module: string
+    export: string
+    environmentModule: string
+    environmentExport: string
+    implementationModule: string
+    implementationExport: string
+  }[]
   renderingDependencies: string
   limits: {
     fileBytes: number
@@ -101,14 +110,21 @@ export interface Config {
   }
 }
 export interface Report {
-  schemaVersion: '2.0.0'
-  engineVersion: '0.2.0'
-  policyVersion: '2.0.0'
+  schemaVersion: '3.0.0'
+  engineVersion: '0.3.0'
+  policyVersion: '3.0.0'
   commits: { base: string; head: string; mergeBase: string } | null
   status: 'completed' | 'failed'
   flagged: boolean | null
   findings: Finding[]
   limitations: string[]
+  truncation?: {
+    valuePreviewBytes: number
+    reportLimitBytes: number
+    findingsTotal: number
+    omittedFindings: number
+    lists: { path: string; total: number; omitted: number }[]
+  }
   error?: string
   context?: { pullRequest: number; headSha: string; engineSha: string }
 }

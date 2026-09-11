@@ -6,6 +6,8 @@ import { extractDocument } from '#design-diff/extract/documents'
 import { extractTsx } from '#design-diff/extract/tsx'
 import { GitReader } from '#design-diff/git'
 import { groupFindings } from '#design-diff/group'
+import { renderingLock } from '#design-diff/infrastructure'
+import { fileLoadedInputs } from '#design-diff/inputs'
 import { reclaimMemory } from '#design-diff/memory'
 import { limitations } from '#design-diff/policy'
 import { Resolver } from '#design-diff/resolve'
@@ -21,9 +23,9 @@ import type { Change, Config, Definition, Report } from '#design-diff/types'
 
 export function emptyReport(): Report {
   return {
-    schemaVersion: '2.0.0',
-    engineVersion: '0.2.0',
-    policyVersion: '2.0.0',
+    schemaVersion: '3.0.0',
+    engineVersion: '0.3.0',
+    policyVersion: '3.0.0',
     commits: null,
     status: 'failed',
     flagged: null,
@@ -151,11 +153,6 @@ export async function analyze(
       const source = tree.texts.get(file)
       if (source === undefined) return []
       const normalizeAll = async (definitions: Definition[]) => {
-        for (const definition of definitions)
-          if (definition.unresolved.length || definition.kind === 'review')
-            definition.dependencies = [
-              ...new Set([...definition.dependencies, ...(tree.dependencies.get(file) ?? [])]),
-            ].sort()
         return Promise.all(definitions.map((definition) => tailwind.normalize(definition)))
       }
       try {
@@ -177,10 +174,6 @@ export async function analyze(
               )
             )
               definition.movement = undefined
-            if (definition.unresolved.length || definition.kind === 'review')
-              definition.dependencies = [
-                ...new Set([...definition.dependencies, ...(tree.dependencies.get(file) ?? [])]),
-              ].sort()
           }
           const normalized: Definition[] = []
           for (const definition of defs) normalized.push(await tailwind.normalize(definition))
@@ -191,7 +184,7 @@ export async function analyze(
           /\.html?$/.test(file) ||
           (/\.mdx?$/.test(file) && config.renderedMarkdown.some((root) => file.startsWith(root)))
         )
-          return normalizeAll(extractDocument(source, file))
+          return normalizeAll(extractDocument(source, file, resolver))
         if (/\.(?:scss|sass|less|vue|svelte)$/.test(file))
           return [review(file, entry.oid, 'Unsupported rendering syntax')]
       } catch {
@@ -249,16 +242,15 @@ export async function analyze(
       if (file !== 'bun.lock' && !file.endsWith('/package.json') && file !== 'package.json')
         continue
       if (file === 'bun.lock') {
-        findings.push(
-          finding(
-            undefined,
-            review(
-              file,
-              after.entries.get(file)?.oid ?? '',
-              'Resolved dependency changes can affect rendering'
+        const a = renderingLock(before.texts.get(file), config.renderingDependencies)
+        const b = renderingLock(after.texts.get(file), config.renderingDependencies)
+        if (JSON.stringify(a) !== JSON.stringify(b))
+          findings.push(
+            finding(
+              { ...review(file, '', 'Resolved dependency changes can affect rendering'), value: a },
+              { ...review(file, '', 'Resolved dependency changes can affect rendering'), value: b }
             )
           )
-        )
         continue
       }
       const project = (source?: string) => {
@@ -297,6 +289,11 @@ export async function analyze(
           )
         )
     }
+  }
+  findings.push(...fileLoadedInputs(before, after, config))
+  if (findings.length && !before.graph) {
+    before.buildGraph()
+    after.buildGraph()
   }
   report.status = 'completed'
   report.findings = groupFindings(findings, causes, before, after, renames)

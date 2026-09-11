@@ -96,7 +96,7 @@ it('retains conservative propagation for computed namespaces without claiming ex
   expect(report.findings[0].limitations.join(' ')).toContain('Import usage is unresolved')
 })
 
-it('keeps side-effect imports and re-export cycles conservative', async () => {
+it('does not turn an unused cyclic re-export into presentation evidence', async () => {
   const report = await compareFiles(
     {
       [token]: 'export const colour="red"',
@@ -107,8 +107,8 @@ it('keeps side-effect imports and re-export cycles conservative', async () => {
     { [token]: 'export const colour="blue"' },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].impact.after.referenceCount).toBe(0)
+  expect(report.flagged).toBe(false)
+  expect(report.findings).toEqual([])
 })
 
 it('does not count erased type references or JSX closing tags as usages', async () => {

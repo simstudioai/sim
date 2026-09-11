@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { analyze, emptyReport } from '#design-diff/analyze'
 import { GitReader } from '#design-diff/git'
+import { serializeReport } from '#design-diff/report'
 import type { Config, Report } from '#design-diff/types'
 
 let output: string | undefined
@@ -52,7 +53,7 @@ if (pr || engine) {
 }
 
 try {
-  const json = `${JSON.stringify(report, null, 2)}\n`
+  const json = serializeReport(report)
   if (output) {
     mkdirSync(path.dirname(output), { recursive: true })
     const temporary = `${output}.${process.pid}.tmp`

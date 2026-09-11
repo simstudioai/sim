@@ -1,6 +1,13 @@
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
-import { fingerprint, location, propertyName, symbolName, traverse } from '#design-diff/ast'
+import {
+  fingerprint,
+  jsxText,
+  location,
+  propertyName,
+  symbolName,
+  traverse,
+} from '#design-diff/ast'
 import { svgMovement } from '#design-diff/movement'
 import { child, children, object, type Resolver } from '#design-diff/resolve'
 import type { Data, Definition, Evidence } from '#design-diff/types'
@@ -8,23 +15,6 @@ import type { Data, Definition, Evidence } from '#design-diff/types'
 const nonvisualAttributes = /^(?:key|ref|on[A-Z].*)$/
 const knownAttributes =
   /^(?:className|class|style|src|srcSet|sizes|alt|title|placeholder|value|defaultValue|checked|defaultChecked|disabled|hidden|open|type|width|height|size|rows|cols|fill|stroke.*|viewBox|d|points|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|transform|opacity|color|animate|initial|exit|transition|while.*|layout.*|dangerouslySetInnerHTML|children)$/
-
-/** React's line-wise JSX text whitespace semantics, including explicit single-line spaces. */
-export function jsxText(text: string): string {
-  const lines = text.replace(/\r\n?/g, '\n').split('\n')
-  let last = 0
-  lines.forEach((line, i) => {
-    if (/[^ \t]/.test(line)) last = i
-  })
-  return lines
-    .map((line, i) => {
-      let value = line.replace(/\t/g, ' ')
-      if (i !== 0) value = value.replace(/^ +/, '')
-      if (i !== lines.length - 1) value = value.replace(/ +$/, '')
-      return value ? value + (i !== last ? ' ' : '') : ''
-    })
-    .join('')
-}
 
 export function extractTsx(resolver: Resolver, file: string): Definition[] {
   const definitions: Definition[] = []
@@ -173,6 +163,11 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
                 ? (name.split('.')[1] ?? '*')
                 : 'default'
             const origin = resolver.tree.graph?.imported(file, parent.node.source.value, imported)
+            if (origin)
+              evidence.dependencies.push(
+                ...origin.routes,
+                ...origin.origins.map((item) => item.file)
+              )
             if (origin && (origin.uncertain || !origin.origins.length))
               evidence.unresolved.push(
                 'Component import could not be resolved to a unique implementation'
@@ -233,13 +228,8 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       const name = propertyName(path.node.callee)
       if (resolver.tree.config.variantFunctions.includes(name))
         emit(path, 'class', 'variants', resolver.evaluate(path, file))
-      const rendering =
-        /(?:createElement|createPortal|createTextNode|appendChild|insertAdjacentHTML|insertRule|deleteRule|replaceSync|setAttribute|setProperty|animate|addColorStop|fillRect|strokeRect|drawImage|fillText|strokeText|getContext)$/.test(
-          name === '?' && t.isMemberExpression(path.node.callee)
-            ? propertyName(path.node.callee.property)
-            : name
-        )
-      if (rendering) emit(path, 'review', 'imperative-rendering', resolver.evaluate(path, file))
+      if (resolver.renderingCall(path, file))
+        emit(path, 'review', 'imperative-rendering', resolver.evaluate(path, file))
       if (file.startsWith('apps/desktop/') && t.isMemberExpression(path.node.callee)) {
         const method = propertyName(path.node.callee.property)
         if (
@@ -297,24 +287,19 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       } else emit(path, 'review', 'native-options', evidence)
     },
     TaggedTemplateExpression(path) {
-      emit(path, 'review', 'tagged-template', {
-        ...literal(fingerprint(path.node)),
-        unresolved: ['Tagged templates are not executed'],
-      })
+      // A tag is only a standalone visual definition for a known styling binding.
+      // SQL and String.raw still participate when explicitly read by a visual input.
+      const tag = child(path, 'tag')
+      const root = tag.isMemberExpression() ? child(tag, 'object') : tag
+      if (!root.isIdentifier()) return
+      const binding = root.scope.getBinding(root.node.name)
+      const declaration = binding?.path.parentPath
+      if (
+        declaration?.isImportDeclaration() &&
+        /^(?:styled-components|@emotion\/)/.test(declaration.node.source.value)
+      )
+        emit(path, 'review', 'tagged-template', resolver.evaluate(path, file))
     },
   })
-  if (definitions.some((definition) => definition.property === 'imperative-rendering')) {
-    definitions.push({
-      key: 'imperative-context',
-      kind: 'review',
-      property: 'imperative-context',
-      value: fingerprint(ast.program),
-      location: location(file, ast.program),
-      symbol: 'module',
-      conditions: [],
-      dependencies: [file],
-      unresolved: ['Imperative rendering may depend on surrounding source'],
-    })
-  }
   return definitions
 }

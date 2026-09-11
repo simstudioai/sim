@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { finding } from '#design-diff/compare'
 import type { SourceTree } from '#design-diff/source'
 import type { Change, Finding, UsageCount } from '#design-diff/types'
 
@@ -47,6 +48,8 @@ export function groupFindings(
   for (const change of changes) {
     const file = fileOf(change)
     for (const root of new Set([...(causes.get(file) ?? new Set([file]))].map(currentPath))) {
+      if (root !== currentPath(file) && !change.dependencies.map(currentPath).includes(root))
+        continue
       const entries = groups.get(root) ?? []
       entries.push(change)
       groups.set(root, entries)
@@ -60,7 +63,7 @@ export function groupFindings(
     const indirect = all.filter((entry) => ![file, oldFile].includes(fileOf(entry)))
     const primary = direct[0] ?? indirect[0]
     if (!primary) continue
-    const example = indirect[0]
+    let example = indirect[0]
     const previous = before.entries.get(oldFile)
     const next = after.entries.get(file)
     const symbols = before.graph.changedSymbols(oldFile, after.graph, file)
@@ -68,6 +71,27 @@ export function groupFindings(
       basis: 'resolved-static-references' as const,
       before: usage(before, oldFile, symbols),
       after: usage(after, file, symbols),
+    }
+    if (!example && impact.after.references.length && direct.length) {
+      const reference = impact.after.references.find((reference) => reference.kind === 'jsx')
+      if (reference) {
+        const definition = (blob: string | undefined) => ({
+          key: 'reference',
+          kind: 'review' as const,
+          property: 'component-reference',
+          value: { source: file, blob: blob ?? null },
+          location: reference.location,
+          symbol: reference.symbol,
+          conditions: [],
+          dependencies: [file, reference.location.file],
+          unresolved: ['Resolved component reference; its runtime appearance is not established'],
+        })
+        example = finding(
+          definition(previous?.oid),
+          definition(next?.oid),
+          'Resolved reference to a changed component'
+        )
+      }
     }
     const limitations = new Set([
       ...primary.limitations,
@@ -101,14 +125,14 @@ export function groupFindings(
         before: previous ? { file: oldFile, blob: previous.oid } : null,
         after: next ? { file, blob: next.oid } : null,
       },
-      categories: [
-        ...new Set([...direct, ...(example ? [example] : [])].map((entry) => entry.category)),
-      ].sort(),
+      categories: [...new Set(all.map((entry) => entry.category))].sort(),
       changes: direct,
       example: example
         ? {
             basis:
-              changedValue(example) && !ambiguousExample
+              changedValue(example) &&
+              !ambiguousExample &&
+              example.after?.property !== 'component-reference'
                 ? 'changed-definition'
                 : 'potential-consumer',
             change: example,

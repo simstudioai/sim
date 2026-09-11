@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { pureMovement } from '#design-diff/movement'
 import { changedCategory } from '#design-diff/policy'
+import { previewChange } from '#design-diff/report'
 import type { Change, Definition } from '#design-diff/types'
 
 function signature(definition: Definition) {
@@ -64,48 +65,25 @@ export function finding(
     ].sort(),
     limitations: unresolved,
   }
-  return {
+  return previewChange({
     id: createHash('sha256').update(JSON.stringify(result)).digest('hex').slice(0, 24),
     ...result,
-  }
+  })
 }
 
 export function compareDefinitions(
   before: Definition[],
   after: Definition[],
-  changed: Set<string>
+  _changed?: Set<string>
 ): Change[] {
   const previous = new Map(before.map((definition) => [definition.key, definition]))
   const next = new Map(after.map((definition) => [definition.key, definition]))
   const result: Change[] = []
-  const reviewedDependencies = new Set<string>()
   for (const key of [...new Set([...previous.keys(), ...next.keys()])].sort()) {
     const a = previous.get(key)
     const b = next.get(key)
-    if (a && b && signature(a) === signature(b)) {
-      const dependencyChanged = [...a.dependencies, ...b.dependencies].some(
-        (file) => changed.has(file) && file !== a.location.file && file !== b.location.file
-      )
-      if (
-        !(dependencyChanged && (a.unresolved.length || b.unresolved.length || a.kind === 'review'))
-      )
-        continue
-      const group = JSON.stringify([
-        b.symbol,
-        [...new Set([...a.dependencies, ...b.dependencies])]
-          .filter((file) => changed.has(file))
-          .sort(),
-      ])
-      if (reviewedDependencies.has(group)) continue
-      reviewedDependencies.add(group)
-      result.push(
-        finding(
-          { ...a, kind: 'review' },
-          { ...b, kind: 'review' },
-          'A dependency of an unresolved visual expression changed'
-        )
-      )
-    } else result.push(finding(a, b))
+    if (a && b && signature(a) === signature(b)) continue
+    result.push(finding(a, b))
   }
   return result
 }

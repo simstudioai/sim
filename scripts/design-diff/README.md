@@ -26,11 +26,11 @@ duplicating entire function bodies. Reports also include schema, engine and poli
 base/head/merge-base SHAs, and workflow PR/head/engine identity. No timestamp enters the
 deterministic payload. Finding IDs are stable for the same input pair and engine version.
 
-## Binary decisions and grouped report (schema 2)
+## Binary decisions and grouped report (schema 3)
 
 The public decisions are **`flag`** and **`exempt`**. Uncertainty produces `flag`, with
-the obstacle recorded in `limitations`. Schema and policy version `2.0.0`, engine version
-`0.2.0`, replace the earlier public `review` decision and flat consumer findings.
+the obstacle recorded in `limitations`. Schema and policy version `3.0.0`, engine version `0.3.0`, retain binary decisions
+and add bounded values and explicit report truncation metadata.
 
 Each finding groups evidence by **changed source file**. Several changed definitions in
 one file remain individually available in `changes`. Unchanged downstream consumers do not
@@ -42,7 +42,7 @@ one finding anchored to its source, with a representative consumer and usage met
 | `source.before` / `source.after` | Changed source path and Git blob ID, or `null` for addition/deletion |
 | `decision` | `flag` if any grouped evidence requires reporting; otherwise `exempt` |
 | `category`, `symbol`, `reason`, `before`, `after` | Representative evidence; its locations can be in an unchanged consumer of a changed token |
-| `categories` | Categories of the retained direct evidence and representative consumer |
+| `categories` | Categories of all direct evidence and the changed consumer |
 | `changes` | Direct definition changes in the changed file, retaining individual decisions, values and locations |
 | `example` | One consumer evidence record, or `null`; `basis` distinguishes `changed-definition` from `potential-consumer` |
 | `impact.before` / `impact.after` | Separate counts and source locations for resolved direct references in each revision |
@@ -61,8 +61,14 @@ references do not count. Dynamic/ambiguous imports are not presented as exact us
 Zero means no references were enumerated, not proof of no consumers. Overrides, inactive
 variants and runtime conditions can prevent a referenced component from changing visually.
 
-Consumers upgrading from schema 1 must read direct evidence from `changes` and the optional
-`example`, use `source` to identify the changed file, and stop expecting `decision: review`.
+Schema 3 readers must handle either literal values or a summary object containing
+`$truncated`, `preview`, `sha256`, `originalBytes`, `previewBytes` and `omittedBytes`.
+The default preview is at most 4 KiB. Full semantic evidence is compared before presentation
+values are shortened; large opaque helper summaries retain full-value hashes too.
+`truncation` records the 5 MiB serialized-report limit, total/omitted findings, and total/omitted
+entries for sampled detail/reference lists. Sampling retains stable prefixes. The overall
+`flagged` result is computed before sampling, so an omitted finding cannot make a PR clean.
+Read direct evidence from `changes` and optional `example`; use `source` for the changed file.
 
 ## Architecture
 
@@ -89,7 +95,13 @@ scripts/design-diff/
   source.ts                             Source snapshots and path/alias resolution
   dependencies.ts                       Export-aware imports and source reference counts
   ast.ts                                Babel parsing and syntax normalization
+  refactors.ts                          Supported literal/refactor normalization
   resolve.ts                            Bounded expression and import resolution
+  inputs.ts                             Configured file-loaded documentation inputs
+  infrastructure.ts                     Rendering lockfile dependency closure
+  report.ts                             Value previews and bounded JSON serialization
+  benchmark.ts                          Immutable-engine historical replay
+  benchmark/comparisons.json            Frozen original/holdout comparison manifest
   memory.ts                             Bun parser-batch garbage collection
   tailwind.ts                           Pinned compiler and trusted merge convention
   compare.ts                            Stable matching and findings
@@ -147,11 +159,28 @@ through named/star re-exports and import-then-export indexes to the defining mod
 Button edit does not implicate a file merely because it imports an unrelated Icon from the
 same index. Changed top-level bindings and local dependents narrow the first propagation
 step and usage counts within a multi-export file. Both revisions are considered, including
-redirected re-exports. Module effects, side-effect imports, computed namespaces, ambiguous
-exports, cycles and resolution limits retain conservative dependencies. Further transitive
-module effects can still overestimate potential impact.
+redirected re-exports. The module graph identifies candidates only. Actual findings require
+changed values, guards, referenced implementations or an explicitly unresolved imported input.
+Unrelated imports and dead re-exports cannot flag an unchanged expression. Object properties,
+destructured parameter defaults, and helper return paths are traced separately. Small immutable
+local literals are normalized before expression budgets, preserving supported constant hoists.
+The exact `Object.entries(...).reduce` record-map idiom is normalized to `Object.fromEntries`
+only with an empty accumulator, unchanged key and no accumulator reads in the mapped value. Unknown
+computed namespaces, ambiguous imports, cycles and exhausted resolution remain conservative
+when that particular input feeds rendering. SQL tags and telemetry receivers are not standalone
+rendering definitions; their values can still matter if explicitly consumed by a visual input.
 
-The resolver reuses the export index, retains at most 128 parsed modules per revision,
+The configured `wireServerFallback` capability adapter traces its declared environment fields,
+provider factories and implementation. Its finite capability schema identifies relevant keys;
+unsupported dynamic schemas use ordinary conservative resolution. Whole-environment backend
+settings therefore do not contaminate the signup page solely through this known adapter.
+
+The configured Fumadocs `OPENAPI_SPEC_FILES` list is parsed from Git in each revision. Listed
+JSON inputs are compared semantically, retaining array order and attributing changes to both
+the spec and configured renderer. Malformed/missing configured inputs flag with a limitation.
+
+The graph reuses up to 10,000 import/export snapshots keyed by source blob, resolving their
+paths again for each revision. The resolver retains at most 128 parsed modules per revision,
 and requests Bun garbage collection between parser batches. These resource controls do
 not change evidence or decisions. The Node-based test runner uses its own garbage collector.
 
@@ -170,7 +199,7 @@ application plugins or every postprocessor have been reproduced.
 
 Desktop support extracts recognized `BrowserWindow` appearance options, native appearance
 setter calls and `nativeTheme.themeSource` assignments. Configured native
-menu/tray/terminal-theme modules use an uncertainty fallback, including their changed dependencies,
+menu/tray/terminal-theme modules use an uncertainty fallback for their own changed definitions,
 because embedded JXA and native operating-system rendering are not executed.
 
 ## Movement proof and remaining limits
@@ -186,7 +215,8 @@ change the result. There is no blanket exemption for translation, margins, gaps 
 This engine is conservative, not a runtime equivalence prover:
 
 - Runtime data, arbitrary functions, mutable bindings, dependency cycles, parser failures,
-  unknown props and unsupported rendering syntax produce flags with limitations when affected.
+  unknown props and unsupported rendering syntax produce flags when changed presentation evidence
+  or a traceable unresolved rendering input changes. They are not blanket module-level triggers.
 - Source-order matching after substantial markup edits can pair different elements. Such
   changes remain flagged; findings are evidence for review, not an exact DOM correspondence.
 - Dynamic module/asset paths, inherited/conditional export maps outside the supported forms,
@@ -194,12 +224,12 @@ This engine is conservative, not a runtime equivalence prover:
   detected DOM/canvas operations and configured native rendering use uncertainty fallbacks.
 - MDX expressions and embedded HTML scripts are flagged, without running MDX components or
   scripts. Plain HTML whitespace is preserved because CSS can make it meaningful.
-- Broad dependency updates and shared runtime expressions can create false positives. All
-  lockfile changes are flagged, including changes to tooling-only dependencies. Inactive
-  variants, unused assets and an apparently inert removed class can also be flagged.
+- Lockfiles compare recognized rendering dependencies and their resolved transitive closure.
+  Unrelated tooling/backend updates are clean. Unknown rendering configs/plugins still flag.
+  Inactive variants, unused assets and an apparently inert removed class can also be flagged.
 - Impact is a conservative approximation. Findings retain direct source changes and one
   consumer example instead of thousands of downstream records. Large changed definitions
-  and usage inventories can still produce substantial JSON reports.
+  and usage inventories are sampled deterministically within the report budget.
 - The default limits are 2 MiB per source file, 256 MiB per source snapshot, 24 resolution
   levels and 5,000 evaluation steps per expression. Per-file/parser/expression limits produce
   flags with limitations; snapshot/Git failures are operational failures, never clean results.
@@ -259,7 +289,7 @@ are whole commits, including ancillary changes, rather than only their headline 
 These comparisons validate source-policy behavior, not rendered pixels or recall over all
 historical PRs. Screenshot capture, AI interpretation and Slack delivery are separate stages.
 
-### Incremental smoke test on PR #7742
+### Earlier incremental smoke test on PR #7742 (schema 2)
 
 Five temporary commits were created directly on `458a515cbed7fbcf127ce72348ff755c5308ce13`,
 each changing one existing source file. Comparing that commit with each temporary head
@@ -288,5 +318,26 @@ These are partial source-reference counts, not claims that every reference chang
 Independent changed source files remain separate findings, and all direct definition changes
 within each changed file are retained.
 
-These checks validate local engine behavior, not cloud workflow activation. They are examples,
+These earlier checks do not validate the revised schema 3 engine or cloud workflow activation. They are examples,
 not a measured detection rate across all possible UI changes.
+
+## Frozen historical benchmark
+
+The manifest preserves the original 120 comparisons (baseline: 108 flagged, including 39/49
+source-reviewed nonvisual cases) and the next 60 entries of the original SHA-256 sampling
+order. Holdout source-review labels were frozen before revised engine results: 37 clear
+visual/content, 18 nonvisual and 5 uncertain. Labels describe source edits, not rendered pixel
+ground truth. Corrections must be documented separately rather than rewriting frozen labels.
+
+```sh
+bun --no-env-file scripts/design-diff/benchmark.ts \
+  --engine /path/to/clean/engine-checkout --sha <immutable-engine-commit> \
+  --manifest scripts/design-diff/benchmark/comparisons.json --output /tmp/design-benchmark
+```
+
+Fetch manifest commit objects beforehand; missing history fails explicitly. The runner verifies
+the frozen comparison commits and GitHub file sets. Cache identity includes engine SHA, trusted
+config, lockfile, runtime and comparison commits, with report-content verification before reuse.
+It records per-comparison elapsed time and peak RSS separately from deterministic reports.
+`/usr/bin/time` is required (macOS or Linux); source findings are not printed. Review original
+and holdout rates separately, and inspect every disagreement against the source label.

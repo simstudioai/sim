@@ -6,11 +6,12 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { canonical, semanticSource } from '#design-diff/ast'
 import { cssValue } from '#design-diff/extract/css'
+import type { Resolver } from '#design-diff/resolve'
 import type { Data, Definition } from '#design-diff/types'
 
 const markdown = unified().use(remarkParse).use(remarkGfm).use(remarkMdx).use(remarkFrontmatter)
 
-export function extractDocument(source: string, file: string): Definition[] {
+export function extractDocument(source: string, file: string, resolver?: Resolver): Definition[] {
   const result: Definition[] = []
   const emit = (
     kind: Definition['kind'],
@@ -99,6 +100,10 @@ export function extractDocument(source: string, file: string): Definition[] {
     if (errors.length) emit('review', errors)
   } else {
     const root = markdown.parse(source)
+    const imports = root.children
+      .filter((node) => node.type === 'mdxjsEsm' && 'value' in node)
+      .map((node) => ('value' in node ? String(node.value) : ''))
+      .join('\n')
     for (const node of root.children) {
       const data = canonical(node) as Record<string, Data>
       const stripPositions = (value: Data): Data => {
@@ -112,6 +117,34 @@ export function extractDocument(source: string, file: string): Definition[] {
         return value
       }
       const value = stripPositions(data)
+      const evidence: { dependencies: string[]; unresolved: string[] } = {
+        dependencies: [],
+        unresolved: [],
+      }
+      const resolveExpressions = (item: Data): Data => {
+        if (Array.isArray(item)) return item.map(resolveExpressions)
+        if (!item || typeof item !== 'object') return item
+        if (
+          resolver &&
+          typeof item.type === 'string' &&
+          /Expression$/.test(item.type) &&
+          typeof item.value === 'string' &&
+          !/^\s*\/\*/.test(item.value)
+        ) {
+          try {
+            const resolved = resolver.documentExpression(imports, item.value, file)
+            evidence.dependencies.push(...resolved.dependencies)
+            evidence.unresolved.push(...resolved.unresolved)
+            return { ...item, resolved: resolved.value }
+          } catch {
+            evidence.unresolved.push('MDX expression could not be parsed')
+          }
+        }
+        return Object.fromEntries(
+          Object.entries(item).map(([key, child]) => [key, resolveExpressions(child)])
+        )
+      }
+      const resolved = resolveExpressions(value)
       if (
         /^mdx.*Expression$/.test(node.type) &&
         'value' in node &&
@@ -122,10 +155,12 @@ export function extractDocument(source: string, file: string): Definition[] {
         node.type === 'mdxjsEsm' || JSON.stringify(value).includes('Expression')
           ? 'review'
           : 'content',
-        value,
+        resolved,
         node.position?.start.line,
         node.position?.start.column
       )
+      result[result.length - 1].dependencies = [...new Set([file, ...evidence.dependencies])].sort()
+      result[result.length - 1].unresolved.push(...new Set(evidence.unresolved))
     }
   }
   return result

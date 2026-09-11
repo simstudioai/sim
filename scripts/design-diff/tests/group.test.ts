@@ -94,8 +94,8 @@ it('uses only binary decisions while retaining uncertainty and operational failu
     { [consumer]: 'export const A=()=> <div className={unknown("b")}/>' },
     settings
   )
-  expect(report.schemaVersion).toBe('2.0.0')
-  expect(report.policyVersion).toBe('2.0.0')
+  expect(report.schemaVersion).toBe('3.0.0')
+  expect(report.policyVersion).toBe('3.0.0')
   expect(report.status).toBe('completed')
   expect(report.flagged).toBe(true)
   expect(report.findings.every((finding) => finding.decision === 'flag')).toBe(true)

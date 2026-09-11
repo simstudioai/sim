@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { parse } from '@babel/parser'
 import traverseModule, { type NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
+import { normalizeLiteralAliases, normalizeRefactors } from '#design-diff/refactors'
 import type { Data, Location } from '#design-diff/types'
 
 /** Handles Babel's CommonJS interop consistently in Bun and Vitest. */
@@ -11,13 +12,16 @@ export const traverse: typeof traverseModule =
     : (traverseModule as unknown as { default: typeof traverseModule }).default
 
 export function parseSource(source: string, file: string) {
-  return parse(source, {
+  const ast = parse(source, {
     sourceType: 'unambiguous',
     sourceFilename: file,
     plugins: ['jsx', 'typescript', 'decorators-legacy'],
     errorRecovery: false,
     attachComment: false,
   })
+  normalizeRefactors(ast, traverse)
+  normalizeLiteralAliases(ast, traverse)
+  return ast
 }
 
 /** Removes syntax trivia and erased types, retaining runtime ordering and literal whitespace. */
@@ -67,6 +71,34 @@ export function canonical(value: unknown): Data {
   return result
 }
 
+/** JSON data has no erased AST fields: retain every key and meaningful array order. */
+export function canonicalJson(value: Data): Data {
+  if (Array.isArray(value)) return value.map(canonicalJson)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalJson(value[key])])
+  )
+}
+
+/** React's line-wise JSX text whitespace semantics, including explicit single-line spaces. */
+export function jsxText(text: string): string {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n')
+  let last = 0
+  lines.forEach((line, i) => {
+    if (/[^ \t]/.test(line)) last = i
+  })
+  return lines
+    .map((line, i) => {
+      let value = line.replace(/\t/g, ' ')
+      if (i !== 0) value = value.replace(/^ +/, '')
+      if (i !== lines.length - 1) value = value.replace(/ +$/, '')
+      return value ? value + (i !== last ? ' ' : '') : ''
+    })
+    .join('')
+}
+
 export function location(file: string, node?: t.Node | null): Location {
   return { file, line: node?.loc?.start.line ?? 1, column: (node?.loc?.start.column ?? 0) + 1 }
 }
@@ -107,9 +139,15 @@ export function semanticSource(source: string, file: string): string {
   return JSON.stringify(canonical(ast.program))
 }
 
-/** Compact evidence for unsupported syntax without duplicating entire function bodies. */
+const fingerprints = new WeakMap<object, string>()
+
+/** Source ASTs are immutable; repeated references share their complete semantic hash. */
 export function fingerprint(value: unknown): string {
-  return createHash('sha256')
+  const cached = value && typeof value === 'object' ? fingerprints.get(value) : undefined
+  if (cached) return cached
+  const hash = createHash('sha256')
     .update(JSON.stringify(canonical(value)))
     .digest('hex')
+  if (value && typeof value === 'object') fingerprints.set(value, hash)
+  return hash
 }

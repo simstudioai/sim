@@ -16,6 +16,9 @@ interface Module {
   barrel: boolean
   effects?: string
 }
+/** Parsed import/export facts contain no AST or revision-specific resolved paths. */
+const moduleSnapshots = new Map<string, { module: Module; specifiers: string[] }>()
+
 interface Origin {
   file: string
   symbol: string
@@ -69,6 +72,22 @@ export class DependencyGraph {
         }
         continue
       }
+      const cacheKey = `${tree.entries.get(file)?.oid}:${this.asset.source}`
+      const cached = moduleSnapshots.get(cacheKey)
+      if (cached) {
+        this.modules.set(file, cached.module)
+        for (const specifier of cached.specifiers) {
+          const target = tree.resolve(file, specifier)
+          if (target) raw.add(target)
+        }
+        continue
+      }
+      const specifiers = new Set<string>()
+      const addSpecifier = (specifier: string) => {
+        specifiers.add(specifier)
+        const target = tree.resolve(file, specifier)
+        if (target) raw.add(target)
+      }
       try {
         const ast = parseSource(source, file)
         const exports = new Map<string, ExportTarget>()
@@ -78,8 +97,7 @@ export class DependencyGraph {
         for (const node of ast.program.body) {
           if (t.isImportDeclaration(node)) {
             if (node.importKind === 'type') continue
-            const target = tree.resolve(file, node.source.value)
-            if (target) raw.add(target)
+            addSpecifier(node.source.value)
             if (!node.specifiers.length) barrel = false
             for (const specifier of node.specifiers) {
               if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
@@ -95,8 +113,7 @@ export class DependencyGraph {
           } else if (t.isExportAllDeclaration(node)) {
             if (node.exportKind === 'type') continue
             stars.push(node.source.value)
-            const target = tree.resolve(file, node.source.value)
-            if (target) raw.add(target)
+            addSpecifier(node.source.value)
           } else if (t.isExportNamedDeclaration(node)) {
             if (node.exportKind === 'type') continue
             if (node.declaration) {
@@ -114,8 +131,7 @@ export class DependencyGraph {
                 exports.set(node.declaration.id.name, { name: node.declaration.id.name })
             }
             if (node.source) {
-              const target = tree.resolve(file, node.source.value)
-              if (target) raw.add(target)
+              addSpecifier(node.source.value)
             }
             for (const specifier of node.specifiers) {
               if (t.isExportSpecifier(specifier) && specifier.exportKind !== 'type') {
@@ -155,10 +171,7 @@ export class DependencyGraph {
               : t.isStringLiteral(node) && this.asset.test(node.value)
                 ? node.value
                 : undefined
-          if (specifier) {
-            const target = tree.resolve(file, specifier)
-            if (target) raw.add(target)
-          }
+          if (specifier) addSpecifier(specifier)
         })
         const effects = [
           ...ast.program.directives,
@@ -168,13 +181,17 @@ export class DependencyGraph {
               (t.isImportDeclaration(node) && node.importKind !== 'type' && !node.specifiers.length)
           ),
         ]
-        this.modules.set(file, {
+        const module = {
           exports,
           stars,
           imports,
           barrel,
           effects: effects.length ? fingerprint(effects) : undefined,
-        })
+        }
+        this.modules.set(file, module)
+        if (moduleSnapshots.size >= 10000)
+          moduleSnapshots.delete(moduleSnapshots.keys().next().value!)
+        moduleSnapshots.set(cacheKey, { module, specifiers: [...specifiers] })
       } catch {
         tree.failures.add(file)
       }
@@ -271,7 +288,8 @@ export class DependencyGraph {
     }
   }
 
-  private closure(file: string): Set<string> {
+  /** All inputs of an explicitly unresolved imported value; not general UI evidence. */
+  closure(file: string): Set<string> {
     const cached = this.closures.get(file)
     if (cached) return cached
     const result = new Set([file])
@@ -541,6 +559,7 @@ export class DependencyGraph {
     if (!target) return undefined
     const trace = this.trace(target, name)
     return {
+      routes: trace.routes,
       origins: trace.origins.map(({ file, symbol }) => ({ file, symbol })),
       uncertain: trace.uncertain,
       effects: trace.routes.flatMap((file) => {

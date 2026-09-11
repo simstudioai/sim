@@ -82,5 +82,23 @@
     "@/lib/cn"
   ],
   "variantModules": ["class-variance-authority"],
-  "mergeFontSizes": ["micro", "caption", "small", "md"]
+  "mergeFontSizes": ["micro", "caption", "small", "md"],
+  "fileInputs": [
+    {
+      "list": "apps/docs/lib/openapi-specs.ts",
+      "export": "OPENAPI_SPEC_FILES",
+      "root": "apps/docs",
+      "renderer": "apps/docs/lib/openapi.ts"
+    }
+  ],
+  "environmentAdapters": [
+    {
+      "module": "apps/sim/lib/core/config/env-capabilities.server.ts",
+      "export": "wireServerFallback",
+      "environmentModule": "apps/sim/lib/core/config/env.ts",
+      "environmentExport": "env",
+      "implementationModule": "packages/deployment-config/src/env-capabilities.ts",
+      "implementationExport": "wireFallback"
+    }
+  ]
 }

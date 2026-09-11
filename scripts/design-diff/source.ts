@@ -41,8 +41,9 @@ export class SourceTree {
       (entry) =>
         (scoped(entry.path, config) ||
           infrastructure(entry.path, config) ||
-          entry.path === 'package.json') &&
-        textPattern.test(entry.path)
+          entry.path === 'package.json' ||
+          entry.path === 'bun.lock') &&
+        (textPattern.test(entry.path) || entry.path === 'bun.lock')
     )
     const readable = entries.filter((entry) => {
       if (entry.size > config.limits.fileBytes || entry.mode === '120000') {
