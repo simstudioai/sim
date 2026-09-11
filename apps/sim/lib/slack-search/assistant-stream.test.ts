@@ -86,7 +86,7 @@ function setup(deliverConnections = vi.fn().mockResolvedValue(undefined)) {
   }
 }
 
-function toolCall(toolName = 'list_integrations', toolCallId = 'tool-1'): ToolCallStreamEvent {
+function toolCall(toolName = 'search_workspace', toolCallId = 'tool-1'): ToolCallStreamEvent {
   return {
     type: 'tool',
     payload: {
@@ -101,7 +101,7 @@ function toolCall(toolName = 'list_integrations', toolCallId = 'tool-1'): ToolCa
 }
 
 function toolResult(
-  toolName = 'list_integrations',
+  toolName = 'search_workspace',
   toolCallId = 'tool-1',
   success = true
 ): ToolResultStreamEvent {
@@ -386,7 +386,6 @@ describe('Slack tool progress', () => {
   })
 
   it.each([
-    ['list_integrations', 'Listing connected integrations…'],
     ['search_workspace', 'Searching documents…'],
     ['read_document', 'Reading documents…'],
   ])('shows %s as a task and completes that same task once', async (name, title) => {
@@ -446,7 +445,7 @@ describe('Slack tool progress', () => {
       ...call,
       payload: { ...call.payload, arguments: { query: 'private argument' } },
     })
-    const failed = toolResult('list_integrations', 'tool-1', false)
+    const failed = toolResult('search_workspace', 'tool-1', false)
     await stream.onEvent({
       ...failed,
       payload: {

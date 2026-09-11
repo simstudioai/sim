@@ -15,6 +15,7 @@ const {
   mockForceFailHungToolCall,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
+  mockLoadCopilotSearchIntegrations,
   mockPrepareCopilotEnvironmentContext,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
@@ -29,6 +30,7 @@ const {
   mockForceFailHungToolCall: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
+  mockLoadCopilotSearchIntegrations: vi.fn(),
   mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
@@ -41,6 +43,10 @@ const {
     COPILOT_API_KEY: undefined as string | undefined,
     MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
   },
+}))
+
+vi.mock('@/lib/copilot/application/load-search-integrations', () => ({
+  loadCopilotSearchIntegrations: mockLoadCopilotSearchIntegrations,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -172,9 +178,82 @@ describe('runCopilotLifecycle', () => {
     mockPendingToolWaitBudgetMs.mockImplementation(() => 60_000)
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+    mockLoadCopilotSearchIntegrations.mockResolvedValue('{"connections":[],"available":[]}')
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
+  })
+
+  it.each([
+    { surface: 'web Search', goRoute: '/api/mothership', interactive: true },
+    { surface: 'Slack Search', goRoute: '/api/mothership', interactive: false },
+    { surface: 'MCP Search', goRoute: '/api/mothership/execute', interactive: false },
+  ])('injects fresh trusted inventory for each $surface turn', async ({ goRoute, interactive }) => {
+    mockRunStreamLoop.mockResolvedValue(undefined)
+    const signal = new AbortController().signal
+    const payload = {
+      mode: 'assistant',
+      message: 'Is my email connected?',
+      messageId: 'message-1',
+      userId: 'untrusted-person',
+      organizationId: 'org-1',
+      workspaceContext: 'stale or untrusted inventory',
+    }
+    for (const status of ['not_connected', 'connected']) {
+      const inventory = JSON.stringify({
+        connections: [{ connectionStatus: status }],
+        available: [],
+      })
+      mockLoadCopilotSearchIntegrations.mockResolvedValueOnce(inventory)
+      const result = await runCopilotLifecycle(payload, {
+        userId: 'person-1',
+        organizationId: 'org-1',
+        chatId: 'private-chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        goRoute,
+        interactive,
+        abortSignal: signal,
+      })
+      expect(result.error).toBeUndefined()
+      const body = JSON.parse(String(mockRunStreamLoop.mock.lastCall?.[1].body))
+      expect(body.workspaceContext).toBe(inventory)
+      expect(mockLoadCopilotSearchIntegrations).toHaveBeenLastCalledWith({
+        userId: 'person-1',
+        organizationId: 'org-1',
+        chatId: 'private-chat-1',
+        messageId: 'message-1',
+        signal,
+      })
+    }
+    expect(mockLoadCopilotSearchIntegrations).toHaveBeenCalledTimes(2)
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(payload.workspaceContext).toBe('stale or untrusted inventory')
+  })
+
+  it('does not call Copilot if the Search inventory cannot be loaded', async () => {
+    mockLoadCopilotSearchIntegrations.mockRejectedValueOnce(new Error('Inventory unavailable'))
+    const result = await runCopilotLifecycle(
+      { mode: 'assistant', message: 'Find my email', messageId: 'message-1' },
+      {
+        userId: 'person-1',
+        organizationId: 'org-1',
+        chatId: 'private-chat-1',
+      }
+    )
+    expect(result).toMatchObject({ success: false, error: 'Inventory unavailable' })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it('keeps workspace Assistant context without loading Search integrations', async () => {
+    mockRunStreamLoop.mockResolvedValueOnce(undefined)
+    await runCopilotLifecycle(
+      { mode: 'assistant', message: 'hello', workspaceContext: 'Workspace inventory' },
+      { userId: 'person-1', workspaceId: 'ws-1', chatId: 'chat-1' }
+    )
+    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
+    const body = JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))
+    expect(body.workspaceContext).toBe('Workspace inventory')
   })
 
   it('threads trace provenance through server execution context only', async () => {
@@ -1638,6 +1717,7 @@ describe('runCopilotLifecycle', () => {
     expect(billingRequestId).not.toBe('caller-controlled')
 
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(mockLoadCopilotSearchIntegrations).toHaveBeenCalledTimes(owner.organizationId ? 1 : 0)
     for (const call of mockRunStreamLoop.mock.calls) {
       const body = JSON.parse(String(call[1].body))
       expect(body).toMatchObject(
