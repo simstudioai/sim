@@ -63,6 +63,8 @@ export interface ReadUserFileContentOptions extends ExecutionMaterializationCont
 export interface ReadUserFileContentResult {
   content: string
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /** Subset transformed by the renderer; consumers apply their own admission policy. */
+  renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 function getLogger(options: ExecutionMaterializationContext): Logger {
@@ -215,10 +217,17 @@ function getExecutionKeyParts(key: string):
   }
 }
 
+export class ExecutionFileAccessError extends Error {
+  constructor() {
+    super('File is not available in this execution.')
+    this.name = 'ExecutionFileAccessError'
+  }
+}
+
 function assertExecutionFileScope(key: string, options: ExecutionMaterializationContext): void {
   const parts = getExecutionKeyParts(key)
   if (!parts) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   const allowedExecutionIds = new Set([
@@ -232,11 +241,11 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     options.workflowId === parts.workflowId
 
   if (options.workspaceId && parts.workspaceId !== options.workspaceId) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   if (options.workflowId && parts.workflowId !== options.workflowId) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   if (allowedFileKeys.has(key)) {
@@ -247,7 +256,7 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     !options.executionId ||
     (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
   ) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 }
 
@@ -344,7 +353,26 @@ export async function readUserFileContentWithContributors(
     throw new Error('Expected a file object with metadata.')
   }
 
-  await assertUserFileContentAccess(file, options)
+  let sourceIdentity: WorkspaceFileSecretProvenanceIdentity | undefined
+  const storageContext = file.key ? inferContextFromKey(file.key) : undefined
+  if (
+    (storageContext === 'execution' || storageContext === 'workspace') &&
+    options.principal &&
+    options.workspaceId
+  ) {
+    const { resolveStoredFileProvenanceSource } = await import(
+      '@/lib/execution/payloads/file-secret-provenance'
+    )
+    sourceIdentity = (
+      await resolveStoredFileProvenanceSource(file, {
+        ...options,
+        principal: options.principal,
+        workspaceId: options.workspaceId,
+      })
+    )?.identity
+  } else {
+    await assertUserFileContentAccess(file, options)
+  }
 
   const maxSourceBytes = options.maxSourceBytes ?? MAX_FUNCTION_FILE_BYTES
   if (Number.isFinite(file.size) && file.size > maxSourceBytes) {
@@ -357,6 +385,7 @@ export async function readUserFileContentWithContributors(
 
   let buffer: Buffer | null = null
   let contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
+  let renderedContributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
@@ -365,7 +394,10 @@ export async function readUserFileContentWithContributors(
       maxBytes: maxSourceBytes,
     })
     buffer = servable.buffer
-    contributingFiles = servable.contributingFiles
+    renderedContributingFiles = servable.contributingFiles
+    contributingFiles = sourceIdentity
+      ? [sourceIdentity, ...(servable.contributingFiles ?? [])]
+      : servable.contributingFiles
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       if (isGeneratedDocumentSourceType(file.type) && error.observedBytes !== undefined) {
@@ -402,6 +434,7 @@ export async function readUserFileContentWithContributors(
   return {
     content: options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8'),
     ...(contributingFiles && contributingFiles.length > 0 ? { contributingFiles } : {}),
+    ...(renderedContributingFiles?.length ? { renderedContributingFiles } : {}),
   }
 }
 

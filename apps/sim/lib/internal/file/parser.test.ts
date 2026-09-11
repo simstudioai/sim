@@ -37,6 +37,11 @@ const {
   mockUploadExecutionFile,
   mockUploadWorkspaceFile,
   mockReadWorkspaceFileNameByKey,
+  mockResolveProvenanceSource,
+  mockGetBoundProvenance,
+  mockGetFileContentProvenance,
+  storageConfig,
+  mockGetBlobContainerClient,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const actualPath = require('path') as typeof import('path')
@@ -80,8 +85,39 @@ const {
         })
       ),
     mockReadWorkspaceFileNameByKey: vi.fn(),
+    mockResolveProvenanceSource: vi.fn(),
+    mockGetBoundProvenance: vi.fn(),
+    mockGetFileContentProvenance: vi.fn(),
+    storageConfig: {
+      provider: 's3',
+      bucket: 'sim-execution-files',
+      containerName: 'execution-files',
+    },
+    mockGetBlobContainerClient: vi.fn(),
   }
 })
+
+vi.mock('@/lib/execution/payloads/file-secret-provenance', () => ({
+  resolveStoredFileProvenanceSource: mockResolveProvenanceSource,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundProvenance,
+}))
+
+vi.mock('@/lib/internal/file/operations', () => ({
+  getFileContentProvenance: mockGetFileContentProvenance,
+  fileContentJsonResponse: (
+    body: Record<string, unknown>,
+    includePrivate: boolean,
+    init?: ResponseInit,
+    provenance?: unknown
+  ) =>
+    Response.json(
+      includePrivate ? { ...body, __resolvedSecretTraceProvenance: provenance } : body,
+      init
+    ),
+}))
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
   assertUserFileContentAccess: async (file: { key: string }) => {
@@ -93,6 +129,24 @@ vi.mock('@/lib/uploads', () => ({
   getStorageProvider: mockGetStorageProvider,
   isUsingCloudStorage: mockIsUsingCloudStorage,
   StorageService: storageServiceMock,
+}))
+
+vi.mock('@/lib/uploads/config', () => ({
+  getStorageConfig: () => storageConfig,
+  S3_CONFIG: {},
+  get USE_S3_STORAGE() {
+    return storageConfig.provider === 's3'
+  },
+  get USE_BLOB_STORAGE() {
+    return storageConfig.provider === 'blob'
+  },
+  get USE_GCS_STORAGE() {
+    return storageConfig.provider === 'gcs'
+  },
+}))
+
+vi.mock('@/lib/uploads/providers/blob/client', () => ({
+  getBlobServiceClient: async () => ({ getContainerClient: mockGetBlobContainerClient }),
 }))
 
 vi.mock('@/lib/file-parsers', () => ({
@@ -186,6 +240,7 @@ async function POST(request: NextRequest): Promise<Response> {
     executionId: parsed.data.executionId || 'execution-id',
     attributedUserId: 'test-user-id',
     fileAccessUserId: 'test-user-id',
+    headers: request.headers,
     signal: request.signal,
   })
 }
@@ -233,6 +288,8 @@ describe('file parser operation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    storageConfig.provider = 's3'
+    mockGetBlobContainerClient.mockReset()
     setupFileApiMocks({
       authenticated: true,
     })
@@ -254,6 +311,9 @@ describe('file parser operation', () => {
     })
     mockUploadWorkspaceFile.mockClear()
     mockReadWorkspaceFileNameByKey.mockResolvedValue({ name: null })
+    mockResolveProvenanceSource.mockResolvedValue(undefined)
+    mockGetBoundProvenance.mockResolvedValue({ status: 'exact', entries: [] })
+    mockGetFileContentProvenance.mockResolvedValue({ version: 1, complete: true, entries: [] })
     mockParseBuffer.mockResolvedValue({
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
@@ -277,6 +337,321 @@ describe('file parser operation', () => {
     expect(response.status).toBe(400)
     expect(data).toHaveProperty('error', 'No file path provided')
   })
+
+  it('exports negotiated canonical execution-file lineage without changing public content', async () => {
+    const source = {
+      identity: {
+        fileId: 'canonical-file',
+        key: 'execution/workspace-id/workflow-id/execution-id/report.txt',
+        context: 'execution',
+        contentUpdatedAt: new Date('2026-09-10T00:00:00Z'),
+      },
+      ownerUserId: 'test-user-id',
+    }
+    mockResolveProvenanceSource.mockResolvedValue(source)
+    const lineage = {
+      version: 1,
+      complete: true,
+      scope: { userId: 'test-user-id', workspaceId: 'workspace-id' },
+      entries: [{ name: 'SECRET', encryptedValue: 'encrypted-value' }],
+    }
+    mockGetFileContentProvenance.mockResolvedValue(lineage)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { filePath: source.identity.key },
+        { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+      )
+    )
+    const body = await response.json()
+
+    expect(body.output.content).toBe('parsed buffer content')
+    expect(body.__resolvedSecretTraceProvenance).toEqual(lineage)
+    expect(body).not.toHaveProperty('provenanceSource')
+    expect(body.output).not.toHaveProperty('provenanceSource')
+    expect(mockGetFileContentProvenance).toHaveBeenCalledWith(
+      expect.any(Object),
+      'workspace-id',
+      [source],
+      expect.any(AbortSignal)
+    )
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
+
+  it('keeps private canonical provenance out of unnegotiated parser responses', async () => {
+    mockResolveProvenanceSource.mockResolvedValue({
+      identity: { fileId: 'canonical-file', key: 'workspace/report.txt', context: 'workspace' },
+      ownerUserId: 'test-user-id',
+    })
+    const response = await POST(createMockRequest('POST', { filePath: 'workspace/report.txt' }))
+    const body = await response.json()
+
+    expect(body.output.content).toBe('parsed buffer content')
+    expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(body).not.toHaveProperty('provenanceSource')
+    expect(mockGetFileContentProvenance).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { ownerUserId: 'test-user-id', expectedStatus: 'exact' },
+    { ownerUserId: 'other-user', expectedStatus: 'unknown' },
+  ])('preserves safe copy provenance for $ownerUserId', async ({ ownerUserId, expectedStatus }) => {
+    const source = {
+      identity: { fileId: 'canonical-file', key: 'workspace/report.txt', context: 'workspace' },
+      ownerUserId,
+    }
+    const entries = [{ name: 'SECRET', encryptedValue: 'encrypted-value' }]
+    mockResolveProvenanceSource.mockResolvedValue(source)
+    mockGetBoundProvenance.mockResolvedValue({ status: 'exact', entries })
+
+    await POST(createMockRequest('POST', { filePath: source.identity.key }))
+
+    expect(mockGetBoundProvenance).toHaveBeenCalledWith('workspace-id', source.identity)
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Buffer),
+      'report.txt',
+      'text/plain',
+      'test-user-id',
+      expectedStatus === 'exact' ? { status: 'exact', entries } : { status: 'unknown' }
+    )
+  })
+
+  it('keeps tracked unknown sources in the private response instead of treating them as legacy', async () => {
+    const source = {
+      identity: { fileId: 'canonical-file', key: 'workspace/report.txt', context: 'workspace' },
+      ownerUserId: 'test-user-id',
+    }
+    mockResolveProvenanceSource.mockResolvedValue(source)
+    mockGetBoundProvenance.mockResolvedValue({ status: 'unknown' })
+    mockGetFileContentProvenance.mockResolvedValue({ version: 1, complete: false, entries: [] })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { filePath: source.identity.key },
+        { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect((await response.json()).__resolvedSecretTraceProvenance.complete).toBe(false)
+    expect(mockGetFileContentProvenance).toHaveBeenCalledWith(
+      expect.any(Object),
+      'workspace-id',
+      [source],
+      expect.any(AbortSignal)
+    )
+    expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'unknown' })
+  })
+
+  it('preserves missing historical metadata as absence on copied files', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { filePath: 'workspace/legacy.txt' },
+        { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect((await response.json()).success).toBe(true)
+    expect(mockGetBoundProvenance).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'unrecorded' })
+    expect(mockGetFileContentProvenance).toHaveBeenCalledWith(
+      expect.any(Object),
+      'workspace-id',
+      [],
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('does not return content when canonical provenance resolution rejects the file scope', async () => {
+    mockResolveProvenanceSource.mockRejectedValue(new Error('File not found'))
+    const response = await POST(createMockRequest('POST', { filePath: 'workspace/other.txt' }))
+
+    expect((await response.json()).success).toBe(false)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
+
+  it('reads owned presigned URLs through canonical authorized storage', async () => {
+    const key = 'execution/workspace-id/workflow-id/execution-id/report.txt'
+    const source = {
+      identity: { fileId: 'canonical-file', key, context: 'execution' },
+      ownerUserId: 'test-user-id',
+    }
+    mockResolveProvenanceSource.mockResolvedValue(source)
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { filePath: `https://sim-execution-files.s3.us-east-1.amazonaws.com/${key}?signature=old` },
+        { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect((await response.json()).success).toBe(true)
+    expect(mockResolveProvenanceSource).toHaveBeenCalledWith(
+      { key, context: 'execution' },
+      expect.objectContaining({ workspaceId: 'workspace-id', executionId: 'execution-id' })
+    )
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
+      key,
+      context: 'execution',
+      maxBytes: 100 * 1024 * 1024,
+    })
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'https://exampleaccount.blob.core.windows.net/execution-files',
+    'https://exampleaccount.blob.core.usgovcloudapi.net/execution-files',
+    'https://storage.example.test/account/execution-files',
+  ])(
+    'recognizes the configured Azure container endpoint without a separate account name: %s',
+    async (containerUrl) => {
+      storageConfig.provider = 'blob'
+      mockGetBlobContainerClient.mockReturnValue({ url: containerUrl })
+      const key = 'execution/workspace-id/workflow-id/execution-id/report.txt'
+      const source = {
+        identity: { fileId: 'canonical-file', key, context: 'execution' },
+        ownerUserId: 'test-user-id',
+      }
+      mockResolveProvenanceSource.mockResolvedValue(source)
+      mockGetBoundProvenance.mockResolvedValue({ status: 'unknown' })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          filePath: `${containerUrl}/${key}?sig=placeholder`,
+        })
+      )
+
+      expect((await response.json()).success).toBe(true)
+      expect(mockGetBlobContainerClient).toHaveBeenCalledWith('execution-files')
+      expect(mockResolveProvenanceSource).toHaveBeenCalledWith(
+        { key, context: 'execution' },
+        expect.objectContaining({ workspaceId: 'workspace-id' })
+      )
+      expect(mockGetBoundProvenance).toHaveBeenCalledWith('workspace-id', source.identity)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+      expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
+        key,
+        context: 'execution',
+        maxBytes: 100 * 1024 * 1024,
+      })
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    'https://exampleaccount.blob.core.windows.net.attacker.test/execution-files',
+    'https://exampleaccount.blob.core.windows.net/execution-files-other',
+  ])(
+    'does not attribute another Azure origin or container to owned storage: %s',
+    async (containerUrl) => {
+      storageConfig.provider = 'blob'
+      mockGetBlobContainerClient.mockReturnValue({
+        url: 'https://exampleaccount.blob.core.windows.net/execution-files',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('external content', { headers: { 'content-type': 'text/plain' } })
+      )
+      await POST(createMockRequest('POST', { filePath: `${containerUrl}/report.txt` }))
+
+      expect(mockResolveProvenanceSource).not.toHaveBeenCalled()
+      expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not attribute an external hostname prefix to canonical storage provenance', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('external content', { headers: { 'content-type': 'text/plain' } })
+    )
+    await POST(
+      createMockRequest('POST', {
+        filePath:
+          'https://sim-execution-files.s3.us-east-1.amazonaws.com.attacker.test/execution/workspace-id/workflow-id/execution-id/report.txt',
+      })
+    )
+
+    expect(mockResolveProvenanceSource).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('retains only returned contributors when the multi-file output budget stops parsing', async () => {
+    const first = {
+      identity: { fileId: 'first', key: 'workspace/first.txt', context: 'workspace' },
+      ownerUserId: 'test-user-id',
+    }
+    const second = {
+      identity: { fileId: 'second', key: 'workspace/second.txt', context: 'workspace' },
+      ownerUserId: 'test-user-id',
+    }
+    mockResolveProvenanceSource.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    mockParseBuffer
+      .mockResolvedValueOnce({ content: 'a'.repeat(3 * 1024 * 1024) })
+      .mockResolvedValueOnce({ content: 'b'.repeat(3 * 1024 * 1024) })
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { filePath: ['workspace/first.txt', 'workspace/second.txt', 'workspace/third.txt'] },
+        { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+      )
+    )
+    const body = await response.json()
+
+    expect(body.success).toBe(true)
+    expect(body.results).toHaveLength(1)
+    expect(body.error).toContain('too large')
+    expect(mockResolveProvenanceSource).toHaveBeenCalledTimes(2)
+    expect(mockGetFileContentProvenance).toHaveBeenCalledWith(
+      expect.any(Object),
+      'workspace-id',
+      [first],
+      expect.any(AbortSignal)
+    )
+  })
+
+  it.each([{ filePath: 'workspace/failed.txt' }, { filePath: ['workspace/failed.txt'] }])(
+    'keeps failed parser provenance out of the public payload for %j',
+    async ({ filePath }) => {
+      mockResolveProvenanceSource.mockResolvedValue({
+        identity: { fileId: 'private-source', key: 'workspace/failed.txt', context: 'workspace' },
+        ownerUserId: 'private-owner',
+      })
+      mockGetBoundProvenance.mockResolvedValue({
+        status: 'exact',
+        entries: [{ name: 'SECRET', encryptedValue: 'private-ciphertext' }],
+      })
+      mockParseBuffer.mockResolvedValue({
+        content: 'discarded parser output',
+        metadata: { degraded: true, warning: 'Unable to parse format' },
+      })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          { filePath },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+        )
+      )
+      const body = await response.json()
+      const serialized = JSON.stringify(body)
+
+      expect(Array.isArray(filePath) ? body.results[0].success : body.success).toBe(false)
+      for (const privateValue of [
+        'provenanceSource',
+        'private-source',
+        'private-owner',
+        'private-ciphertext',
+        'discarded parser output',
+      ]) {
+        expect(serialized).not.toContain(privateValue)
+      }
+      for (const call of mockGetFileContentProvenance.mock.calls) {
+        expect(call[2]).toEqual([])
+      }
+    }
+  )
 
   it('should accept and process a local file', async () => {
     setupFileApiMocks({
@@ -458,7 +833,8 @@ describe('file parser operation', () => {
       parsedBuffer,
       'report.pdf',
       'application/pdf',
-      'test-user-id'
+      'test-user-id',
+      { status: 'unrecorded' }
     )
   })
 

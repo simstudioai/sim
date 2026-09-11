@@ -71,6 +71,9 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
       workspaceId: context.workspaceId,
       body: trustedBody,
       headers,
+      ...(context.resolvedSecretTraceRegistry
+        ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
+        : {}),
       ...(signal ? { signal } : {}),
       ...(sandboxProfile ? { sandboxProfile } : {}),
     },

@@ -5,7 +5,7 @@ import {
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -81,7 +81,7 @@ interface WorkspaceFileAttachmentIdentity {
 export interface WorkspaceFileSecretProvenanceIdentity {
   fileId: string
   key: string
-  context: 'workspace' | 'mothership'
+  context: 'workspace' | 'mothership' | 'execution'
   contentUpdatedAt?: Date
 }
 
@@ -138,12 +138,35 @@ export function mergeWorkspaceFileSecretProvenance(
       : { status: 'unrecorded' }
   }
 
-  return {
-    status: 'exact',
-    entries: provenances.flatMap((provenance) =>
-      provenance.status === 'exact' ? provenance.entries : []
-    ),
+  const entries = new Map<string, WorkspaceFileSecretProvenanceEntry>()
+  let bytes = 0
+  for (const provenance of provenances) {
+    if (provenance.status !== 'exact') continue
+    for (const entry of provenance.entries) {
+      if (
+        !entry.encryptedValue ||
+        !entry.sourceUserId ||
+        (entry.name !== undefined && entry.name.length === 0)
+      ) {
+        return { status: 'unknown' }
+      }
+      const entryBytes = exactEntryByteSize(entry)
+      if (entryBytes > PROVENANCE_MAX_SERIALIZED_BYTES) return { status: 'unknown' }
+      const key = JSON.stringify([
+        entry.sourceUserId,
+        entry.sourceWorkspaceId ?? '',
+        entry.name ?? '',
+        entry.encryptedValue,
+      ])
+      if (entries.has(key)) continue
+      bytes += entryBytes
+      if (entries.size >= PROVENANCE_MAX_ENTRIES || bytes > PROVENANCE_MAX_SERIALIZED_BYTES) {
+        return { status: 'unknown' }
+      }
+      entries.set(key, entry)
+    }
   }
+  return { status: 'exact', entries: [...entries.values()] }
 }
 
 function compareStrings(left: string, right: string): number {
@@ -422,7 +445,7 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
         eq(workspaceFiles.id, fileId),
         gte(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
         lt(workspaceFiles.contentUpdatedAt, nextContentMillisecond),
-        inArray(workspaceFiles.context, ['workspace', 'mothership']),
+        inArray(workspaceFiles.context, ['workspace', 'mothership', 'execution']),
         or(
           isNull(workspaceFiles.secretProvenanceVersion),
           eq(workspaceFiles.secretProvenanceVersion, 1)
@@ -859,7 +882,7 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
  * absence this covers. Closing the surface again is a matter of naming it in
  * `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES`.
  */
-function mayReadUnrecordedWorkspaceFile(
+export function mayReadUnrecordedWorkspaceFile(
   workspaceId: string | undefined,
   count = 1,
   actorUserId?: string
@@ -1017,7 +1040,8 @@ export async function importWorkspaceFileSecretProvenanceForRuntime(args: {
 /**
  * Removes model attachments whose canonical workspace-file record is tainted or unknown.
  * Missing legacy records remain compatible; persisted records are classified by their unique
- * active storage-key binding and private provenance row. Attachment ids are deliberately ignored:
+ * storage-key binding (active first, newest archived execution revision otherwise) and private
+ * provenance row. Attachment ids are deliberately ignored:
  * older persisted workflows omit them and file normalization may synthesize a runtime-only id.
  * This classification is not file authorization; callers still enforce storage access before
  * reading bytes or issuing a provider URL.
@@ -1051,7 +1075,13 @@ export async function filterModelSafeWorkspaceFileAttachments<
     if (typeof attachment.key !== 'string' || attachment.key.length === 0) return true
     const row = rowByKey.get(attachment.key)
     if (!row) return true
-    if (row.context !== 'workspace' && row.context !== 'mothership') return true
+    if (
+      row.context !== 'workspace' &&
+      row.context !== 'mothership' &&
+      row.context !== 'execution'
+    ) {
+      return true
+    }
     const classification = classifyModelSafeWorkspaceFileRow(row, options.workspaceId)
     if (classification === 'safe') return true
     if (classification === 'unsafe') {
@@ -1098,7 +1128,7 @@ async function loadModelSafeWorkspaceFileRows(
   keys: readonly string[]
 ): Promise<ModelSafeWorkspaceFileRow[]> {
   return db
-    .select({
+    .selectDistinctOn([workspaceFiles.key], {
       key: workspaceFiles.key,
       workspaceId: workspaceFiles.workspaceId,
       context: workspaceFiles.context,
@@ -1113,7 +1143,18 @@ async function loadModelSafeWorkspaceFileRows(
       workspaceFileSecretProvenance,
       eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
     )
-    .where(and(inArray(workspaceFiles.key, [...keys]), isNull(workspaceFiles.deletedAt)))
+    .where(
+      and(
+        inArray(workspaceFiles.key, [...keys]),
+        or(isNull(workspaceFiles.deletedAt), eq(workspaceFiles.context, 'execution'))
+      )
+    )
+    .orderBy(
+      workspaceFiles.key,
+      sql`${workspaceFiles.deletedAt} IS NULL DESC`,
+      desc(workspaceFiles.contentUpdatedAt),
+      workspaceFiles.id
+    )
 }
 
 /**
@@ -1131,8 +1172,8 @@ export async function isModelSafeWorkspaceFileKey(
 
 /**
  * Batch variant for server-authorized storage keys crossing the same model boundary. Missing keys
- * and non-workspace contexts retain their legacy/raw behavior; canonical workspace and mothership
- * rows are accepted only when every current content version has exact-empty provenance.
+ * retain their legacy behavior; tracked workspace, mothership, and execution files must satisfy
+ * the same classification before their bytes leave private storage.
  */
 export async function areModelSafeWorkspaceFileKeys(
   keys: readonly string[],
@@ -1148,7 +1189,13 @@ export async function areModelSafeWorkspaceFileKeys(
 
   let unrecorded = 0
   for (const row of rows) {
-    if (row.context !== 'workspace' && row.context !== 'mothership') continue
+    if (
+      row.context !== 'workspace' &&
+      row.context !== 'mothership' &&
+      row.context !== 'execution'
+    ) {
+      continue
+    }
     const classification = classifyModelSafeWorkspaceFileRow(row, options.workspaceId)
     if (classification === 'unsafe') {
       return refuseWorkspaceFileProvenance(

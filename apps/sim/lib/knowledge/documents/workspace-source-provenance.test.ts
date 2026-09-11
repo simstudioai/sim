@@ -3,6 +3,7 @@
  */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 const {
   mockCheckStorageQuotaForBillingContext,
@@ -280,6 +281,137 @@ describe('knowledge workspace source provenance', () => {
       []
     )
     expect(findDocumentProvenanceWrite()).toBeUndefined()
+  })
+
+  describe('execution file sources', () => {
+    const executionKey = `execution/${WORKSPACE_ID}/workflow-1/run-1/source.pdf`
+    const executionUrl = `/api/files/serve/${encodeURIComponent(executionKey)}?context=workspace`
+    const executionBinding = {
+      ...SOURCE_BINDING,
+      id: 'execution-source-1',
+      key: executionKey,
+      context: 'execution',
+    }
+    const documentInput = {
+      filename: 'source.pdf',
+      fileUrl: executionUrl,
+      fileSize: 512,
+      mimeType: 'application/pdf',
+    }
+
+    beforeEach(() => {
+      mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+        context === 'execution' ? [executionBinding] : []
+      )
+    })
+
+    for (const mode of ['single', 'bulk'] as const) {
+      async function create() {
+        if (mode === 'single') {
+          await createSingleDocument(documentInput, KNOWLEDGE_BASE_ID, 'request-1', SOURCE_USER_ID)
+        } else {
+          await createDocumentRecords(
+            [documentInput],
+            KNOWLEDGE_BASE_ID,
+            'request-1',
+            SOURCE_USER_ID
+          )
+        }
+      }
+
+      it.each([
+        { status: 'exact', entries: [] },
+        {
+          status: 'exact',
+          entries: [{ name: 'EXPORT_SECRET', encryptedValue: 'encrypted-export-secret' }],
+        },
+        { status: 'unknown' },
+      ] satisfies WorkspaceFileSecretProvenance[])(
+        `binds canonical execution byte provenance during ${mode} admission: %j`,
+        async (provenance) => {
+          mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+            new Map([[executionBinding.id, provenance]])
+          )
+
+          await create()
+
+          expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
+            [executionKey],
+            'execution',
+            expect.anything(),
+            { includeDeleted: true }
+          )
+          expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
+            expect.anything(),
+            [executionBinding]
+          )
+          expect(findDocumentProvenanceWrite()).toEqual(
+            expect.objectContaining({
+              status: provenance.status,
+              entries:
+                provenance.status === 'exact'
+                  ? provenance.entries.map((entry) =>
+                      expect.objectContaining({
+                        ...entry,
+                        sourceUserId: SOURCE_USER_ID,
+                        sourceWorkspaceId: WORKSPACE_ID,
+                        sourceValueHash: expect.any(String),
+                      })
+                    )
+                  : [],
+            })
+          )
+        }
+      )
+
+      it(`preserves soft-deleted execution taint during ${mode} admission`, async () => {
+        const deletedBinding = { ...executionBinding, deletedAt: CONTENT_UPDATED_AT }
+        mockGetFileMetadataByKeys.mockImplementation(
+          async (
+            _keys: string[],
+            context: string,
+            _executor: unknown,
+            options?: { includeDeleted?: boolean }
+          ) => (context === 'execution' && options?.includeDeleted ? [deletedBinding] : [])
+        )
+        mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+          new Map([[executionBinding.id, { status: 'unknown' }]])
+        )
+
+        await create()
+
+        expect(findDocumentProvenanceWrite()).toMatchObject({ status: 'unknown', entries: [] })
+      })
+
+      it.each(['missing', 'untracked'])(
+        `preserves legacy %s execution sources during ${mode} admission`,
+        async (kind) => {
+          mockGetFileMetadataByKeys.mockResolvedValue(
+            kind === 'missing' ? [] : [{ ...executionBinding, secretProvenanceVersion: null }]
+          )
+
+          await create()
+
+          expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
+            expect.anything(),
+            []
+          )
+          expect(findDocumentProvenanceWrite()).toBeUndefined()
+        }
+      )
+
+      it(`refuses another workspace's execution source before ${mode} admission`, async () => {
+        mockGetFileMetadataByKeys.mockResolvedValue([
+          { ...executionBinding, workspaceId: 'other-workspace' },
+        ])
+
+        await expect(create()).rejects.toThrow('Document file is not owned by this knowledge base')
+
+        expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).not.toHaveBeenCalled()
+        expect(findDocumentProvenanceWrite()).toBeUndefined()
+        expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+      })
+    }
   })
 
   it('never deletes a referenced workspace source as knowledge-base storage', async () => {

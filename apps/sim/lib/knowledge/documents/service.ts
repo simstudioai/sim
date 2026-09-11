@@ -184,7 +184,7 @@ const logger = createLogger('DocumentService')
 
 /**
  * Thrown when a knowledge-base document's `fileUrl` references an internal
- * knowledge-base storage object not owned by the target knowledge base's workspace.
+ * knowledge-base or execution object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
  *
  * Deliberately carries no `details.code`. It belongs to the cross-tenant class
@@ -214,12 +214,15 @@ function getKnowledgeBaseStorageKeys(fileUrls: readonly string[]): string[] {
   ]
 }
 
-function getWorkspaceSourceStorageKeys(fileUrls: readonly string[]): string[] {
+function getSourceStorageKeys(
+  fileUrls: readonly string[],
+  context: 'workspace' | 'execution'
+): string[] {
   return [
     ...new Set(
       fileUrls
         .map((url) => getKnowledgeBaseStorageKey(url))
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('workspace/'))
+        .filter((key): key is string => typeof key === 'string' && key.startsWith(`${context}/`))
     ),
   ]
 }
@@ -238,18 +241,39 @@ async function loadKnowledgeBaseFileBindings(
   return new Map(bindings.map((binding) => [binding.key, binding]))
 }
 
-async function loadWorkspaceSourceFileBindings(
+/** Execution metadata without a provenance marker predates stamping and remains a legacy source. */
+async function loadSourceFileBindings(
   fileUrls: readonly string[],
+  workspaceId: string | null,
   executor: DbExecutor = db
 ): Promise<Map<string, FileMetadataRecord>> {
-  const keys = getWorkspaceSourceStorageKeys(fileUrls)
-  if (keys.length === 0) return new Map()
+  const workspaceKeys = getSourceStorageKeys(fileUrls, 'workspace')
+  const executionKeys = getSourceStorageKeys(fileUrls, 'execution')
+  const workspaceBindings =
+    workspaceKeys.length > 0
+      ? await getFileMetadataByKeys(workspaceKeys, 'workspace', executor)
+      : []
+  const mothershipBindings =
+    workspaceKeys.length > 0
+      ? await getFileMetadataByKeys(workspaceKeys, 'mothership', executor)
+      : []
+  const executionBindings =
+    executionKeys.length > 0
+      ? await getFileMetadataByKeys(executionKeys, 'execution', executor, { includeDeleted: true })
+      : []
 
-  const workspaceBindings = await getFileMetadataByKeys(keys, 'workspace', executor)
-  const mothershipBindings = await getFileMetadataByKeys(keys, 'mothership', executor)
+  for (const binding of executionBindings) {
+    if (!workspaceId || binding.workspaceId !== workspaceId) {
+      throw new KnowledgeBaseFileOwnershipError(binding.key)
+    }
+  }
 
   return new Map(
-    [...workspaceBindings, ...mothershipBindings].map((binding) => [binding.key, binding])
+    [
+      ...workspaceBindings,
+      ...mothershipBindings,
+      ...executionBindings.filter((binding) => binding.secretProvenanceVersion !== null),
+    ].map((binding) => [binding.key, binding])
   )
 }
 
@@ -281,13 +305,14 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   return bindingByKey
 }
 
-async function loadCurrentWorkspaceSourceFileSecretProvenance(options: {
+async function loadCurrentSourceFileSecretProvenance(options: {
   fileUrl: string
+  workspaceId: string | null
 }): Promise<DurableSecretProvenance | undefined> {
   const storageKey = getKnowledgeBaseStorageKey(options.fileUrl)
-  if (!storageKey?.startsWith('workspace/')) return undefined
+  if (!storageKey) return undefined
 
-  const bindingByKey = await loadWorkspaceSourceFileBindings([options.fileUrl])
+  const bindingByKey = await loadSourceFileBindings([options.fileUrl], options.workspaceId)
   const binding = bindingByKey.get(storageKey)
   if (!binding) return undefined
 
@@ -388,7 +413,7 @@ interface DocumentTagData {
 
 type TagDefinition = typeof knowledgeBaseTagDefinitions.$inferSelect
 type TagDefinitionsByName = Map<string, TagDefinition>
-type DbExecutor = Pick<typeof db, 'select'>
+type DbExecutor = Pick<typeof db, 'select' | 'selectDistinctOn'>
 
 async function loadTagDefinitions(
   knowledgeBaseId: string,
@@ -1638,8 +1663,9 @@ export async function processDocumentAsync(
     let embeddingModelName = kbEmbeddingModel
     let embeddingPricingId = kbEmbeddingModel
 
-    const currentSourceFileProvenance = await loadCurrentWorkspaceSourceFileSecretProvenance({
+    const currentSourceFileProvenance = await loadCurrentSourceFileSecretProvenance({
       fileUrl: persistedDocData.fileUrl,
+      workspaceId: ctx.workspaceId,
     })
     const documentSecretContext = await loadKnowledgeDocumentSecretRegistry(
       documentId,
@@ -2287,8 +2313,9 @@ export async function createDocumentRecords(
       requestId,
       tx
     )
-    const sourceBindingByKey = await loadWorkspaceSourceFileBindings(
+    const sourceBindingByKey = await loadSourceFileBindings(
       resolvedDocuments.map((docData) => docData.fileUrl),
+      admission.workspaceId,
       tx
     )
     const trackedBindings = [
@@ -2961,8 +2988,9 @@ export async function createSingleDocument(
       requestId,
       tx
     )
-    const sourceBindingByKey = await loadWorkspaceSourceFileBindings(
+    const sourceBindingByKey = await loadSourceFileBindings(
       [resolvedDocumentData.fileUrl],
+      admission.workspaceId,
       tx
     )
     const storageKey = getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl)

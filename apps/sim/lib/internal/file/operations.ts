@@ -19,6 +19,7 @@ import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
+import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
 import {
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
@@ -44,6 +45,8 @@ import type {
   WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
+  getBoundWorkspaceFileSecretProvenance,
+  mayReadUnrecordedWorkspaceFile,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
@@ -198,11 +201,10 @@ const fileInputToUserFile = (fileInput: unknown) => {
         ? record.fileId.trim()
         : ''
 
-  // Objects with ids are resolved through workspace metadata. This fallback is for
-  // picker/upload values that only carry storage fields.
-  if (id) return null
-
   const key = typeof record.key === 'string' ? record.key.trim() : ''
+  /** Execution ids are not workspace file ids; their storage key carries the run scope. */
+  if (id && (!key || tryInferContextFromKey(key) !== 'execution')) return null
+
   const path = typeof record.path === 'string' ? record.path.trim() : ''
   const url = typeof record.url === 'string' ? record.url.trim() : ''
   const fileUrl =
@@ -217,7 +219,7 @@ const fileInputToUserFile = (fileInput: unknown) => {
   if (key && !context) return null
 
   return {
-    id: key || fileUrl,
+    id: id || key || fileUrl,
     name:
       typeof record.name === 'string' && record.name.trim() ? record.name.trim() : 'workspace-file',
     url: fileUrl ? ensureAbsoluteUrl(fileUrl) : '',
@@ -284,6 +286,12 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
       if (typeof input === 'string') return normalizeFileIdList(input)
       if (input && typeof input === 'object') {
         const record = input as Record<string, unknown>
+        if (
+          typeof record.key === 'string' &&
+          tryInferContextFromKey(record.key.trim()) === 'execution'
+        ) {
+          return []
+        }
         if (typeof record.id === 'string') return normalizeFileIdList(record.id)
         if (typeof record.fileId === 'string') return normalizeFileIdList(record.fileId)
       }
@@ -424,15 +432,23 @@ function sliceTextLines(
 interface ExtractedFileText {
   text: string
   truncated: boolean
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 const extractUserFileTextContent = async (
   userFile: UserFile,
-  requestId: string
+  context: FileManageOperationContext
 ): Promise<ExtractedFileText> => {
-  const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
-    maxBytes: MAX_GET_CONTENT_FILE_BYTES,
-  })
+  const { buffer, contributingFiles } = await downloadServableFileFromStorage(
+    userFile,
+    context.requestId,
+    logger,
+    {
+      maxBytes: MAX_GET_CONTENT_FILE_BYTES,
+      filePrincipal: context.principal,
+      signal: context.signal,
+    }
+  )
 
   const extension = getFileExtension(userFile.name)
   if (extension && isSupportedFileType(extension)) {
@@ -442,7 +458,11 @@ const extractUserFileTextContent = async (
         /** Scraped or placeholder output is a failure, not the file's content. */
         throw new Error(result.metadata.warning ?? 'Parser returned degraded output')
       }
-      return { text: result.content ?? '', truncated: result.metadata?.truncated === true }
+      return {
+        text: result.content ?? '',
+        truncated: result.metadata?.truncated === true,
+        contributingFiles,
+      }
     } catch (error) {
       logger.warn('Falling back to raw text after parser failure', {
         name: userFile.name,
@@ -452,16 +472,19 @@ const extractUserFileTextContent = async (
   }
 
   if (isLikelyTextBuffer(buffer)) {
-    return { text: buffer.toString('utf-8'), truncated: false }
+    return { text: buffer.toString('utf-8'), truncated: false, contributingFiles }
   }
 
   return {
     text: `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`,
     truncated: false,
+    contributingFiles,
   }
 }
 
 export interface FileContentProvenanceSource {
+  /** Rendering may encode these bytes; original secret literals cannot describe the transformed value. */
+  opaque?: boolean
   identity?: WorkspaceFileSecretProvenanceIdentity
   ownerUserId?: string
 }
@@ -471,10 +494,17 @@ interface FileContentSource extends FileContentProvenanceSource {
 }
 
 async function bindSelectedContentFile(
-  principal: Principal,
-  workspaceId: string,
+  context: FileManageOperationContext,
   file: UserFile
 ): Promise<FileContentSource> {
+  const { principal, workspaceId } = context
+  if (file.key && tryInferContextFromKey(file.key) === 'execution') {
+    const source = await resolveStoredFileProvenanceSource(file, {
+      ...context,
+      userId: context.fileAccessUserId,
+    })
+    return { file, ...source }
+  }
   if (!file.key || file.context !== 'workspace') return { file }
 
   let metadata: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
@@ -503,6 +533,67 @@ async function bindSelectedContentFile(
   }
 }
 
+async function bindSelectedContentFiles(
+  context: FileManageOperationContext,
+  files: readonly UserFile[]
+): Promise<FileContentSource[]> {
+  const sources: FileContentSource[] = []
+  for (const file of files) {
+    context.signal?.throwIfAborted()
+    sources.push(await bindSelectedContentFile(context, file))
+  }
+  return sources
+}
+
+/** Preserves the renderer's consumed revision while checking each contributor's current scope. */
+async function bindRenderedContentSources(
+  context: FileManageOperationContext,
+  identities: readonly WorkspaceFileSecretProvenanceIdentity[] = []
+): Promise<FileContentProvenanceSource[]> {
+  const sources: FileContentProvenanceSource[] = []
+  for (const identity of identities) {
+    context.signal?.throwIfAborted()
+    const canonical = await resolveStoredFileProvenanceSource(
+      {
+        key: identity.key,
+        context: identity.context === 'mothership' ? 'workspace' : identity.context,
+      },
+      { ...context, userId: context.fileAccessUserId }
+    )
+    const matches =
+      canonical &&
+      canonical.identity.fileId === identity.fileId &&
+      canonical.identity.key === identity.key &&
+      canonical.identity.context === identity.context
+    sources.push({
+      identity,
+      opaque: true,
+      ...(matches ? { ownerUserId: canonical.ownerUserId } : {}),
+    })
+  }
+  return sources
+}
+
+/** Execution identities have already passed the same run capability that authorized their bytes. */
+async function readFileSourceSecretProvenance(
+  principal: Principal,
+  workspaceId: string,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): Promise<WorkspaceFileSecretProvenance> {
+  if (identity.context === 'execution' || identity.context === 'mothership') {
+    return getBoundWorkspaceFileSecretProvenance(workspaceId, identity)
+  }
+  const { provenance } = await readWorkspaceFileSecretProvenance.execute({
+    principal,
+    input: {
+      fileId: identity.fileId,
+      assertedWorkspaceId: workspaceId,
+      expectedContentUpdatedAt: identity.contentUpdatedAt,
+    },
+  })
+  return provenance
+}
+
 export async function getFileContentProvenance(
   principal: Principal,
   workspaceId: string,
@@ -527,27 +618,25 @@ export async function getFileContentProvenance(
       accumulator.markIncomplete('file-source-unidentified')
       continue
     }
-    const { provenance } = await readWorkspaceFileSecretProvenance.execute({
-      principal,
-      input: {
-        fileId: source.identity.fileId,
-        assertedWorkspaceId: workspaceId,
-        expectedContentUpdatedAt: source.identity.contentUpdatedAt,
-      },
-    })
+    const provenance = await readFileSourceSecretProvenance(principal, workspaceId, source.identity)
     signal?.throwIfAborted()
-    /**
-     * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
-     * workspace file surface's policy, so it latches exactly as it did before.
-     */
-    if (provenance.status !== 'exact') {
+    if (provenance.status === 'unrecorded' && mayReadUnrecordedWorkspaceFile(workspaceId)) continue
+    if (provenance.status !== 'exact' || (source.opaque && provenance.entries.length > 0)) {
       accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }
     accumulator.record({
       version: 1,
       complete: true,
-      entries: [...provenance.entries],
+      entries: provenance.entries.map((entry) => ({
+        encryptedValue: entry.encryptedValue,
+        ...(entry.name &&
+        scope &&
+        entry.sourceUserId === scope.userId &&
+        entry.sourceWorkspaceId === scope.workspaceId
+          ? { name: entry.name }
+          : {}),
+      })),
       ...(scope ? { scope } : {}),
     })
   }
@@ -678,25 +767,27 @@ async function deriveWorkspaceFileSecretProvenance(options: {
   principal: Principal
   workspaceId: string
   targetOwnerUserId: string
-  sources: readonly FileContentSource[]
+  sources: readonly FileContentProvenanceSource[]
 }): Promise<WorkspaceFileSecretProvenance> {
-  const provenances: WorkspaceFileSecretProvenance[] = []
+  let combined: WorkspaceFileSecretProvenance = { status: 'exact', entries: [] }
   for (const source of options.sources) {
     if (!source.identity || !source.ownerUserId) return { status: 'unknown' }
-    const { provenance } = await readWorkspaceFileSecretProvenance.execute({
-      principal: options.principal,
-      input: { fileId: source.identity.fileId, assertedWorkspaceId: options.workspaceId },
-    })
+    const provenance = await readFileSourceSecretProvenance(
+      options.principal,
+      options.workspaceId,
+      source.identity
+    )
     if (
       provenance.status === 'exact' &&
       provenance.entries.length > 0 &&
-      source.ownerUserId !== options.targetOwnerUserId
+      (source.opaque || source.ownerUserId !== options.targetOwnerUserId)
     ) {
       return { status: 'unknown' }
     }
-    provenances.push(provenance)
+    combined = mergeWorkspaceFileSecretProvenance(combined, provenance)
+    if (combined.status === 'unknown') return combined
   }
-  return mergeWorkspaceFileSecretProvenance(...provenances)
+  return combined
 }
 
 export function fileContentJsonResponse(
@@ -1097,10 +1188,9 @@ export async function executeFileManageOperation(
             },
           ]
         })
-        const selectedSources = await Promise.all(
-          selectedInputFiles.map((file) => bindSelectedContentFile(principal, workspaceId, file))
-        )
+        const selectedSources = await bindSelectedContentFiles(context, selectedInputFiles)
         const sources = canonicalSources.concat(selectedSources)
+        const provenanceSources: FileContentProvenanceSource[] = [...sources]
 
         const contents: string[] = []
         const lineRanges: FileContentLineRange[] = []
@@ -1119,7 +1209,14 @@ export async function executeFileManageOperation(
             })
           }
 
-          const extracted = await extractUserFileTextContent(source.file, requestId)
+          const extracted = await extractUserFileTextContent(source.file, context)
+          if (includePrivateContentProvenance) {
+            const renderedSources = await bindRenderedContentSources(
+              context,
+              extracted.contributingFiles
+            )
+            for (const renderedSource of renderedSources) provenanceSources.push(renderedSource)
+          }
           const { text: content, range } = sliceTextLines(
             extracted.text,
             body.offset,
@@ -1144,7 +1241,7 @@ export async function executeFileManageOperation(
 
         logger.info('File content extracted', { count: contents.length })
         const provenance = includePrivateContentProvenance
-          ? await getFileContentProvenance(principal, workspaceId, sources, signal)
+          ? await getFileContentProvenance(principal, workspaceId, provenanceSources, signal)
           : undefined
 
         return contentResponse(
@@ -1186,8 +1283,8 @@ export async function executeFileManageOperation(
          * "safe" state — and a file the platform had locked as secret-derived
          * would be readable again under its new id.
          *
-         * A source with no workspace row resolves to `unknown` rather than empty,
-         * because nothing durable records what went into it.
+         * Workspace and execution files carry their canonical sidecars across the copy.
+         * An unidentified source cannot establish exact provenance.
          */
         let inputProvenance: WorkspaceFileSecretProvenance | undefined
         if (fileInput !== undefined && fileInput !== null) {
@@ -1220,12 +1317,7 @@ export async function executeFileManageOperation(
           const denied = await assertOperationFileAccess(sourceFile, context)
           if (denied) return denied
 
-          inputProvenance = await deriveWorkspaceFileSecretProvenance({
-            principal,
-            workspaceId,
-            targetOwnerUserId: userId,
-            sources: [await bindSelectedContentFile(principal, workspaceId, sourceFile)],
-          })
+          const source = await bindSelectedContentFile(context, sourceFile)
 
           const downloaded = await downloadServableFileFromStorage(sourceFile, requestId, logger, {
             maxBytes: MAX_WRITE_FILE_INPUT_BYTES,
@@ -1234,6 +1326,15 @@ export async function executeFileManageOperation(
             // to resolve them; without one the resolver can only serve an
             // already-published artifact and throws when there is none.
             filePrincipal: principal,
+          })
+          inputProvenance = await deriveWorkspaceFileSecretProvenance({
+            principal,
+            workspaceId,
+            targetOwnerUserId: userId,
+            sources: [
+              source,
+              ...(await bindRenderedContentSources(context, downloaded.contributingFiles)),
+            ],
           })
           sourceEncoding = 'base64'
           sourceContent = downloaded.buffer.toString('base64')
@@ -1735,16 +1836,19 @@ export async function executeFileManageOperation(
           return [
             {
               file: userFile,
-              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              identity: {
+                fileId: file.id,
+                key: file.key,
+                context: 'workspace',
+                contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+              },
               ownerUserId: file.uploadedBy,
             },
           ]
         })
-        const selectedArchiveSources = await Promise.all(
-          selectedInputFiles.map((file) => bindSelectedContentFile(principal, workspaceId, file))
-        )
+        const selectedArchiveSources = await bindSelectedContentFiles(context, selectedInputFiles)
         const archiveSources = canonicalArchiveSources.concat(selectedArchiveSources)
-        const archiveProvenance = await deriveWorkspaceFileSecretProvenance({
+        let archiveProvenance = await deriveWorkspaceFileSecretProvenance({
           principal,
           workspaceId,
           targetOwnerUserId: userId,
@@ -1775,9 +1879,26 @@ export async function executeFileManageOperation(
           // the archive must carry the servable bytes instead of the raw source text.
           // A still-compiling artifact throws, and the handler's catch turns that into
           // the shared 409 via `docNotReadyResponse`.
-          const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
-            maxBytes: MAX_COMPRESS_FILE_BYTES,
-          })
+          const { buffer, contributingFiles } = await downloadServableFileFromStorage(
+            userFile,
+            requestId,
+            logger,
+            {
+              maxBytes: MAX_COMPRESS_FILE_BYTES,
+              filePrincipal: principal,
+              signal,
+            }
+          )
+          const renderedSources = await bindRenderedContentSources(context, contributingFiles)
+          archiveProvenance = mergeWorkspaceFileSecretProvenance(
+            archiveProvenance,
+            await deriveWorkspaceFileSecretProvenance({
+              principal,
+              workspaceId,
+              targetOwnerUserId: userId,
+              sources: renderedSources,
+            })
+          )
           totalBytes += buffer.length
           if (totalBytes > MAX_COMPRESS_TOTAL_BYTES) {
             return Response.json(
@@ -1905,14 +2026,17 @@ export async function executeFileManageOperation(
           return [
             {
               file: userFile,
-              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              identity: {
+                fileId: file.id,
+                key: file.key,
+                context: 'workspace',
+                contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+              },
               ownerUserId: file.uploadedBy,
             },
           ]
         })
-        const selectedArchiveSource = await Promise.all(
-          selectedInputFiles.map((file) => bindSelectedContentFile(principal, workspaceId, file))
-        )
+        const selectedArchiveSource = await bindSelectedContentFiles(context, selectedInputFiles)
         const archiveSource = canonicalArchiveSource.concat(selectedArchiveSource)[0]
         if (!archiveSource?.identity) {
           const denied = await assertOperationFileAccess(archive, context)

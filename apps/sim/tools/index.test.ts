@@ -1562,6 +1562,66 @@ describe('executeTool Function', () => {
     ])
   })
 
+  it.each([true, false])(
+    'carries File Fetch lineage into later durable values when complete=%s',
+    async (complete) => {
+      const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+      const registry = new ResolvedSecretTraceRegistry([], scope)
+      const entry = { name: 'API_KEY', encryptedValue: 'encrypted-value' }
+      encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        Response.json(
+          {
+            success: true,
+            output: {
+              content: 'secret-value',
+              name: 'report.txt',
+              fileType: 'text/plain',
+              size: 12,
+              binary: false,
+            },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete,
+              entries: complete ? [entry] : [],
+              scope,
+            },
+          },
+          { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1' } }
+        )
+      )
+
+      const result = await executeTool(
+        'file_fetch',
+        { fileUrl: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/report.txt' },
+        {
+          executionContext: createToolExecutionContext(scope),
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { combinedContent: 'secret-value' },
+      })
+      expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+      expect(
+        mockExecuteInternalToolOperation.mock.calls[0]?.[0].headers.get(
+          'x-sim-request-private-tool-metadata'
+        )
+      ).toBe('resolved-secret-provenance-v1')
+      for (const durableValue of [
+        { 'column-id': 'secret-value' },
+        { role: 'assistant', content: 'secret-value' },
+      ]) {
+        expect(registry.exportCommittedProvenanceForValue(durableValue)).toMatchObject({
+          complete,
+          entries: complete ? [entry] : [],
+        })
+      }
+    }
+  )
+
   it.each([
     {
       name: 'table propagate policy',

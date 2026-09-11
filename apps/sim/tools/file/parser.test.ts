@@ -2,9 +2,20 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { fileFetchTool, fileParserTool, fileParserV3Tool } from '@/tools/file/parser'
+import {
+  fileFetchTool,
+  fileParserTool,
+  fileParserV2Tool,
+  fileParserV3Tool,
+} from '@/tools/file/parser'
 
 describe('fileParserTool', () => {
+  it.each([fileFetchTool, fileParserTool, fileParserV2Tool, fileParserV3Tool])(
+    '$id negotiates stored source provenance before exposing parsed content',
+    (tool) => {
+      expect(tool.operation.secretProvenance?.response).toEqual({ incomplete: 'reject' })
+    }
+  )
   it('maps the public File Fetch URL to the internal parser path', () => {
     expect(
       fileFetchTool.operation.input({
