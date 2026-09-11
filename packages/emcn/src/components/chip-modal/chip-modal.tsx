@@ -387,7 +387,7 @@ function ChipModalTabs({
       onChange={onChange}
       aria-label={ariaLabel}
       options={tabs.map((tab) => ({ value: tab.value, label: tab.label, icon: tab.icon }))}
-      className={className}
+      className={cn('shrink-0', className)}
     />
   )
 }
