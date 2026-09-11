@@ -6,14 +6,26 @@ import { describe, expect, it } from 'vitest'
 import { TOOL_CATALOG } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { getToolActivityLabel, TOOL_ACTIVITIES } from '@/lib/copilot/tools/tool-activity'
+import { TOOL_ICONS } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 
 const visibleTools = Object.values(TOOL_CATALOG).filter(
   (tool) => tool.route !== 'subagent' && !tool.hidden && !isToolHiddenInUi(tool.id)
 )
 
 describe('tool activity catalog coverage', () => {
+  it('covers subagent icons under their dispatch and stream names', () => {
+    for (const tool of Object.values(TOOL_CATALOG)) {
+      if (tool.route !== 'subagent') continue
+      expect(Object.hasOwn(TOOL_ICONS, tool.id), tool.id).toBe(true)
+      if (tool.subagentId) {
+        expect(Object.hasOwn(TOOL_ICONS, tool.subagentId), tool.subagentId).toBe(true)
+      }
+    }
+  })
+
   it.each(visibleTools)('explicitly describes $id and every declared operation', (tool) => {
-    expect(Object.hasOwn(TOOL_ACTIVITIES, tool.id), tool.id).toBe(true)
+    expect(Object.hasOwn(TOOL_ACTIVITIES, tool.id), `${tool.id} summary`).toBe(true)
+    expect(Object.hasOwn(TOOL_ICONS, tool.id), `${tool.id} icon`).toBe(true)
     const activity = TOOL_ACTIVITIES[tool.id]
     const properties = isRecordLike(tool.parameters) ? tool.parameters.properties : undefined
     if (!isRecordLike(properties)) return

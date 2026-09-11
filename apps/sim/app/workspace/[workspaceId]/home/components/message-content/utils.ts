@@ -34,7 +34,7 @@ import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
-const TOOL_ICONS: Record<string, IconComponent> = {
+export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   agent: Brain,
   apply_file_edit: File,
   auth: Integration,
@@ -87,6 +87,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   diff_workflows: Layout,
   download_file: File,
   edit_workflow: Pencil,
+  extensions: Brain,
   extract_doc_assets: File,
   ffmpeg: Wrench,
   file: File,
