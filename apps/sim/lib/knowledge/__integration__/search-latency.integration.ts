@@ -6,6 +6,7 @@ import {
   credential,
   credentialGroup,
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   member,
@@ -18,13 +19,27 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
-import { searchWorkspaceServerTool } from '@/lib/copilot/tools/server/knowledge/workspace-search'
+import type {
+  MothershipStreamV1CheckpointPausePayload,
+  MothershipStreamV1ToolCallDescriptor,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { isContractStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import {
+  readDocumentServerTool,
+  searchWorkspaceServerTool,
+} from '@/lib/copilot/tools/server/knowledge/workspace-search'
 import { seedSearchReaderFixture } from '@/lib/knowledge/__integration__/seed-search-reader-fixture'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
+import {
+  SearchBudget,
+  SearchDeadlineError,
+  type SearchExecutor,
+} from '@/lib/knowledge/search/budget'
+import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -39,6 +54,7 @@ vi.hoisted(() => {
   }
 })
 
+const externalFetch = globalThis.fetch
 const enabled = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true'
 const chunkCount = Number(process.env.KNOWLEDGE_SEARCH_PERFORMANCE_CHUNKS ?? 20_000)
 const dimensions = 1536
@@ -400,7 +416,106 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     await db.$client.end()
   }, 120_000)
 
+  it('cancels slow SQL on the server and restores pooled connection settings', async () => {
+    const budget = new SearchBudget('keyword', performance.now() + 200)
+    const started = performance.now()
+    await expect(
+      budget.query('keyword.sql', (tx) => tx.execute(sql`SELECT pg_sleep(5)`))
+    ).rejects.toBeInstanceOf(SearchDeadlineError)
+    expect(performance.now() - started).toBeLessThan(2000)
+    const [active] = await db.execute<{ count: number }>(
+      sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND state = 'active' AND query = 'SELECT pg_sleep(5)'`
+    )
+    expect(active.count).toBe(0)
+    const [settings] = await db.execute<{ timeout: string }>(
+      sql`SELECT current_setting('statement_timeout') AS timeout`
+    )
+    expect(settings.timeout).toBe('0')
+  })
+
+  it('expires waiting for a saturated pool without executing abandoned work', async () => {
+    let release!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let markSaturated!: () => void
+    const saturated = new Promise<void>((resolve) => {
+      markSaturated = resolve
+    })
+    let acquired = 0
+    const holders = Array.from({ length: db.$client.options.max }, () =>
+      db.transaction(async () => {
+        if (++acquired === db.$client.options.max) markSaturated()
+        await released
+      })
+    )
+    const run = vi.fn((tx: SearchExecutor) => tx.execute(sql`SELECT 1`))
+    const started = performance.now()
+    try {
+      await saturated
+      const budget = new SearchBudget('keyword', performance.now() + 200)
+      await expect(budget.query('keyword.sql', run)).rejects.toBeInstanceOf(SearchDeadlineError)
+      expect(performance.now() - started).toBeLessThan(2000)
+    } finally {
+      release()
+      await Promise.all(holders)
+    }
+    await db.execute(sql`SELECT 1`)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it.each(['keyword', 'both'] as const)(
+    'handles %s SQL branches exceeding the deadline explicitly',
+    async (delayedLegs) => {
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (delayedLegs === 'both' || this.leg === 'keyword')
+            await tx.execute(sql`SELECT pg_sleep(9)`)
+          return run(tx)
+        }) as Promise<T>
+      })
+      try {
+        const result = await searchWorkspaceServerTool.execute(
+          { query: 'Orion deployment', topK: 15 },
+          {
+            userId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+            toolCallId: generateId(),
+            copilotToolExecution: true,
+            resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+              userId: ids.aliceId,
+              workspaceId: ids.workspaceId,
+            }),
+          }
+        )
+        if (delayedLegs === 'both') {
+          expect(result).toMatchObject({ success: false, retryable: true })
+          return
+        }
+        expect(result).toMatchObject({
+          success: true,
+          data: { retrieval: { status: 'partial', timedOutLegs: ['keyword'] } },
+        })
+        const parsed = resultSchema.parse(result)
+        expect(parsed.data.results.length).toBeGreaterThan(0)
+        expect(
+          parsed.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
+        ).toBe(true)
+        report['deadline.partial'] = { resultCount: parsed.data.results.length }
+      } finally {
+        delayed.mockRestore()
+      }
+    },
+    30_000
+  )
+
   it('records first and repeated application searches with the actual SQL plans', async () => {
+    const before = embeddingCalls
     for (let iteration = 0; iteration < 2; iteration++) {
       const { result, plans } = await sample(`broad.${iteration}`, () => search())
       expect(result.data.results).toHaveLength(15)
@@ -412,7 +527,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       expect(vectorPlans).toHaveLength(1)
       expect(usesVectorIndex(vectorPlans[0].plan[0].Plan)).toBe(true)
     }
-    expect(embeddingCalls).toBe(2)
+    expect(embeddingCalls - before).toBe(2)
   }, 180_000)
 
   it('compares the Search tab and Assistant with the same person, query and index', async () => {
@@ -555,4 +670,171 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       true
     )
   }, 180_000)
+  /** Opt in with local Sim and Go URLs; uses the real configured provider, billing adapter, and async resume protocol. */
+  it.skipIf(!process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL)(
+    'answers through local Go Assistant with progressive reads and citations',
+    async () => {
+      const assistantUrl = new URL(process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL!)
+      const simUrl = new URL(process.env.KNOWLEDGE_SEARCH_SIM_URL!)
+      for (const url of [assistantUrl, simUrl]) {
+        if (!['127.0.0.1', 'localhost'].includes(url.hostname))
+          throw new Error(
+            'Assistant integration requires local servers using the disposable test databases'
+          )
+      }
+      const apiKey = process.env.KNOWLEDGE_SEARCH_ASSISTANT_API_KEY!
+      const internalKey = process.env.KNOWLEDGE_SEARCH_SIM_INTERNAL_KEY!
+      expect(apiKey).toBeTruthy()
+      expect(internalKey).toBeTruthy()
+      const chunkId = `${ids.workspaceId}-chunk-0`
+      const [original] = await db
+        .select({
+          content: embedding.content,
+          contentLength: embedding.contentLength,
+          tokenCount: embedding.tokenCount,
+        })
+        .from(embedding)
+        .where(eq(embedding.id, chunkId))
+        .limit(1)
+      const longContent =
+        'Orion deployment guide. The activation phrase and final checksum appear at the end.\n' +
+        'Review the deployment stages in order. Preserve the rollback procedure.\n'.repeat(320) +
+        '\nActivation phrase: SILVER COMET\nFinal checksum: K7M2-84\n'
+      const registry = new ResolvedSecretTraceRegistry([], { userId: ids.aliceId })
+      const calls: Array<{
+        name: string
+        arguments: unknown
+        milliseconds: number
+        bytes: number
+      }> = []
+      let answer = ''
+      const started = performance.now()
+      try {
+        await db
+          .update(embedding)
+          .set({
+            content: longContent,
+            contentLength: longContent.length,
+            tokenCount: Math.ceil(longContent.length / 4),
+          })
+          .where(eq(embedding.id, chunkId))
+        const admission = await externalFetch(new URL('/api/copilot/api-keys/validate', simUrl), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': internalKey,
+            'x-sim-billing-protocol': 'legacy-v0',
+          },
+          body: JSON.stringify({
+            userId: ids.aliceId,
+            organizationId: ids.organizationId,
+            chatId: organizationChatId,
+          }),
+        })
+        expect(admission.status, await admission.text()).toBe(200)
+        let path = '/api/mothership'
+        let body: Record<string, unknown> = {
+          message:
+            'Search for the Orion deployment guide that mentions an activation phrase and final checksum. Read enough of that document to report both values and cite it.',
+          version: '3.0.0',
+          mode: 'assistant',
+          userId: ids.aliceId,
+          organizationId: ids.organizationId,
+          chatId: organizationChatId,
+        }
+        for (let round = 0; round < 8; round++) {
+          const response = await externalFetch(new URL(path, assistantUrl), {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-api-key': apiKey,
+              'x-sim-billing-protocol': 'legacy-v0',
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(120000),
+          })
+          const wire = await response.text()
+          expect(response.status, wire.slice(0, 2000)).toBe(200)
+          expect(Buffer.byteLength(wire)).toBeLessThan(2 * 1024 * 1024)
+          const pending = new Map<string, MothershipStreamV1ToolCallDescriptor>()
+          let checkpoint: MothershipStreamV1CheckpointPausePayload | undefined
+          let streamId = ''
+          for (const line of wire.split('\n')) {
+            if (!line.startsWith('data:')) continue
+            const raw = line.slice(5).trim()
+            if (!raw || raw === '[DONE]') continue
+            const event: unknown = JSON.parse(raw)
+            if (!isContractStreamEventEnvelope(event))
+              throw new Error('Assistant returned an invalid generated stream envelope')
+            streamId = event.stream.streamId
+            if (event.type === 'error') throw new Error(JSON.stringify(event.payload))
+            if (event.type === 'text') answer += event.payload.text
+            if (
+              event.type === 'tool' &&
+              event.payload.phase === 'call' &&
+              !event.payload.partial &&
+              event.payload.arguments
+            )
+              pending.set(event.payload.toolCallId, event.payload)
+            if (event.type === 'run' && event.payload.kind === 'checkpoint_pause')
+              checkpoint = event.payload
+          }
+          if (!checkpoint) break
+          const results = await Promise.all(
+            checkpoint.pendingToolCallIds.map(async (callId) => {
+              const call = pending.get(callId)
+              if (!call) throw new Error('Checkpoint referenced an absent tool call')
+              const tool =
+                call.toolName === 'search_workspace'
+                  ? searchWorkspaceServerTool
+                  : call.toolName === 'read_document'
+                    ? readDocumentServerTool
+                    : undefined
+              if (!tool) throw new Error(`Unexpected Assistant tool: ${call.toolName}`)
+              const toolStarted = performance.now()
+              const result = await tool.execute(call.arguments, {
+                userId: ids.aliceId,
+                organizationId: ids.organizationId,
+                chatId: organizationChatId,
+                toolCallId: callId,
+                copilotToolExecution: true,
+                requestMode: 'assistant',
+                resolvedSecretTraceRegistry: registry,
+              })
+              calls.push({
+                name: call.toolName,
+                arguments: call.arguments,
+                milliseconds: performance.now() - toolStarted,
+                bytes: Buffer.byteLength(JSON.stringify(result)),
+              })
+              const { success } = z.object({ success: z.boolean() }).parse(result)
+              return { callId, name: call.toolName, success, data: result }
+            })
+          )
+          path = '/api/tools/resume'
+          body = {
+            checkpointId: checkpoint.checkpointId,
+            streamId,
+            userId: ids.aliceId,
+            organizationId: ids.organizationId,
+            chatId: organizationChatId,
+            results,
+          }
+          report['assistant.live.progress'] = { rounds: round + 1, calls }
+          saveReport()
+        }
+        report['assistant.live'] = { milliseconds: performance.now() - started, calls, answer }
+        saveReport()
+        expect(answer).toContain('SILVER COMET')
+        expect(answer).toContain('K7M2-84')
+        expect(answer).toContain('<source>')
+        expect(calls.some((call) => call.name === 'read_document')).toBe(true)
+        expect(calls.some((call) => call.name === 'search_workspace')).toBe(true)
+        expect(calls.every((call) => call.bytes < 40000)).toBe(true)
+      } finally {
+        await db.update(embedding).set(original).where(eq(embedding.id, chunkId))
+      }
+    },
+    10 * 60_000
+  )
 })

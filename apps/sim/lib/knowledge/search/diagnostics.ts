@@ -7,6 +7,8 @@ const PROGRESS_INTERVAL_MS = 5000
 
 type RetrievalLeg = 'vector' | 'keyword' | 'tags'
 export type SearchStage =
+  | 'document_read'
+  | 'document_read.sql'
   | 'tool_input'
   | 'tool_application'
   | 'tool_presentation'
@@ -40,7 +42,8 @@ export type SearchStage =
   | `${RetrievalLeg}.candidates`
   | `${RetrievalLeg}.authorization`
   | `${RetrievalLeg}.hydration`
-  | 'vector.connection_acquire'
+  | `${RetrievalLeg}.connection_acquire`
+  | `${RetrievalLeg}.sql`
   | 'vector.settings'
   | 'vector.probe'
   | 'vector.ann'
@@ -48,6 +51,7 @@ export type SearchStage =
 
 /** Fixed, content-free fields. Never pass queries, filters, document identities, SQL, or errors. */
 export interface SearchDiagnosticMetadata {
+  operation?: 'search_workspace' | 'read_document'
   surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api' | 'slack' | 'other'
   toolCallId?: string
   executionId?: string
@@ -68,6 +72,9 @@ export interface SearchDiagnosticMetadata {
   /** Tool output before the executor's final egress projection; counts only, never content. */
   toolResultBytes?: number
   passageBytes?: number
+  originalPassageBytes?: number
+  retrievalStatus?: 'complete' | 'partial'
+  timedOutLegs?: RetrievalLeg[]
   maxPassageBytes?: number
   uniqueDocumentCount?: number
 }
