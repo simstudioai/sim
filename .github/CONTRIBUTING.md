@@ -324,6 +324,8 @@ Sim is built in a modular fashion where blocks and tools extend the platform's f
 > The shorter overview below is a high-level reference; the SKILL.md files are the authoritative source of truth and stay in sync with the codebase.
 >
 > **Skills have one source and one generated compatibility projection.** Edit only the canonical `.agents/skills/<name>/SKILL.md`. Cursor discovers that directory directly; Claude uses the generated `.claude/skills/<name>` symlink. After changing a canonical skill, run `bun run skills:sync` (the pre-commit hook does this automatically when a `SKILL.md` is staged). CI runs `bun run check:skills` and fails if a Claude symlink is stale or a deprecated `.claude/commands/<name>.md` or `.cursor/commands/<name>.md` projection remains. Canonical frontmatter is `name`, `description`, and optional `argument-hint`.
+>
+> **Rules work the same way.** Edit only the canonical `.claude/rules/<name>.md` (frontmatter `description` and optional `paths`). Claude reads that directory directly; Cursor uses the generated `.cursor/rules/<name>.mdc`, which `bun run skills:sync` rewrites and `bun run check:skills` verifies.
 
 ### Where to Add Your Code
 

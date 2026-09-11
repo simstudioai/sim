@@ -1,6 +1,9 @@
 ---
 description: Behavior-preserving React render-performance idioms
+alwaysApply: true
 ---
+
+<!-- Generated from .claude/rules/sim-react-performance.md by `bun run skills:sync`. Edit the source, not this file. -->
 
 # React & Render Performance
 

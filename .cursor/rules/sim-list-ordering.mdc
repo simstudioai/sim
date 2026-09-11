@@ -1,10 +1,9 @@
 ---
 description: List and menu ordering: mirror the sidebar or toolbar, one separator before the destructive action
-paths:
-  - "apps/sim/app/**/*.tsx"
-  - "apps/sim/ee/**/*.tsx"
-  - "apps/sim/components/**/*.tsx"
+globs: ["apps/sim/app/**/*.tsx","apps/sim/ee/**/*.tsx","apps/sim/components/**/*.tsx"]
 ---
+
+<!-- Generated from .claude/rules/sim-list-ordering.md by `bun run skills:sync`. Edit the source, not this file. -->
 
 # List & Menu Ordering
 

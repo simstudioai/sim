@@ -1,7 +1,9 @@
 ---
 description: TypeScript conventions and type safety
-globs: ["apps/sim/**/*.ts", "apps/sim/**/*.tsx"]
+globs: ["apps/sim/**/*.ts","apps/sim/**/*.tsx"]
 ---
+
+<!-- Generated from .claude/rules/sim-typescript.md by `bun run skills:sync`. Edit the source, not this file. -->
 
 # TypeScript Rules
 

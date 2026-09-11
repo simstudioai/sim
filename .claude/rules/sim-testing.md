@@ -1,9 +1,9 @@
 ---
 description: Testing patterns with Vitest and @sim/testing
-globs: ["apps/sim/**/*.test.ts","apps/sim/**/*.test.tsx"]
+paths:
+  - "apps/sim/**/*.test.ts"
+  - "apps/sim/**/*.test.tsx"
 ---
-
-<!-- Generated from .claude/rules/sim-testing.md by `bun run skills:sync`. Edit the source, not this file. -->
 
 # Testing Patterns
 

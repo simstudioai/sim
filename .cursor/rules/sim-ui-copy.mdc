@@ -1,14 +1,17 @@
 ---
 description: UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings
-globs: ["apps/sim/**/*.tsx"]
+globs: ["apps/sim/**/*.tsx","apps/sim/components/emcn/**"]
 ---
+
+<!-- Generated from .claude/rules/sim-ui-copy.md by `bun run skills:sync`. Edit the source, not this file. -->
+
 # UI Copy
 
 **Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default.** Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it, or when it is necessary to prevent misunderstanding or error — and never use it to restate the heading.
 
-This applies to product surfaces: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Marketing surfaces (`app/(landing)`, docs) are governed by `constitution.mdc` instead.
+This applies to product surfaces: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Marketing surfaces (`app/(landing)`, docs) are governed by `constitution.md` instead.
 
-**Carve-out — settings section metadata.** `SettingsNavigationItem.description` in `components/settings/navigation.ts` stays required, and `SettingsPanel` keeps rendering it as the page subtitle. Settings sections are reached through a nav list where the description is the only thing distinguishing adjacent sections. Everything else on a settings page — inline `<p>` blurbs under section headings, field hints, modal bodies, row subtitles — follows the default rule above.
+**Carve-out — settings section metadata.** `SettingsNavigationItem.description` in `components/settings/navigation.ts` stays required, and `SettingsPanel` keeps rendering it as the page subtitle. Settings sections are reached through a nav list where the description is the only thing distinguishing adjacent sections, so it earns its place by the "prevents misunderstanding" test. Keep those descriptions verb-first and one line, per `sim-settings-pages.md`. Everything else on a settings page — inline `<p>` blurbs under section headings, field hints, modal bodies, row subtitles — follows the default rule above.
 
 ## The default is no description
 
