@@ -64,43 +64,45 @@ export function ToolActivityGroup({
     }
   }
   const statusTool = activeTool ?? tools[tools.length - 1]
-  const showToolHeader = Boolean(activeTool) || tools.length === 1
   const SummaryIcon = getToolIcon(tools[0].toolName)
 
   return (
     <ToolCallComponent
       {...statusTool}
       toolCallId={statusTool.id}
-      renderStatus={(status) => (
-        <ActivityDisclosure
-          header={
-            showToolHeader ? (
-              status
-            ) : (
-              <ActivityStatus
-                label={getToolActivitySummary(tools)}
-                isActive={false}
-                icon={<SummaryIcon className='size-full' />}
-              />
-            )
-          }
-          expanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
-          isStreaming={Boolean(activeTool) && autoScrollActivity}
-        >
-          <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>
-            {tools.map((tool) => (
-              <Fragment key={tool.id}>
-                {tool.id === statusTool.id ? (
-                  status
-                ) : (
-                  <ToolCallComponent {...tool} toolCallId={tool.id} />
-                )}
-              </Fragment>
-            ))}
-          </div>
-        </ActivityDisclosure>
-      )}
+      renderStatus={(status) => {
+        if (tools.length === 1) return status
+        return (
+          <ActivityDisclosure
+            header={
+              activeTool ? (
+                status
+              ) : (
+                <ActivityStatus
+                  label={getToolActivitySummary(tools)}
+                  isActive={false}
+                  icon={<SummaryIcon className='size-full' />}
+                />
+              )
+            }
+            expanded={expanded}
+            onToggle={() => setExpanded(!expanded)}
+            isStreaming={Boolean(activeTool) && autoScrollActivity}
+          >
+            <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>
+              {tools.map((tool) => (
+                <Fragment key={tool.id}>
+                  {tool.id === statusTool.id ? (
+                    status
+                  ) : (
+                    <ToolCallComponent {...tool} toolCallId={tool.id} />
+                  )}
+                </Fragment>
+              ))}
+            </div>
+          </ActivityDisclosure>
+        )
+      }}
     />
   )
 }
