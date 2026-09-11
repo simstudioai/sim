@@ -1,5 +1,4 @@
 import { createMockRedis } from '@sim/testing'
-import { coldConnectionBudgetMs } from '@sim/utils/retry'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEnv, MockRedisConstructor, mockLogger } = vi.hoisted(() => ({
@@ -48,15 +47,19 @@ vi.mock('ioredis', () => ({
 
 import {
   acquireLock,
+  CONNECT_TIMEOUT_MS,
   closeRedisConnection,
+  DISCONNECT_TIMEOUT_MS,
   describeRedisConnection,
   extendLock,
   getRedisClient,
   onRedisReconnect,
   resetForTesting,
+  SHARED_COMMAND_TIMEOUT_MS,
   sharedReconnectDelayMs,
   warmRedisConnection,
 } from '@/lib/core/config/redis'
+import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 describe('redis config', () => {
   beforeEach(() => {
@@ -488,9 +491,12 @@ describe('redis config', () => {
       mockRedisInstance.status = 'connecting'
       const warm = warmRedisConnection()
 
-      // The dead attempt's own deadline, then the longest first reconnect
-      // delay: the moment a healthy second attempt can begin.
-      await vi.advanceTimersByTimeAsync(Math.max(10_000, 2 * 5_000) + sharedReconnectDelayMs(1, 1))
+      // The dead attempt's own diagnosis and half-close, then the longest first
+      // reconnect delay: the moment a healthy second attempt can begin.
+      await vi.advanceTimersByTimeAsync(
+        Math.max(CONNECT_TIMEOUT_MS, 2 * SHARED_COMMAND_TIMEOUT_MS + DISCONNECT_TIMEOUT_MS) +
+          sharedReconnectDelayMs(1, 1)
+      )
       const client = getRedisClient()
       Object.assign(client ?? {}, { status: 'ready' })
       client?.emit('ready')
@@ -504,8 +510,9 @@ describe('redis config', () => {
 
       await vi.advanceTimersByTimeAsync(
         coldConnectionBudgetMs({
-          connectTimeoutMs: 10_000,
-          commandTimeoutMs: 5_000,
+          connectTimeoutMs: CONNECT_TIMEOUT_MS,
+          commandTimeoutMs: SHARED_COMMAND_TIMEOUT_MS,
+          disconnectTimeoutMs: DISCONNECT_TIMEOUT_MS,
           reconnectDelayMs: sharedReconnectDelayMs(1, 1),
         })
       )

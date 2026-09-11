@@ -31,6 +31,7 @@ function resolveTlsOptionsImpl(url: string | undefined): { servername: string } 
 function getRedisConnectionDefaultsImpl(url?: string): {
   keepAlive: number
   connectTimeout: number
+  disconnectTimeout: number
   enableOfflineQueue: boolean
   tls?: { servername: string }
 } {
@@ -38,6 +39,7 @@ function getRedisConnectionDefaultsImpl(url?: string): {
   return {
     keepAlive: 1000,
     connectTimeout: 10000,
+    disconnectTimeout: 2000,
     enableOfflineQueue: true,
     ...(tls ? { tls } : {}),
   }
@@ -127,6 +129,9 @@ export function resetRedisConfigMock(): void {
  * ```
  */
 export const redisConfigMock = {
+  CONNECT_TIMEOUT_MS: 10_000,
+  DISCONNECT_TIMEOUT_MS: 2_000,
+  SHARED_COMMAND_TIMEOUT_MS: 5_000,
   getConfiguredRedisUrl: redisConfigMockFns.mockGetConfiguredRedisUrl,
   getRedisClient: redisConfigMockFns.mockGetRedisClient,
   getRedisConnectionDefaults: redisConfigMockFns.mockGetRedisConnectionDefaults,

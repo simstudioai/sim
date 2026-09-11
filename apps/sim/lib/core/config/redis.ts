@@ -2,10 +2,10 @@ import { isIP } from 'node:net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
-import { coldConnectionBudgetMs } from '@sim/utils/retry'
 import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
+import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 const logger = createLogger('Redis')
 
@@ -46,17 +46,21 @@ function resolveRedisTlsOptions(url: string | undefined): { servername: string }
 export interface RedisConnectionDefaults {
   keepAlive: number
   connectTimeout: number
+  disconnectTimeout: number
   enableOfflineQueue: boolean
   tls?: { servername: string }
 }
 
-const CONNECT_TIMEOUT_MS = 10_000
+export const CONNECT_TIMEOUT_MS = 10_000
+/** ioredis's own default, stated so readiness budgets can be derived from it. */
+export const DISCONNECT_TIMEOUT_MS = 2_000
 
 export function getRedisConnectionDefaults(url: string | undefined): RedisConnectionDefaults {
   const tls = resolveRedisTlsOptions(url)
   return {
     keepAlive: 1000,
     connectTimeout: CONNECT_TIMEOUT_MS,
+    disconnectTimeout: DISCONNECT_TIMEOUT_MS,
     enableOfflineQueue: true,
     ...(tls ? { tls } : {}),
   }
@@ -211,7 +215,7 @@ export function describeRedisConnection(
 
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
-const SHARED_COMMAND_TIMEOUT_MS = 5_000
+export const SHARED_COMMAND_TIMEOUT_MS = 5_000
 const RECONNECT_BASE_MS = 1_000
 const RECONNECT_MAX_BASE_MS = 10_000
 const RECONNECT_JITTER_RATIO = 0.3
@@ -236,6 +240,7 @@ export function sharedReconnectDelayMs(times: number, jitter: number): number {
 const REDIS_WARMUP_TIMEOUT_MS = coldConnectionBudgetMs({
   connectTimeoutMs: CONNECT_TIMEOUT_MS,
   commandTimeoutMs: SHARED_COMMAND_TIMEOUT_MS,
+  disconnectTimeoutMs: DISCONNECT_TIMEOUT_MS,
   reconnectDelayMs: sharedReconnectDelayMs(1, 1),
 })
 
