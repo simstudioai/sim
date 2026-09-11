@@ -506,7 +506,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       ? `An integration named "${existingCredential.displayName}" already exists.`
       : undefined)
 
-  const title = `Connect ${providerName}`
+  const isConnectorReconnect = !isConnect && props.returnContext?.origin === 'kb-connectors'
+  const connectLabel = isConnectorReconnect
+    ? newScopes.length > 0
+      ? 'Update access'
+      : 'Reconnect'
+    : 'Connect'
+  const title =
+    isConnectorReconnect && newScopes.length > 0
+      ? `Update ${providerName} access`
+      : `${connectLabel} ${providerName}`
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
@@ -519,7 +528,11 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalBody>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
-            The "{props.toolName}" tool requires access to your account.
+            {isConnectorReconnect
+              ? newScopes.length > 0
+                ? 'Approve the requested permissions to continue syncing.'
+                : `Continue to ${providerName} to restore this connection.`
+              : `The "${props.toolName}" tool requires access to your account.`}
           </p>
         )}
 
@@ -651,7 +664,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             : undefined
         }
         primaryAction={{
-          label: isPending ? 'Connecting...' : 'Connect',
+          label: isPending ? 'Connecting...' : connectLabel,
           onClick: handleConnect,
           disabled: isDisabled,
         }}

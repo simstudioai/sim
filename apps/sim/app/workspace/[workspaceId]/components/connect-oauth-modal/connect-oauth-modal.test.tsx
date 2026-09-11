@@ -347,6 +347,8 @@ describe('ConnectOAuthModal reauthorization', () => {
       },
     })
 
+    expect(container.querySelector('header')).toHaveTextContent('Reconnect Slack')
+    expect(container).not.toHaveTextContent('tool requires access')
     await clickConnect()
 
     expect(mocks.writeOAuthReturnContext).toHaveBeenCalledExactlyOnceWith(
@@ -424,6 +426,8 @@ describe('ConnectOAuthModal reauthorization', () => {
       },
     })
 
+    expect(container.querySelector('header')).toHaveTextContent('Connect Slack')
+    expect(container).toHaveTextContent('tool requires access')
     await clickConnect()
 
     expect(mocks.writeOAuthReturnContext).toHaveBeenCalledOnce()

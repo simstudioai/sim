@@ -1,25 +1,95 @@
 'use client'
 
-import { useId } from 'react'
-import { Checkbox, ChipConfirmModal, ChipModalError, ChipModalField } from '@sim/emcn'
-import { SettingsActionChips } from '@/components/settings/settings-header'
+import { Fragment, useId } from 'react'
 import {
-  type ConnectorActionState,
-  type ConnectorActionsOptions,
-  useConnectorActions,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+  Checkbox,
+  Chip,
+  ChipConfirmModal,
+  ChipModalError,
+  ChipModalField,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Tooltip,
+} from '@sim/emcn'
+import { MoreHorizontal } from '@sim/emcn/icons'
+import { orderHeaderActions, type SettingsAction } from '@/components/settings/settings-header'
+import type { ConnectorActionState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
-export function ConnectorActions(props: ConnectorActionsOptions) {
-  const state = useConnectorActions(props)
-  if (!state.canEdit) return null
+interface ConnectorActionsProps {
+  state: ConnectorActionState
+  history?: {
+    expanded: boolean
+    contentId: string
+    onToggle: () => void
+  }
+}
+
+export function ConnectorActions({ state, history }: ConnectorActionsProps) {
+  if (!state.canEdit && !history) return null
+  const actions = orderHeaderActions([
+    ...state.actions,
+    ...(history
+      ? [
+          {
+            id: 'history',
+            text: history.expanded ? 'Hide history' : 'Sync history',
+            onSelect: history.onToggle,
+          },
+        ]
+      : []),
+  ])
   return (
-    <div className='flex flex-col gap-2'>
-      <div className='flex flex-wrap items-center gap-1'>
-        <SettingsActionChips actions={state.actions} />
-      </div>
-      <ConnectorActionFeedback state={state} />
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Chip aria-label='Connection actions' leftIcon={MoreHorizontal} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {actions.map(({ action }, index) => (
+          <Fragment key={action.id}>
+            {action.id === 'delete' && index > 0 && <DropdownMenuSeparator />}
+            <ConnectorActionMenuItem
+              action={action}
+              history={action.id === 'history' ? history : undefined}
+            />
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+interface ConnectorActionMenuItemProps {
+  action: SettingsAction
+  history?: ConnectorActionsProps['history']
+}
+
+function ConnectorActionMenuItem({ action, history }: ConnectorActionMenuItemProps) {
+  const item = (
+    <DropdownMenuItem
+      onSelect={action.onSelect}
+      disabled={action.disabled}
+      aria-label={
+        action.disabled && action.tooltip ? `${action.text} — ${action.tooltip}` : action.text
+      }
+      aria-expanded={history?.expanded}
+      aria-controls={history?.contentId}
+    >
+      {action.text}
+    </DropdownMenuItem>
+  )
+  return action.tooltip ? (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className='block'>{item}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{action.tooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  ) : (
+    item
   )
 }
 
@@ -30,7 +100,7 @@ interface ConnectorActionFeedbackProps {
 export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps) {
   const deleteDocumentsId = useId()
   if (!state.canEdit) return null
-  const { removal, fullResync } = state
+  const { removal } = state
   return (
     <>
       {state.error && (
@@ -38,22 +108,6 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
           {state.error.message}
         </SettingsEmptyState>
       )}
-      <ChipConfirmModal
-        open={fullResync.open}
-        onOpenChange={fullResync.onOpenChange}
-        title='Full resync?'
-        text='Fetch all content again for this connection, including unchanged documents. This can take longer than a regular sync.'
-        confirm={{
-          label: 'Full resync',
-          variant: 'primary',
-          pending: fullResync.pending,
-          disabled: fullResync.disabled,
-          pendingLabel: 'Queuing…',
-          onClick: fullResync.onConfirm,
-        }}
-      >
-        <ChipModalError>{fullResync.error?.message}</ChipModalError>
-      </ChipConfirmModal>
       <ChipConfirmModal
         open={removal.open}
         onOpenChange={removal.onOpenChange}

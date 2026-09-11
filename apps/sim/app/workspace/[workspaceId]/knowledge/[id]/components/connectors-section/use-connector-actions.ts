@@ -33,7 +33,6 @@ export function useConnectorActions({
   const update = useUpdateConnector()
   const remove = useDeleteConnector()
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const [confirmFullResync, setConfirmFullResync] = useState(false)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
   const requiresDocumentDeletion = connector.accessMode !== 'workspace'
   const state = getConnectorSyncState(connector)
@@ -49,13 +48,10 @@ export function useConnectorActions({
     remove.reset()
   }
 
-  function triggerSync(rehydrate = false) {
-    if (!canEdit || actionsDisabled || state.syncDisabled || (rehydrate && !state.canFullResync))
-      return
+  function triggerSync() {
+    if (!canEdit || actionsDisabled || state.syncDisabled) return
     resetErrors()
-    const input = { knowledgeBaseId, connectorId: connector.id, rehydrate }
-    if (rehydrate) sync.mutate(input, { onSuccess: () => setConfirmFullResync(false) })
-    else sync.mutate(input)
+    sync.mutate({ knowledgeBaseId, connectorId: connector.id })
   }
 
   function setRemoveOpen(open: boolean) {
@@ -74,20 +70,6 @@ export function useConnectorActions({
           tooltip: state.syncTooltip,
           onSelect: () => triggerSync(),
         },
-        ...(state.canFullResync
-          ? [
-              {
-                id: 'full-resync',
-                text: 'Full resync',
-                disabled: state.syncDisabled || actionsDisabled,
-                onSelect: () => {
-                  if (!canEdit || actionsDisabled || state.syncDisabled) return
-                  resetErrors()
-                  setConfirmFullResync(true)
-                },
-              },
-            ]
-          : []),
         ...(onEdit
           ? [{ id: 'settings', text: 'Settings', disabled: actionsDisabled, onSelect: onEdit }]
           : []),
@@ -123,19 +105,7 @@ export function useConnectorActions({
     actions,
     actionsDisabled,
     canEdit,
-    error: (confirmFullResync ? null : sync.error) ?? update.error,
-    fullResync: {
-      open: confirmFullResync,
-      onOpenChange: (open: boolean) => {
-        if (sync.isPending) return
-        setConfirmFullResync(open)
-        if (!open) sync.reset()
-      },
-      pending: sync.isPending,
-      disabled: actionsDisabled || state.syncDisabled || !state.canFullResync,
-      error: sync.error,
-      onConfirm: () => triggerSync(true),
-    },
+    error: sync.error ?? update.error,
     removal: {
       open: confirmRemove,
       onOpenChange: setRemoveOpen,

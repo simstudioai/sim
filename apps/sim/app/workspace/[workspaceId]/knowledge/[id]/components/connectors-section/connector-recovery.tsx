@@ -48,7 +48,8 @@ export function ConnectorRecovery({
   const requiresAccountSettings =
     (connectorDef &&
       !isConnectorCredentialTypeAllowed(connectorDef.auth, connector.accessMode, 'oauth')) ||
-    selectedCredential?.type === 'service_account'
+    selectedCredential?.type === 'service_account' ||
+    Boolean(connector.credentialId && !selectedCredential && !credentialsLoading)
   const missingScopes = selectedCredential
     ? getMissingRequiredScopes(selectedCredential, requiredScopes)
     : []
@@ -60,20 +61,10 @@ export function ConnectorRecovery({
   )
 
   useEffect(() => {
-    if (
-      showOAuthModal &&
-      (requiresAccountSettings ||
-        (connector.credentialId && !selectedCredential && !credentialsLoading))
-    ) {
+    if (showOAuthModal && requiresAccountSettings) {
       setShowOAuthModal(false)
     }
-  }, [
-    showOAuthModal,
-    connector.credentialId,
-    selectedCredential,
-    credentialsLoading,
-    requiresAccountSettings,
-  ])
+  }, [showOAuthModal, requiresAccountSettings])
 
   function openReconnect() {
     if (!canEdit || disabled || requiresAccountSettings) return
@@ -102,13 +93,14 @@ export function ConnectorRecovery({
       )}
       {connector.status === 'disabled' ? (
         <SettingsResourceRow
-          title='Sync paused after repeated failures'
-          description={
-            requiresAccountSettings
-              ? 'Update the source account in Settings, then resume syncing.'
-              : serviceId
-                ? 'Reconnect the source account to resume syncing.'
-                : 'Resume the source to retry syncing.'
+          title={
+            !canEdit
+              ? 'Sync paused after repeated failures'
+              : requiresAccountSettings
+                ? 'Update the source account, then resume syncing'
+                : serviceId
+                  ? 'Reconnect to resume syncing'
+                  : 'Sync paused after repeated failures'
           }
           trailing={
             canEdit && requiresAccountSettings && onEdit ? (

@@ -144,12 +144,11 @@ vi.mock('@sim/emcn', () => ({
     children,
     disabled,
     onSelect,
-  }: {
-    children?: ReactNode
-    disabled?: boolean
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     onSelect: () => void
   }) => (
-    <button type='button' disabled={disabled} onClick={onSelect}>
+    <button type='button' disabled={disabled} onClick={onSelect} {...props}>
       {children}
     </button>
   ),
@@ -252,13 +251,28 @@ vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
 }))
 
 import {
-  ConnectorActions,
+  ConnectorActions as ConnectorActionMenu,
   ConnectorRecovery,
   ConnectorSyncHistory,
   ConnectorsSection,
   SyncHistory,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section'
+import { ConnectorActionFeedback } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions'
+import {
+  type ConnectorActionsOptions,
+  useConnectorActions,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { type ConnectorData, useConnectorDetail } from '@/hooks/queries/kb/connectors'
+
+function ConnectorActions(props: ConnectorActionsOptions) {
+  const state = useConnectorActions(props)
+  return (
+    <>
+      <ConnectorActionMenu state={state} />
+      <ConnectorActionFeedback state={state} />
+    </>
+  )
+}
 
 let root: Root | null = null
 
@@ -373,6 +387,24 @@ afterEach(() => {
 })
 
 describe('Connector credential reauthorization', () => {
+  it('expands each connection history independently through its labeled control', () => {
+    const container = renderSection(makeConnector(), [makeConnector({ id: 'connector-2' })])
+    const controls = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-label="Sync history"]')
+    )
+    expect(controls).toHaveLength(2)
+    const historyId = controls[0].getAttribute('aria-controls')
+    expect(historyId).toBeTruthy()
+    expect(historyId).not.toBe(controls[1].getAttribute('aria-controls'))
+
+    act(() => controls[0].click())
+
+    expect(controls[0].getAttribute('aria-expanded')).toBe('true')
+    expect(controls[1].getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById(historyId!)).not.toBeNull()
+    expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
+  })
+
   it('distinguishes configured sites and spaces without exposing credential fields', () => {
     const container = renderSection(
       makeConnector({
@@ -392,17 +424,43 @@ describe('Connector credential reauthorization', () => {
     expect(container.textContent).not.toContain('private-token')
   })
 
-  it('fails closed when the connector credential cannot be resolved', () => {
-    const container = renderSection(makeConnector())
-    const reconnectButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Reconnect'
+  it('routes an unavailable credential to settings without starting OAuth', () => {
+    const onEdit = vi.fn()
+    const container = renderComponent(
+      <ConnectorRecovery
+        connector={makeConnector()}
+        knowledgeBaseId='knowledge-1'
+        scope={{ kind: 'workspace', workspaceId: 'workspace-1' }}
+        canEdit
+        onEdit={onEdit}
+      />
     )
-
-    expect(reconnectButton?.disabled).toBe(true)
-
-    act(() => reconnectButton?.click())
-
+    act(() => findButton(container, 'Settings').click())
+    expect(onEdit).toHaveBeenCalledOnce()
     expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it('waits for credential loading before deciding how to recover', () => {
+    oauthCredentialsState.isFetching = true
+    const container = renderSection(makeConnector())
+    expect(findButton(container, 'Reconnect')).toBeDisabled()
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])('renders loading and empty states with canEdit=%s', (canEdit) => {
+    const renderEmpty = (isLoading: boolean) => (
+      <ConnectorsSection
+        workspaceId='workspace-1'
+        knowledgeBaseId='knowledge-1'
+        connectors={[]}
+        canEdit={canEdit}
+        isLoading={isLoading}
+      />
+    )
+    const container = renderComponent(renderEmpty(true))
+    expect(container.textContent).toContain('Loading connections…')
+    act(() => root?.render(renderEmpty(false)))
+    expect(container.textContent).toContain('No connected sources yet.')
   })
 
   it('reauthorizes with the resolved credential provider and identity', () => {
@@ -513,6 +571,15 @@ describe('Connector credential reauthorization', () => {
 
     expect(consumeOAuthReturnContextMock).not.toHaveBeenCalled()
     expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps successful-sync notices available when history is opened', () => {
+    const notice = 'Deletion reconciliation deferred until the next complete listing.'
+    const container = renderSection(makeConnector({ status: 'active', lastSyncError: notice }))
+    expect(container.textContent).not.toContain(notice)
+    act(() => findButton(container, 'Sync history').click())
+    expect(container.textContent).toContain(notice)
+    expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
   })
 
   it('preserves pending OAuth return context when the recovery modal closes', () => {
@@ -741,32 +808,25 @@ describe('Connector credential reauthorization', () => {
 })
 
 describe('shared connector lifecycle actions', () => {
-  it('distinguishes an incremental sync from a supported full resync', () => {
-    const container = renderComponent(
-      <ConnectorActions
-        connector={makeConnector({ status: 'active' })}
-        knowledgeBaseId='knowledge-1'
-        canEdit
-      />
-    )
-    act(() => findButton(container, 'Sync now').click())
-    expect(lifecycle.sync.mutate).toHaveBeenLastCalledWith({
-      knowledgeBaseId: 'knowledge-1',
-      connectorId: 'connector-1',
-      rehydrate: false,
-    })
-    lifecycle.sync.mutate.mockClear()
-    act(() => findButton(container, 'Full resync').click())
-    expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
-    const dialog = container.querySelector('[role="dialog"]')!
-    act(() => findButton(dialog, 'Full resync').click())
-    expect(lifecycle.sync.mutate).toHaveBeenLastCalledWith(
-      { knowledgeBaseId: 'knowledge-1', connectorId: 'connector-1', rehydrate: true },
-      expect.objectContaining({ onSuccess: expect.any(Function) })
-    )
-    act(() => lifecycle.sync.mutate.mock.lastCall![1].onSuccess())
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
-  })
+  it.each(['confluence', 'databricks', 'github', 'gitlab'])(
+    'offers only normal sync for %s',
+    (connectorType) => {
+      const container = renderComponent(
+        <ConnectorActions
+          connector={makeConnector({ status: 'active', connectorType })}
+          knowledgeBaseId='knowledge-1'
+          canEdit
+        />
+      )
+      expect(container.textContent).not.toContain('Full resync')
+      act(() => findButton(container, 'Sync now').click())
+      expect(lifecycle.sync.mutate).toHaveBeenCalledExactlyOnceWith({
+        knowledgeBaseId: 'knowledge-1',
+        connectorId: 'connector-1',
+      })
+      expect(container.querySelector('[role="dialog"]')).toBeNull()
+    }
+  )
 
   it.each(['pending', 'running', 'disabled'] as const)(
     'does not offer content resync or dispatch work while the member engine is %s',
@@ -792,20 +852,6 @@ describe('shared connector lifecycle actions', () => {
       expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
     }
   )
-
-  it('cancels a full resync without dispatching work', () => {
-    const container = renderComponent(
-      <ConnectorActions
-        connector={makeConnector({ status: 'active' })}
-        knowledgeBaseId='knowledge-1'
-        canEdit
-      />
-    )
-    act(() => findButton(container, 'Full resync').click())
-    act(() => findButton(container.querySelector('[role="dialog"]')!, 'Cancel').click())
-    expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
-  })
 
   it.each([
     { status: 'syncing', accessMode: 'admin', memberSyncStatus: 'idle', blocked: true },
