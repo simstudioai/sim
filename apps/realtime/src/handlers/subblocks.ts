@@ -19,12 +19,14 @@ const DEBOUNCE_INTERVAL_MS = 25
 type PendingSubblock = {
   latest: { blockId: string; subblockId: string; value: any; timestamp: number }
   timeout: NodeJS.Timeout
+  ready: boolean
   // Map operationId -> socketId to emit confirmations/failures to correct clients
   opToSocket: Map<string, string>
 }
 
 // Keyed by `${workflowId}:${blockId}:${subblockId}`
 const pendingSubblockUpdates = new Map<string, PendingSubblock>()
+const flushingSubblockUpdates = new Set<string>()
 
 /**
  * Cleans up pending updates for a disconnected socket.
@@ -192,10 +194,11 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
       if (existing) {
         clearTimeout(existing.timeout)
         existing.latest = { blockId, subblockId, value, timestamp }
+        existing.ready = false
         if (operationId) existing.opToSocket.set(operationId, socket.id)
         existing.timeout = setTimeout(async () => {
-          await flushSubblockUpdate(workflowId, existing, roomManager)
-          pendingSubblockUpdates.delete(debouncedKey)
+          existing.ready = true
+          await flushReadySubblockUpdates(workflowId, debouncedKey, roomManager)
         }, DEBOUNCE_INTERVAL_MS)
       } else {
         const opToSocket = new Map<string, string>()
@@ -203,13 +206,14 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
         const timeout = setTimeout(async () => {
           const pending = pendingSubblockUpdates.get(debouncedKey)
           if (pending) {
-            await flushSubblockUpdate(workflowId, pending, roomManager)
-            pendingSubblockUpdates.delete(debouncedKey)
+            pending.ready = true
+            await flushReadySubblockUpdates(workflowId, debouncedKey, roomManager)
           }
         }, DEBOUNCE_INTERVAL_MS)
         pendingSubblockUpdates.set(debouncedKey, {
           latest: { blockId, subblockId, value, timestamp },
           timeout,
+          ready: false,
           opToSocket,
         })
       }
@@ -234,6 +238,26 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
       })
     }
   })
+}
+
+/** Keep one save in progress per subblock while newer edits coalesce in a separate batch. */
+async function flushReadySubblockUpdates(
+  workflowId: string,
+  debouncedKey: string,
+  roomManager: IRoomManager
+) {
+  if (flushingSubblockUpdates.has(debouncedKey)) return
+  flushingSubblockUpdates.add(debouncedKey)
+  try {
+    let pending = pendingSubblockUpdates.get(debouncedKey)
+    while (pending?.ready) {
+      pendingSubblockUpdates.delete(debouncedKey)
+      await flushSubblockUpdate(workflowId, pending, roomManager)
+      pending = pendingSubblockUpdates.get(debouncedKey)
+    }
+  } finally {
+    flushingSubblockUpdates.delete(debouncedKey)
+  }
 }
 
 async function flushSubblockUpdate(
@@ -282,6 +306,9 @@ async function flushSubblockUpdate(
     let updateSuccessful = false
     let blockLocked = false
     await db.transaction(async (tx) => {
+      /** Serialize with workflow operations before reading and updating the block. */
+      await tx.update(workflow).set({ updatedAt: new Date() }).where(eq(workflow.id, workflowId))
+
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -309,7 +336,7 @@ async function flushSubblockUpdate(
         return
       }
 
-      const subBlocks = (block.subBlocks as any) || {}
+      const subBlocks = { ...((block.subBlocks as Record<string, Record<string, unknown>>) || {}) }
       if (!subBlocks[subblockId]) {
         subBlocks[subblockId] = { id: subblockId, type: 'unknown', value }
       } else {
