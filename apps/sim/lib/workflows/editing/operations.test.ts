@@ -1169,3 +1169,89 @@ describe('permission-group tool access', () => {
     )
   })
 })
+
+describe('API tool canonical mode remapping', () => {
+  const first = {
+    type: 'jira',
+    operation: 'get_issue',
+    params: { projectId: 'project-a', manualProjectId: '<Start.projectA>' },
+  }
+  const second = {
+    type: 'jira',
+    operation: 'get_issue',
+    params: { projectId: 'project-b', manualProjectId: '<Start.projectB>' },
+  }
+
+  it.each([
+    { operation_type: 'edit', explicit: false },
+    { operation_type: 'insert_into_subflow', explicit: false },
+    { operation_type: 'edit', explicit: true },
+    { operation_type: 'insert_into_subflow', explicit: true },
+  ] as const)(
+    'moves selector modes during $operation_type (explicit choice: $explicit)',
+    ({ operation_type, explicit }) => {
+      const blockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      const workflow = {
+        blocks: {
+          [blockId]: {
+            id: blockId,
+            type: 'agent',
+            name: 'Agent',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            outputs: {},
+            subBlocks: { tools: { id: 'tools', type: 'tool-input', value: [first, second] } },
+            data: {
+              canonicalModes: {
+                '0:projectId': 'advanced' as const,
+                '1:projectId': 'basic' as const,
+                '0:issueKey': 'basic' as const,
+                model: 'advanced' as const,
+              },
+            },
+          },
+          loop: {
+            id: 'loop',
+            type: 'loop',
+            name: 'Loop',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            outputs: {},
+            subBlocks: {},
+            data: { loopType: 'for', count: 2 },
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      }
+      const result = applyOperationsToWorkflowState(workflow, [
+        {
+          operation_type,
+          block_id: blockId,
+          params: {
+            ...(operation_type === 'insert_into_subflow'
+              ? { subflowId: 'loop', type: 'agent', name: 'Agent' }
+              : {}),
+            inputs: {
+              tools: structuredClone([
+                second,
+                explicit ? { ...first, params: { projectId: 'edited-project' } } : first,
+              ]),
+            },
+          },
+        },
+      ])
+      expect(result.validationErrors).toEqual([])
+      expect(result.state.blocks[blockId].subBlocks.tools.value[0].params.projectId).toBe(
+        'project-b'
+      )
+      expect(result.state.blocks[blockId].data.canonicalModes).toEqual({
+        '0:projectId': 'basic',
+        '1:projectId': explicit ? 'basic' : 'advanced',
+        '1:issueKey': 'basic',
+        model: 'advanced',
+      })
+    }
+  )
+})

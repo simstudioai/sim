@@ -572,7 +572,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
     const editBlockConfig = getBlock(block.type)
     if (editBlockConfig) {
-      updateCanonicalModesForInputs(block, [...explicitInputKeys], editBlockConfig)
+      updateCanonicalModesForInputs(
+        block,
+        [...explicitInputKeys],
+        editBlockConfig,
+        previousSubBlockValues.get('tools')
+      )
 
       const changedInputKeys = editBlockConfig.subBlocks
         .filter((subBlock) => {
@@ -957,6 +962,7 @@ export function handleInsertIntoSubflowOperation(
 
     // Update inputs if provided (with validation)
     if (params.inputs) {
+      const previousTools = existingBlock.subBlocks?.tools?.value
       // Validate inputs against block configuration
       const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id)
       validationErrors.push(...validationResult.errors)
@@ -1014,7 +1020,8 @@ export function handleInsertIntoSubflowOperation(
         updateCanonicalModesForInputs(
           existingBlock,
           Object.keys(validationResult.validInputs),
-          existingBlockConfig
+          existingBlockConfig,
+          previousTools
         )
       }
     }
