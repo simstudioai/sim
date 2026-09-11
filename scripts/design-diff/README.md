@@ -150,7 +150,9 @@ does not establish equivalence of arbitrary interactive behavior.
 
 The resolver supports immutable constants, object properties, arrays, primitive template
 strings, simple arithmetic, conditional branches, static imports/re-exports, namespace
-imports, workspace exports and project `paths` aliases. It records CVA bases, variants,
+imports, workspace exports and project `paths` aliases. Static array selections and awaited
+`Promise.all` results trace the selected value independently; arbitrary promise failure and
+scheduling effects are not modeled. It records CVA bases, variants,
 defaults, compound variants and selections; runtime selections remain symbolic. Recognized
 `cn`/`clsx` helpers are interpreted as data. The trusted EMCN `cn` merge convention includes
 the repository's custom font-size groups. A helper with an unrecognized origin is not trusted

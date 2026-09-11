@@ -332,6 +332,13 @@ export class Resolver {
         }
         return initial
       }
+      if (binding?.path.isImportNamespaceSpecifier()) {
+        const declaration = binding.path.parentPath
+        if (declaration.isImportDeclaration()) {
+          const target = this.tree.resolve(file, declaration.node.source.value)
+          if (target) return this.exported(target, key, depth + 1)
+        }
+      }
       if (binding?.path.isImportSpecifier() || binding?.path.isImportDefaultSpecifier()) {
         const declaration = binding.path.parentPath
         if (declaration.isImportDeclaration()) {
@@ -348,6 +355,31 @@ export class Resolver {
         }
       }
     }
+    if (path.isAwaitExpression()) {
+      const awaited = child(path, 'argument')
+      if (awaited.isCallExpression()) {
+        const callee = child(awaited, 'callee')
+        if (
+          callee.isMemberExpression() &&
+          !callee.node.computed &&
+          t.isIdentifier(callee.node.object, { name: 'Promise' }) &&
+          !callee.scope.getBinding('Promise') &&
+          t.isIdentifier(callee.node.property, { name: 'all' })
+        ) {
+          const array = children(awaited, 'arguments')[0]
+          if (array?.isArrayExpression() && !array.node.elements.some(t.isSpreadElement)) {
+            const selected = this.selected(array, key, file, depth + 1, seen)
+            if (selected !== undefined) return { $await: selected }
+          }
+        }
+      }
+    }
+    if (path.isArrayExpression() && /^(?:0|[1-9]\d*)$/.test(key)) {
+      const elements = children(path, 'elements')
+      const index = Number(key)
+      if (index < elements.length && !elements.slice(0, index + 1).some((p) => p.isSpreadElement()))
+        return this.value(elements[index], file, depth + 1)
+    }
     if (path.isObjectExpression()) {
       for (const prop of children(path, 'properties').reverse()) {
         if (prop.isObjectMethod() && !prop.node.computed && propertyName(prop.node.key) === key)
@@ -357,7 +389,8 @@ export class Resolver {
         if (prop.isSpreadElement()) {
           const selected = this.selected(child(prop, 'argument'), key, file, depth + 1, seen)
           if (selected !== undefined) return selected
-          return undefined // An unknown later spread can override an earlier property.
+          /** An unknown later spread can override an earlier property. */
+          return undefined
         }
       }
     }
@@ -465,7 +498,10 @@ export class Resolver {
     if (!selection) return undefined
     const init = child(binding, 'init')
     const [first, ...rest] = selection.keys
-    let value = typeof first === 'string' ? this.selected(init, first, file, depth + 1) : undefined
+    let value =
+      typeof first === 'string' || typeof first === 'number'
+        ? this.selected(init, String(first), file, depth + 1)
+        : undefined
     const keys = value === undefined ? selection.keys : rest
     if (value === undefined) value = this.value(init, file, depth + 1)
     for (const key of keys) {
@@ -916,8 +952,8 @@ export class Resolver {
     if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
       const key = node.computed ? read('property') : propertyName(node.property)
       const selected =
-        typeof key === 'string'
-          ? this.selected(child(path, 'object'), key, file, depth + 1)
+        typeof key === 'string' || typeof key === 'number'
+          ? this.selected(child(path, 'object'), String(key), file, depth + 1)
           : undefined
       if (selected !== undefined) return selected
       const base = read('object')

@@ -344,3 +344,42 @@ it('isolates unrelated mutable object fields such as telemetry warmup state', as
   )
   expect(report.flagged).toBe(false)
 })
+
+it.each(['[live, unrelated]', 'await Promise.all([live, unrelated])'])(
+  'projects an individual array result from %s',
+  async (expression) => {
+    const source = (colour: string, telemetry: number) =>
+      `export const live='${colour}';export const unrelated=${telemetry}`
+    const files = {
+      [data]: source('red', 1),
+      [view]: `import {live,unrelated} from './data';export async function Page(){const [colour]=${expression};return <span style={{color:colour}}/>}`,
+    }
+    expect((await compareFiles(files, { [data]: source('red', 2) }, settings)).flagged).toBe(false)
+    expect((await compareFiles(files, { [data]: source('blue', 1) }, settings)).flagged).toBe(true)
+  }
+)
+
+it('keeps shadowed Promise.all conservative', async () => {
+  const source = (n: number) => `export const unrelated=${n}`
+  const report = await compareFiles(
+    {
+      [data]: source(1),
+      [view]: `import {unrelated} from './data';export async function Page({Promise}){const [colour]=await Promise.all(['red',unrelated]);return <span style={{color:colour}}/>}`,
+    },
+    { [data]: source(2) },
+    settings
+  )
+  expect(report.flagged).toBe(true)
+})
+
+it('projects namespace members even when an outer expression reaches its resolution limit', async () => {
+  const source = (colour: string, unused: number) =>
+    `export const colour='${colour}';export const unused=${unused}`
+  const files = {
+    [data]: source('red', 1),
+    [view]: `import * as palette from './data';export const Page=()=> <span style={{color:unknown(unknown(unknown(palette.colour)))}}/>`,
+  }
+  const bounded = { ...settings, limits: { ...settings.limits, resolutionDepth: 2 } }
+  expect((await compareFiles(files, { [data]: source('red', 2) }, bounded)).flagged).toBe(false)
+  expect((await compareFiles(files, { [data]: source('blue', 1) }, bounded)).flagged).toBe(true)
+})
