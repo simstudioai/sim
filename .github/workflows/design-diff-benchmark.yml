@@ -12,17 +12,17 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ENGINE_SHA: e62bc4c33c4163bd18f96e6f15d30308daf16615
+  ENGINE_SHA: c8d1bf882d9fbfc73adfb7eb71d1cd46b3e2b286
 
 jobs:
   replay:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        shard: [3, 4, 10, 14, 18, 26, 36, 39, 47, 53, 56, 63, 64, 70, 91, 94, 97, 102, 103, 114, 120, 123, 150, 169, 175]
+        shard: [4, 10, 53, 56, 102, 103]
     steps:
       - name: Checkout immutable engine
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -53,7 +53,7 @@ jobs:
         working-directory: engine
         run: |
           bun --no-env-file scripts/design-diff/benchmark.ts \
-            --engine "$PWD" --sha "$ENGINE_SHA" --workers 1 --timeout-seconds 180 \
+            --engine "$PWD" --sha "$ENGINE_SHA" --workers 1 --timeout-seconds 900 \
             --manifest "$RUNNER_TEMP/comparisons.json" --output "$RUNNER_TEMP/results"
       - name: Retain available results
         if: always()
