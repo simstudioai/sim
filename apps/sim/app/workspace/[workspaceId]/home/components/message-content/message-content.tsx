@@ -21,10 +21,6 @@ import {
   humanizeToolName,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import {
-  getLatestToolId,
-  getVisibleMainAgentItems,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
@@ -494,7 +490,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * Groups content blocks into agent-scoped segments.
  * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
  * into the agent header. Inner tool_calls are nested underneath their agent.
- * Main-agent tool calls share one latest activity status across all segments.
+ * Main-agent segments retain their tool history for inline activity summaries.
  *
  * New backends stamp every subagent block with deterministic span identity; in
  * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The
@@ -502,22 +498,9 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * span identity existed.
  */
 export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
-  const segments = blocks.some((block) => Boolean(block.spanId))
+  return blocks.some((block) => Boolean(block.spanId))
     ? parseBlocksWithSpanTree(blocks)
     : parseBlocksLegacy(blocks)
-  let latestToolId: string | undefined
-  for (let index = segments.length - 1; index >= 0; index--) {
-    const segment = segments[index]
-    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') continue
-    latestToolId = getLatestToolId(segment.items)
-    if (latestToolId !== undefined) break
-  }
-
-  return segments.flatMap<MessageSegment>((segment) => {
-    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') return [segment]
-    const items = getVisibleMainAgentItems(segment.items, latestToolId)
-    return items.length > 0 ? [{ ...segment, items }] : []
-  })
 }
 
 function joinRenderableText(parts: string[]): string {

@@ -17,7 +17,10 @@ import {
   BrowserTakeoverQuestion,
   CredentialDisplay,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { resolveToolDisplayState } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
+import {
+  getToolIcon,
+  resolveToolDisplayState,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
@@ -195,6 +198,7 @@ export function ToolCallItem({
       : null
 
   const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
+  const ToolIcon = getToolIcon(toolName)
 
   if (displayState === 'awaiting_approval' && toolCallId) {
     return (
@@ -236,7 +240,13 @@ export function ToolCallItem({
     <ActivityStatus
       label={title}
       isActive={isExecuting}
-      icon={BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />}
+      icon={
+        BlockIcon ? (
+          <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />
+        ) : (
+          <ToolIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        )
+      }
     />
   )
 }

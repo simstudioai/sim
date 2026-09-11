@@ -116,7 +116,7 @@ describe('AgentGroup inline main activity', () => {
 
   afterEach(() => act(() => root.unmount()))
 
-  it('replaces the previous tool in place and settles without restoring the nested log', () => {
+  it('replaces the active status in place and expands the full completed history', () => {
     const first: AgentGroupItem = {
       type: 'tool',
       data: { id: 'first', toolName: 'grep', displayTitle: 'Searching files', status: 'executing' },
@@ -146,7 +146,9 @@ describe('AgentGroup inline main activity', () => {
     expect(container.firstElementChild).toBe(activity)
     expect(container.textContent).toBe('Reading notes')
     expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
-    expect(container.querySelector('button, svg, [data-state], .pl-6')).toBeNull()
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('svg')).not.toBeNull()
+    expect(container.textContent).not.toContain('Sim')
 
     render(
       [
@@ -155,9 +157,171 @@ describe('AgentGroup inline main activity', () => {
       ],
       false
     )
-    expect(container.textContent).toBe('Read notes')
+    expect(container.textContent).toBe('Searched files, read files')
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()
-    expect(container.querySelector('button, svg, [data-state], .pl-6')).toBeNull()
+    const header = container.querySelector('button')
+    act(() => header?.click())
+    expect(header?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Searched filesRead notes'
+    )
+    act(() => header?.click())
+    expect(header?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.textContent).toBe('Searched files, read files')
+  })
+
+  it('keeps history expanded as new tools arrive', () => {
+    const first: AgentGroupItem = {
+      type: 'tool',
+      data: { id: 'first', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
+    }
+    const render = (items: AgentGroupItem[]) =>
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items,
+            isStreaming: true,
+          })
+        )
+      )
+    render([first])
+    act(() => container.querySelector('button')?.click())
+    render([
+      first,
+      {
+        type: 'tool',
+        data: {
+          id: 'second',
+          toolName: 'terminal_run',
+          displayTitle: 'Running checks',
+          status: 'executing',
+        },
+      },
+    ])
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Read notesRunning checks'
+    )
+  })
+
+  it('starts a fresh countdown when the latest wait tool changes', () => {
+    vi.useFakeTimers()
+    try {
+      const wait: AgentGroupItem = {
+        type: 'tool',
+        data: {
+          id: 'wait-first',
+          toolName: 'wait',
+          displayTitle: 'Waiting',
+          status: 'executing',
+          params: { seconds: 3 },
+        },
+      }
+      const render = (items: AgentGroupItem[]) =>
+        act(() =>
+          root.render(
+            createElement(AgentGroup, {
+              agentName: 'mothership',
+              agentLabel: 'Sim',
+              items,
+              isStreaming: true,
+            })
+          )
+        )
+      render([wait])
+      act(() => vi.advanceTimersByTime(2000))
+      expect(container.textContent).toBe('Waiting 1s')
+      render([
+        { ...wait, data: { ...wait.data, status: 'success' } },
+        { ...wait, data: { ...wait.data, id: 'wait-second' } },
+      ])
+      expect(container.textContent).toBe('Waiting 3s')
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['browser', 'workflow', 'research', 'deploy', 'file', 'table'])(
+    'summarizes and expands the full %s activity history',
+    (agentName) => {
+      const items: AgentGroupItem[] = [
+        {
+          type: 'tool',
+          data: { id: 'read', toolName: 'read', displayTitle: 'Reading notes', status: 'success' },
+        },
+        {
+          type: 'tool',
+          data: {
+            id: 'run',
+            toolName: 'terminal_run',
+            displayTitle: 'Running checks',
+            status: 'success',
+          },
+        },
+      ]
+      act(() =>
+        root.render(
+          createElement(AgentGroupView, {
+            agentName,
+            agentLabel: 'Agent',
+            items,
+            ToolCallComponent: ({ toolCallId, displayTitle }: ToolCallItemProps) =>
+              createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle),
+          })
+        )
+      )
+      const header = container.querySelector('button')
+      expect(header?.getAttribute('aria-label')).toBe('Agent — Read files, ran commands')
+      expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
+      act(() => header?.click())
+      expect(
+        Array.from(container.querySelectorAll('[data-tool-call-id]'), (row) =>
+          row.getAttribute('data-tool-call-id')
+        )
+      ).toEqual(['read', 'run'])
+      act(() => header?.click())
+      expect(header?.getAttribute('aria-expanded')).toBe('false')
+    }
+  )
+
+  it('reveals a nested terminal handoff through collapsed ancestors', () => {
+    act(() =>
+      root.render(
+        createElement(AgentGroupView, {
+          agentName: 'workflow',
+          agentLabel: 'Workflow',
+          isLaneOpen: true,
+          isStreaming: true,
+          items: [
+            group([
+              {
+                type: 'tool',
+                data: {
+                  id: 'handoff',
+                  toolName: 'terminal',
+                  displayTitle: 'Finish signing in',
+                  status: 'executing',
+                  params: { operation: 'handoff' },
+                },
+              },
+            ]),
+          ],
+          ToolCallComponent: ({ toolCallId, displayTitle }: ToolCallItemProps) =>
+            createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle),
+        })
+      )
+    )
+    const headers = Array.from(container.querySelectorAll('button'))
+    expect(headers).toHaveLength(2)
+    expect(headers.every((header) => header.getAttribute('aria-expanded') === 'true')).toBe(true)
+    act(() => headers[0].click())
+    expect(headers[0].getAttribute('aria-expanded')).toBe('true')
+    expect(
+      container.querySelector('[data-tool-call-id="handoff"]')?.closest('[data-state="closed"]')
+    ).toBeNull()
   })
 
   it('keeps a browser question and answer after the main agent resumes tool activity', () => {
@@ -197,7 +361,9 @@ describe('AgentGroup inline main activity', () => {
       'Choose a result.: Open the second result.'
     )
     expect(container.textContent).toContain('Searched files')
-    expect(container.querySelector('button, svg, [data-state], .pl-6')).toBeNull()
+    expect(
+      container.querySelector('[data-takeover-answer="true"]')?.closest('[data-state]')
+    ).toBeNull()
   })
 
   it('keeps pending permissions and terminal handoffs visible when newer tools arrive', () => {
@@ -258,7 +424,12 @@ describe('AgentGroup inline main activity', () => {
         row.getAttribute('data-tool-call-id')
       )
     ).toEqual(['permission', 'handoff', 'latest'])
-    expect(container.querySelector('[data-state], .pl-6')).toBeNull()
+    expect(
+      container.querySelector('[data-tool-call-id="permission"]')?.closest('[data-state]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-tool-call-id="handoff"]')?.closest('[data-state]')
+    ).toBeNull()
   })
 })
 

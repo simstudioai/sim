@@ -112,6 +112,10 @@ export function getAgentIcon(name: string): IconComponent {
   return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? Blimp
 }
 
+export function getToolIcon(name: string): IconComponent {
+  return TOOL_ICONS[name] ?? Wrench
+}
+
 export type MessagePhase = 'streaming' | 'revealing' | 'settled'
 
 interface DeriveMessagePhaseArgs {

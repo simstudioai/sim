@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { Table } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
@@ -361,9 +361,11 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                   )}
                 >
                   <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
-                  <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
-                    {action.label}
-                  </span>
+                  <OverflowText
+                    label={action.label}
+                    className='flex-1 text-[var(--text-body)] text-sm'
+                    focusTarget='nearest-interactive'
+                  />
                   <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
                 </button>
               )

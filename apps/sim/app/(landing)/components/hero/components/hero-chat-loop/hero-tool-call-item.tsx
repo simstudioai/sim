@@ -3,6 +3,7 @@ import { SlackIcon } from '@/components/icons'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
+import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 
 /** Demo fixtures have known brands, so the landing page never loads the block registry. */
 export function HeroToolCallItem({
@@ -16,7 +17,7 @@ export function HeroToolCallItem({
       ? SlackIcon
       : toolCallId === 'hero-read-table'
         ? Table
-        : undefined
+        : getToolIcon(toolName)
   return (
     <ActivityStatus
       label={getToolStatusDisplayTitle(displayTitle, status, toolName)}

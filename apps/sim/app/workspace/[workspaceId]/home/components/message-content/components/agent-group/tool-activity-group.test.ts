@@ -1,0 +1,61 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import { getToolActivitySummary } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+
+function tool(toolName: string, status: ToolCallStatus = 'success'): ToolCallData {
+  return { id: toolName, toolName, displayTitle: `Running ${toolName}`, status }
+}
+
+describe('getToolActivitySummary', () => {
+  it('summarizes distinct actions in the order they occurred', () => {
+    expect(
+      getToolActivitySummary([tool('read'), tool('terminal_run'), tool('read'), tool('grep')])
+    ).toBe('Read files, ran commands, searched files')
+  })
+
+  it('summarizes browser navigation and interactions without repeating actions', () => {
+    expect(
+      getToolActivitySummary([
+        tool('browser_navigate'),
+        tool('browser_read_text'),
+        tool('browser_type'),
+        tool('browser_navigate'),
+      ])
+    ).toBe('Navigated pages, read pages, entered text')
+  })
+
+  it('does not describe unsuccessful work as completed actions', () => {
+    expect(
+      getToolActivitySummary([
+        tool('read'),
+        tool('apply_file_edit', 'error'),
+        tool('terminal_run', 'cancelled'),
+        tool('browser_type', 'rejected'),
+      ])
+    ).toBe('Read files · 1 failed · 1 stopped · 1 skipped')
+  })
+
+  it('does not invent actions when all calls failed or were stopped', () => {
+    expect(
+      getToolActivitySummary([
+        tool('apply_file_edit', 'error'),
+        tool('terminal_run', 'interrupted'),
+      ])
+    ).toBe('Tool activity · 1 failed · 1 stopped')
+  })
+
+  it('keeps an individual tool’s descriptive title', () => {
+    expect(
+      getToolActivitySummary([{ ...tool('read'), displayTitle: 'Reading project notes' }])
+    ).toBe('Read project notes')
+  })
+
+  it('describes terminal runs from their operation', () => {
+    expect(
+      getToolActivitySummary([{ ...tool('terminal'), params: { operation: 'run' } }, tool('read')])
+    ).toBe('Ran commands, read files')
+  })
+})
