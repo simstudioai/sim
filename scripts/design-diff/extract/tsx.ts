@@ -143,7 +143,14 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       })
       const attributeOrder = opening.attributes
         .filter(
-          (attr) => !t.isJSXAttribute(attr) || !nonvisualAttributes.test(propertyName(attr.name))
+          (attr) =>
+            !t.isJSXAttribute(attr) ||
+            (!nonvisualAttributes.test(propertyName(attr.name)) &&
+              !resolver.eventOnlyProp(
+                child(child(path, 'openingElement'), 'name'),
+                propertyName(attr.name),
+                file
+              ))
         )
         .map((attr) => (t.isJSXAttribute(attr) ? propertyName(attr.name) : '...spread'))
       const evidence = literal({ tag: name, children: childShapes, attributeOrder })
@@ -190,6 +197,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
     JSXAttribute(path) {
       const name = propertyName(path.node.name)
       if (nonvisualAttributes.test(name)) return
+      if (resolver.eventOnlyProp(child(path.parentPath, 'name'), name, file)) return
       const value = child(path, 'value')
       const evidence = value.node ? resolver.evaluate(value, file) : literal(true)
       if (

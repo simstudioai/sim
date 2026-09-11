@@ -40,12 +40,14 @@ export class Resolver {
   private readonly evaluations = new WeakMap<t.Node, Evidence>()
   private unknowns = new WeakMap<t.Node, Map<string, Evidence>>()
   private readonly opaqueValues = new Map<string, Evidence>()
+  private readonly resolvingExports = new Set<string>()
   private readonly resolvingUnknown = new Set<t.Node>()
   private steps = 0
   private parsedModules = 0
   private readonly active = new Set<t.Node>()
   private dependencies = new Set<string>()
   private unresolved = new Set<string>()
+  private readonly eventProps = new WeakMap<t.Node, Set<string>>()
 
   constructor(
     readonly tree: SourceTree,
@@ -295,7 +297,7 @@ export class Resolver {
       'Configured capability adapter: declared environment fields and provider factories are traced without execution'
     )
     return {
-      $environmentAdapter: this.opaqueExports(adapter.module, adapter.export),
+      $environmentAdapter: fingerprint(this.module(adapter.module).ast.program),
       implementation,
       environment: selected,
       arguments: children(path, 'arguments').map((argument) =>
@@ -329,6 +331,44 @@ export class Resolver {
       branch = parent
     }
     return { value: this.value(input, file, depth + 1), conditions }
+  }
+
+  /** Resolve props whose only uses select event handlers, without assuming custom prop names. */
+  eventOnlyProp(name: NodePath, property: string, file: string): boolean {
+    if (!name.isJSXIdentifier() || !/^[A-Z]/.test(name.node.name)) return false
+    const key = name.node
+    let properties = this.eventProps.get(key)
+    if (!properties) {
+      properties = new Set<string>()
+      this.eventProps.set(key, properties)
+      const target = this.callable(name, file)
+      if (!target) return false
+      const parameter = children(target.path, 'params')[0]
+      if (!parameter?.isObjectPattern()) return false
+      for (const prop of children(parameter, 'properties')) {
+        if (!prop.isObjectProperty() || prop.node.computed) continue
+        const value = child(prop, 'value')
+        const local = value.isAssignmentPattern() ? child(value, 'left') : value
+        if (!local.isIdentifier()) continue
+        const references = local.scope
+          .getBinding(local.node.name)
+          ?.referencePaths.filter(
+            (reference) => !reference.findParent((parent) => parent.isTSType())
+          )
+        if (!references?.length) continue
+        if (
+          references.every((reference) => {
+            for (let parent = reference.parentPath; parent; parent = parent.parentPath) {
+              if (parent.isFunction() || parent.isCallExpression()) return false
+              if (parent.isJSXAttribute()) return /^on[A-Z]/.test(propertyName(parent.node.name))
+            }
+            return false
+          })
+        )
+          properties.add(propertyName(prop.node.key))
+      }
+    }
+    return properties.has(property)
   }
 
   private currentFile = ''
@@ -492,7 +532,7 @@ export class Resolver {
     if (path.isFunction()) return { path, file }
     if (path.isTSAsExpression() || path.isTSSatisfiesExpression() || path.isTSNonNullExpression())
       return this.callable(child(path, 'expression'), file, seen)
-    if (!path.isIdentifier()) return undefined
+    if (!path.isIdentifier() && !path.isJSXIdentifier()) return undefined
     const binding = path.scope.getBinding(path.node.name)
     if (!binding?.constant) return undefined
     if (binding.path.isFunctionDeclaration()) return { path: binding.path, file }
@@ -691,24 +731,42 @@ export class Resolver {
     })
     return renders
       ? { $renderFunction: { file, symbol: symbolName(path) } }
-      : fingerprint(path.node)
+      : this.unknown(path, 'Opaque helper input is traced without execution', file)
   }
 
   /** Opaque export summaries are independent of expression budgets and parser cache eviction. */
   private opaqueExports(file: string, name: string): Data {
     const key = `${file}:${name}`
+    if (this.affected && !this.affected.has(file)) {
+      this.dependencies.add(file)
+      return { $unchangedInput: { file, export: name } }
+    }
     const cached = this.opaqueValues.get(key)
     if (cached) {
       for (const file of cached.dependencies) this.dependencies.add(file)
       return cached.value
     }
+    this.dependencies.add(file)
+    if (this.resolvingExports.has(key)) {
+      this.unresolved.add('Opaque export dependency cycle')
+      return { $cycle: key }
+    }
+    if (this.resolvingExports.size >= 64) {
+      this.unresolved.add('Opaque export dependency depth limit')
+      return { $unresolvedExport: key, blob: this.tree.entries.get(file)?.oid ?? null }
+    }
+    this.resolvingExports.add(key)
     const dependencies = this.dependencies
     this.dependencies = new Set([file])
-    const value = this.opaqueExportInner(file, name)
-    this.opaqueValues.set(key, { value, dependencies: [...this.dependencies], unresolved: [] })
-    for (const file of this.dependencies) dependencies.add(file)
-    this.dependencies = dependencies
-    return value
+    try {
+      const value = this.opaqueExportInner(file, name)
+      this.opaqueValues.set(key, { value, dependencies: [...this.dependencies], unresolved: [] })
+      return value
+    } finally {
+      for (const file of this.dependencies) dependencies.add(file)
+      this.dependencies = dependencies
+      this.resolvingExports.delete(key)
+    }
   }
 
   /** Follow export declarations only when normal evaluation is bounded or ambiguous. */
@@ -770,11 +828,50 @@ export class Resolver {
     const dependencies = this.dependencies
     this.dependencies = new Set([file])
     const inputs = new Map<string, Data>()
+    const inspected = new Set<t.Node>()
     const inspect = (reference: NodePath) => {
       if (!reference.isReferencedIdentifier()) return
+      if (reference.findParent((parent) => parent.isTSType())) return
       const binding = reference.scope.getBinding(reference.node.name)
       if (!binding) return
       const bound = binding.path
+      if (bound === path || bound.findParent((parent) => parent === path)) return
+      const member = reference.parentPath
+      if (member?.isMemberExpression() && member.node.object === reference.node) {
+        const selection = member.node.computed
+          ? finiteKeys(child(member, 'property'), file, this)
+          : { keys: [propertyName(member.node.property)], dependencies: [] }
+        if (selection?.keys) {
+          for (const dependency of selection.dependencies) this.dependencies.add(dependency)
+          const values = selection.keys.map((key) => this.selected(reference, String(key), file, 0))
+          if (values.every((value) => value !== undefined)) {
+            inputs.set(`selected:${reference.node.name}.[${selection.keys.join(',')}]`, {
+              $finiteSelection: selection.keys.map((key, index) => [key, values[index]!] as Data),
+            })
+            return
+          }
+        }
+      }
+      if (
+        !bound.isImportSpecifier() &&
+        !bound.isImportDefaultSpecifier() &&
+        !bound.isImportNamespaceSpecifier()
+      ) {
+        if (inspected.has(bound.node)) return
+        inspected.add(bound.node)
+        const parameter = this.parameter(bound, reference.node.name, file, 0)
+        if (parameter !== undefined) {
+          inputs.set(`parameter:${reference.node.name}`, parameter)
+          return
+        }
+        const value = bound.isVariableDeclarator() ? child(bound, 'init') : bound
+        if (value.node)
+          inputs.set(
+            `local:${reference.node.name}`,
+            this.unknown(value, 'Captured input feeds unresolved rendering', file)
+          )
+        return
+      }
       if (
         bound.isImportSpecifier() ||
         bound.isImportDefaultSpecifier() ||
@@ -790,25 +887,11 @@ export class Resolver {
             ? 'default'
             : '*'
         this.dependencies.add(target)
-        const member = reference.parentPath
-        if (member?.isMemberExpression() && member.node.object === reference.node) {
-          const selection = member.node.computed
-            ? finiteKeys(child(member, 'property'), file, this)
-            : { keys: [propertyName(member.node.property)], dependencies: [] }
-          if (selection?.keys) {
-            for (const file of selection.dependencies) this.dependencies.add(file)
-            const values = selection.keys.map((key) =>
-              this.selected(reference, String(key), file, 0)
-            )
-            if (values.every((value) => value !== undefined)) {
-              inputs.set(`${target}:${name}.[${selection.keys.join(',')}]`, {
-                $finiteSelection: selection.keys.map((key, index) => [key, values[index]!] as Data),
-              })
-              return
-            }
-          }
-        }
         const origin = this.tree.graph?.resolvedExport(target, name)?.origin
+        if (this.affected && origin && !this.affected.has(origin.file)) {
+          inputs.set(`${target}:${name}`, this.opaqueExports(origin.file, origin.exported))
+          return
+        }
         inputs.set(
           `${target}:${name}`,
           origin
@@ -858,7 +941,7 @@ export class Resolver {
     const key = `${file}:${name}`
     if (depth > this.tree.config.limits.resolutionDepth || visited.has(key)) {
       this.unresolved.add(visited.has(key) ? 'Dependency cycle' : 'Export resolution depth limit')
-      return { $unresolved: key }
+      return this.opaqueExports(file, name)
     }
     visited.add(key)
     this.dependencies.add(file)
@@ -960,6 +1043,7 @@ export class Resolver {
           if (attribute.isJSXAttribute()) {
             const name = propertyName(attribute.node.name)
             if (/^(?:key|ref|on[A-Z].*)$/.test(name)) continue
+            if (this.eventOnlyProp(child(opening, 'name'), name, file)) continue
             attributes.push([
               name,
               attribute.node.value ? this.value(child(attribute, 'value'), file, depth + 1) : true,

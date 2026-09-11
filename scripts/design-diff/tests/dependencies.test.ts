@@ -10,6 +10,26 @@ const index = 'apps/sim/index.ts'
 const consumer = 'apps/sim/page.tsx'
 const unrelated = 'apps/sim/unrelated.tsx'
 
+it('keeps re-exports independent of other declarations in a non-barrel module', async () => {
+  const files = {
+    [token]: 'export const colour="red";export {size} from "./other"',
+    [other]: 'export const size=4',
+    [consumer]: 'import {size} from "./token";export const Page=()=> <div style={{width:size}}/>',
+  }
+  expect(
+    (
+      await compareFiles(
+        files,
+        { [token]: 'export const colour="blue";export {size} from "./other"' },
+        settings
+      )
+    ).flagged
+  ).toBe(false)
+  expect((await compareFiles(files, { [other]: 'export const size=8' }, settings)).flagged).toBe(
+    true
+  )
+})
+
 it.each([
   [
     'named alias',

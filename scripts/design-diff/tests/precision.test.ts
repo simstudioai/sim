@@ -6,6 +6,54 @@ const settings = { ...config, themes: [] }
 const view = 'apps/sim/page.tsx'
 const data = 'apps/sim/data.ts'
 
+it('does not trace type-only factory inputs through opaque helpers', async () => {
+  const source = (count: number) => `export const backend={batch:${count}}`
+  const files = {
+    [data]: source(4),
+    'apps/sim/client.ts':
+      'import type {backend} from "./data";export const client=createClient<typeof backend>({name:"same"})',
+    [view]:
+      'import {client} from "./client";export const Page=()=> <span>{client.session()}</span>',
+  }
+  expect((await compareFiles(files, { [data]: source(8) }, settings)).flagged).toBe(false)
+})
+
+it('ignores resolved event-only custom props while retaining rendered uses', async () => {
+  const component = (visible: boolean) => `export function Menu({editing=false}){
+    return <div title={${visible ? 'editing' : '"same"'}} onPointerMoveCapture={editing ? holdFocus : undefined}/>}`
+  const files = {
+    [data]: component(false),
+    [view]:
+      'import {Menu} from "./data";export const Page=({show})=> <main>{show && <Menu/>}</main>',
+  }
+  const changed = {
+    [view]:
+      'import {Menu} from "./data";export const Page=({show})=> <main>{show && <Menu editing={true}/>}</main>',
+  }
+  expect((await compareFiles(files, changed, settings)).flagged).toBe(false)
+  expect(
+    (await compareFiles({ ...files, [data]: component(true) }, changed, settings)).flagged
+  ).toBe(true)
+})
+
+it.each([1, 4, 24])(
+  'retains captured title-map changes at resolution depth %s',
+  async (resolutionDepth) => {
+    const source = (title: string) =>
+      `const titles={fill:'${title}'};export function title(name){return titles[name]}`
+    const report = await compareFiles(
+      {
+        [data]: source('Filling'),
+        [view]:
+          'import {title} from "./data";export const Page=({name})=> <span>{title(name)}</span>',
+      },
+      { [data]: source('Filling form') },
+      { ...settings, limits: { ...settings.limits, resolutionDepth } }
+    )
+    expect(report.flagged).toBe(true)
+  }
+)
+
 it.each([
   [
     'nonempty accumulator',

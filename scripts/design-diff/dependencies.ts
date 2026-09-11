@@ -1,6 +1,6 @@
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
-import { fingerprint, location, parseSource, propertyName, traverse } from '#design-diff/ast'
+import { fingerprint, location, parseSyntax, propertyName, traverse } from '#design-diff/ast'
 import { environmentFields } from '#design-diff/environment'
 import { finiteKeys } from '#design-diff/finite'
 import { reclaimMemory } from '#design-diff/memory'
@@ -100,7 +100,7 @@ export class DependencyGraph {
         if (target) raw.add(target)
       }
       try {
-        const ast = parseSource(source, file)
+        const ast = parseSyntax(source, file)
         const exports = new Map<string, ExportTarget>()
         const imports = new Map<string, ExportTarget>()
         const stars: string[] = []
@@ -314,10 +314,7 @@ export class DependencyGraph {
     if (precise) {
       for (const origin of trace.origins) edge(origin.file, origin.symbol)
       for (const route of trace.routes) {
-        if (!this.modules.get(route)?.barrel) {
-          if (!trace.origins.some((origin) => origin.file === route)) edge(route, '*')
-          continue
-        }
+        if (trace.origins.some((origin) => origin.file === route)) continue
         const watchers = this.watches.get(route) ?? new Map<string, Set<string>>()
         const signatures = watchers.get(file) ?? new Set<string>()
         signatures.add(
@@ -352,7 +349,7 @@ export class DependencyGraph {
       for (const target of this.raw.get(file) ?? []) this.dependencies.get(file)!.add(target)
       return
     }
-    const ast = parseSource(this.tree.texts.get(file) as string, file)
+    const ast = parseSyntax(this.tree.texts.get(file) as string, file)
     const namespaces = new Map([...module.imports].filter(([, target]) => target.name === '*'))
     const referenced = new Set<string>()
     traverse(ast, {
@@ -418,7 +415,7 @@ export class DependencyGraph {
   private count(file: string) {
     if (this.counted.has(file) || this.modules.get(file)?.barrel) return
     this.counted.add(file)
-    const ast = parseSource(this.tree.texts.get(file) as string, file)
+    const ast = parseSyntax(this.tree.texts.get(file) as string, file)
     const record = (specifier: string, name: string, references: NodePath[]) => {
       const target = this.tree.resolve(file, specifier)
       if (!target) return
@@ -488,8 +485,8 @@ export class DependencyGraph {
       const b = other.watches.get(root)
       for (const file of new Set([...(a?.keys() ?? []), ...(b?.keys() ?? [])])) {
         if (
-          this.modules.get(root)?.barrel &&
-          other.modules.get(root)?.barrel &&
+          this.modules.has(root) &&
+          other.modules.has(root) &&
           JSON.stringify([...(a?.get(file) ?? [])].sort()) ===
             JSON.stringify([...(b?.get(file) ?? [])].sort())
         )
@@ -598,7 +595,7 @@ export class DependencyGraph {
     const unowned = new Set<string>()
     const members = new Map<string, { keys?: string[]; owners?: string[] }[]>()
     const resolver = new Resolver(this.tree)
-    const ast = parseSource(source, file)
+    const ast = parseSyntax(source, file)
     traverse(ast, {
       Program(p) {
         const entries = Object.entries(p.scope.bindings)

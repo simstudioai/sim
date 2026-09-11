@@ -363,6 +363,20 @@ ground truth. Corrections must be documented separately rather than rewriting fr
 Holdout PRs #6986 and #6929 were inspected while debugging resolver precision and resource
 use after labels were frozen, so this is not a wholly untouched blind evaluation.
 
+Import-graph construction uses syntax parsing without repeatedly running expression/refactor
+normalization. Bounded expression fallbacks retain captured helper inputs (including progress
+title maps), select statically known properties, and exclude type-only references. Re-export
+watchers distinguish changes to the forwarded export from unrelated declarations in its module.
+Custom props are exempt as event-only only when a resolved destructured prop is used exclusively
+to select JSX event handlers; the same rule applies inside nested JSX expressions. Unknown
+components and props with rendered uses keep conservative findings.
+
+Opaque runtime factories can still connect backend or authentication changes to UI inputs too
+broadly. These findings count as apparent false positives against the frozen nonvisual labels;
+an unresolved finding is not proof that pixels changed. Qualification and false-positive rates
+must be reported separately, with failed comparisons excluded from neither the failure count
+nor the denominator disclosure.
+
 ```sh
 bun --no-env-file scripts/design-diff/benchmark.ts \
   --engine /path/to/clean/engine-checkout --sha <immutable-engine-commit> \

@@ -11,14 +11,19 @@ export const traverse: typeof traverseModule =
     ? traverseModule
     : (traverseModule as unknown as { default: typeof traverseModule }).default
 
-export function parseSource(source: string, file: string) {
-  const ast = parse(source, {
+/** Parse import/reference syntax without doing the resolver's literal/refactor work. */
+export function parseSyntax(source: string, file: string) {
+  return parse(source, {
     sourceType: 'unambiguous',
     sourceFilename: file,
     plugins: ['jsx', 'typescript', 'decorators-legacy'],
     errorRecovery: false,
     attachComment: false,
   })
+}
+
+export function parseSource(source: string, file: string) {
+  const ast = parseSyntax(source, file)
   normalizeRefactors(ast, traverse)
   normalizeLiteralAliases(ast, traverse)
   return ast
