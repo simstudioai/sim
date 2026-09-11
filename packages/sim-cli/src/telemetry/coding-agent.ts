@@ -59,11 +59,20 @@ const AGENT_MARKERS: readonly AgentMarker[] = [
   { name: 'crush', matches: anyOf('CRUSH') },
 ]
 
-/** A name an agent declared for itself, when it is a well-formed token. */
+/**
+ * A name an agent declared for itself, when it is a well-formed token.
+ *
+ * Claude Code declares `claude-code_2-1-268_agent`: the name, then its version
+ * with dots replaced by dashes, then a role suffix, joined by underscores (the
+ * form the Stripe CLI's parser also expects). Only the name is kept, so a
+ * breakdown by agent does not split into one slice per release.
+ */
 function declaredAgentName(value: string | undefined): string | undefined {
   const trimmed = value?.trim().toLowerCase()
   if (!trimmed || trimmed.length > MAX_AGENT_NAME_LENGTH) return undefined
-  return AGENT_NAME_PATTERN.test(trimmed) ? trimmed : undefined
+  if (!AGENT_NAME_PATTERN.test(trimmed)) return undefined
+  const name = trimmed.split('_', 1)[0]
+  return name || undefined
 }
 
 /**
