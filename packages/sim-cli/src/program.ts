@@ -1,4 +1,5 @@
 import { Command, Option } from 'commander'
+import { updateCommand } from '#sim-cli/commands/update'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth'
 import { configureCommand } from './commands/configure'
 import { attachCredentialCommands } from './commands/credentials'
@@ -142,6 +143,8 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
   program.addCommand(whoamiCommand())
   program.addCommand(profilesCommand())
   program.addCommand(configureCommand())
+  const update = updateCommand()
+  program.addCommand(update)
 
   for (const command of buildGeneratedCommands()) {
     program.addCommand(command)
@@ -153,7 +156,10 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
 
   program.addHelpText('after', HELP_EPILOGUE)
 
-  program.hook('preAction', () => announceUpdateIfAvailable())
+  program.hook('preAction', async (_program, command) => {
+    if (command === update) return
+    await announceUpdateIfAvailable()
+  })
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)

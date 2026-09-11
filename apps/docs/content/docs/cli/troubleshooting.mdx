@@ -99,7 +99,8 @@ The docs track the current release, so a command that exists here and not in
 sim --version
 ```
 
-Then upgrade with the package manager you installed it with — using a different
+Run `sim update` to update the active global installation. If this older release
+does not yet have the `update` command, upgrade with the package manager you installed it with — using a different
 one installs a second copy instead of replacing the executable on your `PATH`:
 
 <Tabs items={['npm', 'pnpm', 'bun', 'Yarn Classic']}>
@@ -125,9 +126,10 @@ one installs a second copy instead of replacing the executable on your `PATH`:
   </Tab>
 </Tabs>
 
-The CLI can also tell you this through a cached daily check on eligible
-invocations, and the command it prints already matches your installation. It
-stays quiet when stderr is redirected, in CI, and under `npm exec` or `npx`.
+The CLI also shows an optional update notice through a cached daily check on
+eligible interactive invocations. Your command continues, and you choose when to
+run `sim update`. Checks stay quiet when stderr is redirected, in CI, and under
+`npm exec` or `npx`.
 
 ## An update notice appears in output I am parsing
 
