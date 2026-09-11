@@ -4969,9 +4969,10 @@ export const slackApp = pgTable(
       onDelete: 'cascade',
     }),
     kind: text('kind').$type<'custom' | 'shared'>().notNull(),
-    clientId: text('client_id').notNull(),
-    encryptedClientSecret: text('encrypted_client_secret').notNull(),
-    encryptedSigningSecret: text('encrypted_signing_secret').notNull(),
+    /** Custom app credentials; company app credentials come from the deployment environment. */
+    clientId: text('client_id'),
+    encryptedClientSecret: text('encrypted_client_secret'),
+    encryptedSigningSecret: text('encrypted_signing_secret'),
     revision: text('revision').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4980,6 +4981,10 @@ export const slackApp = pgTable(
     ownerCheck: check(
       'slack_app_owner_check',
       sql`(${table.kind} = 'custom' AND ${table.organizationId} IS NOT NULL) OR (${table.kind} = 'shared' AND ${table.organizationId} IS NULL)`
+    ),
+    customCredentialsCheck: check(
+      'slack_app_custom_credentials_check',
+      sql`${table.kind} = 'shared' OR (${table.clientId} IS NOT NULL AND ${table.encryptedClientSecret} IS NOT NULL AND ${table.encryptedSigningSecret} IS NOT NULL)`
     ),
   })
 )

@@ -29,7 +29,9 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type { DbOrTx } from '@/lib/db/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
+import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
 import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
+import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 const logger = createLogger('SlackManagedUsers')
 const SLACK_MANAGED_USERS_ATTEMPT_TTL_MS = 10 * 60 * 1000
@@ -54,7 +56,7 @@ interface SlackCustomBotSecret {
   metadata?: Record<string, string>
 }
 
-interface StoredSlackManagedUsersAttempt {
+type StoredSlackManagedUsersAttempt = {
   appRevision?: string
   version: typeof SLACK_MANAGED_USERS_ATTEMPT_VERSION
   workspaceId?: string
@@ -67,11 +69,13 @@ interface StoredSlackManagedUsersAttempt {
   expectedAppId: string
   expectedTeamId: string
   clientId: string
-  encryptedClientSecret: string
   redirectUri: string
   requiredScopes: string[]
   createdAt: number
-}
+} & (
+  | { credentialSource: 'environment'; encryptedClientSecret?: never }
+  | { credentialSource?: undefined; encryptedClientSecret: string }
+)
 
 export interface SlackManagedUsersAttempt {
   appRevision?: string
@@ -162,7 +166,11 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
     typeof candidate.expectedAppId === 'string' &&
     typeof candidate.expectedTeamId === 'string' &&
     typeof candidate.clientId === 'string' &&
-    typeof candidate.encryptedClientSecret === 'string' &&
+    (candidate.credentialSource === 'environment'
+      ? typeof candidate.organizationId === 'string' &&
+        candidate.encryptedClientSecret === undefined
+      : candidate.credentialSource === undefined &&
+        typeof candidate.encryptedClientSecret === 'string') &&
     typeof candidate.redirectUri === 'string' &&
     Array.isArray(candidate.requiredScopes) &&
     candidate.requiredScopes.length > 0 &&
@@ -518,10 +526,11 @@ export async function createSlackManagedUsersAttempt(params: {
         'invalid_response'
       )
     await requireSlackSearchAppAvailable(configured.app.id)
+    const app = await resolveSlackAppCredentials(configured.app)
     identity = { appId: configured.app.id, teamId: configured.teamId }
-    clientId = configured.app.clientId
-    clientSecret = (await decryptSecret(configured.app.encryptedClientSecret)).decrypted
-    appRevision = configured.app.revision
+    clientId = app.clientId
+    clientSecret = app.clientSecret
+    appRevision = app.revision
     requiredScopes = resolveSlackManagedUserScopes(
       existingOption ? existingOption.requiredScopes : SLACK_SEARCH_USER_SCOPES
     )
@@ -545,7 +554,8 @@ export async function createSlackManagedUsersAttempt(params: {
   const redis = requireRedis()
   const state = generateId()
   const redirectUri = getSlackManagedUsersRedirectUri()
-  const encryptedClientSecret = await encryptSecret(clientSecret)
+  const sharedApp =
+    scope.kind === 'organization' ? getSharedSlackSearchAppConfiguration(identity.appId) : null
   const attempt: StoredSlackManagedUsersAttempt = {
     version: SLACK_MANAGED_USERS_ATTEMPT_VERSION,
     ...resourceScopeFields(scope),
@@ -559,7 +569,9 @@ export async function createSlackManagedUsersAttempt(params: {
     expectedTeamId: identity.teamId,
     clientId,
     ...(appRevision ? { appRevision } : {}),
-    encryptedClientSecret: encryptedClientSecret.encrypted,
+    ...(sharedApp
+      ? { credentialSource: 'environment' as const }
+      : { encryptedClientSecret: (await encryptSecret(clientSecret)).encrypted }),
     requiredScopes,
     redirectUri,
     createdAt: Date.now(),
@@ -606,7 +618,19 @@ async function parseSlackManagedUsersAttempt(
   const parsed: unknown = JSON.parse(raw)
   if (!isStoredAttempt(parsed)) throw new Error('Slack managed-user state is malformed')
   if (Date.now() - parsed.createdAt > SLACK_MANAGED_USERS_ATTEMPT_TTL_MS) return null
-  const clientSecret = await decryptSecret(parsed.encryptedClientSecret)
+  let clientSecret: string
+  if (parsed.credentialSource === 'environment') {
+    const app = getSharedSlackSearchAppConfiguration(parsed.expectedAppId)
+    if (!app || app.revision !== parsed.appRevision || app.clientId !== parsed.clientId)
+      throw new SlackManagedUsersError(
+        'The shared Slack app changed. Start again.',
+        'invalid_state'
+      )
+    await requireSlackSearchAppAvailable(app.id)
+    clientSecret = app.clientSecret
+  } else {
+    clientSecret = (await decryptSecret(parsed.encryptedClientSecret)).decrypted
+  }
   return {
     ...resourceScopeFields(resourceScopeFromOwner(parsed)),
     userId: parsed.userId,
@@ -622,7 +646,7 @@ async function parseSlackManagedUsersAttempt(
     expectedTeamId: parsed.expectedTeamId,
     clientId: parsed.clientId,
     ...(parsed.appRevision ? { appRevision: parsed.appRevision } : {}),
-    clientSecret: clientSecret.decrypted,
+    clientSecret,
     redirectUri: parsed.redirectUri,
     requiredScopes: parsed.requiredScopes,
     createdAt: parsed.createdAt,
@@ -706,11 +730,12 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         .limit(1)
         .for('update')
       if (app?.kind === 'shared') await requireSlackSearchAppAvailable(app.id)
+      const resolved = app ? await resolveSlackAppCredentials(app) : null
       if (
-        !app ||
+        !resolved ||
         !params.attempt.appRevision ||
-        app.revision !== params.attempt.appRevision ||
-        app.clientId !== params.attempt.clientId
+        resolved.revision !== params.attempt.appRevision ||
+        resolved.clientId !== params.attempt.clientId
       )
         throw new SlackManagedUsersError(
           'The Slack app changed during authorization. Start again.',

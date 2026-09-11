@@ -6,6 +6,7 @@ import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import type { DbOrTx } from '@/lib/db/types'
+import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
 import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
 
 const CREDENTIAL_GROUP_PROVIDER_CONFIGURATION_TYPE =
@@ -173,12 +174,12 @@ async function resolveSlackConfiguration(
       .limit(1)
     if (!installation) throw new Error('The shared Slack installation is disabled or removed')
   }
-  const { decrypted: clientSecret } = await decryptSecret(app.encryptedClientSecret)
+  const resolved = await resolveSlackAppCredentials(app)
   return {
     appId: app.id,
     teamId: configuration.teamId,
-    clientId: app.clientId,
-    clientSecret,
+    clientId: resolved.clientId,
+    clientSecret: resolved.clientSecret,
     scopes: configuration.scopes,
     verifiedAt: configuration.verifiedAt,
   }

@@ -24,6 +24,18 @@ const { attempts, redis } = vi.hoisted(() => {
   }
 })
 
+const shared = vi.hoisted(() => ({
+  env: {
+    SLACK_SEARCH_APP_ID: '',
+    SLACK_SEARCH_CLIENT_ID: 'environment-client',
+    SLACK_SEARCH_CLIENT_SECRET: 'environment-secret',
+    SLACK_SEARCH_SIGNING_SECRET: 'environment-signing',
+  },
+  flag: vi.fn(),
+}))
+vi.mock('@/lib/core/config/env', () => ({ env: shared.env }))
+vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: shared.flag }))
+
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
 vi.mock('@/lib/core/security/encryption', () => ({
   encryptSecret: vi.fn(async (value: string) => ({
@@ -70,6 +82,9 @@ describe('Slack managed-user authorization', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     attempts.clear()
+    shared.env.SLACK_SEARCH_APP_ID = ''
+    shared.env.SLACK_SEARCH_CLIENT_SECRET = 'environment-secret'
+    shared.flag.mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -84,6 +99,7 @@ describe('Slack managed-user authorization', () => {
           app: {
             id: 'A123',
             clientId: 'client-1',
+            encryptedSigningSecret: `encrypted:${Buffer.from('signing-secret').toString('base64')}`,
             encryptedClientSecret: `encrypted:${Buffer.from('private-client-secret').toString('base64')}`,
             revision: 'app-revision',
           },
@@ -124,6 +140,54 @@ describe('Slack managed-user authorization', () => {
     attempts.set(key, JSON.stringify({ ...JSON.parse(stored), workspaceId: 'workspace-1' }))
     await expect(loadSlackManagedUsersAttempt(created.state)).rejects.toThrow('malformed')
   })
+
+  it.each(['rotation', 'disabled', 'success'] as const)(
+    'keeps shared setup state secret-free and rechecks configuration on %s',
+    async (outcome) => {
+      shared.env.SLACK_SEARCH_APP_ID = 'ASHARED'
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
+        .mockResolvedValueOnce([
+          {
+            app: {
+              id: 'ASHARED',
+              kind: 'shared',
+              organizationId: null,
+              clientId: null,
+              encryptedClientSecret: null,
+              encryptedSigningSecret: null,
+              revision: 'old-revision',
+            },
+            teamId: 'T123',
+          },
+        ])
+      const created = await createSlackManagedUsersAttempt({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        credentialGroupId: 'group-1',
+        appId: 'ASHARED',
+        teamId: 'T123',
+      })
+      const stored = JSON.parse([...attempts.values()][0])
+      expect(stored).toMatchObject({ credentialSource: 'environment', expectedAppId: 'ASHARED' })
+      expect(stored).not.toHaveProperty('encryptedClientSecret')
+      expect(JSON.stringify(stored)).not.toContain('environment-secret')
+      if (outcome === 'rotation') {
+        shared.env.SLACK_SEARCH_CLIENT_SECRET = 'rotated'
+        await expect(consumeSlackManagedUsersAttempt(created.state)).rejects.toThrow('changed')
+      } else if (outcome === 'disabled') {
+        shared.flag.mockResolvedValue(false)
+        await expect(consumeSlackManagedUsersAttempt(created.state)).rejects.toThrow('unavailable')
+      } else {
+        await expect(consumeSlackManagedUsersAttempt(created.state)).resolves.toMatchObject({
+          clientId: 'environment-client',
+          clientSecret: 'environment-secret',
+          organizationId: 'org-1',
+        })
+        await expect(consumeSlackManagedUsersAttempt(created.state)).resolves.toBeNull()
+      }
+    }
+  )
 
   it('binds the bot token to Slack app and workspace identities', async () => {
     const fetchMock = vi
@@ -202,6 +266,7 @@ describe('Slack managed-user authorization', () => {
       const app = {
         id: 'A123',
         clientId: 'client-1',
+        encryptedSigningSecret: `encrypted:${Buffer.from('signing-secret').toString('base64')}`,
         encryptedClientSecret: `encrypted:${Buffer.from('client-secret').toString('base64')}`,
         revision: 'app-revision',
       }

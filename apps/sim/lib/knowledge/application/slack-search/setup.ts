@@ -138,7 +138,8 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       )
     if (savedApp?.kind === 'custom' && savedApp.organizationId !== context.organizationId)
       throw new OrchestrationError('forbidden', 'Slack app ownership changed')
-    const app = shared ? await readSharedSlackSearchApp() : savedApp
+    const sharedApp = shared ? await readSharedSlackSearchApp() : null
+    const app = shared ? sharedApp : savedApp
     if (shared && (!app || input.clientId || input.clientSecret || input.signingSecret))
       throw new OrchestrationError(
         'validation',
@@ -150,20 +151,29 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
         'Remove the previous Slack source configuration before switching apps; members must reconnect'
       )
     const clientId = input.clientId ?? app?.clientId
-    const encryptedClientSecret = input.clientSecret
-      ? (await encryptSecret(input.clientSecret)).encrypted
-      : app?.encryptedClientSecret
-    const encryptedSigningSecret = input.signingSecret
-      ? (await encryptSecret(input.signingSecret)).encrypted
-      : app?.encryptedSigningSecret
-    if (!clientId || !encryptedClientSecret || !encryptedSigningSecret)
-      throw new OrchestrationError(
-        'validation',
-        'Client ID, Client Secret, and Signing Secret are required for a new Slack app'
-      )
+    if (!clientId) throw new OrchestrationError('validation', 'Slack Client ID is required')
+    let appCredentials:
+      | { sharedApp: { id: string; revision: string } }
+      | { encryptedClientSecret: string; encryptedSigningSecret: string }
+    if (sharedApp) {
+      appCredentials = { sharedApp: { id: sharedApp.id, revision: sharedApp.revision } }
+    } else {
+      const encryptedClientSecret = input.clientSecret
+        ? (await encryptSecret(input.clientSecret)).encrypted
+        : savedApp?.encryptedClientSecret
+      const encryptedSigningSecret = input.signingSecret
+        ? (await encryptSecret(input.signingSecret)).encrypted
+        : savedApp?.encryptedSigningSecret
+      if (!encryptedClientSecret || !encryptedSigningSecret)
+        throw new OrchestrationError(
+          'validation',
+          'Client ID, Client Secret, and Signing Secret are required for a new Slack app'
+        )
+      appCredentials = { encryptedClientSecret, encryptedSigningSecret }
+    }
     const redirectUri = new URL(SLACK_SEARCH_CALLBACK_PATH, origin).href
     const state = await storeSlackSearchOAuthAttempt({
-      ...(shared && app ? { sharedApp: { id: app.id, revision: app.revision } } : {}),
+      ...appCredentials,
       userId: principal.userId,
       sessionId: principal.sessionId,
       organizationId: context.organizationId,
@@ -171,8 +181,6 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       description: input.description,
       ...(member.app ? { memberApp: member.app } : {}),
       clientId,
-      encryptedClientSecret,
-      encryptedSigningSecret,
       redirectUri,
       createdAt: Date.now(),
       ...(installation
@@ -256,15 +264,22 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       )
     await requireOrganizationSearchAvailable(context.organizationId)
     const { attempt } = context
+    let clientSecret: string
     if (attempt.sharedApp) {
       const app = await readSharedSlackSearchApp()
-      if (app?.id !== attempt.sharedApp.id || app.revision !== attempt.sharedApp.revision)
+      if (
+        app?.id !== attempt.sharedApp.id ||
+        app.revision !== attempt.sharedApp.revision ||
+        app.clientId !== attempt.clientId
+      )
         throw new OrchestrationError(
           'conflict',
           'Shared Slack app configuration changed. Start again.'
         )
+      clientSecret = app.clientSecret
+    } else {
+      clientSecret = (await decryptSecret(attempt.encryptedClientSecret)).decrypted
     }
-    const { decrypted: clientSecret } = await decryptSecret(attempt.encryptedClientSecret)
     const grant = await exchangeSlackBotAuthorization({
       clientId: attempt.clientId,
       clientSecret,
@@ -345,10 +360,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
           .limit(1)
         if (
           attempt.sharedApp
-            ? !existingApp ||
-              existingApp.kind !== 'shared' ||
-              existingApp.organizationId !== null ||
-              existingApp.revision !== attempt.sharedApp.revision
+            ? existingApp && (existingApp.kind !== 'shared' || existingApp.organizationId !== null)
             : existingApp &&
               (existingApp.kind !== 'custom' ||
                 existingApp.organizationId !== context.organizationId)
@@ -358,6 +370,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
             'This Slack app belongs to another installation owner'
           )
         if (
+          !attempt.sharedApp &&
           attempt.installation?.appRevision &&
           existingApp?.revision !== attempt.installation.appRevision
         )
@@ -413,6 +426,12 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
             'This Slack workspace already has an active Search installation'
           )
         if (attempt.sharedApp) {
+          const currentApp = await readSharedSlackSearchApp()
+          if (
+            currentApp?.id !== attempt.sharedApp.id ||
+            currentApp.revision !== attempt.sharedApp.revision
+          )
+            throw new OrchestrationError('conflict', 'Shared Slack app configuration changed')
           /** A concurrent failed setup may have revoked an uncommitted grant while we waited. */
           const current = await verifySlackSearchBot(
             grant.access_token,
@@ -430,21 +449,33 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
             )
         }
         const appRevision = attempt.sharedApp?.revision ?? generateId()
-        const appValues = {
-          id: identity.appId,
-          kind: 'custom' as const,
-          organizationId: context.organizationId,
-          clientId: attempt.clientId,
-          encryptedClientSecret: attempt.encryptedClientSecret,
-          encryptedSigningSecret: attempt.encryptedSigningSecret,
-          revision: appRevision,
-          updatedAt: new Date(),
-        }
-        if (!attempt.sharedApp)
+        if (attempt.sharedApp) {
+          /** The row supplies foreign-key identity only; shared secrets remain in the environment. */
+          await tx
+            .insert(slackApp)
+            .values({
+              id: identity.appId,
+              kind: 'shared',
+              organizationId: null,
+              revision: appRevision,
+            })
+            .onConflictDoNothing()
+        } else {
+          const appValues = {
+            id: identity.appId,
+            kind: 'custom' as const,
+            organizationId: context.organizationId,
+            clientId: attempt.clientId,
+            encryptedClientSecret: attempt.encryptedClientSecret,
+            encryptedSigningSecret: attempt.encryptedSigningSecret,
+            revision: appRevision,
+            updatedAt: new Date(),
+          }
           await tx
             .insert(slackApp)
             .values(appValues)
             .onConflictDoUpdate({ target: slackApp.id, set: appValues })
+        }
         await adoptOrganizationSlackMemberApp(
           tx,
           context.organizationId,

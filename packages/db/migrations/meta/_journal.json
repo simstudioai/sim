@@ -2374,6 +2374,13 @@
       "when": 1789084655493,
       "tag": "0339_connector_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 340,
+      "version": "7",
+      "when": 1789150173739,
+      "tag": "0340_slack_shared_app_env",
+      "breakpoints": true
     }
   ]
 }
