@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
+  hasMaxAccess: true,
   replace: vi.fn(),
   push: vi.fn(),
   availabilityReady: true,
@@ -124,7 +125,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
     canAdmin: mocks.canAdmin,
     memberAccessAvailable: mocks.features.knowledgeMemberAccess,
     mirroredAccessAvailable: mocks.features.knowledgeSourceMirroredAccess,
-    hasMaxAccess: true,
+    hasMaxAccess: mocks.hasMaxAccess,
   }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
@@ -236,6 +237,27 @@ async function click(element: HTMLElement) {
   await act(async () => element.click())
 }
 
+async function openSyncFrequency() {
+  await act(async () => {
+    button('Sync frequency').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    )
+  })
+}
+
+function menuItem(label: string): HTMLElement {
+  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (node) => node.textContent?.trim() === label
+  )
+  expect(match, `Menu item ${label}`).toBeDefined()
+  return match!
+}
+
+async function chooseSyncFrequency(label: string) {
+  await openSyncFrequency()
+  await click(menuItem(label))
+}
+
 async function fill(placeholder: string, value: string) {
   const input = document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)
   expect(input, `Input ${placeholder}`).not.toBeNull()
@@ -298,6 +320,7 @@ beforeEach(() => {
   mocks.userId = 'user-1'
   useConnectorSetupStore.getState().reset()
   mocks.canAdmin = true
+  mocks.hasMaxAccess = true
   mocks.availabilityReady = true
   mocks.availabilityLoading = false
   mocks.availabilityError = null
@@ -1287,9 +1310,9 @@ describe('member content credentials in real add and edit dialogs', () => {
     expect(document.body.textContent).toContain(
       'Content follows this schedule. Member permissions are checked every hour.'
     )
-    await click(button('Manual only'))
+    await chooseSyncFrequency('Manual only')
     expect(document.body.textContent).toContain('Documents become unavailable after 24 hours')
-    await click(button('Every hour'))
+    await chooseSyncFrequency('Every hour')
     expect(document.body.textContent).toContain('Permissions are checked on every sync.')
   })
 
@@ -2139,6 +2162,24 @@ describe('resuming Search source setup', () => {
     expect(account?.textContent).toContain('New account')
   })
 
+  it('keeps Live unavailable without Max while allowing a manual schedule', async () => {
+    mocks.hasMaxAccess = false
+    await render(
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='ordinary-kb'
+        initialConnectorType='google_drive'
+      />
+    )
+    await openSyncFrequency()
+    expect(menuItem('Live (Max)')).toHaveAttribute('aria-disabled', 'true')
+    await click(menuItem('Live (Max)'))
+    expect(button('Sync frequency')).toHaveTextContent('Daily')
+    await click(menuItem('Manual only'))
+    expect(button('Sync frequency')).toHaveTextContent('Manual only')
+  })
+
   it('keeps the general KB schedule and both document-detail sections collapsed by default', async () => {
     await render(
       <AddConnectorModal
@@ -2149,7 +2190,9 @@ describe('resuming Search source setup', () => {
       />
     )
     expect(document.body.textContent).toContain('Sync Frequency')
-    expect(button('Live')).toBeDefined()
+    await openSyncFrequency()
+    expect(menuItem('Live')).not.toHaveAttribute('aria-disabled', 'true')
+    await click(menuItem('Daily'))
     expect(button('Document details (optional)')).toHaveAttribute('aria-expanded', 'false')
     await click(button('Document details (optional)'))
     expect(document.body.textContent).toContain('Metadata tags')

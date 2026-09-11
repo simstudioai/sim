@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  Chip,
   ChipLink,
   ChipModal,
   ChipModalBody,
@@ -47,7 +46,6 @@ export function SlackSearchSetupWizard({
   const [copyError, setCopyError] = useState<Error | null>(null)
   const error = prepare.error ?? oauth.error ?? copyError
   const busy = oauth.isPending
-  const stepNumber = step === 'manifest' ? 1 : step === 'credentials' ? 2 : 3
   const configuredAppId = appId ?? prepare.data?.existingApp?.appId
 
   async function copyConfiguration() {
@@ -99,6 +97,45 @@ export function SlackSearchSetupWizard({
     }
   }
 
+  if (!prepare.data)
+    return (
+      <ChipModal
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose()
+        }}
+        srTitle='Sim Search in Slack'
+      >
+        <ChipModalHeader icon={SlackIcon} onClose={onClose}>
+          Sim Search in Slack
+        </ChipModalHeader>
+        <ChipModalBody>
+          {prepare.error ? (
+            <ChipModalError>{prepare.error.message}</ChipModalError>
+          ) : (
+            <p role='status' className='px-2 text-[var(--text-secondary)] text-sm'>
+              Loading Slack setup…
+            </p>
+          )}
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={onClose}
+          defaultAction='dismiss'
+          secondaryActions={
+            prepare.error
+              ? [
+                  {
+                    label: 'Retry',
+                    onClick: () => void prepare.refetch(),
+                    disabled: prepare.isFetching,
+                  },
+                ]
+              : undefined
+          }
+        />
+      </ChipModal>
+    )
+
   if (shared)
     return (
       <ChipModal
@@ -113,12 +150,9 @@ export function SlackSearchSetupWizard({
           Install Sim Search
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title='Connect your Slack workspace'>
-            <p className='text-[var(--text-secondary)] text-sm'>
-              Ask Sim in DMs or mention it in a channel. Each member connects their own Slack
-              account to index the channels and direct messages they choose to connect.
-            </p>
-          </ChipModalField>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Choose your Slack workspace and approve Sim Search.
+          </p>
           <ChipModalError>{error?.message}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter
@@ -132,6 +166,17 @@ export function SlackSearchSetupWizard({
       </ChipModal>
     )
 
+  const title =
+    step === 'manifest'
+      ? configuredAppId
+        ? 'Update Slack app'
+        : 'Create Slack app'
+      : step === 'credentials'
+        ? 'Slack app credentials'
+        : installationId
+          ? 'Reconnect in Slack'
+          : 'Install in Slack'
+
   return (
     <ChipModal
       open
@@ -139,63 +184,26 @@ export function SlackSearchSetupWizard({
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-      srTitle='Set up Sim Search in Slack'
-      size='lg'
+      srTitle={title}
+      size='md'
     >
       <ChipModalHeader icon={SlackIcon} onClose={onClose}>
-        {installationId ? 'Reconnect Slack Search' : 'Set up Sim Search in Slack'}
+        {title}
       </ChipModalHeader>
       <ChipModalBody>
-        <p className='px-2 text-[var(--text-muted)] text-caption'>
-          Step {stepNumber} of 3 ·{' '}
-          {step === 'manifest'
-            ? configuredAppId
-              ? 'Update your Slack app'
-              : 'Create your Slack app'
-            : step === 'credentials'
-              ? 'App credentials'
-              : 'Install in Slack'}
-        </p>
-        {step === 'manifest' && prepare.isPending && (
-          <p role='status' className='px-2 text-[var(--text-muted)] text-sm'>
-            Preparing your Slack app…
+        {step === 'manifest' && (
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            {configuredAppId
+              ? configurationCopied
+                ? 'Configuration copied. In Slack, replace the JSON under App Manifest and save.'
+                : 'Copy the configuration, then replace the JSON under App Manifest in Slack.'
+              : 'Create the app in Slack, then return here to add its credentials.'}
           </p>
-        )}
-        {step === 'manifest' && prepare.data && (
-          <ChipModalField
-            type='custom'
-            title={configuredAppId ? 'Update your Slack app' : 'Create your Slack app'}
-            hint={
-              configuredAppId
-                ? configurationCopied
-                  ? 'Configuration copied. In Slack, open App Manifest, select JSON, replace the configuration, and save your changes before continuing.'
-                  : 'Copy the updated configuration, then open your app in Slack to apply it.'
-                : undefined
-            }
-          >
-            {configuredAppId && !configurationCopied ? (
-              <Chip onClick={() => void copyConfiguration()}>Copy app configuration</Chip>
-            ) : (
-              <ChipLink
-                href={
-                  configuredAppId
-                    ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
-                    : prepare.data.createAppUrl
-                }
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                {configuredAppId ? 'Open Slack app settings' : 'Create app in Slack'}
-              </ChipLink>
-            )}
-          </ChipModalField>
         )}
         {step === 'credentials' && (
           <>
             <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              In your Slack app, open <strong>Basic Information</strong> and copy these three
-              values.{' '}
-              {installationId ? 'Leave fields blank to keep the saved app credentials.' : ''}
+              Find these values under Basic Information in your Slack app.
             </p>
             <ChipModalField
               type='input'
@@ -238,30 +246,48 @@ export function SlackSearchSetupWizard({
           </>
         )}
         {step === 'install' && (
-          <>
-            <ChipModalField type='custom' title='Authorize the bot'>
-              <p className='text-[var(--text-secondary)] text-sm'>
-                Slack will ask you to install {name}. We’ll validate the connection and enable
-                Search when you return.
-              </p>
-              <p className='text-[var(--text-muted)] text-caption'>
-                The bot responds to direct messages and channel mentions and reads members’ email
-                addresses. Each member separately authorizes indexing through this same app.
-              </p>
-            </ChipModalField>
-          </>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            {installationId
+              ? 'Approve the updated permissions for'
+              : 'Choose your workspace and approve'}{' '}
+            {name} in Slack.
+          </p>
         )}
-        {error && <ChipModalError>{error.message}</ChipModalError>}
-        {prepare.error && (
-          <div className='px-2'>
-            <Chip onClick={() => void prepare.refetch()} disabled={prepare.isFetching}>
-              Retry
-            </Chip>
-          </div>
-        )}
+        <ChipModalError>{error?.message}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        secondaryActions={
+          prepare.error
+            ? [
+                {
+                  label: 'Retry',
+                  onClick: () => void prepare.refetch(),
+                  disabled: prepare.isFetching,
+                },
+              ]
+            : step === 'manifest'
+              ? configuredAppId && !configurationCopied
+                ? [{ label: 'Copy configuration', onClick: () => void copyConfiguration() }]
+                : [
+                    {
+                      custom: (
+                        <ChipLink
+                          href={
+                            configuredAppId
+                              ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
+                              : prepare.data.createAppUrl
+                          }
+                          target='_blank'
+                          rel='noopener noreferrer'
+                        >
+                          {configuredAppId ? 'Open app settings' : 'Create app'}
+                        </ChipLink>
+                      ),
+                    },
+                  ]
+              : undefined
+        }
         primaryAdjacentAction={
           step === 'manifest'
             ? undefined
@@ -275,12 +301,12 @@ export function SlackSearchSetupWizard({
               }
         }
         primaryAction={{
-          label: busy ? 'Connecting…' : step === 'install' ? 'Install in Slack' : 'Continue',
+          label: busy ? 'Connecting…' : step === 'install' ? title : 'Continue',
           onClick: advance,
           disabled:
             busy ||
             (step === 'manifest'
-              ? !prepare.data
+              ? Boolean(configuredAppId && !configurationCopied)
               : !installationId &&
                 (!clientId.trim() || !clientSecret.trim() || !signingSecret.trim())),
         }}

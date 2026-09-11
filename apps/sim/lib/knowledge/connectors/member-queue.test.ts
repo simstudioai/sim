@@ -118,6 +118,55 @@ describe('member sync queue', () => {
   })
 
   describe('dispatchMemberSync', () => {
+    it('rejects a rapid manual repeat without making members due', async () => {
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
+        { status: 'completed', completedAt: new Date(), failures: 0 },
+      ])
+      await expect(
+        dispatchMemberSync('c-1', { billingAttribution: BILLING, manual: true })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockTrigger).not.toHaveBeenCalled()
+      expect(mockExecuteMemberSync).not.toHaveBeenCalled()
+    })
+
+    it('makes active members due only after taking the manual pending claim', async () => {
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+      await expect(
+        dispatchMemberSync('c-1', { billingAttribution: BILLING, manual: true })
+      ).resolves.toEqual({ queued: true })
+      expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.update).toHaveBeenNthCalledWith(1, schemaMock.knowledgeConnector)
+      expect(dbChainMockFns.update).toHaveBeenNthCalledWith(2, schemaMock.knowledgeConnectorMember)
+      expect(dbChainMockFns.returning.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.update.mock.invocationCallOrder[1]
+      )
+      expect(dbChainMockFns.set).toHaveBeenLastCalledWith({
+        nextAttemptAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      })
+      expect(mockTrigger).toHaveBeenCalledOnce()
+    })
+
+    it('does not reschedule members if a concurrent lifecycle change declines the claim', async () => {
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [])
+      queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, status: 'paused' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      await expect(
+        dispatchMemberSync('c-1', { billingAttribution: BILLING, manual: true })
+      ).resolves.toMatchObject({ queued: false })
+      expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
+      expect(mockTrigger).not.toHaveBeenCalled()
+    })
+
     it('takes the queue entry and hands the run to the queue with its token', async () => {
       queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
       dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])

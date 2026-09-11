@@ -128,6 +128,15 @@ describe('Search source viewer actions', () => {
     expect(button('Connect account')).toBeUndefined()
   })
 
+  it.each([{ enabled: false }, { approved: false }, { availability: 'unavailable' as const }])(
+    'does not offer email recovery while the source is blocked: %o',
+    async (change) => {
+      await render(source({ ...change, viewerEmailVerified: false }))
+      expect(container.querySelector('a[href="/verify"]')).toBeNull()
+      expect(button('Connect account')).toBeUndefined()
+    }
+  )
+
   it('prioritizes viewer connection over crawler health for central Confluence identity', async () => {
     await render(source({ accessMode: 'admin', hasSyncError: true, isSyncing: true }))
     expect(document.body.textContent).toContain('Connect your account to search this source')
@@ -155,20 +164,20 @@ describe('Search source viewer actions', () => {
   it.each([
     {
       change: { hasSyncError: true, viewerDocumentCount: 4 },
-      status: 'Sync failed · 4 searchable documents',
+      status: 'Sync needs attention',
     },
-    { change: { hasSyncError: true }, status: 'Sync failed' },
+    { change: { hasSyncError: true }, status: 'Sync needs attention' },
     {
       change: { viewerFailedDocumentCount: 1 },
-      status: "1 document couldn't be indexed",
+      status: 'Sync needs attention',
     },
     {
       change: { viewerFailedDocumentCount: 2, viewerDocumentCount: 4 },
-      status: "2 documents couldn't be indexed · 4 searchable documents",
+      status: 'Sync needs attention',
     },
     {
       change: { isSyncing: true, viewerDocumentCount: 4 },
-      status: 'Indexing · 4 searchable documents',
+      status: 'Indexing',
     },
     { change: { isSyncing: true }, status: 'Indexing' },
     { change: { viewerDocumentCount: 4 }, status: '4 searchable documents' },

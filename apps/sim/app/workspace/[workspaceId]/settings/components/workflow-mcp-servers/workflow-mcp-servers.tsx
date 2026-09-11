@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipInput,
   ChipModal,
@@ -505,17 +505,17 @@ function ServerDetailView({
                       MCP Client
                     </span>
                   </div>
-                  <ButtonGroup
+                  <ChipButtonGroup
                     value={activeConfigTab}
                     onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
                   >
-                    <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
-                    <ButtonGroupItem value='codex'>Codex</ButtonGroupItem>
-                    <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
-                    <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
-                    <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
-                    <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
-                  </ButtonGroup>
+                    <ChipButtonGroupItem value='cursor'>Cursor</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='codex'>Codex</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='claude-code'>Claude Code</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='claude-desktop'>Claude Desktop</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='vscode'>VS Code</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='sim'>Sim</ChipButtonGroupItem>
+                  </ChipButtonGroup>
                 </div>
 
                 {activeConfigTab === 'sim' ? (
@@ -850,13 +850,13 @@ function ServerDetailView({
             />
             <ChipModalField type='custom' title='Access'>
               <div className='flex flex-col gap-1.5'>
-                <ButtonGroup
+                <ChipButtonGroup
                   value={editServerIsPublic ? 'public' : 'private'}
                   onValueChange={(value) => setEditServerIsPublic(value === 'public')}
                 >
-                  <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-                </ButtonGroup>
+                  <ChipButtonGroupItem value='private'>API Key</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
+                </ChipButtonGroup>
                 <p className='text-[var(--text-muted)] text-caption'>
                   {editServerIsPublic
                     ? 'Anyone with the URL can call this server without authentication'

@@ -2,8 +2,8 @@
 
 import type { ReactNode } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipCombobox,
   ChipDropdown,
   ChipLink,
@@ -176,7 +176,7 @@ export function ConnectorAccessField({
             className='w-fit'
           />
         ) : showModeSelector ? (
-          <ButtonGroup
+          <ChipButtonGroup
             value={value.accessMode}
             disabled={disabled}
             onValueChange={(mode) => {
@@ -185,11 +185,11 @@ export function ConnectorAccessField({
             }}
           >
             {visibleModes.map((entry) => (
-              <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
+              <ChipButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
                 {entry.label}
-              </ButtonGroupItem>
+              </ChipButtonGroupItem>
             ))}
-          </ButtonGroup>
+          </ChipButtonGroup>
         ) : (
           <p className='text-[var(--text-body)] text-small'>
             {modes.find((entry) => entry.mode === value.accessMode)?.label}
