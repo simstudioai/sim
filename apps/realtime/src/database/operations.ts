@@ -820,17 +820,34 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for replace canonical modes operation')
       }
 
-      const existingBlock = await tx
-        .select({ data: workflowBlocks.data })
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          locked: workflowBlocks.locked,
+          subBlocks: workflowBlocks.subBlocks,
+          data: workflowBlocks.data,
+        })
         .from(workflowBlocks)
-        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
-        .limit(1)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+      const blocksById = Object.fromEntries(
+        allBlocks.map((block: { id: string; locked: boolean; data: Record<string, unknown> }) => [
+          block.id,
+          block,
+        ])
+      )
+      if (isWorkflowBlockProtected(payload.id, blocksById)) {
+        throw new Error(`Block ${payload.id} is locked or inside a locked container`)
+      }
+      const existingBlock = allBlocks.filter((block: { id: string }) => block.id === payload.id)
 
       const currentData = (existingBlock?.[0]?.data as Record<string, unknown>) || {}
+
+      const subBlocks = { ...(existingBlock[0]?.subBlocks || {}), ...(payload.subBlocks || {}) }
 
       const updateResult = await tx
         .update(workflowBlocks)
         .set({
+          ...(payload.subBlocks ? { subBlocks } : {}),
           data: {
             ...currentData,
             canonicalModes: payload.data.canonicalModes,
