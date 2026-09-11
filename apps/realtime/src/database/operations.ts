@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import * as schema from '@sim/db'
 import {
@@ -1988,10 +1989,6 @@ async function handleSubflowOperationTx(
   }
 }
 
-function valuesEqual(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right)
-}
-
 // Subblock operations - targeted value updates without replacing workflow state
 async function handleSubblockOperationTx(
   tx: any,
@@ -2039,7 +2036,8 @@ async function handleSubblockOperationTx(
         const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
         const currentSubBlock = subBlocks[subblockId]
         const currentValue = currentSubBlock?.value
-        if (expectedValue !== undefined && !valuesEqual(currentValue, expectedValue)) {
+        /** JSONB can reorder object keys; changed values and array order must still conflict. */
+        if (expectedValue !== undefined && !isDeepStrictEqual(currentValue, expectedValue)) {
           throw new Error(`Subblock ${blockId}.${subblockId} changed since replacement was planned`)
         }
 
