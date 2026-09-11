@@ -107,6 +107,7 @@ scripts/design-diff/
   ast.ts                                Babel parsing and syntax normalization
   refactors.ts                          Supported literal/refactor normalization
   mutations.ts                          Referenced collection/property writes
+  state.ts                              React state inputs and setter assignments
   finite.ts                             Static finite keys for computed environment reads
   environment.ts                        Literal createEnv schema field comparison
   resolve.ts                            Bounded expression and import resolution
@@ -158,8 +159,12 @@ TSX/CSS files that an application build or Tailwind source scan could consume.
 Babel parses JS/TS/JSX; PostCSS parses CSS; parse5 parses HTML; remark parses
 Markdown/MDX/frontmatter/GFM. CSS selector, conditional and declaration order are retained.
 JSX whitespace follows React's line handling. Class composition and JSX spread/attribute
-order remain significant. Direct event handlers are not treated as appearance props; this
-does not establish equivalence of arbitrary interactive behavior.
+order remain significant. Direct event handlers are not treated as appearance props. For
+recognized React `useState` bindings, a rendered state value also traces setter arguments,
+local setter aliases and surrounding conditions, including updates inside event handlers.
+Unrelated handler statements and unrendered state do not become visual inputs. Setter escapes
+remain unresolved; arbitrary event reachability, reducer/effect scheduling and external store
+updates are not fully modeled.
 
 The resolver supports immutable constants, object properties, arrays, primitive template
 strings, simple arithmetic, conditional branches, static imports/re-exports, namespace

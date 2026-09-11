@@ -14,6 +14,7 @@ import { mutations } from '#design-diff/mutations'
 import { previewValue } from '#design-diff/report'
 import type { SemanticValues } from '#design-diff/semantic'
 import type { SourceTree } from '#design-diff/source'
+import { stateInputs } from '#design-diff/state'
 import type { Data, Evidence } from '#design-diff/types'
 
 export function child(path: NodePath, name: string): NodePath {
@@ -304,8 +305,9 @@ export class Resolver {
   }
 
   /** Conditions around writes can change the visible collection even when each value is unchanged. */
-  private mutationValue(write: NodePath, file: string, depth: number): Data {
+  private mutationValue(write: NodePath, file: string, depth: number, input = write): Data {
     const conditions: Data[] = []
+    let branch = write
     for (
       let parent = write.parentPath;
       parent && !parent.isFunction();
@@ -318,11 +320,15 @@ export class Resolver {
         parent.isDoWhileStatement() ||
         parent.isForStatement()
       )
-        conditions.push(this.value(child(parent, 'test'), file, depth + 1))
+        conditions.push({
+          test: this.value(child(parent, 'test'), file, depth + 1),
+          branch: branch.key ?? null,
+        })
       if (parent.isForOfStatement() || parent.isForInStatement())
         conditions.push(this.value(child(parent, 'right'), file, depth + 1))
+      branch = parent
     }
-    return { value: this.value(write, file, depth + 1), conditions }
+    return { value: this.value(input, file, depth + 1), conditions }
   }
 
   private currentFile = ''
@@ -555,6 +561,20 @@ export class Resolver {
     file: string,
     depth: number
   ): Data | undefined {
+    const state = stateInputs(binding, name)
+    if (state) {
+      this.unresolved.add('React state updates feed rendering; event reachability is not executed')
+      return {
+        $reactState: state.initial ? this.value(state.initial, file, depth + 1) : null,
+        updates: state.writes.map((write) => {
+          const argument = children(write, 'arguments')[0]
+          return argument ? this.mutationValue(write, file, depth + 1, argument) : null
+        }),
+        escapes: state.escapes.map((escaped) =>
+          this.unknown(escaped, 'React state setter escapes static call resolution')
+        ),
+      }
+    }
     const find = (
       pattern: NodePath,
       keys: Data[]
