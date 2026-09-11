@@ -523,6 +523,89 @@ describe('live repository authorization follows ranked candidates', () => {
 
   afterEach(() => vi.useRealTimers())
 
+  it('bounds broad vector ranking before metadata and reorders relaxed candidates before trimming', async () => {
+    queueTableRows(
+      schemaMock.embedding,
+      Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
+    )
+    queueTableRows(schemaMock.embedding, [
+      { ...candidate('far', 'allowed-source'), distance: 0.3 },
+      { ...candidate('near', 'allowed-source'), distance: 0.1 },
+      ...Array.from({ length: 18 }, (_, index) => candidate(`other-${index}`, 'allowed-source')),
+    ])
+    queueTableRows(schemaMock.embedding, [
+      { id: 'far', content: 'Far authorized passage', distance: 0.3 },
+      { id: 'near', content: 'Near authorized passage', distance: 0.1 },
+    ])
+    const rows = await handleVectorOnlySearch({
+      ...params,
+      structuredFilters: undefined,
+      topK: 1,
+    })
+    expect(rows.map((row) => row.id)).toEqual(['near'])
+    expect(dbChainMockFns.orderBy.mock.calls[0]).toHaveLength(1)
+    expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toEqual(['id', 'distance'])
+    expect(dbChainMockFns.limit.mock.invocationCallOrder[1]).toBeLessThan(
+      dbChainMockFns.select.mock.invocationCallOrder[2]
+    )
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls[1][0])).toContain('OFFSET 0')
+    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls[2][0])).toContain('github_read_grant')
+  })
+
+  it('finishes empty scopes after the bounded probe without scanning HNSW or calling providers', async () => {
+    queueTableRows(schemaMock.embedding, [])
+    expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.limit).toHaveBeenCalledExactlyOnceWith(200)
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('reads vectors only for the bounded IDs when a broad scope has few candidates', async () => {
+    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+    queueTableRows(schemaMock.embedding, [
+      { id: 'selected', content: 'Verified small scope', distance: 0.1 },
+    ])
+    expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([
+      { id: 'selected', content: 'Verified small scope', distance: 0.1 },
+    ])
+    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls[0][0])).not.toContain('<=>')
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[1][0],
+        (node) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.embedding.id &&
+          Array.isArray(node.values) &&
+          node.values.length === 1 &&
+          node.values[0] === 'selected'
+      )
+    ).toBe(true)
+    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
+  })
+
+  it('falls back to exact ranking when the approximate page cannot fill its limit', async () => {
+    queueTableRows(
+      schemaMock.embedding,
+      Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
+    )
+    queueTableRows(schemaMock.embedding, [candidate('partial', 'allowed-source')])
+    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+    queueTableRows(schemaMock.embedding, [
+      { id: 'selected', content: 'Verified fallback', distance: 0.1 },
+    ])
+    expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([
+      { id: 'selected', content: 'Verified fallback', distance: 0.1 },
+    ])
+    expect(render(dbChainMockFns.orderBy.mock.calls.at(-1)![0]).sql).toContain('+ 0')
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
+      'github_read_grant'
+    )
+  })
+
   it.each(['vector', 'tag-vector', 'tags', 'keyword'] as const)(
     '%s ranks identifiers before verification and loads content under the full predicate',
     async (mode) => {

@@ -16,6 +16,7 @@
     "dev:full:capped": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev:capped\" \"cd apps/realtime && bun run dev\"",
     "test": "bun run test:setup && bun run test:scripts && turbo run test",
     "test:setup": "bun run --cwd packages/sim-setup test",
+    "test:search-performance": "KNOWLEDGE_SEARCH_PERFORMANCE_TEST=true bun --no-env-file scripts/test-knowledge-acls.ts search-latency",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "lint": "turbo run lint",

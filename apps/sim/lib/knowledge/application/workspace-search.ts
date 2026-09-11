@@ -9,7 +9,9 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { type SearchKnowledgeInput, searchKnowledge } from '@/lib/knowledge/application/search'
+import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diagnostics'
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
+import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import { findSearchIndex, findWorkspaceSearchIndex } from '@/lib/knowledge/search/search-index'
 
 export type SearchWorkspaceKnowledgeInput = Omit<
@@ -20,13 +22,15 @@ export type SearchWorkspaceKnowledgeInput = Omit<
 }
 
 /** Search and Assistant share the workspace's canonical Enterprise Search index. */
-export const searchWorkspaceKnowledge = defineAuthorizedKnowledgeUseCase({
+const searchWorkspaceKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: SearchWorkspaceKnowledgeInput }) =>
-    resolveKnowledgeWorkspaceContext(input),
+    measureSearchStage('scope_resolution', () => resolveKnowledgeWorkspaceContext(input)),
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
-    const index = await findWorkspaceSearchIndex(context.workspaceId)
+    const index = await measureSearchStage('index_resolution', () =>
+      findWorkspaceSearchIndex(context.workspaceId)
+    )
     if (!index) return { results: [], query: input.query ?? '', knowledgeBases: [] }
     return searchKnowledge.execute({
       principal,
@@ -35,22 +39,29 @@ export const searchWorkspaceKnowledge = defineAuthorizedKnowledgeUseCase({
   },
 })
 
+export const searchWorkspaceKnowledge = instrumentSearchUseCase(
+  'workspace_application',
+  searchWorkspaceKnowledgeUseCase
+)
+
 export type SearchOrganizationKnowledgeInput = Omit<
   SearchWorkspaceKnowledgeInput,
   'workspaceId'
 > & { organizationId: string }
 
 /** Organization Search and Assistant resolve the same index and provider ACLs. */
-export const searchOrganizationKnowledge = defineAuthorizedKnowledgeUseCase({
+const searchOrganizationKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: SearchOrganizationKnowledgeInput }) =>
-    resolveKnowledgeOrganizationContext(input),
+    measureSearchStage('scope_resolution', () => resolveKnowledgeOrganizationContext(input)),
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
-    const index = await findSearchIndex({
-      kind: 'organization',
-      organizationId: context.organizationId,
-    })
+    const index = await measureSearchStage('index_resolution', () =>
+      findSearchIndex({
+        kind: 'organization',
+        organizationId: context.organizationId,
+      })
+    )
     if (!index) {
       if (context.organizationId) {
         await requireOrganizationSearchAvailable(context.organizationId)
@@ -66,9 +77,17 @@ export const searchOrganizationKnowledge = defineAuthorizedKnowledgeUseCase({
       }
       return { results: [], query: input.query ?? '', knowledgeBases: [] }
     }
-    return searchKnowledge.execute({ principal, input: { ...input, knowledgeBaseIds: [index.id] } })
+    return searchKnowledge.execute({
+      principal,
+      input: { ...input, knowledgeBaseIds: [index.id] },
+    })
   },
 })
+
+export const searchOrganizationKnowledge = instrumentSearchUseCase(
+  'organization_application',
+  searchOrganizationKnowledgeUseCase
+)
 
 export type SearchScopedKnowledgeInput = Omit<
   SearchKnowledgeInput,
@@ -77,13 +96,15 @@ export type SearchScopedKnowledgeInput = Omit<
   ResourceOwner
 
 /** The routed owner selects the index; current membership and provider ACLs select its documents. */
-export const searchScopedKnowledge = defineAuthorizedKnowledgeUseCase({
+const searchScopedKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: SearchScopedKnowledgeInput }) =>
-    resolveKnowledgeOwnerContext(input),
+    measureSearchStage('scope_resolution', () => resolveKnowledgeOwnerContext(input)),
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
-    const index = await findSearchIndex(resourceScopeFromOwner(context))
+    const index = await measureSearchStage('index_resolution', () =>
+      findSearchIndex(resourceScopeFromOwner(context))
+    )
     if (!index) {
       if (context.organizationId) {
         await requireOrganizationSearchAvailable(context.organizationId)
@@ -110,3 +131,8 @@ export const searchScopedKnowledge = defineAuthorizedKnowledgeUseCase({
     })
   },
 })
+
+export const searchScopedKnowledge = instrumentSearchUseCase(
+  'scoped_application',
+  searchScopedKnowledgeUseCase
+)

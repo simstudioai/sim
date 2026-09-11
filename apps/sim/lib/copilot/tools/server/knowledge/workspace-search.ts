@@ -16,6 +16,11 @@ import {
 } from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
+import {
+  measureSearchStage,
+  recordSearchStageDuration,
+  withSearchDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -37,77 +42,91 @@ const CITATION_INSTRUCTION =
 export const searchWorkspaceServerTool: BaseServerTool = {
   name: 'search_workspace',
   async execute(raw, context?: ServerToolContext) {
-    try {
-      const scope = requireCopilotKnowledgeScope(context)
-      const { query, topK, ...requestedFilters } = searchInputSchema.parse(raw)
-      const registry = context?.resolvedSecretTraceRegistry
-      if (!registry) throw new Error('Knowledge result provenance is unavailable')
-      const projected = projectResolvedSecretModelContent(query, registry)
-      if (!projected.safe || typeof projected.value !== 'string') {
-        return {
-          success: false,
-          message: 'Search query contains protected content. Rephrase the query.',
+    return withSearchDiagnostics(
+      {
+        surface: context?.searchSurface ?? 'copilot',
+        toolCallId: context?.toolCallId,
+        executionId: context?.executionId,
+      },
+      async () => {
+        try {
+          const inputStarted = performance.now()
+          const scope = requireCopilotKnowledgeScope(context)
+          const { query, topK, ...requestedFilters } = searchInputSchema.parse(raw)
+          const registry = context?.resolvedSecretTraceRegistry
+          if (!registry) throw new Error('Knowledge result provenance is unavailable')
+          const projected = projectResolvedSecretModelContent(query, registry)
+          if (!projected.safe || typeof projected.value !== 'string') {
+            return {
+              success: false,
+              message: 'Search query contains protected content. Rephrase the query.',
+            }
+          }
+          const input = {
+            query: projected.value,
+            topK,
+            filters: intersectWorkspaceSearchFilters(requestedFilters, context?.assistantSearch),
+            surface: context?.searchSurface ?? 'copilot',
+            resultSecretRegistry: registry,
+            signal: context?.abortSignal,
+          } as const
+          recordSearchStageDuration('tool_input', performance.now() - inputStarted)
+          const result = await measureSearchStage('tool_application', () =>
+            scope.kind === 'organization'
+              ? executeCopilotOrganizationKnowledgeUseCase(context, searchOrganizationKnowledge, {
+                  ...input,
+                  organizationId: scope.organizationId,
+                })
+              : executeCopilotKnowledgeUseCase(context, searchWorkspaceKnowledge, {
+                  ...input,
+                  workspaceId: scope.workspaceId,
+                })
+          )
+          return await measureSearchStage('tool_presentation', () => {
+            const names = new Map(result.knowledgeBases.map((base) => [base.id, base.name]))
+            return {
+              success: true,
+              message: `Found ${result.results.length} passages. ${CITATION_INSTRUCTION}`,
+              data: {
+                query,
+                results: result.results.map((item) => ({
+                  documentId: item.documentId,
+                  knowledgeBaseId: item.knowledgeBaseId,
+                  knowledgeBaseName: names.get(item.knowledgeBaseId) ?? '',
+                  siteName: item.connectorType
+                    ? connectorDisplayName(item.connectorType)
+                    : names.get(item.knowledgeBaseId),
+                  documentName: item.documentName,
+                  sourceUrl: item.sourceUrl,
+                  connectorType: item.connectorType,
+                  sourceModifiedAt: item.sourceModifiedAt?.toISOString() ?? null,
+                  author: sourceAuthor(item.metadata),
+                  content: item.content,
+                  chunkIndex: item.chunkIndex,
+                  similarity: item.similarity,
+                  ...createKnowledgeDocumentCitation({
+                    scope,
+                    knowledgeBaseId: item.knowledgeBaseId,
+                    documentId: item.documentId,
+                    sourceUrl: item.sourceUrl,
+                    baseUrl: getBaseUrl(),
+                  }),
+                })),
+              },
+            }
+          })
+        } catch (error) {
+          logger.error('Workspace search failed', { error })
+          return {
+            success: false,
+            message:
+              error instanceof z.ZodError
+                ? 'Invalid search arguments'
+                : messageForCopilotKnowledgeError(error),
+          }
         }
       }
-      const input = {
-        query: projected.value,
-        topK,
-        filters: intersectWorkspaceSearchFilters(requestedFilters, context?.assistantSearch),
-        surface: context?.searchSurface ?? 'copilot',
-        resultSecretRegistry: registry,
-        signal: context?.abortSignal,
-      } as const
-      const result =
-        scope.kind === 'organization'
-          ? await executeCopilotOrganizationKnowledgeUseCase(context, searchOrganizationKnowledge, {
-              ...input,
-              organizationId: scope.organizationId,
-            })
-          : await executeCopilotKnowledgeUseCase(context, searchWorkspaceKnowledge, {
-              ...input,
-              workspaceId: scope.workspaceId,
-            })
-      const names = new Map(result.knowledgeBases.map((base) => [base.id, base.name]))
-      return {
-        success: true,
-        message: `Found ${result.results.length} passages. ${CITATION_INSTRUCTION}`,
-        data: {
-          query,
-          results: result.results.map((item) => ({
-            documentId: item.documentId,
-            knowledgeBaseId: item.knowledgeBaseId,
-            knowledgeBaseName: names.get(item.knowledgeBaseId) ?? '',
-            siteName: item.connectorType
-              ? connectorDisplayName(item.connectorType)
-              : names.get(item.knowledgeBaseId),
-            documentName: item.documentName,
-            sourceUrl: item.sourceUrl,
-            connectorType: item.connectorType,
-            sourceModifiedAt: item.sourceModifiedAt?.toISOString() ?? null,
-            author: sourceAuthor(item.metadata),
-            content: item.content,
-            chunkIndex: item.chunkIndex,
-            similarity: item.similarity,
-            ...createKnowledgeDocumentCitation({
-              scope,
-              knowledgeBaseId: item.knowledgeBaseId,
-              documentId: item.documentId,
-              sourceUrl: item.sourceUrl,
-              baseUrl: getBaseUrl(),
-            }),
-          })),
-        },
-      }
-    } catch (error) {
-      logger.error('Workspace search failed', { error })
-      return {
-        success: false,
-        message:
-          error instanceof z.ZodError
-            ? 'Invalid search arguments'
-            : messageForCopilotKnowledgeError(error),
-      }
-    }
+    )
   },
 }
 
