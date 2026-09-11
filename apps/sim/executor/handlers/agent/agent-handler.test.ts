@@ -1092,6 +1092,203 @@ describe('AgentBlockHandler', () => {
       expect(toolIds).not.toContain('transformed_tool_2')
     })
 
+    it('uses the resolved canonical tool mode expression before filtering tools', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the enabled tools.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'force' as const,
+            usageControlExpression: 'none',
+          },
+          {
+            id: 'tool_2',
+            type: 'tool-type-2',
+            operation: 'operation2',
+            usageControl: 'none' as const,
+            usageControlExpression: ' Force ',
+          },
+        ],
+      }
+      const block = {
+        ...mockBlock,
+        canonicalModes: {
+          '0:agentToolUsageControl': 'advanced' as const,
+          '1:agentToolUsageControl': 'advanced' as const,
+        },
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, block, inputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([
+        expect.objectContaining({ id: 'transformed_tool_2', usageControl: 'force' }),
+      ])
+    })
+
+    it.each([
+      ['unsupported word', 'sometimes'],
+      ['empty string', ''],
+      ['whitespace', ' \n\t '],
+      ['missing value', undefined],
+      ['null', null],
+      ['number', 0],
+      ['boolean', true],
+      ['empty array', []],
+      ['array containing a valid mode', ['force']],
+      ['object containing a valid mode', { mode: 'force' }],
+      ['quoted mode', '"force"'],
+      ['unresolved reference', '<start.missing>'],
+      ['multiple modes', 'force\nnone'],
+      ['unicode lookalike', 'ＦＯＲＣＥ'],
+      ['invisible prefix', '\u200bforce'],
+      ['oversized resolved value', 'force'.repeat(1024)],
+    ])('rejects %s before provider or tool work', async (_label, usageControlExpression) => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the tool.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'auto' as const,
+            usageControlExpression,
+          },
+        ],
+      }
+      const block = {
+        ...mockBlock,
+        canonicalModes: { '0:agentToolUsageControl': 'advanced' as const },
+      }
+
+      await expect(handler.execute(mockContext, block, inputs)).rejects.toThrow(
+        'Tool 1 mode must resolve to Auto, Force, or None'
+      )
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+      expect(mockTransformBlockTool).not.toHaveBeenCalled()
+      expect(mockReadAvailableCustomToolByIdOrTitleAsExecutor).not.toHaveBeenCalled()
+      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    })
+
+    it('settles a secret-derived permission without sending its expression to the provider', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'QA_TOOL_MODE', plaintext: 'force', encryptedValue: 'encrypted-mode' },
+      ])
+      const path = ['tools', '0', 'usageControlExpression'] as const
+      registry.recordResolvedAtInputPath('QA_TOOL_MODE', 'force', path)
+      registry.recordResolvedInputProjection(path, 'force', '{{QA_TOOL_MODE}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the tool.',
+        apiKey: 'test-api-key',
+        tools: [{ id: 'tool_1', type: 'tool-type-1', usageControlExpression: 'force' }],
+      }
+
+      await handler.execute(
+        mockContext,
+        { ...mockBlock, canonicalModes: { '0:agentToolUsageControl': 'advanced' } },
+        inputs
+      )
+
+      const providerTools = mockExecuteProviderRequest.mock.calls[0][1].tools
+      expect(providerTools).toEqual([expect.objectContaining({ usageControl: 'force' })])
+      expect(providerTools[0]).not.toHaveProperty('usageControlExpression')
+      expect(JSON.stringify(providerTools)).not.toContain('QA_TOOL_MODE')
+      expect(inputs.tools[0].usageControlExpression).toBe('{{QA_TOOL_MODE}}')
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+    })
+
+    it.each(['mcp', 'mcp-server-advanced'])(
+      'skips discovery for a disabled %s tool',
+      async (type) => {
+        mockDiscoverMcpServerToolsAsExecutor.mockRejectedValue(new Error('MCP unavailable'))
+        await handler.execute(
+          mockContext,
+          { ...mockBlock, canonicalModes: { '0:agentToolUsageControl': 'advanced' } },
+          {
+            model: 'gpt-4o',
+            userPrompt: 'Reply without tools.',
+            apiKey: 'test-api-key',
+            tools: [
+              { type, params: { serverId: 'unavailable-server' }, usageControlExpression: 'none' },
+            ],
+          }
+        )
+        expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+        expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([])
+      }
+    )
+
+    it('ignores an invalid inactive expression in selector mode', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the enabled tool.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'force' as const,
+            usageControlExpression: { invalid: true },
+          },
+        ],
+      }
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([
+        expect.objectContaining({ id: 'transformed_tool_1', usageControl: 'force' }),
+      ])
+    })
+
+    it('keeps original tool inputs intact after a provider error and resolves the next run afresh', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the enabled tool.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'none' as const,
+            usageControlExpression: 'force',
+          },
+        ],
+      }
+      const originalInputs = structuredClone(inputs)
+      const block = {
+        ...mockBlock,
+        canonicalModes: { '0:agentToolUsageControl': 'advanced' as const },
+      }
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('Provider unavailable'))
+
+      await expect(handler.execute(mockContext, block, inputs)).rejects.toThrow(
+        'Provider unavailable'
+      )
+      expect(inputs).toEqual(originalInputs)
+      expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([
+        expect.objectContaining({ usageControl: 'force' }),
+      ])
+
+      await handler.execute(mockContext, block, {
+        ...inputs,
+        tools: [{ ...inputs.tools[0], usageControlExpression: 'none' }],
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[1][1].tools).toEqual([])
+      expect(inputs).toEqual(originalInputs)
+    })
+
     it('should include usageControl property in transformed tools', async () => {
       const inputs = {
         model: 'gpt-4o',

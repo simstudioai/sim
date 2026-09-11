@@ -35,6 +35,10 @@ import {
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
+import {
+  getAgentToolUsageControlMode,
+  resolveAgentToolUsageControl,
+} from '@/lib/workflows/tool-input/usage-control'
 import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
@@ -226,9 +230,6 @@ export class AgentBlockHandler implements BlockHandler {
       AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS
     )
     ctx.errorResolvedSecretTraceRegistry = providerErrorRegistry
-    const toolIndexByRef = new Map<ToolInput, number>(
-      (inputs.tools || []).map((tool, index) => [tool, index] as const)
-    )
     const privateAgentSelectorInputPaths: ResolvedSecretInputPath[] = []
     let responseFormatModelInputPaths: ResolvedSecretInputPath[] = []
     let privateAgentSelectorsSettled = false
@@ -244,6 +245,10 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
+      const tools = this.resolveToolUsageControls(inputs.tools || [], block.canonicalModes)
+      const toolIndexByRef = new Map<ToolInput, number>(
+        tools.map((tool, index) => [tool, index] as const)
+      )
       const privateAgentSelectors = this.getPrivateAgentSelectorInputPaths(ctx, inputs, [])
       privateAgentSelectorInputPaths.push(...privateAgentSelectors.inputPaths)
       if (!privateAgentSelectors.complete) {
@@ -263,8 +268,7 @@ export class AgentBlockHandler implements BlockHandler {
         }
       )
       responseFormatModelInputPaths = responseFormatProjection.inputPaths
-      const filteredTools = inputs.tools || []
-      const filteredInputs = { ...inputs, tools: filteredTools }
+      const filteredInputs = { ...inputs, tools }
       this.assertInputPathsDoNotResolveSecrets(
         ctx,
         this.getMessageStructuralInputPaths(filteredInputs),
@@ -294,7 +298,7 @@ export class AgentBlockHandler implements BlockHandler {
         ...modelInputProjection.value,
         responseFormat: responseFormatProjection.value,
       }
-      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
+      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, tools)
 
       await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
@@ -454,6 +458,24 @@ export class AgentBlockHandler implements BlockHandler {
     } finally {
       settlePrivateAgentSelectors()
     }
+  }
+
+  private resolveToolUsageControls(
+    tools: ToolInput[],
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ): ToolInput[] {
+    return tools.map((tool, toolIndex) => {
+      if (getAgentToolUsageControlMode(toolIndex, canonicalModes) === 'basic') return tool
+
+      const usageControl = resolveAgentToolUsageControl(tool, toolIndex, canonicalModes)
+      if (!usageControl) {
+        throw new Error(
+          `Tool ${toolIndex + 1} mode must resolve to Auto, Force, or None before the Agent can run.`
+        )
+      }
+
+      return { ...tool, usageControl }
+    })
   }
 
   /**
@@ -619,13 +641,6 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  /**
-   * `canonicalModes` overrides are keyed by each tool's position in the ORIGINAL, unfiltered
-   * tools array (matching what the editor wrote), not by `tool.type` - so two tool entries of
-   * the same type (e.g. two Table tools) resolve independently. `toolIndexByRef` preserves that
-   * original position across the mcp-availability filter and the mcp/other split below, both of
-   * which would otherwise renumber tools by their post-filter position.
-   */
   private projectToolInputsForProvenance(
     ctx: ExecutionContext,
     inputTools: ToolInput[]
@@ -645,6 +660,10 @@ export class AgentBlockHandler implements BlockHandler {
     return projection.value.tools as ToolInput[]
   }
 
+  /**
+   * Preserve original tool indexes through disabled-tool filtering and MCP grouping
+   * so canonical modes and secret provenance stay attached to the configured tool.
+   */
   private async formatTools(
     ctx: ExecutionContext,
     inputTools: ToolInput[],
@@ -1650,6 +1669,9 @@ export class AgentBlockHandler implements BlockHandler {
     for (let toolIndex = 0; toolIndex < (inputs.tools?.length ?? 0); toolIndex++) {
       if (inputs.tools?.[toolIndex]?.customToolId) {
         candidatePaths.push(['tools', String(toolIndex), 'customToolId'])
+      }
+      if (inputs.tools?.[toolIndex]?.usageControlExpression) {
+        candidatePaths.push(['tools', String(toolIndex), 'usageControlExpression'])
       }
     }
     for (let skillIndex = 0; skillIndex < (inputs.skills?.length ?? 0); skillIndex++) {

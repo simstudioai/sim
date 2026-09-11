@@ -2,15 +2,19 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
   normalizeSubblockValue,
+  normalizeTools,
   resolveBlockRetryUpdate,
+  updateCanonicalModesForInputs,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
+import { getBlock } from '@/blocks/registry'
 
 const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
   mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
@@ -26,7 +30,10 @@ const agentBlockConfig = {
   outputs: {
     content: { type: 'string', description: 'Default content output' },
   },
-  subBlocks: [{ id: 'responseFormat', type: 'response-format' }],
+  subBlocks: [
+    { id: 'responseFormat', type: 'response-format' },
+    { id: 'tools', type: 'tool-input' },
+  ],
 }
 
 const conditionBlockConfig = {
@@ -115,6 +122,24 @@ describe('createBlockFromParams', () => {
     expect(block.outputs.answer.type).toBe('string')
   })
 
+  it('selects variable Tool Mode when an agent tool supplies an expression', () => {
+    const block = createBlockFromParams('b-agent', {
+      type: 'agent',
+      name: 'Agent',
+      inputs: {
+        tools: [
+          {
+            type: 'custom-tool',
+            customToolId: 'custom-1',
+            usageControlExpression: '<route.toolMode>',
+          },
+        ],
+      },
+    })
+
+    expect(block.data.canonicalModes['0:agentToolUsageControl']).toBe('advanced')
+  })
+
   it('preserves configured subblock types and normalizes condition branch ids', () => {
     const block = createBlockFromParams('condition-1', {
       type: 'condition',
@@ -177,7 +202,81 @@ describe('createBlockFromParams', () => {
   })
 })
 
+describe('agent permission selections from API inputs', () => {
+  it('preserves distinct active modes when an unchanged round trip contains both values', () => {
+    const repeated = Array.from({ length: 2 }, () => ({
+      type: 'custom-tool',
+      customToolId: 'repeated',
+      usageControl: 'force',
+      usageControlExpression: 'none',
+    }))
+    const block = createBlockFromParams('agent', {
+      type: 'agent',
+      name: 'Agent',
+      inputs: { tools: repeated },
+    })
+    const modes = { '1:agentToolUsageControl': 'advanced' as const, model: 'advanced' as const }
+    block.data.canonicalModes = modes
+    block.subBlocks.tools.value = normalizeTools(structuredClone(repeated))
+
+    updateCanonicalModesForInputs(block, ['tools'], getBlock('agent')!)
+
+    expect(block.data.canonicalModes).toEqual(modes)
+  })
+
+  it('returns to the Auto default when an API tool omits both permission fields', () => {
+    const block = createBlockFromParams('agent', {
+      type: 'agent',
+      name: 'Agent',
+      inputs: {
+        tools: [{ type: 'custom-tool', customToolId: 'custom-1', usageControlExpression: 'none' }],
+      },
+    })
+    block.data.canonicalModes.model = 'advanced'
+    block.subBlocks.tools.value = normalizeTools([
+      { type: 'custom-tool', customToolId: 'custom-1' },
+    ])
+
+    updateCanonicalModesForInputs(block, ['tools'], getBlock('agent')!)
+
+    expect(block.data.canonicalModes).toEqual({ model: 'advanced' })
+    expect(block.subBlocks.tools.value[0].usageControl).toBe('auto')
+  })
+})
+
 describe('filterDisallowedTools', () => {
+  it('assigns canonical tool modes after removing disallowed tools', () => {
+    const block = createBlockFromParams(
+      'agent-1',
+      {
+        type: 'agent',
+        name: 'Agent',
+        inputs: {
+          tools: [
+            {
+              type: 'mcp',
+              params: { serverId: 'server-1', toolName: 'search' },
+              usageControl: 'auto',
+            },
+            {
+              type: 'custom-tool',
+              customToolId: 'custom-1',
+              usageControlExpression: '<route.toolMode>',
+            },
+          ],
+        },
+      },
+      undefined,
+      undefined,
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, disableMcpTools: true }
+    )
+
+    expect(block.subBlocks.tools.value).toEqual([
+      expect.objectContaining({ customToolId: 'custom-1' }),
+    ])
+    expect(block.data.canonicalModes).toEqual({ '0:agentToolUsageControl': 'advanced' })
+  })
+
   it('removes unavailable integration tools even without a permission group', () => {
     mockIsIntegrationDeploymentAvailable.mockImplementation((type: string) => type !== 'slack')
     const skippedItems: Parameters<typeof filterDisallowedTools>[3] = []
@@ -191,6 +290,29 @@ describe('filterDisallowedTools', () => {
 
     expect(tools).toEqual([{ type: 'custom-tool', customToolId: 'custom-1' }])
     expect(skippedItems[0]?.reason).toContain('unavailable in this deployment')
+  })
+})
+
+describe('normalizeTools', () => {
+  it('preserves a custom tool variable-backed usage mode', () => {
+    expect(
+      normalizeTools([
+        {
+          type: 'custom-tool',
+          customToolId: 'custom-1',
+          usageControl: 'auto',
+          usageControlExpression: '<route.toolMode>',
+        },
+      ])
+    ).toEqual([
+      {
+        type: 'custom-tool',
+        customToolId: 'custom-1',
+        usageControl: 'auto',
+        usageControlExpression: '<route.toolMode>',
+        isExpanded: true,
+      },
+    ])
   })
 })
 

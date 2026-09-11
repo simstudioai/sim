@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
-import { sortObjectKeysDeep } from '@sim/utils/object'
+import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import {
   type BlockRetryConfig,
   normalizeBlockRetryTries,
@@ -24,6 +24,7 @@ import {
   buildDefaultCanonicalModes,
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
+import { buildAgentToolUsageControlCanonicalKey } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -277,7 +278,10 @@ export function createBlockFromParams(
 }
 
 export function updateCanonicalModesForInputs(
-  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  block: {
+    data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> }
+    subBlocks?: Record<string, { value?: unknown }>
+  },
   inputKeys: string[],
   blockConfig: BlockConfig
 ): void {
@@ -308,6 +312,27 @@ export function updateCanonicalModesForInputs(
     if (!block.data.canonicalModes) block.data.canonicalModes = {}
     Object.assign(block.data.canonicalModes, canonicalModeUpdates)
   }
+  if (blockConfig.type === 'agent' && inputKeys.includes('tools')) {
+    const tools = block.subBlocks?.tools?.value
+    if (Array.isArray(tools)) {
+      const canonicalModes = { ...block.data?.canonicalModes }
+      tools.forEach((tool, index) => {
+        if (!isRecordLike(tool)) return
+        const hasFixedPermission = tool.usageControl !== undefined
+        const hasPermissionExpression = tool.usageControlExpression !== undefined
+        /** A round trip can include both the active value and the dormant alternative. */
+        if (hasFixedPermission && hasPermissionExpression) return
+
+        const key = buildAgentToolUsageControlCanonicalKey(index)
+        if (hasPermissionExpression) {
+          canonicalModes[key] = 'advanced'
+        } else {
+          delete canonicalModes[key]
+        }
+      })
+      block.data = { ...block.data, canonicalModes }
+    }
+  }
 }
 
 /**
@@ -321,7 +346,9 @@ export function normalizeTools(tools: any[]): any[] {
         return {
           type: tool.type,
           customToolId: tool.customToolId,
-          usageControl: tool.usageControl || 'auto',
+          usageControl:
+            tool.usageControl || (tool.usageControlExpression === undefined ? 'auto' : undefined),
+          usageControlExpression: tool.usageControlExpression,
           isExpanded: tool.isExpanded ?? true,
         }
       }
