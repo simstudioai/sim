@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -13,7 +14,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installUpdate, type PackageManager } from '#sim-cli/update/install'
+import { CliUpdateError, installUpdate, type PackageManager } from '#sim-cli/update/install'
 
 let directory: string
 let packageRoot: string
@@ -63,6 +64,13 @@ describe('installing a CLI update', () => {
       const run = vi
         .fn()
         .mockResolvedValueOnce(globalDirectory)
+        .mockResolvedValueOnce(
+          packageManager === 'yarn'
+            ? JSON.stringify({ type: 'inspect', data: '2.1.5' }) +
+                '\n' +
+                JSON.stringify({ type: 'finished', data: 1 })
+            : JSON.stringify('2.1.5')
+        )
         .mockImplementationOnce(() => {
           writeVersion('2.1.5')
           return Promise.resolve('')
@@ -72,10 +80,10 @@ describe('installing a CLI update', () => {
 
       const expectedArgs =
         packageManager === 'npm'
-          ? ['install', '-g', 'sim@latest']
+          ? ['install', '-g', 'sim@2.1.5']
           : packageManager === 'yarn'
-            ? ['global', 'add', 'sim@latest']
-            : ['add', '-g', 'sim@latest']
+            ? ['global', 'add', 'sim@2.1.5']
+            : ['add', '-g', 'sim@2.1.5']
       expect(run).toHaveBeenLastCalledWith(packageManager, expectedArgs, {
         env: { SIM_NO_UPDATE_CHECK: '1' },
         capture: false,
@@ -91,14 +99,21 @@ describe('installing a CLI update', () => {
     ['2.1.2-dev.123.1', 'dev'],
   ])('preserves the release channel for %s', async (currentVersion, tag) => {
     writeVersion(currentVersion)
-    const run = vi.fn().mockResolvedValue(join(directory, 'node_modules'))
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(join(directory, 'node_modules'))
+      .mockResolvedValueOnce(JSON.stringify(currentVersion))
     await installUpdate({ ...options(), currentVersion, run })
-    expect(run.mock.calls[1][1]).toEqual(['install', '-g', `sim@${tag}`])
+    expect(run.mock.calls[1][1]).toEqual(['view', `sim@${tag}`, 'version', '--json'])
+    expect(run).toHaveBeenCalledTimes(2)
   })
 
   it('does not pass the Sim API key to the package manager or change the parent environment', async () => {
     const env = { SIM_API_KEY: 'private', npm_config_registry: 'https://registry.example' }
-    const run = vi.fn().mockResolvedValue(join(directory, 'node_modules'))
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(join(directory, 'node_modules'))
+      .mockResolvedValueOnce(JSON.stringify('2.1.2'))
     await installUpdate({ ...options(), env, run })
     expect(run.mock.calls[1][2].env).toEqual({
       npm_config_registry: 'https://registry.example',
@@ -110,10 +125,128 @@ describe('installing a CLI update', () => {
   it('reports an already current installation', async () => {
     await installUpdate({
       ...options(),
-      run: vi.fn().mockResolvedValue(join(directory, 'node_modules')),
+      run: vi
+        .fn()
+        .mockResolvedValueOnce(join(directory, 'node_modules'))
+        .mockResolvedValueOnce(JSON.stringify('2.1.2')),
     })
     expect(output.join('')).toContain('already up to date')
   })
+
+  it.each([
+    ['2.1.5', '2.1.2'],
+    ['2.1.10', '2.1.9'],
+    ['3.0.0', '2.99.99'],
+    ['2.1.5-preview.10.1', '2.1.5-preview.9.9'],
+    ['2.1.5-dev.10.2', '2.1.5-dev.10.1'],
+  ])('refuses to downgrade %s to %s before installation', async (currentVersion, candidate) => {
+    writeVersion(currentVersion)
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(join(directory, 'node_modules'))
+      .mockResolvedValueOnce(JSON.stringify(candidate))
+    await expect(installUpdate({ ...options(), currentVersion, run })).rejects.toThrow(
+      'Refusing to downgrade'
+    )
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(readFileSync(join(packageRoot, 'package.json'), 'utf8')).toContain(currentVersion)
+    expect(existsSync(`${packageRoot}.lock`)).toBe(false)
+  })
+
+  it.each([
+    ['2.1.9', '2.1.10'],
+    ['2.1.5-preview.9.9', '2.1.5-preview.10.1'],
+    ['2.1.5-dev.10.9', '2.1.5-dev.10.10'],
+  ])(
+    'compares numeric release components when updating %s to %s',
+    async (currentVersion, candidate) => {
+      writeVersion(currentVersion)
+      const run = vi
+        .fn()
+        .mockResolvedValueOnce(join(directory, 'node_modules'))
+        .mockResolvedValueOnce(JSON.stringify(candidate))
+        .mockImplementationOnce(async () => {
+          writeVersion(candidate)
+          return ''
+        })
+      await installUpdate({ ...options(), currentVersion, run })
+      expect(run.mock.calls[2][1]).toEqual(['install', '-g', `sim@${candidate}`])
+    }
+  )
+
+  it('does not reinstall versions that differ only in build metadata', async () => {
+    writeVersion('2.1.2+local')
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(join(directory, 'node_modules'))
+      .mockResolvedValueOnce(JSON.stringify('2.1.2+registry'))
+    await installUpdate({ ...options(), currentVersion: '2.1.2+local', run })
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(output.join('')).toContain('already up to date')
+  })
+
+  it.each([
+    '"2.1.5-dev.1.1"',
+    '"invalid"',
+    '"2.1.5; echo unsafe"',
+    '"2.1.05"',
+    '{',
+    '["2.1.5"]',
+    'null',
+  ])(
+    'rejects invalid or wrong-channel registry metadata without installing: %s',
+    async (metadata) => {
+      const run = vi
+        .fn()
+        .mockResolvedValueOnce(join(directory, 'node_modules'))
+        .mockResolvedValueOnce(metadata)
+      await expect(installUpdate({ ...options(), run })).rejects.toBeInstanceOf(CliUpdateError)
+      expect(run).toHaveBeenCalledTimes(2)
+      expect(output).toEqual([])
+    }
+  )
+
+  it('rejects ambiguous Yarn version events', async () => {
+    const event = JSON.stringify({ type: 'inspect', data: '2.1.5' })
+    const run = vi.fn().mockResolvedValueOnce(directory).mockResolvedValueOnce(`${event}\n${event}`)
+    await expect(installUpdate({ ...options(), packageManager: 'yarn', run })).rejects.toThrow(
+      'single Sim release'
+    )
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses to install if the current installation changed while locating it', async () => {
+    const run = vi.fn().mockImplementationOnce(async () => {
+      writeVersion('2.1.6')
+      return join(directory, 'node_modules')
+    })
+    await expect(installUpdate({ ...options(), run })).rejects.toThrow('installation changed')
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('normalizes a missing installation entry', async () => {
+    const run = vi.fn().mockResolvedValue(join(directory, 'missing'))
+    await expect(installUpdate({ ...options(), run })).rejects.toMatchObject({
+      constructor: CliUpdateError,
+      message: expect.stringContaining('Cannot access the Sim installation'),
+    })
+  })
+
+  it.each(['missing', 'malformed', 'directory'])(
+    'normalizes a %s installed manifest',
+    async (failure) => {
+      const manifestPath = join(packageRoot, 'package.json')
+      rmSync(manifestPath)
+      if (failure === 'malformed') writeFileSync(manifestPath, '{')
+      if (failure === 'directory') mkdirSync(manifestPath)
+      const run = vi.fn().mockResolvedValue(join(directory, 'node_modules'))
+      await expect(installUpdate({ ...options(), run })).rejects.toMatchObject({
+        constructor: CliUpdateError,
+        message: expect.stringContaining('Cannot read the installed Sim manifest'),
+      })
+      expect(existsSync(`${packageRoot}.lock`)).toBe(false)
+    }
+  )
 
   it('verifies the new pnpm symlink instead of reading the old version directory', async () => {
     const globalRoot = join(directory, 'global/node_modules')
@@ -127,6 +260,7 @@ describe('installing a CLI update', () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce(globalRoot)
+      .mockResolvedValueOnce(JSON.stringify('2.1.5'))
       .mockImplementationOnce(() => {
         unlinkSync(link)
         symlinkSync(nextRoot, link)
@@ -199,6 +333,7 @@ describe('installing a CLI update', () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce(join(directory, 'node_modules'))
+      .mockResolvedValueOnce(JSON.stringify('2.1.5'))
       .mockRejectedValueOnce(new Error('permission denied'))
     await expect(installUpdate({ ...options(), run })).rejects.toThrow('permission denied')
     expect(existsSync(`${packageRoot}.lock`)).toBe(false)
@@ -211,11 +346,12 @@ describe('installing a CLI update', () => {
       const run = vi
         .fn()
         .mockResolvedValueOnce(join(directory, 'node_modules'))
+        .mockResolvedValueOnce(JSON.stringify('2.1.5'))
         .mockImplementationOnce(() => {
           writeVersion(version)
           return Promise.resolve('')
         })
-      await expect(installUpdate({ ...options(), run })).rejects.toThrow('release channel')
+      await expect(installUpdate({ ...options(), run })).rejects.toThrow('expected Sim version')
       expect(output.join('')).not.toContain('Updated Sim')
     }
   )
@@ -223,7 +359,10 @@ describe('installing a CLI update', () => {
   it('refuses concurrent updates before a second installer starts', async () => {
     mkdirSync(`${packageRoot}.lock`)
     const run = vi.fn().mockResolvedValue(join(directory, 'node_modules'))
-    await expect(installUpdate({ ...options(), run })).rejects.toThrow('already being held')
+    await expect(installUpdate({ ...options(), run })).rejects.toMatchObject({
+      constructor: CliUpdateError,
+      message: expect.stringContaining('already being held'),
+    })
     expect(run).toHaveBeenCalledTimes(1)
   })
 })

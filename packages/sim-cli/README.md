@@ -42,6 +42,8 @@ its global installation before making changes. Supported managers are npm, pnpm,
 Bun, and Yarn Classic. Use `sim update --package-manager bun` if detection does
 not match a custom installation. Manual updates preserve staging and dev channels.
 Installation failures exit with an error; concurrent update attempts are refused.
+The updater resolves the channel through that package manager, refuses older
+releases, and installs the exact version it checked.
 
 Set `SIM_NO_UPDATE_CHECK=1` to disable update notices. Project-local installs and
 temporary package-runner copies must be updated through their package manager.

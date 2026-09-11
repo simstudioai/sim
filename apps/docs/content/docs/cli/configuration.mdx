@@ -138,6 +138,9 @@ copies must be updated through their package manager.
 Manual updates preserve the stable, staging, or dev release channel. Installation
 failures stop with an error; concurrent update attempts are refused. Installer
 output goes to stderr and does not mix with JSON output on stdout.
+The updater resolves the channel through the selected package manager before
+installing. Older registry or mirror releases are refused; a newer release is
+installed by its exact version so a moving tag cannot change the target.
 
 Checks are skipped in CI, when stderr is redirected, under `npm exec` or `npx`,
 from a repository checkout, and for prerelease versions. Set

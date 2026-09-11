@@ -40,17 +40,24 @@ afterAll(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-function fakePackageManager(exitCode = 0): void {
+function fakePackageManager(
+  exitCode = 0,
+  version = '2.1.5',
+  manifestBody?: string,
+  globalDirectory = modules
+): void {
   const script = `
 if (process.env.SIM_API_KEY) throw new Error('Sim API key leaked to package manager')
 const args = process.argv.slice(2)
 if (args.join(' ') === 'root -g') {
-  process.stdout.write(${JSON.stringify(modules)})
-} else if (args.join(' ') === 'install -g sim@latest') {
+  process.stdout.write(${JSON.stringify(globalDirectory)})
+} else if (args.join(' ') === 'view sim@latest version --json') {
+  process.stdout.write(JSON.stringify(${JSON.stringify(version)}))
+} else if (args.join(' ') === 'install -g sim@' + ${JSON.stringify(version)}) {
   process.stdout.write('package manager stdout\\n')
   process.stderr.write('package manager stderr\\n')
   if (${exitCode} !== 0) process.exit(${exitCode})
-  require('node:fs').writeFileSync(${JSON.stringify(manifest)}, JSON.stringify({ name: 'sim', type: 'module', version: '2.1.5' }))
+  require('node:fs').writeFileSync(${JSON.stringify(manifest)}, ${JSON.stringify(manifestBody ?? JSON.stringify({ name: 'sim', type: 'module', version }))})
 } else {
   throw new Error('Unexpected arguments: ' + args.join(' '))
 }
@@ -105,5 +112,46 @@ describe.skipIf(process.platform === 'win32')('the bundled sim update command', 
     expect(result.stdout).toContain('sim update')
     expect(result.stdout).toContain('--package-manager')
     expect(result.stderr).toBe('')
+  })
+
+  it('refuses an older registry release without running the installer', () => {
+    fakePackageManager(0, '2.1.1')
+    const result = run(['update'])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Refusing to downgrade')
+    expect(result.stderr).not.toContain('package manager stdout')
+    expect(result.stderr).not.toMatch(/\n\s+at /)
+    expect(run(['--version']).stdout.trim()).toBe('2.1.2')
+  })
+
+  it('prints a clear failure for a missing global installation entry', () => {
+    fakePackageManager(0, '2.1.5', undefined, join(directory, 'missing'))
+    const result = run(['update'])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Cannot access the Sim installation')
+    expect(result.stderr).not.toMatch(/\n\s+at /)
+  })
+
+  it('prints a clear failure when the installed manifest is malformed', () => {
+    fakePackageManager(0, '2.1.5', '{')
+    const result = run(['update'])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Cannot read the installed Sim manifest')
+    expect(result.stderr).not.toContain('Updated Sim')
+    expect(result.stderr).not.toMatch(/\n\s+at /)
+  })
+
+  it('prints a clear failure for a concurrent update', () => {
+    fakePackageManager()
+    const lockDirectory = join(modules, 'sim.lock')
+    mkdirSync(lockDirectory)
+    try {
+      const result = run(['update'])
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('Cannot lock Sim for update')
+      expect(result.stderr).not.toMatch(/\n\s+at /)
+    } finally {
+      rmSync(lockDirectory, { recursive: true })
+    }
   })
 })
