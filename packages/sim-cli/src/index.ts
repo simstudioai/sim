@@ -2,6 +2,7 @@
 
 import chalk from 'chalk'
 import { dump } from 'js-yaml'
+import { CliUpdateError } from '#sim-cli/update/install'
 import { ProfileConfigError } from './config/index'
 import { clientFrom } from './context'
 import {
@@ -23,7 +24,7 @@ async function main() {
   try {
     await program.parseAsync(process.argv)
   } catch (error) {
-    if (error instanceof ProfileConfigError) {
+    if (error instanceof ProfileConfigError || error instanceof CliUpdateError) {
       console.error(chalk.red(`Error: ${sanitize(error.message)}`))
       process.exit(1)
     }
