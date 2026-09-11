@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useDeleteFolderMutation } from '@/hooks/queries/folders'
 import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
@@ -45,7 +45,7 @@ export function useDeleteSelection({
   isActiveWorkflow,
   onSuccess,
 }: UseDeleteSelectionProps) {
-  const navigateToWorkflow = useWorkflowNavigation()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const { data: workflowList = [] } = useWorkflows(workspaceId)
   const deleteWorkflowMutation = useDeleteWorkflowMutation()
   const deleteFolderMutation = useDeleteFolderMutation()

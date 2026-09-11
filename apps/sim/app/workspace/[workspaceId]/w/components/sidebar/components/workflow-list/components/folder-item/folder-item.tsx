@@ -29,7 +29,7 @@ import {
   buildDragResources,
   createSidebarDragGhost,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
-import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import {
   useCanDelete,
   useDeleteFolder,
@@ -69,7 +69,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
     onItemDragStart,
     onItemDragEnd,
   } = useSidebarListContext()
-  const navigateToWorkflow = useWorkflowNavigation()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
   const createWorkflowMutate = createWorkflowMutation.mutate

@@ -70,7 +70,7 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
@@ -133,7 +133,7 @@ function copilotDraftKey(
  * @returns Panel on the right side of the workflow
  */
 export const Panel = memo(function Panel() {
-  const navigateToWorkflow = useWorkflowNavigation()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const routeWorkflowId = params.workflowId as string | undefined

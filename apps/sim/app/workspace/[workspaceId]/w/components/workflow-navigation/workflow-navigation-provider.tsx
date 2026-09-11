@@ -62,7 +62,11 @@ export function WorkflowNavigationProvider({ children }: WorkflowNavigationProvi
 }
 
 export function useWorkflowNavigation() {
-  const navigate = useContext(NavigateContext)
+  return useContext(NavigateContext)
+}
+
+export function useNavigateToWorkflow() {
+  const navigate = useWorkflowNavigation()
   const router = useRouter()
   const fallback = useCallback<NavigateToWorkflow>(
     (href, options) => {

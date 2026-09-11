@@ -4,6 +4,7 @@ import { RouterContext } from 'next/dist/shared/lib/router-context.shared-runtim
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  useNavigateToWorkflow,
   WorkflowLoadingOverlay,
   WorkflowNavigationLink,
   WorkflowNavigationProvider,
@@ -37,6 +38,15 @@ vi.mock('next/navigation', () => ({ useRouter: () => router }))
 const PATH_A = '/workspace/workspace-1/w/workflow-a'
 const PATH_B = '/workspace/workspace-1/w/workflow-b'
 const PATH_C = '/workspace/workspace-1/w/workflow-c'
+
+function FallbackNavigation() {
+  const navigate = useNavigateToWorkflow()
+  return (
+    <button type='button' onClick={() => navigate(PATH_B, { replace: true, scroll: false })}>
+      Replace workflow
+    </button>
+  )
+}
 
 interface PendingRoute {
   ready: boolean
@@ -82,7 +92,11 @@ describe('workflow navigation feedback', () => {
     )
   }
 
-  function Harness({ embedded = false }: { embedded?: boolean }) {
+  interface HarnessProps {
+    embedded?: boolean
+  }
+
+  function Harness({ embedded = false }: HarnessProps) {
     const [path, setPath] = useState(PATH_A)
     const [, forceRender] = useState(0)
     updatePath = setPath
@@ -164,16 +178,8 @@ describe('workflow navigation feedback', () => {
 
   it('preserves replace navigation outside the workflow provider', () => {
     router.replace.mockImplementation(() => undefined)
-    act(() =>
-      root.render(
-        <RouterContext.Provider value={router}>
-          <WorkflowNavigationLink href={PATH_B} replace scroll={false}>
-            Replace workflow
-          </WorkflowNavigationLink>
-        </RouterContext.Provider>
-      )
-    )
-    click('Replace workflow')
+    act(() => root.render(<FallbackNavigation />))
+    act(() => container.querySelector('button')?.click())
     expect(router.replace).toHaveBeenCalledWith(PATH_B, {
       scroll: false,
       transitionTypes: undefined,

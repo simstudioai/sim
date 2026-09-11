@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { generateId } from '@sim/utils/id'
-import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useCreateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -11,7 +11,7 @@ interface UseWorkflowOperationsProps {
 }
 
 export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProps) {
-  const navigateToWorkflow = useWorkflowNavigation()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const { data: workflows = {}, isLoading: workflowsLoading } = useWorkflowMap(workspaceId)
   const createWorkflowMutation = useCreateWorkflow()
 

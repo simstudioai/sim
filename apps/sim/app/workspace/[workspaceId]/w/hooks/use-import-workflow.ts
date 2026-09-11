@@ -9,7 +9,7 @@ import {
   persistImportedWorkflow,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
-import { useWorkflowNavigation } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useCreateFolder } from '@/hooks/queries/folders'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -33,7 +33,7 @@ interface UseImportWorkflowProps {
  * @returns Import state and handlers
  */
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
-  const navigateToWorkflow = useWorkflowNavigation()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const createWorkflowMutation = useCreateWorkflow()
   const queryClient = useQueryClient()
   const createFolderMutation = useCreateFolder()
