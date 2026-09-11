@@ -1,0 +1,65 @@
+name: Design diff frozen benchmark
+
+on:
+  push:
+    branches: [codex/design-diff-benchmark-v3]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-diff-benchmark-v3
+  cancel-in-progress: true
+
+env:
+  ENGINE_SHA: 777a4aa4b303d3e06aa652818b068ac3374bfa28
+
+jobs:
+  replay:
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - name: Checkout immutable engine
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ env.ENGINE_SHA }}
+          path: engine
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout benchmark driver
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: driver
+          persist-credentials: false
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+      - name: Install trusted dependencies
+        working-directory: engine
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Freeze shard and fetch source as data
+        env:
+          SHARD: ${{ matrix.shard }}
+          GH_TOKEN: ${{ github.token }}
+        run: bun --no-env-file driver/scripts/design-diff/cloud-benchmark.ts
+      - name: Replay frozen comparisons
+        working-directory: engine
+        run: |
+          bun --no-env-file scripts/design-diff/benchmark.ts \
+            --engine "$PWD" --sha "$ENGINE_SHA" --workers 1 \
+            --manifest "$RUNNER_TEMP/comparisons.json" --output "$RUNNER_TEMP/results"
+      - name: Retain available results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-benchmark-${{ env.ENGINE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/results/
+          retention-days: 7
+          if-no-files-found: error
