@@ -10,7 +10,7 @@ import {
   ChipModalField,
   type ComboboxOption,
 } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import {
@@ -23,6 +23,10 @@ import {
   ConnectServiceAccountModal,
   useServiceAccountConnectTarget,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import {
+  derivedAclCapFieldIds,
+  isConnectorFieldRequired,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
   ConnectorAccessField,
   type ConnectorAccessSelection,
@@ -40,6 +44,11 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import {
+  GitLabPermissionTabs,
+  GitLabPermissionUploads,
+} from '@/connectors/gitlab/permission-config/fields'
+import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
@@ -53,6 +62,7 @@ const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
 }
 
 export interface ConnectorSettingsFieldsProps {
+  gitlabPermissions?: GitLabPermissionForm
   availability: {
     error: Error | null
     isFetching: boolean
@@ -102,6 +112,7 @@ export interface ConnectorSettingsFieldsProps {
 }
 
 export function ConnectorSettingsFields({
+  gitlabPermissions,
   availability,
   isSearchIndex,
   connectorConfig,
@@ -163,6 +174,7 @@ export function ConnectorSettingsFields({
     serviceIcon: connectorConfig?.icon,
   })
   const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
+  const [showMoreOptions, setShowMoreOptions] = useState(false)
   const isContentCredentialChange = accessDirty && !accessModeChanged
   const {
     data: rawCredentials = [],
@@ -196,8 +208,44 @@ export function ConnectorSettingsFields({
     [rawCredentials, connectorConfig, access.accessMode]
   )
 
+  const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
+  const isOptionalSetupField = (field: ConnectorConfigField) =>
+    Boolean(gitlabPermissions && connectorConfig) &&
+    field.setupGroup === 'options' &&
+    !isConnectorFieldRequired(field, connectorConfig!, access.accessMode)
+  const configFieldsProps = connectorConfig
+    ? {
+        scope,
+        accessMode: access.accessMode,
+        connectorConfig,
+        sourceConfig,
+        selectionLabels,
+        credentialId: selectorCredential?.id ?? null,
+        credentialType: selectorCredential?.type,
+        canonicalGroups,
+        canonicalModes,
+        onFieldChange,
+        onToggleCanonicalMode,
+        disabled: isSaving,
+      }
+    : null
+
   return (
     <>
+      {gitlabPermissions && (
+        <>
+          <GitLabPermissionTabs form={gitlabPermissions} disabled={isSaving || !canAdmin} />
+          <ChipModalField
+            type='input'
+            title='Personal Access Token'
+            value={gitlabPermissions.apiKey}
+            onChange={gitlabPermissions.setApiKey}
+            inputType='password'
+            placeholder='Leave blank to keep the saved token'
+            disabled={isSaving || !canAdmin}
+          />
+        </>
+      )}
       {availability.error && (
         <ChipModalField type='custom' title='Connection availability'>
           <SettingsQueryErrorState
@@ -368,33 +416,59 @@ export function ConnectorSettingsFields({
           </ChipModalField>
         )}
 
-      {connectorConfig && (
+      {configFieldsProps && (
         <ConnectorConfigFields
-          scope={scope}
-          accessMode={access.accessMode}
-          connectorConfig={connectorConfig}
-          sourceConfig={sourceConfig}
-          selectionLabels={selectionLabels}
-          credentialId={selectorCredential?.id ?? null}
-          credentialType={selectorCredential?.type}
-          canonicalGroups={canonicalGroups}
-          canonicalModes={canonicalModes}
-          isFieldVisible={isFieldVisible}
-          onFieldChange={onFieldChange}
-          onToggleCanonicalMode={onToggleCanonicalMode}
-          disabled={isSaving}
+          {...configFieldsProps}
+          isFieldVisible={(field) =>
+            isFieldVisible(field) &&
+            !hiddenCapFieldIds.has(field.id) &&
+            !isOptionalSetupField(field)
+          }
         />
       )}
 
-      {!isSearchIndex && (
+      {gitlabPermissions && (
+        <GitLabPermissionUploads form={gitlabPermissions} disabled={isSaving || !canAdmin} />
+      )}
+
+      {gitlabPermissions && (
+        <>
+          <div className='px-2'>
+            <Chip
+              type='button'
+              leftIcon={showMoreOptions ? ChevronDown : ChevronRight}
+              aria-expanded={showMoreOptions}
+              onClick={() => setShowMoreOptions((visible) => !visible)}
+            >
+              More options
+            </Chip>
+          </div>
+          {showMoreOptions && configFieldsProps && (
+            <ConnectorConfigFields
+              {...configFieldsProps}
+              isFieldVisible={(field) =>
+                isFieldVisible(field) &&
+                !hiddenCapFieldIds.has(field.id) &&
+                isOptionalSetupField(field)
+              }
+            />
+          )}
+        </>
+      )}
+
+      {!isSearchIndex && (!gitlabPermissions || showMoreOptions) && (
         <ChipModalField
           type='custom'
           title='Sync Frequency'
-          hint={connectorSyncFrequencyHint(
-            access.accessMode,
-            syncInterval,
-            Boolean(contentCredentialId)
-          )}
+          hint={
+            gitlabPermissions?.mode === 'csv'
+              ? undefined
+              : connectorSyncFrequencyHint(
+                  access.accessMode,
+                  syncInterval,
+                  Boolean(contentCredentialId)
+                )
+          }
         >
           <ButtonGroup
             value={String(syncInterval)}

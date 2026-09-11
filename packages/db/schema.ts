@@ -5531,6 +5531,52 @@ export const knowledgeConnector = pgTable(
   })
 )
 
+/** Private provider configuration; metadata reads never materialize the larger normalized payload. */
+export const knowledgeConnectorPermissionSnapshot = pgTable(
+  'knowledge_connector_permission_snapshot',
+  {
+    connectorId: text('connector_id').primaryKey(),
+    revision: integer('revision').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => ({
+    revisionCheck: check('kcps_revision_check', sql`${table.revision} > 0`),
+    connectorFk: foreignKey({
+      name: 'kcps_connector_fk',
+      columns: [table.connectorId],
+      foreignColumns: [knowledgeConnector.id],
+    }).onDelete('cascade'),
+  })
+)
+
+/** Administrator-managed connector groups; provider directory crawls never write these grants. */
+export const knowledgeConnectorPermissionGrant = pgTable(
+  'knowledge_connector_permission_grant',
+  {
+    connectorId: text('connector_id').notNull(),
+    groupKey: text('group_key').notNull(),
+    subjectToken: text('subject_token').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'kcpg_pk',
+      columns: [table.connectorId, table.groupKey, table.subjectToken],
+    }),
+    subjectIdx: index('kcpg_subject_idx').on(table.subjectToken, table.connectorId, table.groupKey),
+    snapshotFk: foreignKey({
+      name: 'kcpg_snapshot_fk',
+      columns: [table.connectorId],
+      foreignColumns: [knowledgeConnectorPermissionSnapshot.connectorId],
+    }).onDelete('cascade'),
+    groupCheck: check('kcpg_group_check', sql`length(${table.groupKey}) BETWEEN 1 AND 255`),
+    subjectCheck: check(
+      'kcpg_subject_check',
+      sql`${table.subjectToken} ~ '^u:[^[:space:]A-Z]+@[^[:space:]A-Z]+$'`
+    ),
+  })
+)
+
 /**
  * One row per (members-mode connector, member credential). Membership is
  * derived from the credential-group option on every run: `active` while the
