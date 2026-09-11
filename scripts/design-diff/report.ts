@@ -1,25 +1,33 @@
-import { createHash } from 'node:crypto'
+import { SemanticValues, valuePrefix } from '#design-diff/semantic'
 import type { Change, Data, Report } from '#design-diff/types'
 
 export const VALUE_PREVIEW_BYTES = 4096
 export const REPORT_BYTES = 5 * 1024 * 1024
 
+const summaries = new WeakSet<object>()
+
 /** Hash the complete value; previews never participate in semantic comparison. */
-export function previewValue(value: Data, limit = VALUE_PREVIEW_BYTES): Data {
-  const json = JSON.stringify(value)
-  const bytes = Buffer.byteLength(json)
-  if (bytes <= limit) return value
-  const buffer = Buffer.from(json)
-  let end = Math.min(limit, buffer.length)
-  while (end && (buffer[end] & 0xc0) === 0x80) end--
-  return {
+export function previewValue(
+  value: Data,
+  limit = VALUE_PREVIEW_BYTES,
+  semantics = new SemanticValues()
+): Data {
+  if (value !== null && typeof value === 'object' && summaries.has(value)) return value
+  const identity = semantics.identity(value)
+  if (identity.bytes <= limit) return value
+  const preview = valuePrefix(value, limit)
+  const bytes = Buffer.byteLength(preview)
+  const summary = {
     $truncated: true,
-    sha256: createHash('sha256').update(buffer).digest('hex'),
-    originalBytes: bytes,
-    previewBytes: end,
-    omittedBytes: bytes - end,
-    preview: buffer.subarray(0, end).toString('utf8'),
+    hashAlgorithm: 'sha256-merkle-v1',
+    sha256: identity.sha256,
+    originalBytes: identity.bytes,
+    previewBytes: bytes,
+    omittedBytes: identity.bytes - bytes,
+    preview,
   }
+  summaries.add(summary)
+  return summary
 }
 
 /** Decisions and IDs already exist when report detail is shortened. */

@@ -48,3 +48,27 @@ export function mutations(binding: Binding, selected?: string): NodePath[] {
   }
   return [...result]
 }
+
+/** Reject writes and escaping object references before relying on an initial literal collection. */
+export function immutableCollection(binding: Binding): boolean {
+  if (!binding.constant || mutations(binding).length) return false
+  return binding.referencePaths.every((reference) => {
+    let value = reference
+    while (value.parentPath?.isMemberExpression() && value.parentPath.node.object === value.node)
+      value = value.parentPath
+    const parent = value.parentPath
+    if (parent?.isVariableDeclarator() || parent?.isObjectProperty()) return false
+    if (!parent?.isCallExpression()) return true
+    if (parent.node.callee === value.node || value !== reference) return false
+    const callee = parent.node.callee
+    return (
+      t.isMemberExpression(callee) &&
+      !callee.computed &&
+      t.isIdentifier(callee.object, { name: 'Object' }) &&
+      !parent.scope.getBinding('Object') &&
+      t.isIdentifier(callee.property) &&
+      ['entries', 'keys', 'values'].includes(callee.property.name) &&
+      parent.node.arguments.length === 1
+    )
+  })
+}

@@ -63,7 +63,7 @@ export function fileLoadedInputs(before: SourceTree, after: SourceTree, config: 
     const a = read(before, input)
     const b = read(after, input)
     findings.push(...compareDefinitions(a, b))
-    // An unchanged invalid configured input is a coverage failure, never a clean analysis.
+    /** An unchanged invalid configured input is a coverage failure, never a clean analysis. */
     for (const definition of b.filter((definition) => definition.unresolved.length))
       if (!findings.some((finding) => finding.after?.location.file === definition.location.file))
         findings.push(...compareDefinitions([], [definition]))

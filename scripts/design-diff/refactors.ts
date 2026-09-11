@@ -1,7 +1,7 @@
 import type traverse from '@babel/traverse'
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
-import { mutations } from '#design-diff/mutations'
+import { immutableCollection, mutations } from '#design-diff/mutations'
 
 /** Normalize the equivalent Object.entries record-map idiom without executing its callback. */
 export function normalizeRefactors(ast: t.File, visit: typeof traverse): void {
@@ -77,6 +77,24 @@ export function normalizeRefactors(ast: t.File, visit: typeof traverse): void {
 /** Fold immutable local literal aliases consistently before resolution budgets are applied. */
 export function normalizeLiteralAliases(ast: t.File, visit: typeof traverse): void {
   const cached = new WeakMap<t.Node, t.Expression | null>()
+  const sizes = new WeakMap<t.Node, number>()
+  /** Bound expanded clone size, including shared literal aliases, rather than depth alone. */
+  const expandedSize = (node: t.Node): number => {
+    const cached = sizes.get(node)
+    if (cached !== undefined) return cached
+    let size = 1
+    for (const key of t.VISITOR_KEYS[node.type] ?? []) {
+      const value = (node as unknown as Record<string, unknown>)[key]
+      for (const child of Array.isArray(value) ? value : [value]) {
+        if (child && typeof child === 'object' && 'type' in child)
+          size += expandedSize(child as t.Node)
+        if (size > 128) break
+      }
+      if (size > 128) break
+    }
+    sizes.set(node, size)
+    return size
+  }
   const literal = (path: NodePath, seen = new Set<t.Node>()): t.Expression | null => {
     if (!path.node || seen.has(path.node) || seen.size > 64) return null
     if ((path.node.end ?? 0) - (path.node.start ?? 0) > 4096) return null
@@ -98,8 +116,15 @@ export function normalizeLiteralAliases(ast: t.File, visit: typeof traverse): vo
       value = literal(path.get('expression') as NodePath, seen)
     else if (path.isReferencedIdentifier()) {
       const binding = path.scope.getBinding(path.node.name)
-      if (binding?.constant && binding.path.isVariableDeclarator() && !mutations(binding).length)
+      if (binding?.constant && binding.path.isVariableDeclarator() && !mutations(binding).length) {
         value = literal(binding.path.get('init') as NodePath, seen)
+        if (
+          value &&
+          (t.isObjectExpression(value) || t.isArrayExpression(value)) &&
+          !immutableCollection(binding)
+        )
+          value = null
+      }
     } else if (path.isObjectExpression()) {
       const properties: t.ObjectProperty[] = []
       let valid = true
@@ -128,6 +153,7 @@ export function normalizeLiteralAliases(ast: t.File, visit: typeof traverse): vo
         .map((element) => literal(element as NodePath, new Set(seen)))
       if (elements.every((item) => item !== null)) value = t.arrayExpression(elements)
     }
+    if (value && expandedSize(value) > 128) value = null
     cached.set(path.node, value)
     return value
   }

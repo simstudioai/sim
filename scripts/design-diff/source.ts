@@ -1,8 +1,10 @@
 import path from 'node:path'
 import { parse as parseJson } from 'jsonc-parser'
+import { canonicalJson } from '#design-diff/ast'
 import { DependencyGraph } from '#design-diff/dependencies'
 import type { Entry, GitReader } from '#design-diff/git'
-import type { Config } from '#design-diff/types'
+import { SemanticValues } from '#design-diff/semantic'
+import type { Config, Data } from '#design-diff/types'
 
 export const scriptPattern = /\.[cm]?[jt]sx?$/
 export const assetPattern =
@@ -28,6 +30,8 @@ export class SourceTree {
   readonly texts: Map<string, string>
   readonly dependencies = new Map<string, Set<string>>()
   readonly failures = new Set<string>()
+  readonly semantics = new SemanticValues()
+  private readonly jsonValues = new Map<string, Data>()
   private readonly packages = new Map<string, { root: string; manifest: Record<string, unknown> }>()
   private readonly resolutions = new Map<string, string | undefined>()
 
@@ -66,6 +70,16 @@ export class SourceTree {
         this.failures.add(file)
       }
     }
+  }
+
+  /** Immutable JSON data is parsed once per revision and never passed to a module loader. */
+  json(file: string): Data {
+    if (this.jsonValues.has(file)) return this.jsonValues.get(file)!
+    const source = this.texts.get(file)
+    if (source === undefined) throw new Error('JSON source unavailable')
+    const value = canonicalJson(JSON.parse(source))
+    this.jsonValues.set(file, value)
+    return value
   }
 
   private candidate(base: string): string | undefined {
