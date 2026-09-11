@@ -65,6 +65,86 @@ describe('pending-drop INSERT audit', () => {
     ).toHaveLength(1)
   })
 
+  it.each([
+    'function write(userStatsColumns) { INSERT }',
+    'const write = ({ userStatsColumns }) => { INSERT }',
+    'function write(userStatsColumns = arbitrary) { INSERT }',
+    '{ const userStatsColumns = arbitrary; INSERT }',
+    'function write() { INSERT; var userStatsColumns = arbitrary }',
+    'try {} catch (userStatsColumns) { INSERT }',
+    'for (const userStatsColumns of selections) { INSERT }',
+    'const write = function userStatsColumns() { INSERT }',
+  ])('rejects a shadowed live-column map: %s', (scope) => {
+    const source = scope.replace(
+      'INSERT',
+      'db.insert(withInsertColumns(userStats, userStatsColumns)).values({});'
+    )
+    expect(
+      audit(`
+        import { userStats, userStatsColumns } from '@sim/db/schema';
+        import { withInsertColumns } from '@sim/db/insert-columns';
+        ${source}
+      `)
+    ).toEqual([
+      expect.objectContaining({ pattern: expect.stringContaining('validated live-column map') }),
+    ])
+  })
+
+  it.each([
+    `import { userStats, userStatsColumns as live } from '@sim/db/schema';
+     function write(live) { db.insert(withInsertColumns(userStats, live)).values({}) }`,
+    `import { userStats } from '@sim/db/schema';
+     import * as schema from '@sim/db/schema';
+     function write(schema) {
+       db.insert(withInsertColumns(userStats, schema.userStatsColumns)).values({})
+     }`,
+  ])('rejects shadowed renamed and namespace selections', (source) => {
+    expect(audit(`import { withInsertColumns } from '@sim/db/insert-columns'; ${source}`)).toEqual([
+      expect.objectContaining({ pattern: expect.stringContaining('validated live-column map') }),
+    ])
+  })
+
+  it.each([
+    `import { withInsertColumns } from '@sim/db/insert-columns';
+     function write(withInsertColumns) {
+       db.insert(withInsertColumns(userStats, userStatsColumns)).values({})
+     }`,
+    `import * as inserts from '@sim/db/insert-columns';
+     function write(inserts) {
+       db.insert(inserts.withInsertColumns(userStats, userStatsColumns)).values({})
+     }`,
+  ])('rejects a shadowed INSERT helper', (source) => {
+    expect(
+      audit(`import { userStats, userStatsColumns } from '@sim/db/schema'; ${source}`)
+    ).toEqual([
+      expect.objectContaining({ pattern: expect.stringContaining('imported INSERT helper') }),
+    ])
+  })
+
+  it('keeps imports valid outside the shadowing scope', () => {
+    expect(
+      audit(`
+        import { userStats, userStatsColumns } from '@sim/db/schema';
+        import { withInsertColumns } from '@sim/db/insert-columns';
+        function unrelated(userStatsColumns, withInsertColumns) {}
+        { const userStatsColumns = arbitrary }
+        function write() {
+          db.insert(withInsertColumns(userStats, userStatsColumns)).values({})
+        }
+      `)
+    ).toEqual([])
+  })
+
+  it('accepts namespace-imported INSERT helpers', () => {
+    expect(
+      audit(`
+        import * as schema from '@sim/db/schema';
+        import * as inserts from '@sim/db/insert-columns';
+        db.insert(inserts.withInsertColumns(schema.userStats, schema.userStatsColumns)).values({});
+      `)
+    ).toEqual([])
+  })
+
   it('validates namespace-imported insert helpers', () => {
     expect(
       audit(`

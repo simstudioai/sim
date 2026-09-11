@@ -108,9 +108,8 @@ function parseSource(
     errorRecovery: true,
     plugins: [...(extname(file) === '.tsx' ? (['jsx'] as const) : []), 'typescript', 'decorators'],
   })
-  const comments = Array.isArray(syntaxTree.comments)
-    ? syntaxTree.comments.filter(isCommentNode)
-    : []
+  const detachedComments: unknown[] = syntaxTree.comments ?? []
+  const comments = detachedComments.filter(isCommentNode)
   return { program: syntaxTree.program as unknown as SyntaxNode, comments }
 }
 
@@ -247,7 +246,6 @@ function objectKeys(node: unknown): Set<string> | null {
 interface TableBindings {
   locals: Map<string, string>
   namespaces: Set<string>
-  importedNames: Map<string, string>
   insertHelpers: Set<string>
   insertHelperNamespaces: Set<string>
 }
@@ -282,16 +280,76 @@ function readLiveColumnMaps(pendingTables: Map<string, Set<string>>): Map<string
   return selections
 }
 
-function schemaExportName(node: unknown, bindings: TableBindings): string | null {
-  const unwrapped = unwrap(node)
-  if (unwrapped?.type === 'Identifier') {
-    return bindings.importedNames.get(identifierName(unwrapped) ?? '') ?? null
+interface ImportBinding {
+  module: string
+  name: string
+}
+
+/**
+ * Binds references within this file, without loading dependencies or standard
+ * libraries. Initialize lazily: only INSERT helpers need trusted import provenance.
+ * TypeScript resolves parameters, block locals, destructuring and hoisted bindings
+ * so a shadowed import cannot authorize an arbitrary column map or helper.
+ */
+function createImportResolver(file: string, source: string) {
+  let checker: ts.TypeChecker | undefined
+  const identifiers = new Map<number, ts.Identifier>()
+  const resolveIdentifier = (node: SyntaxNode): ImportBinding | null => {
+    if (!checker) {
+      const filename = resolve(file)
+      const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true)
+      const host: ts.CompilerHost = {
+        getSourceFile: (name) => (name === filename ? sourceFile : undefined),
+        getDefaultLibFileName: () => 'lib.d.ts',
+        writeFile: () => {},
+        getCurrentDirectory: () => dirname(filename),
+        getDirectories: () => [],
+        fileExists: (name) => name === filename,
+        readFile: (name) => (name === filename ? source : undefined),
+        getCanonicalFileName: (name) => name,
+        useCaseSensitiveFileNames: () => true,
+        getNewLine: () => '\n',
+      }
+      checker = ts
+        .createProgram([filename], { noLib: true, noResolve: true }, host)
+        .getTypeChecker()
+      const index = (child: ts.Node) => {
+        if (ts.isIdentifier(child)) identifiers.set(child.getStart(sourceFile), child)
+        ts.forEachChild(child, index)
+      }
+      index(sourceFile)
+    }
+    const identifier = typeof node.start === 'number' ? identifiers.get(node.start) : undefined
+    const declarations = identifier
+      ? checker.getSymbolAtLocation(identifier)?.declarations
+      : undefined
+    if (declarations?.length !== 1) return null
+    const declaration = declarations[0]
+    if (!ts.isImportSpecifier(declaration) && !ts.isNamespaceImport(declaration)) return null
+    let parent: ts.Node = declaration.parent
+    while (!ts.isImportDeclaration(parent)) {
+      if (!parent.parent) return null
+      parent = parent.parent
+    }
+    if (!ts.isStringLiteral(parent.moduleSpecifier)) return null
+    return {
+      module: parent.moduleSpecifier.text,
+      name: ts.isImportSpecifier(declaration)
+        ? (declaration.propertyName ?? declaration.name).text
+        : '*',
+    }
   }
-  if (unwrapped?.type === 'MemberExpression' && !unwrapped.computed) {
-    const namespace = identifierName(unwrapped.object)
-    return namespace && bindings.namespaces.has(namespace) ? propertyName(unwrapped.property) : null
+
+  return (node: unknown): ImportBinding | null => {
+    const expression = unwrap(node)
+    if (expression?.type === 'Identifier') return resolveIdentifier(expression)
+    if (expression?.type !== 'MemberExpression' || expression.computed) return null
+    const object = unwrap(expression.object)
+    if (object?.type !== 'Identifier') return null
+    const binding = resolveIdentifier(object)
+    const member = propertyName(expression.property)
+    return binding?.name === '*' && member ? { module: binding.module, name: member } : null
   }
-  return null
 }
 
 /**
@@ -330,7 +388,12 @@ function resolveTable(
 
 /** A module that can export the schema's table objects. */
 function isSchemaModule(source: unknown): boolean {
-  const value = isSyntaxNode(source) && typeof source.value === 'string' ? source.value : null
+  const value =
+    typeof source === 'string'
+      ? source
+      : isSyntaxNode(source) && typeof source.value === 'string'
+        ? source.value
+        : null
   return value !== null && (/@sim\/db(\/|$)/.test(value) || /(^|\/)schema(\.ts)?$/.test(value))
 }
 
@@ -345,7 +408,6 @@ function collectTableBindings(
   const bindings: TableBindings = {
     locals: new Map(),
     namespaces: new Set(),
-    importedNames: new Map(),
     insertHelpers: new Set(),
     insertHelperNamespaces: new Set(),
   }
@@ -366,7 +428,6 @@ function collectTableBindings(
         }
         if (specifier.type !== 'ImportSpecifier') continue
         const imported = propertyName(specifier.imported)
-        if (imported) bindings.importedNames.set(local, imported)
         if (
           imported === 'withInsertColumns' &&
           isSyntaxNode(node.source) &&
@@ -462,6 +523,7 @@ function checkCall(
   pendingTables: Map<string, Set<string>>,
   bindings: TableBindings,
   liveColumnMaps: Map<string, string>,
+  resolveImport: ReturnType<typeof createImportResolver>,
   report: (node: SyntaxNode, table: string, pattern: string) => void
 ): void {
   const callee = isSyntaxNode(call.callee) ? call.callee : null
@@ -476,7 +538,16 @@ function checkCall(
       bindings.insertHelperNamespaces.has(identifierName(callee.object) ?? ''))
   if (isInsertHelper) {
     const table = resolveArg(args[0])
-    if (table && liveColumnMaps.get(schemaExportName(args[1], bindings) ?? '') !== table) {
+    if (!table) return
+    const helper = resolveImport(callee)
+    const columns = resolveImport(args[1])
+    if (helper?.module !== '@sim/db/insert-columns' || helper.name !== 'withInsertColumns') {
+      report(call, table, 'withInsertColumns() must resolve to the imported INSERT helper')
+    } else if (
+      !columns ||
+      !isSchemaModule(columns.module) ||
+      liveColumnMaps.get(columns.name) !== table
+    ) {
       report(call, table, "withInsertColumns() must use this table's validated live-column map")
     }
     return
@@ -596,6 +667,7 @@ export function auditFile(
   }
 
   const bindings = collectTableBindings(program, pendingTables)
+  const resolveImport = createImportResolver(file, source)
 
   const report = (node: SyntaxNode, table: string, pattern: string) => {
     violations.push({ file, line: node.loc?.start.line ?? 1, table, pattern })
@@ -603,7 +675,7 @@ export function auditFile(
 
   const visit = (node: SyntaxNode, parent: SyntaxNode | null) => {
     if (node.type === 'CallExpression') {
-      checkCall(node, parent, pendingTables, bindings, liveColumnMaps, report)
+      checkCall(node, parent, pendingTables, bindings, liveColumnMaps, resolveImport, report)
     }
     for (const child of getChildNodes(node)) visit(child, node)
   }
