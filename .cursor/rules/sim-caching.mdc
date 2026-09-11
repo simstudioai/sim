@@ -1,11 +1,9 @@
 ---
-description: In-process caching with lru-cache and a ceiling, never hand-rolled TTL maps
-paths:
-  - "apps/sim/lib/**/*.ts"
-  - "apps/sim/providers/**/*.ts"
-  - "apps/sim/executor/**/*.ts"
-  - "apps/sim/tools/**/*.ts"
+description: "In-process caching with lru-cache and a ceiling, never hand-rolled TTL maps"
+globs: ["apps/sim/lib/**/*.ts","apps/sim/providers/**/*.ts","apps/sim/executor/**/*.ts","apps/sim/tools/**/*.ts"]
 ---
+
+<!-- Generated from .claude/rules/sim-caching.md by `bun run skills:sync`. Edit the source, not this file. -->
 
 # In-Process Caching
 
