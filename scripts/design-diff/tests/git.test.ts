@@ -29,10 +29,18 @@ it('handles binary assets, deletions and filenames containing spaces, tabs and n
     { [file]: Buffer.from([0, 1, 255]) },
     { [file]: Buffer.from([0, 2, 255]) }
   )
-  expect(changed.flagged).toBe(true)
-  expect(changed.findings[0].after?.location.file).toBe(file)
+  expect(changed.flagged).toBe(false)
+  expect(changed.status).toBe('completed')
   const removed = await compareFiles({ [file]: Buffer.from([0, 1, 255]) }, { [file]: null })
-  expect(removed.findings[0].after).toBeNull()
+  expect(removed.flagged).toBe(false)
+  const styled = 'apps/sim/component space\tline\n.tsx'
+  const appearance = await compareFiles(
+    { [styled]: 'export const A=()=> <div className="p-2"/>' },
+    { [styled]: null }
+  )
+  expect(appearance.flagged).toBe(true)
+  expect(appearance.findings[0].before?.location.file).toBe(styled)
+  expect(appearance.findings[0].after).toBeNull()
 })
 
 it('handles renames and modifications without losing their old location', async () => {

@@ -25,6 +25,7 @@ export interface Evidence {
   dependencies: string[]
 }
 export interface Definition extends Evidence {
+  appearance?: { media?: boolean; shared?: boolean; element?: string }
   key: string
   kind:
     | 'class'
@@ -122,8 +123,8 @@ export interface Config {
 }
 export interface Report {
   schemaVersion: '3.0.0'
-  engineVersion: '0.4.0'
-  policyVersion: '4.0.0'
+  engineVersion: '0.5.0'
+  policyVersion: '5.0.0'
   commits: { base: string; head: string; mergeBase: string } | null
   status: 'completed' | 'failed'
   flagged: boolean | null

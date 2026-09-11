@@ -1,37 +1,37 @@
 import { expect, it } from 'vitest'
 import { allChanges, compareFiles } from '#design-diff/tests/helpers'
 
-const file = 'apps/sim/icon.tsx'
+const file = 'apps/sim/geometry.tsx'
 const svg = (x: number, fill = 'red', extra = '') =>
   `export const A=()=> <svg width="100" height="100" viewBox="0 0 100 100"><rect x={${x}} y={20} width={10} height={10} fill="${fill}" ${extra}/></svg>`
 
 it('exempts a supported bounded movement', async () => {
   const report = await compareFiles({ [file]: svg(20) }, { [file]: svg(30) })
   expect(report.flagged).toBe(false)
-  expect(allChanges(report).map((finding) => finding.decision)).toEqual(['exempt'])
+  expect(allChanges(report)).toEqual([])
 })
 
-it('flags mixed movement and appearance', async () => {
+it('exempts SVG appearance as media', async () => {
   const report = await compareFiles({ [file]: svg(20) }, { [file]: svg(30, 'blue') })
-  expect(report.flagged).toBe(true)
-  expect(allChanges(report).some((finding) => finding.category === 'colour')).toBe(true)
+  expect(report.flagged).toBe(false)
+  expect(allChanges(report)).toEqual([])
 })
 
-it('does not claim a movement proof when stylesheet rules can override the primitive', async () => {
+it('exempts SVG media regardless of movement proof', async () => {
   const report = await compareFiles(
     { [file]: svg(20), 'apps/sim/global.css': 'rect {width:90px}' },
     { [file]: svg(30) }
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
 it.each([
   ['clipping', svg(99)],
   ['effects', svg(30, 'red', 'stroke="black"')],
   ['context', svg(30, 'red', 'className="custom"')],
-])('requires review for %s', async (_name, after) => {
+])('exempts media %s', async (_name, after) => {
   const report = await compareFiles({ [file]: svg(20) }, { [file]: after })
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
 it.each(['marginLeft', 'gap', 'justifyContent', 'position', 'transform'])(

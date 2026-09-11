@@ -205,8 +205,8 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       result.reportSha256 = hash(bytes)
       if (
         report.schemaVersion !== '3.0.0' ||
-        report.engineVersion !== '0.4.0' ||
-        report.policyVersion !== '4.0.0'
+        report.engineVersion !== '0.5.0' ||
+        report.policyVersion !== '5.0.0'
       )
         throw new Error('Report version mismatch')
       if (JSON.stringify(report.commits) !== JSON.stringify(commits))

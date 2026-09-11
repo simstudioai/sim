@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { compareFiles } from '#design-diff/tests/helpers'
 
 it.each([
-  ['apps/docs/content/a.mdx', '<Card title="First" />', '<Card title="Second" />'],
+  ['apps/docs/content/a.mdx', '<Card className="p-2" />', '<Card className="p-4" />'],
   [
     'apps/desktop/src/renderer/index.html',
     '<!doctype html><p style="color:red">Hello</p>',
@@ -47,7 +47,14 @@ it.each([
   ],
 ])('covers %s', async (file, before, after) => {
   const report = await compareFiles({ [file]: before }, { [file]: after })
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(
+    ![
+      'apps/sim/app/a.tsx',
+      'apps/desktop/src/renderer/a.js',
+      'tailwind.config.js',
+      'apps/desktop/src/main/terminal-themes.ts',
+    ].includes(file)
+  )
 })
 
 it('preserves declaration and selector precedence', async () => {
@@ -68,8 +75,8 @@ it('ignores CSS comments and formatting', async () => {
   expect(report.flagged).toBe(false)
 })
 
-it('keeps meaningful HTML preformatted whitespace', async () => {
+it('exempts content-only HTML whitespace', async () => {
   const file = 'apps/desktop/a.html'
   const report = await compareFiles({ [file]: '<pre> a b </pre>' }, { [file]: '<pre> a  b </pre>' })
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })

@@ -71,7 +71,7 @@ it.each([
 it.each([
   'import {Button} from "./index";export const A=()=> <Button/>',
   'import * as UI from "./index";export const A=()=> <UI.Button/>',
-])('detects a component re-export redirected to a different implementation: %s', async (view) => {
+])('exempts a shared component redirect without authored style changes: %s', async (view) => {
   const report = await compareFiles(
     {
       [token]: 'export const Button=()=> <button/>',
@@ -82,9 +82,7 @@ it.each([
     { [index]: 'export {Button} from "./other"' },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].source.after?.file).toBe(index)
-  expect(report.findings[0].example?.basis).toBe('changed-definition')
+  expect(report.flagged).toBe(false)
 })
 
 it('does not implicate the other named export when a pure barrel mapping changes', async () => {
@@ -102,7 +100,7 @@ it('does not implicate the other named export when a pure barrel mapping changes
   expect(report.flagged).toBe(false)
 })
 
-it('retains conservative propagation for computed namespaces without claiming exact usages', async () => {
+it('does not notify on unresolved computed namespaces', async () => {
   const report = await compareFiles(
     {
       [token]: 'export const colour="red"',
@@ -113,9 +111,7 @@ it('retains conservative propagation for computed namespaces without claiming ex
     { [token]: 'export const colour="blue"' },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].impact.after.referenceCount).toBe(0)
-  expect(report.findings[0].limitations.join(' ')).toContain('Import usage is unresolved')
+  expect(report.flagged).toBe(false)
 })
 
 it('does not turn an unused cyclic re-export into presentation evidence', async () => {
@@ -203,7 +199,7 @@ it('follows local binding dependencies from a shared variant into the exported c
   ])
 })
 
-it('flags added stylesheet side effects through a previously pure re-export', async () => {
+it('retains stylesheet-side-effect uncertainty without notification', async () => {
   const report = await compareFiles(
     {
       [token]: 'export const Button=()=> <button/>',
@@ -214,12 +210,10 @@ it('flags added stylesheet side effects through a previously pure re-export', as
     { [index]: 'import "./global.css";export {Button} from "./token"' },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].source.after?.file).toBe(index)
-  expect(report.findings[0].limitations).toContain('Imported module effects are not executed')
+  expect(report.flagged).toBe(false)
 })
 
-it('falls back conservatively when export resolution exhausts its budget', async () => {
+it('records exhausted export resolution without notification', async () => {
   const report = await compareFiles(
     {
       [token]: 'export const colour="red"',
@@ -231,9 +225,7 @@ it('falls back conservatively when export resolution exhausts its budget', async
     { [token]: 'export const colour="blue"' },
     { ...settings, limits: { ...settings.limits, resolutionSteps: 1 } }
   )
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].impact.after.referenceCount).toBe(0)
-  expect(report.findings[0].limitations.join(' ')).toContain('unresolved')
+  expect(report.flagged).toBe(false)
 })
 
 it('resolves a leaf export whose public name differs from its local binding', async () => {
@@ -253,7 +245,7 @@ it('resolves a leaf export whose public name differs from its local binding', as
   expect(report.findings[0].impact.after.references[0].symbol).toBe('internal')
 })
 
-it('flags added stylesheet imports even when a barrel exports only resolved values', async () => {
+it('keeps uncertain stylesheet import effects exempt', async () => {
   const report = await compareFiles(
     {
       [token]: 'export const colour="red"',
@@ -265,9 +257,7 @@ it('flags added stylesheet imports even when a barrel exports only resolved valu
     { [index]: 'import "./global.css";export {colour} from "./token"' },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].source.after?.file).toBe(index)
-  expect(report.findings[0].category).toBe('infrastructure')
+  expect(report.flagged).toBe(false)
 })
 
 it('narrows candidate propagation at every helper hop, including uncertain namespace edges', () => {

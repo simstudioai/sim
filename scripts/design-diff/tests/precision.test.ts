@@ -18,7 +18,7 @@ it('does not trace type-only factory inputs through opaque helpers', async () =>
   expect((await compareFiles(files, { [data]: source(8) }, settings)).flagged).toBe(false)
 })
 
-it('ignores resolved event-only custom props while retaining rendered uses', async () => {
+it('exempts event-only and content-only custom props', async () => {
   const component = (visible: boolean) => `export function Menu({editing=false}){
     return <div title={${visible ? 'editing' : '"same"'}} onPointerMoveCapture={editing ? holdFocus : undefined}/>}`
   const files = {
@@ -33,11 +33,11 @@ it('ignores resolved event-only custom props while retaining rendered uses', asy
   expect((await compareFiles(files, changed, settings)).flagged).toBe(false)
   expect(
     (await compareFiles({ ...files, [data]: component(true) }, changed, settings)).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it.each([1, 4, 24])(
-  'retains captured title-map changes at resolution depth %s',
+  'exempts captured wording changes at resolution depth %s',
   async (resolutionDepth) => {
     const source = (title: string) =>
       `const titles={fill:'${title}'};export function title(name){return titles[name]}`
@@ -50,7 +50,7 @@ it.each([1, 4, 24])(
       { [data]: source('Filling form') },
       { ...settings, limits: { ...settings.limits, resolutionDepth } }
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(false)
   }
 )
 
@@ -64,7 +64,7 @@ it.each([
     'Object.entries(input).reduce((acc,[key,value])=>({...acc,[key]:acc.previous}),{})',
   ],
   ['changed key', 'Object.entries(input).reduce((acc,[key,value])=>({...acc,[value]:value}),{})'],
-])('does not erase a record-map change with %s', async (_name, expression) => {
+])('exempts opaque record changes without authored styles: %s', async (_name, expression) => {
   const source = (value: string) =>
     `export function Page({input}){return <div data-record={${value}}/>}`
   const report = await compareFiles(
@@ -72,7 +72,7 @@ it.each([
     { [view]: source('Object.fromEntries(Object.entries(input).map(([key,value])=>[key,value]))') },
     settings
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
 it.each([
@@ -148,7 +148,7 @@ it('traces a helper return through an alias and excludes its unrelated export', 
   expect(allChanges(report).some((change) => change.after?.location.file === view)).toBe(true)
 })
 
-it('traces a changed hidden-tool set to a UI condition', async () => {
+it('exempts changed option visibility without appearance changes', async () => {
   const source = (tool: string) =>
     `const hidden=new Set(['${tool}']);export function visible(name){return !hidden.has(name)}`
   const report = await compareFiles(
@@ -160,20 +160,20 @@ it('traces a changed hidden-tool set to a UI condition', async () => {
     { [data]: source('write') },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(allChanges(report).some((change) => change.after?.location.file === view)).toBe(true)
+  expect(report.flagged).toBe(false)
+  expect(allChanges(report).some((change) => change.after?.location.file === view)).toBe(false)
 })
 
-it('still detects actual DOM attribute and canvas appearance operations', async () => {
-  for (const source of [
+it('detects supported DOM styling and exempts canvas content', async () => {
+  for (const [index, source] of [
     (colour: string) =>
-      `const button=document.createElement('button');button.setAttribute('class','${colour}')`,
+      `const button=document.createElement('button');button.setAttribute('class','bg-${colour}-500')`,
     (colour: string) =>
       `function draw(canvas: HTMLCanvasElement){const ctx=canvas.getContext('2d');ctx.fillStyle='${colour}';ctx.fillRect(0,0,20,20)}`,
-  ])
+  ].entries())
     expect(
       (await compareFiles({ [data]: source('red') }, { [data]: source('blue') }, settings)).flagged
-    ).toBe(true)
+    ).toBe(index === 0)
 })
 
 it('does not propagate dead re-exports into unrelated unresolved JSX', async () => {
@@ -225,16 +225,16 @@ it('recognizes an aliased class helper by its imported binding', async () => {
   expect(allChanges(report)[0].category).toBe('colour')
 })
 
-it('retains unresolved WebGL operations in a known canvas context', async () => {
+it('exempts unsupported canvas rendering', async () => {
   const source = (shader: string) =>
     `function draw(canvas:HTMLCanvasElement){const gl=canvas.getContext('webgl');gl.shaderSource(shader,'${shader}')}`
   expect(
     (await compareFiles({ [data]: source('before') }, { [data]: source('after') }, settings))
       .flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
-it('preserves helper switch selection conditions', async () => {
+it('exempts helper conditions with unchanged appearance values', async () => {
   const source = (mode: string) =>
     `export function colour(mode){switch(mode){case '${mode}':return 'red';default:return 'blue'}}`
   const report = await compareFiles(
@@ -246,7 +246,7 @@ it('preserves helper switch selection conditions', async () => {
     { [data]: source('b') },
     settings
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
 it.each([1, 24])(
@@ -283,7 +283,7 @@ it('keeps selected environment evidence narrow after exhausting expression depth
   expect(report.flagged).toBe(false)
 })
 
-it('projects configured capability environment fields and retains helper changes', async () => {
+it('exempts capability visibility changes without appearance values', async () => {
   const adapter = settings.environmentAdapters![0]
   const configured = {
     ...settings,
@@ -310,7 +310,7 @@ it('projects configured capability environment fields and retains helper changes
   expect(
     (await compareFiles(files, { [adapter.environmentModule]: environment(4, false) }, configured))
       .flagged
-  ).toBe(true)
+  ).toBe(false)
   expect(
     (
       await compareFiles(
@@ -322,12 +322,12 @@ it('projects configured capability environment fields and retains helper changes
         configured
       )
     ).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it('leaves type queries over literal constants erased and parseable', async () => {
   const source = (kind: string) =>
-    `const KINDS=['one','two'] as const;type Kind = typeof KINDS[number];export const Page=()=> <span>${kind}</span>`
+    `const KINDS=['one','two'] as const;type Kind = typeof KINDS[number];export const Page=()=> <span style={{color:"${kind}"}}/>`
   const report = await compareFiles({ [view]: source('a') }, { [view]: source('b') }, settings)
   expect(report.flagged).toBe(true)
   expect(
@@ -339,7 +339,7 @@ it('leaves type queries over literal constants erased and parseable', async () =
 
 it('preserves value/type names shared by generated schema declarations', async () => {
   const source = (text: string) =>
-    `const Kind={ONE:1};type Kind=typeof Kind;export const Page=()=> <div>${text}</div>`
+    `const Kind={ONE:1};type Kind=typeof Kind;export const Page=()=> <div style={{color:"${text}"}}/>`
   const report = await compareFiles({ [view]: source('a') }, { [view]: source('b') }, settings)
   expect(report.flagged).toBe(true)
   expect(
@@ -354,7 +354,7 @@ it.each([
     `export function colours(){const values=[];values.push('${colour}');return values}`,
   (colour: string) =>
     `export function colours(){const values={colour:'red'};values.colour='${colour}';return values.colour}`,
-])('retains writes to const collections feeding rendering', async (source) => {
+])('exempts collections supplied to unknown component props', async (source) => {
   const report = await compareFiles(
     {
       [data]: source('red'),
@@ -363,10 +363,10 @@ it.each([
     { [data]: source('blue') },
     settings
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
-it('retains conditions around collection writes', async () => {
+it('exempts conditions around unknown presentation collections', async () => {
   const source = (enabled: boolean) =>
     `export function colours(){const values=[];if(${enabled})values.push('red');return values}`
   const report = await compareFiles(
@@ -377,7 +377,7 @@ it('retains conditions around collection writes', async () => {
     { [data]: source(false) },
     settings
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
 it('isolates unrelated mutable object fields such as telemetry warmup state', async () => {
@@ -408,7 +408,7 @@ it.each(['[live, unrelated]', 'await Promise.all([live, unrelated])'])(
   }
 )
 
-it('keeps shadowed Promise.all conservative', async () => {
+it('does not notify on shadowed Promise.all uncertainty', async () => {
   const source = (n: number) => `export const unrelated=${n}`
   const report = await compareFiles(
     {
@@ -418,10 +418,10 @@ it('keeps shadowed Promise.all conservative', async () => {
     { [data]: source(2) },
     settings
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })
 
-it('projects namespace members even when an outer expression reaches its resolution limit', async () => {
+it('does not notify on opaque namespace consumers at their resolution limit', async () => {
   const source = (colour: string, unused: number) =>
     `export const colour='${colour}';export const unused=${unused}`
   const files = {
@@ -430,7 +430,7 @@ it('projects namespace members even when an outer expression reaches its resolut
   }
   const bounded = { ...settings, limits: { ...settings.limits, resolutionDepth: 2 } }
   expect((await compareFiles(files, { [data]: source('red', 2) }, bounded)).flagged).toBe(false)
-  expect((await compareFiles(files, { [data]: source('blue', 1) }, bounded)).flagged).toBe(true)
+  expect((await compareFiles(files, { [data]: source('blue', 1) }, bounded)).flagged).toBe(false)
 })
 
 it('bounds expansion of repeated local literal aliases before cloning ASTs', () => {
@@ -480,7 +480,7 @@ it('projects JSON import properties without parsing JSON as an application modul
   ).toBe(true)
 })
 
-it('retains changed malformed imported JSON as evidence instead of a stable missing value', async () => {
+it('keeps malformed imported JSON as a coverage limitation', async () => {
   const json = 'apps/sim/palette.json'
   const report = await compareFiles(
     {
@@ -491,12 +491,12 @@ it('retains changed malformed imported JSON as evidence instead of a stable miss
     { [json]: '{alsoBroken' },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(allChanges(report).some((change) => change.dependencies.includes(json))).toBe(true)
+  expect(report.flagged).toBe(false)
+  expect(report.limitations.join(' ')).toContain('JSON')
 })
 
 it.each([5, 24])(
-  'bounds dynamic environment keys from static feature definitions at depth %s',
+  'exempts functional environment visibility at depth %s',
   async (resolutionDepth) => {
     const source = (tables: boolean, batch: number) =>
       `import {createEnv} from '@t3-oss/env-nextjs';export const env=createEnv({server:{TABLES:rule(${tables}),BATCH:rule(${batch})}})`
@@ -506,12 +506,12 @@ it.each([5, 24])(
     }
     const bounded = { ...settings, limits: { ...settings.limits, resolutionDepth } }
     expect((await compareFiles(files, { [data]: source(true, 2) }, bounded)).flagged).toBe(false)
-    expect((await compareFiles(files, { [data]: source(false, 1) }, bounded)).flagged).toBe(true)
+    expect((await compareFiles(files, { [data]: source(false, 1) }, bounded)).flagged).toBe(false)
   }
 )
 
 it.each(['definitions.table.fallback=runtimeKey', 'mutate(definitions)'])(
-  'keeps mutated or escaping feature definitions conservative: %s',
+  'exempts mutated or escaping feature uncertainty: %s',
   async (mutation) => {
     const source = (batch: number) =>
       `import {createEnv} from '@t3-oss/env-nextjs';export const env=createEnv({server:{TABLES:rule(true),BATCH:rule(${batch})}})`
@@ -523,7 +523,7 @@ it.each(['definitions.table.fallback=runtimeKey', 'mutate(definitions)'])(
       { [data]: source(2) },
       settings
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(false)
   }
 )
 
@@ -547,14 +547,14 @@ it('projects selected helper return properties independently of sibling callback
   expect((await compareFiles(files, { [data]: source('blue', '/a') }, settings)).flagged).toBe(true)
 })
 
-it('preserves selected helper return guards, defaults and call arguments', async () => {
+it('exempts changing helper conditions without changing appearance branches', async () => {
   const source = (guard: string) =>
     `export function options(active){if(${guard})return {colour:'red'};return {colour:'blue'}}`
   const page = (arg: string) =>
     `import {options} from './data';export function Page(){const {colour='green'}=options(${arg});return <div style={{color:colour}}/>}`
   const files = { [data]: source('active'), [view]: page('enabled') }
-  expect((await compareFiles(files, { [data]: source('!active') }, settings)).flagged).toBe(true)
-  expect((await compareFiles(files, { [view]: page('other') }, settings)).flagged).toBe(true)
+  expect((await compareFiles(files, { [data]: source('!active') }, settings)).flagged).toBe(false)
+  expect((await compareFiles(files, { [view]: page('other') }, settings)).flagged).toBe(false)
 })
 
 it('retains direct changes and a nearby token example while bounding indirect expansion', async () => {
@@ -586,12 +586,12 @@ it('retains direct changes and a nearby token example while bounding indirect ex
   ).toBe(true)
 })
 
-it('keeps environment helper changes relevant after schema-key projection', async () => {
+it('keeps unresolved environment schema adapters exempt', async () => {
   const source = (colour: string) =>
     `import {createEnv} from '@t3-oss/env-nextjs';const read=()=> '${colour}';export const env=createEnv({server:{COLOUR:rule('red'),UNUSED:rule(1)},runtimeEnv:{COLOUR:read()}})`
   const files = {
     [data]: source('red'),
     [view]: 'import {env} from "./data";export const Page=()=> <div style={{color:env.COLOUR}}/>',
   }
-  expect((await compareFiles(files, { [data]: source('blue') }, settings)).flagged).toBe(true)
+  expect((await compareFiles(files, { [data]: source('blue') }, settings)).flagged).toBe(false)
 })

@@ -8,6 +8,19 @@ export function category(definition: Definition): Category {
   if (definition.kind === 'asset' || definition.kind === 'content' || definition.kind === 'markup')
     return 'content'
   if (/^(?:src|src-set|alt|title|placeholder|d|points|view-box)$/.test(property)) return 'content'
+  if (/^(?:gap|row-gap|column-gap|align.*|justify.*|position)$/.test(property)) return 'layout'
+  if (/^margin/.test(property)) return 'dimensions'
+  if (property === 'transform') {
+    const data = definition.value
+    const value =
+      typeof data === 'string'
+        ? data
+        : data && typeof data === 'object' && !Array.isArray(data) && typeof data.value === 'string'
+          ? data.value
+          : ''
+    if (!/^(?:translate[XYZ3d]*\([^)]*\)\s*)+$/.test(value)) return 'shape-effects'
+  }
+  if (/^--tw-translate-/.test(property)) return 'movement'
   if (movementProperty(definition.property)) return 'movement'
   if (/color|background|fill|gradient|surface/.test(property)) return 'colour'
   if (/font|text|line-height|letter|word-spacing/.test(property)) return 'typography'
@@ -18,20 +31,23 @@ export function category(definition: Definition): Category {
   if (/animation|transition|animate|initial|exit|while/.test(property)) return 'motion'
   if (/flex|grid|wrap|columns|float|clear|contain/.test(property)) return 'layout'
   if (definition.kind === 'class') return 'layout'
+  if (definition.kind === 'css' || definition.kind === 'style') return 'layout'
+  if (definition.property === 'variant') return 'shape-effects'
+  if (definition.kind === 'native' || definition.property === 'orientation') return 'layout'
   return 'unresolved'
 }
 
 export const limitations = [
-  'Routine documentation prose, literal content in configured documentation components and configured API-reference data are exempt. Custom presentation, assets and unresolved document expressions remain in scope.',
+  'Designer policy: wording, documentation content, options/data, media and unchanged shared-component additions are exempt. Notifications require supported authored appearance changes.',
   'Static source analysis does not establish pixel equality or complete runtime behavior.',
-  'Dynamic data, unknown calls, custom props, plugins and unsupported rendering mechanisms are flagged when affected.',
+  'Unresolved expressions, parser limits, unknown props, rendering configuration and runtime-only effects do not qualify a PR on their own. Their coverage notes are not proof that appearance is unchanged.',
   'Import propagation covers static imports/re-exports, supported aliases and literal asset paths; runtime-generated paths cannot be enumerated.',
   'Tailwind 4.3.3 normalizes core utilities and CSS theme declarations. Proposed JavaScript configuration, plugins and external CSS are not executed.',
-  'Movement exemptions cover only a single static rect/circle moving strictly inside an unchanged fixed SVG viewport, with no styling hooks or effects.',
+  'Coordinates and translation alone are exempt; explicit margins, gaps, alignment, positioning mode, wrapping, dimensions and clipping remain appearance evidence. Runtime overlap and movement consequences are not established.',
   'Findings are grouped by changed source file; direct changes and one representative consumer are retained.',
   'Named imports follow re-exports to their defining module. Ambiguous imports and further transitive module effects retain conservative dependencies.',
   'Usage counts measure resolved static references to changed bindings and local dependents, not confirmed visual changes or rendered instances.',
-  'Source-order matching is conservative after structural edits. Reports identify possible visual changes, including inactive variants and unused assets.',
+  'Repeated appearance values are matched across insertions. Structural correspondence is approximate; inactive variants and unused authored styles can still qualify.',
 ]
 
 /** Derives a class category from changed generated declarations when they agree. */

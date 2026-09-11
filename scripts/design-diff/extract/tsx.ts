@@ -1,5 +1,6 @@
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
+import { appearanceAttributes, mediaElement } from '#design-diff/appearance'
 import {
   fingerprint,
   jsxText,
@@ -16,18 +17,51 @@ const nonvisualAttributes = /^(?:key|ref|on[A-Z].*)$/
 const knownAttributes =
   /^(?:className|class|style|src|srcSet|sizes|alt|title|placeholder|value|defaultValue|checked|defaultChecked|disabled|hidden|open|type|width|height|size|rows|cols|fill|stroke.*|viewBox|d|points|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|transform|opacity|color|animate|initial|exit|transition|while.*|layout.*|dangerouslySetInnerHTML|children)$/
 
-export function extractTsx(resolver: Resolver, file: string): Definition[] {
+export function extractTsx(resolver: Resolver, file: string, appearanceOnly = false): Definition[] {
   const definitions: Definition[] = []
   const counts = new Map<string, number>()
   const guards = new WeakMap<t.Node, { value: Data; evidence: Evidence }[]>()
+  const elements = new WeakMap<t.Node, string>()
+  const domReceiver = (path: NodePath, seen = new Set<t.Node>()): boolean => {
+    if (!path.node || seen.has(path.node) || seen.size > 16) return false
+    seen.add(path.node)
+    if (path.isIdentifier()) {
+      const binding = path.scope.getBinding(path.node.name)
+      if (!binding) return path.node.name === 'document'
+      return binding.path.isVariableDeclarator() && domReceiver(child(binding.path, 'init'), seen)
+    }
+    if (path.isCallExpression()) return domReceiver(child(path, 'callee'), seen)
+    if (path.isMemberExpression()) return domReceiver(child(path, 'object'), seen)
+    return false
+  }
+  const media = (path: NodePath): boolean => {
+    for (let node: NodePath | null = path; node; node = node.parentPath) {
+      if (!node.isJSXElement()) continue
+      const name = propertyName(node.node.openingElement.name)
+      if (mediaElement.test(name)) return true
+      const binding = node.scope.getBinding(name.split('.')[0])
+      const declaration = binding?.path.parentPath
+      if (
+        declaration?.isImportDeclaration() &&
+        /(?:^|\/)icons?(?:\/|$)/.test(declaration.node.source.value)
+      )
+        return true
+    }
+    return false
+  }
   const emit = (path: NodePath, kind: Definition['kind'], property: string, evidence: Evidence) => {
     const symbol = symbolName(path)
-    const prefix = `${symbol}:${kind}:${property}`
+    const element = path.findParent((parent) => parent.isJSXElement())
+    const tag =
+      appearanceOnly && element?.isJSXElement()
+        ? propertyName(element.node.openingElement.name)
+        : ''
+    const prefix = `${symbol}:${kind}:${property}:${tag}`
     const count = counts.get(prefix) ?? 0
     counts.set(prefix, count + 1)
     const conditions: Data[] = []
     const owner = path.getFunctionParent()
-    if (owner) {
+    if (owner && !appearanceOnly) {
       if (!guards.has(owner.node)) {
         const entries: { value: Data; evidence: Evidence }[] = []
         owner.traverse({
@@ -61,7 +95,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
         evidence.unresolved.push(...guard.evidence.unresolved)
       }
     }
-    for (let p = path.parentPath; p; p = p.parentPath) {
+    for (let p = appearanceOnly ? null : path.parentPath; p; p = p.parentPath) {
       if (p.isConditionalExpression() || p.isIfStatement()) {
         const test = resolver.evaluate(child(p, 'test'), file)
         conditions.push({
@@ -121,6 +155,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
   const ast = resolver.module(file).ast
   traverse(ast, {
     ImportDeclaration(path) {
+      if (appearanceOnly) return
       if (
         path.node.importKind === 'type' ||
         !/\.(?:css|scss|sass|less)(?:[?#].*)?$/.test(path.node.source.value)
@@ -134,6 +169,14 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       })
     },
     JSXElement(path) {
+      if (appearanceOnly) {
+        if (media(path)) return
+        emit(path, 'markup', propertyName(path.node.openingElement.name), literal(null))
+        const definition = definitions[definitions.length - 1]
+        elements.set(path.node, definition.key)
+        definition.appearance = { element: definition.key }
+        return
+      }
       const opening = path.node.openingElement
       const name = propertyName(opening.name)
       const childShapes = path.node.children.flatMap((node) => {
@@ -196,6 +239,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
     },
     JSXAttribute(path) {
       const name = propertyName(path.node.name)
+      if (appearanceOnly && (!appearanceAttributes.test(name) || media(path))) return
       if (nonvisualAttributes.test(name)) return
       if (resolver.eventOnlyProp(child(path.parentPath, 'name'), name, file)) return
       const value = child(path, 'value')
@@ -212,17 +256,35 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       } else {
         if (!knownAttributes.test(name))
           evidence.unresolved.push('Custom prop or selector attribute may affect rendering')
-        emit(path, name === 'className' || name === 'class' ? 'class' : 'attribute', name, evidence)
+        emit(
+          path,
+          /^(?:className|class)$|ClassName$/.test(name) ? 'class' : 'attribute',
+          name,
+          evidence
+        )
+        const tag = propertyName(
+          path.parentPath.node && (path.parentPath.node as t.JSXOpeningElement).name
+        )
+        const binding = path.scope.getBinding(tag.split('.')[0])
+        definitions[definitions.length - 1].appearance = {
+          shared: binding?.path.parentPath?.isImportDeclaration() ?? false,
+          element: path.parentPath.parentPath
+            ? elements.get(path.parentPath.parentPath.node)
+            : undefined,
+        }
       }
     },
     JSXSpreadAttribute(path) {
+      if (appearanceOnly) return
       emit(path, 'review', 'spread', resolver.evaluate(child(path, 'argument'), file))
     },
     JSXText(path) {
+      if (appearanceOnly) return
       const value = jsxText(path.node.value)
       if (value) emit(path, 'content', 'text', literal(value))
     },
     JSXExpressionContainer(path) {
+      if (appearanceOnly) return
       if (
         path.parentPath.isJSXAttribute() ||
         t.isJSXEmptyExpression(path.node.expression) ||
@@ -236,7 +298,27 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       const name = propertyName(path.node.callee)
       if (resolver.tree.config.variantFunctions.includes(name))
         emit(path, 'class', 'variants', resolver.evaluate(path, file))
-      if (resolver.renderingCall(path, file))
+      if (
+        appearanceOnly &&
+        t.isMemberExpression(path.node.callee) &&
+        domReceiver(child(child(path, 'callee'), 'object'))
+      ) {
+        const method = propertyName(path.node.callee.property)
+        const args = children(path, 'arguments')
+        if (method === 'setAttribute' && args[0]?.isStringLiteral() && args[1]) {
+          const property = args[0].node.value
+          if (appearanceAttributes.test(property) && property !== 'style')
+            emit(
+              path,
+              /^(?:class|className)$/.test(property) ? 'class' : 'attribute',
+              property,
+              resolver.evaluate(args[1], file)
+            )
+        }
+        if (method === 'setProperty' && args[0]?.isStringLiteral() && args[1])
+          emit(path, 'style', args[0].node.value, resolver.evaluate(args[1], file))
+      }
+      if (!appearanceOnly && resolver.renderingCall(path, file))
         emit(path, 'review', 'imperative-rendering', resolver.evaluate(path, file))
       if (file.startsWith('apps/desktop/') && t.isMemberExpression(path.node.callee)) {
         const method = propertyName(path.node.callee.property)
@@ -258,6 +340,21 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
         propertyName(lhs.property) === 'themeSource'
       )
         emit(path, 'native', 'themeSource', resolver.evaluate(child(path, 'right'), file))
+      if (appearanceOnly) {
+        if (
+          t.isMemberExpression(lhs) &&
+          t.isMemberExpression(lhs.object) &&
+          propertyName(lhs.object.property) === 'style' &&
+          domReceiver(child(child(path, 'left'), 'object'))
+        )
+          emit(
+            path,
+            'style',
+            propertyName(lhs.property),
+            resolver.evaluate(child(path, 'right'), file)
+          )
+        return
+      }
       if (
         t.isMemberExpression(lhs) &&
         /^(?:innerHTML|outerHTML|textContent|className|cssText|fillStyle|strokeStyle|font)$/.test(
@@ -295,6 +392,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       } else emit(path, 'review', 'native-options', evidence)
     },
     TaggedTemplateExpression(path) {
+      if (appearanceOnly) return
       /** A tag is only a standalone visual definition for a known styling binding. SQL and String.raw still participate when explicitly read by a visual input. */
       const tag = child(path, 'tag')
       const root = tag.isMemberExpression() ? child(tag, 'object') : tag

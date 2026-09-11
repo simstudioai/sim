@@ -49,7 +49,7 @@ it('exempts new and removed standard documentation pages', async () => {
   expect((await compareFiles({ [file]: document }, { [file]: null })).flagged).toBe(false)
 })
 
-it('resolves documented component import aliases without granting arbitrary names trust', async () => {
+it('exempts content-only component imports and aliases', async () => {
   const before = `${faq}<FAQ items={[]} />`
   const after =
     "import { FAQ as Questions } from '@/components/ui/faq'\n\n<Questions items={[{question:'Q',answer:'A'}]} />"
@@ -61,7 +61,7 @@ it('resolves documented component import aliases without granting arbitrary name
         { [file]: "import { FAQ } from './custom'\n\n<FAQ items={[]} />" }
       )
     ).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it.each([
@@ -94,8 +94,10 @@ it.each([
   ['broken MDX', '# Guide', '<div'],
   ['broken YAML', '# Guide', '---\ntitle: [broken\n---'],
   ['custom YAML tag', '# Guide', '---\ntitle: !!js/function "function(){}"\n---'],
-])('retains flags for documentation %s', async (_, before, after) => {
-  expect((await compareFiles({ [file]: before }, { [file]: after })).flagged).toBe(true)
+])('classifies documentation %s', async (name, before, after) => {
+  expect((await compareFiles({ [file]: before }, { [file]: after })).flagged).toBe(
+    ['class override', 'style override', 'nested styles'].includes(name)
+  )
 })
 
 it('does not let added prose shift the identity of unchanged presentation', async () => {
@@ -115,7 +117,7 @@ it('repeats byte-identical reports under the documentation policy without execut
     const head = repo.commit({ [file]: `{globalThis.${sentinel} = true}` })
     const first = await analyze(repo.cwd, base, head, config)
     const second = await analyze(repo.cwd, base, head, config)
-    expect(first.flagged).toBe(true)
+    expect(first.flagged).toBe(false)
     expect(serializeReport(first)).toBe(serializeReport(second))
     expect(Reflect.get(globalThis, sentinel)).toBeUndefined()
   } finally {
@@ -138,7 +140,7 @@ it('retains shared documentation component changes even when page content is exe
   ).toBe(true)
 })
 
-it('retains product copy and new shared or custom controls in mixed PRs', async () => {
+it('flags only custom appearance in mixed documentation and product PRs', async () => {
   for (const next of [
     'export const A=()=> <p>New label</p>',
     'import { ChipInput } from "@sim/emcn"; export const A=()=> <ChipInput placeholder="Search"/>',
@@ -148,13 +150,13 @@ it('retains product copy and new shared or custom controls in mixed PRs', async 
       { [file]: '# Before', 'apps/sim/a.tsx': 'export const A=()=> <p>Old label</p>' },
       { [file]: '# After', 'apps/sim/a.tsx': next }
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(next.includes('className'))
   }
 })
 
-it('can retain the broader Markdown policy outside the configured authoring roots', async () => {
+it('keeps routine Markdown exempt outside configured authoring roots', async () => {
   const broad = { ...config, documentationContent: undefined }
   expect((await compareFiles({ [file]: '# Before' }, { [file]: '# After' }, broad)).flagged).toBe(
-    true
+    false
   )
 })

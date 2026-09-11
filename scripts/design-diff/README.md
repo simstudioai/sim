@@ -1,433 +1,201 @@
 # Design diff
 
-An advisory, deterministic source analyzer for PRs targeting `staging`. It flags visual
-changes, including potentially visual effects that cannot be resolved statically.
-It does not run an application, a browser, AI, proposed configuration or proposed plugins.
+A deterministic, advisory **designer notification filter** for PRs targeting `staging`.
+It reports supported changes to authored appearance. It does not run application code,
+a build, a browser, AI, proposed configuration or plugins.
 
 ```sh
 bun run design:diff --base origin/staging --head HEAD --output /tmp/design-diff.json
 ```
 
-Use Bun **1.4.1** and a complete Git history. Both revisions are resolved to immutable
-commits; the actual comparison is `merge-base(base, head)..head`. Local uncommitted files
-are not analyzed. Omitting `--output` writes JSON to stdout. With `--output`, the report is
-written through a temporary file and atomically renamed.
+Use Bun **1.4.1** and complete Git history. Revisions resolve to immutable commits;
+the comparison is `merge-base(base, head)..head`. Uncommitted files are not analyzed.
+With `--output`, JSON is written atomically and findings stay out of logs.
 
-| Result | JSON | Exit status |
+| Result | JSON | Exit |
 | --- | --- | --- |
-| Completed, no visual findings | `status: completed`, `flagged: false` | 0 |
-| Completed, any `flag` finding | `status: completed`, `flagged: true` | 0 |
-| Missing revision/history, unreadable objects, invalid invocation or resource failure | `status: failed`, `flagged: null` | Nonzero |
+| Completed, no qualifying appearance edit | `status: completed`, `flagged: false` | 0 |
+| Completed, qualifying appearance edit | `status: completed`, `flagged: true` | 0 |
+| Missing history, unreadable objects, invalid invocation or resource failure | `status: failed`, `flagged: null` | Nonzero |
 
-Completed analyses can contain `exempt` movement evidence. Findings have stable IDs,
-before/after values, properties, conditions, source locations, symbols, consumers,
-dependencies and limitations. Unsupported expressions use syntax fingerprints rather than
-duplicating entire function bodies. Reports also include schema, engine and policy versions,
-base/head/merge-base SHAs, and workflow PR/head/engine identity. No timestamp enters the
-deterministic payload. Finding IDs are stable for the same input pair and engine version.
+## Designer policy (version 5)
 
-## Binary decisions and grouped report (schema 3)
+The public decisions remain `flag` and `exempt`. **Uncertainty alone does not flag.**
+Coverage limitations describe what was not established; `flagged: false` is not a claim
+that every rendered pixel is unchanged.
 
-The public decisions are **`flag`** and **`exempt`**. Uncertainty produces `flag`, with
-the obstacle recorded in `limitations`. Schema version `3.0.0`, policy version `4.0.0`, engine version `0.4.0`, retain binary decisions
-and add bounded values and explicit report truncation metadata.
-
-Each finding groups evidence by **changed source file**. Several changed definitions in
-one file remain individually available in `changes`. Unchanged downstream consumers do not
-each create another top-level finding. For example, a shared Button radius change produces
-one finding anchored to its source, with a representative consumer and usage metadata.
-
-| Field | Meaning |
+| Change | Decision |
 | --- | --- |
-| `source.before` / `source.after` | Changed source path and Git blob ID, or `null` for addition/deletion |
-| `decision` | `flag` if any grouped evidence requires reporting; otherwise `exempt` |
-| `category`, `symbol`, `reason`, `before`, `after` | Representative evidence; its locations can be in an unchanged consumer of a changed token |
-| `categories` | Categories of all direct evidence and the changed consumer |
-| `changes` | Direct definition changes in the changed file, retaining individual decisions, values and locations |
-| `example` | One consumer evidence record, or `null`; `basis` distinguishes `changed-definition` from `potential-consumer` |
-| `impact.before` / `impact.after` | Separate counts and source locations for resolved direct references in each revision |
-| `consumers` | Union of files containing those resolved references |
-| `dependencies`, `limitations` | Supporting dependencies and retained uncertainty/coverage notes |
+| Supported colour, background, gradient, border, radius, shadow, opacity | Flag |
+| Supported typography, dimensions, padding, margins | Flag |
+| Explicit gaps, alignment, positioning mode, flex/grid sizing, wrapping | Flag |
+| Authored display/overflow/clipping/layering, animation or scale | Flag |
+| Changed shared component styles, CSS variables, themes or CVA definitions | Flag |
+| New control/panel with new custom CSS, layout or class overrides | Flag |
+| Adding an imported shared component without custom appearance | Exempt |
+| Additional dropdown options, rows or controls repeating existing appearance | Exempt |
+| Copy, progress/error labels, pricing/privacy wording, documentation prose | Exempt |
+| Icons, images, screenshots, inline SVG and media element dimensions | Exempt |
+| Runtime conditions, functional visibility, option data, unknown component props | Exempt |
+| Coordinates or translation alone | Exempt |
+| Unknown calls, parser/expression limits, plugins and dependency version changes alone | Exempt; retain coverage notes |
+| Comments, erased types, supported formatting/constant hoists/local renames | Exempt |
 
-`example` is source evidence, not a screenshot or proof of changed pixels. A token-only
-file can have an empty `changes` array and a changed consumer as its example. When several
-changed sources feed one consumer, the example is marked potential and the attribution
-limitation is recorded.
+A new `<Button variant="primary" size="sm"/>` uses shared appearance and is exempt.
+Adding `<Button className="rounded-none p-6"/>` introduces a custom override and flags.
+Changing an existing control's supported `variant`, `size`, classes or style values flags.
+Known style values in conditional branches and React state updates are compared; changing
+only the runtime predicate, handler or label does not qualify.
 
-Usage metadata always has `coverage: partial`: it counts resolved references to changed
-top-level bindings and their local dependents. JSX uses, function calls and other runtime
-references are distinguished. Closing JSX tags, re-export declarations and erased type
-references do not count. Dynamic/ambiguous imports are not presented as exact usages.
-Zero means no references were enumerated, not proof of no consumers. Overrides, inactive
-variants and runtime conditions can prevent a referenced component from changing visually.
+Media exclusion applies to recognized JSX/HTML/MDX media elements and asset files, not an
+arbitrary wrapper around an image. A wrapper's custom padding or layout still qualifies.
+CSS asset URL substitutions and generated copy are exempt. Source-only analysis cannot
+reliably identify every project-specific media wrapper.
 
-Changed sources are analyzed before unchanged consumers. Once a source has flagged evidence,
-repeated downstream expansion can be omitted while its resolved usage inventory is retained.
-The report records the number of unchanged files omitted; categories describe retained evidence.
-Changed files, configured documentation inputs and infrastructure are still inspected. CSS/token
-sources retain a changed consumer example before further repeated expansion is omitted.
-
-Schema 3 readers must handle either literal values or a summary object containing
-`$truncated`, `preview`, `sha256`, `hashAlgorithm`, `originalBytes`, `previewBytes` and `omittedBytes`.
-`hashAlgorithm: sha256-merkle-v1` hashes the complete semantic tree, including order and types,
-without expanding shared symbolic subtrees; it is not the SHA-256 of flat JSON bytes.
-Large resolver inputs are summarized before retention, with a limitation, so comparison and
-report construction cannot expand shared helper evidence into gigabytes of repeated JSON.
-The default preview is at most 4 KiB. Full semantic evidence is compared before presentation
-values are shortened; large opaque helper summaries retain full-value hashes too.
-`truncation` records the 5 MiB serialized-report limit, total/omitted findings, and total/omitted
-entries for sampled detail/reference lists. Sampling retains stable prefixes. The overall
-`flagged` result is computed before sampling, so an omitted finding cannot make a PR clean.
-Read direct evidence from `changes` and optional `example`; use `source` for the changed file.
-
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
-  Revisions[Base and head revisions] --> Git[Immutable Git objects]
-  Git --> Graph[Dependency graphs in both revisions]
-  Graph --> Extract[Parse affected visual sources]
-  Extract --> Resolve[Bounded static resolution]
-  Resolve --> Compare[Compare values and conditions]
-  Compare --> Policy[Visual policy and movement proof]
-  Policy --> Group[Group by changed source]
-  Group --> JSON[JSON report]
+  Git[Immutable before/after Git objects] --> Graph[Find affected bindings and consumers]
+  Graph --> Parse[Parse authored appearance inputs]
+  Parse --> Resolve[Resolve supported values and theme CSS]
+  Resolve --> Compare[Compare appearance values]
+  Compare --> Flag[Concrete appearance edit: flag]
+  Compare --> Exempt[Content, reuse or uncertainty: exempt]
+  Flag --> JSON[Grouped JSON artifact]
+  Exempt --> JSON
 ```
+
+Babel parses TypeScript/JSX, PostCSS parses CSS, parse5 parses HTML and remark parses MDX.
+Production extraction focuses on classes, styles, recognized appearance props and native
+desktop appearance settings. It skips copy, render guards, arbitrary props and media trees.
+Parser failures and bounded unsupported inputs are reported as limitations without becoming
+notifications. Application code and configuration are never imported or evaluated.
+
+The import graph is a candidate finder. Specific values are traced through supported constants,
+object properties, aliases, re-exports, helpers, CSS variables and class composition. Unchanged
+style expressions do not qualify because an unrelated backend dependency changed. Unknown
+helper fingerprints and captured inputs are not concrete appearance evidence.
+
+Tailwind **4.3.3** and **tailwind-merge 3.6.0** are pinned direct dependencies. Normalization uses
+core utilities and declarative theme/utility/variant CSS from each application. The trusted EMCN
+`cn` merge convention includes repository font-size groups. CSS declaration and class composition
+order remain significant. Arbitrary JavaScript plugins, external CSS and unknown class helpers
+are not executed. Supported core styling can still flag alongside unresolved custom styling.
+
+Appearance definitions are matched by source context and supported values. Repeated styles are
+matched across insertions so adding another option does not shift all later findings. Structural
+matching is approximate. Changes to unused authored styles and inactive variants can still flag;
+runtime-only effects and unsupported rendering may be missed by this precision-oriented policy.
+
+The scope covers product, landing pages, emails, documentation presentation, desktop and shared
+components/themes under `apps/` and `packages/`. Tests, fixtures, public assets and server sandbox
+bundles are excluded. Media component modules remain available to import resolution so excluding
+an Icon does not break resolution of Button through the same barrel.
+
+## Report contract
+
+Schema **3.0.0**, engine **0.5.0**, policy **5.0.0**. The schema remains compatible; the policy
+meaning changes. Readers must inspect versions when comparing historical qualification rates.
+All decisions and identifiers are deterministic for the same engine/configuration and commits.
+Execution timing and peak memory are recorded separately by the benchmark, never in engine JSON.
+
+Each top-level finding groups evidence by **changed source file**. A shared Button edit produces
+one group, rather than one notification per use. Fields include:
+
+- `source.before` / `source.after`: changed file and Git blob, or `null`.
+- `decision`, `category`, `reason`, `symbol`, `before`, `after`: representative evidence.
+- `changes`: individual direct source changes and their values/locations.
+- `example`: one resolved consumer; its `basis` distinguishes changed evidence from a potential use.
+- `impact.before` / `impact.after`: partial counts and locations of resolved static references.
+- `consumers`, `dependencies`, `limitations`: supporting references and coverage notes.
+
+Counts are source references, not affected pixels or rendered instances. Unchanged consumers do
+not each create a top-level finding. Once the PR qualifies and a nearby consumer has been examined,
+further indirect expansion can be omitted with an explicit limitation. All changed files remain
+analyzed. A clean result requires examination of all candidate consumers within configured limits.
+
+Small literal values are preserved. Large report values use a preview, full semantic hash and
+explicit truncation metadata. Defaults are **4 KiB per preview** and **5 MiB per serialized report**.
+Decisions are computed before report truncation. Readers must support `$truncated`, `preview`,
+`sha256`, `hashAlgorithm`, `originalBytes`, `previewBytes` and `omittedBytes`. The
+`sha256-merkle-v1` hash identifies the complete typed semantic tree without expanding repeated
+symbolic subtrees. Oversized reference/detail lists retain deterministic samples and omitted counts.
+Large opaque resolver trees can themselves exceed the supported analysis budget; these remain
+uncertainty, not evidence of an appearance edit.
+
+Operational failures remain distinct from completed policy exemptions. Configured file-loaded
+OpenAPI inputs are validated as Git data; content is exempt and malformed inputs retain diagnostic
+evidence. Lockfile rendering-dependency changes retain diagnostics but do not qualify by themselves.
+
+## Files
 
 ```text
-design-diff.config.json                  Repository scope and recognized conventions
-.github/workflows/design-review.yml      Trusted cloud execution, artifact only
+design-diff.config.json                Repository scope, themes and conventions
+.github/workflows/design-review.yml    Trusted cloud execution; artifact only
 scripts/design-diff/
-  index.ts                              Small public engine API
-  cli.ts                                Arguments, output and operational status
-  analyze.ts                            Revision comparison and affected consumers
-  git.ts                                Git object reads, merge-base and renames
-  source.ts                             Source snapshots and path/alias resolution
-  dependencies.ts                       Export-aware imports and source reference counts
-  ast.ts                                Babel parsing and syntax normalization
-  refactors.ts                          Supported literal/refactor normalization
-  mutations.ts                          Referenced collection/property writes
-  state.ts                              React state inputs and setter assignments
-  finite.ts                             Static finite keys for computed environment reads
-  environment.ts                        Literal createEnv schema field comparison
-  resolve.ts                            Bounded expression and import resolution
-  inputs.ts                             Configured file-loaded documentation inputs
-  document-content.ts                   Routine documentation authoring exemptions
-  infrastructure.ts                     Rendering lockfile dependency closure
-  report.ts                             Value previews and bounded JSON serialization
-  semantic.ts                           Full semantic hashes without repeated tree expansion
-  benchmark.ts                          Immutable-engine historical replay
-  process.ts                            Native Bun process status and bounded diagnostics
-  benchmark/comparisons.json            Frozen original/holdout comparison manifest
-  memory.ts                             Bun parser-batch garbage collection
-  tailwind.ts                           Pinned compiler and trusted merge convention
-  compare.ts                            Stable matching and findings
-  group.ts                              Changed-source grouping and representative evidence
-  policy.ts                             Visual categories and limitations
-  movement.ts                           Narrow static movement proof
-  types.ts                              Versioned report contract
-  extract/{tsx,css,documents,assets}.ts   Syntax-specific extraction
-  tests/                                Unit/integration suites and JSON fixture text
-  tsconfig.json                         Isolated engine type check
+  cli.ts, index.ts                     Entry points and operational status
+  analyze.ts, git.ts, source.ts        Git snapshots and affected-source analysis
+  dependencies.ts                     Binding graph and partial usage counts
+  extract/{tsx,css,documents,assets}.ts Syntax extraction
+  resolve.ts, ast.ts, refactors.ts     Bounded static resolution
+  state.ts, mutations.ts               Referenced state and writes
+  finite.ts, environment.ts            Finite key and environment projections
+  appearance.ts                       Supported appearance evidence projection
+  tailwind.ts                         Pinned compiler and trusted class helpers
+  compare.ts, policy.ts, movement.ts   Matching, decisions and categories
+  group.ts, report.ts, semantic.ts     Grouping, full hashes and bounded JSON
+  inputs.ts, document-content.ts       Documentation data handling
+  infrastructure.ts                   Rendering dependency diagnostics
+  memory.ts, process.ts                Resource handling
+  types.ts, tsconfig.json              Report contract and isolated type check
+  benchmark.ts, benchmark/comparisons.json
+                                      Immutable-engine historical replay
+  tests/                              Source-string/JSON fixtures and regression suites
 ```
 
-This is repository automation, not a published package. Internal imports use the root
-`#design-diff/*` mapping. The revision-dependent command is deliberately outside the
-generic audit runner; the zero-argument engine type check is included in audits.
-
-## Coverage and decisions
-
-Scope includes source under `apps/` and `packages/`: product and landing UI, emails,
-documentation, desktop renderers, EMCN, shared workflow rendering, themes and visual assets.
-Rendered Markdown is scoped explicitly to application content directories. Tests and fixture
-directories are excluded. Fixture source is kept in JSON or test strings, never production
-TSX/CSS files that an application build or Tailwind source scan could consume.
-
-| Category | Examples | Decision |
-| --- | --- | --- |
-| Colour | Foreground, background, fill, gradients | Flag |
-| Dimensions | Width, height, padding, min/max size | Flag |
-| Typography | Font, size, weight, line height, tracking | Flag |
-| Shape/effects | Radius, border, shadow, opacity, filters | Flag |
-| Layout | Wrapping, flex/grid sizing, stretching | Flag |
-| Visibility | Hidden state, overflow, clipping, layering | Flag |
-| Content | Product copy, new product controls, custom MDX UI, images, SVG, fonts | Flag |
-| Routine documentation | Prose, headings, tables, code samples, known content components, API-reference data | No finding |
-| Motion | Keyframes, transitions, animation props | Flag |
-| Infrastructure | Renderer dependencies, lockfile, CSS processors, module mappings | Flag |
-| Movement | Coordinates, translation, margins, gaps, alignment | Flag unless the static proof succeeds |
-| Nonvisual/equivalent | Comments, erased types, supported formatting and constant extraction | No finding |
-
-Policy 4 exempts routine authoring in the `documentationContent.roots` directories. The parser
-projects out prose, Markdown tables, code samples and recognized frontmatter content fields.
-Article metadata follows the repository content schema, including author/date fields and FAQ
-answers; cover image references remain presentation evidence.
-Configured Fumadocs/repository components are recognized by their import module and named export,
-including local import aliases. Only their declared content props with literal data are exempt;
-standard Callout types and tab labels are authoring options. Unknown widgets, appearance overrides,
-spreads, unresolved expressions, embedded images/media and unknown frontmatter fields remain in
-scope. YAML 2.9.0 uses its data-only core schema with custom tags disabled and aliases bounded;
-malformed or unsupported syntax produces a flag. Prose insertion does not renumber retained
-presentation definitions. A custom wrapper's opaque contents may still produce conservative flags.
-
-The exemption concerns document instances. Shared documentation components, templates, styles,
-rendering infrastructure and screenshot assets are still analyzed. Product UI is unchanged by this
-policy: adding a search field/modal/panel flags even when it reuses EMCN; local appearance overrides,
-shared tokens and existing movement checks are retained. Product status/error wording and HTML
-policy/pricing pages remain in scope. Published Markdown article prose uses the same authoring
-exemption; embedded covers and other media remain visual assets.
-
-The original 180-case manifest retains its policy-3 labels. New qualification rates must compare the
-same immutable source commits while reporting document-content exclusions separately; policy-3
-visual labels are not automatically policy-4 positives. Previous cloud smoke/evaluation runs do not
-validate this policy version.
-
-Babel parses JS/TS/JSX; PostCSS parses CSS; parse5 parses HTML; remark parses
-Markdown/MDX/frontmatter/GFM. CSS selector, conditional and declaration order are retained.
-JSX whitespace follows React's line handling. Class composition and JSX spread/attribute
-order remain significant. Direct event handlers are not treated as appearance props. For
-recognized React `useState` bindings, a rendered state value also traces setter arguments,
-local setter aliases and surrounding conditions, including updates inside event handlers.
-Unrelated handler statements and unrendered state do not become visual inputs. Setter escapes
-remain unresolved; arbitrary event reachability, reducer/effect scheduling and external store
-updates are not fully modeled.
-
-The resolver supports immutable constants, object properties, arrays, primitive template
-strings, simple arithmetic, conditional branches, static imports/re-exports, namespace
-imports, workspace exports and project `paths` aliases. Static array selections and awaited
-`Promise.all` results trace the selected value independently; arbitrary promise failure and
-scheduling effects are not modeled. It records CVA bases, variants,
-defaults, compound variants and selections; runtime selections remain symbolic. Recognized
-`cn`/`clsx` helpers are interpreted as data. The trusted EMCN `cn` merge convention includes
-the repository's custom font-size groups. A helper with an unrecognized origin is not trusted
-because its name happens to be `cn` or `clsx`.
-
-Dependency propagation resolves named/default imports, aliases and static namespace members
-through named/star re-exports and import-then-export indexes to the defining module. A
-Button edit does not implicate a file merely because it imports an unrelated Icon from the
-same index. Changed top-level bindings and local dependents narrow the propagation
-steps and usage counts within a multi-export file. Unresolved imports keep immediate module
-edges instead of bypassing intermediate binding checks with every transitive dependency.
-Literal `createEnv` schemas can narrow the first hop to changed keys, including keys from
-static feature-definition loops. Changed helper implementations, options, computed schemas
-and escaping collections retain conservative propagation. Both revisions are considered, including
-redirected re-exports. The module graph identifies candidates only. Actual findings require
-changed values, guards, referenced implementations or an explicitly unresolved imported input.
-Unrelated imports and dead re-exports cannot flag an unchanged expression. Object properties,
-destructured parameter defaults, and selected helper return properties/guards are traced separately. Small immutable
-local literals are normalized before expression budgets, preserving supported constant hoists.
-The exact `Object.entries(...).reduce` record-map idiom is normalized to `Object.fromEntries`
-only with an empty accumulator, unchanged key and no accumulator reads in the mapped value. Unknown
-computed namespaces, ambiguous imports, cycles and exhausted resolution remain conservative
-when that particular input feeds rendering. SQL tags and telemetry receivers are not standalone
-rendering definitions; their values can still matter if explicitly consumed by a visual input.
-
-The configured `wireServerFallback` capability adapter traces its declared environment fields,
-provider factories and implementation. Its finite capability schema identifies relevant keys;
-unsupported dynamic schemas use ordinary conservative resolution. Whole-environment backend
-settings therefore do not contaminate the signup page solely through this known adapter.
-
-The configured Fumadocs `OPENAPI_SPEC_FILES` list is parsed from Git in each revision. Listed
-JSON inputs are validated as data. The configured `contentOnly` convention exempts valid API-reference
-descriptions, schemas, enum lists and specification-list changes. Malformed/missing configured inputs
-still flag with a limitation. JSON consumed elsewhere by product UI remains subject to normal tracing.
-Renderer and list implementation changes remain subject to normal source/infrastructure analysis.
-
-The graph reuses up to 32,768 import/export snapshots keyed by source blob, resolving their
-paths again for each revision. Each consumer resolver retains at most 32 parsed modules,
-and requests Bun garbage collection between parser batches. These resource controls do
-not change evidence or decisions. The Node-based test runner uses its own garbage collector.
-
-Tailwind **4.3.3** and **tailwind-merge 3.6.0** are direct pinned dependencies. The compiler
-reads declarative theme/custom-variant/utility CSS from each revision, starting with its own
-pinned default theme. It preserves alternatives for CSS custom properties instead of assuming
-which selector/media condition wins at runtime. Theme changes revisit unchanged consumers in
-the configured applications; shared EMCN/renderer classes are considered against both themes.
-The pinned `__unstable__loadDesignSystem` API is intentionally isolated in `tailwind.ts` and
-covered by tests; upgrading Tailwind requires validating this adapter.
-
-Application JavaScript configs and plugins are never evaluated. External stylesheet packages
-are not expanded. The engine identifies unsupported classes and changed rendering
-infrastructure for flagging. Compiler output is static core-utility evidence, not a claim that
-application plugins or every postprocessor have been reproduced.
-
-Desktop support extracts recognized `BrowserWindow` appearance options, native appearance
-setter calls and `nativeTheme.themeSource` assignments. Configured native
-menu/tray/terminal-theme modules use an uncertainty fallback for their own changed definitions,
-because embedded JXA and native operating-system rendering are not executed.
-
-## Movement proof and remaining limits
-
-The initial exemption is deliberately narrow: one statically sized `rect` or `circle`, as
-the only child of a fixed SVG canvas, changes numeric coordinates while remaining strictly
-inside its unchanged viewport. Its geometry, fill and canvas stay unchanged. Styling hooks,
-effects, dynamic conditions, nested JSX canvases and potentially overriding repository CSS
-disable the exemption. A shape crossing the bounds is flagged. Other positioning changes
-are flagged because ancestors, wrapping, stretching, clipping or overlapping content may
-change the result. There is no blanket exemption for translation, margins, gaps or alignment.
-
-This engine is conservative, not a runtime equivalence prover:
-
-- Runtime data, arbitrary functions, mutable bindings, dependency cycles, parser failures,
-  unknown props and unsupported rendering syntax produce flags when changed presentation evidence
-  or a traceable unresolved rendering input changes. They are not blanket module-level triggers.
-- Source-order matching after substantial markup edits can pair different elements. Such
-  changes remain flagged; findings are evidence for review, not an exact DOM correspondence.
-- Dynamic module/asset paths, inherited/conditional export maps outside the supported forms,
-  generated source and arbitrary imperative renderers cannot be fully followed. Directly
-  detected DOM/canvas operations and configured native rendering use uncertainty fallbacks.
-- Unresolved/custom MDX expressions and embedded HTML scripts are flagged, without running MDX
-  components or scripts. Literal content in documented authoring components is exempt. Plain HTML
-  whitespace outside the Markdown authoring exemption is preserved because CSS can make it meaningful.
-- Lockfiles compare recognized rendering dependencies and their resolved transitive closure.
-  Unrelated tooling/backend updates are clean. Unknown rendering configs/plugins still flag.
-  Inactive variants, unused assets and an apparently inert removed class can also be flagged.
-- Impact is a conservative approximation. Findings retain direct source changes and one
-  consumer example instead of thousands of downstream records. Large changed definitions
-  and usage inventories are sampled deterministically within the report budget.
-- The default limits are 2 MiB per source file, 256 MiB per source snapshot, 24 resolution
-  levels and 5,000 evaluation steps per expression. Resolver caches are isolated per visual
-  source file, fallback caches per expression, and parser garbage collection also runs within
-  large import walks. JSON imports and their full semantic identities are cached per revision;
-  malformed imported JSON retains its source blob as uncertainty evidence. Exported functions outside the affected dependency region retain their
-  identity while changed caller arguments are still compared. Computed keys drawn from
-  immutable Object.entries/values loops are bounded to their declared literal keys; escaping
-  or mutated collections retain uncertainty. Literal-alias normalization caps expanded clones at 128 AST nodes. Per-file/parser/expression limits produce
-  flags with limitations; snapshot/Git failures are operational failures, never clean results.
+This is repository automation, not a published package. Internal imports use `#design-diff/*`.
+The revision-dependent CLI is deliberately outside the generic audit runner.
 
 ## Cloud execution and activation
 
-`design-review.yml` listens for PR opened, reopened, synchronized, edited and ready-for-review
-events targeting `staging`, including drafts, without path filters. A manual dispatch from
-the default branch accepts an open staging PR number. Newer runs cancel older runs for the
-same PR. The job uses the existing Blacksmith/GitHub-hosted runner selection and a 15-minute
-timeout, read-only repository permissions, pinned Actions and Bun 1.4.1.
+The production workflow targets PRs against `staging`, including drafts, without path filters.
+It uses the immutable default-branch engine/configuration, pinned Actions and Bun 1.4.1, read-only
+permissions and a 15-minute timeout. Event commits are fetched as data; proposed application code
+is neither checked out nor installed. Superseded PR runs are cancelled.
 
-The job resolves the repository's default branch to an immutable SHA, checks out only that
-trusted engine/configuration/lockfile, and installs with `--ignore-scripts`. Event base/head
-commits are fetched as Git objects. Proposed application code is neither checked out nor
-installed. The read-only GitHub token is used for repository metadata and fetches; the
-analysis step receives no application secrets.
+The only findings output is a JSON artifact named `design-diff-<PR>-<head SHA>`, retained for seven
+days. There are no comments, labels, annotations or findings summaries. Later consumers must check
+`status: completed` and the current PR/head identity. A missing, cancelled or failed run is not clean.
+The workflow is advisory and no branch-protection configuration is changed.
 
-The sole findings output is a JSON artifact named `design-diff-<PR>-<head SHA>` with **7-day
-retention**. No comments, labels, review annotations or findings summaries are created.
-Later consumers must require `status: completed` and compare report PR/head identity with
-current PR metadata before using the result. A failed/cancelled run or missing artifact is
-not a clean analysis. This workflow is advisory; no required-check or branch-protection
-configuration is changed.
+**Activation requires the workflow and engine to reach `main`.** Its absence on the draft PR is
+not evidence of a passing analysis. A temporary push-triggered benchmark branch can test a pinned
+engine before activation; old benchmark and smoke runs do not validate a newer engine.
 
-**Activation requires this workflow and engine to reach `main`, the default branch.** The
-dedicated workflow's absence on the initial draft PR is not a passing cloud result.
-This follows GitHub's documented
-[`pull_request_target` execution context](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target).
-Existing PR test/audit CI can validate the new suites before activation.
-
-## Validation
+## Validation and historical replay
 
 ```sh
 bun run test:scripts
 bun run check:script-tests
 bun run check:design-diff-types
 bun run check:api-validation
-```
-
-Script-test discovery through `scripts/vitest.config.ts` includes every suite in `tests/`. The fixtures exercise visual
-categories, noops, movement, shared imports/themes, source order, documents/native rendering,
-Git divergence/renames/deletions/binaries/unusual names/missing history, bounded evaluation,
-deterministic output, CLI failure status and non-execution of proposed code/plugins.
-
-The following historical diffs were also inspected manually and compared locally. These
-are whole commits, including ancillary changes, rather than only their headline files.
-
-| Commit | Manual expectation | Engine outcome |
-| --- | --- | --- |
-| `b890e242e0` | Flag: ChipSwitch adds `w-fit`; also changes shared modal/settings source | Flagged; static and unresolved evidence |
-| `915833bfc8` | Flag: handler removal itself is not a style change, but the commit also upgrades Radix dependencies/lockfile | Flagged for dependency/runtime uncertainty |
-| `3878bd48a1` | Flag: docs screenshots gain explicit dimensions/max-width through an MDX Image component | Flagged; content and MDX expressions |
-| `1dd85eb688` | Flag: desktop shell/tab UI and native terminal light/dark palettes change across a large PR | Flagged; visual definitions and native/runtime uncertainty |
-| `d51d646d54` | Clean: CLI OAuth refresh documentation comments only | Clean; zero findings |
-
-These comparisons validate source-policy behavior, not rendered pixels or recall over all
-historical PRs. Screenshot capture, AI interpretation and Slack delivery are separate stages.
-
-### Earlier incremental smoke test on PR #7742 (schema 2)
-
-Five temporary commits were created directly on `458a515cbed7fbcf127ce72348ff755c5308ce13`,
-each changing one existing source file. Comparing that commit with each temporary head
-isolated the test edit from the implementation PR's own dependency changes. No temporary
-UI edits were checked out, pushed or included in the PR.
-
-| Incremental edit | Schema 2 result |
-| --- | --- |
-| EMCN Button `rounded-[5px]` to `rounded-none` | One flag anchored to Button source, retaining two direct changes and one consumer example |
-| Send button token `bg-[#383838]` to `bg-[#E11D48]` | One flag anchored to the token source; `colour` evidence reaches unchanged `SendButton` |
-| Send button token `p-0` to `p-2` | One flag anchored to the token source; `dimensions` evidence reaches unchanged `SendButton` |
-| TSDoc wording only in EMCN Button | Clean; zero findings |
-| Add `translate-x-2` to the send button token | One flag; movement is not proven harmless in this runtime context |
-
-The experiment exposed and fixed dropped semicolons between CSS custom-variant statements
-and missing recognition of the repository's `cn` import from `@sim/emcn`. Regression tests
-cover both. All five overall flagging decisions matched expectations. Generated translation
-declarations still receive the broader `layout` category rather than `movement`; the flag
-decision remains conservative.
-
-Schema 1 produced 2,207 findings for the shared shape edit and 93 for each local token edit.
-Export-aware propagation and changed-source grouping reduce each of those reports to one
-finding. The Button report enumerates 353 direct references in 131 files in each revision;
-the local token edits enumerate two references in the single `SendButton` consumer file.
-These are partial source-reference counts, not claims that every reference changes visually.
-Independent changed source files remain separate findings, and all direct definition changes
-within each changed file are retained.
-
-These earlier checks do not validate the revised schema 3 engine or cloud workflow activation. They are examples,
-not a measured detection rate across all possible UI changes.
-
-## Frozen historical benchmark
-
-The manifest preserves the original 120 comparisons (baseline: 108 flagged, including 39/49
-source-reviewed nonvisual cases) and the next 60 entries of the original SHA-256 sampling
-order. Holdout source-review labels were frozen before revised engine results: 37 clear
-visual/content, 18 nonvisual and 5 uncertain. Labels describe source edits, not rendered pixel
-ground truth. Corrections must be documented separately rather than rewriting frozen labels.
-Holdout PRs #6986 and #6929 were inspected while debugging resolver precision and resource
-use after labels were frozen, so this is not a wholly untouched blind evaluation.
-
-Import-graph construction uses syntax parsing without repeatedly running expression/refactor
-normalization. Bounded expression fallbacks retain captured helper inputs (including progress
-title maps), select statically known properties, and exclude type-only references. Re-export
-watchers distinguish changes to the forwarded export from unrelated declarations in its module.
-Custom props are exempt as event-only only when a resolved destructured prop is used exclusively
-to select JSX event handlers; the same rule applies inside nested JSX expressions. Unknown
-components and props with rendered uses keep conservative findings.
-Unchanged consumers are visited in dependency-distance order before source-path order, so a
-nearby visible use supplies the retained example before distant application plumbing when possible.
-The engine is a PR qualifier, not an exhaustive inventory of indirect effects. It analyzes every
-changed file, then follows unchanged consumers only while needed to establish whether the PR
-qualifies, retaining one nearby rendering-consumer examination when available. Once any retained
-finding flags and that examination is done, further indirect analysis cannot change the decision
-and is omitted with an explicit coverage limitation. Clean results still require all candidates
-to be examined. Direct findings, grouped source attribution and resolved usage counts remain.
-
-Opaque runtime factories can still connect backend or authentication changes to UI inputs too
-broadly. These findings count as apparent false positives against the frozen nonvisual labels;
-an unresolved finding is not proof that pixels changed. Qualification and false-positive rates
-must be reported separately, with failed comparisons excluded from neither the failure count
-nor the denominator disclosure.
-
-```sh
 bun --no-env-file scripts/design-diff/benchmark.ts \
-  --engine /path/to/clean/engine-checkout --sha <immutable-engine-commit> \
+  --engine /path/to/clean/checkout --sha <immutable-engine-commit> \
   --manifest scripts/design-diff/benchmark/comparisons.json --output /tmp/design-benchmark
 ```
 
-Fetch manifest commit objects beforehand; missing history fails explicitly. The runner verifies
-the frozen comparison commits and GitHub file sets. Cache identity includes engine SHA, trusted
-config, lockfile, runtime and comparison commits, with report-content verification before reuse.
-It awaits native Bun process exit status and records per-comparison elapsed time and peak RSS
-separately from deterministic reports. The default comparison deadline is 900 seconds.
-For research, `--timeout-seconds` accepts 1–3600 seconds and enters the cache identity;
-it does not change the production workflow timeout. Report comparisons exceeding 900 seconds
-separately because they cannot fit that workflow budget. Failed runs retain bounded stderr diagnostics in a
-separate file, without printing source findings to logs.
-`/usr/bin/time` is required (macOS or Linux); source findings are not printed. Review original
-and holdout rates separately, and inspect every disagreement against the source label.
+Script test discovery includes every engine suite. Tests cover explicit appearance edits, exempt
+content/reuse/media/uncertainty, shared tokens/themes/variants, matching, Git divergence/renames/
+deletions/binaries/unusual names/missing history, deterministic bounded reports and non-execution.
+Fixtures stay inside test strings/JSON so application builds and styling scans do not consume them.
+
+The frozen manifest contains the original 120 comparisons plus 60 later sampled holdouts. Its
+original labels use a broader visual/content policy and must not be treated as policy-5 ground
+truth. Preserve original labels and document policy-specific review separately. The prior policy-4
+run completed 178/180 comparisons, flagging 112; two timed out. That is historical context only.
+
+The runner verifies exact commits and GitHub file sets. Its cache identity includes immutable
+engine SHA, configuration, lockfile, runtime and comparison commits. It records elapsed time,
+peak RSS, report size and failures separately. `/usr/bin/time` and Bun 1.4.1 are required. The default
+per-comparison deadline is 900 seconds; failed cases remain explicit failures in rate reporting.

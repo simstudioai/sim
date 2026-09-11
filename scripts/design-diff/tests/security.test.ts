@@ -21,7 +21,9 @@ it('never executes proposed source or JavaScript plugins', async () => {
     const report = await analyze(repo.cwd, base, head, config)
     expect(report.flagged).toBe(true)
     expect(
-      allChanges(report).some((finding) => finding.reason === 'Rendering infrastructure changed')
+      allChanges(report).some(
+        (finding) => finding.category === 'infrastructure' && finding.decision === 'exempt'
+      )
     ).toBe(true)
     expect(existsSync(sentinel)).toBe(false)
   } finally {
@@ -54,8 +56,8 @@ it('writes failed JSON and exits nonzero for an operational failure', () => {
 it('exits successfully for completed flagged analysis and stays quiet with --output', () => {
   const repo = new FixtureRepo()
   try {
-    const base = repo.commit({ 'apps/sim/a.tsx': 'export const A=()=> <div>First</div>' })
-    const head = repo.commit({ 'apps/sim/a.tsx': 'export const A=()=> <div>Second</div>' })
+    const base = repo.commit({ 'apps/sim/a.tsx': 'export const A=()=> <div className="p-2"/>' })
+    const head = repo.commit({ 'apps/sim/a.tsx': 'export const A=()=> <div className="p-4"/>' })
     const output = path.join(repo.cwd, 'result.json')
     const cli = fileURLToPath(new URL('../cli.ts', import.meta.url))
     const stdout = execFileSync(
@@ -73,7 +75,7 @@ it('exits successfully for completed flagged analysis and stays quiet with --out
   }
 })
 
-it('reviews an affected file beyond the source-size limit', async () => {
+it('records a source-size coverage limit without notifying', async () => {
   const repo = new FixtureRepo()
   try {
     const base = repo.commit({ 'apps/sim/a.tsx': 'export const A=()=> <div/>' })
@@ -82,8 +84,8 @@ it('reviews an affected file beyond the source-size limit', async () => {
       ...config,
       limits: { ...config.limits, fileBytes: 10 },
     })
-    expect(report.flagged).toBe(true)
-    expect(allChanges(report)[0].decision).toBe('flag')
+    expect(report.flagged).toBe(false)
+    expect(report.limitations.join(' ')).toContain('source size limit')
   } finally {
     repo.close()
   }

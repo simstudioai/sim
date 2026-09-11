@@ -168,6 +168,11 @@ export class TailwindNormalizer {
                 : data.$classes
             return { ...data, $classes: normalize(effective), inputOrder: data.$classes }
           }
+          if (Array.isArray(data)) return data.map(normalize)
+          if (object(data) && '$condition' in data)
+            return { $condition: 'runtime', then: normalize(data.then), else: normalize(data.else) }
+          if (object(data) && data.$operator === '&&')
+            return { $operator: '&&', right: normalize(data.right) }
           if (object(data) && Array.isArray(data.$cva)) {
             const [base, options] = data.$cva
             const variants = object(options) && object(options.variants) ? options.variants : {}

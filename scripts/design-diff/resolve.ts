@@ -119,7 +119,22 @@ export class Resolver {
     this.dependencies = new Set([file])
     this.unresolved = new Set()
     const fullValue = this.value(path, file, 0)
-    const value = previewValue(fullValue, undefined, this.semantics)
+    let literalBudget = 256
+    const seenLiterals = new Set<object>()
+    const authoredLiteral = (data: Data): boolean => {
+      if (--literalBudget < 0) return false
+      if (data === null || typeof data !== 'object') return true
+      if (seenLiterals.has(data)) return false
+      seenLiterals.add(data)
+      return (
+        !Object.keys(data).some((key) => key.startsWith('$')) &&
+        Object.values(data).every(authoredLiteral)
+      )
+    }
+    /** Small literal structures retain full strings until appearance comparison and report previewing. */
+    const value = authoredLiteral(fullValue)
+      ? fullValue
+      : previewValue(fullValue, undefined, this.semantics)
     if (value !== fullValue)
       this.unresolved.add('Large visual input summarized after full semantic hashing')
     const result = {
@@ -962,8 +977,22 @@ export class Resolver {
       const exported = module.exports.get(name)
       if (exported) {
         /** Its indexed dependency region is unchanged in this comparison; preserve callable identity and analyze changed arguments at the caller. */
-        if (this.affected && !this.affected.has(file) && exported.isFunction())
-          return { $unchangedFunction: { file, export: name } }
+        if (this.affected && !this.affected.has(file) && exported.isFunction()) {
+          const body = child(exported, 'body')
+          const returned =
+            body.isBlockStatement() &&
+            body.node.body.length === 1 &&
+            t.isReturnStatement(body.node.body[0])
+              ? body.node.body[0].argument
+              : body.node
+          if (
+            !returned ||
+            !['StringLiteral', 'NumericLiteral', 'BooleanLiteral', 'Identifier'].includes(
+              returned.type
+            )
+          )
+            return { $unchangedFunction: { file, export: name } }
+        }
         if (exported.isVariableDeclarator()) {
           const value = this.destructured(exported, name, file, depth + 1)
           if (value !== undefined) return value

@@ -23,17 +23,18 @@ it('retains a nearby visual consumer before a distant opaque consumer', async ()
   const direct = 'apps/sim/z-title.tsx'
   const report = await compareFiles(
     {
-      [token]: 'export const title="Filling"',
-      [direct]: 'import {title} from "./token";export const Title=()=> <span>{title}</span>',
+      [token]: 'export const title="red"',
+      [direct]:
+        'import {title} from "./token";export const Title=()=> <span style={{color:title}}/>',
       'apps/sim/helper.ts': 'import {title} from "./token";export const config=unknown(title)',
       'apps/sim/a-distant.tsx':
         'import {config} from "./helper";export const View=()=> <Widget config={config}/>',
     },
-    { [token]: 'export const title="Filling form"' },
+    { [token]: 'export const title="blue"' },
     settings
   )
   expect(report.findings[0].example?.change.after?.location.file).toBe(direct)
-  expect(report.findings[0].example?.change.category).toBe('content')
+  expect(report.findings[0].example?.change.category).toBe('colour')
 })
 
 it('keeps direct findings and declares partial indirect coverage after qualification', async () => {
@@ -141,10 +142,10 @@ it('uses only binary decisions while retaining uncertainty and operational failu
     settings
   )
   expect(report.schemaVersion).toBe('3.0.0')
-  expect(report.policyVersion).toBe('4.0.0')
+  expect(report.policyVersion).toBe('5.0.0')
   expect(report.status).toBe('completed')
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
   expect(report.findings.every((finding) => finding.decision === 'flag')).toBe(true)
   expect(allChanges(report).every((change) => change.decision === 'flag')).toBe(true)
-  expect(report.findings[0].limitations).toContain('Function call is not executed')
+  expect(report.limitations).toContain('Function call is not executed')
 })

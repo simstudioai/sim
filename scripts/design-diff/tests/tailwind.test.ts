@@ -19,14 +19,14 @@ it('normalizes pinned core utilities and per-app theme definitions', async () =>
   expect(JSON.stringify(finding?.after?.value)).toContain('--color-brand')
 })
 
-it('reviews unsupported custom utilities', async () => {
+it('does not notify on unsupported custom utilities alone', async () => {
   const report = await compareFiles(
     { [file]: 'export const A=()=> <div className="p-2"/>' },
     { [file]: 'export const A=()=> <div className="custom-plugin-button"/>' },
     { ...config, themes: [] }
   )
-  expect(allChanges(report)[0].decision).toBe('flag')
-  expect(allChanges(report)[0].limitations.join(' ')).toContain('Unsupported utility')
+  expect(report.flagged).toBe(false)
+  expect(report.limitations.join(' ')).toContain('Unsupported utility')
 })
 
 it('preserves dark/responsive/state variants', async () => {

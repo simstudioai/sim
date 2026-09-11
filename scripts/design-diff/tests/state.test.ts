@@ -9,7 +9,7 @@ it.each([
   ['alias', "import {useState as state} from 'react'", 'state'],
   ['namespace', "import * as React from 'react'", 'React.useState'],
   ['default', "import React from 'react'", 'React.useState'],
-])('traces error copy assigned through a %s React state binding', async (_name, imports, hook) => {
+])('exempts error copy assigned through a %s React state binding', async (_name, imports, hook) => {
   const source = (message: string) => `${imports};const ERROR='${message}';
     export function Page(){const [errors,setErrors]=${hook}([]);
     async function submit(){try {await signIn()}catch {setErrors([ERROR])}}
@@ -19,8 +19,8 @@ it.each([
     { [view]: source('Check your email and try again') },
     settings
   )
-  expect(report.flagged).toBe(true)
-  expect(allChanges(report).some((change) => change.after?.location.file === view)).toBe(true)
+  expect(report.flagged).toBe(false)
+  expect(allChanges(report).some((change) => change.after?.location.file === view)).toBe(false)
 })
 
 it.each([
@@ -34,7 +34,7 @@ it.each([
     function click(){update(${update})}return <button onClick={click} ${prop}/>}`
   expect(
     (await compareFiles({ [view]: source(before) }, { [view]: source(after) }, settings)).flagged
-  ).toBe(true)
+  ).toBe(['colour', 'padding'].includes(_name))
 })
 
 it('keeps unrelated handler telemetry and unrendered state clean', async () => {
@@ -48,13 +48,13 @@ it('keeps unrelated handler telemetry and unrendered state clean', async () => {
   ).toBe(false)
 })
 
-it('retains conditions controlling a rendered state update', async () => {
+it('exempts runtime conditions controlling unchanged state values', async () => {
   const source = (guard: string) => `import {useState} from 'react';
     export function Page({a,b}){const [value,setValue]=useState('ready');
     function click(){if(${guard})setValue('done')}return <button onClick={click}>{value}</button>}`
   expect(
     (await compareFiles({ [view]: source('a') }, { [view]: source('b') }, settings)).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it('does not trust a local function merely named useState', async () => {
@@ -67,7 +67,7 @@ it('does not trust a local function merely named useState', async () => {
   ).toBe(false)
 })
 
-it('retains the branch containing a state update', async () => {
+it('exempts moving an unchanged state update between runtime branches', async () => {
   const source = (body: string) => `import {useState} from 'react';
     export function Page({ready}){const [value,setValue]=useState('ready');
     function click(){${body}}return <button onClick={click}>{value}</button>}`
@@ -79,7 +79,7 @@ it('retains the branch containing a state update', async () => {
         settings
       )
     ).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it('keeps a state/setter rename and constant hoist equivalent', async () => {

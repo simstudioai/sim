@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { canonicalJson } from '#design-diff/ast'
-import { compareDefinitions } from '#design-diff/compare'
+import { compareDefinitions, finding } from '#design-diff/compare'
 import { Resolver } from '#design-diff/resolve'
 import type { SourceTree } from '#design-diff/source'
 import type { Change, Config, Data, Definition } from '#design-diff/types'
@@ -63,10 +63,10 @@ export function fileLoadedInputs(before: SourceTree, after: SourceTree, config: 
     const a = read(before, input)
     const b = read(after, input)
     findings.push(...compareDefinitions(a, b))
-    /** An unchanged invalid configured input is a coverage failure, never a clean analysis. */
+    /** Invalid documentation remains an explicit coverage note without notifying the designer. */
     for (const definition of b.filter((definition) => definition.unresolved.length))
       if (!findings.some((finding) => finding.after?.location.file === definition.location.file))
-        findings.push(...compareDefinitions([], [definition]))
+        findings.push(finding(undefined, definition))
   }
   return findings
 }

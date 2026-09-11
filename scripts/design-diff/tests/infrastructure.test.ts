@@ -11,7 +11,7 @@ const lock = (react: string, scheduler: string, backend: string) =>
     },
   })
 
-it('ignores unrelated lock changes and retains rendering transitive changes', async () => {
+it('retains rendering dependency diagnostics without notifying on version changes alone', async () => {
   const a = lock('19', '1', '1')
   expect(renderingLock(a, config.renderingDependencies)).toEqual(
     renderingLock(lock('19', '1', '2'), config.renderingDependencies)
@@ -24,7 +24,7 @@ it('ignores unrelated lock changes and retains rendering transitive changes', as
   ).toBe(false)
   expect(
     (await compareFiles({ 'bun.lock': a }, { 'bun.lock': lock('19', '2', '1') })).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it('retains uncertainty for unsupported lockfile formats without executing content', () => {

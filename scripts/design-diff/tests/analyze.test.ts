@@ -9,11 +9,12 @@ const cases: { name: string; before: string; after: string; category: string }[]
 const file = 'apps/sim/components/button.tsx'
 
 describe('visual policy integration', () => {
-  it.each(cases)('flags $name', async (fixture) => {
+  it.each(cases)('classifies $name', async (fixture) => {
     const report = await compareFiles({ [file]: fixture.before }, { [file]: fixture.after })
     expect(report.status).toBe('completed')
-    expect(report.flagged).toBe(true)
-    expect(allChanges(report).some((finding) => finding.category === fixture.category)).toBe(true)
+    expect(report.flagged).toBe(fixture.category !== 'content')
+    if (fixture.category !== 'content')
+      expect(allChanges(report).some((finding) => finding.category === fixture.category)).toBe(true)
     expect(
       allChanges(report).every(
         (finding) => finding.before?.location.file === file || finding.after?.location.file === file
@@ -66,31 +67,31 @@ describe('visual policy integration', () => {
     expect(report.flagged).toBe(false)
   })
 
-  it('preserves meaningful JSX whitespace', async () => {
+  it('exempts wording-only JSX whitespace', async () => {
     const report = await compareFiles(
       { [file]: 'export const A=()=> <div><b>A</b> <b>B</b></div>' },
       { [file]: 'export const A=()=> <div><b>A</b><b>B</b></div>' }
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(false)
   })
 
-  it('preserves JSX spread precedence', async () => {
+  it('does not flag unknown spread precedence without concrete appearance values', async () => {
     const report = await compareFiles(
       { [file]: 'export const A=(props)=> <div {...props} className="p-2"/>' },
       { [file]: 'export const A=(props)=> <div className="p-2" {...props}/>' }
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(false)
   })
 
-  it('detects an early return that controls visibility', async () => {
+  it('exempts functional early-return changes', async () => {
     const report = await compareFiles(
       { [file]: 'export function A({enabled}){if(!enabled)return null;return <div>Hi</div>}' },
       { [file]: 'export function A({enabled}){if(enabled)return null;return <div>Hi</div>}' }
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(false)
   })
 
-  it('tracks switch cases that select visible markup', async () => {
+  it('exempts functional markup selection', async () => {
     const report = await compareFiles(
       {
         [file]:
@@ -101,10 +102,10 @@ describe('visual policy integration', () => {
           'export function A({mode}){switch(mode){case "two":return <div>Hi</div>;default:return null}}',
       }
     )
-    expect(report.flagged).toBe(true)
+    expect(report.flagged).toBe(false)
   })
 
-  it('reviews changed writes to a mutable style binding', async () => {
+  it('records unsupported mutable bindings without notifying', async () => {
     const report = await compareFiles(
       {
         [file]:
@@ -115,17 +116,17 @@ describe('visual policy integration', () => {
           'let colour="red";if(enabled)colour="green";export const A=()=> <div style={{color:colour}}/>',
       }
     )
-    expect(report.flagged).toBe(true)
-    expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
+    expect(report.flagged).toBe(false)
+    expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(false)
   })
 
-  it('returns review for invalid syntax', async () => {
+  it('keeps parser failures exempt with explicit coverage notes', async () => {
     const report = await compareFiles(
       { [file]: 'export const A=()=> <div />' },
       { [file]: 'export const A=()=> <div' }
     )
     expect(report.status).toBe('completed')
-    expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
+    expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(false)
   })
 
   it('has deterministic ordering, IDs and commit metadata', async () => {

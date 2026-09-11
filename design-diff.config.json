@@ -3,7 +3,9 @@
   "exclude": [
     "(?:^|/)(?:node_modules|__tests__|__fixtures__|fixtures|test-results|\\.source|dist|build)/",
     "\\.(?:test|spec)\\.[cm]?[jt]sx?$",
-    "(?:^|/)next-env\\.d\\.ts$"
+    "(?:^|/)next-env\\.d\\.ts$",
+    "(?:^|/)public/",
+    "(?:^|/)sandbox/bundles/"
   ],
   "renderedMarkdown": ["apps/docs/content/", "apps/sim/content/"],
   "aliases": [

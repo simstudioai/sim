@@ -24,8 +24,8 @@ import type { Change, Config, Definition, Report } from '#design-diff/types'
 export function emptyReport(): Report {
   return {
     schemaVersion: '3.0.0',
-    engineVersion: '0.4.0',
-    policyVersion: '4.0.0',
+    engineVersion: '0.5.0',
+    policyVersion: '5.0.0',
     commits: null,
     status: 'failed',
     flagged: null,
@@ -155,7 +155,7 @@ export async function analyze(
       }
       try {
         if (scriptPattern.test(file)) {
-          const defs = extractTsx(resolver, file)
+          const defs = extractTsx(resolver, file, true)
           if (config.nativeRendering.includes(file))
             defs.push(
               review(
@@ -182,7 +182,7 @@ export async function analyze(
           /\.html?$/.test(file) ||
           (/\.mdx?$/.test(file) && config.renderedMarkdown.some((root) => file.startsWith(root)))
         )
-          return normalizeAll(extractDocument(source, file, resolver))
+          return normalizeAll(extractDocument(source, file, resolver, true))
         if (/\.(?:scss|sass|less|vue|svelte)$/.test(file))
           return [review(file, entry.oid, 'Unsupported rendering syntax')]
       } catch {
@@ -232,6 +232,13 @@ export async function analyze(
       const oldFile = renames.get(file) ?? file
       const a = await extract(before, previousTailwind, oldFile)
       const b = await extract(after, nextTailwind, file)
+      report.limitations = [
+        ...new Set([
+          ...report.limitations,
+          ...a.flatMap((definition) => definition.unresolved),
+          ...b.flatMap((definition) => definition.unresolved),
+        ]),
+      ].sort()
       findings.push(...compareDefinitions(a, b, affected))
       if (!changed.has(file) && (a.length || b.length)) indirectExamples++
       if (

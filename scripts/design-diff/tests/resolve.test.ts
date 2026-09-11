@@ -56,7 +56,7 @@ it('follows dependencies from both revisions when an import is replaced', async 
   )
 })
 
-it('bounds cycles and reviews unresolved changed consumers', async () => {
+it('bounds cycles without notifying on unresolved effects', async () => {
   const report = await compareFiles(
     {
       [token]: 'import { padding as other } from "./other"; export const padding=other',
@@ -65,8 +65,8 @@ it('bounds cycles and reviews unresolved changed consumers', async () => {
     },
     { [token]: 'import { padding as other } from "./other"; export const padding=other+1' }
   )
-  expect(report.flagged).toBe(true)
-  expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
+  expect(report.flagged).toBe(false)
+  expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(false)
 })
 
 it('retains conditional branches and CVA variants/defaults', async () => {
@@ -125,7 +125,7 @@ it.each([
   expect(finding?.dependencies).toContain(token)
 })
 
-it('reviews unsupported class helpers instead of executing or trusting their names', async () => {
+it('exempts unsupported class helpers without executing them', async () => {
   const source = (value: string) =>
     `import {clsx} from 'untrusted-helper'; export const A=()=> <div className={clsx('${value}')}/>`
   const report = await compareFiles(
@@ -133,10 +133,10 @@ it('reviews unsupported class helpers instead of executing or trusting their nam
     { [consumer]: source('p-4') },
     { ...config, themes: [] }
   )
-  expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
+  expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(false)
 })
 
-it('propagates changed imports into unresolved MDX expressions', async () => {
+it('exempts changed documentation expressions', async () => {
   const document = 'apps/docs/content/a.mdx'
   const report = await compareFiles(
     {
@@ -145,7 +145,9 @@ it('propagates changed imports into unresolved MDX expressions', async () => {
     },
     { 'apps/docs/token.ts': 'export const title = "Second"' }
   )
-  expect(allChanges(report).some((finding) => finding.after?.location.file === document)).toBe(true)
+  expect(allChanges(report).some((finding) => finding.after?.location.file === document)).toBe(
+    false
+  )
 })
 
 it('reviews a token change behind an unexecuted helper through transitive imports', async () => {

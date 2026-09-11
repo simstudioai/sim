@@ -31,17 +31,17 @@ it.each<Files>([
   { [spec]: null },
   { [list]: 'export const OPENAPI_SPEC_FILES=load()' },
   { [renderer]: null },
-])('flags unresolved configured input %j', async (change) => {
+])('records unresolved configured inputs without designer notifications: %j', async (change) => {
   const report = await compareFiles(files, change, config)
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
   expect(allChanges(report).some((change) => change.limitations.length)).toBe(true)
 })
 
-it('can retain broader JSON comparison with keys resembling erased AST fields', async () => {
+it('exempts file-loaded copy even without the documentation content setting', async () => {
   const report = await compareFiles(
     { ...files, [spec]: '{"properties":{"start":{"description":"First"},"end":{}}}' },
     { [spec]: '{"properties":{"start":{"description":"Second"},"end":{}}}' },
     { ...config, fileInputs: config.fileInputs?.map((input) => ({ ...input, contentOnly: false })) }
   )
-  expect(report.flagged).toBe(true)
+  expect(report.flagged).toBe(false)
 })

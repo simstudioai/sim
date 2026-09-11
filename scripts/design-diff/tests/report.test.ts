@@ -15,7 +15,8 @@ it('preserves small literal values and hashes changes beyond the retained previe
 
 it('detects changes after a preview and produces byte-identical bounded reports', async () => {
   const file = 'apps/sim/page.tsx'
-  const source = (ending: string) => `export const Page=()=> <p>${'x'.repeat(9000)}${ending}</p>`
+  const source = (ending: string) =>
+    `export const Page=()=> <p style={{fontFamily:"${'x'.repeat(9000)}${ending}"}}/>`
   const report = await compareFiles(
     { [file]: source('a') },
     { [file]: source('b') },
@@ -40,8 +41,8 @@ it('detects changes after a preview and produces byte-identical bounded reports'
 it('keeps failures distinguishable after serialization', () => {
   expect(JSON.parse(serializeReport(emptyReport()))).toMatchObject({
     schemaVersion: '3.0.0',
-    engineVersion: '0.4.0',
-    policyVersion: '4.0.0',
+    engineVersion: '0.5.0',
+    policyVersion: '5.0.0',
     status: 'failed',
     flagged: null,
   })
@@ -50,7 +51,8 @@ it('keeps failures distinguishable after serialization', () => {
 it('repeats the analysis itself byte-identically with shortened values and sampled findings', async () => {
   const repo = new FixtureRepo()
   try {
-    const source = (ending: string) => `export const Page=()=> <p>${'x'.repeat(9000)}${ending}</p>`
+    const source = (ending: string) =>
+      `export const Page=()=> <p style={{fontFamily:"${'x'.repeat(9000)}${ending}"}}/>`
     const base = repo.commit({ 'apps/sim/page.tsx': source('a') })
     const head = repo.commit({ 'apps/sim/page.tsx': source('b') })
     const first = serializeReport(
