@@ -7,6 +7,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import binaryExtensionsList from 'binary-extensions'
 import type { ContractBody } from '@/lib/api/contracts'
 import type { fileParseContract } from '@/lib/api/contracts/storage-transfer'
@@ -16,18 +17,32 @@ import {
   isPayloadSizeLimitError,
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import {
   assertUserFileContentAccess,
   type ExecutionMaterializationContext,
 } from '@/lib/execution/payloads/materialization.server'
+import {
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  requestsPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { isFileParserError } from '@/lib/file-parsers/errors'
+import {
+  type FileContentProvenanceSource,
+  fileContentJsonResponse,
+  getFileContentProvenance,
+} from '@/lib/internal/file/operations'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
   ExternalUrlValidationError,
   fetchExternalUrlToWorkspace,
 } from '@/lib/uploads/contexts/workspace'
+import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
 import {
@@ -74,6 +89,7 @@ export interface FileParserOperationContext {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   requestId?: string
+  headers?: Headers
   signal?: AbortSignal
 }
 
@@ -91,6 +107,8 @@ interface ParseResult {
   originalName?: string // Original filename from database (for workspace files)
   viewerUrl?: string | null // Viewer URL for the file if available
   userFile?: UserFile // UserFile object for the raw file
+  /** Canonical lineage used only when presenting the private tool response. */
+  provenanceSource?: FileContentProvenanceSource
   metadata?: {
     fileType: string
     size: number
@@ -101,6 +119,32 @@ interface ParseResult {
 
 function getContentBytes(content: unknown): number {
   return typeof content === 'string' ? Buffer.byteLength(content, 'utf8') : 0
+}
+
+/** Keeps stored source lineage on byte-for-byte copies, including legacy absence. */
+async function resolveParserFileProvenance(
+  file: Pick<UserFile, 'key' | 'context'>,
+  access: FileReadAccessContext,
+  targetOwnerUserId: string
+): Promise<{
+  source?: FileContentProvenanceSource
+  copyProvenance: WorkspaceFileSecretProvenance
+}> {
+  const source = await resolveStoredFileProvenanceSource(file, access)
+  if (!source) return { copyProvenance: { status: 'unrecorded' } }
+  const provenance = await getBoundWorkspaceFileSecretProvenance(
+    access.workspaceId,
+    source.identity
+  )
+  return {
+    source,
+    copyProvenance:
+      provenance.status === 'exact' &&
+      provenance.entries.length > 0 &&
+      source.ownerUserId !== targetOwnerUserId
+        ? { status: 'unknown' }
+        : provenance,
+  }
 }
 
 export async function executeFileParserOperation(
@@ -122,6 +166,24 @@ export async function executeFileParserOperation(
       return Response.json({ success: false, error: 'Execution access denied' }, { status: 403 })
     }
     const { attributedUserId, workspaceId } = context
+    const sources: FileContentProvenanceSource[] = []
+    const includePrivateProvenance = Boolean(
+      context.headers &&
+        requestsPrivateToolMetadata(context.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
+    )
+    const contentResponse = async (body: Record<string, unknown>, init?: ResponseInit) =>
+      fileContentJsonResponse(
+        body,
+        includePrivateProvenance,
+        init,
+        includePrivateProvenance
+          ? await getFileContentProvenance(context.principal, workspaceId, sources, context.signal)
+          : undefined
+      )
+    const partialResponse = async (results: unknown[]) => {
+      const response = parsedOutputTooLargeResponse(results)
+      return contentResponse(await response.json(), { status: response.status })
+    }
     const fileReadAccess: FileReadAccessContext = {
       principal: context.principal,
       workspaceId,
@@ -168,7 +230,7 @@ export async function executeFileParserOperation(
 
         const remainingOutputBytes = MAX_MULTI_FILE_PARSE_OUTPUT_BYTES - totalOutputBytes
         if (remainingOutputBytes <= 0) {
-          return parsedOutputTooLargeResponse(results)
+          return await partialResponse(results)
         }
 
         const result = await parseFileSingle(
@@ -191,8 +253,9 @@ export async function executeFileParserOperation(
         if (result.success) {
           totalOutputBytes += getContentBytes(result.content)
           if (totalOutputBytes > MAX_MULTI_FILE_PARSE_OUTPUT_BYTES) {
-            return parsedOutputTooLargeResponse(results)
+            return await partialResponse(results)
           }
+          if (result.provenanceSource) sources.push(result.provenanceSource)
 
           const displayName =
             result.originalName || extractCleanFilename(result.filePath) || 'unknown'
@@ -213,13 +276,13 @@ export async function executeFileParserOperation(
         }
 
         if (result.error?.startsWith('Parsed file output is too large')) {
-          return parsedOutputTooLargeResponse(results)
+          return await partialResponse(results)
         }
 
-        results.push(result)
+        results.push(omit(result, ['provenanceSource']))
       }
 
-      return Response.json({
+      return await contentResponse({
         success: true,
         results,
       })
@@ -242,8 +305,9 @@ export async function executeFileParserOperation(
     }
 
     if (result.success) {
+      if (result.provenanceSource) sources.push(result.provenanceSource)
       const displayName = result.originalName || extractCleanFilename(result.filePath) || 'unknown'
-      return Response.json({
+      return await contentResponse({
         success: true,
         output: {
           content: result.content,
@@ -258,7 +322,7 @@ export async function executeFileParserOperation(
       })
     }
 
-    return Response.json(result)
+    return Response.json(omit(result, ['provenanceSource']))
   } catch (error) {
     logger.error('Error in file parse API:', error)
     return Response.json(
@@ -337,6 +401,7 @@ async function parseFileSingle(
       fileType,
       workspaceId,
       attributedUserId,
+      fileReadAccess,
       executionContext,
       headers,
       signal,
@@ -498,15 +563,15 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
  * so keying a cache by filename returns stale bytes. `fetchExternalUrlToWorkspace`
  * delegates to `uploadWorkspaceFile`, which suffix-disambiguates collisions on save.
  *
- * Workspace save is skipped when the URL already points at our execution-files
- * bucket (re-uploading our own bytes is wasteful and would generate `image (1).png`
- * style aliases for files we already own).
+ * URLs for our execution-files storage resolve through the authorized canonical
+ * read path, keeping stored provenance bound to the same bytes the parser reads.
  */
 async function handleExternalUrl(
   url: string,
   fileType: string,
   workspaceId: string,
   userId: string,
+  fileReadAccess: FileReadAccessContext,
   executionContext?: ExecutionContext,
   headers?: Record<string, string>,
   signal?: AbortSignal,
@@ -516,36 +581,81 @@ async function handleExternalUrl(
   try {
     logger.info('Fetching external URL:', url)
 
-    const { getStorageConfig, USE_S3_STORAGE, USE_BLOB_STORAGE, USE_GCS_STORAGE } = await import(
-      '@/lib/uploads/config'
-    )
+    const { getStorageConfig, S3_CONFIG, USE_S3_STORAGE, USE_BLOB_STORAGE, USE_GCS_STORAGE } =
+      await import('@/lib/uploads/config')
     const executionConfig = getStorageConfig('execution')
 
-    let isExecutionFile = false
+    let executionFileKey: string | undefined
     try {
       const parsedUrl = new URL(url)
 
       if (USE_S3_STORAGE && executionConfig.bucket) {
-        const bucketInHost = parsedUrl.hostname.startsWith(executionConfig.bucket)
-        const bucketInPath = parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
-        isExecutionFile = bucketInHost || bucketInPath
+        const endpointHost = S3_CONFIG.endpoint ? new URL(S3_CONFIG.endpoint).host : undefined
+        const bucketHostPrefix = `${executionConfig.bucket}.`
+        const storageHost = parsedUrl.host.startsWith(bucketHostPrefix)
+          ? parsedUrl.host.slice(bucketHostPrefix.length)
+          : parsedUrl.host
+        const matchesStorageHost = endpointHost
+          ? storageHost === endpointHost
+          : /^s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(storageHost)
+        const bucketInHost = matchesStorageHost && parsedUrl.host.startsWith(bucketHostPrefix)
+        const bucketInPath =
+          matchesStorageHost && parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
+        if (bucketInHost || bucketInPath) {
+          executionFileKey = decodeURIComponent(
+            bucketInHost
+              ? parsedUrl.pathname.slice(1)
+              : parsedUrl.pathname.slice(executionConfig.bucket.length + 2)
+          )
+        }
       } else if (USE_BLOB_STORAGE && executionConfig.containerName) {
-        isExecutionFile = url.includes(`/${executionConfig.containerName}/`)
+        const prefix = `/${executionConfig.containerName}/`
+        if (
+          parsedUrl.hostname === `${executionConfig.accountName}.blob.core.windows.net` &&
+          parsedUrl.pathname.startsWith(prefix)
+        ) {
+          executionFileKey = decodeURIComponent(parsedUrl.pathname.slice(prefix.length))
+        }
       } else if (USE_GCS_STORAGE && executionConfig.bucket) {
-        const bucketInHost = parsedUrl.hostname.startsWith(`${executionConfig.bucket}.`)
-        const bucketInPath = parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
-        isExecutionFile = bucketInHost || bucketInPath
+        const bucketInHost =
+          parsedUrl.hostname === `${executionConfig.bucket}.storage.googleapis.com`
+        const bucketInPath =
+          parsedUrl.hostname === 'storage.googleapis.com' &&
+          parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
+        if (bucketInHost || bucketInPath) {
+          executionFileKey = decodeURIComponent(
+            bucketInHost
+              ? parsedUrl.pathname.slice(1)
+              : parsedUrl.pathname.slice(executionConfig.bucket.length + 2)
+          )
+        }
       }
     } catch (error) {
       logger.warn('Failed to parse URL for execution file check:', error)
-      isExecutionFile = false
+      executionFileKey = undefined
+    }
+
+    /** Read owned storage through its authorized, canonical bytes and provenance together. */
+    if (executionFileKey) {
+      return handleCloudFile(
+        executionFileKey,
+        fileType,
+        userId,
+        fileReadAccess,
+        fileReadAccess.principal,
+        workspaceId,
+        executionContext,
+        signal,
+        maxDownloadBytes,
+        maxParsedOutputBytes
+      )
     }
 
     const { filename, buffer, mimeType } = await fetchExternalUrlToWorkspace({
       url,
       userId,
       workspaceId: workspaceId || undefined,
-      saveToWorkspace: Boolean(workspaceId) && !isExecutionFile,
+      saveToWorkspace: Boolean(workspaceId),
       headers,
       signal,
       maxDownloadBytes,
@@ -558,7 +668,9 @@ async function handleExternalUrl(
     let userFile: UserFile | undefined
     if (executionContext) {
       try {
-        userFile = await uploadExecutionFile(executionContext, buffer, filename, mimeType, userId)
+        userFile = await uploadExecutionFile(executionContext, buffer, filename, mimeType, userId, {
+          status: 'unrecorded',
+        })
         logger.info(`Stored file in execution storage: ${filename}`, { key: userFile.key })
       } catch (uploadError) {
         logger.warn('Failed to store file in execution storage:', uploadError)
@@ -672,6 +784,12 @@ async function handleCloudFile(
       }
     }
 
+    const sourceProvenance = await resolveParserFileProvenance(
+      { key: cloudKey, context },
+      fileReadAccess,
+      attributedUserId
+    )
+
     let originalFilename: string | undefined
     // Not filtered to `context = 'workspace'`: a chat attachment carries the same key
     // prefix and has an `originalName` worth recovering too, and without it the parse
@@ -745,7 +863,8 @@ async function handleCloudFile(
             fileBuffer,
             filename,
             mimeType,
-            attributedUserId
+            attributedUserId,
+            sourceProvenance.copyProvenance
           )
           logger.info(`Copied file to execution storage: ${filename}`, { key: userFile.key })
         } catch (uploadError) {
@@ -802,6 +921,9 @@ async function handleCloudFile(
     // Attach userFile to the result
     if (userFile) {
       parseResult.userFile = userFile
+    }
+    if (parseResult.success && sourceProvenance.source) {
+      parseResult.provenanceSource = sourceProvenance.source
     }
 
     signal?.throwIfAborted()
@@ -873,6 +995,12 @@ async function handleLocalFile(
       }
     }
 
+    const sourceProvenance = await resolveParserFileProvenance(
+      { key: storageKey, context },
+      fileReadAccess,
+      attributedUserId
+    )
+
     const fullPath = path.join(UPLOAD_DIR_SERVER, storageKey)
 
     logger.info('Processing local file:', fullPath)
@@ -916,7 +1044,8 @@ async function handleLocalFile(
           fileBuffer,
           filename,
           mimeType,
-          attributedUserId
+          attributedUserId,
+          sourceProvenance.copyProvenance
         )
         logger.info(`Stored local file in execution storage: ${filename}`, { key: userFile.key })
       } catch (uploadError) {
@@ -930,6 +1059,7 @@ async function handleLocalFile(
       content,
       filePath,
       userFile,
+      provenanceSource: sourceProvenance.source,
       metadata: {
         fileType: mimeType,
         size: fileBuffer.length,

@@ -19,9 +19,14 @@ import {
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { StorageContext } from '@/lib/uploads'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  isOpaqueWorkspaceFileEgressSafe,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+  type WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   bufferToBase64,
+  extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
   isGeneratedDocumentSourceType,
   isPublicStorageContext,
@@ -215,10 +220,17 @@ function getExecutionKeyParts(key: string):
   }
 }
 
+export class ExecutionFileAccessError extends Error {
+  constructor() {
+    super('File is not available in this execution.')
+    this.name = 'ExecutionFileAccessError'
+  }
+}
+
 function assertExecutionFileScope(key: string, options: ExecutionMaterializationContext): void {
   const parts = getExecutionKeyParts(key)
   if (!parts) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   const allowedExecutionIds = new Set([
@@ -232,11 +244,11 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     options.workflowId === parts.workflowId
 
   if (options.workspaceId && parts.workspaceId !== options.workspaceId) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   if (options.workflowId && parts.workflowId !== options.workflowId) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   if (allowedFileKeys.has(key)) {
@@ -247,7 +259,7 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     !options.executionId ||
     (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
   ) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 }
 
@@ -344,7 +356,26 @@ export async function readUserFileContentWithContributors(
     throw new Error('Expected a file object with metadata.')
   }
 
-  await assertUserFileContentAccess(file, options)
+  let sourceIdentity: WorkspaceFileSecretProvenanceIdentity | undefined
+  const storageContext = file.key ? inferContextFromKey(file.key) : undefined
+  if (
+    (storageContext === 'execution' || storageContext === 'workspace') &&
+    options.principal &&
+    options.workspaceId
+  ) {
+    const { resolveStoredFileProvenanceSource } = await import(
+      '@/lib/execution/payloads/file-secret-provenance'
+    )
+    sourceIdentity = (
+      await resolveStoredFileProvenanceSource(file, {
+        ...options,
+        principal: options.principal,
+        workspaceId: options.workspaceId,
+      })
+    )?.identity
+  } else {
+    await assertUserFileContentAccess(file, options)
+  }
 
   const maxSourceBytes = options.maxSourceBytes ?? MAX_FUNCTION_FILE_BYTES
   if (Number.isFinite(file.size) && file.size > maxSourceBytes) {
@@ -364,8 +395,20 @@ export async function readUserFileContentWithContributors(
     const servable = await downloadServableFileFromStorage(file, requestId, log, {
       maxBytes: maxSourceBytes,
     })
+    /** Renderers may encode embedded assets, so literal provenance cannot describe those bytes. */
+    const renderWorkspaceId = options.workspaceId ?? extractWorkspaceIdFromStorageKey(file.key)
+    for (const contributor of servable.contributingFiles ?? []) {
+      if (
+        !renderWorkspaceId ||
+        !(await isOpaqueWorkspaceFileEgressSafe(renderWorkspaceId, contributor))
+      ) {
+        throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+      }
+    }
     buffer = servable.buffer
-    contributingFiles = servable.contributingFiles
+    contributingFiles = sourceIdentity
+      ? [sourceIdentity, ...(servable.contributingFiles ?? [])]
+      : servable.contributingFiles
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       if (isGeneratedDocumentSourceType(file.type) && error.observedBytes !== undefined) {

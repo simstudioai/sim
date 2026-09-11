@@ -166,6 +166,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         fileKeys: request.context.fileKeys,
         allowLargeValueWorkflowScope: request.context.allowLargeValueWorkflowScope,
         requestId: request.requestId,
+        headers: request.headers,
         signal: request.signal,
       })
     } else {

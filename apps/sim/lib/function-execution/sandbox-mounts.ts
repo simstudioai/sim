@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import {
   assertUserFileContentAccess,
   type ExecutionMaterializationContext,
@@ -7,6 +8,7 @@ import {
 import { MAX_SANDBOX_URL_MOUNT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
 import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { generatePresignedDownloadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
@@ -270,14 +272,36 @@ export function planUserFileMounts(
 export async function resolveUserFileMounts(args: {
   planned: readonly PlannedUserFileMount[]
   context: ExecutionMaterializationContext
-}): Promise<{ sandboxFiles: SandboxFile[]; manifest: SandboxMountManifestEntry[] }> {
+}): Promise<{
+  sandboxFiles: SandboxFile[]
+  manifest: SandboxMountManifestEntry[]
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+}> {
   const sandboxFiles: SandboxFile[] = []
   const manifest: SandboxMountManifestEntry[] = []
   const budget = createSandboxMountBudget()
+  const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  const addContributor = (identity: WorkspaceFileSecretProvenanceIdentity) => {
+    const revision = JSON.stringify([
+      identity.fileId,
+      identity.key,
+      identity.context,
+      identity.contentUpdatedAt?.getTime(),
+    ])
+    contributingFiles.set(revision, identity)
+  }
 
   for (const { userFile, mountPath } of args.planned) {
     const storageContext = resolveTrustedFileContext(userFile.key, userFile.context)
     await assertUserFileContentAccess(userFile, args.context)
+    if (args.context.principal && args.context.workspaceId) {
+      const source = await resolveStoredFileProvenanceSource(userFile, {
+        ...args.context,
+        principal: args.context.principal,
+        workspaceId: args.context.workspaceId,
+      })
+      if (source) addContributor(source.identity)
+    }
 
     await pushSandboxFileMount(
       sandboxFiles,
@@ -291,12 +315,16 @@ export async function resolveUserFileMounts(args: {
           // Base64 regardless of content type: the payload is reproduced exactly
           // for any byte sequence, and picking utf8 for a mistyped binary would
           // substitute U+FFFD and hand the code a corrupted file.
-          const { content } = await readUserFileContentWithContributors(userFile, {
-            ...args.context,
-            encoding: 'base64',
-            maxBytes,
-            maxSourceBytes: maxBytes,
-          })
+          const { content, contributingFiles: renderedContributors } =
+            await readUserFileContentWithContributors(userFile, {
+              ...args.context,
+              encoding: 'base64',
+              maxBytes,
+              maxSourceBytes: maxBytes,
+            })
+          for (const contributor of renderedContributors ?? []) {
+            addContributor(contributor)
+          }
           return {
             content,
             encoding: 'base64' as const,
@@ -321,5 +349,9 @@ export async function resolveUserFileMounts(args: {
     urlBytes: budget.url,
   })
 
-  return { sandboxFiles, manifest }
+  return {
+    sandboxFiles,
+    manifest,
+    ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
+  }
 }

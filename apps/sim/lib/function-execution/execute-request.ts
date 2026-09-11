@@ -55,7 +55,7 @@ import {
   MAX_INLINE_MATERIALIZATION_BYTES,
 } from '@/lib/execution/payloads/limits'
 import {
-  readUserFileContent,
+  readUserFileContentWithContributors,
   unavailableLargeValueError,
 } from '@/lib/execution/payloads/materialization.server'
 import {
@@ -93,9 +93,12 @@ import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  importWorkspaceFileSecretProvenanceForRuntime,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFiles } from '@/lib/uploads/core/storage-service'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
@@ -117,7 +120,12 @@ import {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
-import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import type {
+  ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
+
+const TEXT_OUTPUT_MIME_TYPES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -1014,6 +1022,67 @@ interface FunctionRouteExecutionContext {
    */
   unredactedSecretNames: Set<string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+  runtimeFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+  runtimeFileSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  runtimeInputProvenanceUnrecorded?: boolean
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+}
+
+/** Keeps bound file provenance in both ordinary Function results and exported artifact bytes. */
+async function importRuntimeFileContributors(
+  context: FunctionRouteExecutionContext,
+  identities: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
+): Promise<void> {
+  if (!identities?.length) return
+  if (!context.workspaceId) throw new Error('File provenance requires a workspace')
+  if (!context.runtimeInputProvenanceUnrecorded) {
+    context.runtimeFileSecretTraceRegistry ??=
+      context.resolvedSecretTraceRegistry?.forkForInputPaths([])
+  }
+  for (const identity of identities) {
+    const imported = await importWorkspaceFileSecretProvenanceForRuntime({
+      workspaceId: context.workspaceId,
+      identity,
+      registry: context.runtimeFileSecretTraceRegistry,
+      actorUserId: context.fileAccessUserId,
+    })
+    if (!imported) throw new Error('File secret provenance is unavailable for Function execution')
+  }
+  if (context.runtimeFileSecretTraceRegistry && context.resolvedSecretTraceRegistry) {
+    context.resolvedSecretTraceRegistry.mergeToolCallRegistry(
+      context.runtimeFileSecretTraceRegistry
+    )
+  }
+}
+
+/** Includes only lineage carried by the values this Function receives, including deferred refs. */
+async function importRuntimeInputProvenance(
+  context: FunctionRouteExecutionContext,
+  inputs: {
+    code: string
+    params: Record<string, unknown>
+    contextVariables: Record<string, unknown>
+  }
+): Promise<void> {
+  const registry = context.resolvedSecretTraceRegistry
+  if (!registry) return
+  const valueProvenance = registry.exportCommittedProvenanceForValue(inputs)
+  if (!valueProvenance.complete && context.workspaceId) {
+    const decision = await createWorkspaceFileSecretProvenanceFromRegistry(registry, inputs, {
+      userId: context.attributedUserId,
+      workspaceId: context.workspaceId,
+    })
+    if (decision.safe && decision.provenance.status === 'unrecorded') {
+      context.runtimeInputProvenanceUnrecorded = true
+      return
+    }
+  }
+  const inputRegistry = registry.forkForInputPaths(Object.keys(inputs).map((key) => [key]))
+  await inputRegistry.importProvenance(valueProvenance, {
+    trusted: true,
+    origin: 'function.runtimeInputs',
+  })
+  context.runtimeFileSecretTraceRegistry = inputRegistry
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1117,7 +1186,7 @@ function createFunctionRuntimeBrokers(
 
   const readFile = async (args: unknown, encoding: 'base64' | 'text', chunked = false) => {
     const fileArgs = getBrokerFileArgs(args)
-    return readUserFileContent(fileArgs.file, {
+    const materialized = await readUserFileContentWithContributors(fileArgs.file, {
       ...base,
       encoding,
       maxBytes: fileArgs.maxBytes,
@@ -1125,6 +1194,8 @@ function createFunctionRuntimeBrokers(
       offset: chunked ? fileArgs.offset : undefined,
       length: chunked ? fileArgs.length : undefined,
     })
+    await importRuntimeFileContributors(context, materialized.contributingFiles)
+    return materialized.content
   }
 
   return {
@@ -1256,7 +1327,10 @@ function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext)
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
   if (countProtectedOutputSecretNames(context) > 0) return true
-  return context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false
+  return Boolean(
+    context.mountedFileSecretProvenanceScanner?.hasSecrets ||
+      context.runtimeFileSecretProvenanceScanner?.hasSecrets
+  )
 }
 
 /**
@@ -1274,15 +1348,34 @@ async function getOutputFileSecretProvenance(
   context: FunctionRouteExecutionContext,
   scope: { userId: string; workspaceId: string }
 ): Promise<WorkspaceFileSecretProvenance> {
+  /** Runtime reads have settled before export; a broker cannot replace this with an older snapshot. */
+  if (context.runtimeFileSecretTraceRegistry && !context.runtimeFileSecretProvenanceScanner) {
+    const provenance = context.runtimeFileSecretTraceRegistry.exportProvenance()
+    context.runtimeFileSecretProvenanceScanner =
+      await createMountedFileSecretProvenanceScanner(provenance)
+    if (!context.runtimeFileSecretProvenanceScanner && provenance.entries.length > 0) {
+      context.runtimeFileSecretProvenanceScanner = {
+        hasSecrets: true,
+        scan: () => ({ status: 'unknown' }),
+      }
+    }
+  }
   if (isBinary) {
     return hasSecretMaterialInScope(context)
       ? { status: 'unknown' }
+      : context.runtimeInputProvenanceUnrecorded
+        ? { status: 'unrecorded' }
+        : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+  }
+  const mountedFileProvenance = mergeWorkspaceFileSecretProvenance(
+    context.mountedFileSecretProvenanceScanner?.scan(buffer) ??
+      EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    context.runtimeFileSecretProvenanceScanner?.scan(buffer) ??
+      EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    context.runtimeInputProvenanceUnrecorded
+      ? { status: 'unrecorded' }
       : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-  }
-  const mountedFileProvenance = context.mountedFileSecretProvenanceScanner?.scan(buffer) ?? {
-    status: 'exact' as const,
-    entries: [],
-  }
+  )
   if (countProtectedOutputSecretNames(context) === 0) {
     return mountedFileProvenance
   }
@@ -1531,12 +1624,11 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   const fileName = normalizeOutputWorkspaceFileName(outputPath)
 
-  const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
   const resolvedMimeType =
     outputMimeType ||
     FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
     'application/octet-stream'
-  const isBinary = !TEXT_MIMES.has(resolvedMimeType)
+  const isBinary = !TEXT_OUTPUT_MIME_TYPES.has(resolvedMimeType)
   const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
     return exportFailure(
@@ -1711,7 +1803,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       file.mimeType ||
       FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)] ||
       'application/octet-stream'
-    const isBinary = !new Set(Object.values(FORMAT_TO_CONTENT_TYPE)).has(resolvedMimeType)
+    const isBinary = !TEXT_OUTPUT_MIME_TYPES.has(resolvedMimeType)
     const size = Buffer.byteLength(content, isBinary ? 'base64' : 'utf-8')
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
@@ -1927,16 +2019,6 @@ function collectedFileName(relativePath: string): string {
 }
 
 /**
- * Persists files harvested from the sandbox output directory as platform file
- * objects, so any downstream tool that accepts a file can consume them.
- *
- * Uploaded here, one at a time, rather than handed to the declarative
- * file-output pipeline as bytes: that path would carry the whole export budget
- * as base64 through `JSON.stringify`, a response buffer, and a re-parse, so
- * several multiples of the payload would be live at once for a value that is a
- * couple of hundred bytes per file once stored.
- */
-/**
  * Removes files already uploaded when a later one in the same harvest is refused.
  *
  * The route answers with a failure and hands back no references, so anything
@@ -1959,6 +2041,7 @@ async function discardUploadedExecutionFiles(files: readonly UserFile[]): Promis
   }
 }
 
+/** Uploads harvested files sequentially, retaining their private provenance beside stored bytes. */
 async function collectExecutionOutputFiles(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
@@ -2001,37 +2084,40 @@ async function collectExecutionOutputFiles(args: {
       const name = collectedFileName(collected.relativePath)
       const mimeType = getMimeTypeFromExtension(getFileExtension(name))
 
-      // Scanned unconditionally — never gated on whether the bytes look textual.
-      // Both a filename check and a UTF-8 round-trip were trivially defeated: name
-      // the file `.png`, or append one invalid byte, and a plaintext secret sailed
-      // past. A lossy UTF-8 decode preserves ASCII runs, so a literal secret is
-      // findable in any buffer, textual or not.
-      //
-      // What stays out of reach is a secret carried in transformed form — deflated
-      // inside a PDF, re-encoded — which no substring scan can see. That is an
-      // inherent limit of scanning, not a hole in the gate, and it is why these
-      // files are execution-scoped rather than durable workspace files.
-      {
-        const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
-          userId: args.authUserId,
-          workspaceId: resolvedWorkspaceId,
-        })
-        // An execution-scoped file has nowhere to record a provenance envelope, so
-        // one carrying a resolved secret cannot ship under a lock the way a
-        // workspace file can — it is refused instead.
-        if (provenance.status !== 'exact' || provenance.entries.length > 0) {
-          await discardUploadedExecutionFiles(files)
-          return {
-            response: exportFailure(
-              `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
-              400,
-              args.stdout,
-              args.executionTime,
-              args.cost
-            ),
-          }
+      /** Literal secrets must be refused regardless of the export's name or encoding. */
+      const scannedProvenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
+        userId: args.authUserId,
+        workspaceId: resolvedWorkspaceId,
+      })
+      if (
+        scannedProvenance.status === 'unknown' ||
+        (scannedProvenance.status === 'exact' && scannedProvenance.entries.length > 0)
+      ) {
+        await discardUploadedExecutionFiles(files)
+        return {
+          response: exportFailure(
+            `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
+            400,
+            args.stdout,
+            args.executionTime,
+            args.cost
+          ),
         }
       }
+
+      /**
+       * A literal scan cannot vouch for encoded secrets in an archive or binary document.
+       * Persist that uncertainty so a later conversion cannot turn these bytes into a trusted
+       * workspace file. Both the format and bytes must be textual before a scan is sufficient.
+       */
+      const isBinary =
+        !TEXT_OUTPUT_MIME_TYPES.has(mimeType) || !isUtf8(buffer) || buffer.includes(0)
+      const secretProvenance = isBinary
+        ? await getOutputFileSecretProvenance(buffer, true, routeContext, {
+            userId: args.authUserId,
+            workspaceId: resolvedWorkspaceId,
+          })
+        : scannedProvenance
 
       const userFile = await uploadExecutionFile(
         {
@@ -2042,7 +2128,8 @@ async function collectExecutionOutputFiles(args: {
         buffer,
         name,
         mimeType,
-        args.authUserId
+        args.authUserId,
+        secretProvenance
       )
       files.push(userFile)
     }
@@ -2070,6 +2157,7 @@ export interface TrustedFunctionExecutionAuth {
   fileAccessUserId?: string
   principal: DelegatedPrincipal
   sandboxProfile?: 'mothership'
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 /** Executes the Function protocol after the application operation authorizes its principal. */
@@ -2284,6 +2372,7 @@ export async function executeFunctionRequest(
         unredactedSecretNames.filter((name) => Object.hasOwn(envVars, name))
       ),
       mountedFileSecretProvenanceScanner,
+      resolvedSecretTraceRegistry: auth.resolvedSecretTraceRegistry,
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -2377,6 +2466,11 @@ export async function executeFunctionRequest(
     for (const binding of compilation.bindings) {
       setRecordValue(contextVariables, binding.name, binding.value)
     }
+    await importRuntimeInputProvenance(routeContext, {
+      code: resolvedCode,
+      params: executionParams,
+      contextVariables,
+    })
     if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
       throw new Error(
         'Large execution values require the JavaScript isolated-vm runtime. Select a nested field or read the value in a JavaScript function.'
@@ -2479,6 +2573,7 @@ export async function executeFunctionRequest(
           logger,
         },
       })
+      await importRuntimeFileContributors(routeContext, resolvedMounts.contributingFiles)
     } catch (error) {
       // Everything this can raise is about the files the caller named — a mount
       // it may not read, one over a size ceiling, a set over the aggregate. The
@@ -3258,3 +3353,5 @@ export async function executeFunctionRequest(
     executionDeadlineController?.cleanup()
   }
 }
+
+import { isUtf8 } from 'node:buffer'

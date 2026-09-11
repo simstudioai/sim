@@ -420,6 +420,142 @@ describe('knowledge document processing source', () => {
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
 
+  describe('execution source provenance', () => {
+    const executionKey = 'execution/workspace-1/workflow-1/run-1/source.pdf'
+    const executionUrl = `/api/files/serve/${encodeURIComponent(executionKey)}?context=workspace`
+    const executionBinding = {
+      ...SOURCE_BINDING,
+      key: executionKey,
+      context: 'execution',
+      secretProvenanceVersion: 1,
+    }
+
+    beforeEach(() => {
+      dbChainMockFns.limit
+        .mockReset()
+        .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, fileUrl: executionUrl }])
+        .mockResolvedValueOnce([{ ...PERSISTED_PROVENANCE_ROW, fileUrl: executionUrl }])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
+      mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+        context === 'execution' ? [executionBinding] : []
+      )
+    })
+
+    function process() {
+      return processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'untrusted-queued-name.txt',
+          fileUrl: 'https://example.com/untrusted-queued-url.txt',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
+    }
+
+    it('loads persisted execution lineage before parsing, ignoring the URL context label', async () => {
+      await process()
+
+      expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
+        [executionKey],
+        'execution',
+        expect.anything(),
+        { includeDeleted: true }
+      )
+      expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
+        expect.anything(),
+        [executionBinding]
+      )
+      expect(mockProcessDocument).toHaveBeenCalledWith(
+        executionUrl,
+        PERSISTED_CONTEXT.filename,
+        PERSISTED_CONTEXT.mimeType,
+        1024,
+        200,
+        100,
+        expect.objectContaining({ userId: BILLING_ATTRIBUTION.actorUserId }),
+        PERSISTED_CONTEXT.workspaceId,
+        undefined,
+        undefined
+      )
+    })
+
+    it.each(['unknown', 'missing'])(
+      'refuses tracked execution sources with %s sidecars before parsing',
+      async (kind) => {
+        mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+          new Map(kind === 'unknown' ? [[executionBinding.id, { status: 'unknown' }]] : [])
+        )
+
+        await expect(process()).rejects.toThrow(
+          'Knowledge document secret provenance is unavailable'
+        )
+
+        expect(mockProcessDocument).not.toHaveBeenCalled()
+        expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+      }
+    )
+
+    it('refuses a soft-deleted tracked execution source before parsing', async () => {
+      const deletedBinding = { ...executionBinding, deletedAt: CONTENT_UPDATED_AT }
+      mockGetFileMetadataByKeys.mockImplementation(
+        async (
+          _keys: string[],
+          context: string,
+          _executor: unknown,
+          options?: { includeDeleted?: boolean }
+        ) => (context === 'execution' && options?.includeDeleted ? [deletedBinding] : [])
+      )
+      mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+        new Map([[executionBinding.id, { status: 'unknown' }]])
+      )
+
+      await expect(process()).rejects.toThrow('Knowledge document secret provenance is unavailable')
+
+      expect(mockProcessDocument).not.toHaveBeenCalled()
+      expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    })
+
+    it('preserves legacy null-marker behavior for a soft-deleted execution source', async () => {
+      mockGetFileMetadataByKeys.mockResolvedValue([
+        { ...executionBinding, deletedAt: CONTENT_UPDATED_AT, secretProvenanceVersion: null },
+      ])
+
+      await process()
+
+      expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).not.toHaveBeenCalled()
+      expect(mockProcessDocument).toHaveBeenCalled()
+    })
+
+    it.each(['missing', 'untracked'])(
+      'retains legacy %s execution source behavior',
+      async (kind) => {
+        mockGetFileMetadataByKeys.mockResolvedValue(
+          kind === 'missing' ? [] : [{ ...executionBinding, secretProvenanceVersion: null }]
+        )
+
+        await process()
+
+        expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).not.toHaveBeenCalled()
+        expect(mockProcessDocument).toHaveBeenCalled()
+      }
+    )
+
+    it('refuses a source whose execution metadata belongs to another workspace', async () => {
+      mockGetFileMetadataByKeys.mockResolvedValue([
+        { ...executionBinding, workspaceId: 'other-workspace' },
+      ])
+
+      await expect(process()).rejects.toThrow('Document file is not owned by this knowledge base')
+
+      expect(mockProcessDocument).not.toHaveBeenCalled()
+      expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    })
+  })
+
   it('takes over an existing processing attempt', async () => {
     dbChainMockFns.limit
       .mockReset()

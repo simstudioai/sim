@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { workspaceFiles } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadServableFileFromStorage, mockReadWorkspaceFileByKey, mockVerifyFileAccess } =
@@ -40,6 +42,7 @@ const generatedPdf: UserFile = {
 describe('readUserFileContent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     generatedPdf.size = PDF_SOURCE.length
     mockVerifyFileAccess.mockResolvedValue(true)
     mockReadWorkspaceFileByKey.mockResolvedValue({ file: { id: 'file-1' } })
@@ -48,6 +51,52 @@ describe('readUserFileContent', () => {
       contentType: 'application/pdf',
     })
   })
+
+  it.each([
+    { status: 'exact', version: 1, secret: true, safe: false },
+    { status: 'unknown', version: 1, secret: false, safe: false },
+    { status: 'exact', version: 1, secret: false, safe: true },
+    { status: null, version: null, secret: false, safe: true },
+  ])(
+    'classifies transformed renderer bytes before exposing them to the runtime: %j',
+    async ({ status, version, secret, safe }) => {
+      const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
+      const workspaceId = '2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f'
+      const identity = {
+        fileId: 'image',
+        key: `workspace/${workspaceId}/image.png`,
+        context: 'workspace' as const,
+        contentUpdatedAt,
+      }
+      queueTableRows(workspaceFiles, [
+        {
+          fileContentUpdatedAt: contentUpdatedAt,
+          provenanceContentUpdatedAt: contentUpdatedAt,
+          secretProvenanceVersion: version,
+          status,
+          entries: secret
+            ? [{ name: 'TOKEN', encryptedValue: 'ciphertext', sourceUserId: 'user-1' }]
+            : [],
+        },
+      ])
+      const html = '<img src="data:image/png;base64,aGlkZGVuLXNlY3JldA==">'
+      mockDownloadServableFileFromStorage.mockResolvedValue({
+        buffer: Buffer.from(html),
+        contentType: 'text/html',
+        contributingFiles: [identity],
+      })
+
+      const result = readUserFileContent(
+        { ...generatedPdf, name: 'page', type: 'text/x-sim-page' },
+        {
+          userId: 'user-1',
+          encoding: 'text',
+        }
+      )
+      if (safe) await expect(result).resolves.toBe(html)
+      else await expect(result).rejects.toThrow('secret provenance is unavailable')
+    }
+  )
 
   it('returns the compiled artifact instead of the stored generation source', async () => {
     const content = await readUserFileContent(generatedPdf, {

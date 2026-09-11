@@ -4,9 +4,10 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUploadToS3, mockGetPresignedUrlWithConfig } = vi.hoisted(() => ({
+const { mockUploadToS3, mockGetPresignedUrlWithConfig, mockDeleteFromS3 } = vi.hoisted(() => ({
   mockUploadToS3: vi.fn(),
   mockGetPresignedUrlWithConfig: vi.fn(),
+  mockDeleteFromS3: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/lib/uploads/config', () => ({
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   uploadToS3: mockUploadToS3,
   getPresignedUrlWithConfig: mockGetPresignedUrlWithConfig,
+  deleteFromS3: mockDeleteFromS3,
 }))
 
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
@@ -41,6 +43,7 @@ describe('uploadExecutionFile key allocation', () => {
       type: contentType,
     }))
     mockGetPresignedUrlWithConfig.mockResolvedValue('https://example.com/download')
+    mockDeleteFromS3.mockResolvedValue(undefined)
     dbChainMockFns.limit.mockResolvedValue([])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'file-1' }])
   })
@@ -63,5 +66,105 @@ describe('uploadExecutionFile key allocation', () => {
 
     expect(first.key).not.toBe(second.key)
     expect(dbChainMockFns.insert).toHaveBeenCalledTimes(2)
+  })
+
+  it('commits tracked provenance with the canonical file before returning its URL', async () => {
+    const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
+    dbChainMockFns.returning.mockImplementation(async () => {
+      const values = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+      return [{ ...values, id: values?.id ?? values?.fileId, contentUpdatedAt }]
+    })
+    const file = await uploadExecutionFile(
+      context,
+      Buffer.from('archive'),
+      'report.zip',
+      'application/zip',
+      'user-1',
+      { status: 'exact', entries: [] }
+    )
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: file.id, key: file.key, context: 'execution' })
+    )
+    expect(dbChainMockFns.values).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ fileId: file.id, contentUpdatedAt, status: 'exact', entries: [] })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ secretProvenanceVersion: 1 })
+    expect(dbChainMockFns.set.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetPresignedUrlWithConfig.mock.invocationCallOrder[0]
+    )
+    expect(file).not.toHaveProperty('secretProvenance')
+  })
+
+  it('removes uploaded bytes when their provenance cannot be committed', async () => {
+    const failure = new Error('Provenance commit failed')
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([
+        {
+          id: 'recorded-file',
+          contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ])
+      .mockRejectedValueOnce(failure)
+
+    await expect(
+      uploadExecutionFile(
+        context,
+        Buffer.from('archive'),
+        'report.zip',
+        'application/zip',
+        'user-1',
+        { status: 'unknown' }
+      )
+    ).rejects.toThrow('Provenance commit failed')
+
+    expect(mockDeleteFromS3).toHaveBeenCalledWith(
+      mockUploadToS3.mock.calls[0][1],
+      expect.any(Object),
+      undefined
+    )
+    expect(mockGetPresignedUrlWithConfig).not.toHaveBeenCalled()
+  })
+
+  it('rejects tracked uploads without an owner before writing bytes', async () => {
+    await expect(
+      uploadExecutionFile(
+        context,
+        Buffer.from('archive'),
+        'report.zip',
+        'application/zip',
+        undefined,
+        {
+          status: 'exact',
+          entries: [],
+        }
+      )
+    ).rejects.toThrow('requires an owner and workspace')
+    expect(mockUploadToS3).not.toHaveBeenCalled()
+  })
+
+  it('cleans both committed metadata and bytes when its download URL cannot be issued', async () => {
+    const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
+    dbChainMockFns.returning.mockImplementation(async () => {
+      const values = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+      return [{ ...values, id: values?.id ?? values?.fileId, contentUpdatedAt }]
+    })
+    mockGetPresignedUrlWithConfig.mockRejectedValueOnce(new Error('Signing failed'))
+
+    await expect(
+      uploadExecutionFile(
+        context,
+        Buffer.from('archive'),
+        'report.zip',
+        'application/zip',
+        'user-1',
+        { status: 'unknown' }
+      )
+    ).rejects.toThrow('Signing failed')
+    expect(mockDeleteFromS3).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
   })
 })

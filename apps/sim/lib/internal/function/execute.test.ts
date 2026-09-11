@@ -18,6 +18,7 @@ vi.mock('@/lib/function-execution/application/execute-function', () => ({
 
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { executeFunctionTool } from '@/lib/internal/function/execute'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('executeFunctionTool', () => {
   beforeEach(() => {
@@ -59,6 +60,10 @@ describe('executeFunctionTool', () => {
       executionId: 'execution-1',
       userId: 'workspace-owner',
       executorDelegationOrigin: origin,
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+        userId: 'workspace-owner',
+        workspaceId: 'workspace-1',
+      }),
     }
     const headers = new Headers()
 
@@ -92,6 +97,7 @@ describe('executeFunctionTool', () => {
           userId: undefined,
         }),
         headers,
+        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       }),
     })
   })
