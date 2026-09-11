@@ -1,0 +1,56 @@
+name: Design diff process diagnostic
+on:
+  push:
+    branches: [codex/design-diff-diagnostic-v3]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    env:
+      ENGINE_SHA: e279fddb00dfc22ca181838352c436d7f480c286
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ env.ENGINE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.1
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Fetch frozen diagnostic comparison
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bun --no-env-file -e '
+            const fs=require("node:fs"),cp=require("node:child_process");
+            const manifest=JSON.parse(fs.readFileSync("scripts/design-diff/benchmark/comparisons.json","utf8"));
+            manifest.comparisons=manifest.comparisons.filter(p=>p.pr===7252);
+            const item=manifest.comparisons[0];
+            fs.writeFileSync(process.env.RUNNER_TEMP+"/diagnostic-manifest.json",JSON.stringify(manifest));
+            for(const [name,sha] of [["BASE_SHA",item.base],["HEAD_SHA",item.head]]){
+              if(!/^[a-f0-9]{40}$/.test(sha))process.exit(1);
+              fs.appendFileSync(process.env.GITHUB_ENV,`${name}=${sha}\n`);
+            }
+            try{cp.execFileSync("git",["-c","http.extraheader=AUTHORIZATION: basic "+Buffer.from("x-access-token:"+process.env.GH_TOKEN).toString("base64"),"fetch","--no-tags","origin",item.base,item.head],{stdio:"ignore"})}catch{process.stderr.write("Diagnostic source fetch failed\n");process.exit(1)}
+          '
+      - name: Compare direct CLI and benchmark wrapper
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics"
+          set +e
+          /usr/bin/time -v bun --no-env-file scripts/design-diff/cli.ts \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --output "$RUNNER_TEMP/diagnostics/direct.json" \
+            2> "$RUNNER_TEMP/diagnostics/direct-stderr.txt"
+          echo "$?" > "$RUNNER_TEMP/diagnostics/direct-exit.txt"
+          bun --no-env-file scripts/design-diff/benchmark.ts --engine "$PWD" --sha "$ENGINE_SHA" \
+            --manifest "$RUNNER_TEMP/diagnostic-manifest.json" --output "$RUNNER_TEMP/diagnostics/wrapped" --workers 1 \
+            > "$RUNNER_TEMP/diagnostics/wrapper-stdout.txt" 2> "$RUNNER_TEMP/diagnostics/wrapper-stderr.txt"
+          echo "$?" > "$RUNNER_TEMP/diagnostics/wrapper-exit.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: design-diff-process-diagnostic-${{ github.run_id }}
+          path: ${{ runner.temp }}/diagnostics/
+          retention-days: 7
