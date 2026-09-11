@@ -30,7 +30,21 @@ describe('detectCodingAgent', () => {
   })
 
   it('lets an agent declare its own name over every vendor marker', () => {
-    expect(detectCodingAgent({ AI_AGENT: 'Some-Agent_2', CLAUDECODE: '1' })).toBe('some-agent_2')
+    expect(detectCodingAgent({ AI_AGENT: 'Some-Agent', CLAUDECODE: '1' })).toBe('some-agent')
+  })
+
+  it('keeps only the name from a declaration that carries a version and role', () => {
+    expect(detectCodingAgent({ AI_AGENT: 'claude-code_2-1-268_agent', CLAUDECODE: '1' })).toBe(
+      'claude-code'
+    )
+  })
+
+  it('keeps an underscored name that carries no version', () => {
+    expect(detectCodingAgent({ AI_AGENT: 'github_copilot_vscode_agent' })).toBe(
+      'github_copilot_vscode_agent'
+    )
+    expect(detectCodingAgent({ AI_AGENT: 'my_agent_2' })).toBe('my_agent')
+    expect(detectCodingAgent({ AI_AGENT: '_', CLAUDECODE: '1' })).toBe('_')
   })
 
   it('ignores a declared name that is not a well-formed token', () => {
