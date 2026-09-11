@@ -200,21 +200,24 @@ it('preserves helper switch selection conditions', async () => {
   expect(report.flagged).toBe(true)
 })
 
-it('preserves the audited Object.entries reducer to fromEntries refactor', async () => {
-  const before =
-    'export const copy=(blocks)=>Object.entries(blocks).reduce((acc,[id,block])=>({...acc,[id]:{...block,value:structuredClone(block.value)}}),{})'
-  const after =
-    'export const copy=(blocks)=>Object.fromEntries(Object.entries(blocks).map(([id,block])=>[id,{...block,value:structuredClone(block.value)}]))'
-  const report = await compareFiles(
-    {
-      [data]: before,
-      [view]: 'import {copy} from "./data";export const Page=()=> <Panel data={copy(blocks)}/>',
-    },
-    { [data]: after },
-    settings
-  )
-  expect(report.flagged).toBe(false)
-})
+it.each([1, 24])(
+  'preserves the audited record-map refactor at resolution depth %s',
+  async (resolutionDepth) => {
+    const before =
+      'export const copy=(blocks)=>Object.entries(blocks).reduce((acc,[id,block])=>({...acc,[id]:{...block,value:structuredClone(block.value)}}),{})'
+    const after =
+      'export const copy=(blocks)=>Object.fromEntries(Object.entries(blocks).map(([id,block])=>[id,{...block,value:structuredClone(block.value)}]))'
+    const report = await compareFiles(
+      {
+        [data]: before,
+        [view]: 'import {copy} from "./data";export const Page=()=> <Panel data={copy(blocks)}/>',
+      },
+      { [data]: after },
+      { ...settings, limits: { ...settings.limits, resolutionDepth } }
+    )
+    expect(report.flagged).toBe(false)
+  }
+)
 
 it('keeps selected environment evidence narrow after exhausting expression depth', async () => {
   const source = (size: number) =>
@@ -276,6 +279,18 @@ it('projects configured capability environment fields and retains helper changes
 it('leaves type queries over literal constants erased and parseable', async () => {
   const source = (kind: string) =>
     `const KINDS=['one','two'] as const;type Kind = typeof KINDS[number];export const Page=()=> <span>${kind}</span>`
+  const report = await compareFiles({ [view]: source('a') }, { [view]: source('b') }, settings)
+  expect(report.flagged).toBe(true)
+  expect(
+    report.findings
+      .flatMap((finding) => finding.limitations)
+      .some((reason) => /parser|extraction failed/i.test(reason))
+  ).toBe(false)
+})
+
+it('preserves value/type names shared by generated schema declarations', async () => {
+  const source = (text: string) =>
+    `const Kind={ONE:1};type Kind=typeof Kind;export const Page=()=> <div>${text}</div>`
   const report = await compareFiles({ [view]: source('a') }, { [view]: source('b') }, settings)
   expect(report.flagged).toBe(true)
   expect(

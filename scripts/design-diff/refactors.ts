@@ -132,6 +132,7 @@ export function normalizeLiteralAliases(ast: t.File, visit: typeof traverse): vo
   }
   visit(ast, {
     Expression(path) {
+      if (path.key === 'id') return
       if (path.parentPath.isExportSpecifier()) return
       if (path.findParent((parent) => parent.isTSType())) return
       if (!(path.isReferencedIdentifier() || path.isObjectExpression() || path.isArrayExpression()))
