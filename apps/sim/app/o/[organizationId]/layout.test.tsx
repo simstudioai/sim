@@ -7,17 +7,24 @@ import { authMockFns } from '@sim/testing'
 import { dehydrate } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 
 const {
   mockGetOrganizationSurfaceContext,
   mockWorkspaceChrome,
   mockPrefetchOrganizationSidebar,
   mockUseSession,
+  mockUseMothershipChatEvents,
 } = vi.hoisted(() => ({
   mockGetOrganizationSurfaceContext: vi.fn(),
   mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
   mockPrefetchOrganizationSidebar: vi.fn(async () => undefined),
   mockUseSession: vi.fn(),
+  mockUseMothershipChatEvents: vi.fn(),
+}))
+
+vi.mock('@/hooks/use-mothership-chat-events', () => ({
+  useMothershipChatEvents: mockUseMothershipChatEvents,
 }))
 
 vi.mock('@/lib/auth/auth-client', () => ({ useSession: mockUseSession }))
@@ -118,6 +125,10 @@ describe('OrganizationLayout', () => {
       'active-org'
     )
     expect(html).toContain('Organization child')
+    expect(mockUseMothershipChatEvents).toHaveBeenCalledWith(
+      { organizationId: 'org-1' },
+      isChatEnabled
+    )
     expect(html).not.toContain('Stop impersonating')
     expect(mockWorkspaceChrome).toHaveBeenCalledWith(
       expect.objectContaining({ initialSidebarCollapsed: true }),
