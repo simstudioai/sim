@@ -12,12 +12,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ENGINE_SHA: 9df1584ff7c243b984e5964cf58535312045b01f
+  ENGINE_SHA: ed4c9f59518b6a1661e91bf57b494e02a7901cf7
 
 jobs:
   replay:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 50
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       max-parallel: 20
@@ -53,7 +53,7 @@ jobs:
         working-directory: engine
         run: |
           bun --no-env-file scripts/design-diff/benchmark.ts \
-            --engine "$PWD" --sha "$ENGINE_SHA" --workers 1 \
+            --engine "$PWD" --sha "$ENGINE_SHA" --workers 1 --timeout-seconds 1800 \
             --manifest "$RUNNER_TEMP/comparisons.json" --output "$RUNNER_TEMP/results"
       - name: Retain available results
         if: always()
