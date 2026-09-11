@@ -102,6 +102,7 @@ scripts/design-diff/
   infrastructure.ts                     Rendering lockfile dependency closure
   report.ts                             Value previews and bounded JSON serialization
   benchmark.ts                          Immutable-engine historical replay
+  process.ts                            Native Bun process status and bounded diagnostics
   benchmark/comparisons.json            Frozen original/holdout comparison manifest
   memory.ts                             Bun parser-batch garbage collection
   tailwind.ts                           Pinned compiler and trusted merge convention
@@ -339,6 +340,8 @@ bun --no-env-file scripts/design-diff/benchmark.ts \
 Fetch manifest commit objects beforehand; missing history fails explicitly. The runner verifies
 the frozen comparison commits and GitHub file sets. Cache identity includes engine SHA, trusted
 config, lockfile, runtime and comparison commits, with report-content verification before reuse.
-It records per-comparison elapsed time and peak RSS separately from deterministic reports.
+It awaits native Bun process exit status and records per-comparison elapsed time and peak RSS
+separately from deterministic reports. Failed runs retain bounded stderr diagnostics in a
+separate file, without printing source findings to logs.
 `/usr/bin/time` is required (macOS or Linux); source findings are not printed. Review original
 and holdout rates separately, and inspect every disagreement against the source label.
