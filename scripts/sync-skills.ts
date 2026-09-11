@@ -134,7 +134,7 @@ function parseRule(name: string, raw: string): Rule {
   if (!description) throw new Error(`${name}: missing 'description' in frontmatter`)
   if (!isPlainYamlScalar(description)) {
     throw new Error(
-      `${name}: 'description' must be a plain YAML scalar (no leading quote or indicator, no ': ' or ' #') so both Claude and Cursor parse it`
+      `${name}: 'description' must be a plain YAML string (no leading quote or indicator, no ': ' or ' #', and not a bare boolean, null, number, or date) so both Claude and Cursor parse it`
     )
   }
   return { name, description, paths, body }
@@ -150,8 +150,28 @@ function isPlainYamlScalar(value: string): boolean {
   if (value !== value.trim()) return false
   if (/^[-?:,[\]{}#&*!|>'"%@`]/.test(value)) return false
   if (value.includes(': ') || value.includes(' #')) return false
-  return !value.endsWith(':')
+  if (value.endsWith(':')) return false
+  return !IMPLICITLY_TYPED_SCALAR.test(value)
 }
+
+/**
+ * Plain scalars a YAML 1.1 or 1.2 reader resolves to something other than a
+ * string: booleans, null, integers (decimal, hex, octal, binary, underscored),
+ * floats (including .inf/.nan), and dates or timestamps.
+ */
+const IMPLICITLY_TYPED_SCALAR = new RegExp(
+  [
+    '^(?:',
+    '~|null|true|false|yes|no|on|off|y|n',
+    '|[-+]?(?:0b[01_]+|0o?[0-7_]+|0x[0-9a-f_]+|[0-9][0-9_]*(?::[0-5]?[0-9])*)',
+    '|[-+]?(?:[0-9][0-9_]*)?\\.[0-9_]*(?:e[-+]?[0-9]+)?',
+    '|[-+]?[0-9][0-9_]*(?:\\.[0-9_]*)?e[-+]?[0-9]+',
+    '|[-+]?\\.(?:inf|nan)',
+    '|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[tT ].*)?',
+    ')$',
+  ].join(''),
+  'i'
+)
 
 async function loadCanonicalRules(): Promise<Rule[]> {
   const entries = await readdir(CANONICAL_RULES_DIR)
