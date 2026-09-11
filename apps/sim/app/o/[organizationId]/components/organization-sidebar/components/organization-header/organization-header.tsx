@@ -9,9 +9,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   OverflowText,
+  Tooltip,
   toast,
 } from '@sim/emcn'
-import { PanelLeft, Settings, Upload } from '@sim/emcn/icons'
+import { PanelLeft, Settings } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
@@ -80,6 +81,9 @@ export function OrganizationHeader({
   }
 
   const { memberCount } = organization
+  const logo = (
+    <IdentityTile size='lg' initial={initial} logoUrl={organization.logo} alt={organization.name} />
+  )
 
   return (
     <div className='min-w-0 flex-1'>
@@ -120,12 +124,30 @@ export function OrganizationHeader({
           className='w-64 max-w-[calc(100vw-24px)]'
         >
           <div className='flex items-center gap-2 px-2 py-1.5'>
-            <IdentityTile
-              size='lg'
-              initial={initial}
-              logoUrl={organization.logo}
-              alt={organization.name}
-            />
+            {canEditLogo ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <DropdownMenuItem
+                    aria-label='Change organization logo'
+                    aria-busy={isUploadingLogo}
+                    textValue='Change organization logo'
+                    className='h-auto shrink-0 p-1'
+                    disabled={isUploadingLogo}
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      fileInputRef.current?.click()
+                    }}
+                  >
+                    {logo}
+                  </DropdownMenuItem>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  {isUploadingLogo ? 'Uploading...' : 'Change logo'}
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              logo
+            )}
             <div className='flex min-w-0 flex-col'>
               <OverflowText label={organization.name} />
               <span className='text-[var(--text-muted)] text-caption'>
@@ -133,15 +155,6 @@ export function OrganizationHeader({
               </span>
             </div>
           </div>
-          {canEditLogo && (
-            <DropdownMenuItem
-              disabled={isUploadingLogo}
-              onSelect={() => fileInputRef.current?.click()}
-            >
-              <Upload className='size-[14px]' />
-              {isUploadingLogo ? 'Uploading...' : 'Upload logo'}
-            </DropdownMenuItem>
-          )}
           <DropdownMenuItem asChild>
             <SettingsGuardedLink href={getOrganizationSettingsHref(organization.id, 'members')}>
               <Settings className='size-[14px]' />
