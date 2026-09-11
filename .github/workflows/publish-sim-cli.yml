@@ -15,6 +15,13 @@ concurrency:
 
 jobs:
   publish-npm:
+    # Job-level, not on the build step: `bun publish` runs `prepublishOnly`,
+    # which rebuilds `dist` a second time, and that second build is the one
+    # that ships. A build without the token reports nothing. See
+    # docs/cli/usage-data.
+    env:
+      SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
+      SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
@@ -63,11 +70,6 @@ jobs:
 
       - name: Build package
         working-directory: packages/sim-cli
-        env:
-          # Public PostHog project token for anonymous CLI usage reporting; a
-          # build without it reports nothing. See docs/cli/usage-data.
-          SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
-          SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
         run: bun run build
 
       - name: Resolve release channel
