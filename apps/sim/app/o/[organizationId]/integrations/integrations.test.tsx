@@ -25,6 +25,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
   SlackSearchActions: ({ token }: { token: string }) => <button type='button'>{token}</button>,
 }))
+vi.mock('@/hooks/queries/personal-search-integrations', () => ({
+  usePersonalSearchIntegrations: () => ({
+    data: { available: [] },
+    isPending: false,
+    isError: false,
+  }),
+}))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
 }))

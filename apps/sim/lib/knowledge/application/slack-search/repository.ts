@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credential, slackSearchInstallation } from '@sim/db/schema'
+import { credential, slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
@@ -9,8 +9,12 @@ export type SlackSearchInstallation = typeof slackSearchInstallation.$inferSelec
 
 export async function loadSlackSearchCredential(credentialId: string, organizationId: string) {
   const [row] = await db
-    .select()
+    .select({
+      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+      appKind: slackApp.kind,
+    })
     .from(credential)
+    .leftJoin(slackApp, eq(slackApp.id, credential.slackAppId))
     .where(
       and(
         eq(credential.id, credentialId),
@@ -25,7 +29,7 @@ export async function loadSlackSearchCredential(credentialId: string, organizati
   const secret = await getSlackBotCredential(credentialId)
   if (!secret?.signingSecret)
     throw new OrchestrationError('validation', 'Reconnect this bot using Slack Search setup')
-  return { ...secret, version: secret.credentialVersion }
+  return { ...secret, appKind: row.appKind, version: secret.credentialVersion }
 }
 
 export async function findSlackSearchInstallation(credentialId: string) {

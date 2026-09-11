@@ -17,6 +17,7 @@ import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { getConnectorAccessAvailability, SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { findSharedSlackSearchInstallation } from '@/lib/slack-search/shared-app'
 
 export interface ListPersonalSearchIntegrationsInput {
   organizationId: string
@@ -39,7 +40,7 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
       .where(eq(user.id, userId))
       .limit(1)
     if (!viewer) throw new OrchestrationError('forbidden', 'The current person is unavailable')
-    const [page, overview, approvals, access] = await Promise.all([
+    const [page, overview, approvals, access, sharedSlack] = await Promise.all([
       listSearchSources.execute({ principal, input }),
       readSearchSourceOverview.execute({
         principal,
@@ -47,6 +48,7 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
       }),
       listOrganizationSearchApprovals(context.organizationId),
       resolveKnowledgeAccessAvailability(context),
+      findSharedSlackSearchInstallation(context.organizationId),
     ])
     const deployment = new Map(
       getIntegrationAvailability().map((entry) => [entry.type.toLowerCase(), entry])
@@ -144,7 +146,7 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
           (connector) =>
             !input.connectorId &&
             (!input.connectorType || connector.type === input.connectorType) &&
-            connector.type !== 'slack' &&
+            (connector.type !== 'slack' || sharedSlack !== null) &&
             (!configured.has(connector.type) || connector.setupFields.length > 0) &&
             eligible(connector.type)
         ).map((connector) => ({

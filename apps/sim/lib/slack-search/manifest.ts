@@ -4,7 +4,7 @@ import {
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
-import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
+import { SLACK_SEARCH_SCOPES, SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 
 export const SLACK_SEARCH_CALLBACK_PATH = '/api/knowledge/slack/oauth/callback'
 export const SLACK_SEARCH_WEBHOOK_PATH = '/api/webhooks/slack'
@@ -58,6 +58,56 @@ export function createSlackSearchManifest(
       org_deploy_enabled: false,
       socket_mode_enabled: false,
       token_rotation_enabled: false,
+    },
+  }
+}
+
+/** The official app combines personal source indexing with bot conversations and commands. */
+export function createSharedSlackSearchManifest(origin: string) {
+  const manifest = createSlackSearchManifest(
+    SLACK_SEARCH_DEFAULT_NAME,
+    SLACK_SEARCH_DEFAULT_DESCRIPTION,
+    origin
+  )
+  const webhook = new URL(SLACK_SEARCH_WEBHOOK_PATH, origin).href
+  return {
+    ...manifest,
+    features: {
+      ...manifest.features,
+      slash_commands: [
+        {
+          command: '/query',
+          description: 'Ask Sim Search a question privately',
+          usage_hint: '[question]',
+          url: webhook,
+          should_escape: false,
+        },
+        {
+          command: '/connect',
+          description: 'Connect your personal sources in Sim',
+          usage_hint: '[provider]',
+          url: webhook,
+          should_escape: false,
+        },
+      ],
+    },
+    oauth_config: {
+      ...manifest.oauth_config,
+      scopes: {
+        bot: [...SLACK_SHARED_SEARCH_BOT_SCOPES],
+        user: [...SLACK_SEARCH_USER_SCOPES],
+      },
+    },
+    settings: {
+      ...manifest.settings,
+      event_subscriptions: {
+        ...manifest.settings.event_subscriptions,
+        bot_events: [
+          ...manifest.settings.event_subscriptions.bot_events,
+          'app_uninstalled',
+          'tokens_revoked',
+        ],
+      },
     },
   }
 }
