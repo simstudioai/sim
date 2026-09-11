@@ -8,6 +8,26 @@
     "(?:^|/)sandbox/bundles/"
   ],
   "mediaModules": ["lucide-react", "react-icons", "next/image", "next/legacy/image"],
+  "mediaSources": [
+    "^(?:apps/sim/lib/og/|apps/sim/app/\\(landing\\)/og-utils\\.tsx$|apps/docs/app/api/og/)",
+    "(?:^|/)(?:opengraph|twitter)-image\\.[jt]sx?$",
+    "^apps/sim/app/\\(landing\\)/components/hero/components/(?:hero-platform-(?:loop|stage|intro)|hero-visual|hero-chat-loop)/",
+    "^apps/sim/app/\\(landing\\)/components/features/components/captured-platform-surface\\.tsx$",
+    "^apps/sim/app/\\(landing\\)/components/footer/components/footer-wordmark-loop/"
+  ],
+  "mediaSymbols": [
+    {
+      "file": "/components/resource-empty-state/",
+      "names": [
+        "LogsGraphic",
+        "TablesGraphic",
+        "FilesGraphic",
+        "DocumentsGraphic",
+        "KnowledgeIsoMark",
+        "BoreInterior"
+      ]
+    }
+  ],
   "renderedMarkdown": ["apps/docs/content/", "apps/sim/content/"],
   "aliases": [
     {

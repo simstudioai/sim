@@ -184,7 +184,7 @@ export function extractDocument(
               typeof item !== 'object' ||
               Array.isArray(item) ||
               typeof item.name !== 'string' ||
-              (content && content.contentProps.includes(item.name)) ||
+              content?.contentProps.includes(item.name) ||
               !appearanceAttributes.test(item.name)
             )
               continue

@@ -35,6 +35,12 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
     return false
   }
   const media = (path: NodePath): boolean => {
+    if (
+      resolver.tree.config.mediaSymbols?.some(
+        (entry) => new RegExp(entry.file).test(file) && entry.names.includes(symbolName(path))
+      )
+    )
+      return true
     for (let node: NodePath | null = path; node; node = node.parentPath) {
       if (!node.isJSXElement()) continue
       const name = propertyName(node.node.openingElement.name)
@@ -309,6 +315,7 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
       emit(path, 'content', 'expression', resolver.evaluate(child(path, 'expression'), file))
     },
     CallExpression(path) {
+      if (appearanceOnly && media(path)) return
       const name = propertyName(path.node.callee)
       if (resolver.tree.config.variantFunctions.includes(name))
         emit(path, 'class', 'variants', resolver.evaluate(path, file))

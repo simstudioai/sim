@@ -170,4 +170,31 @@ describe('designer notification policy', () => {
         .flagged
     ).toBe(false)
   })
+
+  it.each([
+    'apps/sim/lib/og/cover-image.tsx',
+    'apps/sim/app/(landing)/components/hero/components/hero-platform-loop/stage.tsx',
+  ])('exempts configured code-rendered artwork: %s', async (art) => {
+    expect(
+      (
+        await compareFiles(
+          { [art]: 'export const Art=()=> <div className="p-2"/>' },
+          { [art]: 'export const Art=()=> <div className="p-4"/>' }
+        )
+      ).flagged
+    ).toBe(false)
+  })
+
+  it('exempts an empty-state illustration while retaining surrounding UI styling', async () => {
+    const art =
+      'apps/sim/app/workspace/id/components/resource/components/resource-empty-state/logs-empty-state.tsx'
+    const source = (graphic: string, padding: string) =>
+      `function LogsGraphic(){return <div className="${graphic}"/>};export function LogsEmptyState(){return <main className="${padding}"><LogsGraphic/></main>}`
+    expect(
+      (await compareFiles({ [art]: source('p-2', 'p-2') }, { [art]: source('p-4', 'p-2') })).flagged
+    ).toBe(false)
+    expect(
+      (await compareFiles({ [art]: source('p-2', 'p-2') }, { [art]: source('p-2', 'p-4') })).flagged
+    ).toBe(true)
+  })
 })

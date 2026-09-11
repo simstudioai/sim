@@ -24,7 +24,7 @@ import type { Change, Config, Definition, Report } from '#design-diff/types'
 export function emptyReport(): Report {
   return {
     schemaVersion: '3.0.0',
-    engineVersion: '0.5.1',
+    engineVersion: '0.5.2',
     policyVersion: '5.0.0',
     commits: null,
     status: 'failed',
@@ -138,6 +138,7 @@ export async function analyze(
       tailwind: TailwindNormalizer,
       file: string
     ): Promise<Definition[]> => {
+      if (config.mediaSources?.some((pattern) => new RegExp(pattern).test(file))) return []
       const resolver = new Resolver(tree, affected)
       const entry = tree.entries.get(file)
       if (!entry) return []

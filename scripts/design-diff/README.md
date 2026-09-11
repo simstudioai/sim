@@ -52,8 +52,10 @@ Changing an existing control's supported `variant`, `size`, classes or style val
 Known style values in conditional branches and React state updates are compared; changing
 only the runtime predicate, handler or label does not qualify.
 
-Media exclusion applies to recognized JSX/HTML/MDX media elements and asset files, not an
-arbitrary wrapper around an image. A wrapper's custom padding or layout still qualifies.
+Media exclusion applies to recognized JSX/HTML/MDX media elements and asset files. Repository
+conventions also identify social-card image generators, landing artwork and the named illustration
+functions inside empty-state components. Their surrounding product controls remain in scope.
+The policy does not treat an arbitrary wrapper around an image as media. A wrapper's custom padding or layout still qualifies.
 CSS asset URL substitutions and generated copy are exempt. Source-only analysis cannot
 reliably identify every project-specific media wrapper.
 
@@ -101,7 +103,7 @@ an Icon does not break resolution of Button through the same barrel.
 
 ## Report contract
 
-Schema **3.0.0**, engine **0.5.1**, policy **5.0.0**. The schema remains compatible; the policy
+Schema **3.0.0**, engine **0.5.2**, policy **5.0.0**. The schema remains compatible; the policy
 meaning changes. Readers must inspect versions when comparing historical qualification rates.
 All decisions and identifiers are deterministic for the same engine/configuration and commits.
 Execution timing and peak memory are recorded separately by the benchmark, never in engine JSON.
