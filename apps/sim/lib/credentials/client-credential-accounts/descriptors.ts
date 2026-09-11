@@ -111,6 +111,7 @@ export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
+export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -118,6 +119,7 @@ export type ClientCredentialAccountProviderId =
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -145,6 +147,40 @@ export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undef
       parsed.hash ||
       (parsed.pathname !== '' && parsed.pathname !== '/') ||
       !NETSUITE_SUITETALK_ORIGIN_REGEX.test(parsed.origin)
+    ) {
+      return undefined
+    }
+    return parsed.origin
+  } catch {
+    return undefined
+  }
+}
+
+/** Canonical Oracle-assigned Fusion Applications origin used by product REST APIs. */
+export const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com$/
+const ORACLE_FUSION_APPLICATION_INPUT_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com\/?$/i
+
+/**
+ * Normalizes a Fusion Applications URL to its authoritative HTTPS origin.
+ * Explicit ports are rejected even when they match HTTPS's default port so a
+ * saved credential can never silently broaden the accepted endpoint shape.
+ */
+export function normalizeOracleFusionApplicationOrigin(rawUrl: string): string | undefined {
+  try {
+    const trimmed = rawUrl.trim()
+    if (!ORACLE_FUSION_APPLICATION_INPUT_REGEX.test(trimmed)) return undefined
+    const parsed = new URL(trimmed)
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (parsed.pathname !== '' && parsed.pathname !== '/') ||
+      !ORACLE_FUSION_APPLICATION_ORIGIN_REGEX.test(parsed.origin)
     ) {
       return undefined
     }
@@ -530,6 +566,39 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
     helpText:
       'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
+  },
+  [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle Fusion',
+    connectNoun: 'integration user',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Fusion Applications URL',
+        placeholder: 'https://your-environment.fa.ocs.oraclecloud.com',
+        secret: false,
+        hintPattern: ORACLE_FUSION_APPLICATION_ORIGIN_REGEX,
+        hintNormalize: (value) =>
+          normalizeOracleFusionApplicationOrigin(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected the Oracle-assigned HTTPS application URL with no path, port, credentials, query, or fragment.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration username',
+        placeholder: 'Paste the integration username',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Password',
+        placeholder: 'Paste the password',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.oracle.com/en/cloud/saas/applications-common/26b/farca/Quick_Start.html',
+    helpText:
+      'The application URL is validated when saved. Oracle authenticates the integration user on the first product request.',
   },
 }
 
