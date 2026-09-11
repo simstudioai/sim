@@ -1,7 +1,15 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ search: vi.fn(), read: vi.fn(), authorizeChat: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  search: vi.fn(),
+  read: vi.fn(),
+  authorizeChat: vi.fn(),
+  info: vi.fn(),
+}))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ info: mocks.info, error: vi.fn(), warn: vi.fn() }),
+}))
 vi.mock('@/lib/copilot/chat/organization-chats', () => ({
   authorizeOrganizationChatDelegation: { execute: mocks.authorizeChat },
 }))
@@ -179,6 +187,48 @@ describe('Assistant retrieval tools', () => {
       })
     )
   })
+  it.each([0, 20, 50])(
+    'measures UTF-8 bytes for %i passages without logging their content',
+    async (count) => {
+      const content = 'Confidential passage é🔎'.repeat(100)
+      mocks.search.mockResolvedValueOnce({
+        knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
+        results: Array.from({ length: count }, (_, index) => ({
+          knowledgeBaseId: 'index',
+          documentId: `doc-${index % 4}`,
+          documentName: 'Private title',
+          sourceUrl: null,
+          sourceModifiedAt: null,
+          metadata: {},
+          content,
+          chunkIndex: index,
+          similarity: 1,
+        })),
+      })
+
+      const output = await searchWorkspaceServerTool.execute(
+        { query: 'Private query', ...(count === 50 ? { topK: 50 } : {}) },
+        context
+      )
+
+      expect(output.success).toBe(true)
+      expect(mocks.info).toHaveBeenCalledWith(
+        'Knowledge search completed',
+        expect.objectContaining({
+          toolCallId: 'call',
+          toolResultBytes: Buffer.byteLength(JSON.stringify(output)),
+          passageBytes: count * Buffer.byteLength(content),
+          maxPassageBytes: count ? Buffer.byteLength(content) : 0,
+          uniqueDocumentCount: Math.min(count, 4),
+        })
+      )
+      const logged = JSON.stringify(mocks.info.mock.calls)
+      expect(logged).not.toContain('Confidential passage')
+      expect(logged).not.toContain('Private title')
+      expect(logged).not.toContain('Private query')
+    }
+  )
+
   it('returns stable citation IDs with internal links for uploaded documents', async () => {
     const result = await searchWorkspaceServerTool.execute({ query: 'orion' }, context)
     expect(result).toMatchObject({

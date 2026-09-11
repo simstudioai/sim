@@ -62,7 +62,10 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import {
+  knowledgeAccessCondition,
+  knowledgeMetadataCandidateAccessCondition,
+} from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
@@ -299,9 +302,16 @@ describe('indexed source content through real application access', () => {
     return result.results.map((row) => row.documentId)
   }
 
-  it.each(['workspace', 'admin', 'members'] as const)(
-    'allows a remaining workspace ACL only in workspace mode, not during a %s transition',
-    async (accessMode) => {
+  it.each([
+    ['workspace', true],
+    ['workspace', false],
+    ['admin', true],
+    ['admin', false],
+    ['members', true],
+    ['members', false],
+  ] as const)(
+    'requires settled workspace mode for a remaining workspace ACL (%s, rewrite pending=%s)',
+    async (accessMode, accessRewritePending) => {
       const [savedConnector] = await db
         .select({
           accessMode: knowledgeConnector.accessMode,
@@ -324,18 +334,25 @@ describe('indexed source content through real application access', () => {
           .where(eq(document.id, documentId))
         await db
           .update(knowledgeConnector)
-          .set({ accessMode, accessRewritePending: true })
+          .set({ accessMode, accessRewritePending })
           .where(eq(knowledgeConnector.id, connectorId))
-        const visible = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(
-            and(
-              eq(document.id, documentId),
-              knowledgeAccessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })
+        for (const accessCondition of [
+          knowledgeMetadataCandidateAccessCondition,
+          knowledgeAccessCondition,
+        ]) {
+          const visible = await db
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(
+                eq(document.id, documentId),
+                accessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })
+              )
             )
+          expect(visible.map((row) => row.id)).toEqual(
+            accessMode === 'workspace' && !accessRewritePending ? [documentId] : []
           )
-        expect(visible.map((row) => row.id)).toEqual(accessMode === 'workspace' ? [documentId] : [])
+        }
       } finally {
         await db
           .update(knowledgeConnector)

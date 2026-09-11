@@ -22,7 +22,10 @@ const testFilters = process.argv.slice(2)
 if (testFilters.some((filter) => filter.startsWith('-')) || (scale && testFilters.length)) {
   throw new Error('Pass only filename filters, and do not combine them with the scale suite')
 }
-const keepScaleDatabase = scale && process.env.KNOWLEDGE_SCALE_KEEP_DATABASE === 'true'
+const keepDatabase =
+  (scale && process.env.KNOWLEDGE_SCALE_KEEP_DATABASE === 'true') ||
+  (process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true' &&
+    process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true')
 const scaleReportFile =
   process.env.KNOWLEDGE_SCALE_REPORT_FILE ?? path.join(tmpdir(), `${container}.json`)
 
@@ -96,8 +99,8 @@ try {
   if (!/^127\.0\.0\.1:\d+$/.test(endpoint))
     throw new Error('Unexpected disposable Postgres endpoint')
   const databaseUrl = `postgresql://postgres@${endpoint}/${database}`
-  if (keepScaleDatabase)
-    logger.info('Retaining disposable scale database for follow-up measurements', {
+  if (keepDatabase)
+    logger.info('Retaining disposable benchmark database for follow-up measurements', {
       container,
       databaseUrl,
     })
@@ -192,6 +195,6 @@ try {
   try {
     if (redisStarted) run('docker', ['stop', redisContainer], { capture: true })
   } finally {
-    if (started && !keepScaleDatabase) run('docker', ['stop', container], { capture: true })
+    if (started && !keepDatabase) run('docker', ['stop', container], { capture: true })
   }
 }

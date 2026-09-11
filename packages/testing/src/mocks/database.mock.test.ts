@@ -97,6 +97,7 @@ describe('database mock', () => {
       .where({})
       .orderBy(workflowTable.id)
       .limit(1)
+      .offset(1)
       .as('ranked')
 
     expect(ranked.id).toEqual({
