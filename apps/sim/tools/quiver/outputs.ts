@@ -1,13 +1,12 @@
 import type { ToolOutputProperty } from '@/tools/types'
 
 export const QUIVER_SVG_V2_OUTPUTS = {
-  file: { type: 'file', description: 'First generated SVG stored as a file' },
   files: { type: 'file[]', description: 'All generated SVG files' },
-  id: { type: 'string', description: 'Request ID', optional: true },
+  id: { type: 'string', description: 'Request ID', nullable: true },
   usage: {
     type: 'json',
     description: 'Token usage statistics',
-    optional: true,
+    nullable: true,
     properties: {
       totalTokens: { type: 'number', description: 'Total tokens used' },
       inputTokens: { type: 'number', description: 'Input tokens used' },

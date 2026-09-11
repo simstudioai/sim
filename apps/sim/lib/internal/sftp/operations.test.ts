@@ -164,13 +164,7 @@ describe('SFTP operations', () => {
       expect(result.files[0]?.name).toBe('file.txt')
       const file = { ...storedFile, size: buffer.length }
       const presented = result.present([file])
-      expect(presented).toEqual({
-        success: true,
-        fileName: 'file.txt',
-        file,
-        size: buffer.length,
-        message: 'Successfully downloaded file.txt',
-      })
+      expect(presented).toEqual({ file })
       expect(JSON.stringify(presented)).not.toContain('"content"')
       expect(JSON.stringify(presented)).not.toContain('"encoding"')
       expect(mocks.clientEnd).toHaveBeenCalledOnce()

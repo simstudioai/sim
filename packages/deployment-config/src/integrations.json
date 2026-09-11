@@ -12955,7 +12955,7 @@
       "tags": ["forms", "automation", "webhooks"]
     },
     {
-      "type": "jupyter",
+      "type": "jupyter_v2",
       "slug": "jupyter",
       "name": "Jupyter",
       "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",

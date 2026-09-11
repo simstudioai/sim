@@ -35,10 +35,14 @@ export const executeCursorTool: InternalToolOperationHandler<InternalToolOperati
   }
 
   try {
-    const result = await downloadCursorArtifact(parsed.data, {
+    const context = {
       requestId: request.requestId,
       signal: request.signal,
-    })
+    }
+    const result =
+      request.toolId === 'cursor_download_artifact_v2'
+        ? await downloadCursorArtifact(parsed.data, context, 'v2')
+        : await downloadCursorArtifact(parsed.data, context)
     return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()

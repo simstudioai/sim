@@ -97,12 +97,8 @@ describe('SSH operations', () => {
       const file = { ...storedFile, size }
       const presented = result.present([file])
       expect(presented).toEqual({
-        downloaded: true,
         file,
-        size,
-        fileName: 'file.txt',
         remotePath: '/file.txt',
-        message: 'File downloaded successfully from /file.txt',
       })
       expect(JSON.stringify(presented)).not.toContain('"content"')
       expect(sftp.createReadStream).toHaveBeenCalledOnce()

@@ -4076,6 +4076,77 @@ describe('Internal Route Trust', () => {
     }
   )
 
+  it('stores late JSON-response attachments and their nested aliases for Copilot', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-attachment',
+      name: 'attachment.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/attachment.bin',
+      url: 'https://storage.example.com/attachment.bin',
+      context: 'copilot',
+    }
+    const attachment = { name: stored.name, mimeType: stored.type, data: bytes }
+    const transformResponse = vi.fn(async (response: Response) => {
+      const metadata = await response.json()
+      return {
+        success: true,
+        output: { metadata, files: [attachment], messages: [{ attachments: [attachment] }] },
+      }
+    })
+    const tool = {
+      id: 'test_copilot_late_attachment',
+      name: 'Copilot attachment',
+      description: 'Stores late attachments',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/messages',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+      outputs: { files: { type: 'file[]' } },
+      transformResponse,
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ id: 'message-1' }))
+    )
+    const controller = new AbortController()
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+          signal: controller.signal,
+        }
+      )
+      expect(result).toMatchObject({
+        success: true,
+        output: { files: [stored], messages: [{ attachments: [stored] }] },
+      })
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      expect(mockUploadCopilotFile.mock.calls[0]?.[0].buffer).toBe(bytes)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+      expect(transformResponse.mock.calls[0]).toHaveLength(3)
+      const transformContext = (transformResponse.mock.calls[0] as unknown[])[2] as {
+        signal: AbortSignal
+      }
+      expect(transformContext.signal).toBeInstanceOf(AbortSignal)
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
   it('persists external binary downloads for Copilot as file references', async () => {
     const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
     const stored = {

@@ -173,7 +173,7 @@ import {
   JiraServiceManagementBlockMeta,
 } from '@/blocks/blocks/jira_service_management'
 import { JotformBlock, JotformBlockMeta } from '@/blocks/blocks/jotform'
-import { JupyterBlock, JupyterBlockMeta } from '@/blocks/blocks/jupyter'
+import { JupyterBlock, JupyterBlockMeta, JupyterV2Block } from '@/blocks/blocks/jupyter'
 import {
   KalshiBlock,
   KalshiBlockMeta,
@@ -545,6 +545,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   jira_service_management: JiraServiceManagementBlock,
   jotform: JotformBlock,
   jupyter: JupyterBlock,
+  jupyter_v2: JupyterV2Block,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
   ketch: KetchBlock,
@@ -884,6 +885,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   jira_service_management: JiraServiceManagementBlockMeta,
   jotform: JotformBlockMeta,
   jupyter: JupyterBlockMeta,
+  jupyter_v2: JupyterBlockMeta,
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,

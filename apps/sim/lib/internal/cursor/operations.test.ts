@@ -45,7 +45,8 @@ describe('downloadCursorArtifact', () => {
 
     const result = await downloadCursorArtifact(
       { apiKey: 'cursor-key', agentId: 'agent-1', path: '/src/index.ts' },
-      { requestId: 'request-1', signal: controller.signal }
+      { requestId: 'request-1', signal: controller.signal },
+      'v2'
     )
 
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -64,6 +65,28 @@ describe('downloadCursorArtifact', () => {
     expect(result.present([storedFile])).toMatchObject({
       success: true,
       output: { file: storedFile },
+    })
+  })
+
+  it('preserves inline file data for the legacy tool', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ url: 'https://download.example/artifact' }))
+    )
+    const result = await downloadCursorArtifact(
+      { apiKey: 'cursor-key', agentId: 'agent-1', path: '/src/index.ts' },
+      { requestId: 'request-1' }
+    )
+    expect(result).toEqual({
+      success: true,
+      output: {
+        file: {
+          name: 'index.ts',
+          mimeType: 'text/plain',
+          data: Buffer.from('artifact').toString('base64'),
+          size: 8,
+        },
+      },
     })
   })
 })

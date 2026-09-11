@@ -51,7 +51,7 @@ export interface SftpDownloadResult extends ToolResponse {
 export type SftpDownloadV2Params = Omit<SftpDownloadParams, 'encoding'>
 
 export interface SftpDownloadV2Result extends ToolResponse {
-  output: Omit<SftpDownloadResult['output'], 'content' | 'encoding' | 'file'> & {
+  output: {
     file?: UserFile
   }
 }

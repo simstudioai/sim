@@ -694,6 +694,14 @@ export const SSHV2Block: BlockConfig = {
   },
   outputs: {
     ...omit(SSHBlock.outputs, ['fileContent']),
+    success: {
+      ...SSHBlock.outputs.success,
+      condition: { field: 'operation', value: 'ssh_download_file', not: true },
+    },
+    message: {
+      ...SSHBlock.outputs.message,
+      condition: { field: 'operation', value: 'ssh_download_file', not: true },
+    },
     content: {
       ...SSHBlock.outputs.content,
       condition: { field: 'operation', value: 'ssh_read_file_content' },

@@ -26,6 +26,7 @@ interface DownloadCase {
   transform: (response: Response) => Promise<BinaryResult>
   name: string
   mimeType?: string
+  outputKeys?: string[]
   checkMetadata?: (output: Record<string, unknown>, size: number) => void
 }
 
@@ -34,12 +35,14 @@ const DOWNLOAD_CASES: DownloadCase[] = [
     tool: boxDownloadFileV2Tool,
     transform: (response) => boxDownloadFileV2Tool.transformResponse!(response),
     name: 'download.pdf',
+    outputKeys: ['file'],
   },
   {
     tool: dropboxDownloadV2Tool,
     transform: (response) =>
       dropboxDownloadV2Tool.transformResponse!(response, { path: '/download.pdf' }),
     name: 'download.pdf',
+    outputKeys: ['file', 'metadata', 'temporaryLink'],
     checkMetadata: (output, size) => {
       expect(output.metadata).toEqual({ id: 'file-1', name: 'download.pdf', size })
       expect(output.temporaryLink).toBeUndefined()
@@ -106,12 +109,9 @@ const DOWNLOAD_CASES: DownloadCase[] = [
         fileColumn: 'cr_document',
       }),
     name: 'download.pdf',
-    checkMetadata: (output, size) => {
-      expect(output.fileName).toBe('download.pdf')
-      expect(output.fileSize).toBe(size)
-      expect(output.mimeType).toBe('application/pdf')
+    outputKeys: ['file', 'fileColumn'],
+    checkMetadata: (output) => {
       expect(output.fileColumn).toBe('cr_document')
-      expect(output.success).toBe(true)
     },
   },
   {
@@ -127,12 +127,14 @@ const DOWNLOAD_CASES: DownloadCase[] = [
     tool: downloadAttachmentV2Tool,
     transform: (response) => downloadAttachmentV2Tool.transformResponse!(response),
     name: 'download.pdf',
+    outputKeys: ['file'],
   },
   {
     tool: getQrCodeV2Tool,
     transform: (response) => getQrCodeV2Tool.transformResponse!(response),
     name: 'qrcode.png',
     mimeType: 'image/png',
+    outputKeys: ['file'],
   },
 ]
 
@@ -171,6 +173,9 @@ function expectBinaryFile(result: BinaryResult, buffer: Buffer, provider: Downlo
   expect(file.data.equals(buffer)).toBe(true)
   expect(result.output).not.toHaveProperty('content')
   expect(result.output).not.toHaveProperty('fileContent')
+  if (provider.outputKeys) {
+    expect(Object.keys(result.output).sort()).toEqual(provider.outputKeys)
+  }
   provider.checkMetadata?.(result.output, buffer.length)
 }
 
@@ -188,6 +193,9 @@ describe.each(DOWNLOAD_CASES)('$tool.id binary download', (provider) => {
     expect(provider.tool.request.responseType).toBe('binary')
     expect(provider.tool.outputs).not.toHaveProperty('content')
     expect(provider.tool.outputs).not.toHaveProperty('fileContent')
+    if (provider.outputKeys) {
+      expect(Object.keys(provider.tool.outputs!).sort()).toEqual(provider.outputKeys)
+    }
   })
 
   it('returns raw bytes and file metadata above the former 10 MiB cap', async () => {

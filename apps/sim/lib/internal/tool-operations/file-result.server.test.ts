@@ -137,7 +137,6 @@ describe('presentInternalToolOperationResult', () => {
           name: input.name,
           size: input.buffer.length,
           type: input.mimeType,
-          mimeType: input.mimeType,
         },
         metadata: { sourceId: 'item-1' },
       },
@@ -375,7 +374,6 @@ describe('presentInternalToolOperationResult', () => {
       file: {
         name: 'image.bin',
         type: 'application/octet-stream',
-        mimeType: 'application/octet-stream',
       },
     })
   })

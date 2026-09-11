@@ -399,11 +399,7 @@ export async function executeSftpDownload(
         })
       }
       return createInternalToolFileResult({ buffer, name: fileName, mimeType }, (file) => ({
-        success: true,
-        fileName,
         file,
-        size: buffer.length,
-        message: `Successfully downloaded ${fileName}`,
       }))
     })
   } catch (error) {

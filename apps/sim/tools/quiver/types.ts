@@ -56,7 +56,6 @@ export interface QuiverSvgResponse extends ToolResponse {
 
 export interface QuiverSvgV2Response extends ToolResponse {
   output: Omit<QuiverSvgResponse['output'], 'file' | 'files' | 'svgContent'> & {
-    file: UserFile
     files: UserFile[]
   }
 }

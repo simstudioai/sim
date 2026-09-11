@@ -1247,41 +1247,42 @@ function createTransformedErrorFromErrorInfo(errorInfo?: ErrorInfo, extractorId?
 }
 
 /**
- * Process file outputs for a tool result if execution context is available
+ * Store declared file outputs using the trusted workflow or Copilot context.
  * Uses dynamic imports to avoid client-side bundling issues
  */
 async function processFileOutputs(
   result: ToolResponse,
   tool: ToolDefinition,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  operationContext?: InternalToolOperationContext,
+  signal?: AbortSignal
 ): Promise<ToolResponse> {
-  // Skip file processing if no execution context or not successful
-  if (!executionContext || !result.success) {
+  if (!result.success) {
     return result
   }
 
-  // Skip file processing on client-side (no Node.js modules available)
   if (typeof window !== 'undefined') {
     return result
   }
 
   try {
-    // Dynamic import to avoid client-side bundling issues
     const { FileToolProcessor } = await import('@/executor/utils/file-tool-processor')
 
-    // Check if tool has file outputs
     if (!FileToolProcessor.hasFileOutputs(tool)) {
       return result
     }
 
+    const context = operationContext ?? executionContext
+    if (!context) throw new Error('File output requires trusted execution context')
     const processedOutput = await FileToolProcessor.processToolOutputs(
       result.output,
       tool,
-      executionContext
+      context,
+      signal
     )
 
-    // Indexed so a later tool call in this run can name any of these by id.
-    recordExecutionFiles(executionContext, processedOutput)
+    /** Index stored files so later calls in the run can resolve their IDs. */
+    if (executionContext) recordExecutionFiles(executionContext, processedOutput)
 
     return {
       ...result,
@@ -1296,7 +1297,8 @@ async function processFileOutputs(
           error: normalizedError.message,
           stack: error instanceof Error ? error.stack : undefined,
         },
-        executionContext.resolvedSecretTraceRegistry,
+        executionContext?.resolvedSecretTraceRegistry ??
+          operationContext?.resolvedSecretTraceRegistry,
         {
           errorName: normalizedError.name,
           hasStack: Boolean(error instanceof Error && error.stack),
@@ -1304,10 +1306,7 @@ async function processFileOutputs(
         tool.id === 'function_execute' || isCustomTool(tool.id)
       )
     )
-    // Falling back to the original result leaves the raw file payload in place:
-    // the caller would see success while the declared file objects are actually
-    // undelivered bytes, which then flow into logs and any downstream model
-    // prompt. Reporting the failure is the only honest outcome.
+    /** Returning the original output would leak unstored file bytes into logs and model inputs. */
     return {
       ...result,
       success: false,
@@ -2178,7 +2177,13 @@ async function executeToolImplementation(
           })
         }
       }
-      finalResult = await processFileOutputs(finalResult, tool, executionContext)
+      finalResult = await processFileOutputs(
+        finalResult,
+        tool,
+        executionContext,
+        operationContext,
+        effectiveSignal
+      )
 
       if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
         await applyHostedKeyCostToResult(
@@ -2277,8 +2282,14 @@ async function executeToolImplementation(
       }
     }
 
-    // Process file outputs if execution context is available
-    finalResult = await processFileOutputs(finalResult, tool, executionContext)
+    /** Persist declared file outputs before returning the tool result. */
+    finalResult = await processFileOutputs(
+      finalResult,
+      tool,
+      executionContext,
+      operationContext,
+      effectiveSignal
+    )
 
     // Add timing data to the result
     const endTime = new Date()
@@ -2794,7 +2805,7 @@ async function executeDeclaredInternalOperation({
     )
   }
 
-  if (tool.transformResponse) return tool.transformResponse(response, params)
+  if (tool.transformResponse) return tool.transformResponse(response, params, { signal })
   const responseData = await response.json()
   if (isToolResponse(responseData)) return responseData
   return {
@@ -3114,7 +3125,7 @@ async function executeToolRequest(
           blob: () => response.blob(),
         } as Response
 
-        const data = await tool.transformResponse(mockResponse, params)
+        const data = await tool.transformResponse(mockResponse, params, { signal })
         if (tool.request.responseType === 'binary' && data.success) {
           if (!context) throw new Error('Binary file output requires trusted execution context')
           const file = data.output?.file

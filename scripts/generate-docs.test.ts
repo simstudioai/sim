@@ -120,6 +120,48 @@ describe('documentation tool metadata', () => {
     expect(current?.outputs?.content.description).toBe('HTML body of a knowledge article')
   })
 
+  it('merges explicit overrides after spreading omitted block outputs', () => {
+    const source = `
+      export const DownloadBlock = {
+        type: 'download', hideFromToolbar: true,
+        outputs: {
+          file: { type: 'file', description: 'Stored file' },
+          content: { type: 'string', description: 'Inline content' },
+          size: { type: 'number', description: 'File size' },
+          result: { type: 'json', description: 'Old result' },
+        },
+      } satisfies BlockConfig
+      export const DownloadV2Block: BlockConfig = {
+        ...DownloadBlock, type: 'download_v2', hideFromToolbar: false,
+        outputs: {
+          ...omit(DownloadBlock.outputs, ['content', 'size']),
+          result: { type: 'json', description: 'Provider result' },
+        },
+      }
+    `
+    const [current] = extractAllBlockConfigs(source)
+    expect(current.outputs).toEqual({
+      file: { type: 'file', description: 'Stored file' },
+      result: { type: 'json', description: 'Provider result' },
+    })
+  })
+
+  it.each([
+    ['sftp', ['file', 'uploadedFiles', 'entries'], ['content', 'fileName', 'size']],
+    ['ssh', ['file', 'stdout', 'content'], ['fileContent']],
+    ['quiver', ['files', 'id', 'usage', 'models'], ['file', 'svgContent']],
+    [
+      'microsoft_dataverse',
+      ['file', 'fileColumn', 'records'],
+      ['fileContent', 'fileSize', 'mimeType'],
+    ],
+  ])('keeps %s block fallback outputs after versioned omissions', (service, retained, removed) => {
+    const source = fs.readFileSync(path.resolve('apps/sim/blocks/blocks', `${service}.ts`), 'utf8')
+    const current = extractAllBlockConfigs(source).find((block) => block.type === `${service}_v2`)
+    for (const key of retained) expect(current?.outputs).toHaveProperty(key)
+    for (const key of removed) expect(current?.outputs).not.toHaveProperty(key)
+  })
+
   it('preserves the existing block-output fallback for unchanged ServiceNow operations', async () => {
     const tool = await getToolInfo('servicenow_create_incident')
     expect(tool?.params.map((param) => param.name)).toContain('shortDescription')
@@ -149,7 +191,7 @@ describe('documentation tool metadata', () => {
       const info = await getToolInfo(toolId, current?.userSettableParamIds)
       expect(info?.description).toBeTruthy()
       expect(info?.params.length).toBeGreaterThan(0)
-      expect(info?.outputs).toHaveProperty('file')
+      expect(info?.outputs).toHaveProperty(service === 'quiver' ? 'files' : 'file')
       expect(info?.outputs).not.toHaveProperty('content')
       expect(info?.outputs).not.toHaveProperty('fileContent')
       expect(info?.outputs).not.toHaveProperty('svgContent')

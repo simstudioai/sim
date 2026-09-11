@@ -29,10 +29,32 @@ export interface CursorOperationContext {
   signal?: AbortSignal
 }
 
-export async function downloadCursorArtifact(
+interface LegacyCursorArtifactResult {
+  success: boolean
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
+  }
+}
+
+export function downloadCursorArtifact(
   input: DownloadArtifactParams,
   context: CursorOperationContext
-): Promise<InternalToolFileResult> {
+): Promise<LegacyCursorArtifactResult>
+export function downloadCursorArtifact(
+  input: DownloadArtifactParams,
+  context: CursorOperationContext,
+  version: 'v2'
+): Promise<InternalToolFileResult>
+export async function downloadCursorArtifact(
+  input: DownloadArtifactParams,
+  context: CursorOperationContext,
+  version: 'v1' | 'v2' = 'v1'
+): Promise<LegacyCursorArtifactResult | InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const authHeader = `Basic ${Buffer.from(`${input.apiKey}:`).toString('base64')}`
   const artifactResponse = await fetch(
@@ -94,6 +116,19 @@ export async function downloadCursorArtifact(
     path: input.path,
     size: fileBuffer.length,
   })
+  if (version === 'v1') {
+    return {
+      success: true,
+      output: {
+        file: {
+          name: file.name,
+          mimeType: file.mimeType,
+          data: fileBuffer.toString('base64'),
+          size: fileBuffer.length,
+        },
+      },
+    }
+  }
   return createInternalToolFileResult(file, (storedFile) => ({
     success: true,
     output: { file: storedFile },

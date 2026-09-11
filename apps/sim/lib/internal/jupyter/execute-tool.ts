@@ -4,9 +4,19 @@ import type { AnyApiRouteContract } from '@/lib/api/contracts'
 import { jupyterUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { jupyterProxyContract } from '@/lib/api/contracts/tools/jupyter'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
-import { executeJupyterProxy, executeJupyterUpload } from '@/lib/internal/jupyter/operations'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { InvalidJupyterTargetError } from '@/lib/internal/jupyter/client'
+import {
+  executeJupyterGetContent,
+  executeJupyterProxy,
+  executeJupyterUpload,
+} from '@/lib/internal/jupyter/operations'
+import { UnsafeJupyterPathError } from '@/lib/internal/jupyter/protocol'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const proxyLogger = createLogger('JupyterProxyAPI')
 const uploadLogger = createLogger('JupyterUploadAPI')
@@ -53,14 +63,30 @@ function unexpectedErrorResponse(
 }
 
 /** Executes every Jupyter tool without routing through the application's HTTP listener. */
-export const executeJupyterTool: InternalToolOperationHandler = async ({
-  toolId,
-  input,
-  context,
-  requestId,
-  signal,
-}) => {
+export const executeJupyterTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async ({ toolId, input, context, requestId, signal }) => {
   signal?.throwIfAborted()
+
+  if (toolId === 'jupyter_get_content_v2') {
+    const parsed = parseJupyterBody(jupyterProxyContract, input)
+    if (!parsed.success) return parsed.response
+    if (parsed.data.method !== 'GET') {
+      return Response.json({ error: 'Get Content requires a GET request' }, { status: 400 })
+    }
+    try {
+      return await executeJupyterGetContent(parsed.data, { requestId, signal })
+    } catch (error) {
+      signal?.throwIfAborted()
+      if (error instanceof UnsafeJupyterPathError || error instanceof InvalidJupyterTargetError) {
+        return Response.json({ error: error.message }, { status: 400 })
+      }
+      if (isPayloadSizeLimitError(error)) {
+        return Response.json({ error: error.message }, { status: 413 })
+      }
+      return unexpectedErrorResponse('proxy', requestId, error, signal)
+    }
+  }
 
   if (JUPYTER_PROXY_TOOL_ID_SET.has(toolId)) {
     const parsed = parseJupyterBody(jupyterProxyContract, input)

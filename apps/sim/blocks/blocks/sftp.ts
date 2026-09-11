@@ -368,7 +368,17 @@ export const SftpV2Block: BlockConfig = {
     },
   },
   inputs: omit(SftpBlock.inputs, ['encoding']),
-  outputs: omit(SftpBlock.outputs, ['content']),
+  outputs: {
+    ...omit(SftpBlock.outputs, ['content', 'fileName', 'size']),
+    success: {
+      ...SftpBlock.outputs.success,
+      condition: { field: 'operation', value: 'sftp_download', not: true },
+    },
+    message: {
+      ...SftpBlock.outputs.message,
+      condition: { field: 'operation', value: 'sftp_download', not: true },
+    },
+  },
 }
 
 export const SftpBlockMeta = {

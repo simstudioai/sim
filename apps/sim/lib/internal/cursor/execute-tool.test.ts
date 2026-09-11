@@ -54,10 +54,12 @@ describe('executeCursorTool', () => {
       const response = await executeCursorTool(request({ toolId, signal: controller.signal }))
 
       expect(response.status).toBe(200)
-      expect(mocks.downloadCursorArtifact).toHaveBeenCalledWith(
+      const expectedArgs: unknown[] = [
         { apiKey: 'cursor-key', agentId: 'agent-1', path: '/src/index.ts' },
-        { requestId: 'request-1', signal: controller.signal }
-      )
+        { requestId: 'request-1', signal: controller.signal },
+      ]
+      if (toolId.endsWith('_v2')) expectedArgs.push('v2')
+      expect(mocks.downloadCursorArtifact.mock.calls[0]).toEqual(expectedArgs)
     }
   )
 
@@ -67,7 +69,9 @@ describe('executeCursorTool', () => {
       (file) => ({ success: true, output: { file } })
     )
     mocks.downloadCursorArtifact.mockResolvedValueOnce(fileResult)
-    expect(await executeCursorToolOperation(request())).toBe(fileResult)
+    expect(
+      await executeCursorToolOperation(request({ toolId: 'cursor_download_artifact_v2' }))
+    ).toBe(fileResult)
   })
 
   it('rejects invalid input before provider work', async () => {

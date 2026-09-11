@@ -461,6 +461,7 @@ const JUPYTER_TOOL_IDS = [
   'jupyter_delete_content',
   'jupyter_delete_session',
   'jupyter_get_content',
+  'jupyter_get_content_v2',
   'jupyter_interrupt_kernel',
   'jupyter_list_contents',
   'jupyter_list_kernels',

@@ -23,7 +23,7 @@ describe('SSH download tool versions', () => {
     expect(downloadFileTool.outputs.fileContent).toBeDefined()
   })
 
-  it('presents only the stored file and metadata in v2', async () => {
+  it('presents only the stored file and source path in v2', async () => {
     const response = await downloadFileV2Tool.transformResponse!(
       Response.json({
         file,
@@ -37,16 +37,11 @@ describe('SSH download tool versions', () => {
     expect(response).toEqual({
       success: true,
       output: {
-        downloaded: true,
         file,
-        fileName: 'file.txt',
         remotePath: '/file.txt',
-        size: 5,
-        message: 'Downloaded',
       },
     })
-    expect(downloadFileV2Tool.outputs).not.toHaveProperty('fileContent')
-    expect(downloadFileV2Tool.outputs).not.toHaveProperty('content')
+    expect(Object.keys(downloadFileV2Tool.outputs!)).toEqual(['file', 'remotePath'])
     expect(downloadFileV2Tool.operation).toBe(downloadFileTool.operation)
   })
 })

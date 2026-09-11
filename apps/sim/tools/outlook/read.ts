@@ -1,66 +1,81 @@
+import {
+  AttachmentDownloadBudget,
+  readAttachmentJson,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 import type {
   CleanedOutlookMessage,
   OutlookAttachment,
-  OutlookMessage,
   OutlookMessagesResponse,
   OutlookReadParams,
   OutlookReadResponse,
 } from '@/tools/outlook/types'
 import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
-/**
- * Download attachments from an Outlook message
- */
-async function downloadAttachments(
+interface OutlookDownloadAttachmentMetadata {
+  '@odata.type'?: string
+  id: string
+  name?: string
+  contentType?: string
+  size?: number
+}
+
+/** Fetch metadata separately from raw file bytes, sharing the budget across messages. */
+export async function downloadAttachments(
   messageId: string,
-  accessToken: string
+  accessToken: string,
+  budget = new AttachmentDownloadBudget()
 ): Promise<OutlookAttachment[]> {
   const attachments: OutlookAttachment[] = []
-
+  const path = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`
   try {
-    // Fetch attachments list from Microsoft Graph API
-    const response = await fetch(
-      `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
+    budget.signal?.throwIfAborted()
+    const response = await fetch(`${path}?$select=id,name,contentType,size`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: budget.signal,
+    })
     if (!response.ok) {
+      await response.body?.cancel()
+      budget.signal?.throwIfAborted()
       return attachments
     }
-
-    const data = await response.json()
-    const attachmentsList = data.value || []
-
-    for (const attachment of attachmentsList) {
+    const data = await readAttachmentJson<{ value?: OutlookDownloadAttachmentMetadata[] }>(
+      response,
+      'Outlook attachment metadata',
+      budget.signal
+    )
+    for (const attachment of data.value ?? []) {
+      if (attachment['@odata.type'] !== '#microsoft.graph.fileAttachment') continue
       try {
-        // Microsoft Graph returns attachment data directly in the list response for file attachments
-        if (attachment['@odata.type'] === '#microsoft.graph.fileAttachment') {
-          const contentBytes = attachment.contentBytes
-          if (contentBytes) {
-            // contentBytes is base64 encoded
-            const buffer = Buffer.from(contentBytes, 'base64')
-            attachments.push({
-              name: attachment.name,
-              data: buffer.toString('base64'),
-              contentType: attachment.contentType,
-              size: attachment.size,
-            })
-          }
+        if (attachment.size !== undefined) budget.assertSize(attachment.size, 'Outlook attachments')
+        budget.signal?.throwIfAborted()
+        const content = await fetch(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: budget.signal,
+        })
+        if (!content.ok) {
+          await content.body?.cancel()
+          budget.signal?.throwIfAborted()
+          continue
         }
+        const buffer = await budget.read(content, 'Outlook attachments')
+        attachments.push({
+          name: attachment.name || 'attachment',
+          data: buffer,
+          contentType:
+            attachment.contentType ||
+            content.headers.get('content-type') ||
+            'application/octet-stream',
+          size: buffer.byteLength,
+        })
       } catch (error) {
-        // Continue with other attachments
+        rethrowAttachmentDownloadError(error, budget.signal)
       }
     }
   } catch (error) {
-    // Return empty array on error
+    rethrowAttachmentDownloadError(error, budget.signal)
   }
-
   return attachments
 }
 
@@ -130,7 +145,13 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     },
   },
 
-  transformResponse: async (response: Response, params?: OutlookReadParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: OutlookReadParams,
+    context?: ToolResponseContext
+  ) => {
+    const budget = new AttachmentDownloadBudget(context)
+    context?.signal?.throwIfAborted()
     const data: OutlookMessagesResponse = await response.json()
 
     // Microsoft Graph API returns messages in a 'value' array
@@ -147,53 +168,54 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     }
 
     // Clean up the message data to only include essential fields
-    const cleanedMessages: CleanedOutlookMessage[] = await Promise.all(
-      messages.map(async (message: OutlookMessage) => {
-        // Download attachments if requested
-        let attachments: OutlookAttachment[] | undefined
-        if (params?.includeAttachments && message.hasAttachments && params?.accessToken) {
-          try {
-            attachments = await downloadAttachments(message.id, params.accessToken)
-          } catch (error) {
-            // Continue without attachments rather than failing the entire request
-          }
+    const cleanedMessages: CleanedOutlookMessage[] = []
+    for (const message of messages) {
+      context?.signal?.throwIfAborted()
+      // Download attachments if requested
+      let attachments: OutlookAttachment[] | undefined
+      if (params?.includeAttachments && message.hasAttachments && params?.accessToken) {
+        try {
+          attachments = await downloadAttachments(message.id, params.accessToken, budget)
+        } catch (error) {
+          rethrowAttachmentDownloadError(error, context?.signal)
+          // Continue without attachments rather than failing the entire request
         }
+      }
 
-        return {
-          id: message.id,
-          subject: message.subject,
-          bodyPreview: message.bodyPreview,
-          body: {
-            contentType: message.body?.contentType,
-            content: message.body?.content,
-          },
-          sender: {
-            name: message.sender?.emailAddress?.name,
-            address: message.sender?.emailAddress?.address,
-          },
-          from: {
-            name: message.from?.emailAddress?.name,
-            address: message.from?.emailAddress?.address,
-          },
-          toRecipients:
-            message.toRecipients?.map((recipient) => ({
-              name: recipient.emailAddress?.name,
-              address: recipient.emailAddress?.address,
-            })) || [],
-          ccRecipients:
-            message.ccRecipients?.map((recipient) => ({
-              name: recipient.emailAddress?.name,
-              address: recipient.emailAddress?.address,
-            })) || [],
-          receivedDateTime: message.receivedDateTime,
-          sentDateTime: message.sentDateTime,
-          hasAttachments: message.hasAttachments,
-          attachments: attachments || [],
-          isRead: message.isRead,
-          importance: message.importance,
-        }
+      cleanedMessages.push({
+        id: message.id,
+        subject: message.subject,
+        bodyPreview: message.bodyPreview,
+        body: {
+          contentType: message.body?.contentType,
+          content: message.body?.content,
+        },
+        sender: {
+          name: message.sender?.emailAddress?.name,
+          address: message.sender?.emailAddress?.address,
+        },
+        from: {
+          name: message.from?.emailAddress?.name,
+          address: message.from?.emailAddress?.address,
+        },
+        toRecipients:
+          message.toRecipients?.map((recipient) => ({
+            name: recipient.emailAddress?.name,
+            address: recipient.emailAddress?.address,
+          })) || [],
+        ccRecipients:
+          message.ccRecipients?.map((recipient) => ({
+            name: recipient.emailAddress?.name,
+            address: recipient.emailAddress?.address,
+          })) || [],
+        receivedDateTime: message.receivedDateTime,
+        sentDateTime: message.sentDateTime,
+        hasAttachments: message.hasAttachments,
+        attachments: attachments || [],
+        isRead: message.isRead,
+        importance: message.importance,
       })
-    )
+    }
 
     // Flatten all attachments from all emails to top level for FileToolProcessor
     const allAttachments: OutlookAttachment[] = []

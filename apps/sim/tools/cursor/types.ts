@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 interface BaseCursorParams {
@@ -218,12 +219,7 @@ export interface DownloadArtifactResponse extends ToolResponse {
 
 export interface DownloadArtifactV2Response extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
+    file: UserFile
   }
 }
 

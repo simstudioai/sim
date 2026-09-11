@@ -332,8 +332,9 @@ export interface DataverseDownloadFileResponse extends ToolResponse {
 }
 
 export interface DataverseDownloadFileV2Response<File = UserFile> extends ToolResponse {
-  output: Omit<DataverseDownloadFileResponse['output'], 'file' | 'fileContent'> & {
+  output: {
     file: File
+    fileColumn: string
   }
 }
 

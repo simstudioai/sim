@@ -188,7 +188,6 @@ function projectResult(
   return createInternalToolFilesResult(files, (storedFiles) => ({
     success: true,
     output: {
-      file: storedFiles[0],
       files: storedFiles,
       id: typeof root.id === 'string' ? root.id : null,
       usage,

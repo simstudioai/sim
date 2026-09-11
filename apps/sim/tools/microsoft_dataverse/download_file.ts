@@ -144,6 +144,21 @@ export const dataverseDownloadFileV2Tool: ToolConfig<
     'Download a file from a Dataverse file or image column and return its stored file reference and metadata',
   version: '2.0.0',
   request: { ...dataverseDownloadFileTool.request, responseType: 'binary' },
-  transformResponse: transformDownloadResponse,
-  outputs: omit(dataverseDownloadFileTool.outputs, ['fileContent']),
+  transformResponse: async (response, params) => {
+    const result = await transformDownloadResponse(response, params)
+    return {
+      success: true,
+      output: {
+        file: result.output.file,
+        fileColumn: result.output.fileColumn,
+      },
+    }
+  },
+  outputs: omit(dataverseDownloadFileTool.outputs, [
+    'fileContent',
+    'fileName',
+    'fileSize',
+    'mimeType',
+    'success',
+  ]),
 }

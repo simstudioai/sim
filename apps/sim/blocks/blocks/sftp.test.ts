@@ -28,6 +28,15 @@ describe('SFTP block versions', () => {
     expect(SftpV2Block.subBlocks.some((subBlock) => subBlock.id === 'encoding')).toBe(false)
     expect(SftpV2Block.inputs).not.toHaveProperty('encoding')
     expect(SftpV2Block.outputs).not.toHaveProperty('content')
+    expect(SftpV2Block.outputs).not.toHaveProperty('fileName')
+    expect(SftpV2Block.outputs).not.toHaveProperty('size')
+    for (const key of ['success', 'message']) {
+      expect(SftpV2Block.outputs[key].condition).toEqual({
+        field: 'operation',
+        value: 'sftp_download',
+        not: true,
+      })
+    }
     expect(SftpV2Block.outputs.file.type).toBe('file')
     const params = {
       operation: 'sftp_download',

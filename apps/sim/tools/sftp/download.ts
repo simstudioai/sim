@@ -136,20 +136,23 @@ export const sftpDownloadV2Tool: InternalToolConfig<SftpDownloadV2Params, SftpDo
     if (!response.ok) {
       return {
         success: false,
-        output: { success: false },
+        output: {},
         error: data.error || 'SFTP download failed',
       }
     }
     return {
       success: true,
       output: {
-        success: true,
         file: data.file,
-        fileName: data.fileName,
-        size: data.size,
-        message: data.message,
       },
     }
   },
-  outputs: omit(sftpDownloadTool.outputs!, ['content', 'encoding']),
+  outputs: omit(sftpDownloadTool.outputs, [
+    'content',
+    'encoding',
+    'success',
+    'fileName',
+    'size',
+    'message',
+  ]),
 }

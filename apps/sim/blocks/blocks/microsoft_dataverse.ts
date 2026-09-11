@@ -816,7 +816,18 @@ export const MicrosoftDataverseV2Block: BlockConfig = {
       },
     },
   },
-  outputs: omit(MicrosoftDataverseBlock.outputs, ['fileContent']),
+  outputs: {
+    ...omit(MicrosoftDataverseBlock.outputs, ['fileContent', 'fileSize', 'mimeType']),
+    fileName: {
+      type: 'string',
+      description: 'Name of the uploaded file',
+      condition: { field: 'operation', value: 'upload_file' },
+    },
+    success: {
+      ...MicrosoftDataverseBlock.outputs.success,
+      condition: { field: 'operation', value: 'download_file', not: true },
+    },
+  },
 }
 
 export const MicrosoftDataverseBlockMeta = {

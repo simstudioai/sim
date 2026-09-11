@@ -28,5 +28,12 @@ describe('SSH block versions', () => {
       field: 'operation',
       value: 'ssh_read_file_content',
     })
+    for (const key of ['success', 'message']) {
+      expect(SSHV2Block.outputs[key].condition).toEqual({
+        field: 'operation',
+        value: 'ssh_download_file',
+        not: true,
+      })
+    }
   })
 })

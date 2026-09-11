@@ -1,11 +1,11 @@
 import { PrincipalSubjectUserRequiredError, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import type {
   InternalToolFile,
   InternalToolFileResult,
-  StoredToolFile,
 } from '@/lib/internal/tool-operations/file-result'
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type {
@@ -19,6 +19,7 @@ import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('InternalToolFileResult')
 
@@ -115,7 +116,7 @@ export async function storeInternalToolFileResult<T>(
   const files = validateFiles(result)
   const scope = resolveFileStorageScope(context)
   const createdFiles: CreatedFile[] = []
-  const storedFiles = new Map<InternalToolFile, StoredToolFile>()
+  const storedFiles = new Map<InternalToolFile, UserFile>()
 
   try {
     for (const file of files) {
@@ -137,7 +138,7 @@ export async function storeInternalToolFileResult<T>(
               userId: scope.userId,
             })
       createdFiles.push({ key: storedFile.key, context: scope.kind })
-      storedFiles.set(file, { ...storedFile, mimeType: storedFile.type })
+      storedFiles.set(file, 'mimeType' in storedFile ? omit(storedFile, ['mimeType']) : storedFile)
       signal?.throwIfAborted()
     }
     const presentedFiles = result.files.map((file) => {

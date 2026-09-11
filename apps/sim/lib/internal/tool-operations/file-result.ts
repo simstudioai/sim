@@ -7,13 +7,11 @@ export interface InternalToolFile {
   mimeType: string
 }
 
-export type StoredToolFile = UserFile & { mimeType: string }
-
 /** The presenter receives stored descriptors, never inline file bytes. */
 export interface InternalToolFileResult {
   kind: 'file-output'
   files: readonly InternalToolFile[]
-  present: (files: readonly StoredToolFile[]) => unknown
+  present: (files: readonly UserFile[]) => unknown
   init?: ResponseInit
 }
 
@@ -27,7 +25,7 @@ export function createInternalToolFilesResult(
 
 export function createInternalToolFileResult(
   file: InternalToolFile,
-  present: (file: StoredToolFile) => unknown,
+  present: (file: UserFile) => unknown,
   init?: ResponseInit
 ): InternalToolFileResult {
   return createInternalToolFilesResult([file], (files) => present(files[0]!), init)

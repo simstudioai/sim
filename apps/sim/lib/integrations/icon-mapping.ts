@@ -416,7 +416,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   jira_service_management: JiraServiceManagementIcon,
   jotform: JotformIcon,
   jsm: JiraServiceManagementIcon,
-  jupyter: JupyterIcon,
+  jupyter_v2: JupyterIcon,
   kalshi_v2: KalshiIcon,
   ketch: KetchIcon,
   knowledge: PackageSearchIcon,

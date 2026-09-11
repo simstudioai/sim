@@ -283,7 +283,7 @@ export const QuiverV2Block: BlockConfig<QuiverSvgV2Response> = {
     },
   },
   outputs: {
-    ...omit(QuiverBlock.outputs, ['svgContent']),
+    ...omit(QuiverBlock.outputs, ['file', 'svgContent']),
     files: { type: 'file[]', description: 'All generated SVG files' },
   },
 }

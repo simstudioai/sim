@@ -28,6 +28,7 @@ describe('Quiver block versions', () => {
     expect(QuiverV2Block.outputs.files).toMatchObject({ type: 'file[]' })
     expect(QuiverBlock.outputs.files).toMatchObject({ type: 'json' })
     expect(QuiverV2Block.outputs).not.toHaveProperty('svgContent')
+    expect(QuiverV2Block.outputs).not.toHaveProperty('file')
     expect(QuiverBlock.outputs.svgContent).toMatchObject({ type: 'string' })
   })
 })

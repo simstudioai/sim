@@ -333,12 +333,8 @@ export async function executeSshDownloadFile(
         mimeType: getMimeTypeFromExtension(getFileExtension(fileName)),
       },
       (file) => ({
-        downloaded: true,
         file,
-        fileName,
         remotePath,
-        size: content.length,
-        message: `File downloaded successfully from ${remotePath}`,
       })
     )
   })

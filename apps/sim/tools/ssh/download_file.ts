@@ -114,14 +114,16 @@ export const downloadFileV2Tool: InternalToolConfig<
     return {
       success: true,
       output: {
-        downloaded: true,
         file: data.file,
-        fileName: data.fileName,
         remotePath: data.remotePath,
-        size: data.size,
-        message: data.message,
       },
     }
   },
-  outputs: omit(downloadFileTool.outputs!, ['fileContent']),
+  outputs: omit(downloadFileTool.outputs, [
+    'fileContent',
+    'downloaded',
+    'fileName',
+    'size',
+    'message',
+  ]),
 }

@@ -2230,9 +2230,12 @@ function extractBlockConfigFromContent(
 
     const ownOutputs = extractOutputsFromContent(blockContent)
     const inheritsOutputs = /\boutputs\s*:\s*\{\s*\.\.\.\w+Block\.outputs\b/.test(blockContent)
-    const outputs =
-      extractOmittedOutputs(blockContent, baseConfig?.outputs) ??
-      (inheritsOutputs ? { ...baseConfig?.outputs, ...ownOutputs } : ownOutputs)
+    const omittedOutputs = extractOmittedOutputs(blockContent, baseConfig?.outputs)
+    const outputs = omittedOutputs
+      ? { ...omittedOutputs, ...ownOutputs }
+      : inheritsOutputs
+        ? { ...baseConfig?.outputs, ...ownOutputs }
+        : ownOutputs
     const toolsAccess = extractToolsAccessFromContent(blockContent)
 
     // For tools.access, if not found directly, check if it's derived from base via map
@@ -2636,7 +2639,9 @@ function extractOmittedOutputs<T>(
   content: string,
   inherited: Record<string, T> | undefined
 ): Record<string, T> | null {
-  const omission = content.match(/\boutputs\s*:\s*omit\(\s*\w+\.outputs!?\s*,\s*\[([^\]]*)\]\s*\)/)
+  const omission = content.match(
+    /\boutputs\s*:\s*(?:\{\s*\.\.\.\s*)?omit\(\s*\w+\.outputs!?\s*,\s*\[([^\]]*)\]\s*\)/
+  )
   if (!omission || !inherited) return null
   const outputs = { ...inherited }
   for (const [, key] of omission[1].matchAll(/['"]([^'"]+)['"]/g)) delete outputs[key]

@@ -31,6 +31,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   image_generator: 'image_generator_v2',
   input_trigger: 'start_trigger',
   intercom: 'intercom_v2',
+  jupyter: 'jupyter_v2',
   kalshi: 'kalshi_v2',
   linear: 'linear_v2',
   logs: 'logs_v2',

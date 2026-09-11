@@ -126,15 +126,14 @@ describe('Quiver operations', () => {
     )
     expect(result.files).toHaveLength(2)
     const storedFiles = [storedSvg('generated-1.svg'), storedSvg('generated-2.svg')]
-    const presented = result.present(storedFiles) as { output: { file: unknown; files: unknown[] } }
-    expect(presented.output.file).toBe(storedFiles[0])
+    const presented = result.present(storedFiles) as { output: { files: unknown[] } }
     expect(presented.output.files).toBe(storedFiles)
     expect(presented.output).toMatchObject({
-      file: { name: 'generated-1.svg', mimeType: 'image/svg+xml' },
       files: [{ name: 'generated-1.svg' }, { name: 'generated-2.svg' }],
       id: 'generation-1',
       usage: { totalTokens: 9, inputTokens: 4, outputTokens: 5 },
     })
+    expect(Object.keys(presented.output).sort()).toEqual(['files', 'id', 'usage'])
     expect(presented.output).not.toHaveProperty('svgContent')
   })
 
@@ -168,8 +167,9 @@ describe('Quiver operations', () => {
     const file = storedSvg('vectorized.svg')
     const presented = result.present([file])
     expect(presented).toMatchObject({
-      output: { file, files: [file] },
+      output: { files: [file] },
     })
+    expect(presented).not.toHaveProperty('output.file')
     expect(presented).not.toHaveProperty('output.svgContent')
   })
 
@@ -189,7 +189,7 @@ describe('Quiver operations', () => {
       const presented = result.present([file])
       expect(presented).toEqual({
         success: true,
-        output: { file, files: [file], id: null, usage: null },
+        output: { files: [file], id: null, usage: null },
       })
       expect(JSON.stringify(presented).length).toBeLessThan(1024)
     }

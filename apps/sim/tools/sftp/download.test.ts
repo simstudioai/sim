@@ -30,7 +30,7 @@ describe('SFTP download tool versions', () => {
     expect(sftpDownloadTool.params.encoding).toBeDefined()
   })
 
-  it('presents only the stored file and metadata in v2', async () => {
+  it('presents only the canonical stored file in v2', async () => {
     const response = await sftpDownloadV2Tool.transformResponse!(
       Response.json({
         file,
@@ -43,10 +43,9 @@ describe('SFTP download tool versions', () => {
     )
     expect(response).toEqual({
       success: true,
-      output: { success: true, file, fileName: 'file.txt', size: 5, message: 'Downloaded' },
+      output: { file },
     })
-    expect(sftpDownloadV2Tool.outputs).not.toHaveProperty('content')
-    expect(sftpDownloadV2Tool.outputs).not.toHaveProperty('encoding')
+    expect(Object.keys(sftpDownloadV2Tool.outputs!)).toEqual(['file'])
     expect(sftpDownloadV2Tool.params).not.toHaveProperty('encoding')
     const input = {
       host: 'sftp.example.com',
@@ -57,5 +56,12 @@ describe('SFTP download tool versions', () => {
       encoding: 'base64',
     }
     expect(sftpDownloadV2Tool.operation.input(input)).not.toHaveProperty('encoding')
+  })
+
+  it('reports failure without a duplicate output status in v2', async () => {
+    const result = await sftpDownloadV2Tool.transformResponse!(
+      Response.json({ success: false, error: 'Missing file' }, { status: 404 })
+    )
+    expect(result).toEqual({ success: false, output: {}, error: 'Missing file' })
   })
 })

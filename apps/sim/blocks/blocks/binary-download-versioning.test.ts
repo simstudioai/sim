@@ -84,3 +84,17 @@ describe.each(cases)(
     })
   }
 )
+
+it('keeps Dataverse upload metadata separate from canonical download files', () => {
+  expect(MicrosoftDataverseV2Block.outputs).not.toHaveProperty('fileSize')
+  expect(MicrosoftDataverseV2Block.outputs).not.toHaveProperty('mimeType')
+  expect(MicrosoftDataverseV2Block.outputs.fileName.condition).toEqual({
+    field: 'operation',
+    value: 'upload_file',
+  })
+  expect(MicrosoftDataverseV2Block.outputs.success.condition).toEqual({
+    field: 'operation',
+    value: 'download_file',
+    not: true,
+  })
+})
