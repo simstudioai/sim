@@ -395,11 +395,15 @@ export const ToolInput = memo(function ToolInput({
   const { collaborativeSetBlockCanonicalMode, collaborativeSetBlockCanonicalModes } =
     useCollaborativeWorkflow()
   const reindexCanonicalModesOnMutate = useCallback(
-    (oldTools: StoredTool[], newTools: StoredTool[]) => {
+    (oldTools: StoredTool[], newTools: StoredTool[], persistedTools = newTools) => {
       const next = reindexToolCanonicalModes(oldTools, newTools, canonicalModeOverrides)
-      if (next) collaborativeSetBlockCanonicalModes(blockId, next)
+      if (!next) return false
+      collaborativeSetBlockCanonicalModes(blockId, next, {
+        [subBlockId]: { id: subBlockId, type: 'tool-input', value: persistedTools },
+      })
+      return true
     },
-    [canonicalModeOverrides, collaborativeSetBlockCanonicalModes, blockId]
+    [canonicalModeOverrides, collaborativeSetBlockCanonicalModes, blockId, subBlockId]
   )
 
   const value = isPreview ? previewValue : storeValue
@@ -857,8 +861,9 @@ export const ToolInput = memo(function ToolInput({
     (toolIndex: number) => {
       if (isPreview || disabled) return
       const updatedTools = selectedTools.filter((_, index) => index !== toolIndex)
-      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-      setStoreValue(updatedTools)
+      if (!reindexCanonicalModesOnMutate(selectedTools, updatedTools)) {
+        setStoreValue(updatedTools)
+      }
     },
     [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
   )
@@ -869,8 +874,9 @@ export const ToolInput = memo(function ToolInput({
       const updatedTools = selectedTools.filter(
         (t) => !(t.type === 'mcp' && t.params?.serverId === serverId)
       )
-      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-      setStoreValue(updatedTools)
+      if (!reindexCanonicalModesOnMutate(selectedTools, updatedTools)) {
+        setStoreValue(updatedTools)
+      }
     },
     [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
   )
@@ -900,8 +906,9 @@ export const ToolInput = memo(function ToolInput({
       })
 
       if (updatedTools.length !== selectedTools.length) {
-        reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-        setStoreValue(updatedTools)
+        if (!reindexCanonicalModesOnMutate(selectedTools, updatedTools)) {
+          setStoreValue(updatedTools)
+        }
       }
     },
     [selectedTools, customTools, reindexCanonicalModesOnMutate, setStoreValue]
@@ -1077,8 +1084,9 @@ export const ToolInput = memo(function ToolInput({
       newTools.splice(adjustedDropIndex, 0, draggedTool)
     }
 
-    reindexCanonicalModesOnMutate(selectedTools, newTools)
-    setStoreValue(newTools)
+    if (!reindexCanonicalModesOnMutate(selectedTools, newTools)) {
+      setStoreValue(newTools)
+    }
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
@@ -1177,8 +1185,9 @@ export const ToolInput = memo(function ToolInput({
               ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
               serverBinding,
             ]
-            reindexCanonicalModesOnMutate(selectedTools, filteredTools)
-            setStoreValue(nextTools)
+            if (!reindexCanonicalModesOnMutate(selectedTools, filteredTools, nextTools)) {
+              setStoreValue(nextTools)
+            }
             setMcpServerDrilldown(null)
             setOpen(false)
           },

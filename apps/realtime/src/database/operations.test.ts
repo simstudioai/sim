@@ -1,5 +1,9 @@
 /** @vitest-environment node */
-import { OPERATION_TARGETS, SUBBLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
+import {
+  BLOCK_OPERATIONS,
+  OPERATION_TARGETS,
+  SUBBLOCK_OPERATIONS,
+} from '@sim/realtime-protocol/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockTransaction, mockSelectWhere, mockSet } = vi.hoisted(() => ({
@@ -118,6 +122,92 @@ describe('search replacement persistence', () => {
     await expect(replaceTools([another, expected[0]], [expected[0], another])).rejects.toThrow(
       'changed since replacement was planned'
     )
+    expect(mockSet).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('atomic tool reordering', () => {
+  const block = {
+    id: 'agent-1',
+    type: 'agent',
+    name: 'Agent',
+    position: { x: 0, y: 0 },
+    locked: false,
+    subBlocks: {
+      tools: {
+        id: 'tools',
+        type: 'tool-input',
+        value: [{ type: 'jira', params: { projectId: 'project-1' } }],
+      },
+    },
+    data: {},
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation(
+      async (callback: (tx: typeof transaction) => Promise<void>) => callback(transaction)
+    )
+    mockSet.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    mockSelectWhere.mockImplementation(() =>
+      Object.assign(
+        Promise.resolve([{ ...block, subBlocks: { tools: { value: [{ type: 'function' }] } } }]),
+        {
+          limit: async () => [
+            { ...block, subBlocks: { tools: { value: [{ type: 'function' }] } } },
+          ],
+        }
+      )
+    )
+  })
+
+  it('persists a reordered tool array and its mode map in one write', async () => {
+    const first = {
+      type: 'jira',
+      params: { projectId: 'project-1', manualProjectId: '<Start.project>' },
+    }
+    const second = {
+      type: 'jira',
+      params: { projectId: 'project-2', manualProjectId: '<Start.project>' },
+    }
+    const original = {
+      ...block,
+      subBlocks: { tools: { id: 'tools', type: 'tool-input', value: [first, second] } },
+      data: { canonicalModes: { '1:projectId': 'advanced' } },
+    }
+    mockSelectWhere.mockResolvedValue([original])
+    mockSet.mockReturnValue({
+      where: () =>
+        Object.assign(Promise.resolve(undefined), { returning: async () => [{ id: block.id }] }),
+    })
+    const subBlocks = { tools: { id: 'tools', type: 'tool-input', value: [second, first] } }
+    const canonicalModes = { '0:projectId': 'advanced' }
+    await expect(
+      persistWorkflowOperation('workflow-1', {
+        operation: BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
+        target: OPERATION_TARGETS.BLOCK,
+        timestamp: Date.now(),
+        payload: { id: block.id, subBlocks, data: { canonicalModes } },
+      })
+    ).resolves.toBeUndefined()
+    expect(mockSet).toHaveBeenLastCalledWith(
+      expect.objectContaining({ subBlocks, data: { canonicalModes } })
+    )
+  })
+
+  it('refuses an atomic tool update inside a locked container', async () => {
+    mockSelectWhere.mockResolvedValue([
+      { ...block, data: { parentId: 'container' } },
+      { id: 'container', type: 'loop', locked: true, data: {} },
+    ])
+    await expect(
+      persistWorkflowOperation('workflow-1', {
+        operation: BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
+        target: OPERATION_TARGETS.BLOCK,
+        timestamp: Date.now(),
+        payload: { id: block.id, subBlocks: block.subBlocks, data: { canonicalModes: {} } },
+      })
+    ).rejects.toThrow('locked')
     expect(mockSet).toHaveBeenCalledTimes(1)
   })
 })
