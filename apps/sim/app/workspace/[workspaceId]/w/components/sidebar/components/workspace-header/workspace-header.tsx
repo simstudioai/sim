@@ -35,6 +35,7 @@ import { WORKSPACE_SEARCH_THRESHOLD } from '@/lib/workspaces/constants'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
@@ -615,64 +616,54 @@ function WorkspaceHeaderImpl({
                         }
                       >
                         {editingWorkspaceId === workspace.id ? (
-                          <div className={chipVariants({ active: true, fullWidth: true })}>
-                            <IdentityTile
-                              initial={initial}
-                              logoUrl={workspace.logoUrl}
-                              alt={workspace.name || 'Workspace logo'}
-                            />
-                            <input
-                              ref={(el) => {
-                                renameInputRef.current = el
-                                if (el && !hasInputFocusedRef.current) {
-                                  hasInputFocusedRef.current = true
-                                  el.focus()
-                                  el.select()
-                                }
-                              }}
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onKeyDown={async (e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, editingName.trim())
-                                    setEditingWorkspaceId(null)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault()
+                          <SidebarRenameRow
+                            leadingAdornment={
+                              <IdentityTile
+                                initial={initial}
+                                logoUrl={workspace.logoUrl}
+                                alt={workspace.name || 'Workspace logo'}
+                              />
+                            }
+                            ref={(el) => {
+                              renameInputRef.current = el
+                              if (el && !hasInputFocusedRef.current) {
+                                hasInputFocusedRef.current = true
+                                el.focus()
+                                el.select()
+                              }
+                            }}
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                setIsListRenaming(true)
+                                try {
+                                  await onRenameWorkspace(workspace.id, editingName.trim())
                                   setEditingWorkspaceId(null)
+                                } finally {
+                                  setIsListRenaming(false)
                                 }
-                              }}
-                              onBlur={async () => {
-                                if (!editingWorkspaceId) return
-                                const trimmedName = editingName.trim()
-                                if (trimmedName && trimmedName !== workspace.name) {
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, trimmedName)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                }
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault()
                                 setEditingWorkspaceId(null)
-                              }}
-                              className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
-                              maxLength={100}
-                              autoComplete='off'
-                              autoCorrect='off'
-                              autoCapitalize='off'
-                              spellCheck='false'
-                              disabled={isListRenaming}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                              }}
-                            />
-                          </div>
+                              }
+                            }}
+                            onBlur={async () => {
+                              if (!editingWorkspaceId) return
+                              const trimmedName = editingName.trim()
+                              if (trimmedName && trimmedName !== workspace.name) {
+                                setIsListRenaming(true)
+                                try {
+                                  await onRenameWorkspace(workspace.id, trimmedName)
+                                } finally {
+                                  setIsListRenaming(false)
+                                }
+                              }
+                              setEditingWorkspaceId(null)
+                            }}
+                            disabled={isListRenaming}
+                          />
                         ) : (
                           <div
                             className={cn(

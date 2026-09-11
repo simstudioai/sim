@@ -157,6 +157,7 @@ export const storageContextSchema = z.enum([
   'og-images',
   'logs',
   'workspace-logos',
+  'organization-logos',
 ])
 
 export const fileParseBodySchema = z

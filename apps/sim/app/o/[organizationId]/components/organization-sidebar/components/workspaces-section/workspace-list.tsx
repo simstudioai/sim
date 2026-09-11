@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import {
-  ChipInput,
   chipVariants,
   cn,
   DropdownMenuItem,
@@ -11,14 +10,14 @@ import {
   OverflowText,
   toast,
 } from '@sim/emcn'
-import { MoreHorizontal, Pin, Search } from '@sim/emcn/icons'
+import { MoreHorizontal, Pin } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-menu'
-import { WORKSPACE_SEARCH_THRESHOLD } from '@/lib/workspaces/constants'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-workspaces'
+import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { useFlyoutInlineRename } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-flyout-inline-rename'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
 import { useToggleWorkspacePin, useUpdateWorkspace } from '@/hooks/queries/workspace'
@@ -39,7 +38,6 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
   const { mutateAsync: updateWorkspace } = useUpdateWorkspace()
   const menu = useContextMenu()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedId)
   const rename = useFlyoutInlineRename({
@@ -60,13 +58,7 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
     return () => lockFlyout?.(false)
   }, [lockFlyout, menu.isOpen, rename.editingId])
 
-  const showSearch = workspaces.length >= WORKSPACE_SEARCH_THRESHOLD
-  const query = showSearch ? search.trim().toLowerCase() : ''
-  const filteredWorkspaces = query
-    ? workspaces.filter((workspace) => workspace.name.toLowerCase().includes(query))
-    : workspaces
-  const visibleWorkspaces =
-    flyout || query ? filteredWorkspaces : filteredWorkspaces.slice(0, visibleCount)
+  const visibleWorkspaces = flyout ? workspaces : workspaces.slice(0, visibleCount)
   const hasMore = workspaces.length > visibleCount
 
   const openMenu = (event: React.MouseEvent, workspaceId: string) => {
@@ -78,27 +70,14 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
 
   return (
     <>
-      {showSearch && (
-        <ChipInput
-          icon={Search}
-          aria-label='Search workspaces'
-          placeholder='Search workspaces...'
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onKeyDown={(event) => event.stopPropagation()}
-          className='mb-1.5'
-        />
-      )}
       {isLoading && flyout && (
         <DropdownMenuItem disabled>
           <Loader className='size-[14px]' animate />
           Loading...
         </DropdownMenuItem>
       )}
-      {!isLoading && filteredWorkspaces.length === 0 && (
-        <div className='px-2 py-1 text-[var(--text-muted)] text-small'>
-          {query ? 'No matching workspaces' : 'No workspaces yet'}
-        </div>
+      {!isLoading && workspaces.length === 0 && (
+        <div className='px-2 py-1 text-[var(--text-muted)] text-small'>No workspaces yet</div>
       )}
       {visibleWorkspaces.map((workspace) => {
         const href = `/workspace/${workspace.id}`
@@ -129,19 +108,21 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
 
         if (rename.editingId === workspace.id) {
           return (
-            <ChipInput
+            <SidebarRenameRow
               key={workspace.id}
               ref={rename.inputRef}
+              leadingAdornment={
+                <IdentityTile
+                  initial={getWorkspaceInitial(workspace.name)}
+                  logoUrl={workspace.logoUrl}
+                />
+              }
               aria-label={`Rename workspace ${workspace.name}`}
               value={rename.value}
               onChange={(event) => rename.setValue(event.target.value)}
-              onKeyDown={(event) => {
-                event.stopPropagation()
-                rename.handleKeyDown(event)
-              }}
+              onKeyDown={rename.handleKeyDown}
               onBlur={() => void rename.saveRename()}
               disabled={rename.isSaving}
-              maxLength={100}
             />
           )
         }
@@ -211,7 +192,7 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
           </SettingsGuardedLink>
         )
       })}
-      {!flyout && !query && workspaces.length > PAGE_SIZE && (
+      {!flyout && workspaces.length > PAGE_SIZE && (
         <button
           type='button'
           onClick={() => setVisibleCount((count) => (hasMore ? count + PAGE_SIZE : PAGE_SIZE))}

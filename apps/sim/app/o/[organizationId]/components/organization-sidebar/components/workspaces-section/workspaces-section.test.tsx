@@ -131,7 +131,7 @@ function pager() {
 }
 
 describe('WorkspacesSection', () => {
-  it('shows the first page and pages the rest in like the sidebar chats', async () => {
+  it('shows the first page and expands the remaining workspaces', async () => {
     await render()
     expect(rows()).toHaveLength(5)
     expect(pager()?.textContent).toBe('See more')
@@ -177,13 +177,9 @@ describe('WorkspacesSection', () => {
     await render({ isCollapsed: true })
     expect(container.querySelector('[aria-label="Workspaces"]')).not.toBeNull()
   })
-  it('searches all workspaces, including those beyond the first page', async () => {
+  it('does not add a workspace search field to the sidebar', async () => {
     await render()
-    await act(async () => typeInto(container.querySelector('input')!, 'Workspace 8'))
-    expect(rows()).toHaveLength(1)
-    expect(rows()[0].textContent).toContain('Workspace 8')
-    expect(pager()).toBeUndefined()
-    await act(async () => typeInto(container.querySelector('input')!, ''))
+    expect(container.querySelector('input')).toBeNull()
     expect(rows()).toHaveLength(5)
   })
 
@@ -212,6 +208,8 @@ describe('WorkspacesSection', () => {
       '[aria-label="Rename workspace Workspace 1"]'
     )!
     expect(input).not.toBeNull()
+    expect(input.parentElement?.textContent).toBe('1')
+    expect(input.parentElement?.className).toContain('surface-active')
     await act(async () => typeInto(input, 'Renamed workspace'))
     await act(async () =>
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))

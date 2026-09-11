@@ -13,11 +13,17 @@ const mocks = vi.hoisted(() => ({
   reauthorizeWorkspacePurpose: vi.fn(),
   getWorkspaceFile: vi.fn(),
   authorizeOrganizationAttachment: vi.fn(),
+  authorizeOrganizationLogo: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
   authorizeOrganizationAttachmentControl: mocks.authorizeOrganizationAttachment,
   createOrganizationAssistantAttachment: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/organization-logo/application', () => ({
+  authorizeOrganizationLogoControl: mocks.authorizeOrganizationLogo,
+  createOrganizationLogoUpload: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -67,6 +73,7 @@ describe('upload session application', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.authorizeOrganizationAttachment.mockResolvedValue(undefined)
+    mocks.authorizeOrganizationLogo.mockResolvedValue(undefined)
     const session = workspaceUploadSession()
     mocks.getOwnedSession.mockResolvedValue(session)
     mocks.finalizePurpose.mockResolvedValue({
@@ -82,6 +89,52 @@ describe('upload session application', () => {
         alreadyCompleted: false,
       }
     })
+  })
+
+  it.each(['complete', 'abort', 'parts'] as const)(
+    'rechecks organization administrator membership before the logo %s control leg',
+    async (control) => {
+      const session = {
+        ...workspaceUploadSession(),
+        purpose: 'organization_logo' as const,
+        workspaceId: null,
+      }
+      mocks.getOwnedSession.mockResolvedValue(session)
+      mocks.authorizeOrganizationLogo.mockRejectedValue(
+        new Error('Organization administrator access is required')
+      )
+      const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+      const input = { uploadId: 'upload-1', uploadToken: 'upload-token', partNumbers: [1] }
+      const result =
+        control === 'complete'
+          ? completeInternalUploadSession(principal, input, request)
+          : control === 'abort'
+            ? abortInternalUploadSession(principal, input)
+            : issueInternalUploadPartUrls(principal, input, request)
+      await expect(result).rejects.toThrow('Organization administrator access is required')
+      expect(mocks.assertAuthBinding).toHaveBeenCalledWith(session, principal)
+      expect(mocks.authorizeOrganizationLogo).toHaveBeenCalledWith(principal, session)
+      expect(mocks.finalizePurpose).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not finalize a logo when organization access is revoked after claim', async () => {
+    mocks.getOwnedSession.mockResolvedValue({
+      ...workspaceUploadSession(),
+      purpose: 'organization_logo',
+      workspaceId: null,
+    })
+    mocks.authorizeOrganizationLogo
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Organization not found'))
+    await expect(
+      completeInternalUploadSession(
+        principal,
+        { uploadId: 'upload-1', uploadToken: 'upload-token' },
+        new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+      )
+    ).rejects.toThrow('Organization not found')
+    expect(mocks.finalizePurpose).not.toHaveBeenCalled()
   })
 
   it('preserves the authenticated actor metadata through internal finalization', async () => {

@@ -64,6 +64,14 @@ export const createInternalFileUploadBodySchema = z.discriminatedUnion('purpose'
     .strict(),
   z
     .object({
+      purpose: z.literal('organization_logo'),
+      ...internalFileUploadBaseShape,
+      size: z.number().int().min(1).max(MAX_ASSET_FILE_SIZE),
+      organizationId: organizationIdSchema,
+    })
+    .strict(),
+  z
+    .object({
       purpose: z.literal('mothership_attachment'),
       ...internalFileUploadBaseShape,
       size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
@@ -160,6 +168,14 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('workspace_logo'),
+      size: z.number().int().positive(),
+      result: internalUploadedAssetSchema.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      ...internalFileUploadSessionBaseShape,
+      purpose: z.literal('organization_logo'),
       size: z.number().int().positive(),
       result: internalUploadedAssetSchema.nullable(),
     })

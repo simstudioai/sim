@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import {
   Chip,
   ChipChevronDown,
@@ -7,13 +8,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  OverflowText,
+  toast,
 } from '@sim/emcn'
-import { PanelLeft, Settings } from '@sim/emcn/icons'
+import { PanelLeft, Settings, Upload } from '@sim/emcn/icons'
+import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import type { OrganizationSurfaceOrganization } from '@/lib/organizations/surface'
+import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 
 function getOrganizationInitial(name: string): string {
   return (name.trim()[0] || 'O').toUpperCase()
@@ -21,6 +27,7 @@ function getOrganizationInitial(name: string): string {
 
 interface OrganizationHeaderProps {
   organization: OrganizationSurfaceOrganization
+  canEditLogo: boolean
   isCollapsed: boolean
   /** Expands the rail; the collapsed header is itself the expand control. */
   onExpandSidebar: () => void
@@ -35,9 +42,15 @@ interface OrganizationHeaderProps {
  */
 export function OrganizationHeader({
   organization,
+  canEditLogo,
   isCollapsed,
   onExpandSidebar,
 }: OrganizationHeaderProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+  const { mutate: uploadLogo, isPending: isUploadingLogo } = useUploadOrganizationLogo(
+    organization.id
+  )
   const initial = getOrganizationInitial(organization.name)
 
   if (isCollapsed) {
@@ -70,6 +83,25 @@ export function OrganizationHeader({
 
   return (
     <div className='min-w-0 flex-1'>
+      {canEditLogo && (
+        <input
+          ref={fileInputRef}
+          type='file'
+          accept={LOGO_ACCEPT_ATTRIBUTE}
+          className='hidden'
+          aria-label='Organization logo'
+          disabled={isUploadingLogo}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file || isUploadingLogo) return
+            uploadLogo(file, {
+              onSuccess: () => router.refresh(),
+              onError: (error) => toast.error(error.message),
+            })
+          }}
+        />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Chip
@@ -87,7 +119,6 @@ export function OrganizationHeader({
           sideOffset={8}
           className='w-64 max-w-[calc(100vw-24px)]'
         >
-          {/* The item rows' `px-2` and the rail chips' icon-to-label gap, so the card sits on the menu's own grid. */}
           <div className='flex items-center gap-2 px-2 py-1.5'>
             <IdentityTile
               size='lg'
@@ -96,14 +127,21 @@ export function OrganizationHeader({
               alt={organization.name}
             />
             <div className='flex min-w-0 flex-col'>
-              <span className='truncate text-[var(--text-primary)] text-sm'>
-                {organization.name}
-              </span>
+              <OverflowText label={organization.name} />
               <span className='text-[var(--text-muted)] text-caption'>
                 {memberCount} {memberCount === 1 ? 'member' : 'members'}
               </span>
             </div>
           </div>
+          {canEditLogo && (
+            <DropdownMenuItem
+              disabled={isUploadingLogo}
+              onSelect={() => fileInputRef.current?.click()}
+            >
+              <Upload className='size-[14px]' />
+              {isUploadingLogo ? 'Uploading...' : 'Upload logo'}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem asChild>
             <SettingsGuardedLink href={getOrganizationSettingsHref(organization.id, 'members')}>
               <Settings className='size-[14px]' />

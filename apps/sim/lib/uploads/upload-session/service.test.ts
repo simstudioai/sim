@@ -153,6 +153,62 @@ describe('upload sessions', () => {
     })
   })
 
+  it('stores organization logos under their own scope and replaces forged credential metadata', async () => {
+    const finalKey = 'organization-logos/org-1/upload-1-logo.png'
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      uploadRow({
+        purpose: 'organization_logo',
+        workspaceId: null,
+        storageContext: 'organization-logos',
+        finalKey,
+        contentType: 'image/png',
+      }),
+    ])
+    await createUploadSession({
+      id: 'upload-1',
+      userId: 'user-1',
+      purpose: 'organization_logo',
+      organizationId: 'org-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      fileName: 'logo.png',
+      contentType: 'image/png',
+      fileSize: 100,
+      metadata: { organizationLogo: { organizationId: 'forged' } },
+    })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: null,
+        finalKey,
+        storageContext: 'organization-logos',
+        metadata: {
+          organizationLogo: { organizationId: 'org-1', userId: 'user-1', sessionId: 'session-1' },
+        },
+      })
+    )
+    expect(mockCreatePutTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'organization-logos', fileSize: 100 })
+    )
+  })
+
+  it.each([
+    { contentType: 'text/html', fileSize: 100 },
+    { contentType: 'image/png', fileSize: 5 * 1024 * 1024 + 1 },
+    { contentType: 'image/png', fileSize: 0 },
+  ])('rejects invalid organization logos before initializing storage', async (file) => {
+    await expect(
+      createUploadSession({
+        purpose: 'organization_logo',
+        organizationId: 'org-1',
+        userId: 'user-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        fileName: 'logo.png',
+        ...file,
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
   it('binds organization images to the creating session and stores them without a workspace', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       uploadRow({

@@ -456,6 +456,28 @@ describe('File Serve API Route', () => {
     })
   })
 
+  it('serves organization logos through the existing public asset path', async () => {
+    mockIsUsingCloudStorage.mockReturnValue(true)
+    mockInferContextFromKey.mockReturnValue('organization-logos')
+    const key = 'organization-logos/org-1/upload-1-logo.png'
+    const response = await GET(new NextRequest(`http://localhost/api/files/serve/s3/${key}`), {
+      params: Promise.resolve({ path: ['s3', 'organization-logos', 'org-1', 'upload-1-logo.png'] }),
+    })
+    expect(response.status).toBe(200)
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
+      key,
+      context: 'organization-logos',
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    })
+    expect(mockCreateFileResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cacheControl: 'public, max-age=31536000',
+      })
+    )
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockAuthenticateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
   it('should return 404 when file not found', async () => {
     mockVerifyFileAccess.mockResolvedValue(false)
     mockFindLocalFile.mockReturnValue(null)

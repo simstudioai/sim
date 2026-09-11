@@ -155,6 +155,8 @@ export async function verifyFileAccess(
   const requireWrite = options?.requireWrite ?? false
   try {
     const keyContext = inferContextFromKey(cloudKey)
+    /** Organization logos are changed only through the organization-authorized upload lifecycle. */
+    if (keyContext === 'organization-logos') return !requireWrite
     if (keyContext === 'knowledge-base') {
       return requireWrite
         ? verifyKBFileWriteAccess(cloudKey, userId)

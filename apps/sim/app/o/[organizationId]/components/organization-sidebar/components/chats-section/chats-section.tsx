@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  ChipInput,
-  chipVariants,
-  cn,
-  DropdownMenuItem,
-  Loader,
-  OverflowText,
-  Skeleton,
-} from '@sim/emcn'
+import { chipVariants, cn, DropdownMenuItem, Loader, OverflowText, Skeleton } from '@sim/emcn'
 import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { useOrganizationChatActions } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-chat-actions'
@@ -18,6 +10,7 @@ import {
   CollapsedSidebarMenu,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -187,7 +180,7 @@ export function ChatsSection({
                 )}
                 {chats.map((chat) =>
                   rename.editingId === chat.id ? (
-                    <ChipInput
+                    <SidebarRenameRow
                       key={chat.id}
                       ref={rename.inputRef}
                       aria-label={`Rename chat ${chat.name}`}
@@ -196,8 +189,6 @@ export function ChatsSection({
                       onKeyDown={rename.handleKeyDown}
                       onBlur={saveRename}
                       disabled={rename.isSaving}
-                      maxLength={100}
-                      autoComplete='off'
                     />
                   ) : (
                     <ChatRow

@@ -12,6 +12,10 @@ import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { finalizeOrganizationAssistantAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import {
+  finalizeOrganizationLogoUpload,
+  organizationLogoUploadResult,
+} from '@/lib/uploads/contexts/organization-logo/application'
+import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
   type WorkspaceFileRecord,
@@ -106,6 +110,8 @@ export async function finalizeUploadPurpose({
       )
     case 'profile_picture':
       return { value: storedAssetResult(session, 'profile-pictures') }
+    case 'organization_logo':
+      return finalizeOrganizationLogoUpload(principal, session, request)
     case 'workspace_logo':
       return finalizeWorkspaceLogo(session, actor, request)
     case 'mothership_attachment':
@@ -137,6 +143,8 @@ export async function loadCompletedUploadPurpose(
   switch (session.purpose) {
     case 'workspace_file':
       return toV2File(await loadCompletedWorkspaceFileUpload(session))
+    case 'organization_logo':
+      return organizationLogoUploadResult(session)
     case 'profile_picture':
     case 'workspace_logo':
     case 'mothership_attachment':

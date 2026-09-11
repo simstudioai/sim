@@ -74,6 +74,7 @@ export type StorageContext =
   | 'og-images'
   | 'logs'
   | 'workspace-logos'
+  | 'organization-logos'
 
 /**
  * The contexts stored under the `workspace/` key prefix. They share a bucket and

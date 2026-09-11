@@ -122,4 +122,48 @@ describe('session upload domain clients', () => {
       size: 100,
     })
   })
+
+  it('uploads an organization logo through the shared internal session', async () => {
+    const result = {
+      path: '/api/files/serve/logo.png',
+      key: 'organization-logos/logo.png',
+      name: 'logo.png',
+      size: 100,
+      type: 'image/png',
+    }
+    mockRequestJson
+      .mockResolvedValueOnce({
+        data: {
+          session: { id: 'upload-2', purpose: 'organization_logo' },
+          uploadToken: 'token',
+          transfer: {
+            method: 'put',
+            url: 'https://storage.example/upload',
+            headers: { 'Content-Type': 'image/png' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'upload-2', purpose: 'organization_logo', result },
+      })
+    mockUploadFileSession.mockImplementation(
+      async (params: UploadClientMockParams<typeof result>) => params.complete()
+    )
+
+    await expect(
+      uploadInternalFileSession({
+        purpose: 'organization_logo',
+        organizationId: 'org-1',
+        file: { name: 'logo.png', type: 'image/png', size: 100 } as File,
+      })
+    ).resolves.toEqual(result)
+
+    expect(mockRequestJson.mock.calls[0][1].body).toEqual({
+      purpose: 'organization_logo',
+      organizationId: 'org-1',
+      name: 'logo.png',
+      contentType: 'image/png',
+      size: 100,
+    })
+  })
 })
