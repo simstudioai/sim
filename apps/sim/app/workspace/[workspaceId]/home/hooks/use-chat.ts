@@ -3811,7 +3811,7 @@ export function useChat(
       contexts?: ChatContext[],
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
-      if (!message.trim() || !scopeKey) return false
+      if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return false
       const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       const pendingStopStreamId = pendingStop
@@ -4339,7 +4339,7 @@ export function useChat(
       contexts?: ChatContext[],
       options?: SendMessageOptions
     ) => {
-      if (!message.trim() || !scopeKey) return
+      if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
 
       const queueStore = useMothershipQueueStore.getState()
       const activeChatKey = chatKeyRef.current

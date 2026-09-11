@@ -61,7 +61,7 @@ export function sendMothershipMessage(
   assistantSearch?: WorkspaceSearchFilters
 ): boolean {
   const trimmed = message.trim()
-  if (!trimmed) {
+  if (!trimmed && !fileAttachments?.length) {
     logger.warn('sendMothershipMessage called with empty message')
     return false
   }

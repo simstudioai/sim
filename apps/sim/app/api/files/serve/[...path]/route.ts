@@ -7,6 +7,7 @@ import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts
 import {
   concealCrossTenantResourceError,
   InternalUnauthenticatedError,
+  internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
@@ -16,6 +17,7 @@ import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
+import { readOrganizationAssistantImage } from '@/lib/uploads/contexts/organization-assistant/application'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
@@ -217,6 +219,21 @@ export const GET = withRouteHandler(
       const isGcsPath = path[0] === 'gcs'
       const isCloudPath = isS3Path || isBlobPath || isGcsPath
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
+
+      if (cloudKey.startsWith('assistant/')) {
+        const principal = await internalSessionAuth.authenticate()
+        const image = await readOrganizationAssistantImage({
+          principal,
+          key: cloudKey,
+          signal: request.signal,
+        })
+        return createFileResponse({
+          buffer: image.buffer,
+          filename: image.name,
+          contentType: image.contentType,
+          cacheControl: 'private, no-store',
+        })
+      }
 
       const isPublicByKeyPrefix =
         cloudKey.startsWith('profile-pictures/') ||

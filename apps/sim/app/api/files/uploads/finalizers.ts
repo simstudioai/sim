@@ -10,6 +10,7 @@ import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types
 import { captureServerEvent } from '@/lib/posthog/server'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
+import { finalizeOrganizationAssistantAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
@@ -108,6 +109,9 @@ export async function finalizeUploadPurpose({
     case 'workspace_logo':
       return finalizeWorkspaceLogo(session, actor, request)
     case 'mothership_attachment':
+      if (session.workspaceId === null) {
+        return { value: await finalizeOrganizationAssistantAttachment(principal, session) }
+      }
       return finalizeMothershipAttachment(session)
     case 'execution_attachment':
       return finalizeExecutionAttachment(session)

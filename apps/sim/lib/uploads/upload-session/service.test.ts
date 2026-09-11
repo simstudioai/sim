@@ -153,6 +153,64 @@ describe('upload sessions', () => {
     })
   })
 
+  it('binds organization images to the creating session and stores them without a workspace', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      uploadRow({
+        purpose: 'mothership_attachment',
+        workspaceId: null,
+        storageContext: 'mothership',
+        finalKey: 'assistant/org-1/user-1/upload-1/image.png',
+        contentType: 'image/png',
+      }),
+    ])
+    await createUploadSession({
+      id: 'upload-1',
+      userId: 'user-1',
+      purpose: 'mothership_attachment',
+      organizationId: 'org-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      fileName: 'image.png',
+      contentType: 'image/png',
+      fileSize: 100,
+      metadata: { organizationAttachment: { organizationId: 'forged' } },
+    })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: null,
+        finalKey: 'assistant/org-1/user-1/upload-1/image.png',
+        metadata: {
+          organizationAttachment: {
+            organizationId: 'org-1',
+            userId: 'user-1',
+            sessionId: 'session-1',
+          },
+        },
+      })
+    )
+    expect(mockCreatePutTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'mothership', fileSize: 100 })
+    )
+  })
+
+  it.each([
+    { contentType: 'text/html', fileSize: 100 },
+    { contentType: 'image/png', fileSize: 5 * 1024 * 1024 + 1 },
+  ])('rejects invalid organization images before storage initialization', async (file) => {
+    await expect(
+      createUploadSession({
+        id: 'upload-1',
+        userId: 'user-1',
+        purpose: 'mothership_attachment',
+        organizationId: 'org-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        fileName: 'image.png',
+        ...file,
+      })
+    ).rejects.toThrow('Assistant attachments must be')
+    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
   // Local storage stores an object's metadata sidecar beside it, under the
   // object's own name, so the whole key + suffix must fit one path component.
   // Three purposes built their key by hand and admitted a 255-character name
@@ -1030,6 +1088,87 @@ describe('upload sessions', () => {
     expect(mockDeleteObjectVersion).toHaveBeenCalledWith(
       expect.objectContaining({ key: FINAL_KEY, version: 'version-1' })
     )
+  })
+
+  it('reclaims a completed Assistant image left behind by account deletion', async () => {
+    const image = uploadRow({
+      purpose: 'mothership_attachment',
+      workspaceId: null,
+      storageContext: 'mothership',
+      finalKey: 'assistant/org-1/user-1/upload-1/image.png',
+      status: 'completed',
+      completedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    })
+    queueTableRows(schemaMock.uploadSession, [])
+    queueTableRows(schemaMock.uploadSession, [image])
+    mockHeadObject.mockResolvedValue(providerObject(sessionRecord(image), 'version-1'))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([image])
+      .mockResolvedValueOnce([{ id: image.id }])
+
+    await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
+      expired: 0,
+      failed: 0,
+      purged: 1,
+    })
+    expect(mockDeleteObjectVersion).toHaveBeenCalledWith({
+      provider: 's3',
+      key: image.finalKey,
+      context: 'mothership',
+      version: 'version-1',
+    })
+    expect(mockDeleteObjectVersion.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.delete.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('retains orphan image ownership records when object deletion fails so cleanup can retry', async () => {
+    const image = uploadRow({
+      purpose: 'mothership_attachment',
+      workspaceId: null,
+      storageContext: 'mothership',
+      status: 'completed',
+      completedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    })
+    queueTableRows(schemaMock.uploadSession, [])
+    queueTableRows(schemaMock.uploadSession, [image])
+    mockHeadObject.mockResolvedValue(providerObject(sessionRecord(image), 'version-1'))
+    mockDeleteObjectVersion.mockRejectedValueOnce(new Error('Storage unavailable'))
+    dbChainMockFns.returning.mockResolvedValueOnce([image])
+
+    await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
+      expired: 0,
+      failed: 1,
+      purged: 0,
+    })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        processingLeaseId: null,
+        processingLeaseExpiresAt: null,
+        error: 'Storage unavailable',
+      })
+    )
+  })
+
+  it('purges completed workspace attachment sessions without deleting their registered objects', async () => {
+    const attachment = uploadRow({
+      purpose: 'mothership_attachment',
+      status: 'completed',
+      completedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    })
+    queueTableRows(schemaMock.uploadSession, [])
+    queueTableRows(schemaMock.uploadSession, [attachment])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([attachment])
+      .mockResolvedValueOnce([{ id: attachment.id }])
+
+    await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
+      expired: 0,
+      failed: 0,
+      purged: 1,
+    })
+    expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
   })
 })
 

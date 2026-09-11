@@ -150,6 +150,8 @@ export async function verifyFileAccess(
   isLocal?: boolean,
   options?: { requireWrite?: boolean; knowledgeAccess?: KnowledgeFileAccess }
 ): Promise<boolean> {
+  /** Organization images require the Principal-aware Assistant application resolver. */
+  if (cloudKey.startsWith('assistant/')) return false
   const requireWrite = options?.requireWrite ?? false
   try {
     const keyContext = inferContextFromKey(cloudKey)
