@@ -29,7 +29,7 @@ deterministic payload. Finding IDs are stable for the same input pair and engine
 ## Binary decisions and grouped report (schema 3)
 
 The public decisions are **`flag`** and **`exempt`**. Uncertainty produces `flag`, with
-the obstacle recorded in `limitations`. Schema and policy version `3.0.0`, engine version `0.3.0`, retain binary decisions
+the obstacle recorded in `limitations`. Schema version `3.0.0`, policy version `4.0.0`, engine version `0.4.0`, retain binary decisions
 and add bounded values and explicit report truncation metadata.
 
 Each finding groups evidence by **changed source file**. Several changed definitions in
@@ -112,6 +112,7 @@ scripts/design-diff/
   environment.ts                        Literal createEnv schema field comparison
   resolve.ts                            Bounded expression and import resolution
   inputs.ts                             Configured file-loaded documentation inputs
+  document-content.ts                   Routine documentation authoring exemptions
   infrastructure.ts                     Rendering lockfile dependency closure
   report.ts                             Value previews and bounded JSON serialization
   semantic.ts                           Full semantic hashes without repeated tree expansion
@@ -150,11 +151,34 @@ TSX/CSS files that an application build or Tailwind source scan could consume.
 | Shape/effects | Radius, border, shadow, opacity, filters | Flag |
 | Layout | Wrapping, flex/grid sizing, stretching | Flag |
 | Visibility | Hidden state, overflow, clipping, layering | Flag |
-| Content | Visible copy, JSX/HTML/MDX structure, images, SVG, fonts | Flag |
+| Content | Product copy, new product controls, custom MDX UI, images, SVG, fonts | Flag |
+| Routine documentation | Prose, headings, tables, code samples, known content components, API-reference data | No finding |
 | Motion | Keyframes, transitions, animation props | Flag |
 | Infrastructure | Renderer dependencies, lockfile, CSS processors, module mappings | Flag |
 | Movement | Coordinates, translation, margins, gaps, alignment | Flag unless the static proof succeeds |
 | Nonvisual/equivalent | Comments, erased types, supported formatting and constant extraction | No finding |
+
+Policy 4 exempts routine authoring in the `documentationContent.roots` directories. The parser
+projects out prose, Markdown tables, code samples and recognized frontmatter content fields.
+Configured Fumadocs/repository components are recognized by their import module and named export,
+including local import aliases. Only their declared content props with literal data are exempt;
+standard Callout types and tab labels are authoring options. Unknown widgets, appearance overrides,
+spreads, unresolved expressions, embedded images/media and unknown frontmatter fields remain in
+scope. YAML 2.9.0 uses its data-only core schema with custom tags disabled and aliases bounded;
+malformed or unsupported syntax produces a flag. Prose insertion does not renumber retained
+presentation definitions. A custom wrapper's opaque contents may still produce conservative flags.
+
+The exemption concerns document instances. Shared documentation components, templates, styles,
+rendering infrastructure and screenshot assets are still analyzed. Product UI is unchanged by this
+policy: adding a search field/modal/panel flags even when it reuses EMCN; local appearance overrides,
+shared tokens and existing movement checks are retained. Product status/error wording and HTML
+policy/pricing pages remain in scope. Published Markdown article prose uses the same authoring
+exemption; embedded covers and other media remain visual assets.
+
+The original 180-case manifest retains its policy-3 labels. New qualification rates must compare the
+same immutable source commits while reporting document-content exclusions separately; policy-3
+visual labels are not automatically policy-4 positives. Previous cloud smoke/evaluation runs do not
+validate this policy version.
 
 Babel parses JS/TS/JSX; PostCSS parses CSS; parse5 parses HTML; remark parses
 Markdown/MDX/frontmatter/GFM. CSS selector, conditional and declaration order are retained.
@@ -202,8 +226,10 @@ unsupported dynamic schemas use ordinary conservative resolution. Whole-environm
 settings therefore do not contaminate the signup page solely through this known adapter.
 
 The configured Fumadocs `OPENAPI_SPEC_FILES` list is parsed from Git in each revision. Listed
-JSON inputs are compared semantically, retaining array order and attributing changes to both
-the spec and configured renderer. Malformed/missing configured inputs flag with a limitation.
+JSON inputs are validated as data. The configured `contentOnly` convention exempts valid API-reference
+descriptions, schemas, enum lists and specification-list changes. Malformed/missing configured inputs
+still flag with a limitation. JSON consumed elsewhere by product UI remains subject to normal tracing.
+Renderer and list implementation changes remain subject to normal source/infrastructure analysis.
 
 The graph reuses up to 32,768 import/export snapshots keyed by source blob, resolving their
 paths again for each revision. Each consumer resolver retains at most 32 parsed modules,
@@ -248,8 +274,9 @@ This engine is conservative, not a runtime equivalence prover:
 - Dynamic module/asset paths, inherited/conditional export maps outside the supported forms,
   generated source and arbitrary imperative renderers cannot be fully followed. Directly
   detected DOM/canvas operations and configured native rendering use uncertainty fallbacks.
-- MDX expressions and embedded HTML scripts are flagged, without running MDX components or
-  scripts. Plain HTML whitespace is preserved because CSS can make it meaningful.
+- Unresolved/custom MDX expressions and embedded HTML scripts are flagged, without running MDX
+  components or scripts. Literal content in documented authoring components is exempt. Plain HTML
+  whitespace outside the Markdown authoring exemption is preserved because CSS can make it meaningful.
 - Lockfiles compare recognized rendering dependencies and their resolved transitive closure.
   Unrelated tooling/backend updates are clean. Unknown rendering configs/plugins still flag.
   Inactive variants, unused assets and an apparently inert removed class can also be flagged.

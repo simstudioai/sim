@@ -10,21 +10,20 @@ const files = {
   [spec]: '{"description":"First","enum":["a","b"]}',
 }
 
-it('flags file-loaded documentation with spec and renderer attribution', async () => {
+it('exempts valid file-loaded API documentation content', async () => {
   const report = await compareFiles(files, { [spec]: '{"description":"Second","enum":["a","b"]}' })
-  expect(report.flagged).toBe(true)
-  expect(report.findings[0].source.after?.file).toBe(spec)
-  expect(allChanges(report)[0].dependencies).toContain(renderer)
+  expect(report.flagged).toBe(false)
+  expect(report.findings).toEqual([])
 })
 
-it('ignores JSON formatting and key order, but preserves array order', async () => {
+it('exempts formatting and semantic API-reference data edits', async () => {
   expect(
     (await compareFiles(files, { [spec]: '{ "enum": ["a", "b"], "description": "First" }' }))
       .flagged
   ).toBe(false)
   expect(
     (await compareFiles(files, { [spec]: '{"description":"First","enum":["b","a"]}' })).flagged
-  ).toBe(true)
+  ).toBe(false)
 })
 
 it.each<Files>([
@@ -38,10 +37,11 @@ it.each<Files>([
   expect(allChanges(report).some((change) => change.limitations.length)).toBe(true)
 })
 
-it('retains JSON keys whose names resemble erased AST fields', async () => {
+it('can retain broader JSON comparison with keys resembling erased AST fields', async () => {
   const report = await compareFiles(
     { ...files, [spec]: '{"properties":{"start":{"description":"First"},"end":{}}}' },
-    { [spec]: '{"properties":{"start":{"description":"Second"},"end":{}}}' }
+    { [spec]: '{"properties":{"start":{"description":"Second"},"end":{}}}' },
+    { ...config, fileInputs: config.fileInputs?.map((input) => ({ ...input, contentOnly: false })) }
   )
   expect(report.flagged).toBe(true)
 })

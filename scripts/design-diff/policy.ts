@@ -22,6 +22,7 @@ export function category(definition: Definition): Category {
 }
 
 export const limitations = [
+  'Routine documentation prose, literal content in configured documentation components and configured API-reference data are exempt. Custom presentation, assets and unresolved document expressions remain in scope.',
   'Static source analysis does not establish pixel equality or complete runtime behavior.',
   'Dynamic data, unknown calls, custom props, plugins and unsupported rendering mechanisms are flagged when affected.',
   'Import propagation covers static imports/re-exports, supported aliases and literal asset paths; runtime-generated paths cannot be enumerated.',

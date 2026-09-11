@@ -141,7 +141,7 @@ it('uses only binary decisions while retaining uncertainty and operational failu
     settings
   )
   expect(report.schemaVersion).toBe('3.0.0')
-  expect(report.policyVersion).toBe('3.0.0')
+  expect(report.policyVersion).toBe('4.0.0')
   expect(report.status).toBe('completed')
   expect(report.flagged).toBe(true)
   expect(report.findings.every((finding) => finding.decision === 'flag')).toBe(true)

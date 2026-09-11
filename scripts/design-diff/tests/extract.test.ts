@@ -2,9 +2,7 @@ import { expect, it } from 'vitest'
 import { compareFiles } from '#design-diff/tests/helpers'
 
 it.each([
-  ['apps/docs/content/a.mdx', '# Hello\n\nWelcome **friend**.', '# Hello\n\nWelcome **team**.'],
   ['apps/docs/content/a.mdx', '<Card title="First" />', '<Card title="Second" />'],
-  ['apps/docs/content/a.md', '---\ntitle: Hello\n---\n\nBody', '---\ntitle: Welcome\n---\n\nBody'],
   [
     'apps/desktop/src/renderer/index.html',
     '<!doctype html><p style="color:red">Hello</p>',

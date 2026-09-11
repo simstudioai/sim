@@ -88,7 +88,8 @@
       "list": "apps/docs/lib/openapi-specs.ts",
       "export": "OPENAPI_SPEC_FILES",
       "root": "apps/docs",
-      "renderer": "apps/docs/lib/openapi.ts"
+      "renderer": "apps/docs/lib/openapi.ts",
+      "contentOnly": true
     }
   ],
   "environmentAdapters": [
@@ -100,5 +101,62 @@
       "implementationModule": "apps/sim/lib/core/config/env-capabilities.ts",
       "implementationExport": "wireFallback"
     }
-  ]
+  ],
+  "documentationContent": {
+    "roots": ["apps/docs/content/", "apps/sim/content/"],
+    "frontmatterFields": [
+      "title",
+      "description",
+      "author",
+      "date",
+      "publishedAt",
+      "updatedAt",
+      "readingTime",
+      "tags",
+      "category",
+      "keywords"
+    ],
+    "components": [
+      {
+        "module": "fumadocs-ui/components/callout",
+        "names": ["Callout"],
+        "contentProps": ["type", "title"]
+      },
+      {
+        "module": "fumadocs-ui/components/card",
+        "names": ["Card", "Cards"],
+        "contentProps": ["title", "description", "href"]
+      },
+      {
+        "module": "fumadocs-ui/components/steps",
+        "names": ["Step", "Steps"],
+        "contentProps": ["title"]
+      },
+      {
+        "module": "fumadocs-ui/components/tabs",
+        "names": ["Tab", "Tabs"],
+        "contentProps": ["items", "value"]
+      },
+      {
+        "module": "@/components/ui/faq",
+        "names": ["FAQ"],
+        "contentProps": ["items"]
+      },
+      {
+        "module": "@/components/ui/block-info-card",
+        "names": ["BlockInfoCard"],
+        "contentProps": ["type"]
+      },
+      {
+        "module": "@/components/ui/command-table",
+        "names": ["CommandTable"],
+        "contentProps": []
+      },
+      {
+        "module": "@/components/ui/what-you-will-learn",
+        "names": ["WhatYouWillLearn"],
+        "contentProps": ["items"]
+      }
+    ]
+  }
 }

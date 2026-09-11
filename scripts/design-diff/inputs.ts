@@ -37,14 +37,14 @@ export function fileLoadedInputs(before: SourceTree, after: SourceTree, config: 
         !evidence.value.every((file) => typeof file === 'string')
       )
         throw new Error('Configured input list is not a static string array')
-      emit(input.list, evidence.value)
+      if (!input.contentOnly) emit(input.list, evidence.value)
       for (const name of evidence.value as string[]) {
         const file = path.posix.normalize(path.posix.join(input.root, name))
         if (!file.startsWith(`${input.root}/`) || !file.endsWith('.json'))
           throw new Error('Unsupported configured input path')
         try {
           const value = JSON.parse(tree.texts.get(file) ?? '')
-          emit(file, canonicalJson(value))
+          if (!input.contentOnly) emit(file, canonicalJson(value))
         } catch {
           emit(file, tree.entries.get(file)?.oid ?? 'missing', [
             'Configured documentation JSON is missing, malformed or exceeds the source budget',

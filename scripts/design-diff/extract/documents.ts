@@ -5,6 +5,7 @@ import remarkMdx from 'remark-mdx'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { canonical, semanticSource } from '#design-diff/ast'
+import { documentPresentation } from '#design-diff/document-content'
 import { cssValue } from '#design-diff/extract/css'
 import type { Resolver } from '#design-diff/resolve'
 import type { Data, Definition } from '#design-diff/types'
@@ -104,7 +105,14 @@ export function extractDocument(source: string, file: string, resolver?: Resolve
       .filter((node) => node.type === 'mdxjsEsm' && 'value' in node)
       .map((node) => ('value' in node ? String(node.value) : ''))
       .join('\n')
-    for (const node of root.children) {
+    const policy = resolver?.tree.config.documentationContent
+    const nodes = policy?.roots.some((root) => file.startsWith(root))
+      ? (documentPresentation(
+          root.children as unknown as Record<string, Data>[],
+          policy
+        ) as unknown as typeof root.children)
+      : root.children
+    for (const node of nodes) {
       const data = canonical(node) as Record<string, Data>
       const stripPositions = (value: Data): Data => {
         if (Array.isArray(value)) return value.map(stripPositions)

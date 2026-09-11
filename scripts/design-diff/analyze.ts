@@ -24,8 +24,8 @@ import type { Change, Config, Definition, Report } from '#design-diff/types'
 export function emptyReport(): Report {
   return {
     schemaVersion: '3.0.0',
-    engineVersion: '0.3.0',
-    policyVersion: '3.0.0',
+    engineVersion: '0.4.0',
+    policyVersion: '4.0.0',
     commits: null,
     status: 'failed',
     flagged: null,
