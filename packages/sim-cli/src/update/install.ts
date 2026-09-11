@@ -220,6 +220,7 @@ export async function installUpdate(options: InstallUpdateOptions = {}): Promise
       throw new CliUpdateError(`Cannot lock Sim for update: ${getErrorMessage(cause)}`, { cause })
     }
   )
+  let updateFailed = false
   try {
     if (readInstalledVersion(installedEntry) !== currentVersion) {
       throw new CliUpdateError(
@@ -267,11 +268,17 @@ export async function installUpdate(options: InstallUpdateOptions = {}): Promise
     write(
       `Updated Sim ${currentVersion} → ${version}. The next invocation will use the new version.\n`
     )
+  } catch (error) {
+    updateFailed = true
+    throw error
   } finally {
     await release().catch((cause: unknown) => {
-      throw new CliUpdateError(`Cannot release the Sim update lock: ${getErrorMessage(cause)}`, {
-        cause,
-      })
+      const message = `Cannot release the Sim update lock: ${getErrorMessage(cause)}`
+      if (updateFailed) {
+        write(`${message}\n`)
+      } else {
+        throw new CliUpdateError(message, { cause })
+      }
     })
   }
 }

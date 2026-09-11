@@ -340,6 +340,39 @@ describe('installing a CLI update', () => {
     expect(output.join('')).not.toContain('Updated Sim')
   })
 
+  it.each(['registry', 'installer'])(
+    'preserves the original %s failure when releasing the lock also fails',
+    async (phase) => {
+      const failure = new CliUpdateError(`${phase} permission denied`)
+      const run = vi.fn().mockResolvedValueOnce(join(directory, 'node_modules'))
+      if (phase === 'installer') run.mockResolvedValueOnce(JSON.stringify('2.1.5'))
+      run.mockImplementationOnce(async () => {
+        writeFileSync(join(`${packageRoot}.lock`, 'obstruction'), '')
+        throw failure
+      })
+
+      await expect(installUpdate({ ...options(), run })).rejects.toBe(failure)
+      expect(output.join('')).toContain('Cannot release the Sim update lock')
+      expect(output.join('')).not.toContain('Updated Sim')
+    }
+  )
+
+  it('fails with a CLI error when only releasing the lock fails', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(join(directory, 'node_modules'))
+      .mockImplementationOnce(async () => {
+        writeFileSync(join(`${packageRoot}.lock`, 'obstruction'), '')
+        return JSON.stringify('2.1.2')
+      })
+
+    await expect(installUpdate({ ...options(), run })).rejects.toMatchObject({
+      constructor: CliUpdateError,
+      message: expect.stringContaining('Cannot release the Sim update lock'),
+      cause: expect.objectContaining({ code: 'ENOTEMPTY' }),
+    })
+  })
+
   it.each(['invalid', '2.1.5-dev.1.1'])(
     'rejects an invalid or wrong-channel installed version: %s',
     async (version) => {
