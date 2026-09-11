@@ -15,7 +15,10 @@ import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { loadSlackSearchCredential } from '@/lib/knowledge/application/slack-search/repository'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
-import { slackBotCredentialVersion } from '@/lib/slack-search/app-configuration'
+import {
+  resolveSlackAppCredentials,
+  slackBotCredentialVersion,
+} from '@/lib/slack-search/app-configuration'
 import { SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 import {
   readSharedSlackSearchApp,
@@ -85,12 +88,15 @@ export const listSlackSearchInstallations = defineAuthorizedKnowledgeUseCase({
       sharedAppAvailable: Boolean(sharedApp),
       installations: installations.map(({ credentialVersion, ...installation }) => {
         const bot = bots.find((bot) => bot.id === installation.credentialId)
+        const shared = installation.appKind === 'shared'
+        const appRevision = shared ? sharedApp?.revision : bot?.appRevision
         return {
           ...installation,
           appKind: installation.appKind ?? 'custom',
           needsValidation:
+            (shared && sharedApp?.id !== installation.appId) ||
             !bot?.encryptedKey ||
-            slackBotCredentialVersion(bot.encryptedKey, bot.appRevision ?? undefined) !==
+            slackBotCredentialVersion(bot.encryptedKey, appRevision ?? undefined) !==
               credentialVersion,
         }
       }),
@@ -154,10 +160,12 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
       if (input.enabled && current.slackAppId)
         await requireSlackSearchAppAvailable(current.slackAppId)
       if (current.slackAppId && !app) throw new Error('Slack app configuration is missing')
+      const appRevision =
+        app && secret ? (await resolveSlackAppCredentials(app)).revision : undefined
       if (
         secret &&
         (!current.encryptedServiceAccountKey ||
-          slackBotCredentialVersion(current.encryptedServiceAccountKey, app?.revision) !==
+          slackBotCredentialVersion(current.encryptedServiceAccountKey, appRevision) !==
             secret.version)
       )
         throw new OrchestrationError('conflict', 'The bot credential changed. Validate it again.')

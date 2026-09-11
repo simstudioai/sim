@@ -4966,9 +4966,10 @@ export const slackApp = pgTable(
       onDelete: 'cascade',
     }),
     kind: text('kind').$type<'custom' | 'shared'>().notNull(),
-    clientId: text('client_id').notNull(),
-    encryptedClientSecret: text('encrypted_client_secret').notNull(),
-    encryptedSigningSecret: text('encrypted_signing_secret').notNull(),
+    /** Custom app credentials; company app credentials come from the deployment environment. */
+    clientId: text('client_id'),
+    encryptedClientSecret: text('encrypted_client_secret'),
+    encryptedSigningSecret: text('encrypted_signing_secret'),
     revision: text('revision').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

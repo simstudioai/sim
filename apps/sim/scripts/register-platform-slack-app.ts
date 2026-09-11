@@ -10,17 +10,16 @@ const logger = createLogger('RegisterPlatformSlackApp')
 /** Explicit deployment preparation; never chooses an app identity from an unauthenticated event. */
 async function main() {
   const appId = process.argv[2]
-  const searchApp = process.argv.includes('--search')
-  const clientId = searchApp ? process.env.SLACK_SEARCH_CLIENT_ID : process.env.SLACK_CLIENT_ID
-  const clientSecret = searchApp
-    ? process.env.SLACK_SEARCH_CLIENT_SECRET
-    : process.env.SLACK_CLIENT_SECRET
-  const signingSecret = searchApp
-    ? process.env.SLACK_SEARCH_SIGNING_SECRET
-    : process.env.SLACK_SIGNING_SECRET
+  if (process.argv.includes('--search'))
+    throw new Error(
+      'Slack Search reads its app credentials directly from SLACK_SEARCH_* environment variables'
+    )
+  const clientId = process.env.SLACK_CLIENT_ID
+  const clientSecret = process.env.SLACK_CLIENT_SECRET
+  const signingSecret = process.env.SLACK_SIGNING_SECRET
   if (!appId || !/^A[A-Z0-9]+$/.test(appId) || !clientId || !clientSecret || !signingSecret)
     throw new Error(
-      'Supply a verified app ID and client/signing secrets. With --search use SLACK_SEARCH_CLIENT_ID, SLACK_SEARCH_CLIENT_SECRET, SLACK_SEARCH_SIGNING_SECRET; otherwise use SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET.'
+      'Supply a verified app ID, SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and SLACK_SIGNING_SECRET.'
     )
   const [client, signing] = await Promise.all([
     encryptSecret(clientSecret),

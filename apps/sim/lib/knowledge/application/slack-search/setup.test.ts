@@ -122,6 +122,7 @@ beforeEach(() => {
     values: m.values,
     set: m.set,
     onConflictDoUpdate: vi.fn(),
+    onConflictDoNothing: vi.fn(),
     returning: vi.fn().mockResolvedValue([{ id: 'credential1' }]),
   }
   for (const method of [
@@ -131,6 +132,7 @@ beforeEach(() => {
     txQuery.values,
     txQuery.set,
     txQuery.onConflictDoUpdate,
+    txQuery.onConflictDoNothing,
   ])
     method.mockReturnValue(txQuery)
   const tx = {
@@ -299,7 +301,15 @@ it('rejects a shared-app callback if the global configuration was disabled or ro
 })
 
 describe('shared app completion', () => {
-  const sharedApp = { id: 'A1', revision: 'shared-revision', kind: 'shared', organizationId: null }
+  const sharedApp = {
+    id: 'A1',
+    revision: 'shared-revision',
+    kind: 'shared',
+    organizationId: null,
+    clientId: 'client',
+    clientSecret: 'environment-secret',
+    signingSecret: 'environment-signing',
+  }
   beforeEach(() => {
     m.shared.mockResolvedValue(sharedApp)
     m.consume.mockResolvedValue({
@@ -308,9 +318,27 @@ describe('shared app completion', () => {
     })
   })
 
-  it('commits the personal app configuration, bot credential and installation in one transaction', async () => {
+  it('starts shared OAuth without storing deployment secrets in the attempt', async () => {
+    const result = await startSlackSearchSetup.execute({
+      principal,
+      input: {
+        organizationId: 'org1',
+        mode: 'shared',
+        name: 'Sim Search',
+        description: 'Search with sources',
+      },
+    })
+    expect(new URL(result.authorizationUrl).searchParams.get('client_id')).toBe('client')
+    const stored = m.store.mock.calls[0][0]
+    expect(stored.sharedApp).toEqual({ id: 'A1', revision: 'shared-revision' })
+    expect(stored).not.toHaveProperty('encryptedClientSecret')
+    expect(stored).not.toHaveProperty('encryptedSigningSecret')
+    expect(JSON.stringify(stored)).not.toContain('environment-secret')
+  })
+
+  it('creates shared identity without app secrets and installs atomically without registration', async () => {
     m.rows
-      .mockResolvedValueOnce([sharedApp])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
@@ -350,16 +378,27 @@ describe('shared app completion', () => {
     })
     expect(configuration.slack).not.toHaveProperty('clientSecret')
     const rows = m.values.mock.calls.map(([value]) => value)
-    expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toEqual({
+      id: 'A1',
+      kind: 'shared',
+      organizationId: null,
+      revision: 'shared-revision',
+    })
+    expect(m.exchange).toHaveBeenCalledWith(
+      expect.objectContaining({ clientSecret: 'environment-secret' })
+    )
+    expect(JSON.stringify(rows)).not.toContain('environment-secret')
+    expect(JSON.stringify(rows)).not.toContain('environment-signing')
+    expect(rows[1]).toMatchObject({
       organizationId: 'org1',
       workspaceId: null,
       type: 'service_account',
       slackAppId: 'A1',
     })
-    expect(rows[1]).toMatchObject({
+    expect(rows[2]).toMatchObject({
       organizationId: 'org1',
-      credentialId: rows[0].id,
+      credentialId: rows[1].id,
       slackAppId: 'A1',
       appId: 'A1',
       teamId: 'T1',
@@ -382,13 +421,7 @@ describe('shared app completion', () => {
   })
 
   it('revokes an unused shared grant after a database write fails', async () => {
-    m.rows
-      .mockResolvedValueOnce([sharedApp])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { id: 'accounts', options: [], encryptedProviderConfiguration: null },
-      ])
+    m.rows.mockResolvedValueOnce([sharedApp]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
     m.values.mockImplementationOnce(() => {
       throw new Error('write failed')
     })

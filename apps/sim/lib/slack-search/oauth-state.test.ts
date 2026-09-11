@@ -35,6 +35,14 @@ describe('Slack OAuth state', () => {
     expect(JSON.parse(value)).toEqual(attempt)
     expect([expiryMode, ttl, condition]).toEqual(['EX', 600, 'NX'])
   })
+  it('stores only shared identity and revision without app secrets', async () => {
+    const { encryptedClientSecret, encryptedSigningSecret, ...common } = attempt
+    const shared = { ...common, sharedApp: { id: 'ASHARED', revision: 'env-revision' } }
+    await storeSlackSearchOAuthAttempt(shared)
+    expect(JSON.parse(redis.set.mock.calls[0][1])).toEqual(shared)
+    redis.eval.mockResolvedValueOnce(JSON.stringify(shared))
+    await expect(consumeSlackSearchOAuthAttempt('state', principal)).resolves.toEqual(shared)
+  })
   it('consumes only for the initiating admin session and rejects replay', async () => {
     redis.eval.mockResolvedValueOnce(JSON.stringify(attempt))
     expect(await consumeSlackSearchOAuthAttempt('state', principal)).toEqual(attempt)
