@@ -150,12 +150,8 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'generic',
     label: 'Results',
     icon: TerminalWindow,
-    renderTabIcon: (resource, className, desktopScopeId) => (
-      <TerminalTabIcon
-        terminalId={terminalIdFromResourceId(resource.id)}
-        scopeId={desktopScopeId}
-        className={className}
-      />
+    renderTabIcon: (_resource, className) => (
+      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
@@ -254,8 +250,12 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'terminal',
     label: 'Terminal',
     icon: TerminalWindow,
-    renderTabIcon: (_resource, className) => (
-      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    renderTabIcon: (resource, className, desktopScopeId) => (
+      <TerminalTabIcon
+        terminalId={terminalIdFromResourceId(resource.id)}
+        scopeId={desktopScopeId}
+        className={className}
+      />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
   },

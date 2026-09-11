@@ -633,9 +633,13 @@ export class TerminalService {
     )
   }
 
-  /** Whether one renderer may close a tab in the terminal panel it displays. */
+  /**
+   * Whether one renderer may close a tab. The strip that lists shells sits
+   * outside the terminal panel, so the shell need not be on screen; IPC has
+   * already checked that the renderer is on the shell's chat.
+   */
   acceptsUserClose(owner: WebContents, terminalId: string): boolean {
-    return !owner.isDestroyed() && this.visibleOwner === owner && this.sessions.has(terminalId)
+    return !owner.isDestroyed() && this.sessions.has(terminalId)
   }
 
   /** Drops the claim and unsubscribes from the owner's lifecycle. */

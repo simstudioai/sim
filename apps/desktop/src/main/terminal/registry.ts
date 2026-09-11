@@ -183,7 +183,7 @@ export class TerminalRegistry {
     return this.serviceFor(scope).closeTerminal(terminalId)
   }
 
-  /** Closes a tab only from the renderer that currently displays its scope. */
+  /** Closes a tab for a renderer on its scope; IPC checks the scope claim. */
   closeUserTerminal(scope: string, terminalId: string, owner: WebContents): TerminalTabsState {
     if (this.suspendedScopes.has(scope)) return { tabs: [], activeTerminalId: null }
     const service = this.entries.get(scope)?.service
@@ -524,7 +524,10 @@ export class TerminalRegistry {
 
   private save(entry: TerminalRegistryEntry, snapshot: TerminalSessionSnapshot): boolean {
     if (!this.persistence?.save(entry.scope, snapshot)) return false
+    // A descriptor written from live shells describes them, so there is
+    // nothing left to apply; only one loaded from disk can still be pending.
     entry.persisted = snapshot
+    entry.restoreApplied = true
     return true
   }
 

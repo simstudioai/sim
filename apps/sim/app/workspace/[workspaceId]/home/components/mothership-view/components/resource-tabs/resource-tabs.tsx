@@ -413,17 +413,21 @@ export function ResourceTabs({
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
       if (!confirmClosingRunningTerminals(targets, terminalTabs)) return
-      // Update parent state immediately for all targets. A browser tab's page
-      // or a terminal's shell is closed natively too; the tab list then
-      // confirms the removal.
+      // A browser tab's page is closed natively and its resource dropped at
+      // once; the tab list then confirms the removal. A shell's close answers
+      // with the tab list, so its resource follows that list instead — a
+      // close the desktop app refuses must not leave a running shell with no
+      // tab.
       for (const r of targets) {
-        onRemoveResource(r.type, r.id)
-        if (r.type === 'browser') {
-          sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
-        } else if (r.type === 'terminal') {
+        if (r.type === 'terminal') {
           void closeTerminal(terminalIdFromResourceId(r.id), desktopScopeId).catch(() =>
             toast.error('Could not close that terminal. Please try again.')
           )
+          continue
+        }
+        onRemoveResource(r.type, r.id)
+        if (r.type === 'browser') {
+          sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
         }
       }
       // Clear stale selection and anchor for all removed targets

@@ -222,6 +222,24 @@ describe('TerminalRegistry', () => {
     expect(persistence.save).toHaveBeenLastCalledWith('chat-A', { v: 1, tabs: [], activeIndex: 0 })
   })
 
+  it('does not bring back a shell closed earlier in the same session', () => {
+    const persistence: TerminalScopePersistence = {
+      load: vi.fn(() => undefined),
+      save: vi.fn(() => true),
+      migrate: vi.fn(() => true),
+      disposeScope: vi.fn(),
+    }
+    const terminals = new TerminalRegistry(persistence)
+    terminals.setSink(sink())
+    const first = terminals.openTerminal('chat-A').activeTerminalId as string
+    terminals.closeTerminal('chat-A', first)
+
+    const reopened = terminals.openTerminal('chat-A')
+
+    expect(reopened.tabs).toHaveLength(1)
+    expect(stubSessions.filter((session) => !session.disposed)).toHaveLength(1)
+  })
+
   it('keeps a saved descriptor that was never applied', () => {
     const persistence: TerminalScopePersistence = {
       load: vi.fn(() => ({ v: 1 as const, tabs: [{ cwd: tmpdir() }], activeIndex: 0 })),
@@ -602,7 +620,7 @@ describe('TerminalRegistry', () => {
     expect(activeSession?.writes).toEqual(['a'])
   })
 
-  it('closes tabs only for the renderer displaying their terminal scope', () => {
+  it('closes a tab from the strip while the shell panel is hidden', () => {
     const terminals = registry()
     const first = terminals.openTerminal('chat-A').activeTerminalId as string
     const second = terminals.openTerminal('chat-A').activeTerminalId as string
@@ -612,15 +630,14 @@ describe('TerminalRegistry', () => {
       on: vi.fn(),
       removeListener: vi.fn(),
     }
-    const other = { ...owner, once: vi.fn(), on: vi.fn(), removeListener: vi.fn() }
+    const gone = { ...owner, isDestroyed: () => true }
 
-    expect(terminals.closeUserTerminal('chat-A', first, owner as never).tabs).toHaveLength(2)
-    terminals.setPanelVisible('chat-A', true, owner as never)
-    expect(terminals.closeUserTerminal('chat-A', first, other as never).tabs).toHaveLength(2)
+    // The strip lives outside the panel, so a hidden shell is still closable.
     expect(terminals.closeUserTerminal('chat-B', '1', owner as never)).toEqual({
       tabs: [],
       activeTerminalId: null,
     })
+    expect(terminals.closeUserTerminal('chat-A', first, gone as never).tabs).toHaveLength(2)
 
     const closed = terminals.closeUserTerminal('chat-A', first, owner as never)
     expect(closed.tabs).toHaveLength(1)
