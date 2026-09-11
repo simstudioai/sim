@@ -9,10 +9,25 @@ try {
     readFileSync(path.join(engine, 'scripts/design-diff/benchmark/comparisons.json'), 'utf8')
   )
   const shard = Number(process.env.SHARD)
-  if (!Number.isInteger(shard) || shard < 0 || shard >= 180) throw new Error('Invalid shard')
-  manifest.comparisons = manifest.comparisons.filter(
-    (entry: { sampleOrder: number }) => entry.sampleOrder % 180 === shard
+  const shardCount = Number(process.env.SHARD_COUNT)
+  const orders: number[] = JSON.parse(process.env.REMAINING_ORDERS ?? 'null')
+  if (
+    !Number.isInteger(shardCount) ||
+    shardCount !== 14 ||
+    !Number.isInteger(shard) ||
+    shard < 0 ||
+    shard >= shardCount ||
+    !Array.isArray(orders) ||
+    orders.length !== 84 ||
+    new Set(orders).size !== orders.length ||
+    orders.some((order) => !Number.isInteger(order) || order < 0 || order >= 180)
   )
+    throw new Error('Invalid remaining-comparison shard')
+  const pending = manifest.comparisons.filter((entry: { sampleOrder: number }) =>
+    orders.includes(entry.sampleOrder)
+  )
+  if (pending.length !== orders.length) throw new Error('Missing frozen comparisons')
+  manifest.comparisons = pending.filter((_: unknown, index: number) => index % shardCount === shard)
   const commits = [
     ...new Set<string>(
       manifest.comparisons.flatMap((entry: { base: string; head: string }) => [
