@@ -85,7 +85,7 @@ export function serializeReport(report: Report, limit = REPORT_BYTES): string {
   }
   const json = () => `${JSON.stringify(copy, null, 2)}\n`
   let result = json()
-  // Remove details first, then source groups. Stable prefixes make repeated output identical.
+  /** Remove details first, then source groups. Stable prefixes make repeated output identical. */
   if (Buffer.byteLength(result) > limit) {
     for (const [i, finding] of copy.findings.entries()) {
       finding.changes = sample(finding.changes, `findings[${i}].changes.remaining`, 1)

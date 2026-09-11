@@ -9,6 +9,7 @@ import {
   symbolName,
   traverse,
 } from '#design-diff/ast'
+import { mutations } from '#design-diff/mutations'
 import { previewValue } from '#design-diff/report'
 import type { SourceTree } from '#design-diff/source'
 import type { Data, Evidence } from '#design-diff/types'
@@ -160,8 +161,7 @@ export class Resolver {
       )
     )
       return true
-    // Canvas operations are specific; ambiguous DOM methods require a typed/ref receiver
-    // or another established DOM operation in the same function.
+    /** Canvas operations are specific; ambiguous DOM methods require a typed/ref receiver or another established DOM operation in the same function. */
     if (
       /^(?:fillRect|strokeRect|drawImage|fillText|strokeText|addColorStop|getContext)$/.test(method)
     )
@@ -281,6 +281,28 @@ export class Resolver {
     }
   }
 
+  /** Conditions around writes can change the visible collection even when each value is unchanged. */
+  private mutationValue(write: NodePath, file: string, depth: number): Data {
+    const conditions: Data[] = []
+    for (
+      let parent = write.parentPath;
+      parent && !parent.isFunction();
+      parent = parent.parentPath
+    ) {
+      if (
+        parent.isIfStatement() ||
+        parent.isConditionalExpression() ||
+        parent.isWhileStatement() ||
+        parent.isDoWhileStatement() ||
+        parent.isForStatement()
+      )
+        conditions.push(this.value(child(parent, 'test'), file, depth + 1))
+      if (parent.isForOfStatement() || parent.isForInStatement())
+        conditions.push(this.value(child(parent, 'right'), file, depth + 1))
+    }
+    return { value: this.value(write, file, depth + 1), conditions }
+  }
+
   private currentFile = ''
 
   /** Select a property before expanding siblings, including createEnv's schema convention. */
@@ -298,8 +320,18 @@ export class Resolver {
       return this.selected(child(path, 'expression'), key, file, depth + 1, seen)
     if (path.isIdentifier()) {
       const binding = path.scope.getBinding(path.node.name)
-      if (binding?.constant && binding.path.isVariableDeclarator())
-        return this.selected(child(binding.path, 'init'), key, file, depth + 1, seen)
+      if (binding?.constant && binding.path.isVariableDeclarator()) {
+        const initial = this.selected(child(binding.path, 'init'), key, file, depth + 1, seen)
+        const writes = mutations(binding, key)
+        if (initial !== undefined && writes.length) {
+          this.unresolved.add('Writes to this object property feed rendering')
+          return {
+            $property: initial,
+            writes: writes.map((write) => this.mutationValue(write, file, depth + 1)),
+          }
+        }
+        return initial
+      }
       if (binding?.path.isImportSpecifier() || binding?.path.isImportDefaultSpecifier()) {
         const declaration = binding.path.parentPath
         if (declaration.isImportDeclaration()) {
@@ -459,8 +491,7 @@ export class Resolver {
     t.traverseFast(path.node, (node) => {
       if (t.isJSXElement(node) || t.isJSXFragment(node)) renders = true
     })
-    // JSX definitions are extracted at their own source. Expanding component bodies
-    // again at every reference duplicates evidence and confuses refactors with prop changes.
+    /** JSX definitions are extracted at their own source. Expanding component bodies again at every reference duplicates evidence and confuses refactors with prop changes. */
     if (renders) return { $renderFunction: { file, symbol: symbolName(path) } }
     const body = child(path, 'body')
     if (!body.isBlockStatement())
@@ -803,6 +834,14 @@ export class Resolver {
           writes: binding.constantViolations.map((violation) => fingerprint(violation.node)),
         }
       }
+      const writes = mutations(binding)
+      if (writes.length && binding.path.isVariableDeclarator()) {
+        this.unresolved.add('Collection or object mutations feed this visual input')
+        return {
+          $state: this.value(child(binding.path, 'init'), file, depth + 1),
+          writes: writes.map((write) => this.mutationValue(write, file, depth + 1)),
+        }
+      }
       const bound = binding.path
       const parameter = this.parameter(bound, node.name, file, depth)
       if (parameter !== undefined) return parameter
@@ -934,6 +973,8 @@ export class Resolver {
       return { $condition: test, then: read('consequent'), else: read('alternate') }
     }
     if (t.isFunction(node)) return this.functionValue(path, file, depth)
+    if (t.isAssignmentExpression(node))
+      return { $assignment: node.operator, target: fingerprint(node.left), value: read('right') }
     if (t.isNewExpression(node)) return { $new: read('callee'), arguments: readList('arguments') }
     if (t.isTaggedTemplateExpression(node)) return { $tag: read('tag'), template: read('quasi') }
     if (t.isAwaitExpression(node)) return { $await: read('argument') }

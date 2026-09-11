@@ -189,7 +189,7 @@ export class DependencyGraph {
           effects: effects.length ? fingerprint(effects) : undefined,
         }
         this.modules.set(file, module)
-        if (moduleSnapshots.size >= 10000)
+        if (moduleSnapshots.size >= 32768)
           moduleSnapshots.delete(moduleSnapshots.keys().next().value!)
         moduleSnapshots.set(cacheKey, { module, specifiers: [...specifiers] })
       } catch {

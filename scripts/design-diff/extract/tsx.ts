@@ -287,8 +287,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       } else emit(path, 'review', 'native-options', evidence)
     },
     TaggedTemplateExpression(path) {
-      // A tag is only a standalone visual definition for a known styling binding.
-      // SQL and String.raw still participate when explicitly read by a visual input.
+      /** A tag is only a standalone visual definition for a known styling binding. SQL and String.raw still participate when explicitly read by a visual input. */
       const tag = child(path, 'tag')
       const root = tag.isMemberExpression() ? child(tag, 'object') : tag
       if (!root.isIdentifier()) return

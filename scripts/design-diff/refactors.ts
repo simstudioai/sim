@@ -1,6 +1,7 @@
 import type traverse from '@babel/traverse'
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
+import { mutations } from '#design-diff/mutations'
 
 /** Normalize the equivalent Object.entries record-map idiom without executing its callback. */
 export function normalizeRefactors(ast: t.File, visit: typeof traverse): void {
@@ -97,7 +98,7 @@ export function normalizeLiteralAliases(ast: t.File, visit: typeof traverse): vo
       value = literal(path.get('expression') as NodePath, seen)
     else if (path.isReferencedIdentifier()) {
       const binding = path.scope.getBinding(path.node.name)
-      if (binding?.constant && binding.path.isVariableDeclarator())
+      if (binding?.constant && binding.path.isVariableDeclarator() && !mutations(binding).length)
         value = literal(binding.path.get('init') as NodePath, seen)
     } else if (path.isObjectExpression()) {
       const properties: t.ObjectProperty[] = []
