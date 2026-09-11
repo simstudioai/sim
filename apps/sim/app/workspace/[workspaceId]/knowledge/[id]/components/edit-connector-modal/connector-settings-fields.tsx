@@ -41,7 +41,6 @@ import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { GitHubInstallationModal } from '@/app/workspace/[workspaceId]/search/components/github-installation-modal'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
@@ -53,6 +52,7 @@ import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 
 const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
   workspace: 'Every workspace member can read every synced document once the next sync completes.',
@@ -183,7 +183,13 @@ export function ConnectorSettingsFields({
     serviceIcon: connectorConfig?.icon,
   })
   const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
-  const [showGitHubInstallationModal, setShowGitHubInstallationModal] = useState(false)
+  const githubSetup = useGitHubInstallationSetup({
+    organizationId:
+      isGitHubInstallationSource && canAdmin && scope.kind === 'organization'
+        ? scope.organizationId
+        : undefined,
+    onConnected: onContentCredentialChange,
+  })
   const [showMoreOptions, setShowMoreOptions] = useState(false)
   const isContentCredentialChange = accessDirty && !accessModeChanged
   const {
@@ -281,7 +287,15 @@ export function ConnectorSettingsFields({
           error={credentialsError}
           disabled={isSaving || !canAdmin}
           onRetry={() => void refetchCredentials()}
-          onConnect={() => setShowGitHubInstallationModal(true)}
+          onConnect={() => void githubSetup.connect(installations.length ? 'install' : undefined)}
+          connecting={githubSetup.pending}
+          connectionError={githubSetup.error}
+          hint={
+            accessDirty
+              ? 'Keeps the current repository. To add another repository, add a new source.'
+              : undefined
+          }
+          onCancel={githubSetup.cancel}
           onChange={onContentCredentialChange}
         >
           {(accessDirty || canReenableMemberSync) && (
@@ -539,19 +553,6 @@ export function ConnectorSettingsFields({
       )}
 
       <ChipModalError>{error}</ChipModalError>
-      {showGitHubInstallationModal &&
-        isGitHubInstallationSource &&
-        scope.kind === 'organization' &&
-        canAdmin && (
-          <GitHubInstallationModal
-            organizationId={scope.organizationId}
-            onClose={() => setShowGitHubInstallationModal(false)}
-            onConnected={(credentialId) => {
-              onContentCredentialChange(credentialId)
-              setShowGitHubInstallationModal(false)
-            }}
-          />
-        )}
     </>
   )
 }

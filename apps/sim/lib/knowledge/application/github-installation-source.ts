@@ -82,7 +82,7 @@ export async function prepareGitHubInstallationSource(
   )
     throw new OrchestrationError('validation', 'Reconnect this GitHub installation before using it')
   const resolved = await resolveGitHubInstallationRepository(binding, repository.trim()).catch(
-    rethrowGitHubInstallationSourceError
+    (error) => rethrowGitHubInstallationSourceError(error, { existingSource: wasInstallation })
   )
   if (wasInstallation && input.previousConfig?.githubRepositoryId !== resolved.id)
     throw new OrchestrationError(

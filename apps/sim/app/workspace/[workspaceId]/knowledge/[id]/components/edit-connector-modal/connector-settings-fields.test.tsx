@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   selectorOptions: vi.fn(),
   accessField: vi.fn(),
   contentField: vi.fn(),
-  installationModal: vi.fn(),
+  githubSetup: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({ useParams: () => ({}) }))
@@ -55,14 +55,15 @@ vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
 vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
   useCredentialRefreshTriggers: vi.fn(),
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/github-installation-modal', () => ({
-  GitHubInstallationModal: (props: { onConnected: (credentialId: string) => void }) => {
-    mocks.installationModal(props)
-    return (
-      <button type='button' onClick={() => props.onConnected('replacement-installation')}>
-        Finish GitHub connection
-      </button>
-    )
+vi.mock('@/hooks/use-github-installation-setup', () => ({
+  useGitHubInstallationSetup: (props: { onConnected: (credentialId: string) => void }) => {
+    mocks.githubSetup(props)
+    return {
+      pending: false,
+      error: null,
+      cancel: vi.fn(),
+      connect: () => props.onConnected('replacement-installation'),
+    }
   },
 }))
 vi.mock(
@@ -229,6 +230,7 @@ describe('connector settings service-account choices', () => {
     expect(mocks.contentField).not.toHaveBeenCalled()
     expect(mocks.accessField).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain('Account for browsing')
+    expect(container.textContent).not.toContain('Keeps the current repository')
     expect(mocks.configFields).toHaveBeenCalledWith(
       expect.objectContaining({
         connectorConfig: githubConnectorMeta,
@@ -270,6 +272,9 @@ describe('connector settings service-account choices', () => {
       onResetAccess: reset,
       onAccessChange: changeAccess,
     })
+    expect(container.textContent).toContain(
+      'Keeps the current repository. To add another repository, add a new source.'
+    )
     const applyButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Change connection'
     )!
@@ -290,13 +295,10 @@ describe('connector settings service-account choices', () => {
       (button) => button.textContent === 'Connect GitHub'
     )!
     await act(async () => connect.click())
-    expect(mocks.installationModal).toHaveBeenCalledWith(
+    expect(mocks.githubSetup).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org-1' })
     )
-    const finish = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Finish GitHub connection'
-    )!
-    await act(async () => finish.click())
+    expect(container.textContent).not.toContain('Refresh')
     expect(change).toHaveBeenCalledWith('replacement-installation')
     expect(mocks.accessField).not.toHaveBeenCalled()
     expect(mocks.contentField).not.toHaveBeenCalled()

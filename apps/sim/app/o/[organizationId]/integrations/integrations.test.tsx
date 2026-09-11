@@ -5,6 +5,7 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +25,22 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   updateUrl: vi.fn(),
   setupConnector: null as SearchConnector | null,
+  organizationAccounts: vi.fn(),
+  connectOrganizationAccount: vi.fn(),
+  reconnectOrganizationAccount: vi.fn(),
+  refetchAccounts: vi.fn(),
+}))
+vi.mock('@/hooks/queries/organization-accounts', () => ({
+  organizationAccountsKeys: { detail: (id: string) => ['organization-accounts', 'detail', id] },
+  useOrganizationAccounts: mocks.organizationAccounts,
+  useConnectOrganizationAccount: () => ({
+    mutate: mocks.connectOrganizationAccount,
+    isPending: false,
+  }),
+  useReconnectPersonalOrganizationAccount: () => ({
+    mutate: mocks.reconnectOrganizationAccount,
+    isPending: false,
+  }),
 }))
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
   SlackSearchActions: () => <span>Return to Slack</span>,
@@ -159,6 +176,12 @@ beforeEach(() => {
   vi.spyOn(toast, 'error').mockReturnValue('toast')
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.setupConnector = null
+  mocks.organizationAccounts.mockReturnValue({
+    data: { credentialGroup: null, viewerAccounts: [] },
+    isPending: false,
+    isError: false,
+    refetch: mocks.refetchAccounts,
+  })
   rows = [memberSource]
   queryOverrides = {}
   mocks.context.mockReturnValue({
@@ -246,6 +269,237 @@ function menuItem(label: string) {
     (item) => item.textContent === label
   )!
 }
+
+function expectConnectionRedirect(
+  onSuccess: (response: OrganizationAccountConnectionResponse) => void,
+  authorizationUrl?: string
+) {
+  const invitationLink = 'https://sim.test/credential-groups/enroll/fixture-token'
+  const assign = vi.fn()
+  const browserWindow = window
+  vi.stubGlobal('window', { location: { assign } })
+  try {
+    onSuccess({ invitationLink, ...(authorizationUrl ? { authorizationUrl } : {}) })
+    expect(assign).toHaveBeenCalledExactlyOnceWith(authorizationUrl ?? invitationLink)
+  } finally {
+    vi.stubGlobal('window', browserWindow)
+  }
+}
+
+describe('GitHub member account inventory', () => {
+  const githubAccount = {
+    credentialId: 'github-account',
+    providerId: 'github-repositories',
+    groupId: 'accounts-group',
+    optionId: 'github-option',
+    displayName: 'My GitHub',
+    status: 'active' as const,
+  }
+  const githubGroup = {
+    id: 'accounts-group',
+    status: 'active',
+    options: [{ id: 'github-option', provider: 'github-repositories', status: 'active' }],
+  }
+
+  beforeEach(() => {
+    rows = ['repo-one', 'repo-two'].map((connectorId) => ({
+      ...memberSource,
+      connectorId,
+      connectorType: 'github',
+      sourceDescription: connectorId,
+    }))
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ connectorType: 'github' }] },
+      isPending: false,
+    })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'github', approved: true }],
+      isPending: false,
+    })
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map(),
+      oauthServiceAvailability: new Map([['github-repositories', true]]),
+      isIntegrationAvailabilityReady: true,
+    })
+    mocks.organizationAccounts.mockReturnValue({
+      data: { credentialGroup: githubGroup, viewerAccounts: [] },
+      isPending: false,
+      isError: false,
+      refetch: mocks.refetchAccounts,
+    })
+  })
+
+  it.each([
+    undefined,
+    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=search',
+  ])('connects once through the account operation with compatible redirect %s', async (url) => {
+    await render()
+    expect(buttons('Connect')).toHaveLength(1)
+    expect(container.textContent).toContain('Connect once')
+    await act(async () => buttons('Connect')[0].click())
+    expect(mocks.connectOrganizationAccount).toHaveBeenCalledExactlyOnceWith(
+      { organizationId: scope.organizationId, optionId: 'github-option' },
+      expect.any(Object)
+    )
+    expectConnectionRedirect(mocks.connectOrganizationAccount.mock.calls[0][1].onSuccess, url)
+    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(mocks.connect).not.toHaveBeenCalled()
+    expect(mocks.connectSearchSource).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.textContent).not.toContain('repo-one')
+  })
+
+  it('keeps one account row when an admin adds another repository', async () => {
+    mocks.organizationAccounts.mockReturnValue({
+      data: { credentialGroup: githubGroup, viewerAccounts: [githubAccount] },
+      isPending: false,
+    })
+    await render()
+    rows.push({
+      ...rows[0],
+      connectorId: 'future-repository',
+      sourceDescription: 'future-repository',
+    })
+    await render()
+    expect(document.querySelectorAll('[aria-label="GitHub integration actions"]')).toHaveLength(1)
+    expect(mocks.accountMenu).toHaveBeenLastCalledWith(
+      expect.objectContaining({ accounts: [githubAccount] })
+    )
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(buttons('Reconnect')).toHaveLength(0)
+    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('future-repository')
+  })
+
+  it('keeps an owned account visible before any repository source exists', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mocks.integrations.mockReturnValue({ data: [], isPending: false })
+    mocks.organizationAccounts.mockReturnValue({
+      data: { credentialGroup: githubGroup, viewerAccounts: [githubAccount] },
+      isPending: false,
+    })
+    await render('', <OrganizationIntegrations />)
+    expect(container.textContent).toContain('My GitHub · Connected')
+    expect(document.querySelectorAll('[aria-label="GitHub integration actions"]')).toHaveLength(1)
+    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(container.textContent).not.toContain('No integrations are available')
+  })
+
+  it.each(['group', 'option'] as const)(
+    'keeps Disconnect but hides Reconnect when the canonical %s is disabled',
+    async (disabled) => {
+      const expired = { ...githubAccount, status: 'needs_reauth' }
+      mocks.organizationAccounts.mockReturnValue({
+        data: {
+          credentialGroup: {
+            ...githubGroup,
+            status: disabled === 'group' ? 'disabled' : 'active',
+            options: [
+              { ...githubGroup.options[0], status: disabled === 'option' ? 'disabled' : 'active' },
+            ],
+          },
+          viewerAccounts: [expired],
+        },
+        isPending: false,
+      })
+      await render()
+      expect(buttons('Reconnect')).toHaveLength(0)
+      expect(mocks.accountMenu).toHaveBeenLastCalledWith(
+        expect.objectContaining({ accounts: [expired] })
+      )
+      await openMenu('GitHub')
+      expect(menuItem('Disconnect github-account')).toBeDefined()
+    }
+  )
+
+  it.each([
+    undefined,
+    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=accounts',
+  ])('allows personal reauthorization while Search is disabled with redirect %s', async (url) => {
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'github', approved: false }],
+      isPending: false,
+    })
+    mocks.context.mockReturnValue({
+      organization: { id: scope.organizationId },
+      searchAccess: { memberScoped: false, sourceMirrored: false },
+    })
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        credentialGroup: githubGroup,
+        viewerAccounts: [{ ...githubAccount, status: 'needs_reauth' }],
+      },
+      isPending: false,
+    })
+    await render()
+    expect(buttons('Reconnect')).toHaveLength(1)
+    await act(async () => buttons('Reconnect')[0].click())
+    expect(mocks.reconnectOrganizationAccount).toHaveBeenCalledExactlyOnceWith(
+      'github-account',
+      expect.any(Object)
+    )
+    expectConnectionRedirect(mocks.reconnectOrganizationAccount.mock.calls[0][1].onSuccess, url)
+    expect(mocks.connect).not.toHaveBeenCalled()
+  })
+
+  it('does not reconnect an account through a different active option', async () => {
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        credentialGroup: githubGroup,
+        viewerAccounts: [{ ...githubAccount, optionId: 'other-option', status: 'needs_reauth' }],
+      },
+      isPending: false,
+    })
+    await render()
+    expect(buttons('Reconnect')).toHaveLength(0)
+    expect(document.querySelector('[aria-label="GitHub integration actions"]')).not.toBeNull()
+  })
+
+  it.each(['pending', 'error'] as const)(
+    'does not fall through to repository setup when the inventory is %s',
+    async (state) => {
+      mocks.organizationAccounts.mockReturnValue({
+        data: undefined,
+        isPending: state === 'pending',
+        isError: state === 'error',
+        error: state === 'error' ? new Error('Could not load accounts') : null,
+        isFetching: false,
+        refetch: mocks.refetchAccounts,
+      })
+      await render()
+      expect(container.textContent).toContain('GitHub')
+      expect(mocks.sources).not.toHaveBeenCalled()
+      expect(buttons('Connect')).toHaveLength(0)
+      expect(mocks.connectSearchSource).not.toHaveBeenCalled()
+      if (state === 'error') {
+        await act(async () => buttons('Retry')[0].click())
+        expect(mocks.refetchAccounts).toHaveBeenCalledOnce()
+      }
+    }
+  )
+
+  it('retains legacy account management only after a successful response omits the inventory', async () => {
+    mocks.organizationAccounts.mockReturnValue({
+      data: { credentialGroup: githubGroup },
+      isPending: false,
+      isError: false,
+    })
+    rows = rows.map((source) => ({
+      ...source,
+      viewerMembership: 'connected',
+      viewerAccounts: [githubAccount],
+    }))
+    await render()
+    expect(mocks.sources).toHaveBeenCalledWith(scope, { connectorType: 'github', enabled: true })
+    expect(document.querySelectorAll('[aria-label="GitHub integration actions"]')).toHaveLength(1)
+    expect(mocks.accountMenu).toHaveBeenLastCalledWith(
+      expect.objectContaining({ accounts: [githubAccount] })
+    )
+    expect(buttons('Connect')).toHaveLength(0)
+  })
+})
 
 describe('grouped member integrations', () => {
   it('renders one provider row and loads bounded pages per configured provider', async () => {

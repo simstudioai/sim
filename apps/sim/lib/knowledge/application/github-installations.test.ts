@@ -33,11 +33,30 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: async () => null,
 }))
 vi.mock('@/lib/oauth/github-installation', () => ({
+  GitHubInstallationError: class extends Error {
+    constructor(
+      message: string,
+      readonly status?: number
+    ) {
+      super(message)
+    }
+  },
   getGitHubInstallationConfiguration: m.configuration,
   listUserAdminGitHubInstallations: m.list,
   verifyGitHubInstallationBinding: m.verify,
 }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({ resolveManagedOAuthToken: m.token }))
+vi.mock('@/lib/credentials/managed-oauth', () => ({
+  resolveManagedOAuthToken: m.token,
+  ManagedOAuthCredentialError: class extends Error {
+    constructor(
+      readonly code: string,
+      message: string,
+      readonly statusCode: number
+    ) {
+      super(message)
+    }
+  },
+}))
 vi.mock('@/lib/credential-groups/provider-registry', () => ({
   getCredentialGroupProviderAdapter: () => ({
     getPolicy: async () => ({ authorizationAppId: 'current-app', scopeVersion: 1 }),
@@ -45,10 +64,12 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 }))
 vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: m.encrypt }))
 
+import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import {
   connectGitHubSearchInstallation,
   listGitHubSearchInstallations,
 } from '@/lib/knowledge/application/github-installations'
+import { GitHubInstallationError } from '@/lib/oauth/github-installation'
 
 const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as const
 const input = { organizationId: 'org', installationId: '42' }
@@ -141,6 +162,56 @@ describe('GitHub Search installation application operations', () => {
       requiredScopes: [],
     })
     expect(m.list).toHaveBeenCalledWith('ghu_reader', { signal })
+  })
+  it('reenters reader OAuth when GitHub revoked a token still recorded as active', async () => {
+    setupReader()
+    m.list.mockRejectedValueOnce(new GitHubInstallationError('Bad credentials', 401))
+    await expect(
+      listGitHubSearchInstallations.execute({ principal, input })
+    ).resolves.toMatchObject({
+      needsUserConnection: true,
+      installations: [],
+    })
+  })
+  it('reenters reader OAuth when token refresh detects a revoked grant', async () => {
+    setupReader()
+    m.token.mockRejectedValueOnce(
+      new ManagedOAuthCredentialError(
+        'MANAGED_CREDENTIAL_NEEDS_REAUTH',
+        'Refresh grant revoked',
+        401
+      )
+    )
+    await expect(
+      listGitHubSearchInstallations.execute({ principal, input })
+    ).resolves.toMatchObject({
+      needsUserConnection: true,
+      installations: [],
+    })
+    expect(m.list).not.toHaveBeenCalled()
+  })
+  it('preserves provider infrastructure failures during discovery', async () => {
+    setupReader()
+    const error = new GitHubInstallationError('Provider unavailable', 503)
+    m.list.mockRejectedValueOnce(error)
+    await expect(listGitHubSearchInstallations.execute({ principal, input })).rejects.toBe(error)
+  })
+  it('preserves transient token refresh failures instead of requesting OAuth', async () => {
+    setupReader()
+    const error = new ManagedOAuthCredentialError(
+      'MANAGED_CREDENTIAL_REFRESH_FAILED',
+      'Transient refresh error',
+      502
+    )
+    m.token.mockRejectedValueOnce(error)
+    await expect(listGitHubSearchInstallations.execute({ principal, input })).rejects.toBe(error)
+  })
+  it('does not reclassify App JWT authorization failures during installation verification', async () => {
+    setupReader()
+    const error = new GitHubInstallationError('App JWT rejected', 401)
+    m.verify.mockRejectedValueOnce(error)
+    await expect(connect()).rejects.toBe(error)
+    expect(m.encrypt).not.toHaveBeenCalled()
   })
   it('reverifies GitHub admin authority before persisting an installation', async () => {
     setupReader()

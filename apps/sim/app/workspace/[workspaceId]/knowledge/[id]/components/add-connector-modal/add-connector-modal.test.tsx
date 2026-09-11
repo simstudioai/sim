@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   refetchCredentials: vi.fn(),
   oauthModal: vi.fn(),
   serviceAccountModal: vi.fn(),
-  githubInstallationModal: vi.fn(),
+  githubSetup: vi.fn(),
   serviceAccountTarget: null as ServiceAccountConnectTarget | null,
   memberAccess: true,
   mirroredAccess: true,
@@ -182,29 +182,28 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-confi
     return null
   },
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/github-installation-modal', () => ({
-  GitHubInstallationModal: (props: {
-    organizationId: string
+vi.mock('@/hooks/use-github-installation-setup', () => ({
+  useGitHubInstallationSetup: (props: {
+    organizationId?: string
     onConnected: (id: string) => void
   }) => {
-    mocks.githubInstallationModal(props)
-    return (
-      <button
-        onClick={() => {
-          mocks.credentials = [
-            {
-              id: 'github-app-credential',
-              name: 'GitHub App: acme',
-              type: 'service_account',
-              provider: 'github-app-installation',
-            },
-          ]
-          props.onConnected('github-app-credential')
-        }}
-      >
-        Use GitHub installation
-      </button>
-    )
+    mocks.githubSetup(props)
+    return {
+      pending: false,
+      error: null,
+      cancel: vi.fn(),
+      connect: () => {
+        mocks.credentials = [
+          {
+            id: 'github-app-credential',
+            name: 'GitHub App: acme',
+            type: 'service_account',
+            provider: 'github-app-installation',
+          },
+        ]
+        props.onConnected('github-app-credential')
+      },
+    }
   },
 }))
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields', () => ({
@@ -487,11 +486,12 @@ describe('Search methods requiring member identity', () => {
     expect(document.body.textContent).not.toContain('Connected members')
     expect(button('Add repository')).toBeDisabled()
     await act(async () => button('Connect GitHub').click())
-    expect(mocks.githubInstallationModal).toHaveBeenCalledWith(
+    expect(mocks.githubSetup).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org-1' })
     )
-    await act(async () => button('Use GitHub installation').click())
-    expect(button('GitHub App: acme')).toBeDefined()
+    expect(document.body.textContent).not.toContain('Use installation')
+    expect(document.body.textContent).not.toContain('Refresh')
+    expect(document.body.textContent).toContain('GitHub App: acme')
     expect(
       configFieldsProps().connectorConfig.configFields.find((field) => field.id === 'repository')
     ).toMatchObject({

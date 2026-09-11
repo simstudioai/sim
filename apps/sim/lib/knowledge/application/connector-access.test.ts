@@ -21,6 +21,11 @@ const mocks = vi.hoisted(() => ({
   sourceAccess: vi.fn(),
   oauthContext: vi.fn(),
   startOAuth: vi.fn(),
+  authorizeOrganization: vi.fn(),
+  credential: vi.fn(),
+  decrypt: vi.fn(),
+  installationBinding: vi.fn(),
+  repository: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({ AuditAction: {}, AuditResourceType: {}, recordAudit: vi.fn() }))
@@ -31,6 +36,26 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: async () => null,
+}))
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  authorizeOrganizationOperation: mocks.authorizeOrganization,
+}))
+vi.mock('@/lib/knowledge/application/connector-credential', () => ({
+  requireConnectorCredential: mocks.credential,
+}))
+vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
+vi.mock('@/lib/oauth/github-installation', () => ({
+  GitHubInstallationError: class extends Error {
+    constructor(
+      message: string,
+      readonly status?: number,
+      readonly operation?: string
+    ) {
+      super(message)
+    }
+  },
+  parseGitHubInstallationBinding: mocks.installationBinding,
+  resolveGitHubInstallationRepository: mocks.repository,
 }))
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeConnectorContext: mocks.context,
@@ -80,10 +105,12 @@ vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   provisionKnowledgeConnectorMembersBinding: mocks.provision,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   startKnowledgeConnectorMemberEnrollment,
   updateKnowledgeConnectorAccess,
 } from '@/lib/knowledge/application/connector-access'
+import { GitHubInstallationError } from '@/lib/oauth/github-installation'
 
 const principal = { kind: 'session' as const, userId: 'admin', sessionId: 'session' }
 const input = { knowledgeBaseId: 'kb', connectorId: 'source', assertedWorkspaceId: 'workspace' }
@@ -131,6 +158,155 @@ beforeEach(() => {
   mocks.sourceAccess.mockResolvedValue(undefined)
   mocks.oauthContext.mockResolvedValue({ credentialOwnerId: 'admin', option: { id: 'option' } })
   mocks.startOAuth.mockResolvedValue('https://provider.example.test/authorize')
+  mocks.authorizeOrganization.mockResolvedValue({
+    organizationId: 'org',
+    userId: 'admin',
+    role: 'admin',
+  })
+})
+
+describe('GitHub installation connection replacement', () => {
+  const sourceConfig = { repository: 'acme/platform', githubRepositoryId: '123', branch: 'main' }
+  const replacementInput = {
+    knowledgeBaseId: 'kb',
+    connectorId: 'source',
+    accessMode: 'members' as const,
+    credentialId: 'replacement-installation',
+  }
+
+  beforeEach(() => {
+    mocks.context.mockResolvedValue({
+      organizationId: 'org',
+      knowledgeBaseId: 'kb',
+      connectorId: 'source',
+      knowledgeBase: { organizationId: 'org', id: 'kb', name: 'Search', isSearchIndex: true },
+    })
+    mocks.connector.mockResolvedValue({
+      ...row,
+      connectorType: 'github',
+      accessMode: 'members',
+      credentialId: 'previous-installation',
+      sourceConfig,
+    })
+    mocks.meta.mockReturnValue({
+      name: 'GitHub',
+      search: true,
+      auth: { mode: 'oauth', provider: 'github-repositories' },
+      supportsSeparateContentCredential: true,
+    })
+    mocks.credential.mockResolvedValue({
+      id: replacementInput.credentialId,
+      providerId: 'github-app-installation',
+      organizationId: 'org',
+      workspaceId: null,
+      type: 'service_account',
+      revokedAt: null,
+      encryptedServiceAccountKey: 'encrypted-binding',
+      providerSubjectId: '42',
+      providerTenantId: '7',
+    })
+    mocks.decrypt.mockResolvedValue({ decrypted: '{}' })
+    mocks.installationBinding.mockReturnValue({ installationId: '42', accountId: '7' })
+    mocks.repository.mockResolvedValue({ id: '123', fullName: 'acme/platform' })
+    mocks.binding.mockImplementation(async ({ sourceConfig }) => ({
+      credentialGroupId: 'group',
+      credentialGroupOptionId: 'github-members',
+      sourceConfig,
+    }))
+  })
+
+  it.each([
+    { status: 404, operation: 'repository' as const },
+    { status: 422, operation: 'repository-token' as const },
+  ])(
+    'rejects an incompatible installation with actionable validation ($status)',
+    async ({ status, operation }) => {
+      mocks.repository.mockRejectedValue(
+        new GitHubInstallationError('Provider detail', status, operation)
+      )
+      await expect(
+        updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message:
+          "This GitHub connection cannot access this source's repository. Choose a connection with access to the same repository, or add a new source for a different repository.",
+      })
+      expect(mocks.repository).toHaveBeenCalledExactlyOnceWith(
+        { installationId: '42', accountId: '7' },
+        'acme/platform'
+      )
+      expect(mocks.update).not.toHaveBeenCalled()
+      expect(mocks.binding).not.toHaveBeenCalled()
+      expect(mocks.token).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects a recreated repository at the same path before changing the binding', async () => {
+    mocks.repository.mockResolvedValue({ id: '999', fullName: 'acme/platform' })
+    await expect(
+      updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Create a new source to index a different GitHub repository',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('passes a verified replacement for the same repository to the atomic access update', async () => {
+    await updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
+    expect(mocks.authorizeOrganization).toHaveBeenCalledWith(
+      principal,
+      expect.objectContaining({ minimumRole: 'admin' }),
+      expect.objectContaining({ organizationId: 'org' })
+    )
+    expect(mocks.credential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        credentialId: replacementInput.credentialId,
+        scope: { kind: 'organization', organizationId: 'org' },
+      })
+    )
+    expect(mocks.update).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        userId: 'admin',
+        connectorId: 'source',
+        knowledgeBase: { id: 'kb', name: 'Search', organizationId: 'org' },
+        target: {
+          accessMode: 'members',
+          credentialId: replacementInput.credentialId,
+          binding: {
+            credentialGroupId: 'group',
+            credentialGroupOptionId: 'github-members',
+            sourceConfig,
+          },
+        },
+      })
+    )
+  })
+
+  it('rechecks organization administration before reading the installation or mutating the source', async () => {
+    mocks.authorizeOrganization.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Organization administrator access is required')
+    )
+    await expect(
+      updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.credential).not.toHaveBeenCalled()
+    expect(mocks.repository).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it.each([403, 429, 503])(
+    'preserves a real provider failure (%s) without changing the binding',
+    async (status) => {
+      const error = new GitHubInstallationError('Provider unavailable', status, 'repository')
+      mocks.repository.mockRejectedValue(error)
+      await expect(
+        updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
+      ).rejects.toBe(error)
+      expect(mocks.update).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('source member enrollment', () => {

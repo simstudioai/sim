@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Chip, ChipCombobox, ChipModalField } from '@sim/emcn'
+import { Chip, ChipCombobox, ChipModalError, ChipModalField } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import type { Credential } from '@/lib/oauth'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -14,6 +14,10 @@ interface GitHubInstallationConnectionFieldProps {
   onRetry: () => void
   onConnect: () => void
   onChange: (credentialId: string) => void
+  connecting?: boolean
+  connectionError?: string | null
+  hint?: string
+  onCancel?: () => void
   children?: ReactNode
 }
 
@@ -27,11 +31,22 @@ export function GitHubInstallationConnectionField({
   onRetry,
   onConnect,
   onChange,
+  connecting = false,
+  connectionError,
+  hint,
+  onCancel,
   children,
 }: GitHubInstallationConnectionFieldProps) {
   return (
-    <ChipModalField type='custom' title='GitHub'>
-      {error && installations.length === 0 ? (
+    <ChipModalField type='custom' title='GitHub' hint={hint}>
+      {connecting ? (
+        <div className='flex items-center gap-2'>
+          <Chip disabled>Connecting GitHub…</Chip>
+          <Chip aria-label='Cancel GitHub connection' onClick={onCancel}>
+            Cancel
+          </Chip>
+        </div>
+      ) : error && installations.length === 0 ? (
         <SettingsQueryErrorState
           error={error}
           fallback='Could not load GitHub connections'
@@ -39,8 +54,9 @@ export function GitHubInstallationConnectionField({
           onRetry={onRetry}
           variant='inline'
         />
-      ) : installations.length > 1 ? (
+      ) : installations.length > 0 ? (
         <ChipCombobox
+          aria-label='GitHub account'
           options={[
             ...installations.map((credential) => ({
               value: credential.id,
@@ -48,7 +64,7 @@ export function GitHubInstallationConnectionField({
             })),
             {
               value: '__connect_github__',
-              label: 'Connect GitHub',
+              label: 'Connect another organization',
               icon: Plus,
               onSelect: onConnect,
             },
@@ -60,12 +76,10 @@ export function GitHubInstallationConnectionField({
         />
       ) : (
         <Chip disabled={disabled || isLoading} onClick={onConnect}>
-          {isLoading
-            ? 'Loading GitHub…'
-            : installations.find((credential) => credential.id === credentialId)?.name ||
-              'Connect GitHub'}
+          {isLoading ? 'Loading GitHub…' : 'Connect GitHub'}
         </Chip>
       )}
+      <ChipModalError>{connectionError}</ChipModalError>
       {children}
     </ChipModalField>
   )

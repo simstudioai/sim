@@ -13,18 +13,25 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
-import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
+import {
+  ManagedOAuthCredentialError,
+  resolveManagedOAuthToken,
+} from '@/lib/credentials/managed-oauth'
 import type { DbOrTx } from '@/lib/db/types'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
+  GitHubInstallationError,
   getGitHubInstallationConfiguration,
   listUserAdminGitHubInstallations,
   verifyGitHubInstallationBinding,
 } from '@/lib/oauth/github-installation'
-import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import {
+  GITHUB_INSTALLATION_PROVIDER_ID,
+  type GitHubInstallationSummary,
+} from '@/lib/oauth/github-installation-types'
 
 interface InstallationInput {
   organizationId: string
@@ -36,7 +43,11 @@ interface ConnectInstallationInput extends InstallationInput {
 }
 
 /** Selects only the acting person's live, organization-bound GitHub connection. */
-async function findReaderCredential(executor: DbOrTx, organizationId: string, userId: string) {
+export async function findGitHubSearchReaderCredential(
+  executor: DbOrTx,
+  organizationId: string,
+  userId: string
+) {
   const policy = await getCredentialGroupProviderAdapter('github-repositories').getPolicy(
     undefined,
     { organizationId }
@@ -99,18 +110,31 @@ export const listGitHubSearchInstallations = defineAuthorizedKnowledgeUseCase({
     await requireOrganizationSearchAvailable(context.organizationId)
     const configuration = getGitHubInstallationConfiguration()
     const reader = configuration.configured
-      ? await findReaderCredential(db, context.organizationId, principal.userId)
+      ? await findGitHubSearchReaderCredential(db, context.organizationId, principal.userId)
       : null
-    const installations = reader
-      ? await listUserAdminGitHubInstallations(
+    let needsUserConnection = configuration.configured && !reader
+    let installations: GitHubInstallationSummary[] = []
+    if (reader) {
+      try {
+        installations = await listUserAdminGitHubInstallations(
           (await readerToken(context.organizationId, reader.id)).accessToken,
           { signal: input.signal }
         )
-      : []
+      } catch (error) {
+        /** Only reader-token discovery can request reauthorization; App JWT failures stay errors. */
+        if (
+          (error instanceof GitHubInstallationError && error.status === 401) ||
+          (error instanceof ManagedOAuthCredentialError &&
+            error.code === 'MANAGED_CREDENTIAL_NEEDS_REAUTH')
+        )
+          needsUserConnection = true
+        else throw error
+      }
+    }
     return {
       available: configuration.configured,
       installUrl: configuration.installUrl,
-      needsUserConnection: configuration.configured && !reader,
+      needsUserConnection,
       installations,
     }
   },
@@ -127,7 +151,11 @@ export const connectGitHubSearchInstallation = defineAuthorizedKnowledgeUseCase(
         'validation',
         'GitHub App installation indexing is not configured for this environment'
       )
-    const reader = await findReaderCredential(db, context.organizationId, principal.userId)
+    const reader = await findGitHubSearchReaderCredential(
+      db,
+      context.organizationId,
+      principal.userId
+    )
     if (!reader)
       throw new OrchestrationError(
         'validation',
@@ -168,7 +196,11 @@ export const connectGitHubSearchInstallation = defineAuthorizedKnowledgeUseCase(
         )
         .for('update')
         .limit(1)
-      const current = await findReaderCredential(tx, context.organizationId, principal.userId)
+      const current = await findGitHubSearchReaderCredential(
+        tx,
+        context.organizationId,
+        principal.userId
+      )
       if (
         current?.id !== reader.id ||
         current.authorizationAppId !== reader.authorizationAppId ||
