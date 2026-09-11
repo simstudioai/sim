@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { restoreMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeOrganizationChat } from '@/lib/copilot/chat/organization-chats'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
@@ -95,12 +95,8 @@ export const POST = withRouteHandler(
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      publishChatStatusChanged({ ...restoredChat, userId }, { chatId, type: 'created' })
       if (restoredChat.workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId: restoredChat.workspaceId,
-          chatId,
-          type: 'created',
-        })
         captureServerEvent(
           userId,
           'task_restored',

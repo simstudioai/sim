@@ -2,12 +2,14 @@
 
 import { createContext, type ReactNode, useContext } from 'react'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 
 const OrganizationContextValue = createContext<OrganizationSurfaceContext | null>(null)
 
 interface OrganizationProviderProps {
   children: ReactNode
   context: OrganizationSurfaceContext
+  chatEnabled: boolean
 }
 
 /**
@@ -15,7 +17,15 @@ interface OrganizationProviderProps {
  * organization surface. The layout resolves both on the server, so the first paint
  * already knows the organization's name and logo.
  */
-export function OrganizationProvider({ children, context }: OrganizationProviderProps) {
+export function OrganizationProvider({
+  children,
+  context,
+  chatEnabled,
+}: OrganizationProviderProps) {
+  useMothershipChatEvents(
+    context.searchAccess.memberScoped ? { organizationId: context.organization.id } : undefined,
+    chatEnabled
+  )
   return (
     <OrganizationContextValue.Provider value={context}>
       {children}

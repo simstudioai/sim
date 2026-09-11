@@ -470,6 +470,24 @@ describe('settings navigation boundaries', () => {
     ).toBe('manage')
   })
 
+  it('allows members to recover their own organization chats without changing workspace settings ownership', () => {
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'recently-deleted',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: false,
+      })
+    ).toBe('view')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'recently-deleted',
+        isTargetOrganizationMember: false,
+        isTargetOrganizationAdmin: false,
+      })
+    ).toBe('unavailable')
+    expect(ORGANIZATION_PLANE_UNIFIED_SECTIONS.has('recently-deleted')).toBe(false)
+  })
+
   it('gates organization control-plane sections by the target organization plan', () => {
     const hostedFree = {
       billingEnabled: true,
@@ -478,6 +496,7 @@ describe('settings navigation boundaries', () => {
       selfHosted: {},
     }
     expect(isOrganizationSettingsSectionAvailable('members', hostedFree)).toBe(true)
+    expect(isOrganizationSettingsSectionAvailable('recently-deleted', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('billing', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('sso', hostedFree)).toBe(false)
     expect(

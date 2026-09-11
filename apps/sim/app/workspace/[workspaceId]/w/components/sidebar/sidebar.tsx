@@ -830,7 +830,7 @@ export const Sidebar = memo(function Sidebar() {
     { enabled: chatEnabled }
   )
 
-  useMothershipChatEvents(workspaceId)
+  useMothershipChatEvents(workspaceId, chatEnabled)
 
   /**
    * Stays empty when Chat is disabled, which also drops the command palette's

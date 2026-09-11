@@ -198,9 +198,7 @@ vi.mock('@/lib/copilot/resources/persistence', () => ({
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: {
-    publishStatusChanged: mockPublishStatusChanged,
-  },
+  publishChatStatusChanged: mockPublishStatusChanged,
 }))
 
 import { chatOperations } from '@/lib/copilot/application/operations'
@@ -477,6 +475,46 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(400)
     expect(readOrganizationAssistantImage).not.toHaveBeenCalled()
     expect(resolveOrCreateChat).not.toHaveBeenCalled()
+  })
+
+  it('broadcasts organization turn start, completion, and failure under its private owner', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ model: 'mothership' }])
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    const args = createSSEStream.mock.calls[0][0]
+    const owner = { organizationId: 'org-1', userId: 'user-1', workspaceId: undefined }
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'started',
+      streamId: args.streamId,
+    })
+    await args.orchestrateOptions.onComplete({
+      success: true,
+      content: 'Answer',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+    expect(mockPublishStatusChanged).toHaveBeenLastCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: args.streamId,
+    })
+    await args.orchestrateOptions.onError(new Error('provider failed'))
+    expect(mockPublishStatusChanged).toHaveBeenLastCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: args.streamId,
+    })
   })
 
   it.each([{ workspaceId: 'ws-1' }, { workflowId: 'wf-1' }, { mode: 'agent' }])(
@@ -1207,12 +1245,14 @@ describe('handleUnifiedChatPost', () => {
       requestId: 'request-1',
     })
 
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-      type: 'completed',
-      streamId: streamArgs?.streamId,
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      {
+        chatId: 'chat-1',
+        type: 'completed',
+        streamId: streamArgs?.streamId,
+      }
+    )
   })
 
   it('rejects requests that have neither workflow nor workspace attachment', async () => {

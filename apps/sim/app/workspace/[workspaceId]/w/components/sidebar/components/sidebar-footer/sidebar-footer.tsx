@@ -394,7 +394,7 @@ export function SidebarFooter({
           exactly the chip's 30px instead of a line box padded by the strut's
           half-leading, which would deepen the bar below the chip. Collapsed, it
           stretches to the rail on its own and the chip fills it. */}
-      <div className={cn('flex', !isCollapsed && 'flex-1')}>{profileMenu}</div>
+      <div className={cn('flex min-w-0', !isCollapsed && 'flex-1')}>{profileMenu}</div>
       {helpMenu}
     </div>
   )

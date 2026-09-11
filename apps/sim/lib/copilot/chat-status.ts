@@ -11,10 +11,13 @@
 
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
-interface ChatStatusEvent {
-  workspaceId: string
+export type ChatStatusOwner =
+  | { workspaceId: string; organizationId?: never; userId?: never }
+  | { organizationId: string; userId: string; workspaceId?: never }
+
+export type ChatStatusEvent = ChatStatusOwner & {
   chatId: string
-  type: 'started' | 'completed' | 'created' | 'deleted' | 'renamed'
+  type: 'started' | 'completed' | 'created' | 'deleted' | 'renamed' | 'updated'
   streamId?: string
 }
 
@@ -40,3 +43,20 @@ export const chatPubSub = channel
       dispose: () => channel.dispose(),
     }
   : null
+
+/** Projects canonical chat ownership into the same status channel for both surfaces. */
+export function publishChatStatusChanged(
+  chat: { workspaceId?: string | null; organizationId?: string | null; userId?: string | null },
+  event: Pick<ChatStatusEvent, 'chatId' | 'type' | 'streamId'>
+): void {
+  if (chat.organizationId) {
+    if (!chat.userId || chat.workspaceId) throw new Error('Invalid organization chat owner')
+    chatPubSub?.publishStatusChanged({
+      organizationId: chat.organizationId,
+      userId: chat.userId,
+      ...event,
+    })
+  } else if (chat.workspaceId) {
+    chatPubSub?.publishStatusChanged({ workspaceId: chat.workspaceId, ...event })
+  }
+}

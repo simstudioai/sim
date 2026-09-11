@@ -18,7 +18,7 @@ import {
 } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -199,19 +199,22 @@ export const PATCH = withRouteHandler(
         .returning({
           id: copilotChats.id,
           workspaceId: copilotChats.workspaceId,
+          organizationId: copilotChats.organizationId,
         })
 
       if (!updatedChat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      publishChatStatusChanged(
+        { ...updatedChat, userId },
+        {
+          chatId,
+          type: title !== undefined ? 'renamed' : 'updated',
+        }
+      )
       if (updatedChat.workspaceId) {
         if (title !== undefined) {
-          chatPubSub?.publishStatusChanged({
-            workspaceId: updatedChat.workspaceId,
-            chatId,
-            type: 'renamed',
-          })
           captureServerEvent(
             userId,
             'task_renamed',
@@ -281,18 +284,15 @@ export const DELETE = withRouteHandler(
         )
         .returning({
           workspaceId: copilotChats.workspaceId,
+          organizationId: copilotChats.organizationId,
         })
 
       if (!deletedChat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      publishChatStatusChanged({ ...deletedChat, userId }, { chatId, type: 'deleted' })
       if (deletedChat.workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId: deletedChat.workspaceId,
-          chatId,
-          type: 'deleted',
-        })
         captureServerEvent(
           userId,
           'task_deleted',

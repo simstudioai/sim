@@ -17,8 +17,8 @@ import {
   Skeleton,
 } from '@sim/emcn'
 import { BookOpen, Download, HelpCircle, Settings } from '@sim/emcn/icons'
-import Link from 'next/link'
 import { SlackIcon } from '@/components/icons'
+import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { getDesktopUpdates } from '@/lib/desktop'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getUserColor } from '@/lib/workspaces/colors'
@@ -166,10 +166,12 @@ export function OrganizationFooter({
       </SidebarTooltip>
       <DropdownMenuContent align='start' side='top' sideOffset={4}>
         <DropdownMenuItem asChild>
-          <Link href={organizationRoutes(organization.id).settingsSection('general')}>
+          <SettingsGuardedLink
+            href={organizationRoutes(organization.id).settingsSection('general')}
+          >
             <Settings className='size-[14px]' />
             <DropdownMenuItemLabel label='Settings' />
-          </Link>
+          </SettingsGuardedLink>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -233,7 +235,7 @@ export function OrganizationFooter({
       {/* Expanded, claims the row's free width so the help button lands hard right.
           `flex` makes the inline-flex chip a flex item, so the wrapper is exactly the
           chip's 30px rather than a line box padded by the strut's half-leading. */}
-      <div className={cn('flex', !isCollapsed && 'flex-1')}>{profileMenu}</div>
+      <div className={cn('flex min-w-0', !isCollapsed && 'flex-1')}>{profileMenu}</div>
       {helpMenu}
     </div>
   )

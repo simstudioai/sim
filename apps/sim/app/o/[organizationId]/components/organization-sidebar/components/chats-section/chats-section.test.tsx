@@ -2,6 +2,8 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { ToastProvider } from '@sim/emcn'
+import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +11,12 @@ import type { OrganizationChat } from '@/app/o/[organizationId]/components/organ
 
 const hoverState = vi.hoisted(() => ({ isOpen: false }))
 const mockRequestJson = vi.hoisted(() => vi.fn())
+const mockPush = vi.hoisted(() => vi.fn())
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+  usePathname: () => window.location.pathname,
+}))
 
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
@@ -64,7 +72,8 @@ beforeEach(() => {
     }
   )
   vi.clearAllMocks()
-  mockRequestJson.mockResolvedValue({ success: true })
+  mockRequestJson.mockReset().mockResolvedValue({ success: true })
+  window.history.replaceState(null, '', '/o/org-1/home')
   hoverState.isOpen = false
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   prefetchQuery = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue()
@@ -84,14 +93,16 @@ async function render(props: Partial<Parameters<typeof ChatsSection>[0]> = {}) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <ChatsSection
-          chats={CHATS}
-          isLoading={false}
-          isCollapsed={false}
-          pathname={null}
-          organizationId='org-1'
-          {...props}
-        />
+        <ToastProvider>
+          <ChatsSection
+            chats={CHATS}
+            isLoading={false}
+            isCollapsed={false}
+            pathname={null}
+            organizationId='org-1'
+            {...props}
+          />
+        </ToastProvider>
       </QueryClientProvider>
     )
   })
@@ -237,6 +248,114 @@ describe('ChatsSection', () => {
     const link = container.querySelector<HTMLAnchorElement>('a[href="/o/org-1/chat/chat-3"]')!
     await act(async () => link.focus())
     expect(prefetchQuery).not.toHaveBeenCalled()
+  })
+
+  async function openDelete(isCollapsed = false) {
+    hoverState.isOpen = isCollapsed
+    await render({ isCollapsed })
+    const options = document.body.querySelector<HTMLButtonElement>('[aria-label="Chat options"]')!
+    await act(async () => options.click())
+    const action = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent === 'Delete')!
+    expect(action).toBeDefined()
+    await act(async () => action.click())
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('Chat 1')
+    expect(mockRequestJson).not.toHaveBeenCalled()
+  }
+
+  function modalButton(label: string) {
+    return Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')
+    ).find((button) => button.textContent === label)!
+  }
+
+  it.each([false, true])(
+    'cancels deletion without a request with collapsed=%s',
+    async (isCollapsed) => {
+      await openDelete(isCollapsed)
+      await act(async () => modalButton('Cancel').click())
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+      expect(mockRequestJson).not.toHaveBeenCalled()
+      expect(mockPush).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([false, true])(
+    'deletes through the shared contract with collapsed=%s',
+    async (isCollapsed) => {
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      await openDelete(isCollapsed)
+      await act(async () => modalButton('Delete').click())
+      expect(mockRequestJson).toHaveBeenCalledWith(expect.objectContaining({ method: 'DELETE' }), {
+        params: { chatId: 'chat-1' },
+      })
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: mothershipChatKeys.organizationLists('org-1'),
+      })
+      expect(invalidate).not.toHaveBeenCalledWith({
+        queryKey: mothershipChatKeys.workspaceLists('org-1'),
+      })
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+      expect(mockPush).not.toHaveBeenCalled()
+    }
+  )
+
+  it('cancels delete confirmation with Escape without changing chats', async () => {
+    await openDelete()
+    await act(async () => {
+      document.body
+        .querySelector('[role="dialog"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  it('returns home when the deleted chat is still open', async () => {
+    await openDelete()
+    window.history.replaceState(null, '', CHATS[0].href)
+    await act(async () => modalButton('Delete').click())
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/home')
+  })
+
+  it('keeps confirmation pending and does not override navigation after a slow delete', async () => {
+    const pending = Promise.withResolvers<{ success: boolean }>()
+    await openDelete()
+    mockRequestJson.mockReturnValueOnce(pending.promise)
+    window.history.replaceState(null, '', CHATS[0].href)
+    await act(async () => modalButton('Delete').click())
+    await act(async () => sleep(1))
+    expect(modalButton('Deleting...').disabled).toBe(true)
+    expect(modalButton('Cancel').disabled).toBe(true)
+    await act(async () => {
+      document.body
+        .querySelector('[role="dialog"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(mockPush).not.toHaveBeenCalled()
+    window.history.replaceState(null, '', CHATS[1].href)
+    await act(async () => pending.resolve({ success: true }))
+    expect(mockPush).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('keeps the chat and confirmation available for retry after a failed delete', async () => {
+    await openDelete()
+    mockRequestJson.mockRejectedValueOnce(new Error('Delete rejected'))
+    window.history.replaceState(null, '', CHATS[0].href)
+    const key = mothershipChatKeys.detail('chat-1')
+    queryClient.setQueryData(key, { id: 'chat-1', messages: ['Preserved'] })
+    await act(async () => modalButton('Delete').click())
+    expect(mockPush).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(modalButton('Delete').disabled).toBe(false)
+    expect(queryClient.getQueryData(key)).toEqual({ id: 'chat-1', messages: ['Preserved'] })
+    await act(async () => modalButton('Delete').click())
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/home')
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it('shows the empty state when there are no chats', async () => {
