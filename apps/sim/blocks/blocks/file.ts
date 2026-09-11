@@ -1964,8 +1964,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
            * Explicitly clear unused Content because the executor merges these params
            * over the original inputs. Preserve empty text when no file is selected.
            */
-          const contentText = typeof params.content === 'string' ? params.content : undefined
-          const omitContent = Boolean(fileInput) && !contentText
+          const omitContent =
+            Boolean(fileInput) && (params.content == null || params.content === '')
           return {
             fileName: params.fileName,
             folderPath: optionalText(params.writeFolderRef),

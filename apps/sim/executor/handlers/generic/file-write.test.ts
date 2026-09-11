@@ -69,6 +69,21 @@ describe('File Write executor inputs', () => {
     ])
   })
 
+  it.each([0, false, { text: 'invalid' }, ['invalid']])(
+    'rejects non-string Content %j alongside a file',
+    async (content) => {
+      const result = await executeWrite({ content, writeFileInput: generatedFile })
+
+      expect(result.success).toBe(false)
+      if (result.success) throw new Error('Expected malformed Content to fail validation')
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['content'], code: 'invalid_type' }),
+        ])
+      )
+    }
+  )
+
   it.each(['', 'text'])('preserves text-only Content %j', async (content) => {
     const result = await executeWrite({ content })
 
