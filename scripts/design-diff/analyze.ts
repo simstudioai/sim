@@ -5,7 +5,7 @@ import { cssValue, extractCss } from '#design-diff/extract/css'
 import { extractDocument } from '#design-diff/extract/documents'
 import { extractTsx } from '#design-diff/extract/tsx'
 import { GitReader } from '#design-diff/git'
-import { causalSources, groupFindings } from '#design-diff/group'
+import { groupFindings } from '#design-diff/group'
 import { renderingLock } from '#design-diff/infrastructure'
 import { fileLoadedInputs } from '#design-diff/inputs'
 import { reclaimMemory } from '#design-diff/memory'
@@ -192,25 +192,48 @@ export async function analyze(
     }
     let extracted = 0
     let omittedConsumers = 0
-    const covered = new Set<string>()
-    const currentPath = (file: string) => [...renames].find(([, old]) => old === file)?.[0] ?? file
+    /** Prefer direct consumers before distant opaque application plumbing when retaining one example. */
+    const downstream = new Map<string, Set<string>>()
+    for (const graph of [before.graph, after.graph])
+      for (const [file, dependencies] of graph.dependencies)
+        for (const dependency of dependencies) {
+          const consumers = downstream.get(dependency) ?? new Set<string>()
+          consumers.add(file)
+          downstream.set(dependency, consumers)
+        }
+    const distances = new Map([...changed].map((file) => [file, 0]))
+    const queue = [...changed]
+    for (let index = 0; index < queue.length; index++) {
+      const file = queue[index]
+      for (const consumer of downstream.get(file) ?? [])
+        if (!distances.has(consumer)) {
+          distances.set(consumer, distances.get(file)! + 1)
+          queue.push(consumer)
+        }
+    }
     const ordered = [...affected].sort(
-      (a, b) => Number(changed.has(b)) - Number(changed.has(a)) || a.localeCompare(b, 'en')
+      (a, b) =>
+        (distances.get(a) ?? Number.POSITIVE_INFINITY) -
+          (distances.get(b) ?? Number.POSITIVE_INFINITY) || a.localeCompare(b, 'en')
     )
+    let indirectExamples = 0
     for (const file of ordered) {
       if (++extracted % 32 === 0) reclaimMemory()
       if (!scoped(file, config) && !infrastructure(file, config)) continue
       if ([...renames.values()].includes(file) && !after.entries.has(file)) continue
-      const roots = [...(causes.get(file) ?? [])].map(currentPath)
-      if (!changed.has(file) && roots.length && roots.every((root) => covered.has(root))) {
+      if (
+        !changed.has(file) &&
+        indirectExamples > 0 &&
+        findings.some((finding) => finding.decision === 'flag')
+      ) {
         omittedConsumers++
         continue
       }
-      const firstFinding = findings.length
       const oldFile = renames.get(file) ?? file
       const a = await extract(before, previousTailwind, oldFile)
       const b = await extract(after, nextTailwind, file)
       findings.push(...compareDefinitions(a, b, affected))
+      if (!changed.has(file) && (a.length || b.length)) indirectExamples++
       if (
         changed.has(file) &&
         config.infrastructure.some((pattern) => new RegExp(pattern).test(file))
@@ -247,15 +270,11 @@ export async function analyze(
             review(file, after.entries.get(file)?.oid ?? '', 'Unsupported rendering mechanism')
           )
         )
-      for (const change of findings.slice(firstFinding))
-        if (change.decision === 'flag')
-          for (const source of causalSources(change, causes, renames))
-            if (source !== currentPath(file) || /\.[jt]sx$/.test(source)) covered.add(source)
     }
     if (omittedConsumers)
       report.limitations = [
         ...report.limitations,
-        `Repeated downstream expansion omitted for ${omittedConsumers} unchanged files after all contributing changed sources already had flagged evidence. Categories describe retained evidence; usage counts remain partial resolved references.`,
+        `Indirect analysis omitted for ${omittedConsumers} unchanged files after the PR qualified and a nearby rendering consumer was examined. All in-scope changed files were analyzed; additional indirect effects are not exhaustively catalogued. Categories describe retained evidence; usage counts remain partial resolved references.`,
       ]
     for (const file of changed) {
       if (file !== 'bun.lock' && !file.endsWith('/package.json') && file !== 'package.json')

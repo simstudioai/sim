@@ -557,7 +557,7 @@ it('preserves selected helper return guards, defaults and call arguments', async
   expect((await compareFiles(files, { [view]: page('other') }, settings)).flagged).toBe(true)
 })
 
-it('retains every changed source while avoiding repeated consumer expansion', async () => {
+it('retains direct changes and a nearby token example while bounding indirect expansion', async () => {
   const files = {
     [data]: 'export const colour="red"',
     [view]: 'import {colour} from "./data";export const Page=()=> <div style={{color:colour}}/>',
@@ -582,9 +582,7 @@ it('retains every changed source while avoiding repeated consumer expansion', as
       .referenceCount
   ).toBe(2)
   expect(
-    report.limitations.some((limitation) =>
-      limitation.includes('Repeated downstream expansion omitted')
-    )
+    report.limitations.some((limitation) => limitation.includes('Indirect analysis omitted'))
   ).toBe(true)
 })
 

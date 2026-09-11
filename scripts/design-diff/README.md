@@ -206,7 +206,7 @@ JSON inputs are compared semantically, retaining array order and attributing cha
 the spec and configured renderer. Malformed/missing configured inputs flag with a limitation.
 
 The graph reuses up to 32,768 import/export snapshots keyed by source blob, resolving their
-paths again for each revision. The resolver retains at most 32 parsed modules per revision,
+paths again for each revision. Each consumer resolver retains at most 32 parsed modules,
 and requests Bun garbage collection between parser batches. These resource controls do
 not change evidence or decisions. The Node-based test runner uses its own garbage collector.
 
@@ -370,6 +370,14 @@ watchers distinguish changes to the forwarded export from unrelated declarations
 Custom props are exempt as event-only only when a resolved destructured prop is used exclusively
 to select JSX event handlers; the same rule applies inside nested JSX expressions. Unknown
 components and props with rendered uses keep conservative findings.
+Unchanged consumers are visited in dependency-distance order before source-path order, so a
+nearby visible use supplies the retained example before distant application plumbing when possible.
+The engine is a PR qualifier, not an exhaustive inventory of indirect effects. It analyzes every
+changed file, then follows unchanged consumers only while needed to establish whether the PR
+qualifies, retaining one nearby rendering-consumer examination when available. Once any retained
+finding flags and that examination is done, further indirect analysis cannot change the decision
+and is omitted with an explicit coverage limitation. Clean results still require all candidates
+to be examined. Direct findings, grouped source attribution and resolved usage counts remain.
 
 Opaque runtime factories can still connect backend or authentication changes to UI inputs too
 broadly. These findings count as apparent false positives against the frozen nonvisual labels;

@@ -18,6 +18,52 @@ const fixture = {
     'import {Icon} from "@sim/emcn";export const A=()=> <Icon className={dynamicStyle}/>',
 }
 
+it('retains a nearby visual consumer before a distant opaque consumer', async () => {
+  const token = 'apps/sim/token.ts'
+  const direct = 'apps/sim/z-title.tsx'
+  const report = await compareFiles(
+    {
+      [token]: 'export const title="Filling"',
+      [direct]: 'import {title} from "./token";export const Title=()=> <span>{title}</span>',
+      'apps/sim/helper.ts': 'import {title} from "./token";export const config=unknown(title)',
+      'apps/sim/a-distant.tsx':
+        'import {config} from "./helper";export const View=()=> <Widget config={config}/>',
+    },
+    { [token]: 'export const title="Filling form"' },
+    settings
+  )
+  expect(report.findings[0].example?.change.after?.location.file).toBe(direct)
+  expect(report.findings[0].example?.change.category).toBe('content')
+})
+
+it('keeps direct findings and declares partial indirect coverage after qualification', async () => {
+  const token = 'apps/sim/token.ts'
+  const other = 'apps/sim/other.tsx'
+  const files = {
+    [token]: 'export const colour="red"',
+    [consumer]: 'export const View=()=> <div className="p-2"/>',
+    [other]: 'import {colour} from "./token";export const Other=()=> <div style={{color:colour}}/>',
+    'apps/sim/z-extra.tsx':
+      'import {colour} from "./token";export const Extra=()=> <span style={{color:colour}}/>',
+  }
+  const report = await compareFiles(
+    files,
+    {
+      [token]: 'export const colour="blue"',
+      [consumer]: files[consumer].replace('p-2', 'p-4'),
+    },
+    settings
+  )
+  expect(report.flagged).toBe(true)
+  expect(report.findings.some((finding) => finding.source.after?.file === consumer)).toBe(true)
+  expect(report.limitations.join(' ')).toContain(
+    'additional indirect effects are not exhaustively catalogued'
+  )
+  expect(
+    (await compareFiles(files, { [token]: 'export const colour="blue"' }, settings)).flagged
+  ).toBe(true)
+})
+
 it('groups a shared change once and counts only references to its defining module', async () => {
   const report = await compareFiles(
     fixture,
