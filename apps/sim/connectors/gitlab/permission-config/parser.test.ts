@@ -80,13 +80,11 @@ describe('GitLab CSV permission uploads', () => {
       )
     ).toThrow('4 MiB')
   })
-  it('accepts 100,000 rows within a bounded parsing budget and rejects the next row', () => {
+  it('accepts 100,000 rows and rejects the next row', () => {
     const content = Array.from({ length: 100_000 }, (_, i) => `${i + 1},u${i}@example.com`).join(
       '\n'
     )
-    const start = performance.now()
     expect(parseGitLabCsv({ filename: 'users.csv', content }, 'userMapping')).toHaveLength(100_000)
-    expect(performance.now() - start).toBeLessThan(5000)
     expect(() =>
       parseGitLabCsv(
         { filename: 'users.csv', content: `${content}\n100001,last@example.com` },

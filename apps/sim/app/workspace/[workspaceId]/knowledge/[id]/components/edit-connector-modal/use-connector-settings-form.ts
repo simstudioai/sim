@@ -316,20 +316,28 @@ export function useConnectorSettingsForm({
         !hiddenCapFieldIds.has(key) && !valuesEqual(connector.sourceConfig[key], value)
     )
 
-  const handleSave = () => {
+  const {
+    apiKey: permissionApiKey,
+    complete: permissionsComplete,
+    dirty: permissionsDirty,
+    input: permissionInput,
+    reset: resetPermissions,
+  } = gitlabPermissions
+
+  const handleSave = useCallback(() => {
     if (
       !searchSettingsAllowed ||
       !settingsComplete ||
       accessDirty ||
-      (showGitLabPermissions && !gitlabPermissions.complete)
+      (showGitLabPermissions && !permissionsComplete)
     )
       return
     setError(null)
 
     const updates: UpdateConnectorBody = {}
-    if (showGitLabPermissions && gitlabPermissions.dirty) {
-      updates.permissionConfig = gitlabPermissions.input
-      if (gitlabPermissions.apiKey.trim()) updates.apiKey = gitlabPermissions.apiKey
+    if (showGitLabPermissions && permissionsDirty) {
+      updates.permissionConfig = permissionInput
+      if (permissionApiKey.trim()) updates.apiKey = permissionApiKey
     }
 
     if (syncInterval !== connector.syncIntervalMinutes) {
@@ -338,8 +346,9 @@ export function useConnectorSettingsForm({
 
     const resolved = resolveSourceConfig()
     const changedEntries: Record<string, unknown> = {}
+    const saveHiddenFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
     for (const [key, value] of Object.entries(resolved)) {
-      if (hiddenCapFieldIds.has(key)) continue
+      if (saveHiddenFieldIds.has(key)) continue
       if (!valuesEqual(connector.sourceConfig[key], value)) changedEntries[key] = value
     }
 
@@ -365,7 +374,7 @@ export function useConnectorSettingsForm({
       { knowledgeBaseId, connectorId: connector.id, updates },
       {
         onSuccess: (updated) => {
-          gitlabPermissions.reset(updated.permissionConfig)
+          resetPermissions(updated.permissionConfig)
           onSaved(updated)
         },
         onError: (err) => {
@@ -374,7 +383,27 @@ export function useConnectorSettingsForm({
         },
       }
     )
-  }
+  }, [
+    access.accessMode,
+    accessDirty,
+    canonicalModes,
+    connector,
+    connectorConfig,
+    knowledgeBaseId,
+    onSaved,
+    permissionApiKey,
+    permissionInput,
+    permissionsComplete,
+    permissionsDirty,
+    persistedCanonicalModes,
+    resetPermissions,
+    resolveSourceConfig,
+    searchSettingsAllowed,
+    settingsComplete,
+    showGitLabPermissions,
+    syncInterval,
+    updateConnector,
+  ])
 
   /**
    * The mode switch is its own admin operation: it rewrites document access

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   GitLabPermissionData,
@@ -41,18 +41,21 @@ export function useGitLabPermissionForm(initial?: GitLabPermissionData) {
     Boolean(apiKey) ||
     (mode === 'csv' &&
       Object.values(files).some((file) => file.upload || file.error || file.loading))
-  const input: GitLabPermissionUploadInput = {
-    provider: 'gitlab',
-    mode,
-    ...(saved ? { expectedRevision: saved.revision } : {}),
-    ...(mode === 'csv'
-      ? {
-          userMapping: files.userMapping?.upload,
-          projectPermissions: files.projectPermissions?.upload,
-        }
-      : {}),
-  }
-  async function selectFile(kind: GitLabCsvKind, file: File) {
+  const input = useMemo<GitLabPermissionUploadInput>(
+    () => ({
+      provider: 'gitlab',
+      mode,
+      ...(saved ? { expectedRevision: saved.revision } : {}),
+      ...(mode === 'csv'
+        ? {
+            userMapping: files.userMapping?.upload,
+            projectPermissions: files.projectPermissions?.upload,
+          }
+        : {}),
+    }),
+    [files, mode, saved]
+  )
+  const selectFile = useCallback(async (kind: GitLabCsvKind, file: File) => {
     const generation = ++generations.current[kind]
     setFiles((previous) => ({ ...previous, [kind]: { loading: true } }))
     let selected: SelectedFile
@@ -69,15 +72,15 @@ export function useGitLabPermissionForm(initial?: GitLabPermissionData) {
     }
     if (generation === generations.current[kind])
       setFiles((previous) => ({ ...previous, [kind]: selected }))
-  }
-  function reset(next?: GitLabPermissionData) {
+  }, [])
+  const reset = useCallback((next?: GitLabPermissionData) => {
     generations.current.userMapping++
     generations.current.projectPermissions++
     setFiles({})
     setApiKey('')
     setSaved(next)
     setMode(next?.mode ?? 'administrator')
-  }
+  }, [])
   return {
     mode,
     setMode,

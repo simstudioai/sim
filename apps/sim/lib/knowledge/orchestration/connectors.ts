@@ -722,13 +722,9 @@ export async function performUpdateKnowledgeConnector(
   const updatedFields = Object.keys(updates).filter(
     (key) => updates[key as keyof typeof updates] !== undefined
   )
-  const changedFields: string[] = updatedFields
-  if (params.permissionChange) changedFields.push('permissionConfig')
+  if (params.permissionChange) updatedFields.push('permissionConfig')
   if (updatedFields.length === 0) {
-    return fail(
-      'At least one of sourceConfig, syncIntervalMinutes, or status is required',
-      'validation'
-    )
+    return fail('At least one connector setting or permission change is required', 'validation')
   }
 
   const existing = await getKnowledgeConnector(kb.id, connectorId)

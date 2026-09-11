@@ -1026,9 +1026,11 @@ describe('Search source setup with real connector dialogs', () => {
     )
   })
 
-  it('opens GitLab with its single central method and submits the custom host and PAT', async () => {
+  it('opens GitLab token tabs and submits the custom host and PAT with managed access', async () => {
     await render(setup(), '?addConnector=gitlab')
-    expect(document.body.textContent).toContain('Admin or service account')
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
+    expect(document.body.textContent).not.toContain('Connection method')
     expect(document.body.textContent).not.toContain('Member accounts')
     expect(button('Connect & Sync')).toBeDisabled()
     await fill('Enter your GitLab PAT', 'test-pat')
@@ -1197,14 +1199,16 @@ describe('member content credentials in real add and edit dialogs', () => {
     )
     await click(card!)
     expect(document.body.textContent).not.toContain('Connected members')
-    expect(button('Workspace')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(document.body.textContent).not.toContain('Connection method')
     await fill('Enter your GitLab PAT', 'new-pat')
+    await fill('gitlab.example.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', '1')
     expect(button('Connect & Sync')).toBeEnabled()
     await click(button('Connect & Sync'))
     expect(mocks.create.mock.calls[1][0]).toMatchObject({
       connectorType: 'gitlab',
-      accessMode: 'workspace',
+      accessMode: 'admin',
       apiKey: 'new-pat',
     })
     expect(mocks.create.mock.calls[1][0].sourceConfig).not.toHaveProperty('excludeChannels')
@@ -1978,8 +1982,9 @@ describe('canonical Search connector safety', () => {
     )
     expect(gitlab).toBeDefined()
     await click(gitlab!)
-    expect(document.body.textContent).toContain('Admin or service account')
-    expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
+    expect(document.body.textContent).not.toContain('Connection method')
     expect(
       Array.from(document.querySelectorAll('button')).some(
         (node) => node.textContent === 'Workspace'
@@ -2027,8 +2032,9 @@ describe('resuming Search source setup', () => {
 
   it('reopens the source from the URL even when the source filter hides its row', async () => {
     await render(setup(), '?search=nothing-matches&addConnector=gitlab&credentialDraftId=draft-1')
-    expect(document.body.textContent).toContain('Admin or service account')
-    expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
+    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
+    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
+    expect(document.body.textContent).not.toContain('Connection method')
     expect(document.body.textContent).toContain('Add GitLab project')
     expect(document.body.textContent).not.toContain('Sync Frequency')
     expect(document.body.textContent).not.toContain('Sync automatically')
