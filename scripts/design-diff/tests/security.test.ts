@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
 import { analyze } from '#design-diff/analyze'
-import { config, FixtureRepo } from '#design-diff/tests/helpers'
+import { allChanges, config, FixtureRepo } from '#design-diff/tests/helpers'
 
 it('never executes proposed source or JavaScript plugins', async () => {
   const repo = new FixtureRepo()
@@ -21,7 +21,7 @@ it('never executes proposed source or JavaScript plugins', async () => {
     const report = await analyze(repo.cwd, base, head, config)
     expect(report.flagged).toBe(true)
     expect(
-      report.findings.some((finding) => finding.reason === 'Rendering infrastructure changed')
+      allChanges(report).some((finding) => finding.reason === 'Rendering infrastructure changed')
     ).toBe(true)
     expect(existsSync(sentinel)).toBe(false)
   } finally {
@@ -83,7 +83,7 @@ it('reviews an affected file beyond the source-size limit', async () => {
       limits: { ...config.limits, fileBytes: 10 },
     })
     expect(report.flagged).toBe(true)
-    expect(report.findings[0].decision).toBe('review')
+    expect(allChanges(report)[0].decision).toBe('flag')
   } finally {
     repo.close()
   }

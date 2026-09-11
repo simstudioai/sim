@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { compareFiles, config } from '#design-diff/tests/helpers'
+import { allChanges, compareFiles, config } from '#design-diff/tests/helpers'
 
 const consumer = 'apps/sim/button.tsx'
 const token = 'apps/sim/token.ts'
@@ -15,11 +15,11 @@ it('resolves constants, object properties and template strings through aliases a
   )
   expect(report.flagged).toBe(true)
   expect(
-    report.findings
+    allChanges(report)
       .filter((finding) => finding.after?.location.file === consumer)
       .map((finding) => finding.category)
   ).toEqual(['dimensions'])
-  expect(report.findings[0].dependencies).toContain(token)
+  expect(allChanges(report)[0].dependencies).toContain(token)
 })
 
 it('reads workspace package exports without loading the package', async () => {
@@ -35,7 +35,7 @@ it('reads workspace package exports without loading the package', async () => {
     { [token]: 'export const padding = 8' }
   )
   expect(
-    report.findings.some(
+    allChanges(report).some(
       (finding) => finding.after?.location.file === consumer && finding.decision === 'flag'
     )
   ).toBe(true)
@@ -51,7 +51,7 @@ it('follows dependencies from both revisions when an import is replaced', async 
     { [consumer]: 'import {padding} from "./other"; export const A=()=> <div style={{padding}}/>' }
   )
   expect(report.flagged).toBe(true)
-  expect(report.findings[0].dependencies).toEqual(
+  expect(allChanges(report)[0].dependencies).toEqual(
     expect.arrayContaining([token, 'apps/sim/other.ts'])
   )
 })
@@ -66,7 +66,7 @@ it('bounds cycles and reviews unresolved changed consumers', async () => {
     { [token]: 'import { padding as other } from "./other"; export const padding=other+1' }
   )
   expect(report.flagged).toBe(true)
-  expect(report.findings.some((finding) => finding.decision === 'review')).toBe(true)
+  expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
 })
 
 it('retains conditional branches and CVA variants/defaults', async () => {
@@ -78,7 +78,7 @@ it('retains conditional branches and CVA variants/defaults', async () => {
     { ...config, themes: [] }
   )
   expect(report.flagged).toBe(true)
-  expect(JSON.stringify(report.findings)).toContain('defaultVariants')
+  expect(JSON.stringify(allChanges(report))).toContain('defaultVariants')
 })
 
 it('evaluates static CVA defaults and compound variants at an unchanged consumer', async () => {
@@ -89,7 +89,7 @@ it('evaluates static CVA defaults and compound variants at an unchanged consumer
     { [consumer]: source('lg') },
     { ...config, themes: [] }
   )
-  const finding = report.findings.find((finding) => finding.after?.property === 'className')
+  const finding = allChanges(report).find((finding) => finding.after?.property === 'className')
   expect(finding?.decision).toBe('flag')
   expect(JSON.stringify(finding?.after?.value)).toContain('rounded-md p-4 font-bold')
 })
@@ -118,7 +118,7 @@ it.each([
     { [token]: `export const classes = '${after}'` },
     { ...config, themes: [] }
   )
-  const finding = report.findings.find((finding) => finding.after?.location.file === consumer)
+  const finding = allChanges(report).find((finding) => finding.after?.location.file === consumer)
   expect(finding?.decision).toBe('flag')
   expect(finding?.category).toBe(category)
   expect(finding?.limitations).toEqual([])
@@ -133,7 +133,7 @@ it('reviews unsupported class helpers instead of executing or trusting their nam
     { [consumer]: source('p-4') },
     { ...config, themes: [] }
   )
-  expect(report.findings.some((finding) => finding.decision === 'review')).toBe(true)
+  expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
 })
 
 it('propagates changed imports into unresolved MDX expressions', async () => {
@@ -145,7 +145,7 @@ it('propagates changed imports into unresolved MDX expressions', async () => {
     },
     { 'apps/docs/token.ts': 'export const title = "Second"' }
   )
-  expect(report.findings.some((finding) => finding.after?.location.file === document)).toBe(true)
+  expect(allChanges(report).some((finding) => finding.after?.location.file === document)).toBe(true)
 })
 
 it('reviews a token change behind an unexecuted helper through transitive imports', async () => {
@@ -160,8 +160,8 @@ it('reviews a token change behind an unexecuted helper through transitive import
     { [token]: 'export const padding=8' }
   )
   expect(
-    report.findings.some(
-      (finding) => finding.after?.location.file === consumer && finding.decision === 'review'
+    allChanges(report).some(
+      (finding) => finding.after?.location.file === consumer && finding.decision === 'flag'
     )
   ).toBe(true)
 })

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { compareFiles, config } from '#design-diff/tests/helpers'
+import { allChanges, compareFiles, config } from '#design-diff/tests/helpers'
 
 const file = 'apps/sim/button.tsx'
 const theme = 'apps/sim/app/_styles/globals.css'
@@ -12,7 +12,7 @@ it('normalizes pinned core utilities and per-app theme definitions', async () =>
     },
     { [file]: 'export const A=()=> <div className="p-4 bg-brand"/>' }
   )
-  const finding = report.findings.find((finding) => finding.after?.location.file === file)
+  const finding = allChanges(report).find((finding) => finding.after?.location.file === file)
   expect(finding?.decision).toBe('flag')
   expect(finding?.category).toBe('dimensions')
   expect(JSON.stringify(finding?.after?.value)).toContain('padding')
@@ -25,8 +25,8 @@ it('reviews unsupported custom utilities', async () => {
     { [file]: 'export const A=()=> <div className="custom-plugin-button"/>' },
     { ...config, themes: [] }
   )
-  expect(report.findings[0].decision).toBe('review')
-  expect(report.findings[0].limitations.join(' ')).toContain('Unsupported utility')
+  expect(allChanges(report)[0].decision).toBe('flag')
+  expect(allChanges(report)[0].limitations.join(' ')).toContain('Unsupported utility')
 })
 
 it('preserves dark/responsive/state variants', async () => {
@@ -36,7 +36,7 @@ it('preserves dark/responsive/state variants', async () => {
     { ...config, themes: [] }
   )
   expect(report.flagged).toBe(true)
-  expect(JSON.stringify(report.findings)).toContain('hover')
+  expect(JSON.stringify(allChanges(report))).toContain('hover')
 })
 
 it('preserves statement boundaries between selector and block custom variants', async () => {
@@ -56,7 +56,7 @@ it('preserves statement boundaries between selector and block custom variants', 
       [file]: 'export const A=()=> <div className="dark:bg-brand hover:bg-brand hover-hover:p-4"/>',
     }
   )
-  const finding = report.findings.find((finding) => finding.after?.location.file === file)
+  const finding = allChanges(report).find((finding) => finding.after?.location.file === file)
   expect(finding?.decision).toBe('flag')
   expect(finding?.category).toBe('dimensions')
   expect(finding?.limitations).toEqual([])
@@ -71,7 +71,7 @@ it('flags unchanged consumers of changed global theme variables', async () => {
     },
     { [theme]: '@theme inline {--color-brand:var(--brand)} :root {--brand:blue}' }
   )
-  expect(report.findings.some((finding) => finding.after?.location.file === file)).toBe(true)
+  expect(allChanges(report).some((finding) => finding.after?.location.file === file)).toBe(true)
 })
 
 it('resolves CSS variable evidence in unchanged inline styles', async () => {
@@ -82,7 +82,7 @@ it('resolves CSS variable evidence in unchanged inline styles', async () => {
     },
     { [theme]: ':root {--brand:blue}' }
   )
-  expect(report.findings.some((finding) => finding.after?.location.file === file)).toBe(true)
+  expect(allChanges(report).some((finding) => finding.after?.location.file === file)).toBe(true)
 })
 
 it('applies the trusted cn merge convention without discarding input order', async () => {
@@ -94,5 +94,5 @@ it('applies the trusted cn merge convention without discarding input order', asy
     { ...config, themes: [] }
   )
   expect(report.flagged).toBe(true)
-  expect(JSON.stringify(report.findings)).toContain('inputOrder')
+  expect(JSON.stringify(allChanges(report))).toContain('inputOrder')
 })

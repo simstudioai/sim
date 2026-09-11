@@ -1,5 +1,5 @@
 export type Data = null | boolean | number | string | Data[] | { [key: string]: Data }
-export type Decision = 'flag' | 'review' | 'exempt'
+export type Decision = 'flag' | 'exempt'
 export type Category =
   | 'colour'
   | 'dimensions'
@@ -42,7 +42,7 @@ export interface Definition extends Evidence {
   conditions: Data[]
   movement?: { bounds: number[]; viewport: number[]; appearance: Data }
 }
-export interface Finding {
+export interface Change {
   id: string
   decision: Decision
   category: Category
@@ -53,6 +53,30 @@ export interface Finding {
   consumers: string[]
   dependencies: string[]
   limitations: string[]
+}
+export interface Finding extends Change {
+  source: {
+    before: { file: string; blob: string } | null
+    after: { file: string; blob: string } | null
+  }
+  categories: Category[]
+  changes: Change[]
+  example: { basis: 'changed-definition' | 'potential-consumer'; change: Change } | null
+  impact: {
+    basis: 'resolved-static-references'
+    before: UsageCount
+    after: UsageCount
+  }
+}
+export interface UsageCount {
+  coverage: 'partial'
+  referenceCount: number
+  fileCount: number
+  references: {
+    location: Location
+    symbol: string
+    kind: 'jsx' | 'call' | 'reference'
+  }[]
 }
 export interface Config {
   sourceRoots: string[]
@@ -77,9 +101,9 @@ export interface Config {
   }
 }
 export interface Report {
-  schemaVersion: '1.0.0'
-  engineVersion: '0.1.0'
-  policyVersion: '1.0.0'
+  schemaVersion: '2.0.0'
+  engineVersion: '0.2.0'
+  policyVersion: '2.0.0'
   commits: { base: string; head: string; mergeBase: string } | null
   status: 'completed' | 'failed'
   flagged: boolean | null

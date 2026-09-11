@@ -5,6 +5,8 @@ import { cssValue, extractCss } from '#design-diff/extract/css'
 import { extractDocument } from '#design-diff/extract/documents'
 import { extractTsx } from '#design-diff/extract/tsx'
 import { GitReader } from '#design-diff/git'
+import { groupFindings } from '#design-diff/group'
+import { reclaimMemory } from '#design-diff/memory'
 import { limitations } from '#design-diff/policy'
 import { Resolver } from '#design-diff/resolve'
 import {
@@ -15,13 +17,13 @@ import {
   scriptPattern,
 } from '#design-diff/source'
 import { TailwindNormalizer } from '#design-diff/tailwind'
-import type { Config, Definition, Finding, Report } from '#design-diff/types'
+import type { Change, Config, Definition, Report } from '#design-diff/types'
 
 export function emptyReport(): Report {
   return {
-    schemaVersion: '1.0.0',
-    engineVersion: '0.1.0',
-    policyVersion: '1.0.0',
+    schemaVersion: '2.0.0',
+    engineVersion: '0.2.0',
+    policyVersion: '2.0.0',
     commits: null,
     status: 'failed',
     flagged: null,
@@ -68,6 +70,7 @@ export async function analyze(
   const changes = reader.changes(report.commits.mergeBase, report.commits.head)
   const before = new SourceTree(reader, report.commits.mergeBase, config)
   const after = new SourceTree(reader, report.commits.head, config)
+  reclaimMemory()
   const changed = new Set<string>()
   for (const change of changes) {
     const file = change.after ?? (change.before as string)
@@ -99,19 +102,31 @@ export async function analyze(
     if (change.before) changed.add(change.before)
     if (change.after) changed.add(change.after)
   }
-  const findings: Finding[] = []
+  const findings: Change[] = []
+  let causes = new Map<string, Set<string>>()
+  const renames = new Map(
+    changes
+      .filter((change) => change.status.startsWith('R'))
+      .map((change) => [change.after as string, change.before as string])
+  )
   if (changed.size) {
     before.buildGraph()
     after.buildGraph()
-    const affected = new Set([...before.affected(changed), ...after.affected(changed)])
+    causes = before.graph.causes(changed, after.graph)
+    const affected = new Set(causes.keys())
     for (const theme of config.themes) {
       if (!affected.has(theme.path)) continue
       for (const file of new Set([...before.texts.keys(), ...after.texts.keys()])) {
         if (
           theme.roots.some((root) => file.startsWith(root)) &&
           /\.(?:[jt]sx|css|html?|mdx?)$/.test(file)
-        )
+        ) {
           affected.add(file)
+          causes.set(
+            file,
+            new Set([...(causes.get(file) ?? []), ...(causes.get(theme.path) ?? [theme.path])])
+          )
+        }
       }
     }
     const previousResolver = new Resolver(before)
@@ -184,12 +199,9 @@ export async function analyze(
       }
       return []
     }
-    const renames = new Map(
-      changes
-        .filter((change) => change.status.startsWith('R'))
-        .map((change) => [change.after as string, change.before as string])
-    )
+    let extracted = 0
     for (const file of [...affected].sort()) {
+      if (++extracted % 32 === 0) reclaimMemory()
       if (!scoped(file, config) && !infrastructure(file, config)) continue
       if ([...renames.values()].includes(file) && !after.entries.has(file)) continue
       const oldFile = renames.get(file) ?? file
@@ -287,15 +299,7 @@ export async function analyze(
     }
   }
   report.status = 'completed'
-  report.findings = [...new Map(findings.map((item) => [item.id, item])).values()].sort((a, b) => {
-    const left = a.after?.location ?? a.before?.location
-    const right = b.after?.location ?? b.before?.location
-    return (
-      (left?.file ?? '').localeCompare(right?.file ?? '', 'en') ||
-      (left?.line ?? 0) - (right?.line ?? 0) ||
-      a.id.localeCompare(b.id, 'en')
-    )
-  })
-  report.flagged = report.findings.some((item) => item.decision !== 'exempt')
+  report.findings = groupFindings(findings, causes, before, after, renames)
+  report.flagged = report.findings.some((item) => item.decision === 'flag')
   return report
 }

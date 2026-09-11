@@ -1,3 +1,3 @@
 export { analyze } from '#design-diff/analyze'
 export { GitReader } from '#design-diff/git'
-export type { Config, Finding, Report } from '#design-diff/types'
+export type { Change, Config, Finding, Report, UsageCount } from '#design-diff/types'

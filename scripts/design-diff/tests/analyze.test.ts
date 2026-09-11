@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { analyze } from '#design-diff/analyze'
-import { compareFiles, config, FixtureRepo } from '#design-diff/tests/helpers'
+import { allChanges, compareFiles, config, FixtureRepo } from '#design-diff/tests/helpers'
 
 const cases: { name: string; before: string; after: string; category: string }[] = JSON.parse(
   readFileSync(new URL('fixtures/visual-cases.json', import.meta.url), 'utf8')
@@ -13,9 +13,9 @@ describe('visual policy integration', () => {
     const report = await compareFiles({ [file]: fixture.before }, { [file]: fixture.after })
     expect(report.status).toBe('completed')
     expect(report.flagged).toBe(true)
-    expect(report.findings.some((finding) => finding.category === fixture.category)).toBe(true)
+    expect(allChanges(report).some((finding) => finding.category === fixture.category)).toBe(true)
     expect(
-      report.findings.every(
+      allChanges(report).every(
         (finding) => finding.before?.location.file === file || finding.after?.location.file === file
       )
     ).toBe(true)
@@ -53,7 +53,7 @@ describe('visual policy integration', () => {
       { [file]: after },
       { ...config, themes: [] }
     )
-    expect(report.findings).toEqual([])
+    expect(allChanges(report)).toEqual([])
     expect(report.flagged).toBe(false)
   })
 
@@ -116,7 +116,7 @@ describe('visual policy integration', () => {
       }
     )
     expect(report.flagged).toBe(true)
-    expect(report.findings.some((finding) => finding.decision === 'review')).toBe(true)
+    expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
   })
 
   it('returns review for invalid syntax', async () => {
@@ -125,7 +125,7 @@ describe('visual policy integration', () => {
       { [file]: 'export const A=()=> <div' }
     )
     expect(report.status).toBe('completed')
-    expect(report.findings.some((finding) => finding.decision === 'review')).toBe(true)
+    expect(allChanges(report).some((finding) => finding.decision === 'flag')).toBe(true)
   })
 
   it('has deterministic ordering, IDs and commit metadata', async () => {

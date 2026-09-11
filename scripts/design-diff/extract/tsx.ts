@@ -130,6 +130,19 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
   const literal = (value: Data): Evidence => ({ value, dependencies: [file], unresolved: [] })
   const ast = resolver.module(file).ast
   traverse(ast, {
+    ImportDeclaration(path) {
+      if (
+        path.node.importKind === 'type' ||
+        !/\.(?:css|scss|sass|less)(?:[?#].*)?$/.test(path.node.source.value)
+      )
+        return
+      const target = resolver.tree.resolve(file, path.node.source.value)
+      emit(path, 'review', 'infrastructure', {
+        value: path.node.source.value,
+        dependencies: target ? [file, target] : [file],
+        unresolved: ['Stylesheet import order, side effects and selector reach are not executed'],
+      })
+    },
     JSXElement(path) {
       const opening = path.node.openingElement
       const name = propertyName(opening.name)
@@ -148,19 +161,33 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
         const binding = path.scope.getBinding(name.split('.')[0])
         if (
           binding &&
-          (binding.path.isImportSpecifier() || binding.path.isImportDefaultSpecifier())
+          (binding.path.isImportSpecifier() ||
+            binding.path.isImportDefaultSpecifier() ||
+            binding.path.isImportNamespaceSpecifier())
         ) {
           const parent = binding.path.parentPath
-          if (parent.isImportDeclaration())
+          if (parent.isImportDeclaration()) {
+            const imported = binding.path.isImportSpecifier()
+              ? propertyName(binding.path.node.imported)
+              : binding.path.isImportNamespaceSpecifier()
+                ? (name.split('.')[1] ?? '*')
+                : 'default'
+            const origin = resolver.tree.graph?.imported(file, parent.node.source.value, imported)
+            if (origin && (origin.uncertain || !origin.origins.length))
+              evidence.unresolved.push(
+                'Component import could not be resolved to a unique implementation'
+              )
+            if (origin?.effects.length)
+              evidence.unresolved.push('Imported module effects are not executed')
             evidence.value = {
               tag: name,
               children: childShapes,
               attributeOrder,
               from: parent.node.source.value,
-              imported: binding.path.isImportSpecifier()
-                ? propertyName(binding.path.node.imported)
-                : 'default',
+              imported,
+              origin: origin ?? null,
             }
+          }
         }
       }
       emit(path, 'markup', name, evidence)

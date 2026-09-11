@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { pureMovement } from '#design-diff/movement'
 import { changedCategory } from '#design-diff/policy'
-import type { Definition, Finding } from '#design-diff/types'
+import type { Change, Definition } from '#design-diff/types'
 
 function signature(definition: Definition) {
   return JSON.stringify([definition.value, definition.conditions])
@@ -11,7 +11,7 @@ export function finding(
   before: Definition | undefined,
   after: Definition | undefined,
   reason?: string
-): Finding {
+): Change {
   const definition = after ?? before
   if (!definition) throw new Error('Finding needs evidence')
   const unresolved = [
@@ -19,22 +19,19 @@ export function finding(
   ].sort()
   const movement = before && after && pureMovement(before, after)
   const category = changedCategory(before, after)
-  const decision = movement
-    ? 'exempt'
-    : unresolved.length ||
-        definition.kind === 'review' ||
-        ['movement', 'unresolved'].includes(category)
-      ? 'review'
-      : 'flag'
-  const result: Omit<Finding, 'id'> = {
-    decision,
+  const uncertain =
+    unresolved.length ||
+    definition.kind === 'review' ||
+    ['movement', 'unresolved'].includes(category)
+  const result: Omit<Change, 'id'> = {
+    decision: movement ? 'exempt' : 'flag',
     category: movement ? 'movement' : category,
     reason:
       reason ??
       (movement
         ? 'Static geometry establishes movement within unchanged bounds'
-        : decision === 'review'
-          ? 'Potential visual effect needs review; static evidence is incomplete'
+        : uncertain
+          ? 'Potential visual effect; static evidence is incomplete'
           : 'Visual definition changed'),
     before: before
       ? {
@@ -77,10 +74,10 @@ export function compareDefinitions(
   before: Definition[],
   after: Definition[],
   changed: Set<string>
-): Finding[] {
+): Change[] {
   const previous = new Map(before.map((definition) => [definition.key, definition]))
   const next = new Map(after.map((definition) => [definition.key, definition]))
-  const result: Finding[] = []
+  const result: Change[] = []
   const reviewedDependencies = new Set<string>()
   for (const key of [...new Set([...previous.keys(), ...next.keys()])].sort()) {
     const a = previous.get(key)

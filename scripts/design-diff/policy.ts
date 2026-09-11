@@ -23,11 +23,13 @@ export function category(definition: Definition): Category {
 
 export const limitations = [
   'Static source analysis does not establish pixel equality or complete runtime behavior.',
-  'Dynamic data, unknown calls, custom props, plugins and unsupported rendering mechanisms require review when affected.',
+  'Dynamic data, unknown calls, custom props, plugins and unsupported rendering mechanisms are flagged when affected.',
   'Import propagation covers static imports/re-exports, supported aliases and literal asset paths; runtime-generated paths cannot be enumerated.',
   'Tailwind 4.3.3 normalizes core utilities and CSS theme declarations. Proposed JavaScript configuration, plugins and external CSS are not executed.',
   'Movement exemptions cover only a single static rect/circle moving strictly inside an unchanged fixed SVG viewport, with no styling hooks or effects.',
-  'Unchanged unresolved expressions with the same symbol and changed dependencies are represented once per file.',
+  'Findings are grouped by changed source file; direct changes and one representative consumer are retained.',
+  'Named imports follow re-exports to their defining module. Ambiguous imports and further transitive module effects retain conservative dependencies.',
+  'Usage counts measure resolved static references to changed bindings and local dependents, not confirmed visual changes or rendered instances.',
   'Source-order matching is conservative after structural edits. Reports identify possible visual changes, including inactive variants and unused assets.',
 ]
 

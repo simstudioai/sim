@@ -32,7 +32,11 @@ export class Resolver {
 
   module(file: string): Module {
     const cached = this.modules.get(file)
-    if (cached) return cached
+    if (cached) {
+      this.modules.delete(file)
+      this.modules.set(file, cached)
+      return cached
+    }
     const source = this.tree.texts.get(file)
     if (source === undefined) throw new Error('Source unavailable')
     const ast = parseSource(source, file)
@@ -59,6 +63,7 @@ export class Resolver {
       },
     })
     const result = { ast, exports, stars }
+    if (this.modules.size >= 128) this.modules.delete(this.modules.keys().next().value!)
     this.modules.set(file, result)
     return result
   }
@@ -97,6 +102,17 @@ export class Resolver {
     try {
       if (file.endsWith('.json') && name === 'default')
         return canonical(JSON.parse(this.tree.texts.get(file) ?? 'null'))
+      const resolved = this.tree.graph?.resolvedExport(file, name)
+      if (resolved) {
+        for (const route of resolved.routes) this.dependencies.add(route)
+        if (resolved.uncertain) {
+          this.unresolved.add('Ambiguous, cyclic or unsupported re-export')
+          return { $unresolved: key }
+        }
+        if (!resolved.origin) return { $missing: key }
+        if (resolved.origin.file !== file)
+          return this.exported(resolved.origin.file, resolved.origin.exported, depth + 1, visited)
+      }
       const module = this.module(file)
       const exported = module.exports.get(name)
       if (exported) {

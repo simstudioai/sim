@@ -1,7 +1,6 @@
 import path from 'node:path'
-import * as t from '@babel/types'
 import { parse as parseJson } from 'jsonc-parser'
-import { parseSource, traverse } from '#design-diff/ast'
+import { DependencyGraph } from '#design-diff/dependencies'
 import type { Entry, GitReader } from '#design-diff/git'
 import type { Config } from '#design-diff/types'
 
@@ -184,66 +183,11 @@ export class SourceTree {
     return undefined
   }
 
-  /** Builds an over-approximation of static imports and asset references in each revision. */
-  buildGraph(): void {
-    for (const [file, source] of this.texts) {
-      const dependencies = new Set<string>()
-      const add = (specifier: string) => {
-        const resolved = this.resolve(file, specifier)
-        if (resolved) dependencies.add(resolved)
-      }
-      if (scriptPattern.test(file)) {
-        try {
-          const ast = parseSource(source, file)
-          traverse(ast, {
-            ImportDeclaration(p) {
-              if (p.node.importKind !== 'type') add(p.node.source.value)
-            },
-            ExportNamedDeclaration(p) {
-              if (p.node.source && p.node.exportKind !== 'type') add(p.node.source.value)
-            },
-            ExportAllDeclaration(p) {
-              add(p.node.source.value)
-            },
-            CallExpression(p) {
-              if (
-                (t.isImport(p.node.callee) || t.isIdentifier(p.node.callee, { name: 'require' })) &&
-                t.isStringLiteral(p.node.arguments[0])
-              )
-                add(p.node.arguments[0].value)
-            },
-            StringLiteral(p) {
-              if (assetPattern.test(p.node.value)) add(p.node.value)
-            },
-          })
-        } catch {
-          this.failures.add(file)
-        }
-      } else {
-        for (const match of source.matchAll(
-          /(?:from\s*|import\s*|@import\s*|url\(\s*)["']([^"']+)["']/g
-        ))
-          add(match[1])
-      }
-      this.dependencies.set(file, dependencies)
-    }
-  }
+  graph!: DependencyGraph
 
-  affected(changed: Set<string>): Set<string> {
-    const reverse = new Map<string, string[]>()
-    for (const [file, dependencies] of this.dependencies) {
-      for (const dependency of dependencies)
-        reverse.set(dependency, [...(reverse.get(dependency) ?? []), file])
-    }
-    const result = new Set(changed)
-    const queue = [...changed]
-    for (let i = 0; i < queue.length; i++) {
-      for (const consumer of reverse.get(queue[i]) ?? []) {
-        if (result.has(consumer)) continue
-        result.add(consumer)
-        queue.push(consumer)
-      }
-    }
-    return result
+  buildGraph(): void {
+    this.graph = new DependencyGraph(this, scriptPattern, assetPattern)
+    for (const [file, dependencies] of this.graph.dependencies)
+      this.dependencies.set(file, dependencies)
   }
 }

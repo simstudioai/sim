@@ -3,12 +3,20 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { analyze } from '#design-diff/analyze'
-import type { Config } from '#design-diff/types'
+import type { Change, Config, Report } from '#design-diff/types'
 
 export const config: Config = JSON.parse(
   readFileSync(new URL('../../../design-diff.config.json', import.meta.url), 'utf8')
 )
 export type Files = Record<string, string | Buffer | null>
+
+/** Extracts retained source evidence and the representative consumer from grouped reports. */
+export function allChanges(report: Report): Change[] {
+  return report.findings.flatMap((finding) => [
+    ...finding.changes,
+    ...(finding.example ? [finding.example.change] : []),
+  ])
+}
 
 export class FixtureRepo {
   readonly cwd = mkdtempSync(path.join(os.tmpdir(), 'design-diff-'))
