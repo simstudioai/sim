@@ -551,12 +551,11 @@ describe('knowledge base counts with live source permissions', () => {
         id: 'kb-1',
         workspaceId: 'ws-1',
         chunkingConfig: {},
-        docCount: 99,
-        tokenCount: 999,
+        docCount: 2,
+        tokenCount: 10,
         createdAt: new Date('2026-01-01'),
       },
     ])
-    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 }])
     queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
     queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 3, tokenCount: 20 }])
     const result = await getWorkspaceKnowledgeBases('ws-1', 'active', { access, limit: 2 })
@@ -585,6 +584,56 @@ describe('knowledge base counts with live source permissions', () => {
           )
       )
     ).toBe(true)
+  })
+
+  it('counts an unpaged list in one joined query and one discovery pass bounded by the list filter', async () => {
+    const { access, getForConnectors } = reader()
+    const bases = Array.from({ length: 1000 }, (_, index) => ({
+      id: `kb-${index}`,
+      workspaceId: 'ws-1',
+      chunkingConfig: {},
+      docCount: 1,
+      tokenCount: 1,
+      createdAt: new Date('2026-01-01'),
+    }))
+    queueTableRows(schemaMock.knowledgeBase, bases)
+    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-7', docCount: 3, tokenCount: 20 }])
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
+    expect(result.data).toHaveLength(1000)
+    expect(result.data[7]).toMatchObject({ docCount: 4, tokenCount: 21 })
+    expect(result.data[8]).toMatchObject({ docCount: 1, tokenCount: 1 })
+    expect(getForConnectors).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.groupBy).toHaveBeenCalledTimes(2)
+    expect(
+      dbChainMockFns.where.mock.calls.some(([condition]) =>
+        hasMockCondition(
+          condition,
+          (node) => node.type === 'inArray' && node.column === schemaMock.knowledgeBase.id
+        )
+      )
+    ).toBe(false)
+  })
+
+  it('never discovers live sources for a reader without live-source credentials', async () => {
+    const { access, getForConnectors } = reader()
+    access.hasLiveSourceReaders = async () => false
+    queueTableRows(schemaMock.knowledgeBase, [
+      {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        chunkingConfig: {},
+        docCount: 2,
+        tokenCount: 10,
+        createdAt: new Date('2026-01-01'),
+      },
+    ])
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
+    expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
+    expect(getForConnectors).not.toHaveBeenCalled()
+    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).toHaveBeenCalledOnce()
   })
 
   it('does not retain stale totals when a live source no longer authorizes its documents', async () => {

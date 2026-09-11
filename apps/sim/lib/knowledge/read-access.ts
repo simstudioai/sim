@@ -30,6 +30,7 @@ export async function* knowledgeReadAccessBatches(
   const ordinary = knowledgeAccessCondition(scope)
   yield ordinary
   if (!provider || scope.kind !== 'user') return
+  if (provider.hasLiveSourceReaders && !(await provider.hasLiveSourceReaders())) return
 
   let cursor: string | undefined
   while (true) {

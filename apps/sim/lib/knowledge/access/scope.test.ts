@@ -266,6 +266,25 @@ describe('createKnowledgeAccessProvider', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
   })
 
+  it('reports live-source readers only when a member-scoped source credential exists', async () => {
+    queueSubjects([{ providerId: 'slack', providerTenantId: 'T1', providerSubjectId: 'U1' }])
+    await expect(
+      createKnowledgeAccessProvider(SESSION, WORKSPACE).hasLiveSourceReaders?.()
+    ).resolves.toBe(false)
+
+    queueSubjects([
+      {
+        providerId: 'confluence',
+        providerTenantId: 'site-1',
+        providerSubjectId: 'account-1',
+        credentialId: 'credential-1',
+      },
+    ])
+    await expect(
+      createKnowledgeAccessProvider(SESSION, WORKSPACE).hasLiveSourceReaders?.()
+    ).resolves.toBe(true)
+  })
+
   it('retries after a failed lookup rather than caching the failure', async () => {
     dbChainMockFns.where.mockRejectedValueOnce(new Error('connection reset'))
     const provider = createKnowledgeAccessProvider(SESSION, WORKSPACE)

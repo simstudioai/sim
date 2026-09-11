@@ -397,6 +397,10 @@ function createAccessProvider(
     async get() {
       return (await identity()).access
     },
+    async hasLiveSourceReaders() {
+      const { access, githubReaders, confluenceReaders } = await identity()
+      return access.kind === 'user' && (githubReaders.length > 0 || confluenceReaders.length > 0)
+    },
     async getForConnectors(connectorIds, signal) {
       const ids = boundedIds(connectorIds)
       const cancellation =
