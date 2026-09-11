@@ -1,22 +1,16 @@
 'use client'
 
-import {
-  type ComponentType,
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
-import { ShimmerText } from '@/components/ui'
+import { type ComponentType, type ReactNode, useMemo, useState } from 'react'
+import { ActivityStatus } from '@/components/ui/activity-status'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
+import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
 import { BrowserAgentIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
-import { getVisibleMainAgentItems } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
+import { MainAgentActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
+import { getToolActivitySummary } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
+import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
 import {
   getAgentIcon,
   isToolDone,
@@ -53,7 +47,7 @@ export interface AgentGroupProps {
   isLaneOpen?: boolean
   /** Opens a subagent group on first render. */
   defaultExpanded?: boolean
-  /** Keeps the activity viewport anchored at the top while new rows stream in. */
+  /** Follows incoming activity until the user scrolls up. */
   autoScrollActivity?: boolean
 }
 
@@ -78,12 +72,11 @@ function collectGroupTools(items: AgentGroupItem[]): ToolCallData[] {
   return tools
 }
 
-/** True when any row in this group (or a nested one) is waiting on a permission decision. */
-function hasAwaitingApproval(items: AgentGroupItem[]): boolean {
+/** Reveal blocking interactions even when a parent group was manually collapsed. */
+function hasPendingInteraction(items: AgentGroupItem[]): boolean {
   return items.some((item) => {
-    if (item.type === 'tool') return item.data.status === ToolCallStatus.awaiting_approval
-    // Text rows carry no tool calls, so only nested groups need recursing into.
-    return item.type === 'agent_group' ? hasAwaitingApproval(item.group.items) : false
+    if (item.type === 'tool') return needsToolInput(item.data)
+    return item.type === 'agent_group' ? hasPendingInteraction(item.group.items) : false
   })
 }
 
@@ -165,14 +158,7 @@ export function AgentGroupView({
       <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
     )
   const isMainAgent = agentName === 'mothership'
-  // Collapsed status line: the latest tool call, always in its RUNNING
-  // phrasing — it never flips to the completed rewrite (that lives in the
-  // expanded log). Work delegated further down bubbles up, so a group whose
-  // own turn is idle still narrates what its nested agent is doing rather
-  // than freezing on its last own tool. With several tools running at any
-  // depth, the most recently started wins and the rest become "+ n"; between
-  // rounds the last tool's title stays frozen; a closed lane shows the bare
-  // name.
+  /** Open lanes surface their latest work, including work delegated to nested agents. */
   const status = useMemo(() => {
     if (isMainAgent || !isLaneOpen) return undefined
     const tools = collectGroupTools(items)
@@ -187,7 +173,12 @@ export function AgentGroupView({
     const last = tools.at(-1)
     return last ? toolStatusTitle(last) : undefined
   }, [isLaneOpen, isMainAgent, items])
-  const headerText = status ? `${agentLabel} — ${status}` : agentLabel
+  const completedTools = !isMainAgent && !isLaneOpen ? collectGroupTools(items) : []
+  const headerText = status
+    ? `${agentLabel} — ${status}`
+    : completedTools.length > 0
+      ? `${agentLabel} — ${getToolActivitySummary(completedTools)}`
+      : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -199,11 +190,10 @@ export function AgentGroupView({
 
   const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
-  // An outstanding permission prompt overrides a manual collapse: the turn
-  // cannot proceed until it is answered, so hiding it would deadlock the chat
-  // with nothing on screen to explain why.
+  const pendingInteraction = hasPendingInteraction(items)
+  /** Blocking interactions override manual collapse so the user can resume the turn. */
   const expanded =
-    hasAwaitingApproval(items) ||
+    pendingInteraction ||
     nestedBrowserTakeover ||
     (activeBrowserTakeover ? expandedTakeoverId === activeBrowserTakeover.id : manualExpanded)
 
@@ -215,96 +205,84 @@ export function AgentGroupView({
     setManualExpanded(!expanded)
   }
 
-  const visibleItems = isMainAgent ? getVisibleMainAgentItems(items) : items
-  const activity = (
-    <div className={cn('flex min-w-0 flex-col gap-1.5', !isMainAgent && 'py-0.5 pl-6')}>
-      {visibleItems.map((item, idx) => {
-        if (item.type === 'tool') {
-          return (
-            <ToolCallComponent
-              key={item.data.id}
-              toolCallId={item.data.id}
-              toolName={item.data.toolName}
-              displayTitle={item.data.displayTitle}
-              status={item.data.status}
-              params={item.data.params}
-              result={item.data.result}
-              streamingArgs={item.data.streamingArgs}
-              startedAt={item.data.startedAt}
-            />
-          )
-        }
-        if (item.type === 'agent_group') {
-          return (
-            <AgentGroupView
-              key={item.group.id}
-              ToolCallComponent={ToolCallComponent}
-              renderBrowserTakeover={renderBrowserTakeover}
-              agentName={item.group.agentName}
-              agentLabel={item.group.agentLabel}
-              items={item.group.items}
-              isDelegating={item.group.isDelegating}
-              isStreaming={isStreaming}
-              isLaneOpen={item.group.isOpen}
-            />
-          )
-        }
-        return (
-          <NarrationText
-            key={`text-${idx}`}
-            content={item.content}
-            isStreaming={isStreaming && idx === visibleItems.length - 1}
-          />
-        )
-      })}
-    </div>
+  const renderItem = (item: AgentGroupItem, idx: number) => {
+    if (item.type === 'tool') {
+      return (
+        <ToolCallComponent
+          key={item.data.id}
+          toolCallId={item.data.id}
+          toolName={item.data.toolName}
+          displayTitle={item.data.displayTitle}
+          status={item.data.status}
+          params={item.data.params}
+          result={item.data.result}
+          streamingArgs={item.data.streamingArgs}
+          startedAt={item.data.startedAt}
+        />
+      )
+    }
+    if (item.type === 'agent_group') {
+      return (
+        <AgentGroupView
+          key={item.group.id}
+          ToolCallComponent={ToolCallComponent}
+          renderBrowserTakeover={renderBrowserTakeover}
+          agentName={item.group.agentName}
+          agentLabel={item.group.agentLabel}
+          items={item.group.items}
+          isDelegating={item.group.isDelegating}
+          isStreaming={isStreaming}
+          isLaneOpen={item.group.isOpen}
+          autoScrollActivity={autoScrollActivity}
+        />
+      )
+    }
+    return (
+      <NarrationText
+        key={`text-${idx}`}
+        content={item.content}
+        isStreaming={isStreaming && idx === items.length - 1}
+      />
+    )
+  }
+
+  const activity = isMainAgent ? (
+    <MainAgentActivity
+      items={items}
+      ToolCallComponent={ToolCallComponent}
+      renderItem={renderItem}
+      autoScrollActivity={autoScrollActivity}
+    />
+  ) : (
+    <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>{items.map(renderItem)}</div>
+  )
+  const header = (
+    <ActivityStatus
+      label={headerText}
+      isActive={isWorking}
+      icon={
+        <span className='flex size-[16px] shrink-0 items-center justify-center'>{agentIcon}</span>
+      }
+    />
   )
 
   return (
-    <div className='flex flex-col gap-1.5'>
-      {isMainAgent ? null : hasItems ? (
-        <button
-          type='button'
-          onClick={toggleExpanded}
-          className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
-        >
-          <div className='flex size-[16px] shrink-0 items-center justify-center'>{agentIcon}</div>
-          {isWorking ? (
-            <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
-          ) : (
-            <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
-          )}
-          <ChevronDown
-            className={cn(
-              'size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
-              !expanded && '-rotate-90'
-            )}
-          />
-        </button>
-      ) : (
-        <div className='flex min-w-0 items-center gap-2'>
-          <div className='flex size-[16px] shrink-0 items-center justify-center'>{agentIcon}</div>
-          {isWorking ? (
-            <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
-          ) : (
-            <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
-          )}
-        </div>
-      )}
+    <div className='flex min-w-0 flex-col gap-1.5'>
       {isMainAgent ? (
         activity
       ) : hasItems ? (
-        <Expandable expanded={expanded}>
-          <ExpandableContent>
-            <BoundedViewport
-              isStreaming={isStreaming && autoScrollActivity}
-              unbounded={nestedBrowserTakeover}
-            >
-              {activity}
-            </BoundedViewport>
-          </ExpandableContent>
-        </Expandable>
-      ) : null}
+        <ActivityDisclosure
+          header={header}
+          expanded={expanded}
+          onToggle={toggleExpanded}
+          isStreaming={isStreaming && autoScrollActivity}
+          unbounded={pendingInteraction || nestedBrowserTakeover}
+        >
+          {activity}
+        </ActivityDisclosure>
+      ) : (
+        header
+      )}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
           {renderBrowserTakeover?.(activeBrowserTakeover.reason)}
@@ -329,112 +307,8 @@ function NarrationText({ content, isStreaming }: NarrationTextProps) {
   const revealed = useSmoothText(content, isStreaming)
 
   return (
-    <span className='text-[13px] text-[var(--text-muted)] leading-[18px]'>
+    <span className='text-[var(--text-tertiary)] text-base leading-5'>
       {renderInlineMarkdown(revealed.trim())}
     </span>
-  )
-}
-
-interface BoundedViewportProps {
-  children: React.ReactNode
-  isStreaming: boolean
-  /** A nested blocking interaction must not be clipped by this ancestor's log viewport. */
-  unbounded?: boolean
-}
-
-const BOTTOM_STICK_THRESHOLD_PX = 8
-
-function BoundedViewport({ children, isStreaming, unbounded = false }: BoundedViewportProps) {
-  const ref = useRef<HTMLDivElement>(null)
-  const rafRef = useRef<number | null>(null)
-  const stickToBottomRef = useRef(true)
-  const prevScrollTopRef = useRef(0)
-  const [hasOverflow, setHasOverflow] = useState(false)
-
-  useEffect(() => {
-    if (unbounded) {
-      stickToBottomRef.current = true
-      return
-    }
-    const el = ref.current
-    if (!el) return
-    // Upward user input detaches auto-stick; a downward scroll reaching the
-    // bottom re-attaches it (a small upward flick can't re-stick itself).
-    const handleWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0) stickToBottomRef.current = false
-    }
-    const handleScroll = () => {
-      const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (distance < BOTTOM_STICK_THRESHOLD_PX && el.scrollTop > prevScrollTopRef.current) {
-        stickToBottomRef.current = true
-      }
-      prevScrollTopRef.current = el.scrollTop
-    }
-    el.addEventListener('wheel', handleWheel, { passive: true })
-    el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => {
-      el.removeEventListener('wheel', handleWheel)
-      el.removeEventListener('scroll', handleScroll)
-    }
-  }, [unbounded])
-
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (rafRef.current !== null) {
-      window.cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-    }
-    if (unbounded) {
-      setHasOverflow(false)
-      return
-    }
-    if (el) {
-      const next = el.scrollHeight > el.clientHeight
-      setHasOverflow((prev) => (prev === next ? prev : next))
-    }
-    if (!isStreaming) return
-    const tick = () => {
-      const node = ref.current
-      if (!node || !stickToBottomRef.current) {
-        rafRef.current = null
-        return
-      }
-      const target = node.scrollHeight - node.clientHeight
-      const gap = target - node.scrollTop
-      if (gap < 1) {
-        rafRef.current = null
-        return
-      }
-      node.scrollTop = node.scrollTop + Math.max(1, gap * 0.18)
-      rafRef.current = window.requestAnimationFrame(tick)
-    }
-    rafRef.current = window.requestAnimationFrame(tick)
-    return () => {
-      if (rafRef.current !== null) {
-        window.cancelAnimationFrame(rafRef.current)
-        rafRef.current = null
-      }
-    }
-  })
-
-  return (
-    <div className='relative'>
-      <div
-        ref={ref}
-        className={cn(
-          'pr-2',
-          !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
-          hasOverflow && 'py-1'
-        )}
-      >
-        {children}
-      </div>
-      {!unbounded && hasOverflow && (
-        <>
-          <div className='pointer-events-none absolute top-0 right-2 left-0 h-3 bg-linear-to-b from-[var(--bg)] to-transparent' />
-          <div className='pointer-events-none absolute right-2 bottom-0 left-0 h-3 bg-linear-to-t from-[var(--bg)] to-transparent' />
-        </>
-      )}
-    </div>
   )
 }

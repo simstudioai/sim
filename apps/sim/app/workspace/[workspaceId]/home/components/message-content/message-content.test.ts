@@ -335,7 +335,7 @@ describe('parseBlocks span-identity tree', () => {
     expect(segments[0].items.some((item) => item.type === 'tool')).toBe(true)
   })
 
-  it('replaces earlier main activity across prose and subagents while preserving stream order', () => {
+  it('retains main activity around prose and subagents in stream order', () => {
     const blocks: ContentBlock[] = [
       mainText('Let me search.'),
       mainToolCall('t1', 'grep'),
@@ -349,18 +349,19 @@ describe('parseBlocks span-identity tree', () => {
     const segments = parseBlocks(blocks)
 
     const shape = segments.map((s) => (s.type === 'agent_group' ? s.agentName : s.type))
-    expect(shape).toEqual(['text', 'research', 'text', 'mothership'])
+    expect(shape).toEqual(['text', 'mothership', 'research', 'text', 'mothership'])
 
     const mothershipGroups = segments.filter(
       (s) => s.type === 'agent_group' && s.agentName === 'mothership'
     )
-    expect(mothershipGroups).toHaveLength(1)
-    const [latest] = mothershipGroups
-    if (latest.type !== 'agent_group') {
-      throw new Error('expected mothership group')
-    }
-    expect(latest.items).toHaveLength(1)
-    expect(latest.items[0].type === 'tool' && latest.items[0].data.id).toBe('t2')
+    expect(mothershipGroups).toHaveLength(2)
+    expect(
+      mothershipGroups.flatMap((group) =>
+        group.type === 'agent_group'
+          ? group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
+          : []
+      )
+    ).toEqual(['t1', 't2'])
   })
 
   it('absorbs the dispatch tool of a nested file subagent from its parent span group', () => {
@@ -715,7 +716,7 @@ describe('narration text seams', () => {
 })
 
 describe('parseBlocks legacy — thinking between top-level tools', () => {
-  it('shows only the latest main tool across intervening thinking', () => {
+  it('retains every main tool across intervening thinking', () => {
     const blocks: ContentBlock[] = [
       { type: 'thinking', content: 'planning the search', timestamp: 1 },
       mainToolCall('t1', 'grep'),
@@ -728,11 +729,14 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     expect(groups).toHaveLength(1)
     if (groups[0].type !== 'agent_group') throw new Error('expected group')
     expect(groups[0].agentName).toBe('mothership')
-    expect(groups[0].items).toHaveLength(1)
-    expect(groups[0].items[0].type === 'tool' && groups[0].items[0].data.id).toBe('t3')
+    expect(groups[0].items.map((item) => item.type === 'tool' && item.data.id)).toEqual([
+      't1',
+      't2',
+      't3',
+    ])
   })
 
-  it('replaces earlier main tools across prose without leaving an empty activity segment', () => {
+  it('keeps separate activity groups around assistant prose', () => {
     const blocks: ContentBlock[] = [
       mainToolCall('t1', 'grep'),
       mainText('Here is what I found so far.'),
@@ -740,8 +744,8 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     ]
     const segments = parseBlocks(blocks)
     const groups = segments.filter((s) => s.type === 'agent_group')
-    expect(groups).toHaveLength(1)
-    expect(segments.map((segment) => segment.type)).toEqual(['text', 'agent_group'])
+    expect(groups).toHaveLength(2)
+    expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
   })
 
   it('does not let main thinking affect subagent lane grouping', () => {
@@ -783,7 +787,7 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
 })
 
 describe('assistantMessageHasVisibleExecutingTool', () => {
-  it.each([undefined, 'main'])('ignores a replaced running tool with spanId=%s', (spanId) => {
+  it.each([undefined, 'main'])('retains an earlier running tool with spanId=%s', (spanId) => {
     const blocks: ContentBlock[] = [
       {
         type: 'tool_call',
@@ -795,8 +799,8 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
       mainToolCall('latest', 'read'),
     ]
     const segments = parseBlocks(blocks)
-    expect(segments.map((segment) => segment.type)).toEqual(['text', 'agent_group'])
-    expect(assistantMessageHasVisibleExecutingTool(segments)).toBe(false)
+    expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
+    expect(assistantMessageHasVisibleExecutingTool(segments)).toBe(true)
   })
 
   it('does not treat an open subagent lane as an executing tool row', () => {
@@ -897,6 +901,7 @@ describe('parseBlocks main activity controls', () => {
         'permission',
         'handoff',
         'answered-takeover',
+        'older',
         'latest',
       ])
       const completed = blocks.map((block) =>
@@ -908,6 +913,7 @@ describe('parseBlocks main activity controls', () => {
         'permission',
         'handoff',
         'answered-takeover',
+        'older',
         'latest',
       ])
       expect(visibleTools(completed).at(-1)?.status).toBe('success')
