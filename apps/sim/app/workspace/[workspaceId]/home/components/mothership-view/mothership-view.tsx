@@ -18,6 +18,7 @@ import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/h
 import type {
   GenericResourceData,
   MothershipResource,
+  MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -37,19 +38,16 @@ function isPersistentPanel(resource: MothershipResource): boolean {
 }
 
 /**
- * The live panels to keep mounted. Every browser tab shares one panel — the
- * desktop app shows whichever page is selected — so the first browser
- * resource stands in for all of them; the terminal panel is a singleton.
+ * The live panels to keep mounted, one per kind: every browser tab shares one
+ * panel and every terminal tab shares one, each showing whichever of its tabs
+ * is selected, so the first resource of a kind stands in for all of them.
  */
 function persistentPanelResources(resources: MothershipResource[]): MothershipResource[] {
   const panels: MothershipResource[] = []
-  let browserSeen = false
+  const seen = new Set<MothershipResourceType>()
   for (const resource of resources) {
-    if (!isPersistentPanel(resource)) continue
-    if (resource.type === 'browser') {
-      if (browserSeen) continue
-      browserSeen = true
-    }
+    if (!isPersistentPanel(resource) || seen.has(resource.type)) continue
+    seen.add(resource.type)
     panels.push(resource)
   }
   return panels
@@ -241,13 +239,10 @@ export const MothershipView = memo(
               itself, and the terminals stop being measured.
             */}
             {persistentResources.map((resource) => {
-              const panelVisible =
-                resource.type === 'browser'
-                  ? active?.type === 'browser'
-                  : resource.id === active?.id
+              const panelVisible = active?.type === resource.type
               return (
                 <div
-                  key={`${desktopScopeId}:${resource.type === 'browser' ? 'browser' : resource.id}`}
+                  key={`${desktopScopeId}:${resource.type}`}
                   className={cn('absolute inset-0', !panelVisible && 'hidden')}
                 >
                   {/*

@@ -10,15 +10,12 @@ function resource(partial: Partial<MothershipResource> & Pick<MothershipResource
 }
 
 describe('mapResourceToContext', () => {
-  it('turns the singleton panels into whole-resource pointers', () => {
-    expect(
-      mapResourceToContext(resource({ type: 'browser', id: 'browser-session', title: 'Browser' }))
-    ).toEqual({ kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' })
-    expect(
-      mapResourceToContext(
-        resource({ type: 'terminal', id: 'terminal-session', title: 'Terminal' })
-      )
-    ).toEqual({ kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' })
+  it('turns a terminal tab into a pointer at that shell', () => {
+    expect(mapResourceToContext(resource({ type: 'terminal', id: '3', title: 'sim' }))).toEqual({
+      kind: 'terminal_tab',
+      terminalId: '3',
+      label: 'sim',
+    })
   })
 
   it('turns a dragged browser tab into a pointer at that tab', () => {

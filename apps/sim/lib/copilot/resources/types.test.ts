@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
 import {
-  canonicalizeDesktopSessionResource,
   isAddressableResource,
   isDesktopOnlyResource,
   isEphemeralResource,
@@ -12,7 +11,6 @@ import {
   PERSISTED_RESOURCE_TYPES,
   reorderStoredChatResources,
   sanitizeChatResources,
-  TERMINAL_SESSION_RESOURCE_ID,
 } from './types'
 
 function resource(overrides: Partial<MothershipResource> = {}): MothershipResource {
@@ -20,16 +18,9 @@ function resource(overrides: Partial<MothershipResource> = {}): MothershipResour
 }
 
 describe('isEphemeralResource', () => {
-  it('persists the terminal panel so its tab survives reopening the chat', () => {
-    expect(
-      isEphemeralResource(
-        resource({ type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' })
-      )
-    ).toBe(false)
-  })
-
-  it('keeps browser tabs client-only because the desktop app restores its own pages', () => {
+  it('keeps browser and terminal tabs client-only because the desktop app restores them', () => {
     expect(isEphemeralResource(resource({ type: 'browser', id: '3', title: 'Slack' }))).toBe(true)
+    expect(isEphemeralResource(resource({ type: 'terminal', id: '3', title: 'sim' }))).toBe(true)
   })
 
   it('keeps synthetic panels client-only', () => {
@@ -69,15 +60,13 @@ describe('desktop session resource identity', () => {
     ).toEqual([{ type: 'file', id: 'file-1', title: 'report.csv' }])
   })
 
-  it('canonicalizes terminal inner-tab metadata without changing regular resources', () => {
+  it('drops stored terminal rows the same way', () => {
     expect(
-      canonicalizeDesktopSessionResource(
-        resource({ type: 'terminal', id: 'terminal-session:2', title: 'zsh' })
-      )
-    ).toEqual({ type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' })
-
-    const file = resource({ type: 'file', id: 'file-1', title: 'report.csv' })
-    expect(canonicalizeDesktopSessionResource(file)).toBe(file)
+      sanitizeChatResources([
+        resource({ type: 'terminal', id: 'terminal-session', title: 'Terminal' }),
+        resource({ type: 'file', id: 'file-1', title: 'report.csv' }),
+      ])
+    ).toEqual([{ type: 'file', id: 'file-1', title: 'report.csv' }])
   })
 })
 
@@ -158,13 +147,6 @@ describe('unaddressable resources', () => {
     expect(sanitizeChatResources(stored)).toEqual([
       { type: 'table', id: 'tbl_1', title: 'kb_agent_queries' },
     ])
-  })
-
-  it('keeps the terminal panel, which is given its id by canonicalization', () => {
-    const sanitized = sanitizeChatResources([
-      resource({ type: 'terminal', id: '', title: 'Terminal' }),
-    ])
-    expect(sanitized.map((r) => r.id)).toEqual([TERMINAL_SESSION_RESOURCE_ID])
   })
 
   it('refuses a blank id at the write boundary, matching the send path', () => {

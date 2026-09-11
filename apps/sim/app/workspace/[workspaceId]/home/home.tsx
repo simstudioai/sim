@@ -37,6 +37,7 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
+import { useTerminalTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-terminal-tab-resources'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
   resolveResourceEventPresentation,
@@ -333,14 +334,23 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [setActiveResourceId, clearResourceActivity]
   )
 
-  useBrowserTabResources({
-    scopeId: desktopScopeId,
-    resources,
-    activeResourceId,
+  const desktopTabResourceCallbacks = {
     addResource,
     removeResource,
     selectResource: selectResourceFromUser,
     onResourceEvent: handleResourceEvent,
+  }
+  useBrowserTabResources({
+    scopeId: desktopScopeId,
+    resources,
+    activeResourceId,
+    ...desktopTabResourceCallbacks,
+  })
+  useTerminalTabResources({
+    scopeId: desktopScopeId,
+    resources,
+    activeResourceId,
+    ...desktopTabResourceCallbacks,
   })
 
   const addResourceFromUser = useCallback(

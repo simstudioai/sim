@@ -468,20 +468,20 @@ describe('registerIpcHandlers', () => {
     deps.accountDataAvailable = () => false
     const { invoke } = collectHandlers()
     const localFilesystemHandle = vi.spyOn(deps.localFilesystem, 'handle')
-    const terminalStart = vi.spyOn(deps.terminal, 'start')
+    const terminalRestore = vi.spyOn(deps.terminal, 'restoreScope')
 
     await expect(
       invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
     ).resolves.toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
     await expect(invoke.get('browser-credentials:list')?.(appEvent)).resolves.toEqual([])
-    await expect(invoke.get('terminal:start')?.(appEvent, {}, 'chat-a')).resolves.toMatchObject({
-      ok: false,
-      code: 'ACCESS_DENIED',
+    await expect(invoke.get('terminal:restore-scope')?.(appEvent, 'chat-a')).resolves.toEqual({
+      tabs: [],
+      activeTerminalId: null,
     })
 
     expect(localFilesystemHandle).not.toHaveBeenCalled()
     expect(listCredentials).not.toHaveBeenCalled()
-    expect(terminalStart).not.toHaveBeenCalled()
+    expect(terminalRestore).not.toHaveBeenCalled()
   })
 
   it('requires an active user gesture for granting or revoking folder access', async () => {

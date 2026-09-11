@@ -347,7 +347,9 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'terminal':
-      return <TerminalSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
+      // One panel serves every terminal tab of the chat, keeping each shell's
+      // emulator alive across tab switches.
+      return <TerminalSession key={desktopScopeId} scopeId={desktopScopeId} visible={visible} />
 
     default:
       return null

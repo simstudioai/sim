@@ -86,11 +86,11 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   integration: { persisted: true },
   // A synthetic panel with no addressable entity behind it to reopen.
   generic: { persisted: false },
-  // One tab per live desktop browser page, keyed by the native tab id. The
-  // desktop app owns the page list and restores it itself, so the chat row
-  // never stores these; they are re-derived from the live tab list on open.
+  // One tab per live desktop page or shell, keyed by the native id. The
+  // desktop app owns those lists and restores them itself, so the chat row
+  // never stores these; they are re-derived from the live lists on open.
   browser: { persisted: false, desktopOnly: true },
-  terminal: { persisted: true, desktopOnly: true },
+  terminal: { persisted: false, desktopOnly: true },
 }
 
 /**
@@ -120,27 +120,6 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
 }
 
 /**
- * Singleton id for the live terminal panel. Only the metadata is stored —
- * reopening the chat brings the panel back with a fresh shell, since the pty
- * and its scrollback belong to the desktop app and do not outlive it.
- */
-export const TERMINAL_SESSION_RESOURCE_ID = 'terminal-session'
-
-/**
- * Collapses shell-shaped metadata onto the one top-level terminal panel each
- * chat can restore. Terminal tabs are inner tabs, not independently
- * addressable Mothership resources.
- */
-export function canonicalizeDesktopSessionResource(
-  resource: MothershipResource
-): MothershipResource {
-  if (resource.type === 'terminal') {
-    return { type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' }
-  }
-  return resource
-}
-
-/**
  * Whether an id value names something the app can act on.
  *
  * This is the definition every layer defers to, so they cannot disagree about
@@ -165,42 +144,27 @@ export function isAddressableResource(resource: MothershipResource): boolean {
 }
 
 /**
- * Canonicalizes and deduplicates the singleton terminal panel in display
- * order, and drops browser rows: older clients stored one per page, but the
- * live tab list is derived from the desktop app rather than the chat row.
- * Module-private: callers want {@link sanitizeChatResources}, which also drops
- * unaddressable resources.
+ * Drops browser and terminal rows: older clients stored the desktop panels on
+ * the chat, but their live tabs are derived from the desktop app rather than
+ * the chat row. Module-private: callers want {@link sanitizeChatResources},
+ * which also drops unaddressable resources.
  */
-function canonicalizeDesktopSessionResources(
+function withoutDesktopSessionResources(
   resources: readonly MothershipResource[]
 ): MothershipResource[] {
-  let seenTerminal = false
-  const canonical: MothershipResource[] = []
-
-  for (const resource of resources) {
-    if (resource.type === 'browser') continue
-    if (resource.type === 'terminal') {
-      if (seenTerminal) continue
-      seenTerminal = true
-    }
-    canonical.push(canonicalizeDesktopSessionResource(resource))
-  }
-
-  return canonical
+  return resources.filter((resource) => !RESOURCE_POLICY[resource.type]?.desktopOnly)
 }
 
 /**
- * The canonical form of a chat's resource list: the terminal panel collapsed,
- * legacy browser rows and unaddressable resources dropped. Every path that
- * reads or writes stored resources goes through this, which is what heals
- * chats that already hold one. Canonicalization runs first, so the terminal
- * panel — which is given its id there — is never dropped for arriving without
+ * The canonical form of a chat's resource list: legacy desktop panel rows and
+ * unaddressable resources dropped. Every path that reads or writes stored
+ * resources goes through this, which is what heals chats that already hold
  * one.
  */
 export function sanitizeChatResources(
   resources: readonly MothershipResource[]
 ): MothershipResource[] {
-  return canonicalizeDesktopSessionResources(resources).filter(isAddressableResource)
+  return withoutDesktopSessionResources(resources).filter(isAddressableResource)
 }
 
 /**

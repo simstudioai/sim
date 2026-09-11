@@ -51,8 +51,18 @@ export function isPendingDesktopScopeId(scopeId: string): boolean {
  * environment stay consistent between the two.
  */
 export interface SimDesktopTerminalApi {
-  /** Open the first terminal, or adopt the ones already running. */
-  start(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Materializes a chat's saved shells without opening one for a chat that
+   * had none. Optional for compatibility with installed shells that only
+   * restored when the terminal panel started.
+   */
+  restoreScope?(scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Opens the first terminal, or adopts the chat's saved shells. Only shells
+   * without {@link restoreScope} still expose it; newer ones restore on
+   * activation and open shells one at a time.
+   */
+  start?(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
   /**
    * Execute one terminal operation. Resolves with the outcome; never rejects
    * for tool-level failures (those ride `ok: false`).
@@ -78,7 +88,15 @@ export interface SimDesktopTerminalApi {
   resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
-  switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Show a terminal. `claim: false` mirrors a resource-strip selection without
+   * recording the shell as the user's own; older shells treat every switch as a claim.
+   */
+  switchTerminal(
+    terminalId: string,
+    scopeId: string,
+    options?: { claim?: boolean }
+  ): Promise<ScopedTerminalTabsState>
   /** Move a terminal to its final position. Optional for older installed shells. */
   reorderTerminal?(
     terminalId: string,
