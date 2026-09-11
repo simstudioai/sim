@@ -102,6 +102,34 @@ describe('connector sync queue', () => {
     resetDbChainMock()
   })
 
+  it.each([false, true])(
+    'rejects a rapid manual repeat before queueing (rehydrate: %s)',
+    async (rehydrate) => {
+      queueTableRows(schemaMock.knowledgeConnector, [{ status: 'active', lastSyncError: null }])
+      queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
+        { status: 'completed', completedAt: new Date(), failures: 0 },
+      ])
+      await expect(
+        dispatchSync('connector-1', {
+          billingAttribution: BILLING_ATTRIBUTION,
+          manual: true,
+          rehydrate,
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockTrigger).not.toHaveBeenCalled()
+      expect(mockExecuteSync).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not consult manual cooldown history for automatic or initial dispatch', async () => {
+    await dispatchSync('connector-1', { billingAttribution: BILLING_ATTRIBUTION })
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorSyncLog)
+    expect(mockTrigger).toHaveBeenCalledOnce()
+  })
+
   /**
    * The bug this pins: the queue once refused anything but workspace mode, so
    * every admin-mode connector the scheduler selected was dropped before the

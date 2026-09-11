@@ -1,4 +1,6 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeOrganizationContext,
@@ -7,6 +9,7 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { type SearchKnowledgeInput, searchKnowledge } from '@/lib/knowledge/application/search'
+import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { findSearchIndex, findWorkspaceSearchIndex } from '@/lib/knowledge/search/search-index'
 
 export type SearchWorkspaceKnowledgeInput = Omit<
@@ -22,6 +25,7 @@ export const searchWorkspaceKnowledge = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: SearchWorkspaceKnowledgeInput }) =>
     resolveKnowledgeWorkspaceContext(input),
   async execute({ principal, input, context }) {
+    input.signal?.throwIfAborted()
     const index = await findWorkspaceSearchIndex(context.workspaceId)
     if (!index) return { results: [], query: input.query ?? '', knowledgeBases: [] }
     return searchKnowledge.execute({
@@ -42,11 +46,26 @@ export const searchOrganizationKnowledge = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: SearchOrganizationKnowledgeInput }) =>
     resolveKnowledgeOrganizationContext(input),
   async execute({ principal, input, context }) {
+    input.signal?.throwIfAborted()
     const index = await findSearchIndex({
       kind: 'organization',
       organizationId: context.organizationId,
     })
-    if (!index) return { results: [], query: input.query ?? '', knowledgeBases: [] }
+    if (!index) {
+      if (context.organizationId) {
+        await requireOrganizationSearchAvailable(context.organizationId)
+        input.signal?.throwIfAborted()
+        const userId = resolvePrincipalSubjectUserId(principal)
+        if (userId)
+          await recordOrganizationSearchActivity({
+            organizationId: context.organizationId,
+            userId,
+            surface: input.surface ?? 'other',
+            results: [],
+          })
+      }
+      return { results: [], query: input.query ?? '', knowledgeBases: [] }
+    }
     return searchKnowledge.execute({ principal, input: { ...input, knowledgeBaseIds: [index.id] } })
   },
 })
@@ -63,8 +82,23 @@ export const searchScopedKnowledge = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: SearchScopedKnowledgeInput }) =>
     resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context }) {
+    input.signal?.throwIfAborted()
     const index = await findSearchIndex(resourceScopeFromOwner(context))
-    if (!index) return { results: [], query: input.query ?? '', knowledgeBases: [] }
+    if (!index) {
+      if (context.organizationId) {
+        await requireOrganizationSearchAvailable(context.organizationId)
+        input.signal?.throwIfAborted()
+        const userId = resolvePrincipalSubjectUserId(principal)
+        if (userId)
+          await recordOrganizationSearchActivity({
+            organizationId: context.organizationId,
+            userId,
+            surface: input.surface ?? 'other',
+            results: [],
+          })
+      }
+      return { results: [], query: input.query ?? '', knowledgeBases: [] }
+    }
     return searchKnowledge.execute({
       principal,
       input: {

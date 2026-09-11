@@ -131,10 +131,23 @@ export class TerminalRegistry {
     return this.peekTabs(scope)
   }
 
-  start(scope: string, options: TerminalStartOptions): TerminalTabsState {
+  /**
+   * Materializes a chat's saved shells so the renderer can list them as tabs,
+   * without opening a shell for a chat that had none. Every opened chat is
+   * hydrated this way; a fresh shell only comes from the user or the agent.
+   */
+  restoreScope(scope: string): TerminalTabsState {
     if (this.suspendedScopes.has(scope)) return { tabs: [], activeTerminalId: null }
     const entry = this.entryFor(scope)
-    return this.restoreOrStart(entry, options)
+    this.ensureRestored(entry)
+    return entry.service.getTabs()
+  }
+
+  /** Applies a pending saved descriptor before anything else touches the scope's shells. */
+  private ensureRestored(entry: TerminalRegistryEntry): void {
+    if (entry.persisted?.tabs.length && !entry.restoreApplied) {
+      this.restoreOrStart(entry, { cols: 80, rows: 24 })
+    }
   }
 
   getScrollback(scope: string, terminalId: string): string {
@@ -148,11 +161,18 @@ export class TerminalRegistry {
   }
 
   openTerminal(scope: string, cwd?: string): TerminalTabsState {
-    return this.serviceFor(scope).openTerminal(cwd)
+    if (this.suspendedScopes.has(scope)) return { tabs: [], activeTerminalId: null }
+    const entry = this.entryFor(scope)
+    this.ensureRestored(entry)
+    return entry.service.openTerminal(cwd)
   }
 
-  switchTerminal(scope: string, terminalId: string): TerminalTabsState {
-    return this.serviceFor(scope).switchTerminal(terminalId)
+  switchTerminal(
+    scope: string,
+    terminalId: string,
+    options?: { claim?: boolean }
+  ): TerminalTabsState {
+    return this.serviceFor(scope).switchTerminal(terminalId, options)
   }
 
   reorderTerminal(scope: string, terminalId: string, targetIndex: number): TerminalTabsState {
@@ -163,7 +183,7 @@ export class TerminalRegistry {
     return this.serviceFor(scope).closeTerminal(terminalId)
   }
 
-  /** Closes a tab only from the renderer that currently displays its scope. */
+  /** Closes a tab for a renderer on its scope; IPC checks the scope claim. */
   closeUserTerminal(scope: string, terminalId: string, owner: WebContents): TerminalTabsState {
     if (this.suspendedScopes.has(scope)) return { tabs: [], activeTerminalId: null }
     const service = this.entries.get(scope)?.service
@@ -209,9 +229,7 @@ export class TerminalRegistry {
       })
     }
     const entry = this.entryFor(scope)
-    if (entry.persisted && !entry.restoreApplied) {
-      this.restoreOrStart(entry, { cols: 80, rows: 24 })
-    }
+    this.ensureRestored(entry)
     return entry.service.executeTool(toolCallId, operation, args)
   }
 
@@ -394,8 +412,6 @@ export class TerminalRegistry {
     entry: TerminalRegistryEntry,
     options: TerminalStartOptions
   ): TerminalTabsState {
-    if (entry.restoreApplied) return entry.service.start(options)
-
     const requiredSlots = entry.persisted?.tabs.length ?? 1
     const availableSlots = Math.max(0, MAX_TERMINALS_PER_PROCESS - this.liveTerminalCount())
     if (requiredSlots > availableSlots) {
@@ -487,16 +503,32 @@ export class TerminalRegistry {
   }
 
   private persistTabs(entry: TerminalRegistryEntry, state: TerminalTabsState): boolean {
-    if (entry.restoring || !this.persistence || state.tabs.length === 0) return true
+    if (entry.restoring || !this.persistence) return true
     const tabs = state.tabs.flatMap((tab) =>
       typeof tab.cwd === 'string' && tab.cwd.length > 0 ? [{ cwd: tab.cwd }] : []
     )
-    if (tabs.length === 0) return true
+    if (tabs.length === 0) {
+      // Shells the user closed must stay closed across a relaunch, so a
+      // descriptor that has been applied is emptied rather than kept. One
+      // still waiting to be applied is the only copy of those shells.
+      const pending = Boolean(entry.persisted?.tabs.length) && !entry.restoreApplied
+      if (pending || !entry.persisted?.tabs.length) return true
+      return this.save(entry, { v: 1, tabs: [], activeIndex: 0 })
+    }
     const activeIndex = Math.max(
       0,
       state.tabs.findIndex((tab) => tab.terminalId === state.activeTerminalId)
     )
-    return this.persistence.save(entry.scope, { v: 1, tabs, activeIndex })
+    return this.save(entry, { v: 1, tabs, activeIndex })
+  }
+
+  private save(entry: TerminalRegistryEntry, snapshot: TerminalSessionSnapshot): boolean {
+    if (!this.persistence?.save(entry.scope, snapshot)) return false
+    // A descriptor written from live shells describes them, so there is
+    // nothing left to apply; only one loaded from disk can still be pending.
+    entry.persisted = snapshot
+    entry.restoreApplied = true
+    return true
   }
 
   private liveTerminalCount(): number {

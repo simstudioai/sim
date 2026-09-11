@@ -23,7 +23,7 @@ import {
   slackSearchConversation,
   slackSearchConversationKey,
 } from '@/lib/slack-search/conversation'
-import { slackSearchJobSchema } from '@/lib/slack-search/types'
+import { slackSearchJobSchema, slackSearchThreadTimestamp } from '@/lib/slack-search/types'
 import { setSlackAgentSessionStatus } from '@/lib/webhooks/slack-agent-api'
 
 const timestamp = z.string().regex(/^\d{1,12}\.\d{1,9}$/)
@@ -81,7 +81,7 @@ export const stopSlackSearchThread: OperationUseCase<
       slackSearchConversationKey(
         job.installationId,
         job.message.channelId,
-        job.message.threadTs ?? job.message.messageTs
+        slackSearchThreadTimestamp(job.message)
       ) !== conversationKey
     )
       throw new Error('Persisted Slack event has an inconsistent conversation identity')

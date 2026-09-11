@@ -33,6 +33,7 @@ vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
   runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
   getRequestContext: () => undefined,
+  setRequestAuth: vi.fn(),
 }))
 vi.mock('@/ee/workspace-forking/lib/create-fork', () => ({ createFork: mockCreateFork }))
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({

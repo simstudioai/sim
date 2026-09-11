@@ -32,7 +32,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
       ['slack', { oauthAvailable: true, state: 'ready' }],
       ['slack_v2', { oauthAvailable: true, state: 'ready' }],
     ]),
-    oauthServiceAvailability: new Map(),
+    oauthServiceAvailability: new Map([['github-repositories', true]]),
     isIntegrationAvailabilityReady: true,
     isIntegrationAvailabilityFetching: false,
     integrationAvailabilityError: null,
@@ -112,6 +112,23 @@ describe('shared connector settings form', () => {
     act(() => root.unmount())
     container.remove()
   })
+
+  it.each([
+    { sourceConfig: { repository: 'acme/platform', githubRepositoryId: '9010' }, expected: true },
+    { sourceConfig: { repository: 'acme/platform' }, expected: false },
+  ])(
+    'identifies installation settings from the persisted repository binding: $expected',
+    ({ sourceConfig, expected }) => {
+      render(
+        connector({ connectorType: 'github', credentialId: 'installation-1', sourceConfig }),
+        'github'
+      )
+      expect(form.fieldsProps.usesGitHubInstallation).toBe(expected)
+      expect(form.fieldsProps.access.accessMode).toBe('members')
+      expect(form.fieldsProps.sourceConfig.repository).toBe('acme/platform')
+      expect(mocks.applyAccess).not.toHaveBeenCalled()
+    }
+  )
 
   it('treats persisted JSONB label key order as an unchanged draft', () => {
     render(
@@ -307,6 +324,52 @@ describe('shared connector settings form', () => {
     expect(form.dirty).toBe(true)
     expect(form.canSave).toBe(true)
     expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('preserves the GitHub repository and pending connection after an incompatible replacement is refused', () => {
+    const sourceConfig = { repository: 'acme/platform', branch: 'main' }
+    render(
+      connector({
+        connectorType: 'github',
+        credentialId: 'installation-1',
+        sourceConfig: { ...sourceConfig, githubRepositoryId: '123' },
+      }),
+      'github-replacement'
+    )
+    act(() => form.fieldsProps.onContentCredentialChange('installation-1'))
+    expect(form.fieldsProps.accessDirty).toBe(false)
+    expect(form.fieldsProps.sourceConfig).toMatchObject(sourceConfig)
+    expect(form.fieldsProps.usesGitHubInstallation).toBe(true)
+
+    act(() => form.fieldsProps.onFieldChange('pathPrefix', 'docs/'))
+    act(() => form.fieldsProps.onContentCredentialChange('installation-2'))
+    expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
+    expect(form.fieldsProps.accessDirty).toBe(true)
+    expect(form.canSave).toBe(false)
+    act(() => form.fieldsProps.onApplyAccess())
+    expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
+      {
+        knowledgeBaseId: 'kb-search',
+        connectorId: 'connector-1',
+        access: { accessMode: 'members', credentialId: 'installation-2' },
+      },
+      expect.any(Object)
+    )
+    const message =
+      "This GitHub connection cannot access this source's repository. Choose a connection with access to the same repository, or add a new source for a different repository."
+    act(() => mocks.applyAccess.mock.calls[0][1].onError(new Error(message)))
+    expect(form.fieldsProps.error).toBe(message)
+    expect(form.fieldsProps.contentCredentialId).toBe('installation-2')
+    expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
+    expect(form.fieldsProps.accessDirty).toBe(true)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+
+    act(() => form.fieldsProps.onResetAccess())
+    expect(form.fieldsProps.contentCredentialId).toBe('installation-1')
+    expect(form.fieldsProps.accessDirty).toBe(false)
+    expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
+    expect(form.canSave).toBe(true)
   })
 
   it.each(['settingsPending', 'accessPending'] as const)(

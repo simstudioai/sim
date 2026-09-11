@@ -124,7 +124,7 @@ describe('connection method selection', () => {
     )
     expect(dropdown).toBeDisabled()
     expect(dropdown).toHaveTextContent(label)
-    expect(container.textContent).toContain('Create a new source to change the sync method.')
+    expect(container.textContent).toContain('Add a new connection to change the sync method.')
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
     await act(async () => dropdown!.click())
     expect(document.querySelector('[role="menu"]')).toBeNull()
@@ -155,10 +155,20 @@ describe('connection method selection', () => {
     expect(onChange).toHaveBeenCalledWith({ accessMode: 'admin' })
   })
 
-  it('summarizes a single supported method without a selector', async () => {
+  it('omits the field when the connector supports only the selected method', async () => {
     await render({ connectorConfig: gitlabConnectorMeta, value: { accessMode: 'admin' } })
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
-    expect(container.textContent).toContain('Admin or service account')
+    expect(container.textContent).toBe('')
+  })
+
+  it('keeps pending upgrade actions without restoring the redundant selector', async () => {
+    await render({
+      connectorConfig: gitlabConnectorMeta,
+      value: { accessMode: 'admin' },
+      footer: <button type='button'>Apply changes</button>,
+    })
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull()
+    expect(container.querySelector('button')?.textContent).toBe('Apply changes')
   })
 
   it('shows ordinary members a summary without editable or disabled choices', async () => {

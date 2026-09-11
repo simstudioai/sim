@@ -1277,6 +1277,18 @@ describe('executeTool', () => {
     expect(driver.migrateBrowserScope('pending:other-chat', 'chat-occupied')).toBe(false)
   })
 
+  it('keeps a durable destination adoptable after an empty restore', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    driver.activateBrowserScope('chat-real')
+    expect(driver.restoreBrowserScope('chat-real')).toMatchObject({ tabs: [] })
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+    await expect(driver.executeTool('chat-real', 'browser_list_tabs', {})).resolves.toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-real', tabs: [{ tabId: '1' }] },
+    })
+  })
+
   it('cancels only the replaced destination authorizations during migration', async () => {
     await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
     driver.activateBrowserScope('chat-real')
@@ -1395,7 +1407,7 @@ describe('executeTool', () => {
   it('keeps activation lazy, then restores and disposes through the driver API', async () => {
     const snapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://restored.example/', pinned: false }],
+      tabs: [{ url: 'https://restored.example/' }],
       activeIndex: 0,
       downloads: [],
     }

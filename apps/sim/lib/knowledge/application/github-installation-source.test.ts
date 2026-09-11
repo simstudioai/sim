@@ -12,6 +12,7 @@ vi.mock('@/lib/knowledge/application/connector-credential', () => ({
 }))
 vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: m.decrypt }))
 vi.mock('@/lib/oauth/github-installation', () => ({
+  GitHubInstallationError: class extends Error {},
   parseGitHubInstallationBinding: m.parse,
   resolveGitHubInstallationRepository: m.repository,
 }))

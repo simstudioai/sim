@@ -34,7 +34,7 @@ import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type {
@@ -174,6 +174,7 @@ async function readKnowledgeBaseRows(
 ): Promise<
   Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
 > {
+  const scope = access && 'get' in access ? await access.get() : access
   const query = db
     .select({
       id: knowledgeBase.id,
@@ -201,7 +202,7 @@ async function readKnowledgeBaseRows(
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        access ? ('get' in access ? sql`false` : knowledgeAccessCondition(access)) : undefined
+        scope ? knowledgeAccessCondition(scope) : undefined
       )
     )
     .where(where)
@@ -210,59 +211,85 @@ async function readKnowledgeBaseRows(
 
   const rows = limit === undefined ? await query : await query.limit(limit)
 
-  const counts =
-    access && 'get' in access
-      ? await readKnowledgeBaseDocumentCounts(
-          rows.map((kb) => kb.id),
+  /**
+   * The join above already counted everything the reader's stored ACL admits. Only a
+   * provider can add documents a live source (GitHub, Confluence) authorizes beyond that,
+   * and that supplement is resolved once for the whole list: an unpaged list is bounded by
+   * its own filter, a page by its row IDs, so a workspace with tens of thousands of bases
+   * never turns into hundreds of per-batch round trips.
+   */
+  const liveCounts =
+    access && 'get' in access && rows.length > 0
+      ? await readLiveSourceDocumentCounts(
+          limit === undefined && where
+            ? where
+            : inArray(
+                knowledgeBase.id,
+                rows.map((kb) => kb.id)
+              ),
           access
         )
       : undefined
   return rows.map((kb) => ({
     ...kb,
     chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-    docCount: counts ? (counts.get(kb.id)?.docCount ?? 0) : Number(kb.docCount),
-    tokenCount: counts ? (counts.get(kb.id)?.tokenCount ?? 0) : kb.tokenCount,
+    docCount: Number(kb.docCount) + (liveCounts?.get(kb.id)?.docCount ?? 0),
+    tokenCount: kb.tokenCount + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
   }))
 }
 
-/** Counts only hydrated access batches, keeping candidate discovery free of document metadata. */
-async function readKnowledgeBaseDocumentCounts(
-  knowledgeBaseIds: readonly string[],
-  access: KnowledgeReadAccess
+const ACTIVE_DOCUMENT_CONDITIONS = [
+  eq(document.userExcluded, false),
+  isNull(document.archivedAt),
+  isNull(document.deletedAt),
+] as const
+
+/**
+ * Document totals per knowledge base for one access predicate, restricted to the bases
+ * `subject` selects. `subject` may reference `knowledge_base` columns.
+ */
+async function countDocumentsByKnowledgeBase(
+  subject: SQL,
+  accessCondition: SQL
+): Promise<Array<{ knowledgeBaseId: string; docCount: number; tokenCount: number }>> {
+  return db
+    .select({
+      knowledgeBaseId: document.knowledgeBaseId,
+      docCount: count(),
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+    })
+    .from(document)
+    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+    .where(and(subject, ...ACTIVE_DOCUMENT_CONDITIONS, accessCondition))
+    .groupBy(document.knowledgeBaseId)
+}
+
+/**
+ * Totals for documents only a live source authorizes, on top of the reader's stored ACL.
+ * The ordinary predicate is skipped because every caller has already counted it; candidate
+ * discovery stays free of document metadata and returns nothing for a reader without
+ * live-source credentials.
+ */
+async function readLiveSourceDocumentCounts(
+  subject: SQL,
+  access: KnowledgeAccessProvider
 ): Promise<Map<string, { docCount: number; tokenCount: number }>> {
   const counts = new Map<string, { docCount: number; tokenCount: number }>()
-  for (
-    let offset = 0;
-    offset < knowledgeBaseIds.length;
-    offset += MAX_KNOWLEDGE_ACCESS_CANDIDATES
-  ) {
-    const conditions = [
-      inArray(
-        knowledgeBase.id,
-        knowledgeBaseIds.slice(offset, offset + MAX_KNOWLEDGE_ACCESS_CANDIDATES)
-      ),
-      eq(document.userExcluded, false),
-      isNull(document.archivedAt),
-      isNull(document.deletedAt),
-    ]
-    for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
-      const rows = await db
-        .select({
-          knowledgeBaseId: document.knowledgeBaseId,
-          docCount: count(),
-          tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-        })
-        .from(document)
-        .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-        .where(and(...conditions, accessCondition))
-        .groupBy(document.knowledgeBaseId)
-      for (const row of rows) {
-        const previous = counts.get(row.knowledgeBaseId)
-        counts.set(row.knowledgeBaseId, {
-          docCount: (previous?.docCount ?? 0) + Number(row.docCount),
-          tokenCount: (previous?.tokenCount ?? 0) + Number(row.tokenCount),
-        })
-      }
+  let ordinary = true
+  for await (const accessCondition of knowledgeReadAccessBatches(access, [
+    subject,
+    ...ACTIVE_DOCUMENT_CONDITIONS,
+  ])) {
+    if (ordinary) {
+      ordinary = false
+      continue
+    }
+    for (const row of await countDocumentsByKnowledgeBase(subject, accessCondition)) {
+      const previous = counts.get(row.knowledgeBaseId)
+      counts.set(row.knowledgeBaseId, {
+        docCount: (previous?.docCount ?? 0) + Number(row.docCount),
+        tokenCount: (previous?.tokenCount ?? 0) + Number(row.tokenCount),
+      })
     }
   }
   return counts
@@ -1019,11 +1046,14 @@ export async function attachKnowledgeBaseConnectors(
 ): Promise<KnowledgeBaseWithCounts> {
   let visible = knowledgeBase
   if (access) {
-    const counts = await readKnowledgeBaseDocumentCounts([knowledgeBase.id], access)
+    const subject = eq(document.knowledgeBaseId, knowledgeBase.id)
+    const scope = 'get' in access ? await access.get() : access
+    const [ordinary] = await countDocumentsByKnowledgeBase(subject, knowledgeAccessCondition(scope))
+    const live = 'get' in access ? await readLiveSourceDocumentCounts(subject, access) : undefined
     visible = {
       ...knowledgeBase,
-      docCount: counts.get(knowledgeBase.id)?.docCount ?? 0,
-      tokenCount: counts.get(knowledgeBase.id)?.tokenCount ?? 0,
+      docCount: Number(ordinary?.docCount ?? 0) + (live?.get(knowledgeBase.id)?.docCount ?? 0),
+      tokenCount: (ordinary?.tokenCount ?? 0) + (live?.get(knowledgeBase.id)?.tokenCount ?? 0),
     }
   }
   const [withConnectors] = await attachConnectorTypes([visible])

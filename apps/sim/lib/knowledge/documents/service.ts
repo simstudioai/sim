@@ -24,7 +24,7 @@ import {
   isNotNull,
   isNull,
   lt,
-  ne,
+  not,
   or,
   type SQL,
   sql,
@@ -116,6 +116,11 @@ import {
   ProviderCapacityContinuationExhaustedError,
 } from '@/lib/knowledge/documents/processing-provider-deferral'
 import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
+import {
+  documentProcessingOutcomeSelection,
+  getDocumentProcessingOutcome,
+  skippedDocumentCondition,
+} from '@/lib/knowledge/documents/processing-status'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import {
   enqueueKnowledgeStorageCleanup,
@@ -129,7 +134,10 @@ import {
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/tag-filter'
 import {
+  type DocumentProcessingOutcome,
+  type DocumentProcessingStatus,
   type DocumentSortField,
+  isDocumentProcessingStatus,
   MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
@@ -1494,7 +1502,8 @@ export async function processDocumentAsync(
         .where(
           and(
             eq(document.id, documentId),
-            ne(document.processingStatus, 'completed'),
+            inArray(document.processingStatus, ['pending', 'processing', 'failed']),
+            not(skippedDocumentCondition()),
             ...queueGenerationConditions(attemptContext),
             eq(document.userExcluded, false),
             isNull(document.archivedAt),
@@ -1558,7 +1567,8 @@ export async function processDocumentAsync(
       .where(
         and(
           eq(document.id, documentId),
-          ne(document.processingStatus, 'completed'),
+          inArray(document.processingStatus, ['pending', 'processing', 'failed']),
+          not(skippedDocumentCondition()),
           ...(predecessor
             ? [or(and(...queueGenerationConditions(attemptContext)), predecessor)]
             : queueGenerationConditions(attemptContext)),
@@ -2472,7 +2482,8 @@ export async function getDocuments(
     chunkCount: number
     tokenCount: number
     characterCount: number
-    processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+    processingStatus: DocumentProcessingStatus
+    processingOutcome: DocumentProcessingOutcome
     processingStartedAt: Date | null
     processingCompletedAt: Date | null
     processingError: string | null
@@ -2579,6 +2590,7 @@ export async function getDocuments(
         tokenCount: document.tokenCount,
         characterCount: document.characterCount,
         processingStatus: document.processingStatus,
+        processingOutcome: documentProcessingOutcomeSelection(),
         processingStartedAt: document.processingStartedAt,
         processingCompletedAt: document.processingCompletedAt,
         processingError: document.processingError,
@@ -2693,7 +2705,8 @@ export async function getDocuments(
       chunkCount: doc.chunkCount,
       tokenCount: doc.tokenCount,
       characterCount: doc.characterCount,
-      processingStatus: doc.processingStatus as 'pending' | 'processing' | 'completed' | 'failed',
+      processingStatus: doc.processingStatus as DocumentProcessingStatus,
+      processingOutcome: doc.processingOutcome,
       processingStartedAt: doc.processingStartedAt,
       processingCompletedAt: doc.processingCompletedAt,
       processingError: doc.processingError,
@@ -2731,6 +2744,7 @@ export async function getDocuments(
 
 export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
   connectorType: string | null
+  processingOutcome: DocumentProcessingOutcome
 }
 
 /**
@@ -2747,6 +2761,7 @@ export async function getKnowledgeDocument(
   const [row] = await db
     .select({
       ...getTableColumns(document),
+      processingOutcome: documentProcessingOutcomeSelection(),
       connectorType: knowledgeConnector.connectorType,
     })
     .from(document)
@@ -2775,6 +2790,7 @@ export async function getKnowledgeDocumentById(
   const [row] = await db
     .select({
       ...getTableColumns(document),
+      processingOutcome: documentProcessingOutcomeSelection(),
       connectorType: knowledgeConnector.connectorType,
     })
     .from(document)
@@ -3065,7 +3081,7 @@ export async function getDocumentByUploadId(
   knowledgeBaseId: string
 ): Promise<
   | (Omit<Awaited<ReturnType<typeof createSingleDocument>>, 'processingStatus'> & {
-      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+      processingStatus: DocumentProcessingStatus
     })
   | null
 > {
@@ -3090,6 +3106,7 @@ export async function getDocumentByUploadId(
       tag6: document.tag6,
       tag7: document.tag7,
       processingStatus: document.processingStatus,
+      processingOutcome: documentProcessingOutcomeSelection(),
     })
     .from(document)
     .where(
@@ -3102,12 +3119,7 @@ export async function getDocumentByUploadId(
     .limit(1)
   if (!existing) return null
   const processingStatus = existing.processingStatus
-  if (
-    processingStatus !== 'pending' &&
-    processingStatus !== 'processing' &&
-    processingStatus !== 'completed' &&
-    processingStatus !== 'failed'
-  ) {
+  if (!isDocumentProcessingStatus(processingStatus)) {
     throw new Error(`Document ${existing.id} has invalid processing status`)
   }
   return { ...existing, processingStatus }
@@ -3373,6 +3385,7 @@ export async function retryDocumentProcessing(
         and(
           eq(document.id, documentId),
           or(isNull(document.connectorId), isNotNull(document.contentHash)),
+          not(skippedDocumentCondition()),
           or(
             inArray(document.processingStatus, ['completed', 'failed']),
             and(
@@ -3399,6 +3412,25 @@ export async function retryDocumentProcessing(
   })
 
   if (!requeued) {
+    const [skipped] = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          skippedDocumentCondition()
+        )
+      )
+      .limit(1)
+    if (skipped) {
+      return {
+        success: false,
+        status: 'skipped',
+        message:
+          'This source file was intentionally skipped. Sync the connector after changing the source.',
+      }
+    }
     const [sourceFailure] = await db
       .select({ id: document.id })
       .from(document)
@@ -3515,7 +3547,8 @@ export async function updateDocument(
   chunkCount: number
   tokenCount: number
   characterCount: number
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus: DocumentProcessingStatus
+  processingOutcome: DocumentProcessingOutcome
   processingStartedAt: Date | null
   processingCompletedAt: Date | null
   processingError: string | null
@@ -3546,7 +3579,7 @@ export async function updateDocument(
     chunkCount: number
     tokenCount: number
     characterCount: number
-    processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+    processingStatus: DocumentProcessingStatus
     processingError: string | null
     processingStartedAt: Date | null
     processingCompletedAt: Date | null
@@ -3709,7 +3742,8 @@ export async function updateDocument(
     chunkCount: doc.chunkCount,
     tokenCount: doc.tokenCount,
     characterCount: doc.characterCount,
-    processingStatus: doc.processingStatus as 'pending' | 'processing' | 'completed' | 'failed',
+    processingStatus: doc.processingStatus as DocumentProcessingStatus,
+    processingOutcome: getDocumentProcessingOutcome(doc),
     processingStartedAt: doc.processingStartedAt,
     processingCompletedAt: doc.processingCompletedAt,
     processingError: doc.processingError,

@@ -492,6 +492,8 @@ export type ChipModalDropdownOption = ChipDropdownOption
 interface ChipModalFieldBaseProps {
   /** Field title rendered above the control. Replaces the legacy `label` slot. */
   title: React.ReactNode
+  /** Optional field actions beside the title, outside its label. */
+  titleActions?: React.ReactNode
   /**
    * Renders a `*` marker after the title and sets `aria-required` on the
    * underlying control.
@@ -743,13 +745,24 @@ function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
-  const { title, required, error, hint, flush = false, className } = props
+  const { title, titleActions, required, error, hint, flush = false, className } = props
   const associatesLabel =
     props.type === 'input' ||
     props.type === 'email' ||
     props.type === 'textarea' ||
     props.type === 'copy' ||
+    props.type === 'file' ||
     props.type === 'emails'
+  const label = (
+    <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
+      {title}
+      {required && (
+        <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
+          *
+        </span>
+      )}
+    </Label>
+  )
 
   return (
     <div
@@ -758,14 +771,14 @@ function ChipModalField(props: ChipModalFieldProps) {
         props.type === 'custom' && props.submitOnEnter === false ? '' : undefined
       }
     >
-      <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
-        {title}
-        {required && (
-          <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
-            *
-          </span>
-        )}
-      </Label>
+      {titleActions ? (
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          {label}
+          {titleActions}
+        </div>
+      ) : (
+        label
+      )}
       {renderChipModalControl(props, id, errorId, hintId)}
       {error && props.type !== 'emails' ? (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
@@ -1059,6 +1072,7 @@ function ChipModalEmailsControl({
  * input is reset after each pick so selecting the same file again still fires.
  */
 function ChipModalFileControl({
+  title,
   onChange,
   accept,
   multiple = false,
@@ -1114,13 +1128,14 @@ function ChipModalFileControl({
         if (isInteractive) emitFiles(event.dataTransfer.files)
       }}
       className={cn(
-        'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-hidden transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
+        'flex w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-hidden transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
         isDragging && 'border-[var(--surface-7)]'
       )}
     >
       <input
         ref={inputRef}
         type='file'
+        aria-label={typeof title === 'string' ? title : undefined}
         accept={accept}
         multiple={multiple}
         disabled={!isInteractive}
@@ -1131,9 +1146,11 @@ function ChipModalFileControl({
         }}
       />
       {loading ? <Loader animate className='size-[14px] text-[var(--text-tertiary)]' /> : null}
-      <span className='text-[var(--text-primary)] text-caption'>
-        {isDragging ? 'Drop files here' : label}
-      </span>
+      <OverflowText
+        label={isDragging ? 'Drop files here' : label}
+        focusTarget='nearest-interactive'
+        className='max-w-full text-[var(--text-primary)] text-caption'
+      />
       {description ? (
         <span className='text-[var(--text-tertiary)] text-xs'>{description}</span>
       ) : null}

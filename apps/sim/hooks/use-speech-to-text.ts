@@ -50,6 +50,8 @@ interface UseSpeechToTextProps {
   onError?: (error: SpeechToTextError) => void
   /** Attributes the voice-input cost to this workspace for per-member usage. */
   workspaceId?: string
+  /** Attributes organization chat and search voice input to the organization. */
+  organizationId?: string
 }
 
 interface UseSpeechToTextReturn {
@@ -89,6 +91,7 @@ export function useSpeechToText({
   onUsageLimitExceeded,
   onError,
   workspaceId,
+  organizationId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
   /**
@@ -108,6 +111,7 @@ export function useSpeechToText({
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
   const onErrorRef = useRef(onError)
   const workspaceIdRef = useRef(workspaceId)
+  const organizationIdRef = useRef(organizationId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
 
@@ -128,6 +132,7 @@ export function useSpeechToText({
   onUsageLimitExceededRef.current = onUsageLimitExceeded
   onErrorRef.current = onError
   workspaceIdRef.current = workspaceId
+  organizationIdRef.current = organizationId
 
   const flushAudioBuffer = useCallback(() => {
     const ws = wsRef.current
@@ -213,7 +218,9 @@ export function useSpeechToText({
       let tokenData: Awaited<ReturnType<typeof requestJson<typeof speechTokenContract>>>
       try {
         tokenData = await requestJson(speechTokenContract, {
-          body: workspaceIdRef.current ? { workspaceId: workspaceIdRef.current } : {},
+          body: organizationIdRef.current
+            ? { organizationId: organizationIdRef.current }
+            : { workspaceId: workspaceIdRef.current },
         })
       } catch (err) {
         if (isApiClientError(err) && err.status === 402) {

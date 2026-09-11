@@ -49,7 +49,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       id: 'conversationId',
       title: 'Conversation ID',
       type: 'short-input',
-      placeholder: 'e.g., user-123, session-abc, customer-456',
+      placeholder: 'e.g., customer-456 (reuse the same value to continue a thread)',
     },
     {
       id: 'attachmentFiles',
@@ -117,7 +117,8 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
     },
     conversationId: {
       type: 'string',
-      description: 'Chat ID to continue; generated when omitted',
+      description:
+        'Stable id of the thread to continue; the same value in this workspace continues the same conversation. Generated when omitted',
     },
     files: {
       type: 'file',
@@ -131,7 +132,10 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
   outputs: {
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },
-    conversationId: { type: 'string', description: 'Chat ID used for this request' },
+    conversationId: {
+      type: 'string',
+      description: 'Conversation id for this thread; pass it to another Sim block to continue it',
+    },
     tokens: { type: 'json', description: 'Token usage statistics' },
     toolCalls: { type: 'json', description: 'Tool calls made during execution' },
     cost: { type: 'json', description: 'Cost of the execution' },

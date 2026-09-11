@@ -1,3 +1,7 @@
+---
+description: Behavior-preserving React render-performance idioms
+---
+
 # React & Render Performance
 
 Behavior-preserving performance idioms for components, hooks, and hot render paths. These are safe defaults — apply them freely. For the render-causing *effect/state* anti-patterns (derived state in effects, effect chains, state synced to a prop), use the dedicated skills: `/you-might-not-need-an-effect`, `/you-might-not-need-state`, `/you-might-not-need-a-memo`, `/you-might-not-need-a-callback`. Those refactors change render timing — verify them against the running UI, never mass-apply blind.

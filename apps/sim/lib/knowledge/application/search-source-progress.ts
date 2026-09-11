@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -10,6 +10,7 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { MAX_SEARCH_SOURCE_PROGRESS_ITEMS } from '@/lib/knowledge/constants'
+import { failedDocumentCondition } from '@/lib/knowledge/documents/processing-status'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
 
 interface ReadSearchSourceProgressInput extends ResourceOwner {
@@ -34,7 +35,7 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
     const access = await createKnowledgeAccessProvider(principal, context).getForConnectors(
       input.connectorIds
     )
-    const hasDocumentsInState = (statuses: string[]) =>
+    const hasDocumentsInState = (condition: SQL) =>
       sql<boolean>`${exists(
         db
           .select({ id: document.id })
@@ -43,7 +44,7 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
             and(
               eq(document.knowledgeBaseId, knowledgeConnector.knowledgeBaseId),
               eq(document.connectorId, knowledgeConnector.id),
-              inArray(document.processingStatus, statuses),
+              condition,
               eq(document.enabled, true),
               eq(document.userExcluded, false),
               isNull(document.archivedAt),
@@ -60,8 +61,10 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
         hasRetainedSyncError: sql<boolean>`${knowledgeConnector.lastSyncError} IS NOT NULL`,
         approved: sql<boolean>`${searchIntegrationAccessCondition()}`,
-        isIndexing: hasDocumentsInState(['pending', 'processing']),
-        hasIndexingError: hasDocumentsInState(['failed']),
+        isIndexing: hasDocumentsInState(
+          inArray(document.processingStatus, ['pending', 'processing'])
+        ),
+        hasIndexingError: hasDocumentsInState(failedDocumentCondition()),
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))

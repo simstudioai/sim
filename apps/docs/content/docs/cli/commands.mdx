@@ -31,6 +31,7 @@ These apply to every command, and may be written before or after it.
 | Group | Description |
 | --- | --- |
 | [`sim profiles`](/cli/profiles) | List profiles or add a workspace profile that shares a stored login |
+| [`sim telemetry`](/cli/telemetry) | Control anonymous usage reporting |
 | [`sim audit-logs`](/cli/audit-logs) | Manage audit logs |
 | [`sim billing`](/cli/billing) | Manage billing |
 | [`sim blocks`](/cli/blocks) | Manage blocks |
@@ -121,6 +122,22 @@ sim configure [options]
 | `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
 | `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
 | `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |
+
+</CommandTable>
+
+## Update this global CLI installation to the newest release on its channel
+
+```bash
+sim update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--package-manager <manager>` | No | Package manager that installed this copy. Accepted values: `npm`, `pnpm`, `bun`, `yarn`. |
 
 </CommandTable>
 

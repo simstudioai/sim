@@ -19,7 +19,6 @@ import {
 import type {
   ScopedTerminalTabsState,
   TerminalOperation,
-  TerminalStartOptions,
   TerminalToolArgs,
 } from '@sim/terminal-protocol'
 import { getDesktopBridge, isTerminalEnabled } from '@/lib/desktop'
@@ -68,14 +67,22 @@ export function initTerminalTransport(): void {
   terminal.onScopeSuspended(applyTerminalScopeSuspended)
 }
 
-/** Makes one chat's terminal group active in both renderer and desktop. */
+/**
+ * Makes one chat's terminal group active in both renderer and desktop, then
+ * materializes its saved shells. Each live shell is a resource tab, so the
+ * tab list has to exist before any terminal panel is mounted.
+ */
 export async function activateTerminalScope(scopeId: string): Promise<void> {
   activeScopeId = scopeId
   useCopilotTerminalStore.getState().activateScope(scopeId)
   const terminal = bridge()
   if (!terminal) return
   const tabs = await terminal.activateScope(scopeId)
+  if (tabs.scopeId !== scopeId) return
   useCopilotTerminalStore.getState().setTabs(tabs)
+  if (tabs.tabs.length > 0 || activeScopeId !== scopeId || !terminal.restoreScope) return
+  const restored = await terminal.restoreScope(scopeId)
+  if (restored.scopeId === scopeId) useCopilotTerminalStore.getState().setTabs(restored)
 }
 
 /** Rebinds a pending new-chat terminal group to the chat id assigned by the server. */
@@ -212,17 +219,6 @@ export async function clearTerminalScrollback(
   return (await bridge()?.clearScrollback(terminalId, scopeId)) ?? false
 }
 
-export async function startTerminalSession(
-  options: TerminalStartOptions,
-  scopeId = currentTerminalScopeId()
-): Promise<ScopedTerminalTabsState> {
-  const terminal = bridge()
-  if (!terminal) {
-    throw new Error('The Sim desktop terminal is unavailable.')
-  }
-  return terminal.start(options, scopeId)
-}
-
 export function writeToTerminal(
   terminalId: string,
   data: string,
@@ -261,14 +257,22 @@ export async function openTerminal(
 ): Promise<ScopedTerminalTabsState> {
   const terminal = bridge()
   if (!terminal) throw new Error('The Sim desktop terminal is unavailable.')
+  const live = useCopilotTerminalStore.getState().sessions[scopeId]?.tabs.tabs.length ?? 0
+  // A shell without `restoreScope` only applies a chat's saved shells through
+  // `start`; opening a fresh one first would overwrite that saved set.
+  if (!terminal.restoreScope && terminal.start && live === 0 && cwd === undefined) {
+    return terminal.start({ cols: 80, rows: 24 }, scopeId)
+  }
   return terminal.openTerminal(cwd, scopeId)
 }
 
+/** Shows a terminal; `claim: false` mirrors a strip selection without claiming the shell. */
 export async function switchTerminal(
   terminalId: string,
-  scopeId = currentTerminalScopeId()
+  scopeId = currentTerminalScopeId(),
+  options?: { claim?: boolean }
 ): Promise<void> {
-  await bridge()?.switchTerminal(terminalId, scopeId)
+  await bridge()?.switchTerminal(terminalId, scopeId, options)
 }
 
 /** Moves a terminal tab when the installed shell supports ordering. */

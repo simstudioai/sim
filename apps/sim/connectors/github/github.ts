@@ -15,6 +15,7 @@ import {
   isPerMemberListing,
   markSkipped,
   parseTagDate,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
@@ -34,6 +35,8 @@ const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 200
 const GIT_SHA_PREFIX = 'git-sha:'
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
+/** Rehydrates formats formerly skipped or decoded as plain text once through their real parser. */
+const SOURCE_FILE_HASH_SUFFIX = ':source-file-v1'
 const BINARY_SNIFF_BYTES = 8000
 const MAX_SYMLINK_DEPTH = 40
 const MAX_SYMLINK_TARGET_BYTES = 4096
@@ -43,6 +46,7 @@ const MAX_SYMLINK_TARGET_BYTES = 4096
  * re-downloaded in full on every sync.
  */
 const BINARY_SKIP_REASON = 'Binary file was not indexed'
+const EMPTY_SKIP_REASON = 'Empty file was not indexed'
 
 /**
  * Heuristic binary detection: Git treats files containing a NUL byte in the
@@ -260,14 +264,14 @@ async function fetchTree(
   return snapshot
 }
 
-/** Streams a Git blob with the same binary and byte bounds used for ordinary files. */
-async function fetchBlobContent(
+/** Keeps original bytes available to the shared parsers while bounding every blob read. */
+async function fetchBlobBytes(
   accessToken: string,
   owner: string,
   repo: string,
   sha: string,
   maxBytes = MAX_FILE_SIZE
-): Promise<string | null> {
+): Promise<Buffer> {
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${encodeURIComponent(sha)}`
   const label = `git blob ${sha}`
   const response = await fetchWithRetry(url, {
@@ -296,8 +300,7 @@ async function fetchBlobContent(
   if (!buffer) {
     throw new ConnectorFileTooLargeError(maxBytes)
   }
-  if (isBinaryBuffer(buffer)) return null
-  return decodeTextBuffer(buffer).text
+  return buffer
 }
 
 /** Resolves links within one snapshot; Contents can truncate dereferenced targets at 1 MiB. */
@@ -314,13 +317,21 @@ async function resolveSymlinkTarget(
     if (item.mode !== '120000') return item.type === 'blob' ? item : null
     if (visited.has(item.path) || (item.size ?? 0) > MAX_SYMLINK_TARGET_BYTES) return null
     visited.add(item.path)
-    let target: string | null
+    let targetBytes: Buffer
     try {
-      target = await fetchBlobContent(accessToken, owner, repo, item.sha, MAX_SYMLINK_TARGET_BYTES)
+      targetBytes = await fetchBlobBytes(
+        accessToken,
+        owner,
+        repo,
+        item.sha,
+        MAX_SYMLINK_TARGET_BYTES
+      )
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) return null
       throw error
     }
+    if (isBinaryBuffer(targetBytes)) return null
+    const target = decodeTextBuffer(targetBytes).text
     if (!target || posix.isAbsolute(target)) return null
     const targetPath = posix.normalize(posix.join(posix.dirname(item.path), target))
     if (targetPath === '..' || targetPath.startsWith('../')) return null
@@ -356,10 +367,13 @@ function treeItemToStub(
     title: item.path.split('/').pop() || item.path,
     content: '',
     contentDeferred: true,
+    skippedRetryPolicy: 'source-change',
+    /** Verified immutable omissions replace older content; fetch failures still throw. */
+    skippedExistingDisposition: 'replace',
     mimeType: 'text/plain',
     sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
     /** Contents dereferences symlinks but retains their SHA even when the target changes. */
-    contentHash: `${GIT_SHA_PREFIX}${item.sha}${item.mode === '120000' ? `:${treeSha}` : ''}`,
+    contentHash: `${GIT_SHA_PREFIX}${item.sha}${item.mode === '120000' ? `:${treeSha}` : ''}${pipelineParsedMimeType(item.path) ? SOURCE_FILE_HASH_SUFFIX : ''}`,
     metadata: {
       path: item.path,
       sha: item.sha,
@@ -464,13 +478,14 @@ export const githubConnector: ConnectorConfig = {
       batchSize: batch.length,
     })
 
-    const documents = batch.map((item) =>
-      stubOrSkipBySize(
+    const documents = batch.map((item) => {
+      const stub = stubOrSkipBySize(
         treeItemToStub(owner, repo, branch, item, snapshot.sha),
         item.size,
         MAX_FILE_SIZE
       )
-    )
+      return item.size === 0 ? markSkipped(stub, EMPTY_SKIP_REASON) : stub
+    })
 
     const nextOffset = offset + BATCH_SIZE
     const hasMore = nextOffset < capped.length
@@ -509,22 +524,32 @@ export const githubConnector: ConnectorConfig = {
       const size = target?.size ?? 0
       const stub = treeItemToStub(owner, repo, branch, { ...treeItem, size }, snapshot.sha)
       if (!target) {
-        return {
-          ...markSkipped(stub, 'Symbolic link target is not a repository file'),
-          skippedExistingDisposition: 'replace',
-        }
+        return markSkipped(stub, 'Symbolic link target is not a repository file')
       }
       if (size > MAX_FILE_SIZE) return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+      if (target.size === 0) return markSkipped(stub, EMPTY_SKIP_REASON)
       /** The immutable listed blob avoids ref drift and a redundant Contents API request. */
-      let content: string | null
+      let bytes: Buffer
       try {
-        content = await fetchBlobContent(accessToken, owner, repo, target.sha)
+        bytes = await fetchBlobBytes(accessToken, owner, repo, target.sha)
       } catch (error) {
         if (error instanceof ConnectorFileTooLargeError)
           return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
         throw error
       }
-      if (content === null) return markSkipped(stub, BINARY_SKIP_REASON)
+      if (bytes.length === 0) return markSkipped(stub, EMPTY_SKIP_REASON)
+      const mimeType = pipelineParsedMimeType(stub.title)
+      if (mimeType) {
+        return {
+          ...stub,
+          contentDeferred: false,
+          mimeType,
+          sourceFile: { bytes, fileName: stub.title, mimeType },
+        }
+      }
+      if (isBinaryBuffer(bytes)) return markSkipped(stub, BINARY_SKIP_REASON)
+      const content = decodeTextBuffer(bytes).text
+      if (!content.trim()) return markSkipped(stub, EMPTY_SKIP_REASON)
 
       return {
         ...stub,

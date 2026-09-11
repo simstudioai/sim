@@ -73,7 +73,7 @@ export function OrganizationSearchSlack() {
                   description='Connect your workspace to ask questions in Slack.'
                   trailing={
                     <Chip variant='primary' onClick={() => setWizard({})}>
-                      Set up
+                      {installations.data.sharedAppAvailable ? 'Install Sim Search' : 'Set up'}
                     </Chip>
                   }
                 />

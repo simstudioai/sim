@@ -2,7 +2,6 @@ export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps } from './badge/badge'
 export { Banner } from './banner/banner'
 export { Button, buttonVariants } from './button/button'
-export { ButtonGroup, ButtonGroupItem } from './button-group/button-group'
 export {
   CalendarDayCell,
   type CalendarDayCellProps,
@@ -37,6 +36,14 @@ export {
   chipRadiusClass,
   disclosureChevronClass,
 } from './chip/chip-chrome'
+export {
+  ChipButtonGroup,
+  ChipButtonGroupItem,
+  type ChipButtonGroupItemProps,
+  type ChipButtonGroupProps,
+  chipButtonGroupItemVariants,
+  chipButtonGroupVariants,
+} from './chip-button-group/chip-button-group'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
 export {
   ChipCopyInput,
@@ -68,6 +75,7 @@ export {
   ChipModalError,
   type ChipModalErrorProps,
   ChipModalField,
+  type ChipModalFieldAria,
   type ChipModalFieldProps,
   ChipModalFooter,
   type ChipModalFooterAction,

@@ -16,13 +16,13 @@ describe('organization source status labels', () => {
   it('describes the next step instead of calling all empty integrations unconfigured', () => {
     expect(organizationSearchStatusLabel(provider)).toBe('Waiting for connections')
     expect(organizationSearchStatusLabel({ ...provider, status: 'needs_setup' })).toBe(
-      'Source not configured'
+      'Setup required'
     )
     expect(
       organizationSearchStatusLabel({ ...provider, status: 'needs_setup', sourceCount: 1 })
     ).toBe('Waiting for first sync')
     expect(organizationSearchStatusLabel({ ...provider, status: 'active', sourceCount: 1 })).toBe(
-      'Enabled'
+      'Ready to search'
     )
   })
   it.each([
@@ -50,6 +50,6 @@ describe('organization source status labels', () => {
         status: 'needs_attention',
         issue: 'sync_failed',
       })
-    ).toBe('Disabled')
+    ).toBe('Deactivated')
   })
 })

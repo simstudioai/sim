@@ -44,7 +44,7 @@ interface StoredCredentialGroupOAuthAttempt {
   completionRedirect?: boolean
   connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
-  returnTo?: 'search' | 'accounts'
+  returnTo?: 'search' | 'accounts' | 'github-installation'
   nonceHash: string
   encryptedCodeVerifier?: string
   encryptedInvitationToken: string
@@ -69,7 +69,7 @@ export interface CredentialGroupOAuthAttempt {
   completionRedirect?: boolean
   connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
-  returnTo?: 'search' | 'accounts'
+  returnTo?: 'search' | 'accounts' | 'github-installation'
   codeVerifier?: string
   invitationToken: string
   createdAt: number
@@ -91,7 +91,7 @@ interface CreateCredentialGroupOAuthAttemptParams {
   completionRedirect?: boolean
   connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
-  returnTo?: 'search' | 'accounts'
+  returnTo?: 'search' | 'accounts' | 'github-installation'
   codeVerifier?: string
   invitationToken: string
 }
@@ -147,7 +147,11 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
       credentialGroupConnectionIntentSchema.safeParse(candidate.connectionIntent).success) &&
     (candidate.returnTo === undefined ||
       candidate.returnTo === 'search' ||
-      candidate.returnTo === 'accounts') &&
+      candidate.returnTo === 'accounts' ||
+      (candidate.returnTo === 'github-installation' &&
+        candidate.provider === 'github-repositories' &&
+        typeof candidate.organizationId === 'string' &&
+        typeof candidate.completionId === 'string')) &&
     typeof candidate.nonceHash === 'string' &&
     (candidate.encryptedCodeVerifier === undefined ||
       typeof candidate.encryptedCodeVerifier === 'string') &&
@@ -165,6 +169,12 @@ export async function createCredentialGroupOAuthAttempt(
     (!params.completionRedirect || !isValidUuid(params.completionId))
   ) {
     throw new Error('OAuth completion requires a valid correlation ID and completion redirect')
+  }
+  if (
+    params.returnTo === 'github-installation' &&
+    (params.provider !== 'github-repositories' || !params.organizationId || !params.completionId)
+  ) {
+    throw new Error('GitHub installation OAuth requires an organization-bound setup attempt')
   }
   if (params.connectionIntent) credentialGroupConnectionIntentSchema.parse(params.connectionIntent)
   const redis = requireRedis()

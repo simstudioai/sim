@@ -1,4 +1,8 @@
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import type {
+  DocumentProcessingOutcome,
+  DocumentProcessingStatus,
+} from '@/lib/knowledge/documents/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 
 /**
@@ -142,7 +146,8 @@ export interface DocumentData {
   chunkCount: number
   tokenCount: number
   characterCount: number
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus: DocumentProcessingStatus
+  processingOutcome?: DocumentProcessingOutcome
   processingStartedAt?: string | null
   processingCompletedAt?: string | null
   processingError?: string | null

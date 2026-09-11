@@ -87,12 +87,14 @@ describe('Jira server selector adapter', () => {
   )
 
   it.each([
-    ['jira.projects', 'ENG'],
-    ['jira.projectKeys', 'ENG'],
-    ['jira.projectKeys', '10001'],
+    ['jira.projects', 'ENG', 'ENG'],
+    ['jira.projects', '10001', '10001'],
+    ['jira.projectKeys', 'ENG', 'ENG'],
+    ['jira.projectKeys', '10001', 'ENG'],
+    ['jira.projectKeys', 'LEGACY', 'ENG'],
   ] as const)(
-    'hydrates %s selection %s without replacing its saved value',
-    async (selectorKey, id) => {
+    'hydrates %s selection %s as %s, preserving ID-selector aliases and returning canonical keys',
+    async (selectorKey, id, expectedId) => {
       mockFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ id: '10001', key: 'ENG', name: 'Engineering' }), {
           status: 200,
@@ -107,7 +109,7 @@ describe('Jira server selector adapter', () => {
         })
       ).resolves.toEqual({
         kind: 'detail',
-        item: { id, label: 'Engineering' },
+        item: { id: expectedId, label: 'Engineering' },
       })
       expect(String(mockFetch.mock.calls[0]?.[0])).toBe(
         `https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/project/${id}`

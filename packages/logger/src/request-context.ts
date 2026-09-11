@@ -1,3 +1,5 @@
+import type { ResolvedClientInfo } from '@sim/utils/client-info'
+
 export interface RequestContext {
   requestId: string
   method?: string
@@ -9,6 +11,37 @@ export interface RequestContext {
    * `setRequestTraceId` when the trace root is created locally.
    */
   traceId?: string
+  /**
+   * Which official client sent the request (web, desktop, CLI, an SDK), when
+   * it could be established. Resolved once by the route handler so logs and
+   * analytics emitted anywhere in the request attribute it without each call
+   * site re-reading headers.
+   */
+  client?: ResolvedClientInfo
+  /**
+   * How the request authenticated, stamped by the surface adapter once its
+   * credential resolved to a principal. Absent on public and unauthenticated
+   * requests, and until authentication has run.
+   */
+  auth?: RequestAuth
+  /**
+   * The workflow-to-workflow call chain the request arrived with (`X-Sim-Via`),
+   * oldest first. Present only when one workflow's execution made this call.
+   */
+  callChain?: readonly string[]
+}
+
+/**
+ * The credential kind a request authenticated with, in the vocabulary of the
+ * principal it produced: `session`, `personal_api_key`, `workspace_api_key`,
+ * `oauth_access_token`, `delegated`, `system`, and so on. `service` names the
+ * delegating or system service (`copilot`, `schedule`, …) and `clientId` the
+ * OAuth client (`sim-cli`), when the kind carries one.
+ */
+export interface RequestAuth {
+  kind: string
+  service?: string
+  clientId?: string
 }
 
 /**
@@ -63,4 +96,16 @@ export function getRequestContext(): RequestContext | undefined {
 export function setRequestTraceId(traceId: string): void {
   const store = storage.getStore()
   if (store && traceId) store.traceId = traceId
+}
+
+/**
+ * Records how the current request authenticated so every later log line and
+ * analytics event in it can say so. Authentication runs inside the handler,
+ * after the route context exists, hence a mutation of the live store rather
+ * than a field supplied at `runWithRequestContext` time. No-op outside a
+ * request context.
+ */
+export function setRequestAuth(auth: RequestAuth): void {
+  const store = storage.getStore()
+  if (store) store.auth = auth
 }

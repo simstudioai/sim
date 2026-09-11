@@ -339,6 +339,41 @@ describe('useChat remount send recovery', () => {
     vi.clearAllMocks()
   })
 
+  it.each([
+    { options: undefined, expectedSource: 'drive' },
+    { options: { assistantSearch: { source: 'slack' } }, expectedSource: 'slack' },
+  ])(
+    'preserves queued assistant mode when edited with $options',
+    async ({ options, expectedSource }) => {
+      useMothershipQueueStore.setState({
+        queues: {
+          'chat-a': [
+            {
+              id: 'queued-question',
+              content: 'Find the policy',
+              requestMode: 'assistant',
+              assistantSearch: { source: 'drive' },
+            },
+          ],
+        },
+        editing: { 'chat-a': 'queued-question' },
+      })
+      const { getResult } = renderUseChatInChat('chat-a')
+
+      await act(async () => {
+        await getResult().sendMessage('Find the updated policy', undefined, undefined, options)
+      })
+      await waitFor(() => state.postBodies.length === 1)
+
+      expect(state.postBodies[0]).toMatchObject({
+        message: 'Find the updated policy',
+        mode: 'assistant',
+        assistantSearch: { source: expectedSource },
+      })
+      expect(useMothershipQueueStore.getState().editing['chat-a']).toBeUndefined()
+    }
+  )
+
   it('keeps a cross-route handoff recoverable across a StrictMode double-mount', async () => {
     MothershipHandoffStorage.store({ message: 'investigate this failed run' }, 'ws-1')
 

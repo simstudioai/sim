@@ -4550,6 +4550,37 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'api-tool',
 ])
 
+/** Content-free organization Search activity, independent of billable model usage. */
+export const organizationSearchInvocation = pgTable(
+  'organization_search_invocation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    surface: text('surface').notNull(),
+    sourceTypes: text('source_types').array().notNull(),
+    resultCount: integer('result_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationCreatedAtIdx: index('organization_search_invocation_org_created_idx').on(
+      table.organizationId,
+      table.createdAt
+    ),
+    userIdIdx: index('organization_search_invocation_user_idx').on(table.userId),
+    resultCountBounds: check(
+      'organization_search_invocation_result_count_bounds',
+      sql`${table.resultCount} BETWEEN 0 AND 100`
+    ),
+    sourceTypesBounds: check(
+      'organization_search_invocation_source_types_bounds',
+      sql`cardinality(${table.sourceTypes}) <= 100`
+    ),
+  })
+)
+
 export const usageLog = pgTable(
   'usage_log',
   {
@@ -5496,6 +5527,52 @@ export const knowledgeConnector = pgTable(
     syncLockExclusiveCheck: check(
       'kc_sync_lock_exclusive_check',
       sql`NOT (${table.syncLockToken} IS NOT NULL AND ${table.memberSyncLockToken} IS NOT NULL)`
+    ),
+  })
+)
+
+/** Private provider configuration; metadata reads never materialize the larger normalized payload. */
+export const knowledgeConnectorPermissionSnapshot = pgTable(
+  'knowledge_connector_permission_snapshot',
+  {
+    connectorId: text('connector_id').primaryKey(),
+    revision: integer('revision').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => ({
+    revisionCheck: check('kcps_revision_check', sql`${table.revision} > 0`),
+    connectorFk: foreignKey({
+      name: 'kcps_connector_fk',
+      columns: [table.connectorId],
+      foreignColumns: [knowledgeConnector.id],
+    }).onDelete('cascade'),
+  })
+)
+
+/** Administrator-managed connector groups; provider directory crawls never write these grants. */
+export const knowledgeConnectorPermissionGrant = pgTable(
+  'knowledge_connector_permission_grant',
+  {
+    connectorId: text('connector_id').notNull(),
+    groupKey: text('group_key').notNull(),
+    subjectToken: text('subject_token').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'kcpg_pk',
+      columns: [table.connectorId, table.groupKey, table.subjectToken],
+    }),
+    subjectIdx: index('kcpg_subject_idx').on(table.subjectToken, table.connectorId, table.groupKey),
+    snapshotFk: foreignKey({
+      name: 'kcpg_snapshot_fk',
+      columns: [table.connectorId],
+      foreignColumns: [knowledgeConnectorPermissionSnapshot.connectorId],
+    }).onDelete('cascade'),
+    groupCheck: check('kcpg_group_check', sql`length(${table.groupKey}) BETWEEN 1 AND 255`),
+    subjectCheck: check(
+      'kcpg_subject_check',
+      sql`${table.subjectToken} ~ '^u:[^[:space:]A-Z]+@[^[:space:]A-Z]+$'`
     ),
   })
 )

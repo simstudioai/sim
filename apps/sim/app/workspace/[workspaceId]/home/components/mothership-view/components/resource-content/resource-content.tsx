@@ -334,9 +334,12 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
+      // One panel serves every browser tab of the chat: the desktop app
+      // composites whichever page is selected, so switching tabs must not
+      // remount it.
       return (
         <BrowserSession
-          key={resource.id}
+          key={desktopScopeId}
           scopeId={desktopScopeId}
           visible={visible}
           onOverlayControllerChange={onBrowserOverlayControllerChange}
@@ -344,7 +347,9 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'terminal':
-      return <TerminalSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
+      // One panel serves every terminal tab of the chat, keeping each shell's
+      // emulator alive across tab switches.
+      return <TerminalSession key={desktopScopeId} scopeId={desktopScopeId} visible={visible} />
 
     default:
       return null
