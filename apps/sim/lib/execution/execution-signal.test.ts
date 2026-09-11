@@ -40,19 +40,24 @@ vi.mock('ioredis', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getConfiguredRedisUrl: () => {
-    if (mockRedisUrl.error) throw mockRedisUrl.error
-    return mockRedisUrl.value
-  },
-  getRedisConnectionDefaults: () => ({}),
-  // The budget arithmetic itself is covered in redis.test.ts; here only the
-  // resulting number matters, and the readiness test reads it back by name.
-  coldConnectionBudgetMs: (inputs: unknown) => {
-    budgetInputs.value = inputs
-    return 10_000
-  },
-}))
+vi.mock('@/lib/core/config/redis', async () => {
+  const { redisConfigMock } = await import('@sim/testing')
+  return {
+    getConfiguredRedisUrl: () => {
+      if (mockRedisUrl.error) throw mockRedisUrl.error
+      return mockRedisUrl.value
+    },
+    getRedisConnectionDefaults: () => ({}),
+    // Records the inputs, then answers with the shared mirror of the real
+    // arithmetic so the derived budget here is the number production derives.
+    coldConnectionBudgetMs: (
+      inputs: Parameters<typeof redisConfigMock.coldConnectionBudgetMs>[0]
+    ) => {
+      budgetInputs.value = inputs
+      return redisConfigMock.coldConnectionBudgetMs(inputs)
+    },
+  }
+})
 
 import {
   getExecutionSignalHub,
@@ -385,11 +390,11 @@ describe('ExecutionSignalHub', () => {
       retryStrategy: (attempt: number) => number
     }
 
-    // Two dead handshakes, so the budget states the reconnect delays after
-    // attempt 1 and attempt 2 as the client's own retryStrategy would return them.
+    // One dead handshake, so the budget states the reconnect delay after
+    // attempt 1 as the client's own retryStrategy would return it.
     expect(budgetInputs.value).toEqual({
       commandTimeoutMs: options.commandTimeout,
-      retryDelaysMs: [options.retryStrategy(1), options.retryStrategy(2)],
+      retryDelaysMs: [options.retryStrategy(1)],
     })
     // And the wait must outlast at least one full dead attempt, or the retry is decorative.
     expect(SUBSCRIBER_READY_TIMEOUT_MS).toBeGreaterThan(

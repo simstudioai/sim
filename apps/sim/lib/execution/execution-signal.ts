@@ -11,21 +11,21 @@ import {
 const logger = createLogger('ExecutionSignalHub')
 const EXECUTION_SIGNAL_PREFIX = 'execution:signal:'
 /**
- * Tight, because this client only ever issues `SUBSCRIBE`/`UNSUBSCRIBE`, and
- * only once the connection is ready — sub-millisecond commands that never sit
- * in the offline queue behind a handshake. Its main job is bounding how long a
- * dead handshake takes to be diagnosed and torn down.
+ * Bounds the live `SUBSCRIBE` as well as the handshake commands — ioredis has
+ * one deadline for both — and an initial subscribe that rejects fails the run,
+ * so this stays at the tolerance a ready-but-slow server has always been
+ * given rather than being tightened to diagnose dead handshakes faster.
  */
-const SUBSCRIBER_COMMAND_TIMEOUT_MS = 2_000
+const SUBSCRIBER_COMMAND_TIMEOUT_MS = 5_000
 const subscriberRetryDelayMs = (attempt: number): number => Math.min(attempt * 500, 5000)
 /**
- * Room for two dead handshakes and then a healthy one, so ioredis's own
+ * Room for one dead handshake and then a healthy one, so ioredis's own
  * reconnect can be what rescues a stalled connection instead of the wait
  * expiring while the first attempt is still being diagnosed.
  */
 export const SUBSCRIBER_READY_TIMEOUT_MS = coldConnectionBudgetMs({
   commandTimeoutMs: SUBSCRIBER_COMMAND_TIMEOUT_MS,
-  retryDelaysMs: [1, 2].map(subscriberRetryDelayMs),
+  retryDelaysMs: [subscriberRetryDelayMs(1)],
 })
 export const LEGACY_EXECUTION_CANCEL_CHANNEL = 'execution:cancel'
 
