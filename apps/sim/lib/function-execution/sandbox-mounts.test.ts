@@ -6,8 +6,6 @@
  * a Function block may mount is the security-relevant part of this module, and
  * mocking it away would leave exactly that untested.
  */
-import { workspaceFiles } from '@sim/db/schema'
-import { queueTableRows } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UserFile } from '@/executor/types'
 
@@ -222,15 +220,6 @@ describe('resolveUserFileMounts', () => {
       context: 'workspace' as const,
       contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
     }
-    queueTableRows(workspaceFiles, [
-      {
-        fileContentUpdatedAt: contributor.contentUpdatedAt,
-        provenanceContentUpdatedAt: contributor.contentUpdatedAt,
-        secretProvenanceVersion: 1,
-        status: 'exact',
-        entries: [],
-      },
-    ])
     mockHasCloudStorage.mockReturnValue(false)
     mockDownloadServableFileFromStorage.mockResolvedValueOnce({
       buffer: Buffer.from('rendered'),
@@ -241,6 +230,7 @@ describe('resolveUserFileMounts', () => {
       context: executionContext,
     })
     expect(result.contributingFiles).toEqual([contributor])
+    expect(result.renderedContributingFiles).toEqual([contributor])
   })
 
   it('retains both revisions when a file changes between two mount resolutions', async () => {

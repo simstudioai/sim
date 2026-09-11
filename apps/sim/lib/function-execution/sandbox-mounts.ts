@@ -276,12 +276,14 @@ export async function resolveUserFileMounts(args: {
   sandboxFiles: SandboxFile[]
   manifest: SandboxMountManifestEntry[]
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }> {
   const sandboxFiles: SandboxFile[] = []
   const manifest: SandboxMountManifestEntry[] = []
   const budget = createSandboxMountBudget()
   const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
-  const addContributor = (identity: WorkspaceFileSecretProvenanceIdentity) => {
+  const renderedContributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  const addContributor = (identity: WorkspaceFileSecretProvenanceIdentity, rendered = false) => {
     const revision = JSON.stringify([
       identity.fileId,
       identity.key,
@@ -289,6 +291,7 @@ export async function resolveUserFileMounts(args: {
       identity.contentUpdatedAt?.getTime(),
     ])
     contributingFiles.set(revision, identity)
+    if (rendered) renderedContributingFiles.set(revision, identity)
   }
 
   for (const { userFile, mountPath } of args.planned) {
@@ -315,15 +318,21 @@ export async function resolveUserFileMounts(args: {
           // Base64 regardless of content type: the payload is reproduced exactly
           // for any byte sequence, and picking utf8 for a mistyped binary would
           // substitute U+FFFD and hand the code a corrupted file.
-          const { content, contributingFiles: renderedContributors } =
-            await readUserFileContentWithContributors(userFile, {
-              ...args.context,
-              encoding: 'base64',
-              maxBytes,
-              maxSourceBytes: maxBytes,
-            })
-          for (const contributor of renderedContributors ?? []) {
+          const {
+            content,
+            contributingFiles: contributors,
+            renderedContributingFiles,
+          } = await readUserFileContentWithContributors(userFile, {
+            ...args.context,
+            encoding: 'base64',
+            maxBytes,
+            maxSourceBytes: maxBytes,
+          })
+          for (const contributor of contributors ?? []) {
             addContributor(contributor)
+          }
+          for (const contributor of renderedContributingFiles ?? []) {
+            addContributor(contributor, true)
           }
           return {
             content,
@@ -353,5 +362,8 @@ export async function resolveUserFileMounts(args: {
     sandboxFiles,
     manifest,
     ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
+    ...(renderedContributingFiles.size > 0
+      ? { renderedContributingFiles: [...renderedContributingFiles.values()] }
+      : {}),
   }
 }

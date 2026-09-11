@@ -609,11 +609,11 @@ async function handleExternalUrl(
           )
         }
       } else if (USE_BLOB_STORAGE && executionConfig.containerName) {
-        const prefix = `/${executionConfig.containerName}/`
-        if (
-          parsedUrl.hostname === `${executionConfig.accountName}.blob.core.windows.net` &&
-          parsedUrl.pathname.startsWith(prefix)
-        ) {
+        const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
+        const client = await getBlobServiceClient()
+        const containerUrl = new URL(client.getContainerClient(executionConfig.containerName).url)
+        const prefix = `${containerUrl.pathname.replace(/\/$/, '')}/`
+        if (parsedUrl.origin === containerUrl.origin && parsedUrl.pathname.startsWith(prefix)) {
           executionFileKey = decodeURIComponent(parsedUrl.pathname.slice(prefix.length))
         }
       } else if (USE_GCS_STORAGE && executionConfig.bucket) {

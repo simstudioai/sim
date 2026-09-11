@@ -47,6 +47,7 @@ const {
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
   mockMountContributors,
+  mockRenderedMountContributors,
 } = vi.hoisted(() => ({
   mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
@@ -67,6 +68,7 @@ const {
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
   mockMountContributors: vi.fn(),
+  mockRenderedMountContributors: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -174,6 +176,7 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
     planned: Array<{ userFile: { name: string }; mountPath: string }>
   }) => ({
     contributingFiles: mockMountContributors(),
+    renderedContributingFiles: mockRenderedMountContributors(),
     sandboxFiles: planned.map(({ mountPath }) => ({
       type: 'url' as const,
       path: mountPath,
@@ -267,6 +270,7 @@ describe('Function execution request', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockMountContributors.mockReturnValue(undefined)
+    mockRenderedMountContributors.mockReturnValue(undefined)
     mockUploadExecutionFile.mockImplementation(async (context, buffer, name, type) => ({
       id: 'execution-file-1',
       key: `execution/${context.workspaceId}/${context.workflowId}/${context.executionId}/file/${name}`,
@@ -2877,6 +2881,68 @@ describe('Function execution request', () => {
       expect(data.success).toBe(true)
       expect(options?.brokers).toHaveProperty('sim.values.readArray')
     })
+
+    it.each([
+      { status: 'exact', version: 1, secret: true, safe: false },
+      { status: 'unknown', version: 1, secret: false, safe: false },
+      { status: 'exact', version: 1, secret: false, safe: true },
+      { status: null, version: null, secret: false, safe: true },
+    ])(
+      'applies rendered asset policy at Function admission while retaining legacy compatibility: %j',
+      async ({ status, version, secret, safe }) => {
+        const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
+        const identity = {
+          fileId: 'image-1',
+          key: 'workspace/workspace-1/image.png',
+          context: 'workspace' as const,
+          contentUpdatedAt,
+        }
+        const materialized = {
+          content: '<img src="data:image/png;base64,c2VjcmV0">',
+          contributingFiles: [identity],
+          renderedContributingFiles: [identity],
+        }
+        const read = vi
+          .spyOn(fileMaterialization, 'readUserFileContentWithContributors')
+          .mockResolvedValue(materialized)
+        dbChainMockFns.limit.mockResolvedValue([
+          {
+            fileContentUpdatedAt: contentUpdatedAt,
+            provenanceContentUpdatedAt: contentUpdatedAt,
+            secretProvenanceVersion: version,
+            status,
+            entries: secret
+              ? [{ name: 'TOKEN', encryptedValue: 'ciphertext', sourceUserId: 'user-1' }]
+              : [],
+          },
+        ])
+        mockExecuteInIsolatedVM.mockImplementationOnce(async (_input, options) => ({
+          result: await options.brokers['sim.files.readText']({ file: MOUNT_REF.file }),
+          stdout: '',
+        }))
+        const request = {
+          code: 'return 1',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+        try {
+          const brokerResponse = await POST(createMockRequest('POST', request))
+          const brokerBody = await brokerResponse.json()
+          expect(brokerBody.success).toBe(safe)
+          if (!safe) expect(JSON.stringify(brokerBody)).not.toContain(materialized.content)
+
+          mockMountContributors.mockReturnValue([identity])
+          mockRenderedMountContributors.mockReturnValue([identity])
+          const mountResponse = await POST(createMockRequest('POST', request))
+          expect(mountResponse.status).toBe(safe ? 200 : 400)
+          expect((await mountResponse.json()).success).toBe(safe)
+        } finally {
+          read.mockRestore()
+        }
+      }
+    )
 
     it('refuses unknown execution provenance returned by the runtime file broker', async () => {
       const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')

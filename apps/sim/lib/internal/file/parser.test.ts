@@ -40,6 +40,8 @@ const {
   mockResolveProvenanceSource,
   mockGetBoundProvenance,
   mockGetFileContentProvenance,
+  storageConfig,
+  mockGetBlobContainerClient,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const actualPath = require('path') as typeof import('path')
@@ -86,6 +88,12 @@ const {
     mockResolveProvenanceSource: vi.fn(),
     mockGetBoundProvenance: vi.fn(),
     mockGetFileContentProvenance: vi.fn(),
+    storageConfig: {
+      provider: 's3',
+      bucket: 'sim-execution-files',
+      containerName: 'execution-files',
+    },
+    mockGetBlobContainerClient: vi.fn(),
   }
 })
 
@@ -124,11 +132,21 @@ vi.mock('@/lib/uploads', () => ({
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
-  getStorageConfig: () => ({ bucket: 'sim-execution-files' }),
+  getStorageConfig: () => storageConfig,
   S3_CONFIG: {},
-  USE_S3_STORAGE: true,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
+  get USE_S3_STORAGE() {
+    return storageConfig.provider === 's3'
+  },
+  get USE_BLOB_STORAGE() {
+    return storageConfig.provider === 'blob'
+  },
+  get USE_GCS_STORAGE() {
+    return storageConfig.provider === 'gcs'
+  },
+}))
+
+vi.mock('@/lib/uploads/providers/blob/client', () => ({
+  getBlobServiceClient: async () => ({ getContainerClient: mockGetBlobContainerClient }),
 }))
 
 vi.mock('@/lib/file-parsers', () => ({
@@ -270,6 +288,8 @@ describe('file parser operation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    storageConfig.provider = 's3'
+    mockGetBlobContainerClient.mockReset()
     setupFileApiMocks({
       authenticated: true,
     })
@@ -481,6 +501,66 @@ describe('file parser operation', () => {
     })
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
+
+  it.each([
+    'https://exampleaccount.blob.core.windows.net/execution-files',
+    'https://exampleaccount.blob.core.usgovcloudapi.net/execution-files',
+    'https://storage.example.test/account/execution-files',
+  ])(
+    'recognizes the configured Azure container endpoint without a separate account name: %s',
+    async (containerUrl) => {
+      storageConfig.provider = 'blob'
+      mockGetBlobContainerClient.mockReturnValue({ url: containerUrl })
+      const key = 'execution/workspace-id/workflow-id/execution-id/report.txt'
+      const source = {
+        identity: { fileId: 'canonical-file', key, context: 'execution' },
+        ownerUserId: 'test-user-id',
+      }
+      mockResolveProvenanceSource.mockResolvedValue(source)
+      mockGetBoundProvenance.mockResolvedValue({ status: 'unknown' })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          filePath: `${containerUrl}/${key}?sig=placeholder`,
+        })
+      )
+
+      expect((await response.json()).success).toBe(true)
+      expect(mockGetBlobContainerClient).toHaveBeenCalledWith('execution-files')
+      expect(mockResolveProvenanceSource).toHaveBeenCalledWith(
+        { key, context: 'execution' },
+        expect.objectContaining({ workspaceId: 'workspace-id' })
+      )
+      expect(mockGetBoundProvenance).toHaveBeenCalledWith('workspace-id', source.identity)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+      expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
+        key,
+        context: 'execution',
+        maxBytes: 100 * 1024 * 1024,
+      })
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    'https://exampleaccount.blob.core.windows.net.attacker.test/execution-files',
+    'https://exampleaccount.blob.core.windows.net/execution-files-other',
+  ])(
+    'does not attribute another Azure origin or container to owned storage: %s',
+    async (containerUrl) => {
+      storageConfig.provider = 'blob'
+      mockGetBlobContainerClient.mockReturnValue({
+        url: 'https://exampleaccount.blob.core.windows.net/execution-files',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('external content', { headers: { 'content-type': 'text/plain' } })
+      )
+      await POST(createMockRequest('POST', { filePath: `${containerUrl}/report.txt` }))
+
+      expect(mockResolveProvenanceSource).not.toHaveBeenCalled()
+      expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not attribute an external hostname prefix to canonical storage provenance', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(

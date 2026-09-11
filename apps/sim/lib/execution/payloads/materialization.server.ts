@@ -19,14 +19,9 @@ import {
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { StorageContext } from '@/lib/uploads'
-import {
-  isOpaqueWorkspaceFileEgressSafe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-  type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   bufferToBase64,
-  extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
   isGeneratedDocumentSourceType,
   isPublicStorageContext,
@@ -68,6 +63,8 @@ export interface ReadUserFileContentOptions extends ExecutionMaterializationCont
 export interface ReadUserFileContentResult {
   content: string
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /** Subset transformed by the renderer; consumers apply their own admission policy. */
+  renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 function getLogger(options: ExecutionMaterializationContext): Logger {
@@ -388,6 +385,7 @@ export async function readUserFileContentWithContributors(
 
   let buffer: Buffer | null = null
   let contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
+  let renderedContributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
@@ -395,17 +393,8 @@ export async function readUserFileContentWithContributors(
     const servable = await downloadServableFileFromStorage(file, requestId, log, {
       maxBytes: maxSourceBytes,
     })
-    /** Renderers may encode embedded assets, so literal provenance cannot describe those bytes. */
-    const renderWorkspaceId = options.workspaceId ?? extractWorkspaceIdFromStorageKey(file.key)
-    for (const contributor of servable.contributingFiles ?? []) {
-      if (
-        !renderWorkspaceId ||
-        !(await isOpaqueWorkspaceFileEgressSafe(renderWorkspaceId, contributor))
-      ) {
-        throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
-      }
-    }
     buffer = servable.buffer
+    renderedContributingFiles = servable.contributingFiles
     contributingFiles = sourceIdentity
       ? [sourceIdentity, ...(servable.contributingFiles ?? [])]
       : servable.contributingFiles
@@ -445,6 +434,7 @@ export async function readUserFileContentWithContributors(
   return {
     content: options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8'),
     ...(contributingFiles && contributingFiles.length > 0 ? { contributingFiles } : {}),
+    ...(renderedContributingFiles?.length ? { renderedContributingFiles } : {}),
   }
 }
 

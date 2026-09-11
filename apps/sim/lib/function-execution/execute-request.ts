@@ -96,6 +96,7 @@ import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   importWorkspaceFileSecretProvenanceForRuntime,
+  isOpaqueWorkspaceFileEgressSafe,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
@@ -1031,15 +1032,22 @@ interface FunctionRouteExecutionContext {
 /** Keeps bound file provenance in both ordinary Function results and exported artifact bytes. */
 async function importRuntimeFileContributors(
   context: FunctionRouteExecutionContext,
-  identities: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
+  identities: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined,
+  renderedIdentities: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): Promise<void> {
-  if (!identities?.length) return
+  if (!identities?.length && renderedIdentities.length === 0) return
   if (!context.workspaceId) throw new Error('File provenance requires a workspace')
+  /** Sim-rendered assets can encode literals before user code runs; raw files retain runtime lineage. */
+  for (const identity of renderedIdentities) {
+    if (!(await isOpaqueWorkspaceFileEgressSafe(context.workspaceId, identity))) {
+      throw new Error('File secret provenance is unavailable for Function execution')
+    }
+  }
   if (!context.runtimeInputProvenanceUnrecorded) {
     context.runtimeFileSecretTraceRegistry ??=
       context.resolvedSecretTraceRegistry?.forkForInputPaths([])
   }
-  for (const identity of identities) {
+  for (const identity of identities ?? []) {
     const imported = await importWorkspaceFileSecretProvenanceForRuntime({
       workspaceId: context.workspaceId,
       identity,
@@ -1194,7 +1202,11 @@ function createFunctionRuntimeBrokers(
       offset: chunked ? fileArgs.offset : undefined,
       length: chunked ? fileArgs.length : undefined,
     })
-    await importRuntimeFileContributors(context, materialized.contributingFiles)
+    await importRuntimeFileContributors(
+      context,
+      materialized.contributingFiles,
+      materialized.renderedContributingFiles
+    )
     return materialized.content
   }
 
@@ -2573,7 +2585,11 @@ export async function executeFunctionRequest(
           logger,
         },
       })
-      await importRuntimeFileContributors(routeContext, resolvedMounts.contributingFiles)
+      await importRuntimeFileContributors(
+        routeContext,
+        resolvedMounts.contributingFiles,
+        resolvedMounts.renderedContributingFiles
+      )
     } catch (error) {
       // Everything this can raise is about the files the caller named — a mount
       // it may not read, one over a size ceiling, a set over the aggregate. The
