@@ -20,6 +20,7 @@
  */
 
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   member,
   organization,
@@ -247,7 +248,7 @@ export const PATCH = withRouteHandler(
       if (existingStats) {
         await db.update(userStats).set(updateData).where(eq(userStats.userId, userId))
       } else {
-        await db.insert(userStats).values({
+        await db.insert(withInsertColumns(userStats, userStatsColumns)).values({
           id: generateShortId(),
           userId,
           ...updateData,

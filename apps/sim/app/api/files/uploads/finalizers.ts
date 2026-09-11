@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -354,7 +355,7 @@ async function insertOrLoadFileMetadata(
 
   const now = new Date()
   const [inserted] = await db
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values({
       id: generateId(),
       key: input.key,

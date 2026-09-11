@@ -17,6 +17,10 @@
       "types": "./schema.ts",
       "default": "./schema.ts"
     },
+    "./insert-columns": {
+      "types": "./insert-columns.ts",
+      "default": "./insert-columns.ts"
+    },
     "./timestamps": {
       "types": "./timestamps.ts",
       "default": "./timestamps.ts"

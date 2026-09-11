@@ -13,6 +13,9 @@ import { defineConfig } from 'vitest/config'
  * The root is pinned so `bun run test:scripts` behaves the same from any cwd.
  */
 export default defineConfig({
+  resolve: {
+    alias: { '@scripts': fileURLToPath(new URL('.', import.meta.url)) },
+  },
   test: {
     root: fileURLToPath(new URL('..', import.meta.url)),
     environment: 'node',

@@ -1,3 +1,4 @@
+import { withInsertColumns } from '@sim/db/insert-columns'
 import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -145,7 +146,7 @@ export async function planChatFileCopies(params: {
   // Ids and keys are generated client-side, so one multi-row insert suffices —
   // no per-row round trips while the fork transaction is held open.
   if (copyRows.length > 0) {
-    await tx.insert(workspaceFiles).values(copyRows)
+    await tx.insert(withInsertColumns(workspaceFiles, workspaceFileColumns)).values(copyRows)
     for (const source of rows) {
       const targetId = idMap.get(source.id)
       if (!targetId) continue

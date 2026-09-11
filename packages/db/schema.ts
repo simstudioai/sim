@@ -523,12 +523,13 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
-    // cost. Same procedure and argless-read lint as the user_stats marker
-    // (scripts/check-pending-drop-tables.ts). Script migration
-    // 0009_backfill_wel_residual_cost_total projects the ~23 straggler rows
-    // whose json still held a numeric total into cost_total before the drop;
-    // the contract PR must ALSO deregister that script (it reads this column).
+    /**
+     * contract-pending(after #7134 and #7774 are fully deployed):
+     * DROP cost. Reads and inserts use workflowExecutionLogColumns. Before the
+     * drop, confirm script migration 0009_backfill_wel_residual_cost_total has
+     * projected all residual numeric totals, then deregister it in the contract
+     * PR because it reads this column.
+     */
     /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
     cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
@@ -1247,16 +1248,16 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
-  // the 19 @deprecated columns in this table. Their last readers/writers were
-  // removed by the ledger cutover (#7078/#7113) and #7134; the declarations
-  // remain ONLY so the app schema keeps matching the deployed database until
-  // the drop. Argless select()/relational reads of this table are forbidden
-  // meanwhile — they would put these columns back into generated SQL and break
-  // the old task set when the contract deploy drops them mid-cutover — enforced
-  // by scripts/check-pending-drop-tables.ts. The follow-up PR deletes the
-  // @deprecated declarations plus this marker and ships the generated DROP
-  // migration in the same change.
+  /**
+   * contract-pending(after #7134 and #7774 are fully deployed):
+   * DROP the 19 deprecated columns. Usage updates were retired by #7078/#7113;
+   * #7134 removed the remaining reads. Declarations stay until the contract so
+   * generated migrations match the deployed database. Reads use userStatsColumns;
+   * inserts use withInsertColumns(userStats, userStatsColumns), because omitting
+   * values still makes Drizzle name the columns with DEFAULT. The pending-drop
+   * audit enforces both. Deploy the compatibility release to every writer before
+   * deleting these declarations and generating the DROP migration.
+   */
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
@@ -1343,8 +1344,8 @@ export const userStats = pgTable('user_stats', {
 })
 
 /**
- * Live columns of `user_stats` — the selection every read of this table goes
- * through while the contract-pending drop (see the marker inside the table) is
+ * Live columns of `user_stats` — the selection every read and withInsertColumns
+ * insert uses while the contract-pending drop (see the marker inside the table) is
  * outstanding, so generated SQL never names the doomed columns. Enforced by
  * `scripts/check-pending-drop-tables.ts`; the contract PR deletes this helper
  * together with the deprecated declarations.
@@ -1716,10 +1717,12 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
-  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
-  // departed_member_usage. The last readers/writers (v1 admin exposure,
-  // cycle-close resets) were removed in #7134; same procedure and argless-read
-  // lint as the user_stats marker (scripts/check-pending-drop-tables.ts).
+  /**
+   * contract-pending(after #7134 and #7774 are fully deployed):
+   * DROP departed_member_usage. Reads and inserts use organizationColumns;
+   * #7134 removed the v1 admin exposure and cycle-close resets. The pending-drop
+   * audit enforces the same read and insert constraints as user_stats.
+   */
   /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
@@ -2260,7 +2263,7 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
+    /** contract-pending(after the cutover and #7774 are fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
     size: integer('size').notNull().default(0),
     /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),

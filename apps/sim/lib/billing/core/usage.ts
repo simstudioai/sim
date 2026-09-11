@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import { member, organization, settings, user, userStats, userStatsColumns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
@@ -155,7 +156,7 @@ export async function getOrgUsageLimit(
  */
 export async function handleNewUser(userId: string): Promise<void> {
   try {
-    await db.insert(userStats).values({
+    await db.insert(withInsertColumns(userStats, userStatsColumns)).values({
       id: generateId(),
       userId: userId,
       currentUsageLimit: getFreeTierLimit().toString(),
@@ -182,7 +183,7 @@ export async function handleNewUser(userId: string): Promise<void> {
  */
 export async function ensureUserStatsExists(userId: string): Promise<void> {
   await db
-    .insert(userStats)
+    .insert(withInsertColumns(userStats, userStatsColumns))
     .values({
       id: generateId(),
       userId: userId,
