@@ -388,9 +388,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     warmExecutionSignalHubMock.mockResolvedValue(true)
 
     const executionPromise = executeWorkflowCore({
-      snapshot: createSnapshot() as any,
+      snapshot: createSnapshot() as unknown as ExecutionSnapshot,
       callbacks: {},
-      loggingSession: loggingSession as any,
+      loggingSession: loggingSession as unknown as LoggingSession,
     })
 
     // Asserted with no await in between: the handshake has to start ahead of
