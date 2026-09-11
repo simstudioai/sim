@@ -4,6 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface OrganizationLogoBinding {
   organizationId: string
+  expectedLogo: string | null
   userId: string
   sessionId: string
 }
@@ -27,6 +28,7 @@ export function assertOrganizationLogoControlBinding(
     !isRecordLike(binding) ||
     typeof binding.organizationId !== 'string' ||
     !binding.organizationId ||
+    (binding.expectedLogo !== null && typeof binding.expectedLogo !== 'string') ||
     binding.userId !== session.userId ||
     principal.kind !== 'session' ||
     principal.userId !== binding.userId ||
@@ -36,6 +38,7 @@ export function assertOrganizationLogoControlBinding(
   }
   return {
     organizationId: binding.organizationId,
+    expectedLogo: binding.expectedLogo,
     userId: principal.userId,
     sessionId: principal.sessionId,
   }

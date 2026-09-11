@@ -39,7 +39,12 @@ const session = {
   workspaceId: null,
   userId: 'user-1',
   metadata: {
-    organizationLogo: { organizationId: 'org-1', userId: 'user-1', sessionId: 'session-1' },
+    organizationLogo: {
+      organizationId: 'org-1',
+      expectedLogo: null,
+      userId: 'user-1',
+      sessionId: 'session-1',
+    },
   },
   finalKey: key,
   storageKey: key,
@@ -67,12 +72,13 @@ describe('organization logo uploads', () => {
   it.each(['owner', 'admin'])(
     'allows the current %s and uses their real organization identity',
     async (role) => {
-      dbChainMockFns.limit.mockResolvedValue([{ role }])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ role }]).mockResolvedValueOnce([{ logo: null }])
       await createOrganizationLogoUpload(principal, input)
       expect(mocks.create).toHaveBeenCalledWith({
         purpose: 'organization_logo',
         principal,
         organizationId: 'org-1',
+        expectedLogo: null,
         userId: 'user-1',
         fileName: 'logo.png',
         contentType: 'image/png',
@@ -128,6 +134,7 @@ describe('organization logo uploads', () => {
       .mockResolvedValueOnce([{ role: 'admin' }])
       .mockResolvedValueOnce([{ completedFileId: null, status: 'finalizing' }])
       .mockResolvedValueOnce([{ role: 'admin' }])
+      .mockResolvedValueOnce([{ logo: null }])
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ id: 'org-1', name: 'Test org' }])
       .mockResolvedValueOnce([{ id: 'upload-1' }])
@@ -136,6 +143,7 @@ describe('organization logo uploads', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ logo: first.value.path })
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       completedFileId: 'upload-1',
+      metadata: { ...session.metadata, organizationLogoPath: first.value.path },
       updatedAt: expect.any(Date),
     })
     expect(recordAudit).toHaveBeenCalledWith(
@@ -176,12 +184,39 @@ describe('organization logo uploads', () => {
       .mockResolvedValueOnce([{ role: 'admin' }])
       .mockResolvedValueOnce([{ completedFileId: null, status: 'finalizing' }])
       .mockResolvedValueOnce([{ role: 'admin' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
     await expect(finalizeOrganizationLogoUpload(principal, session, request)).rejects.toMatchObject(
       { code: 'not_found' }
     )
-    expect(dbChainMockFns.set).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unfinished upload after another session replaces its starting logo', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ role: 'admin' }])
+      .mockResolvedValueOnce([{ completedFileId: null, status: 'finalizing' }])
+      .mockResolvedValueOnce([{ role: 'admin' }])
+      .mockResolvedValueOnce([{ logo: '/api/files/serve/s3/newer-logo.png' }])
+    await expect(finalizeOrganizationLogoUpload(principal, session, request)).rejects.toMatchObject(
+      {
+        code: 'conflict',
+      }
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('captures an existing logo as server-authored concurrency state', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ role: 'admin' }])
+      .mockResolvedValueOnce([{ logo: '/existing-logo.png' }])
+    await createOrganizationLogoUpload(principal, input)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedLogo: '/existing-logo.png',
+      })
+    )
   })
 
   it('propagates infrastructure errors without reporting a successful logo update', async () => {

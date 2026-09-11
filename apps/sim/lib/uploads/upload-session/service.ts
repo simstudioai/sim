@@ -199,6 +199,7 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
     | {
         purpose: 'organization_logo'
         organizationId: string
+        expectedLogo: string | null
         principal: Principal
         workspaceId?: never
       }
@@ -233,6 +234,7 @@ export async function createUploadSession(
     }
     metadata.organizationLogo = {
       organizationId: params.organizationId,
+      expectedLogo: params.expectedLogo,
       userId: params.userId,
       sessionId: params.principal.sessionId,
     }
@@ -963,6 +965,16 @@ export async function cleanupExpiredUploadSessions(): Promise<{
     .where(
       and(
         inArray(uploadSession.status, ['completed', 'aborted', 'expired']),
+        /** Retain ownership records for active logos so replacements remain eligible for cleanup. */
+        sql`NOT (
+          ${uploadSession.status} = 'completed'
+          AND ${uploadSession.purpose} = 'organization_logo'
+          AND EXISTS (
+            SELECT 1 FROM ${organization}
+            WHERE ${organization.id} = ${uploadSession.metadata}->'organizationLogo'->>'organizationId'
+              AND ${organization.logo} = ${uploadSession.metadata}->>'organizationLogoPath'
+          )
+        )`,
         /** Keep private images while both their uploader and organization exist. */
         sql`NOT (
           ${uploadSession.status} = 'completed'
@@ -998,6 +1010,7 @@ export async function cleanupExpiredUploadSessions(): Promise<{
       if (
         claimed.status === 'aborted' ||
         claimed.status === 'expired' ||
+        claimed.purpose === 'organization_logo' ||
         (claimed.purpose === 'mothership_attachment' && claimed.workspaceId === null)
       ) {
         await deleteOwnedFinalObject(claimed)

@@ -38,10 +38,17 @@ export async function createOrganizationLogoUpload(
   input: CreateOrganizationLogoUploadInput
 ) {
   const context = await authorizeOrganizationOperation(principal, organizationLogoOperation, input)
+  const [current] = await db
+    .select({ logo: organization.logo })
+    .from(organization)
+    .where(eq(organization.id, context.organizationId))
+    .limit(1)
+  if (!current) throw new OrchestrationError('not_found', 'Organization not found')
   return createUploadSession({
     purpose: 'organization_logo',
     principal,
     organizationId: context.organizationId,
+    expectedLogo: current.logo,
     userId: context.userId,
     fileName: input.name,
     contentType: input.contentType,
@@ -109,6 +116,19 @@ export async function finalizeOrganizationLogoUpload(
     if (!isOrgAdminRole(membership.role)) {
       throw new OrchestrationError('forbidden', 'Organization administrator access is required')
     }
+    const [currentOrganization] = await tx
+      .select({ logo: organization.logo })
+      .from(organization)
+      .where(eq(organization.id, binding.organizationId))
+      .for('update')
+      .limit(1)
+    if (!currentOrganization) throw new OrchestrationError('not_found', 'Organization not found')
+    if (currentOrganization.logo !== binding.expectedLogo) {
+      throw new OrchestrationError(
+        'conflict',
+        'The organization logo changed while this upload was in progress. Please upload it again.'
+      )
+    }
     const [updated] = await tx
       .update(organization)
       .set({ logo: value.path })
@@ -117,7 +137,11 @@ export async function finalizeOrganizationLogoUpload(
     if (!updated) throw new OrchestrationError('not_found', 'Organization not found')
     const [registered] = await tx
       .update(uploadSession)
-      .set({ completedFileId: session.id, updatedAt: new Date() })
+      .set({
+        completedFileId: session.id,
+        metadata: { ...session.metadata, organizationLogoPath: value.path },
+        updatedAt: new Date(),
+      })
       .where(and(eq(uploadSession.id, session.id), eq(uploadSession.status, 'finalizing')))
       .returning({ id: uploadSession.id })
     if (!registered) throw new Error('Organization logo registration marker could not be persisted')
