@@ -148,6 +148,8 @@ function classes(value: Data): Data | undefined {
 /** The notification policy requires concrete authored appearance, independent of render guards. */
 export function appearanceValue(definition: Definition): Data | undefined {
   if (definition.appearance?.media) return undefined
+  if (definition.kind === 'asset' && /\.(?:woff2?|ttf|otf|eot)$/i.test(definition.location.file))
+    return definition.value
   if (definition.kind === 'class') {
     if (!object(definition.value) || !Array.isArray(definition.value.normalized)) return undefined
     const values = definition.value.normalized.flatMap((entry) => {
@@ -164,7 +166,13 @@ export function appearanceValue(definition: Definition): Data | undefined {
     if (!object(definition.value)) return undefined
     const { order: _order, ...value } = definition.value
     if (typeof value.value === 'string' && /url\(/.test(value.value))
-      value.value = cssAppearance(value.value)
+      value.value =
+        definition.property === 'src' &&
+        definition.conditions.some(
+          (condition) => typeof condition === 'string' && condition.startsWith('@font-face')
+        )
+          ? value.value
+          : cssAppearance(value.value)
     return { ...value, context: definition.conditions }
   }
   if (

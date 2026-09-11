@@ -24,7 +24,7 @@ import type { Change, Config, Definition, Report } from '#design-diff/types'
 export function emptyReport(): Report {
   return {
     schemaVersion: '3.0.0',
-    engineVersion: '0.5.0',
+    engineVersion: '0.5.1',
     policyVersion: '5.0.0',
     commits: null,
     status: 'failed',
@@ -192,6 +192,7 @@ export async function analyze(
     }
     let extracted = 0
     let omittedConsumers = 0
+    let orphanDeletions = 0
     /** Prefer direct consumers before distant opaque application plumbing when retaining one example. */
     const downstream = new Map<string, Set<string>>()
     for (const graph of [before.graph, after.graph])
@@ -221,6 +222,15 @@ export async function analyze(
       if (++extracted % 32 === 0) reclaimMemory()
       if (!scoped(file, config) && !infrastructure(file, config)) continue
       if ([...renames.values()].includes(file) && !after.entries.has(file)) continue
+      if (
+        !after.entries.has(file) &&
+        file.includes('/components/') &&
+        /\.[jt]sx$/.test(file) &&
+        before.graph.usages(file).every((usage) => !after.entries.has(usage.location.file))
+      ) {
+        orphanDeletions++
+        continue
+      }
       if (
         !changed.has(file) &&
         indirectExamples > 0 &&
@@ -283,6 +293,10 @@ export async function analyze(
         ...report.limitations,
         `Indirect analysis omitted for ${omittedConsumers} unchanged files after the PR qualified and a nearby rendering consumer was examined. All in-scope changed files were analyzed; additional indirect effects are not exhaustively catalogued. Categories describe retained evidence; usage counts remain partial resolved references.`,
       ]
+    if (orphanDeletions)
+      report.limitations.push(
+        `${orphanDeletions} deleted component modules had no resolved static references outside deleted files. Runtime use is unestablished; these removals do not qualify on their own.`
+      )
     for (const file of changed) {
       if (file !== 'bun.lock' && !file.endsWith('/package.json') && file !== 'package.json')
         continue

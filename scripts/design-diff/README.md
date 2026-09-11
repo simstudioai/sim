@@ -36,10 +36,15 @@ that every rendered pixel is unchanged.
 | Additional dropdown options, rows or controls repeating existing appearance | Exempt |
 | Copy, progress/error labels, pricing/privacy wording, documentation prose | Exempt |
 | Icons, images, screenshots, inline SVG and media element dimensions | Exempt |
+| Font files and font-face changes | Flag |
 | Runtime conditions, functional visibility, option data, unknown component props | Exempt |
 | Coordinates or translation alone | Exempt |
 | Unknown calls, parser/expression limits, plugins and dependency version changes alone | Exempt; retain coverage notes |
 | Comments, erased types, supported formatting/constant hoists/local renames | Exempt |
+
+Deleting a shared control also exempts its standard appearance props. Deleted component modules
+with no resolved references outside other deleted files are treated as unestablished runtime use,
+not designer notifications. Route entry files and active component removals retain normal analysis.
 
 A new `<Button variant="primary" size="sm"/>` uses shared appearance and is exempt.
 Adding `<Button className="rounded-none p-6"/>` introduces a custom override and flags.
@@ -89,13 +94,14 @@ matching is approximate. Changes to unused authored styles and inactive variants
 runtime-only effects and unsupported rendering may be missed by this precision-oriented policy.
 
 The scope covers product, landing pages, emails, documentation presentation, desktop and shared
-components/themes under `apps/` and `packages/`. Tests, fixtures, public assets and server sandbox
-bundles are excluded. Media component modules remain available to import resolution so excluding
+components/themes under `apps/` and `packages/`. Tests, fixtures, public image/media assets and server sandbox
+bundles are excluded. Font assets remain in scope. Recognized media import modules and resolved icon origins handle aliases.
+Media component modules remain available to import resolution so excluding
 an Icon does not break resolution of Button through the same barrel.
 
 ## Report contract
 
-Schema **3.0.0**, engine **0.5.0**, policy **5.0.0**. The schema remains compatible; the policy
+Schema **3.0.0**, engine **0.5.1**, policy **5.0.0**. The schema remains compatible; the policy
 meaning changes. Readers must inspect versions when comparing historical qualification rates.
 All decisions and identifiers are deterministic for the same engine/configuration and commits.
 Execution timing and peak memory are recorded separately by the benchmark, never in engine JSON.

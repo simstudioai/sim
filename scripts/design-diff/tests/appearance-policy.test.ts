@@ -111,4 +111,63 @@ describe('designer notification policy', () => {
       (await compareFiles({ [shared]: source('red') }, { [shared]: source('blue') })).flagged
     ).toBe(true)
   })
+
+  it.each([
+    [
+      'lucide-react',
+      'export const Page=()=> <Glyph className="size-4"/>',
+      'export const Page=()=> <Glyph className="size-8"/>',
+    ],
+    [
+      'next/image',
+      'export const Page=()=> <Glyph width={100}/>',
+      'export const Page=()=> <Glyph width={200}/>',
+    ],
+  ])('recognizes aliased media imports from %s', async (module, a, b) => {
+    const prefix = `import Glyph from '${module}';`
+    expect((await compareFiles({ [file]: prefix + a }, { [file]: prefix + b })).flagged).toBe(false)
+  })
+
+  it('exempts deleting a standard branded documentation card', async () => {
+    const doc = 'apps/docs/content/evernote.mdx'
+    const source =
+      'import {BlockInfoCard} from "@/components/ui/block-info-card"\n\n<BlockInfoCard type="evernote" color="#FFFFFF"/>'
+    expect((await compareFiles({ [doc]: source }, { [doc]: null })).flagged).toBe(false)
+    expect(
+      (await compareFiles({ [doc]: source }, { [doc]: source.replace('#FFFFFF', '#FF0000') }))
+        .flagged
+    ).toBe(false)
+  })
+
+  it('flags an appearance override added to an existing MDX component', async () => {
+    const doc = 'apps/docs/content/page.mdx'
+    expect(
+      (await compareFiles({ [doc]: '<Callout/>' }, { [doc]: '<Callout variant="compact"/>' }))
+        .flagged
+    ).toBe(true)
+  })
+
+  it('exempts deleted orphan component clusters but retains active component removals', async () => {
+    const a = 'apps/sim/components/unused.tsx'
+    const b = 'apps/sim/components/unused-wrapper.tsx'
+    const files = {
+      [a]: 'export const Unused=()=> <div className="p-2"/>',
+      [b]: 'import {Unused} from "./unused";export const Wrapper=()=> <Unused/>',
+    }
+    expect((await compareFiles(files, { [a]: null, [b]: null })).flagged).toBe(false)
+    expect((await compareFiles(files, { [a]: null })).flagged).toBe(true)
+  })
+
+  it('retains font replacements while ignoring binary image replacements', async () => {
+    const font = 'apps/sim/public/brand/font.woff2'
+    const image = 'apps/sim/public/brand/cover.png'
+    expect(
+      (await compareFiles({ [font]: Buffer.from([0, 1, 2]) }, { [font]: Buffer.from([0, 1, 3]) }))
+        .flagged
+    ).toBe(true)
+    expect(
+      (await compareFiles({ [image]: Buffer.from([0, 1, 2]) }, { [image]: Buffer.from([0, 1, 3]) }))
+        .flagged
+    ).toBe(false)
+  })
 })

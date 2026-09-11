@@ -41,7 +41,7 @@ it('detects changes after a preview and produces byte-identical bounded reports'
 it('keeps failures distinguishable after serialization', () => {
   expect(JSON.parse(serializeReport(emptyReport()))).toMatchObject({
     schemaVersion: '3.0.0',
-    engineVersion: '0.5.0',
+    engineVersion: '0.5.1',
     policyVersion: '5.0.0',
     status: 'failed',
     flagged: null,

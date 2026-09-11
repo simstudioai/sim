@@ -5,7 +5,7 @@ import remarkMdx from 'remark-mdx'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { appearanceAttributes, mediaElement } from '#design-diff/appearance'
-import { canonical, semanticSource } from '#design-diff/ast'
+import { canonical, parseSource, propertyName, semanticSource } from '#design-diff/ast'
 import { documentPresentation } from '#design-diff/document-content'
 import { cssValue, extractCss } from '#design-diff/extract/css'
 import type { Resolver } from '#design-diff/resolve'
@@ -134,8 +134,46 @@ export function extractDocument(
       .map((node) => ('value' in node ? String(node.value) : ''))
       .join('\n')
     if (appearanceOnly) {
+      const bindings = new Map<string, { module: string; name: string }>()
+      for (const statement of parseSource(imports, `${file}.tsx`).program.body) {
+        if (statement.type !== 'ImportDeclaration') continue
+        for (const specifier of statement.specifiers)
+          bindings.set(specifier.local.name, {
+            module: statement.source.value,
+            name:
+              specifier.type === 'ImportSpecifier'
+                ? propertyName(specifier.imported)
+                : specifier.type === 'ImportNamespaceSpecifier'
+                  ? '*'
+                  : 'default',
+          })
+      }
       const walk = (node: Record<string, Data>) => {
         if (typeof node.name === 'string' && mediaElement.test(node.name)) return
+        const imported =
+          typeof node.name === 'string' ? bindings.get(node.name.split('.')[0]) : undefined
+        if (
+          imported &&
+          resolver?.tree.config.mediaModules?.some(
+            (module) => imported.module === module || imported.module.startsWith(`${module}/`)
+          )
+        )
+          return
+        const content =
+          imported &&
+          resolver?.tree.config.documentationContent?.components.find(
+            (component) =>
+              component.module === imported.module &&
+              component.names.includes(
+                imported.name === '*' && typeof node.name === 'string'
+                  ? node.name.split('.')[1]
+                  : imported.name
+              )
+          )
+        if (typeof node.name === 'string') {
+          emit('markup', null, 1, 1, node.name)
+          result[result.length - 1].appearance = { element: node.name }
+        }
         if (Array.isArray(node.attributes)) {
           const position = node.position as
             | { start?: { line?: number; column?: number } }
@@ -146,6 +184,7 @@ export function extractDocument(
               typeof item !== 'object' ||
               Array.isArray(item) ||
               typeof item.name !== 'string' ||
+              (content && content.contentProps.includes(item.name)) ||
               !appearanceAttributes.test(item.name)
             )
               continue

@@ -4,9 +4,10 @@
     "(?:^|/)(?:node_modules|__tests__|__fixtures__|fixtures|test-results|\\.source|dist|build)/",
     "\\.(?:test|spec)\\.[cm]?[jt]sx?$",
     "(?:^|/)next-env\\.d\\.ts$",
-    "(?:^|/)public/",
+    "(?:^|/)public/(?!.*\\.(?:woff2?|ttf|otf|eot)$)",
     "(?:^|/)sandbox/bundles/"
   ],
+  "mediaModules": ["lucide-react", "react-icons", "next/image", "next/legacy/image"],
   "renderedMarkdown": ["apps/docs/content/", "apps/sim/content/"],
   "aliases": [
     {
@@ -158,7 +159,7 @@
       {
         "module": "@/components/ui/block-info-card",
         "names": ["BlockInfoCard"],
-        "contentProps": ["type"]
+        "contentProps": ["type", "color"]
       },
       {
         "module": "@/components/ui/command-table",

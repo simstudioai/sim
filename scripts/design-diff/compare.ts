@@ -137,15 +137,18 @@ export function compareDefinitions(
         pairs.push([removals[index], additions[index]])
     }
     for (const [a, b] of pairs) {
-      if (!a && b?.kind === 'attribute' && b.appearance?.shared) {
-        const element = b.appearance.element?.replace(/:\d+$/, '')
+      const unpaired = !a ? b : !b ? a : undefined
+      if (unpaired?.kind === 'attribute' && unpaired.appearance?.shared) {
+        const element = unpaired.appearance.element?.replace(/:\d+$/, '')
         const count = (definitions: Definition[]) =>
           definitions.filter(
             (definition) =>
               definition.kind === 'markup' &&
               definition.appearance?.element?.replace(/:\d+$/, '') === element
           ).length
-        if (!count(before) || count(after) > count(before)) continue
+        const existing = !a ? before : after
+        const added = !a ? after : before
+        if (!count(existing) || count(added) > count(existing)) continue
       }
       if (a && b && (signature(a) === signature(b) || sameAppearance(a, b))) continue
       if ((!a || appearance(a) === undefined) && (!b || appearance(b) === undefined)) continue

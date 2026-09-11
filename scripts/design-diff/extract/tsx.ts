@@ -41,11 +41,25 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
       if (mediaElement.test(name)) return true
       const binding = node.scope.getBinding(name.split('.')[0])
       const declaration = binding?.path.parentPath
-      if (
-        declaration?.isImportDeclaration() &&
-        /(?:^|\/)icons?(?:\/|$)/.test(declaration.node.source.value)
-      )
-        return true
+      if (declaration?.isImportDeclaration()) {
+        const module = declaration.node.source.value
+        if (
+          /(?:^|\/)icons?(?:\/|$)/.test(module) ||
+          resolver.tree.config.mediaModules?.some(
+            (prefix) => module === prefix || module.startsWith(`${prefix}/`)
+          )
+        )
+          return true
+        const imported = binding?.path.isImportSpecifier()
+          ? propertyName(binding.path.node.imported)
+          : 'default'
+        const origin = resolver.tree.graph?.imported(file, module, imported)
+        if (
+          origin?.origins.length &&
+          origin.origins.every((item) => /(?:^|\/)icons?(?:\/|\.[cm]?[jt]sx?$)/.test(item.file))
+        )
+          return true
+      }
     }
     return false
   }

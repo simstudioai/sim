@@ -5,6 +5,15 @@ export function category(definition: Definition): Category {
   const property = definition.property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
   if (definition.property === 'infrastructure') return 'infrastructure'
   if (definition.kind === 'review') return 'unresolved'
+  if (
+    (definition.kind === 'asset' && /\.(?:woff2?|ttf|otf|eot)$/i.test(definition.location.file)) ||
+    (definition.kind === 'css' &&
+      definition.property === 'src' &&
+      definition.conditions.some(
+        (condition) => typeof condition === 'string' && condition.startsWith('@font-face')
+      ))
+  )
+    return 'typography'
   if (definition.kind === 'asset' || definition.kind === 'content' || definition.kind === 'markup')
     return 'content'
   if (/^(?:src|src-set|alt|title|placeholder|d|points|view-box)$/.test(property)) return 'content'
