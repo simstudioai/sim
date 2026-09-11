@@ -9,9 +9,9 @@ try {
     readFileSync(path.join(engine, 'scripts/design-diff/benchmark/comparisons.json'), 'utf8')
   )
   const shard = Number(process.env.SHARD)
-  if (!Number.isInteger(shard) || shard < 0 || shard >= 20) throw new Error('Invalid shard')
+  if (!Number.isInteger(shard) || shard < 0 || shard >= 60) throw new Error('Invalid shard')
   manifest.comparisons = manifest.comparisons.filter(
-    (entry: { sampleOrder: number }) => entry.sampleOrder % 20 === shard
+    (entry: { sampleOrder: number }) => entry.sampleOrder % 60 === shard
   )
   const commits = [
     ...new Set<string>(
