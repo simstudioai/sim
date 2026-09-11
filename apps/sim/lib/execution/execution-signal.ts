@@ -2,11 +2,31 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import Redis, { type RedisOptions } from 'ioredis'
-import { getConfiguredRedisUrl, getRedisConnectionDefaults } from '@/lib/core/config/redis'
+import {
+  coldConnectionBudgetMs,
+  getConfiguredRedisUrl,
+  getRedisConnectionDefaults,
+} from '@/lib/core/config/redis'
 
 const logger = createLogger('ExecutionSignalHub')
 const EXECUTION_SIGNAL_PREFIX = 'execution:signal:'
-const SUBSCRIBER_TIMEOUT_MS = 5000
+/**
+ * Tight, because this client only ever issues `SUBSCRIBE`/`UNSUBSCRIBE`, and
+ * only once the connection is ready — sub-millisecond commands that never sit
+ * in the offline queue behind a handshake. Its main job is bounding how long a
+ * dead handshake takes to be diagnosed and torn down.
+ */
+const SUBSCRIBER_COMMAND_TIMEOUT_MS = 2_000
+const subscriberRetryDelayMs = (attempt: number): number => Math.min(attempt * 500, 5000)
+/**
+ * Room for two dead handshakes and then a healthy one, so ioredis's own
+ * reconnect can be what rescues a stalled connection instead of the wait
+ * expiring while the first attempt is still being diagnosed.
+ */
+export const SUBSCRIBER_READY_TIMEOUT_MS = coldConnectionBudgetMs({
+  commandTimeoutMs: SUBSCRIBER_COMMAND_TIMEOUT_MS,
+  retryDelaysMs: [1, 2].map(subscriberRetryDelayMs),
+})
 export const LEGACY_EXECUTION_CANCEL_CHANNEL = 'execution:cancel'
 
 export type ExecutionSignalReason = 'event' | 'cancelled' | 'reconnected' | 'unavailable'
@@ -19,6 +39,8 @@ interface ChannelSubscription {
 
 export interface ExecutionSignalHub {
   subscribe(executionId: string, handler: ExecutionSignalHandler): Promise<() => void>
+  /** Resolves `true` once the hub can deliver signals, `false` if that could not be established in time. Never rejects. */
+  warm(): Promise<boolean>
 }
 
 export function getExecutionSignalChannel(executionId: string): string {
@@ -35,10 +57,10 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
   constructor(redisUrl: string) {
     const options = {
       ...getRedisConnectionDefaults(redisUrl),
-      commandTimeout: SUBSCRIBER_TIMEOUT_MS,
+      commandTimeout: SUBSCRIBER_COMMAND_TIMEOUT_MS,
       connectionName: 'execution-signal-hub',
       maxRetriesPerRequest: null,
-      retryStrategy: (attempt: number) => Math.min(attempt * 500, 5000),
+      retryStrategy: subscriberRetryDelayMs,
     } satisfies RedisOptions
     this.subscriber = new Redis(redisUrl, options)
     this.subscriber.on('message', (channel: string, message: string) => {
@@ -109,6 +131,24 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     }
   }
 
+  async warm(): Promise<boolean> {
+    try {
+      while (this.subscriber.status !== 'ready') {
+        await this.waitForConnectionReady()
+      }
+      return true
+    } catch (error) {
+      logger.warn(
+        'Execution signal subscriber warm-up gave up; first subscribe will pay the handshake',
+        {
+          error: toError(error).message,
+          status: this.subscriber.status,
+        }
+      )
+      return false
+    }
+  }
+
   private createSubscription(channels: string[]): ChannelSubscription {
     const subscription: ChannelSubscription = {
       acknowledged: false,
@@ -154,7 +194,7 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
       const onEnd = () => fail(new Error('Redis subscriber connection ended'))
       const timeout = setTimeout(
         () => fail(new Error('Timed out waiting for Redis subscriber readiness')),
-        SUBSCRIBER_TIMEOUT_MS
+        SUBSCRIBER_READY_TIMEOUT_MS
       )
       this.subscriber.once('ready', onReady)
       this.subscriber.once('end', onEnd)
@@ -212,6 +252,10 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
 class LocalExecutionSignalHub implements ExecutionSignalHub {
   private readonly handlers = new Map<string, Set<ExecutionSignalHandler>>()
 
+  warm(): Promise<boolean> {
+    return Promise.resolve(true)
+  }
+
   async subscribe(executionId: string, handler: ExecutionSignalHandler): Promise<() => void> {
     const channel = getExecutionSignalChannel(executionId)
     let channelHandlers = this.handlers.get(channel)
@@ -259,6 +303,24 @@ export function getExecutionSignalHub(): ExecutionSignalHub {
   }
   executionSignalGlobal._executionSignalHub = new RedisExecutionSignalHub(redisUrl)
   return executionSignalGlobal._executionSignalHub
+}
+
+/**
+ * Establishes the hub's subscriber connection ahead of the first execution, so
+ * a run's cancellation subscription does not pay the handshake inside its own
+ * readiness budget. Never throws: this runs from process start-up hooks where
+ * a throw would fail the run, and a cold hub is only slower, not wrong.
+ */
+export async function warmExecutionSignalHub(): Promise<boolean> {
+  let hub: ExecutionSignalHub
+  try {
+    hub = getExecutionSignalHub()
+  } catch {
+    // A misconfigured URL belongs to the first real subscriber, which can report
+    // it against the execution that needed signals.
+    return false
+  }
+  return hub.warm()
 }
 
 export function publishLocalExecutionSignal(

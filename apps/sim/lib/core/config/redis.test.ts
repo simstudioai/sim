@@ -48,10 +48,12 @@ vi.mock('ioredis', () => ({
 import {
   acquireLock,
   closeRedisConnection,
+  coldConnectionBudgetMs,
   describeRedisConnection,
   extendLock,
   getRedisClient,
   onRedisReconnect,
+  REDIS_WARMUP_TIMEOUT_MS,
   resetForTesting,
   warmRedisConnection,
 } from '@/lib/core/config/redis'
@@ -471,7 +473,44 @@ describe('redis config', () => {
     })
   })
 
+  describe('coldConnectionBudgetMs', () => {
+    it('charges two command deadlines per dead handshake, plus each reconnect delay', () => {
+      // SETNAME/SETINFO gate the INFO ready check, and on a dead socket they
+      // settle only by timing out — so a dead attempt costs 2x, not 1x.
+      expect(coldConnectionBudgetMs({ commandTimeoutMs: 2_000, retryDelaysMs: [500, 1_000] })).toBe(
+        2 * 2_000 + 500 + 2 * 2_000 + 1_000 + 1_000
+      )
+    })
+
+    it('leaves only the healthy-handshake allowance when no dead attempts are tolerated', () => {
+      expect(coldConnectionBudgetMs({ commandTimeoutMs: 5_000, retryDelaysMs: [] })).toBe(1_000)
+    })
+  })
+
   describe('warmRedisConnection', () => {
+    it('outlasts one dead handshake so the reconnect can be what warms it', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+
+      // Two command deadlines to diagnose the dead socket, then the longest
+      // first reconnect delay: the moment a healthy second attempt can begin.
+      await vi.advanceTimersByTimeAsync(2 * 5_000 + 1_300)
+      const client = getRedisClient()
+      Object.assign(client ?? {}, { status: 'ready' })
+      client?.emit('ready')
+
+      await expect(warm).resolves.toBe(true)
+    })
+
+    it('still gives up once the budget is spent', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+
+      await vi.advanceTimersByTimeAsync(REDIS_WARMUP_TIMEOUT_MS)
+
+      await expect(warm).resolves.toBe(false)
+    })
+
     it('resolves immediately when the connection is already usable', async () => {
       mockRedisInstance.status = 'ready'
 

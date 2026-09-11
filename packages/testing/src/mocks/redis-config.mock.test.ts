@@ -23,6 +23,18 @@ describe('redis-config mock', () => {
     })
   })
 
+  it('mirrors the real cold-connection budget arithmetic', () => {
+    // Two command deadlines per dead handshake, its reconnect delay, then a
+    // healthy-handshake allowance — the same formula the real module uses, so
+    // a budget derived under this mock is the number production would derive.
+    expect(
+      redisConfigMock.coldConnectionBudgetMs({
+        commandTimeoutMs: 2_000,
+        retryDelaysMs: [500, 1_000],
+      })
+    ).toBe(2 * 2_000 + 500 + 2 * 2_000 + 1_000 + 1_000)
+  })
+
   it('resetRedisConfigMock restores defaults after overrides', async () => {
     const fakeClient = { ping: () => 'PONG' }
     redisConfigMockFns.mockGetConfiguredRedisUrl.mockReturnValue('redis://localhost:6379')

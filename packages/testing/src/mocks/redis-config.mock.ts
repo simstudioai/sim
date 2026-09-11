@@ -44,6 +44,22 @@ function getRedisConnectionDefaultsImpl(url?: string): {
 }
 
 /**
+ * Mirrors the real `coldConnectionBudgetMs`: pure arithmetic with no I/O, and
+ * evaluated at module load by consumers deriving their readiness budgets, so
+ * the mock has to answer it for those modules to import at all.
+ */
+function coldConnectionBudgetMsImpl(options: {
+  commandTimeoutMs: number
+  retryDelaysMs: readonly number[]
+}): number {
+  const recovery = options.retryDelaysMs.reduce(
+    (total, retryDelayMs) => total + 2 * options.commandTimeoutMs + retryDelayMs,
+    0
+  )
+  return recovery + 1_000
+}
+
+/**
  * Mirrors the real `describeRedisConnection` under its Redis-unavailable
  * default: no client, no lifecycle history, and nothing derivable from an
  * unset REDIS_URL.
@@ -91,6 +107,7 @@ export const redisConfigMockFns = {
   mockCloseRedisConnection: vi.fn().mockResolvedValue(undefined),
   mockResetForTesting: vi.fn(),
   mockDescribeRedisConnection: vi.fn(describeRedisConnectionImpl),
+  mockColdConnectionBudgetMs: vi.fn(coldConnectionBudgetMsImpl),
 }
 
 /**
@@ -108,6 +125,9 @@ export function resetRedisConfigMock(): void {
   redisConfigMockFns.mockExtendLock.mockReset().mockResolvedValue(true)
   redisConfigMockFns.mockCloseRedisConnection.mockReset().mockResolvedValue(undefined)
   redisConfigMockFns.mockResetForTesting.mockReset()
+  redisConfigMockFns.mockColdConnectionBudgetMs
+    .mockReset()
+    .mockImplementation(coldConnectionBudgetMsImpl)
   redisConfigMockFns.mockDescribeRedisConnection
     .mockReset()
     .mockImplementation(describeRedisConnectionImpl)
@@ -133,4 +153,5 @@ export const redisConfigMock = {
   closeRedisConnection: redisConfigMockFns.mockCloseRedisConnection,
   resetForTesting: redisConfigMockFns.mockResetForTesting,
   describeRedisConnection: redisConfigMockFns.mockDescribeRedisConnection,
+  coldConnectionBudgetMs: redisConfigMockFns.mockColdConnectionBudgetMs,
 }
