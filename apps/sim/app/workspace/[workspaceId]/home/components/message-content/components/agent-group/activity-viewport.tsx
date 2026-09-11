@@ -1,7 +1,7 @@
 'use client'
 
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react'
+import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 
 interface ActivityViewportProps {
   children: ReactNode
@@ -21,7 +21,7 @@ export function ActivityViewport({
   const rafRef = useRef<number | null>(null)
   const stickToBottomRef = useRef(true)
   const prevScrollTopRef = useRef(0)
-  const [hasOverflow, setHasOverflow] = useState(false)
+  const edges = useScrollEdges(ref, { enabled: !unbounded })
 
   useEffect(() => {
     if (unbounded) {
@@ -30,8 +30,7 @@ export function ActivityViewport({
     }
     const el = ref.current
     if (!el) return
-    // Upward user input detaches auto-stick; a downward scroll reaching the
-    // bottom re-attaches it (a small upward flick can't re-stick itself).
+    /** Upward input detaches auto-stick; reaching the bottom while scrolling down resumes it. */
     const handleWheel = (e: WheelEvent) => {
       if (e.deltaY < 0) stickToBottomRef.current = false
     }
@@ -51,20 +50,11 @@ export function ActivityViewport({
   }, [unbounded])
 
   useLayoutEffect(() => {
-    const el = ref.current
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-    if (unbounded) {
-      setHasOverflow(false)
-      return
-    }
-    if (el) {
-      const next = el.scrollHeight > el.clientHeight
-      setHasOverflow((prev) => (prev === next ? prev : next))
-    }
-    if (!isStreaming) return
+    if (unbounded || !isStreaming) return
     const tick = () => {
       const node = ref.current
       if (!node || !stickToBottomRef.current) {
@@ -90,23 +80,17 @@ export function ActivityViewport({
   })
 
   return (
-    <div className='relative'>
-      <div
-        ref={ref}
-        className={cn(
-          'pr-2',
-          !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
-          hasOverflow && 'py-1'
-        )}
-      >
-        {children}
-      </div>
-      {!unbounded && hasOverflow && (
-        <>
-          <div className='pointer-events-none absolute top-0 right-2 left-0 h-3 bg-linear-to-b from-[var(--bg)] to-transparent' />
-          <div className='pointer-events-none absolute right-2 bottom-0 left-0 h-3 bg-linear-to-t from-[var(--bg)] to-transparent' />
-        </>
+    <div
+      ref={ref}
+      className={cn(
+        'pr-2',
+        !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
+        scrollFadeClass,
+        (edges.top || edges.bottom) && 'py-1'
       )}
+      {...scrollFadeAttributes(edges)}
+    >
+      {children}
     </div>
   )
 }

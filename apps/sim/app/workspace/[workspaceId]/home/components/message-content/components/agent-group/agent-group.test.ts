@@ -111,10 +111,14 @@ describe('AgentGroup inline main activity', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
+    document.body.appendChild(container)
     root = createRoot(container)
   })
 
-  afterEach(() => act(() => root.unmount()))
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
 
   it('replaces the active status in place and expands the full completed history', () => {
     const first: AgentGroupItem = {
@@ -206,8 +210,10 @@ describe('AgentGroup inline main activity', () => {
     )
   })
 
-  it('starts a fresh countdown when the latest wait tool changes', () => {
+  it('shares one countdown and preserves the viewport across active tool changes', () => {
     vi.useFakeTimers()
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval')
     try {
       const wait: AgentGroupItem = {
         type: 'tool',
@@ -233,12 +239,36 @@ describe('AgentGroup inline main activity', () => {
       render([wait])
       act(() => vi.advanceTimersByTime(2000))
       expect(container.textContent).toBe('Waiting 1s')
+      const header = container.querySelector('button')
+      act(() => header?.click())
+      expect(header?.hasAttribute('aria-label')).toBe(false)
+      expect(header?.textContent).toBe('Waiting 1s')
+      expect(header).toHaveAccessibleName('Waiting 1s')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe('Waiting 1s')
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1)
+      act(() => header?.click())
+      act(() => header?.click())
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe('Waiting 1s')
+      const viewport = container.querySelector('.overflow-y-auto')
       render([
         { ...wait, data: { ...wait.data, status: 'success' } },
         { ...wait, data: { ...wait.data, id: 'wait-second' } },
       ])
-      expect(container.textContent).toBe('Waiting 3s')
+      expect(header?.textContent).toBe('Waiting 3s')
+      expect(header).toHaveAccessibleName('Waiting 3s')
+      expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe('WaitedWaiting 3s')
+      expect(setIntervalSpy).toHaveBeenCalledTimes(2)
+      render([
+        { ...wait, data: { ...wait.data, status: 'success' } },
+        { ...wait, data: { ...wait.data, id: 'wait-second', status: 'success' } },
+      ])
+      expect(header?.textContent).toBe('Waited')
+      expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
+      expect(clearIntervalSpy).toHaveBeenCalledTimes(2)
     } finally {
+      setIntervalSpy.mockRestore()
+      clearIntervalSpy.mockRestore()
       vi.clearAllTimers()
       vi.useRealTimers()
     }
@@ -256,9 +286,10 @@ describe('AgentGroup inline main activity', () => {
           type: 'tool',
           data: {
             id: 'run',
-            toolName: 'terminal_run',
+            toolName: 'terminal',
             displayTitle: 'Running checks',
             status: 'success',
+            params: { operation: 'run' },
           },
         },
       ]
@@ -274,7 +305,8 @@ describe('AgentGroup inline main activity', () => {
         )
       )
       const header = container.querySelector('button')
-      expect(header?.getAttribute('aria-label')).toBe('Agent — Read files, ran commands')
+      expect(header?.textContent).toBe('Agent — Read files, ran commands')
+      expect(header).toHaveAccessibleName('Agent — Read files, ran commands')
       expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
       act(() => header?.click())
       expect(
@@ -309,8 +341,10 @@ describe('AgentGroup inline main activity', () => {
               },
             ]),
           ],
-          ToolCallComponent: ({ toolCallId, displayTitle }: ToolCallItemProps) =>
-            createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle),
+          ToolCallComponent: ({ toolCallId, displayTitle, renderStatus }: ToolCallItemProps) => {
+            const status = createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle)
+            return renderStatus ? renderStatus(status) : status
+          },
         })
       )
     )
@@ -413,8 +447,10 @@ describe('AgentGroup inline main activity', () => {
           agentLabel: 'Sim',
           items,
           isStreaming: true,
-          ToolCallComponent: ({ toolCallId, displayTitle }: ToolCallItemProps) =>
-            createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle),
+          ToolCallComponent: ({ toolCallId, displayTitle, renderStatus }: ToolCallItemProps) => {
+            const status = createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle)
+            return renderStatus ? renderStatus(status) : status
+          },
         })
       )
     })

@@ -53,6 +53,37 @@ describe('getToolActivitySummary', () => {
     ).toBe('Read project notes')
   })
 
+  it.each([
+    ['skipped', 'Skipped running checks'],
+    ['interrupted', 'Stopped running checks'],
+  ] as const)('labels a single %s tool as finished', (status, expected) => {
+    expect(
+      getToolActivitySummary([{ ...tool('terminal', status), displayTitle: 'Running checks' }])
+    ).toBe(expected)
+  })
+
+  it('keeps unknown tools visible with a neutral summary', () => {
+    expect(getToolActivitySummary([tool('future_tool'), tool('browser_future_action')])).toBe(
+      'Used tools, used the browser'
+    )
+  })
+
+  it('describes current browser and workflow tools', () => {
+    expect(
+      getToolActivitySummary([
+        tool('browser_open_url'),
+        tool('browser_fill_form'),
+        tool('browser_insert_text'),
+        tool('read_document'),
+        tool('run_workflow'),
+        tool('deploy_as_api'),
+        tool('table_rows'),
+      ])
+    ).toBe(
+      'Navigated pages, filled forms, entered text, read documents, ran workflows, deployed workflows, used tables'
+    )
+  })
+
   it('describes terminal runs from their operation', () => {
     expect(
       getToolActivitySummary([{ ...tool('terminal'), params: { operation: 'run' } }, tool('read')])

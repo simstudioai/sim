@@ -1,11 +1,10 @@
 'use client'
 
-import { type ComponentType, type ReactNode, useId, useMemo, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { type ComponentType, type ReactNode, useMemo, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
-import { ActivityViewport } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-viewport'
+import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
 import { BrowserAgentIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
 import { MainAgentActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
@@ -77,7 +76,6 @@ function collectGroupTools(items: AgentGroupItem[]): ToolCallData[] {
 function hasPendingInteraction(items: AgentGroupItem[]): boolean {
   return items.some((item) => {
     if (item.type === 'tool') return needsToolInput(item.data)
-    // Text rows carry no tool calls, so only nested groups need recursing into.
     return item.type === 'agent_group' ? hasPendingInteraction(item.group.items) : false
   })
 }
@@ -152,7 +150,6 @@ export function AgentGroupView({
   ToolCallComponent,
   renderBrowserTakeover,
 }: AgentGroupViewProps) {
-  const contentId = useId()
   const AgentIcon = getAgentIcon(agentName)
   const agentIcon =
     agentName === 'browser' ? (
@@ -194,9 +191,7 @@ export function AgentGroupView({
   const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   const pendingInteraction = hasPendingInteraction(items)
-  // An outstanding permission prompt overrides a manual collapse: the turn
-  // cannot proceed until it is answered, so hiding it would deadlock the chat
-  // with nothing on screen to explain why.
+  /** Blocking interactions override manual collapse so the user can resume the turn. */
   const expanded =
     pendingInteraction ||
     nestedBrowserTakeover ||
@@ -238,6 +233,7 @@ export function AgentGroupView({
           isDelegating={item.group.isDelegating}
           isStreaming={isStreaming}
           isLaneOpen={item.group.isOpen}
+          autoScrollActivity={autoScrollActivity}
         />
       )
     }
@@ -271,42 +267,22 @@ export function AgentGroupView({
   )
 
   return (
-    <div className='flex flex-col gap-1.5'>
-      {isMainAgent ? null : hasItems ? (
-        <button
-          type='button'
-          aria-label={headerText}
-          aria-expanded={expanded}
-          aria-controls={contentId}
-          onClick={toggleExpanded}
-          className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
-        >
-          {header}
-          <ChevronDown
-            className={cn(
-              'size-[14px] shrink-0 text-[var(--text-icon)] transition-[transform,opacity] duration-150',
-              !expanded &&
-                '-rotate-90 opacity-0 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100'
-            )}
-          />
-        </button>
-      ) : (
-        header
-      )}
+    <div className='flex min-w-0 flex-col gap-1.5'>
       {isMainAgent ? (
         activity
       ) : hasItems ? (
-        <Expandable expanded={expanded}>
-          <ExpandableContent id={contentId}>
-            <ActivityViewport
-              isStreaming={isStreaming && autoScrollActivity}
-              unbounded={pendingInteraction || nestedBrowserTakeover}
-            >
-              {activity}
-            </ActivityViewport>
-          </ExpandableContent>
-        </Expandable>
-      ) : null}
+        <ActivityDisclosure
+          header={header}
+          expanded={expanded}
+          onToggle={toggleExpanded}
+          isStreaming={isStreaming && autoScrollActivity}
+          unbounded={pendingInteraction || nestedBrowserTakeover}
+        >
+          {activity}
+        </ActivityDisclosure>
+      ) : (
+        header
+      )}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
           {renderBrowserTakeover?.(activeBrowserTakeover.reason)}

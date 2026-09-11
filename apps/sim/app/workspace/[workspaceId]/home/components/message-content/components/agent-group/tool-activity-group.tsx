@@ -1,16 +1,16 @@
 'use client'
 
-import { type ComponentType, useId, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
-import { ActivityViewport } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-viewport'
+import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
-const ACTIVITY_LABELS: Record<string, string> = {
+const ACTIVITY_LABELS: Readonly<Record<string, string>> = {
   read: 'read files',
+  read_document: 'read documents',
   glob: 'found files',
   grep: 'searched files',
   web_search: 'searched the web',
@@ -23,6 +23,10 @@ const ACTIVITY_LABELS: Record<string, string> = {
   apply_file_edit: 'edited files',
   create_workflow: 'created workflows',
   edit_workflow: 'edited workflows',
+  run_workflow: 'ran workflows',
+  run_workflow_until_block: 'ran workflows',
+  deploy_as_api: 'deployed workflows',
+  table_rows: 'used tables',
   terminal: 'used the terminal',
   terminal_run: 'ran commands',
   terminal_input: 'sent terminal input',
@@ -30,6 +34,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   run_function: 'ran code',
   run_code: 'ran code',
   browser_navigate: 'navigated pages',
+  browser_open_url: 'navigated pages',
   browser_open_tab: 'opened tabs',
   browser_switch_tab: 'switched tabs',
   browser_close_tab: 'closed tabs',
@@ -38,14 +43,18 @@ const ACTIVITY_LABELS: Record<string, string> = {
   browser_extract: 'read pages',
   browser_find: 'searched pages',
   browser_click: 'clicked elements',
+  browser_click_at: 'clicked elements',
+  browser_drag: 'dragged elements',
   browser_type: 'entered text',
+  browser_insert_text: 'entered text',
+  browser_fill_form: 'filled forms',
   browser_screenshot: 'captured screenshots',
   browser_scroll: 'scrolled pages',
   browser_select_option: 'selected options',
   browser_set_checked: 'updated selections',
   open_resource: 'opened resources',
   wait: 'waited',
-}
+} as const
 
 /** Summarize completed actions without describing failed or skipped work as successful. */
 export function getToolActivitySummary(tools: ToolCallData[]): string {
@@ -94,7 +103,6 @@ export function ToolActivityGroup({
   ToolCallComponent,
   autoScrollActivity = true,
 }: ToolActivityGroupProps) {
-  const contentId = useId()
   const [expanded, setExpanded] = useState(false)
   let activeTool: ToolCallData | undefined
   for (let index = tools.length - 1; index >= 0; index--) {
@@ -103,50 +111,44 @@ export function ToolActivityGroup({
       break
     }
   }
-  const headerTool = activeTool ?? (tools.length === 1 ? tools[0] : undefined)
-  const summary = headerTool
-    ? getToolStatusDisplayTitle(headerTool.displayTitle, headerTool.status, headerTool.toolName)
-    : getToolActivitySummary(tools)
+  const statusTool = activeTool ?? tools[tools.length - 1]
+  const showToolHeader = Boolean(activeTool) || tools.length === 1
   const SummaryIcon = getToolIcon(tools[0].toolName)
 
   return (
-    <div className='flex min-w-0 flex-col gap-1.5'>
-      <button
-        type='button'
-        aria-label={summary}
-        aria-expanded={expanded}
-        aria-controls={contentId}
-        onClick={() => setExpanded(!expanded)}
-        className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
-      >
-        {headerTool ? (
-          <ToolCallComponent key={headerTool.id} {...headerTool} toolCallId={headerTool.id} />
-        ) : (
-          <ActivityStatus
-            label={summary}
-            isActive={false}
-            icon={<SummaryIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
-          />
-        )}
-        <ChevronDown
-          className={cn(
-            'size-[14px] shrink-0 text-[var(--text-icon)] transition-[transform,opacity] duration-150',
-            !expanded &&
-              '-rotate-90 opacity-0 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100'
-          )}
-        />
-      </button>
-      <Expandable expanded={expanded}>
-        <ExpandableContent id={contentId}>
-          <ActivityViewport isStreaming={Boolean(activeTool) && autoScrollActivity}>
-            <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>
-              {tools.map((tool) => (
-                <ToolCallComponent key={tool.id} {...tool} toolCallId={tool.id} />
-              ))}
-            </div>
-          </ActivityViewport>
-        </ExpandableContent>
-      </Expandable>
-    </div>
+    <ToolCallComponent
+      {...statusTool}
+      toolCallId={statusTool.id}
+      renderStatus={(status) => (
+        <ActivityDisclosure
+          header={
+            showToolHeader ? (
+              status
+            ) : (
+              <ActivityStatus
+                label={getToolActivitySummary(tools)}
+                isActive={false}
+                icon={<SummaryIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+              />
+            )
+          }
+          expanded={expanded}
+          onToggle={() => setExpanded(!expanded)}
+          isStreaming={Boolean(activeTool) && autoScrollActivity}
+        >
+          <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>
+            {tools.map((tool) => (
+              <Fragment key={tool.id}>
+                {tool.id === statusTool.id ? (
+                  status
+                ) : (
+                  <ToolCallComponent {...tool} toolCallId={tool.id} />
+                )}
+              </Fragment>
+            ))}
+          </div>
+        </ActivityDisclosure>
+      )}
+    />
   )
 }

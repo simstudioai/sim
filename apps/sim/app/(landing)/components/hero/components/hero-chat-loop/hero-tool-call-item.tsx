@@ -8,6 +8,7 @@ import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/messa
 /** Demo fixtures have known brands, so the landing page never loads the block registry. */
 export function HeroToolCallItem({
   toolCallId,
+  renderStatus,
   toolName,
   displayTitle,
   status,
@@ -18,11 +19,12 @@ export function HeroToolCallItem({
       : toolCallId === 'hero-read-table'
         ? Table
         : getToolIcon(toolName)
-  return (
+  const activity = (
     <ActivityStatus
       label={getToolStatusDisplayTitle(displayTitle, status, toolName)}
       isActive={status === 'executing'}
       icon={Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
     />
   )
+  return renderStatus ? renderStatus(activity) : activity
 }

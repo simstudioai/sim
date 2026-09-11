@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import {
@@ -53,6 +53,8 @@ export interface ToolCallItemProps {
   toolCallId?: string
   /** When the call started, used to count down a running `wait`. */
   startedAt?: number
+  /** Projects one computed status into a header and history without duplicating tool state. */
+  renderStatus?: (status: ReactNode) => ReactNode
 }
 
 function stringParam(params: Record<string, unknown> | undefined, key: string): string {
@@ -88,22 +90,23 @@ const COUNTDOWN_TICK_MS = 250
  * mid-countdown instead of restarting; falls back to activation time when the
  * caller has no start to give.
  */
-function useElapsedMs(active: boolean, startedAt: number | undefined): number {
-  const [elapsedMs, setElapsedMs] = useState(0)
+function useElapsedMs(
+  active: boolean,
+  startedAt: number | undefined,
+  toolCallId: string | undefined
+): number {
+  const [sample, setSample] = useState({ toolCallId, elapsedMs: 0 })
 
   useEffect(() => {
-    if (!active) {
-      setElapsedMs(0)
-      return
-    }
+    if (!active) return
     const anchor = startedAt ?? Date.now()
-    const tick = () => setElapsedMs(Date.now() - anchor)
+    const tick = () => setSample({ toolCallId, elapsedMs: Date.now() - anchor })
     tick()
     const interval = setInterval(tick, COUNTDOWN_TICK_MS)
     return () => clearInterval(interval)
-  }, [active, startedAt])
+  }, [active, startedAt, toolCallId])
 
-  return elapsedMs
+  return active && sample.toolCallId === toolCallId ? sample.elapsedMs : 0
 }
 
 /**
@@ -128,6 +131,7 @@ export function ToolCallItem({
   streamingArgs,
   toolCallId,
   startedAt,
+  renderStatus,
 }: ToolCallItemProps) {
   useCustomBlockOverlayVersion()
   const readPath = params?.path
@@ -179,7 +183,7 @@ export function ToolCallItem({
   const isBrowserTakeover = toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
 
   const isCountingDown = toolName === WaitTool.id && isExecuting
-  const elapsedMs = useElapsedMs(isCountingDown, startedAt)
+  const elapsedMs = useElapsedMs(isCountingDown, startedAt, toolCallId)
 
   const liveTitle = isCountingDown
     ? getWaitCountdownTitle(params, elapsedMs)
@@ -236,7 +240,7 @@ export function ToolCallItem({
     )
   }
 
-  return (
+  const activity = (
     <ActivityStatus
       label={title}
       isActive={isExecuting}
@@ -249,4 +253,5 @@ export function ToolCallItem({
       }
     />
   )
+  return renderStatus ? renderStatus(activity) : activity
 }
