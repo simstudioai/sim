@@ -404,13 +404,9 @@ export async function register() {
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
 
-  // Not awaited: both Redis connections are warmed in the background so the
-  // first request that needs one does not pay the handshake inside its own
-  // deadline, but boot never waits on Redis to serve requests that do not touch it.
-  const [{ warmRedisConnection }, { warmExecutionSignalHub }] = await Promise.all([
-    import('@/lib/core/config/redis'),
-    import('@/lib/execution/execution-signal'),
-  ])
+  // Not awaited: the connection is warmed in the background so the first request
+  // that needs Redis does not pay the handshake inside its own command deadline,
+  // but boot never waits on Redis to serve requests that do not touch it.
+  const { warmRedisConnection } = await import('@/lib/core/config/redis')
   void warmRedisConnection()
-  void warmExecutionSignalHub()
 }

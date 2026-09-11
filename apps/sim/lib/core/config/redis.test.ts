@@ -1,4 +1,5 @@
 import { createMockRedis } from '@sim/testing'
+import { coldConnectionBudgetMs } from '@sim/utils/retry'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEnv, MockRedisConstructor, mockLogger } = vi.hoisted(() => ({
@@ -48,13 +49,12 @@ vi.mock('ioredis', () => ({
 import {
   acquireLock,
   closeRedisConnection,
-  coldConnectionBudgetMs,
   describeRedisConnection,
   extendLock,
   getRedisClient,
   onRedisReconnect,
-  REDIS_WARMUP_TIMEOUT_MS,
   resetForTesting,
+  sharedReconnectDelayMs,
   warmRedisConnection,
 } from '@/lib/core/config/redis'
 
@@ -473,17 +473,13 @@ describe('redis config', () => {
     })
   })
 
-  describe('coldConnectionBudgetMs', () => {
-    it('charges two command deadlines per dead handshake, plus each reconnect delay', () => {
-      // SETNAME/SETINFO gate the INFO ready check, and on a dead socket they
-      // settle only by timing out — so a dead attempt costs 2x, not 1x.
-      expect(coldConnectionBudgetMs({ commandTimeoutMs: 2_000, retryDelaysMs: [500, 1_000] })).toBe(
-        2 * 2_000 + 500 + 2 * 2_000 + 1_000 + 1_000
-      )
-    })
-
-    it('leaves only the healthy-handshake allowance when no dead attempts are tolerated', () => {
-      expect(coldConnectionBudgetMs({ commandTimeoutMs: 5_000, retryDelaysMs: [] })).toBe(1_000)
+  describe('sharedReconnectDelayMs', () => {
+    it('grows exponentially from the base and caps, with upward-only jitter', () => {
+      expect(sharedReconnectDelayMs(1, 0)).toBe(1_000)
+      expect(sharedReconnectDelayMs(2, 0)).toBe(2_000)
+      expect(sharedReconnectDelayMs(5, 0)).toBe(10_000)
+      expect(sharedReconnectDelayMs(6, 0)).toBe(10_000)
+      expect(sharedReconnectDelayMs(1, 1)).toBe(1_300)
     })
   })
 
@@ -492,9 +488,9 @@ describe('redis config', () => {
       mockRedisInstance.status = 'connecting'
       const warm = warmRedisConnection()
 
-      // Two command deadlines to diagnose the dead socket, then the longest
-      // first reconnect delay: the moment a healthy second attempt can begin.
-      await vi.advanceTimersByTimeAsync(2 * 5_000 + 1_300)
+      // The dead attempt's own deadline, then the longest first reconnect
+      // delay: the moment a healthy second attempt can begin.
+      await vi.advanceTimersByTimeAsync(Math.max(10_000, 2 * 5_000) + sharedReconnectDelayMs(1, 1))
       const client = getRedisClient()
       Object.assign(client ?? {}, { status: 'ready' })
       client?.emit('ready')
@@ -506,7 +502,13 @@ describe('redis config', () => {
       mockRedisInstance.status = 'connecting'
       const warm = warmRedisConnection()
 
-      await vi.advanceTimersByTimeAsync(REDIS_WARMUP_TIMEOUT_MS)
+      await vi.advanceTimersByTimeAsync(
+        coldConnectionBudgetMs({
+          connectTimeoutMs: 10_000,
+          commandTimeoutMs: 5_000,
+          reconnectDelayMs: sharedReconnectDelayMs(1, 1),
+        })
+      )
 
       await expect(warm).resolves.toBe(false)
     })

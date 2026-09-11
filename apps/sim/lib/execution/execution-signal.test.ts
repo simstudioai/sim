@@ -2,26 +2,22 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
+import { coldConnectionBudgetMs } from '@sim/utils/retry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { connection, mockRedisUrl, mockSubscribe, mockUnsubscribe, budgetInputs } = vi.hoisted(
-  () => ({
-    connection: {
-      status: 'ready',
-      client: undefined as EventEmitter | undefined,
-      options: undefined as Record<string, unknown> | undefined,
-    },
-    mockRedisUrl: {
-      value: 'redis://localhost:6379' as string | undefined,
-      error: undefined as Error | undefined,
-    },
-    mockSubscribe: vi.fn(),
-    mockUnsubscribe: vi.fn(),
-    // A plain object, not a spy: the budget is computed once at module load, and
-    // `vi.clearAllMocks()` in beforeEach would erase a spy's record of that call.
-    budgetInputs: { value: undefined as unknown },
-  })
-)
+const { connection, mockRedisUrl, mockSubscribe, mockUnsubscribe } = vi.hoisted(() => ({
+  connection: {
+    status: 'ready',
+    client: undefined as EventEmitter | undefined,
+    options: undefined as Record<string, unknown> | undefined,
+  },
+  mockRedisUrl: {
+    value: 'redis://localhost:6379' as string | undefined,
+    error: undefined as Error | undefined,
+  },
+  mockSubscribe: vi.fn(),
+  mockUnsubscribe: vi.fn(),
+}))
 
 vi.mock('ioredis', () => ({
   default: class extends EventEmitter {
@@ -40,31 +36,34 @@ vi.mock('ioredis', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/redis', async () => {
-  const { redisConfigMock } = await import('@sim/testing')
-  return {
-    getConfiguredRedisUrl: () => {
-      if (mockRedisUrl.error) throw mockRedisUrl.error
-      return mockRedisUrl.value
-    },
-    getRedisConnectionDefaults: () => ({}),
-    // Records the inputs, then answers with the shared mirror of the real
-    // arithmetic so the derived budget here is the number production derives.
-    coldConnectionBudgetMs: (
-      inputs: Parameters<typeof redisConfigMock.coldConnectionBudgetMs>[0]
-    ) => {
-      budgetInputs.value = inputs
-      return redisConfigMock.coldConnectionBudgetMs(inputs)
-    },
-  }
-})
+vi.mock('@/lib/core/config/redis', () => ({
+  getConfiguredRedisUrl: () => {
+    if (mockRedisUrl.error) throw mockRedisUrl.error
+    return mockRedisUrl.value
+  },
+  // Realistic defaults: the readiness budget has a connect-deadline term.
+  getRedisConnectionDefaults: () => ({ connectTimeout: 10_000 }),
+}))
 
 import {
   getExecutionSignalHub,
   publishLocalExecutionSignal,
-  SUBSCRIBER_READY_TIMEOUT_MS,
   warmExecutionSignalHub,
 } from '@/lib/execution/execution-signal'
+
+/** The readiness budget production derives from the options the subscriber was built with. */
+function readyBudgetMs(): number {
+  const options = connection.options as {
+    connectTimeout: number
+    commandTimeout: number
+    retryStrategy: (attempt: number) => number
+  }
+  return coldConnectionBudgetMs({
+    connectTimeoutMs: options.connectTimeout,
+    commandTimeoutMs: options.commandTimeout,
+    reconnectDelayMs: options.retryStrategy(1),
+  })
+}
 
 describe('ExecutionSignalHub', () => {
   beforeEach(() => {
@@ -268,7 +267,7 @@ describe('ExecutionSignalHub', () => {
         'Timed out waiting for Redis subscriber readiness'
       )
 
-      const timeout = vi.advanceTimersByTimeAsync(SUBSCRIBER_READY_TIMEOUT_MS - 1000).then(() => {
+      const timeout = vi.advanceTimersByTimeAsync(readyBudgetMs() - 1000).then(() => {
         connection.client?.emit('error', new Error('ECONNREFUSED'))
         return vi.advanceTimersByTimeAsync(1000)
       })
@@ -383,23 +382,49 @@ describe('ExecutionSignalHub', () => {
     expect(replacement).not.toHaveBeenCalledWith('unavailable')
   })
 
-  it('derives the readiness budget from the exact options the subscriber is built with', () => {
-    getExecutionSignalHub()
-    const options = connection.options as {
-      commandTimeout: number
-      retryStrategy: (attempt: number) => number
-    }
+  it('waits exactly the budget derived from the options the subscriber is built with', async () => {
+    vi.useFakeTimers()
+    try {
+      connection.status = 'connect'
+      const hub = getExecutionSignalHub()
+      const subscription = hub.subscribe('execution-1', vi.fn())
+      const settled = vi.fn()
+      void subscription.then(settled, settled)
 
-    // One dead handshake, so the budget states the reconnect delay after
-    // attempt 1 as the client's own retryStrategy would return it.
-    expect(budgetInputs.value).toEqual({
-      commandTimeoutMs: options.commandTimeout,
-      retryDelaysMs: [options.retryStrategy(1)],
-    })
-    // And the wait must outlast at least one full dead attempt, or the retry is decorative.
-    expect(SUBSCRIBER_READY_TIMEOUT_MS).toBeGreaterThan(
-      2 * options.commandTimeout + options.retryStrategy(1)
-    )
+      await vi.advanceTimersByTimeAsync(readyBudgetMs() - 1)
+      expect(settled).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(subscription).rejects.toThrow('Timed out waiting for Redis subscriber readiness')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives a subscribe that joins an in-flight warm-up its own full budget', async () => {
+    vi.useFakeTimers()
+    try {
+      connection.status = 'connect'
+      const warm = warmExecutionSignalHub()
+      // Late joiner: the warm-up has almost spent its budget when this subscribe begins.
+      await vi.advanceTimersByTimeAsync(readyBudgetMs() - 1000)
+      const subscription = getExecutionSignalHub().subscribe('execution-1', vi.fn())
+      const settled = vi.fn()
+      void subscription.then(settled, settled)
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(warm).resolves.toBe(false)
+      // The warm-up's deadline was its own; the subscribe is still waiting.
+      expect(settled).not.toHaveBeenCalled()
+      expect(connection.client?.listenerCount('ready')).toBe(2)
+
+      connection.status = 'ready'
+      connection.client?.emit('ready')
+      await subscription
+      expect(mockSubscribe).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('warms to true once the subscriber becomes ready', async () => {
@@ -418,7 +443,7 @@ describe('ExecutionSignalHub', () => {
       connection.status = 'connect'
       const warm = warmExecutionSignalHub()
 
-      await vi.advanceTimersByTimeAsync(SUBSCRIBER_READY_TIMEOUT_MS)
+      await vi.advanceTimersByTimeAsync(readyBudgetMs())
 
       await expect(warm).resolves.toBe(false)
       expect(vi.getTimerCount()).toBe(0)

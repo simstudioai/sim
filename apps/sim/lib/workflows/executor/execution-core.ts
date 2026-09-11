@@ -378,17 +378,18 @@ async function finalizeExecutionError(params: {
  * the background job — puts `custom_block_*` types in scope for serialization,
  * execution, and any nested child-workflow serialization (ALS propagates to the
  * whole async subtree).
+ *
+ * Also begins warming the execution-signal subscriber first, without awaiting
+ * it: every execution subscribes to cancellation signals once its engine
+ * starts, so starting that handshake here — the one path all of them share —
+ * lets it overlap the reads and preprocessing ahead of the subscribe instead
+ * of being paid inside its readiness budget. Warming on intent rather than at
+ * worker start keeps the tasks that never execute a workflow, most of the
+ * fleet by volume, from opening a connection they would never use.
  */
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  // First, and not awaited: every execution subscribes to cancellation signals
-  // once its engine starts, so the subscriber's handshake is begun here — the
-  // one path all of them share — and overlaps the reads and preprocessing
-  // ahead of that subscribe instead of being paid inside its readiness budget.
-  // Warming on intent rather than at worker start keeps the tasks that never
-  // execute a workflow, most of the fleet by volume, from opening a connection
-  // they would never use.
   void warmExecutionSignalHub()
   const workspaceId = options.snapshot.metadata.workspaceId
   const rows = workspaceId
