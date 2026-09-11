@@ -43,6 +43,9 @@ const SPACE_BATCH_SIZE = 50
 const SPACE_BATCH_QUERY_LENGTH = 1_800
 const SPACE_BATCH_CURSOR_PREFIX = 'space-batches:'
 
+/** Lets the sync engine restart incompatible checkpoints in a fresh observation generation. */
+class ConfluenceListingCursorInvalidError extends Error {}
+
 /** Bounds both space lookups and CQL URLs when a source includes many spaces. */
 function spaceKeyBatches(spaceKeys: string[]): string[][] {
   const batches: string[][] = []
@@ -670,6 +673,7 @@ async function resolveConfluenceAcls(
 export const confluenceConnector: ConnectorConfig = {
   isCredentialInvalidError: (error) =>
     error instanceof Error && 'status' in error && error.status === 401,
+  isListingCursorInvalidError: (error) => error instanceof ConfluenceListingCursorInvalidError,
   ...confluenceConnectorMeta,
 
   listDocuments: async (
@@ -1198,9 +1202,16 @@ async function listSpaceBatchesViaCql(
   let batchIndex = 0
   let providerCursor: string | undefined
   if (cursor) {
-    const invalidCursor = new Error('Invalid Confluence space continuation. Restart the sync.')
+    const invalidCursor = new ConfluenceListingCursorInvalidError(
+      'Invalid Confluence space continuation. Restart the sync.'
+    )
     if (!cursor.startsWith(SPACE_BATCH_CURSOR_PREFIX)) throw invalidCursor
-    const state: unknown = JSON.parse(cursor.slice(SPACE_BATCH_CURSOR_PREFIX.length))
+    let state: unknown
+    try {
+      state = JSON.parse(cursor.slice(SPACE_BATCH_CURSOR_PREFIX.length))
+    } catch {
+      throw invalidCursor
+    }
     if (
       typeof state !== 'object' ||
       state === null ||

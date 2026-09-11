@@ -2,7 +2,14 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  beginListingCheckpoint,
+  type ListingCheckpoint,
+  listingFingerprint,
+  runResumableListing,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
+import type { ExternalDocument } from '@/connectors/types'
 
 const fetchMock = vi.fn<typeof fetch>()
 const config = { domain: 'example.atlassian.net', spaceKey: [] as string[] }
@@ -194,13 +201,124 @@ describe('Confluence bulk space listing', () => {
     expect(last.hasMore).toBe(false)
   })
 
-  it('rejects an invalid batch continuation before requesting any content', async () => {
-    await expect(
-      confluenceConnector.listDocuments('token', sourceConfig, 'space-batches:{"batch":-1}', {
+  it.each([
+    'legacy-provider-cursor',
+    'space-batches:{',
+    'space-batches:null',
+    'space-batches:{}',
+    'space-batches:{"batch":-1}',
+    'space-batches:{"batch":2}',
+    'space-batches:{"batch":0.5}',
+    'space-batches:{"batch":0,"cursor":null}',
+  ])('identifies an incompatible continuation for safe restart: %s', async (cursor) => {
+    const error = await confluenceConnector
+      .listDocuments('token', sourceConfig, cursor, { cloudId: 'cloud' })
+      .catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(Error)
+    expect(confluenceConnector.isListingCursorInvalidError?.(error)).toBe(true)
+    expect(confluenceConnector.isCredentialInvalidError?.(error)).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('restarts a pre-batching checkpoint and exhausts every batch in a new generation', async () => {
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: listingFingerprint(sourceConfig),
+        generationId: 'before-deployment',
+        startedAt: new Date('2026-09-10T00:00:00Z'),
+      }),
+      cursor: 'legacy-provider-cursor',
+      listedCount: 25_000,
+      unsafe: true,
+      contentFailures: true,
+    }
+    const saveCheckpoint = vi.fn(async (_checkpoint: ListingCheckpoint) => undefined)
+    const processPage = vi.fn(
+      async (_documents: ExternalDocument[], _checkpoint: ListingCheckpoint) => undefined
+    )
+    const restartedAt = new Date('2026-09-11T00:00:00Z')
+    fetchMock
+      .mockResolvedValueOnce(page('1', 'provider-page-2'))
+      .mockResolvedValueOnce(page('2'))
+      .mockResolvedValueOnce(page('3'))
+
+    const result = await runResumableListing({
+      connectorConfig: confluenceConnector,
+      sourceConfig,
+      syncContext: { cloudId: 'cloud' },
+      checkpoint,
+      deadlineAt: Date.now() + 60_000,
+      beforePage: async () => undefined,
+      getAccessToken: async () => 'token',
+      getGenerationStartedAt: async () => restartedAt,
+      processPage,
+      saveCheckpoint,
+    })
+
+    expect(result).toMatchObject({
+      complete: true,
+      cursor: null,
+      listedCount: 3,
+      unsafe: false,
+      contentFailures: false,
+      startedAt: restartedAt.toISOString(),
+    })
+    expect(result.generationId).not.toBe(checkpoint.generationId)
+    expect(saveCheckpoint).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        generationId: result.generationId,
+        cursor: null,
+        listedCount: 0,
+        complete: false,
+      })
+    )
+    expect(processPage.mock.calls.flatMap(([docs]) => docs.map((doc) => doc.externalId))).toEqual([
+      '1',
+      '2',
+      '3',
+    ])
+    for (const [, cycle] of processPage.mock.calls) {
+      expect(cycle.generationId).toBe(result.generationId)
+    }
+    const requests = fetchMock.mock.calls.map(([input]) => requestUrl(input))
+    expect(requests.map((url) => url.searchParams.get('cursor'))).toEqual([
+      null,
+      'provider-page-2',
+      null,
+    ])
+    expect(requests[0].searchParams.get('cql')).toBe(requests[1].searchParams.get('cql'))
+    expect(requests[2].searchParams.get('cql')).toContain('space in ("SPACE_50","SPACE_51")')
+  })
+
+  it('preserves a provider continuation when the selected spaces still fit in one batch', async () => {
+    fetchMock.mockResolvedValueOnce(page('1'))
+    await confluenceConnector.listDocuments(
+      'token',
+      { ...sourceConfig, spaceKey: keys.slice(0, 2) },
+      'valid-provider-cursor',
+      { cloudId: 'cloud' }
+    )
+    expect(requestUrl(fetchMock.mock.calls[0][0]).searchParams.get('cursor')).toBe(
+      'valid-provider-cursor'
+    )
+  })
+
+  it('does not classify unrelated provider errors as restartable continuations', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({}, { status: 403 }))
+    const error = await confluenceConnector
+      .listDocuments('token', sourceConfig, undefined, {
         cloudId: 'cloud',
       })
-    ).rejects.toThrow('Invalid Confluence space continuation')
-    expect(fetchMock).not.toHaveBeenCalled()
+      .catch((error: unknown) => error)
+    expect(error).toEqual(new Error('Failed to search Confluence via CQL: 403'))
+    expect(confluenceConnector.isListingCursorInvalidError?.(error)).toBe(false)
+    expect(
+      confluenceConnector.isListingCursorInvalidError?.(
+        new Error('Invalid Confluence space continuation. Restart the sync.')
+      )
+    ).toBe(false)
+    expect(confluenceConnector.isListingCursorInvalidError?.({ status: 401 })).toBe(false)
   })
 
   it('bounds CQL requests for long space keys while retaining filters', async () => {
