@@ -74,6 +74,7 @@ export const revokeSlackSearchAccess: OperationUseCase<
         uninstall ||
         (input.event.type === 'tokens_revoked' &&
           (input.event.tokens.bot ?? []).includes(installation.botUserId))
+      if (revokeBot && installation.updatedAt > occurredAt) return
       let revokedMemberIds: string[] = []
       if (uninstall || revokedUsers.length) {
         const revokeCredentials = tx
@@ -102,7 +103,6 @@ export const revokeSlackSearchAccess: OperationUseCase<
         }
       }
       if (revokeBot) {
-        if (installation.updatedAt > occurredAt) return
         await tx
           .update(slackSearchInstallation)
           .set({
