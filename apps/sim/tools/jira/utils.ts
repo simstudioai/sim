@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 import { resolveAtlassianCloudId } from '@/lib/atlassian/discovery'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import {
+  AttachmentDownloadBudget,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 
 const logger = createLogger('JiraUtils')
 
@@ -179,7 +183,7 @@ export function transformUser(user: any): {
 
 /**
  * Downloads Jira attachment file content given attachment metadata and an access token.
- * Returns an array of downloaded files with base64-encoded data.
+ * Returns buffered files within the per-file and shared download limits.
  */
 export async function downloadJiraAttachments(
   attachments: Array<{
@@ -189,39 +193,45 @@ export async function downloadJiraAttachments(
     size: number
     id: string
   }>,
-  accessToken: string
-): Promise<Array<{ name: string; mimeType: string; data: string; size: number }>> {
-  const downloaded: Array<{ name: string; mimeType: string; data: string; size: number }> = []
+  accessToken: string,
+  budget = new AttachmentDownloadBudget()
+): Promise<Array<{ name: string; mimeType: string; data: Buffer; size: number }>> {
+  const downloaded: Array<{ name: string; mimeType: string; data: Buffer; size: number }> = []
 
   for (const att of attachments) {
+    budget.signal?.throwIfAborted()
     if (!att.content) continue
     if (att.size > MAX_ATTACHMENT_SIZE) {
       logger.warn(`Skipping attachment ${att.filename} (${att.size} bytes): exceeds size limit`)
       continue
     }
     try {
+      budget.assertSize(att.size, 'Jira attachments', MAX_ATTACHMENT_SIZE)
       const response = await fetchWithRetry(att.content, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: '*/*',
         },
+        signal: budget.signal,
       })
 
       if (!response.ok) {
+        await response.body?.cancel()
+        budget.signal?.throwIfAborted()
         logger.warn(`Failed to download attachment ${att.filename}: HTTP ${response.status}`)
         continue
       }
 
-      const arrayBuffer = await response.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
+      const buffer = await budget.read(response, 'Jira attachments', MAX_ATTACHMENT_SIZE)
 
       downloaded.push({
         name: att.filename || `attachment-${att.id}`,
         mimeType: att.mimeType || 'application/octet-stream',
-        data: buffer.toString('base64'),
+        data: buffer,
         size: buffer.length,
       })
     } catch (error) {
+      rethrowAttachmentDownloadError(error, budget.signal)
       logger.warn(`Failed to download attachment ${att.filename}:`, error)
     }
   }

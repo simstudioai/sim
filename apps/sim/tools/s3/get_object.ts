@@ -43,6 +43,7 @@ export const s3GetObjectTool: ToolConfig = {
   },
 
   request: {
+    responseType: 'binary',
     url: (params) => {
       try {
         const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri, params.region)
@@ -139,7 +140,7 @@ export const s3GetObjectTool: ToolConfig = {
         file: {
           name: fileName,
           mimeType: contentType,
-          data: buffer.toString('base64'),
+          data: buffer,
           size: buffer.length,
         },
         metadata: {

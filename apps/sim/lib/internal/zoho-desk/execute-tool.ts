@@ -1,12 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { ZohoDeskOperationError } from '@/lib/internal/zoho-desk/errors'
-import {
-  getZohoDeskAttachment,
-  MAX_ZOHO_DESK_ATTACHMENT_BYTES,
-} from '@/lib/internal/zoho-desk/operations'
+import { getZohoDeskAttachment } from '@/lib/internal/zoho-desk/operations'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const inputSchema = z.object({
   accessToken: z.string().min(1),
@@ -16,7 +17,9 @@ const inputSchema = z.object({
   fileName: z.string().optional(),
 })
 
-export const executeZohoDeskTool: InternalToolOperationHandler = async (request) => {
+export const executeZohoDeskTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'zoho_desk_get_attachment') {
     return Response.json(
@@ -29,18 +32,14 @@ export const executeZohoDeskTool: InternalToolOperationHandler = async (request)
     return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
   }
   try {
-    return Response.json(
-      await getZohoDeskAttachment(parsed.data, {
-        signal: request.signal,
-      })
-    )
+    return await getZohoDeskAttachment(parsed.data, { signal: request.signal })
   } catch (error) {
     request.signal?.throwIfAborted()
     if (isPayloadSizeLimitError(error)) {
       return Response.json(
         {
           success: false,
-          error: `Attachment exceeds the ${Math.floor(MAX_ZOHO_DESK_ATTACHMENT_BYTES / (1024 * 1024))} MB download limit`,
+          error: `Attachment exceeds the ${Math.floor(MAX_BUFFERED_TRANSFER_BYTES / (1024 * 1024))} MB download limit`,
         },
         { status: 413 }
       )

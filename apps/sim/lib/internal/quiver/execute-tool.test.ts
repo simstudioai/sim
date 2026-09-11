@@ -4,6 +4,7 @@
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   executeImage: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock('@/lib/internal/quiver/operations', () => ({
 }))
 
 import { QuiverOperationError } from '@/lib/internal/quiver/errors'
-import { executeQuiverTool } from '@/lib/internal/quiver/execute-tool'
+import { executeQuiverTool as executeQuiverToolOperation } from '@/lib/internal/quiver/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 function request(overrides: Partial<InternalToolOperationCall> = {}) {
@@ -28,6 +29,14 @@ function request(overrides: Partial<InternalToolOperationCall> = {}) {
     requestId: 'request-1',
     ...overrides,
   } as InternalToolOperationCall
+}
+
+async function executeQuiverTool(
+  request: Parameters<typeof executeQuiverToolOperation>[0]
+): Promise<Response> {
+  const result = await executeQuiverToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
 }
 
 describe('executeQuiverTool', () => {
@@ -47,6 +56,18 @@ describe('executeQuiverTool', () => {
     mocks.executeImage.mockResolvedValue(result)
   })
 
+  it('forwards binary file results without serializing them', async () => {
+    const result = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ file })
+    )
+    mocks.executeText.mockResolvedValueOnce(result)
+    expect(await executeQuiverToolOperation(request({ toolId: 'quiver_text_to_svg_v2' }))).toBe(
+      result
+    )
+    expect(mocks.executeText.mock.calls[0]?.[2]).toBe('v2')
+  })
+
   it.each([
     ['quiver_text_to_svg', mocks.executeText],
     ['quiver_image_to_svg', mocks.executeImage],
@@ -62,6 +83,28 @@ describe('executeQuiverTool', () => {
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: 'secret', model: 'arrow-preview' }),
       expect.objectContaining({ userId: 'user-1', requestId: 'request-1' })
+    )
+  })
+
+  it.each([
+    ['quiver_text_to_svg_v2', mocks.executeText],
+    ['quiver_image_to_svg_v2', mocks.executeImage],
+  ])('selects the stored file projection for %s', async (toolId, execute) => {
+    const input =
+      toolId === 'quiver_image_to_svg_v2'
+        ? { apiKey: 'secret', model: 'arrow-preview', image: 'https://example.com/image.png' }
+        : { apiKey: 'secret', model: 'arrow-preview', prompt: 'A compass' }
+    const result = createInternalToolFileResult(
+      { buffer: Buffer.from('<svg />'), name: 'file.svg', mimeType: 'image/svg+xml' },
+      (file) => ({ success: true, output: { file, files: [file] } })
+    )
+    execute.mockResolvedValueOnce(result)
+
+    expect(await executeQuiverToolOperation(request({ toolId, input }))).toBe(result)
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'secret', model: 'arrow-preview' }),
+      expect.objectContaining({ userId: 'user-1', requestId: 'request-1' }),
+      'v2'
     )
   })
 

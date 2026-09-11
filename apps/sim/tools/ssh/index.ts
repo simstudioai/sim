@@ -1,8 +1,8 @@
+import { downloadFileTool, downloadFileV2Tool } from '@/tools/ssh/download_file'
 import { checkCommandExistsTool } from './check_command_exists'
 import { checkFileExistsTool } from './check_file_exists'
 import { createDirectoryTool } from './create_directory'
 import { deleteFileTool } from './delete_file'
-import { downloadFileTool } from './download_file'
 import { executeCommandTool } from './execute_command'
 import { executeScriptTool } from './execute_script'
 import { getSystemInfoTool } from './get_system_info'
@@ -17,6 +17,7 @@ export const sshCheckFileExistsTool = checkFileExistsTool
 export const sshCreateDirectoryTool = createDirectoryTool
 export const sshDeleteFileTool = deleteFileTool
 export const sshDownloadFileTool = downloadFileTool
+export const sshDownloadFileV2Tool = downloadFileV2Tool
 export const sshExecuteCommandTool = executeCommandTool
 export const sshExecuteScriptTool = executeScriptTool
 export const sshGetSystemInfoTool = getSystemInfoTool

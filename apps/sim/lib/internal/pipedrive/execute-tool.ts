@@ -5,7 +5,11 @@ import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { PipedriveOperationError } from '@/lib/internal/pipedrive/errors'
 import { executePipedriveGetFiles } from '@/lib/internal/pipedrive/operations'
 import { pipedriveGetFilesInputSchema } from '@/lib/internal/pipedrive/schema'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('PipedriveToolExecution')
 
@@ -26,7 +30,9 @@ function inputSizeError(input: unknown): Response | null {
     : null
 }
 
-export const executePipedriveTool: InternalToolOperationHandler = async (request) => {
+export const executePipedriveTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'pipedrive_get_files') {
     return Response.json(
@@ -52,7 +58,7 @@ export const executePipedriveTool: InternalToolOperationHandler = async (request
       signal: request.signal,
     })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof PipedriveOperationError) {

@@ -1,5 +1,10 @@
 import { generateRandomString } from '@sim/utils/random'
 import { convert } from 'html-to-text'
+import {
+  AttachmentDownloadBudget,
+  readAttachmentJson,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 import type {
   GmailAttachment,
   GmailMessage,
@@ -53,7 +58,8 @@ export async function fetchThreadingHeaders(
 // Helper function to process a Gmail message
 export async function processMessage(
   message: GmailMessage,
-  params?: GmailReadParams
+  params?: GmailReadParams,
+  budget = new AttachmentDownloadBudget()
 ): Promise<GmailToolResponse> {
   // Check if message and payload exist
   if (!message || !message.payload) {
@@ -87,8 +93,14 @@ export async function processMessage(
   let attachments: GmailAttachment[] | undefined
   if (params?.includeAttachments && hasAttachments && params.accessToken) {
     try {
-      attachments = await downloadAttachments(message.id, attachmentInfo, params.accessToken)
+      attachments = await downloadAttachments(
+        message.id,
+        attachmentInfo,
+        params.accessToken,
+        budget
+      )
     } catch (error) {
+      rethrowAttachmentDownloadError(error, budget.signal)
       // Continue without attachments rather than failing the entire request
     }
   }
@@ -219,50 +231,57 @@ export function extractAttachmentInfo(
   return attachments
 }
 
-// Helper function to download attachments from Gmail API
+/** Download Gmail's base64url JSON attachment format within the shared decoded-byte budget. */
 export async function downloadAttachments(
   messageId: string,
   attachmentInfo: Array<{ attachmentId: string; filename: string; mimeType: string; size: number }>,
-  accessToken: string
+  accessToken: string,
+  budget = new AttachmentDownloadBudget()
 ): Promise<GmailAttachment[]> {
   const downloadedAttachments: GmailAttachment[] = []
-
   for (const attachment of attachmentInfo) {
     try {
-      // Download attachment from Gmail API
-      const attachmentResponse = await fetch(
-        `${GMAIL_API_BASE}/messages/${messageId}/attachments/${attachment.attachmentId}`,
+      budget.assertSize(attachment.size, 'Gmail attachments')
+      const response = await fetch(
+        `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.attachmentId)}`,
         {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: budget.signal,
         }
       )
-
-      if (!attachmentResponse.ok) {
-        await attachmentResponse.body?.cancel().catch(() => {})
+      if (!response.ok) {
+        await response.body?.cancel()
+        budget.signal?.throwIfAborted()
         continue
       }
-
-      const attachmentData = (await attachmentResponse.json()) as { data: string; size: number }
-
-      // Decode base64url data to buffer
-      // Gmail API returns data in base64url format (URL-safe base64)
-      const base64Data = attachmentData.data.replace(/-/g, '+').replace(/_/g, '/')
-      const buffer = Buffer.from(base64Data, 'base64')
-
+      const attachmentData = await readAttachmentJson<{ data: string; size?: number }>(
+        response,
+        'Gmail attachment response',
+        budget.signal,
+        4 * Math.ceil(budget.remainingBytes / 3) + 64 * 1024
+      )
+      if (
+        typeof attachmentData.data !== 'string' ||
+        !/^[A-Za-z0-9_-]*={0,2}$/.test(attachmentData.data) ||
+        attachmentData.data.replace(/=+$/, '').length % 4 === 1
+      ) {
+        throw new Error('Gmail attachment contains invalid base64url data')
+      }
+      budget.assertSize(Buffer.byteLength(attachmentData.data, 'base64url'), 'Gmail attachments')
+      const buffer = budget.consume(
+        Buffer.from(attachmentData.data, 'base64url'),
+        'Gmail attachments'
+      )
       downloadedAttachments.push({
         name: attachment.filename,
-        data: buffer.toString('base64'),
+        data: buffer,
         mimeType: attachment.mimeType,
-        size: attachment.size,
+        size: buffer.byteLength,
       })
     } catch (error) {
-      // Continue with other attachments
+      rethrowAttachmentDownloadError(error, budget.signal)
     }
   }
-
   return downloadedAttachments
 }
 

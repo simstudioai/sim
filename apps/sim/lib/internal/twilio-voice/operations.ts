@@ -8,10 +8,14 @@ import {
   readResponseJsonWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import {
+  createInternalToolFileResult,
+  type InternalToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { TwilioVoiceOperationError } from '@/lib/internal/twilio-voice/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
-import type { TwilioGetRecordingOutput, TwilioGetRecordingParams } from '@/tools/twilio_voice/types'
+import type { TwilioGetRecordingParams } from '@/tools/twilio_voice/types'
 
 const logger = createLogger('TwilioGetRecordingOperation')
 const MAX_TWILIO_JSON_BYTES = 2 * 1024 * 1024
@@ -67,7 +71,7 @@ async function fetchPinned(
 export async function getTwilioRecording(
   input: TwilioGetRecordingParams,
   context: TwilioVoiceOperationContext
-): Promise<TwilioGetRecordingOutput> {
+) {
   context.signal?.throwIfAborted()
   if (!input.accountSid.startsWith('AC')) {
     throw new TwilioVoiceOperationError(
@@ -131,7 +135,7 @@ export async function getTwilioRecording(
     logger.warn('Failed to fetch Twilio transcription', { requestId: context.requestId, error })
   }
 
-  let file: TwilioGetRecordingOutput['output']['file']
+  let file: InternalToolFile | undefined
   if (mediaUrl) {
     try {
       const response = await fetchPinned(
@@ -151,8 +155,7 @@ export async function getTwilioRecording(
         file = {
           name: `${data.sid || input.recordingSid}.${getExtensionFromMimeType(mimeType) || 'dat'}`,
           mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
+          buffer,
         }
       }
     } catch (error) {
@@ -164,25 +167,26 @@ export async function getTwilioRecording(
     }
   }
 
-  return {
+  const output = {
     success: true,
-    output: {
-      success: true,
-      recordingSid: data.sid,
-      callSid: data.call_sid,
-      duration: data.duration ? Number.parseInt(data.duration, 10) : undefined,
-      status: data.status,
-      channels: data.channels,
-      source: data.source,
-      mediaUrl,
-      file,
-      price: data.price,
-      priceUnit: data.price_unit,
-      uri: data.uri,
-      transcriptionText: transcription?.transcription_text,
-      transcriptionStatus: transcription?.status,
-      transcriptionPrice: transcription?.price,
-      transcriptionPriceUnit: transcription?.price_unit,
-    },
+    recordingSid: data.sid,
+    callSid: data.call_sid,
+    duration: data.duration ? Number.parseInt(data.duration, 10) : undefined,
+    status: data.status,
+    channels: data.channels,
+    source: data.source,
+    mediaUrl,
+    price: data.price,
+    priceUnit: data.price_unit,
+    uri: data.uri,
+    transcriptionText: transcription?.transcription_text,
+    transcriptionStatus: transcription?.status,
+    transcriptionPrice: transcription?.price,
+    transcriptionPriceUnit: transcription?.price_unit,
   }
+  if (!file) return { success: true, output }
+  return createInternalToolFileResult(file, (storedFile) => ({
+    success: true,
+    output: { ...output, file: storedFile },
+  }))
 }

@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
@@ -20,7 +21,7 @@ vi.mock('@/lib/internal/google-drive/operations', () => ({
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { GoogleDriveOperationError } from '@/lib/internal/google-drive/errors'
-import { executeGoogleDriveTool } from '@/lib/internal/google-drive/execute-tool'
+import { executeGoogleDriveTool as executeGoogleDriveToolOperation } from '@/lib/internal/google-drive/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const INPUTS = {
@@ -64,6 +65,14 @@ function request(
   }
 }
 
+async function executeGoogleDriveTool(
+  request: Parameters<typeof executeGoogleDriveToolOperation>[0]
+): Promise<Response> {
+  const result = await executeGoogleDriveToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
+}
+
 describe('executeGoogleDriveTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -87,6 +96,15 @@ describe('executeGoogleDriveTool', () => {
       })
     }
   )
+
+  it('forwards file bytes without serializing the file result', async () => {
+    const fileResult = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    mocks.download.mockResolvedValueOnce(fileResult)
+    expect(await executeGoogleDriveToolOperation(request('google_drive_download'))).toBe(fileResult)
+  })
 
   it('preserves validation and provider error envelopes', async () => {
     const invalid = await executeGoogleDriveTool(

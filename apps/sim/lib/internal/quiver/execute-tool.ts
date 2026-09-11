@@ -14,9 +14,11 @@ import {
   quiverImageToSvgInputSchema,
   quiverTextToSvgInputSchema,
 } from '@/lib/internal/quiver/schema'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('QuiverToolExecution')
@@ -44,7 +46,7 @@ async function executeOperation<Input>(
   request: InternalToolOperationCall,
   schema: z.ZodType<Input>,
   execute: (input: Input, context: QuiverOperationContext) => Promise<unknown>
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   request.signal?.throwIfAborted()
   const sizeError = validateInputSize(request.input)
   if (sizeError) return sizeError
@@ -70,7 +72,7 @@ async function executeOperation<Input>(
       userId,
     })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof QuiverOperationError) {
@@ -89,7 +91,9 @@ async function executeOperation<Input>(
   }
 }
 
-export const executeQuiverTool: InternalToolOperationHandler = async (request) => {
+export const executeQuiverTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   if (!request.context.userId) {
     return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 })
@@ -99,6 +103,14 @@ export const executeQuiverTool: InternalToolOperationHandler = async (request) =
       return executeOperation(request, quiverTextToSvgInputSchema, executeQuiverTextToSvg)
     case 'quiver_image_to_svg':
       return executeOperation(request, quiverImageToSvgInputSchema, executeQuiverImageToSvg)
+    case 'quiver_text_to_svg_v2':
+      return executeOperation(request, quiverTextToSvgInputSchema, (input, context) =>
+        executeQuiverTextToSvg(input, context, 'v2')
+      )
+    case 'quiver_image_to_svg_v2':
+      return executeOperation(request, quiverImageToSvgInputSchema, (input, context) =>
+        executeQuiverImageToSvg(input, context, 'v2')
+      )
     default:
       return Response.json(
         { success: false, error: `Unsupported Quiver tool: ${request.toolId}` },

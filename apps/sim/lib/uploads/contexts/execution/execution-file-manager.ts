@@ -14,6 +14,7 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
+  deleteFileMetadata,
   deleteFileMetadataByIdentity,
   type FileMetadataRecord,
   insertImmutableFileMetadata,
@@ -123,6 +124,7 @@ export async function uploadExecutionFile(
       context: 'execution',
       preserveKey: true, // Don't add timestamp prefix
       customKey: storageKey, // Use exact execution-scoped key
+      cleanupOnMetadataFailure: true,
       metadata, // Pass metadata for cloud storage and database tracking
       ...(secretProvenance ? { persistMetadata: false } : {}),
     })
@@ -174,7 +176,7 @@ export async function uploadExecutionFile(
     })
     return userFile
   } catch (error) {
-    if (secretProvenance && uploadedKey) {
+    if (uploadedKey) {
       try {
         await StorageService.deleteFile({ key: uploadedKey, context: 'execution' })
         if (recordedFile) {
@@ -184,9 +186,11 @@ export async function uploadExecutionFile(
             context: 'execution',
             contentUpdatedAt: recordedFile.contentUpdatedAt,
           })
+        } else if (!secretProvenance) {
+          await deleteFileMetadata(uploadedKey)
         }
       } catch (cleanupError) {
-        logger.warn('Could not remove an unreturned execution file', {
+        logger.error('Failed to clean up an unpublished execution file', {
           key: uploadedKey,
           error: getErrorMessage(cleanupError),
         })

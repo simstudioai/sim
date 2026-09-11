@@ -40,6 +40,7 @@ export const daytonaDownloadFileTool: ToolConfig<
   },
 
   request: {
+    responseType: 'binary',
     url: (params) =>
       daytonaToolboxUrl(
         params.sandboxId,
@@ -75,7 +76,7 @@ export const daytonaDownloadFileTool: ToolConfig<
         file: {
           name: fileName,
           mimeType,
-          data: buffer.toString('base64'),
+          data: buffer,
           size: buffer.length,
         },
         name: fileName,

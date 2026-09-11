@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type VantaRegion = 'us' | 'gov'
@@ -570,13 +571,6 @@ export interface VantaVulnerableAsset {
   scanners: VantaVulnerableAssetScanner[]
 }
 
-export interface VantaDownloadedFile {
-  name: string
-  mimeType: string
-  data: string
-  size: number
-}
-
 export interface VantaListFrameworksResponse extends ToolResponse {
   output: {
     frameworks: VantaFramework[]
@@ -651,7 +645,7 @@ export interface VantaUploadDocumentFileResponse extends ToolResponse {
 
 export interface VantaDownloadDocumentFileResponse extends ToolResponse {
   output: {
-    file: VantaDownloadedFile
+    file: UserFile
     name: string
     mimeType: string
     size: number

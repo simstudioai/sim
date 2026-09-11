@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   executeDelete: vi.fn(),
@@ -19,9 +20,9 @@ vi.mock('@/lib/internal/sftp/operations', () => ({
   executeSftpUpload: mocks.executeUpload,
 }))
 
-import { executeSftpTool } from '@/lib/internal/sftp/execute-tool'
+import { executeSftpTool as executeSftpToolOperation } from '@/lib/internal/sftp/execute-tool'
 import { sftpDeleteTool } from '@/tools/sftp/delete'
-import { sftpDownloadTool } from '@/tools/sftp/download'
+import { sftpDownloadTool, sftpDownloadV2Tool } from '@/tools/sftp/download'
 import { sftpListTool } from '@/tools/sftp/list'
 import { sftpMkdirTool } from '@/tools/sftp/mkdir'
 import { sftpUploadTool } from '@/tools/sftp/upload'
@@ -34,6 +35,14 @@ const baseInput = {
   remotePath: '/files',
 }
 
+async function executeSftpTool(
+  request: Parameters<typeof executeSftpToolOperation>[0]
+): Promise<Response> {
+  const result = await executeSftpToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
+}
+
 describe('SFTP tool execution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -42,9 +51,29 @@ describe('SFTP tool execution', () => {
     }
   })
 
+  it('forwards binary file results without serializing them', async () => {
+    const result = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ file })
+    )
+    mocks.executeDownload.mockResolvedValueOnce(result)
+    expect(
+      await executeSftpToolOperation({
+        toolId: 'sftp_download_v2',
+        input: baseInput,
+        headers: new Headers(),
+        context: { userId: 'user-1' },
+        requestId: 'request-1',
+      })
+    ).toBe(result)
+    expect(mocks.executeDownload.mock.calls[0][0]).toEqual(baseInput)
+    expect(mocks.executeDownload.mock.calls[0][2]).toBe('v2')
+  })
+
   it.each([
     ['sftp_delete', mocks.executeDelete],
     ['sftp_download', mocks.executeDownload],
+    ['sftp_download_v2', mocks.executeDownload],
     ['sftp_list', mocks.executeList],
     ['sftp_mkdir', mocks.executeMkdir],
     ['sftp_upload', mocks.executeUpload],
@@ -81,6 +110,7 @@ describe('SFTP tool execution', () => {
     for (const tool of [
       sftpDeleteTool,
       sftpDownloadTool,
+      sftpDownloadV2Tool,
       sftpListTool,
       sftpMkdirTool,
       sftpUploadTool,

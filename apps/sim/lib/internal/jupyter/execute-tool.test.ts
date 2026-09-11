@@ -7,11 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const operationMocks = vi.hoisted(() => ({
   executeJupyterProxy: vi.fn(),
   executeJupyterUpload: vi.fn(),
+  executeJupyterGetContent: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/jupyter/operations', () => operationMocks)
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { executeJupyterTool, JUPYTER_PROXY_TOOL_IDS } from '@/lib/internal/jupyter/execute-tool'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const PROXY_BODY = {
@@ -38,6 +41,12 @@ function createRequest(
   }
 }
 
+async function executeResponse(request: InternalToolOperationCall): Promise<Response> {
+  const response = await executeJupyterTool(request)
+  if (!(response instanceof Response)) throw new Error('Expected a JSON response')
+  return response
+}
+
 describe('executeJupyterTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -50,7 +59,7 @@ describe('executeJupyterTool', () => {
   })
 
   it.each(JUPYTER_PROXY_TOOL_IDS)('recognizes proxy tool ID %s', async (toolId) => {
-    const response = await executeJupyterTool(createRequest({ toolId }))
+    const response = await executeResponse(createRequest({ toolId }))
 
     expect(response.status).toBe(200)
     expect(operationMocks.executeJupyterProxy).toHaveBeenCalledWith(PROXY_BODY, {
@@ -60,7 +69,7 @@ describe('executeJupyterTool', () => {
   })
 
   it('validates the canonical proxy contract before provider work', async () => {
-    const response = await executeJupyterTool(createRequest({ input: { ...PROXY_BODY, path: '' } }))
+    const response = await executeResponse(createRequest({ input: { ...PROXY_BODY, path: '' } }))
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
@@ -79,7 +88,7 @@ describe('executeJupyterTool', () => {
       fileName: 'hello.txt',
     }
 
-    const response = await executeJupyterTool(
+    const response = await executeResponse(
       createRequest({
         toolId: 'jupyter_upload_file',
         input,
@@ -96,7 +105,7 @@ describe('executeJupyterTool', () => {
   })
 
   it('fails upload closed without a trusted execution user', async () => {
-    const response = await executeJupyterTool(
+    const response = await executeResponse(
       createRequest({
         toolId: 'jupyter_upload_file',
         context: {
@@ -122,11 +131,50 @@ describe('executeJupyterTool', () => {
   })
 
   it('returns a deterministic error for unsupported IDs', async () => {
-    const response = await executeJupyterTool(createRequest({ toolId: 'jupyter_unknown' }))
+    const response = await executeResponse(createRequest({ toolId: 'jupyter_unknown' }))
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({
       error: 'Unsupported Jupyter tool: jupyter_unknown',
+    })
+  })
+
+  it('preserves the typed v2 file result for central storage', async () => {
+    const result = createInternalToolFileResult(
+      { buffer: Buffer.from('hello'), name: 'notes.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    const input = { ...PROXY_BODY, path: 'notes.txt' }
+    const controller = new AbortController()
+    operationMocks.executeJupyterGetContent.mockResolvedValue(result)
+    expect(
+      await executeJupyterTool(
+        createRequest({ toolId: 'jupyter_get_content_v2', input, signal: controller.signal })
+      )
+    ).toBe(result)
+    expect(operationMocks.executeJupyterGetContent).toHaveBeenCalledWith(input, {
+      requestId: 'request-1',
+      signal: controller.signal,
+    })
+    expect(operationMocks.executeJupyterProxy).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-GET v2 reads before provider work', async () => {
+    const response = await executeResponse(
+      createRequest({ toolId: 'jupyter_get_content_v2', input: { ...PROXY_BODY, method: 'POST' } })
+    )
+    expect(response.status).toBe(400)
+    expect(operationMocks.executeJupyterGetContent).not.toHaveBeenCalled()
+  })
+
+  it('projects a download byte limit failure as 413', async () => {
+    operationMocks.executeJupyterGetContent.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'Jupyter file download', maxBytes: 100 * 1024 * 1024 })
+    )
+    const response = await executeResponse(createRequest({ toolId: 'jupyter_get_content_v2' }))
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining('Jupyter file download exceeds maximum size'),
     })
   })
 })

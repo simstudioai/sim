@@ -77,6 +77,17 @@ function createResponse(
 
 type ResponseTransform = (response: SecureFetchResponse) => Promise<ToolResponse>
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
 describe('Agiloft operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -163,17 +174,10 @@ describe('Agiloft operations', () => {
       { requestId: 'request-1', signal: controller.signal }
     )
 
-    expect(result).toEqual({
-      success: true,
-      output: {
-        file: {
-          name: 'evidence.txt',
-          mimeType: 'text/plain',
-          data: Buffer.from('hello').toString('base64'),
-          size: 5,
-        },
-      },
-    })
+    expect(result.files).toEqual([
+      { name: 'evidence.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') },
+    ])
+    expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
     expect(providerMocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/ewws/EWRetrieve'),
       '203.0.113.10',

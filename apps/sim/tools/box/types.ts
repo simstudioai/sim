@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 export interface BoxUploadFileParams {
@@ -92,6 +93,12 @@ export interface BoxDownloadFileResponse extends ToolResponse {
       size: number
     }
     content: string
+  }
+}
+
+export interface BoxDownloadFileV2Response<File = UserFile> extends ToolResponse {
+  output: Omit<BoxDownloadFileResponse['output'], 'file' | 'content'> & {
+    file: File
   }
 }
 

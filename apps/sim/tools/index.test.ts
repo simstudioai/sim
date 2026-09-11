@@ -29,6 +29,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -64,6 +65,8 @@ const {
   mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
+  mockUploadExecutionFile,
+  mockUploadCopilotFile,
 } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -84,6 +87,8 @@ const {
   mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
+  mockUploadExecutionFile: vi.fn(),
+  mockUploadCopilotFile: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -137,6 +142,23 @@ vi.mock('@/lib/internal/principals/executor', () => ({
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
   getInternalToolOperationHandler: mockGetInternalToolOperationHandler,
+}))
+
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: mockUploadExecutionFile,
+  uploadFileFromRawData: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/copilot', () => ({
+  uploadCopilotFile: mockUploadCopilotFile,
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  deleteFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  deleteFileMetadata: vi.fn(),
 }))
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
@@ -470,6 +492,8 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
+  mockUploadExecutionFile.mockReset()
+  mockUploadCopilotFile.mockReset()
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   mockGetInternalToolOperationHandler.mockResolvedValue(mockExecuteInternalToolOperation)
   mockExecuteInternalToolOperation.mockImplementation(async (request: InternalToolOperationCall) =>
@@ -3991,6 +4015,291 @@ describe('Internal Route Trust', () => {
       ;(tools as Record<string, unknown>).test_external_private_model_tool = undefined
     }
   })
+
+  it.each(['test_large_download', 'mcp-server-download'])(
+    'stores %s before response admission and preserves the file reference',
+    async (toolId) => {
+      const bytes = Buffer.alloc(20 * 1024 * 1024 + 3, 42)
+      const storedFile = {
+        id: 'stored-workbook',
+        name: 'dashboard.xlsx',
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        size: bytes.length,
+        key: 'execution/workspace-456/workflow-1/execution-1/dashboard.xlsx',
+        url: 'https://storage.example.com/dashboard.xlsx',
+        context: 'execution' as const,
+      }
+      const tool = {
+        id: toolId,
+        name: 'Large download',
+        description: 'Returns a stored workbook',
+        version: '1.0.0',
+        params: {},
+        operation: { input: () => ({}) },
+        outputs: { file: { type: 'file' } },
+      }
+      ;(tools as Record<string, unknown>)[tool.id] = tool
+      mockUploadExecutionFile.mockResolvedValueOnce(storedFile)
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        createInternalToolFileResult(
+          { buffer: bytes, name: storedFile.name, mimeType: storedFile.type },
+          (file) => ({ success: true, output: { file } })
+        )
+      )
+      try {
+        const result = await executeTool(
+          tool.id,
+          { _context: { workspaceId: 'forged', executionId: 'forged', userId: 'forged' } },
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              workspaceId: 'workspace-456',
+              workflowId: 'workflow-1',
+              executionId: 'execution-1',
+            }),
+          }
+        )
+        expect(result).toMatchObject({ success: true, output: { file: storedFile } })
+        expect(mockUploadExecutionFile).toHaveBeenCalledOnce()
+        const [scope, uploadedBytes, name, mimeType, owner] = mockUploadExecutionFile.mock.calls[0]!
+        expect(scope).toEqual({
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        })
+        expect(uploadedBytes).toBe(bytes)
+        expect([name, mimeType, owner]).toEqual([storedFile.name, storedFile.type, 'user-1'])
+        expect(JSON.stringify(result).length).toBeLessThan(2048)
+      } finally {
+        Reflect.deleteProperty(tools, tool.id)
+      }
+    }
+  )
+
+  it('stores late JSON-response attachments and their nested aliases for Copilot', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-attachment',
+      name: 'attachment.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/attachment.bin',
+      url: 'https://storage.example.com/attachment.bin',
+      context: 'copilot',
+    }
+    const attachment = { name: stored.name, mimeType: stored.type, data: bytes }
+    const transformResponse = vi.fn(async (response: Response) => {
+      const metadata = await response.json()
+      return {
+        success: true,
+        output: { metadata, files: [attachment], messages: [{ attachments: [attachment] }] },
+      }
+    })
+    const tool = {
+      id: 'test_copilot_late_attachment',
+      name: 'Copilot attachment',
+      description: 'Stores late attachments',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/messages',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+      outputs: { files: { type: 'file[]' } },
+      transformResponse,
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ id: 'message-1' }))
+    )
+    const controller = new AbortController()
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+          signal: controller.signal,
+        }
+      )
+      expect(result).toMatchObject({
+        success: true,
+        output: { files: [stored], messages: [{ attachments: [stored] }] },
+      })
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      expect(mockUploadCopilotFile.mock.calls[0]?.[0].buffer).toBe(bytes)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+      expect(transformResponse.mock.calls[0]).toHaveLength(3)
+      const transformContext = (transformResponse.mock.calls[0] as unknown[])[2] as {
+        signal: AbortSignal
+      }
+      expect(transformContext.signal).toBeInstanceOf(AbortSignal)
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
+  it('persists external binary downloads for Copilot as file references', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-download',
+      name: 'download.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/download.bin',
+      url: 'https://storage.example.com/download.bin',
+      context: 'copilot',
+    }
+    const tool = {
+      id: 'test_copilot_binary',
+      name: 'Copilot binary download',
+      description: 'Preserves file ownership',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/download',
+        method: 'GET' as const,
+        headers: () => ({}),
+        responseType: 'binary' as const,
+      },
+      transformResponse: async (response: Response) => {
+        const buffer = Buffer.from(await response.arrayBuffer())
+        return {
+          success: true,
+          output: {
+            file: { name: stored.name, mimeType: stored.type, data: buffer, size: buffer.length },
+          },
+        }
+      },
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(toSecureFetchResponse(new Response(bytes)))
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+        }
+      )
+      expect(result).toMatchObject({ success: true, output: { file: stored } })
+      expect(result.output).not.toHaveProperty('content')
+      expect(result.output.file).not.toHaveProperty('data')
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      const upload = mockUploadCopilotFile.mock.calls[0]?.[0]
+      expect(upload.userId).toBe('user-1')
+      expect(upload.buffer.equals(bytes)).toBe(true)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
+  it.each([
+    {
+      responseType: 'binary' as const,
+      status: 200,
+      succeeds: true,
+      declaredSize: 12 * 1024 * 1024,
+    },
+    { responseType: undefined, status: 200, succeeds: false, declaredSize: 12 * 1024 * 1024 },
+    {
+      responseType: 'binary' as const,
+      status: 500,
+      succeeds: false,
+      declaredSize: 12 * 1024 * 1024,
+    },
+    {
+      responseType: 'binary' as const,
+      status: 200,
+      succeeds: false,
+      declaredSize: 100 * 1024 * 1024 + 1,
+    },
+  ])(
+    'bounds external $responseType responses at status $status and size $declaredSize',
+    async ({ responseType, status, succeeds, declaredSize }) => {
+      const transformResponse = vi.fn(async (response: Response) => {
+        const buffer = Buffer.from(await response.arrayBuffer())
+        return {
+          success: true,
+          output: {
+            file: {
+              name: 'download.bin',
+              mimeType: 'application/octet-stream',
+              data: buffer,
+              size: buffer.length,
+            },
+          },
+        }
+      })
+      mockUploadExecutionFile.mockResolvedValueOnce({
+        id: 'download',
+        name: 'download.bin',
+        size: 12 * 1024 * 1024,
+        type: 'application/octet-stream',
+        key: 'execution/download.bin',
+        url: 'https://storage.example.com/download.bin',
+        context: 'execution',
+      })
+      const tool = {
+        id: 'test_binary_admission',
+        name: 'Binary admission',
+        description: 'Checks file and JSON response limits',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: 'https://api.example.com/download',
+          method: 'GET' as const,
+          headers: () => ({}),
+          responseType,
+        },
+        transformResponse,
+      }
+      ;(tools as Record<string, unknown>)[tool.id] = tool
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(new Uint8Array(12 * 1024 * 1024), {
+            status,
+            headers: { 'content-length': String(declaredSize) },
+          })
+        )
+      )
+      try {
+        const result = await executeTool(
+          tool.id,
+          {},
+          {
+            executionContext: createToolExecutionContext({ userId: 'user-1' }),
+          }
+        )
+        expect(result.success).toBe(succeeds)
+        expect(transformResponse).toHaveBeenCalledTimes(succeeds ? 1 : 0)
+        expect(mockUploadExecutionFile).toHaveBeenCalledTimes(succeeds ? 1 : 0)
+        expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+          tool.request.url,
+          expect.any(String),
+          expect.objectContaining({ maxResponseBytes: (responseType ? 100 : 10) * 1024 * 1024 })
+        )
+      } finally {
+        Reflect.deleteProperty(tools, tool.id)
+      }
+    }
+  )
 
   it('should reject internal tool responses that exceed the response body cap', async () => {
     const mockTool = {

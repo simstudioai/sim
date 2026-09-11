@@ -17,6 +17,10 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { OneDriveOperationError } from '@/lib/internal/onedrive/errors'
 import type { OneDriveUploadInput } from '@/lib/internal/onedrive/schema'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
   getExtensionFromMimeType,
@@ -25,7 +29,7 @@ import {
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import type { OneDriveDownloadResponse, OneDriveToolParams } from '@/tools/onedrive/types'
+import type { OneDriveToolParams } from '@/tools/onedrive/types'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
 const MAX_GRAPH_JSON_BYTES = 2 * 1024 * 1024
@@ -452,7 +456,7 @@ async function graphError(response: SecureFetchResponse, fallback: string, signa
 export async function downloadOneDriveFile(
   input: OneDriveDownloadInput,
   context: OneDriveOperationContext
-): Promise<OneDriveDownloadResponse> {
+): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const fileId = encodeURIComponent(input.fileId)
   const metadataResponse = await fetchGraph(
@@ -498,15 +502,12 @@ export async function downloadOneDriveFile(
     label: 'OneDrive file download',
     signal: context.signal,
   })
-  return {
-    success: true,
-    output: {
-      file: {
-        name: input.fileName || metadata.name || 'download',
-        mimeType: metadata.file?.mimeType || 'application/octet-stream',
-        data: buffer.toString('base64'),
-        size: buffer.length,
-      },
+  return createInternalToolFileResult(
+    {
+      buffer,
+      name: input.fileName || metadata.name || 'download',
+      mimeType: metadata.file?.mimeType || 'application/octet-stream',
     },
-  }
+    (file) => ({ success: true, output: { file } })
+  )
 }

@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const operationMocks = vi.hoisted(() => ({
   executeSshCheckCommandExists: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('@/lib/internal/ssh/operations', () => operationMocks)
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { SshOperationError } from '@/lib/internal/ssh/errors'
-import { executeSshTool } from '@/lib/internal/ssh/execute-tool'
+import { executeSshTool as executeSshToolOperation } from '@/lib/internal/ssh/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const CONNECTION = {
@@ -40,6 +41,7 @@ const TOOL_IDS = [
   'ssh_create_directory',
   'ssh_delete_file',
   'ssh_download_file',
+  'ssh_download_file_v2',
   'ssh_execute_command',
   'ssh_execute_script',
   'ssh_get_system_info',
@@ -67,12 +69,37 @@ function createRequest(
   }
 }
 
+async function executeSshTool(
+  request: Parameters<typeof executeSshToolOperation>[0]
+): Promise<Response> {
+  const result = await executeSshToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
+}
+
 describe('executeSshTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     for (const operation of Object.values(operationMocks)) {
       operation.mockResolvedValue({ handled: true })
     }
+  })
+
+  it('forwards binary file results without serializing them', async () => {
+    const result = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ file })
+    )
+    operationMocks.executeSshDownloadFile.mockResolvedValueOnce(result)
+    expect(
+      await executeSshToolOperation(
+        createRequest({
+          toolId: 'ssh_download_file_v2',
+          input: { ...CONNECTION, remotePath: '/file.txt' },
+        })
+      )
+    ).toBe(result)
+    expect(operationMocks.executeSshDownloadFile.mock.calls[0][2]).toBe('v2')
   })
 
   it('validates typed operation input and dispatches without reading a serialized body', async () => {

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { jupyterCopyContentTool } from '@/tools/jupyter/copy_content'
 import { jupyterCreateFileTool } from '@/tools/jupyter/create_file'
-import { jupyterGetContentTool } from '@/tools/jupyter/get_content'
+import { jupyterGetContentTool, jupyterGetContentV2Tool } from '@/tools/jupyter/get_content'
 import { jupyterListContentsTool } from '@/tools/jupyter/list_contents'
 import { jupyterRenameContentTool } from '@/tools/jupyter/rename_content'
 
@@ -27,6 +27,51 @@ const CONTENT_MODEL = {
 }
 
 describe('Jupyter content transforms', () => {
+  it('preserves the legacy base64 file output', async () => {
+    const base64 = Buffer.from('workbook').toString('base64')
+    await expect(
+      jupyterGetContentTool.transformResponse(
+        Response.json({
+          name: 'book.xlsx',
+          path: 'book.xlsx',
+          format: 'base64',
+          content: base64,
+        }),
+        { ...AUTH, path: 'book.xlsx' }
+      )
+    ).resolves.toEqual({
+      success: true,
+      output: {
+        name: 'book.xlsx',
+        path: 'book.xlsx',
+        mimetype: null,
+        text: null,
+        file: { name: 'book.xlsx', mimeType: 'application/octet-stream', data: base64, size: 8 },
+      },
+    })
+  })
+
+  it('preserves the stored v2 file descriptor without content aliases or duplicate metadata', async () => {
+    const file = {
+      id: 'file-1',
+      name: 'book.xlsx',
+      type: 'application/octet-stream',
+      size: 12 * 1024 * 1024,
+      key: 'execution/file-1',
+      url: '/api/files/serve/execution/file-1',
+    }
+    await expect(
+      jupyterGetContentV2Tool.transformResponse?.(
+        Response.json({ success: true, output: { file } })
+      )
+    ).resolves.toEqual({ success: true, output: { file } })
+    expect(jupyterGetContentV2Tool.operation.input({ ...AUTH, path: 'book.xlsx' })).toEqual({
+      ...AUTH,
+      method: 'GET',
+      path: 'book.xlsx',
+    })
+  })
+
   it('preserves existing output shapes for valid Contents API models', async () => {
     await expect(
       jupyterCreateFileTool.transformResponse?.(Response.json(CONTENT_MODEL), {

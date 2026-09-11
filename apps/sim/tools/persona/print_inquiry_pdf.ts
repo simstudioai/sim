@@ -35,6 +35,7 @@ export const personaPrintInquiryPdfTool: ToolConfig<
   },
 
   request: {
+    responseType: 'binary',
     url: (params) =>
       `${PERSONA_API_BASE}/inquiries/${encodeURIComponent(params.inquiryId.trim())}/print`,
     method: 'GET',
@@ -63,7 +64,7 @@ export const personaPrintInquiryPdfTool: ToolConfig<
         file: {
           name: `${inquiryId}.pdf`,
           mimeType: 'application/pdf',
-          data: buffer.toString('base64'),
+          data: buffer,
           size: buffer.length,
         },
       },

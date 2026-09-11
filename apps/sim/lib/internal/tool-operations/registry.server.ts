@@ -1,7 +1,12 @@
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { isMcpTool } from '@/executor/constants'
 
-type InternalToolOperationHandlerLoader = () => Promise<InternalToolOperationHandler>
+type InternalToolOperationHandlerLoader = () => Promise<
+  InternalToolOperationHandler<InternalToolOperationResult>
+>
 
 const STS_TOOL_IDS = [
   'sts_assume_role',
@@ -456,6 +461,7 @@ const JUPYTER_TOOL_IDS = [
   'jupyter_delete_content',
   'jupyter_delete_session',
   'jupyter_get_content',
+  'jupyter_get_content_v2',
   'jupyter_interrupt_kernel',
   'jupyter_list_contents',
   'jupyter_list_kernels',
@@ -730,6 +736,7 @@ const OUTLOOK_TOOL_IDS = [
   'outlook_copy',
   'outlook_delete',
   'outlook_draft',
+  'outlook_get_attachment',
   'outlook_mark_read',
   'outlook_mark_unread',
   'outlook_move',
@@ -742,6 +749,7 @@ const SSH_TOOL_IDS = [
   'ssh_create_directory',
   'ssh_delete_file',
   'ssh_download_file',
+  'ssh_download_file_v2',
   'ssh_execute_command',
   'ssh_execute_script',
   'ssh_get_system_info',
@@ -1012,6 +1020,7 @@ const CURSOR_TOOL_IDS = ['cursor_download_artifact', 'cursor_download_artifact_v
 const SFTP_TOOL_IDS = [
   'sftp_delete',
   'sftp_download',
+  'sftp_download_v2',
   'sftp_list',
   'sftp_mkdir',
   'sftp_upload',
@@ -1069,7 +1078,12 @@ const PERSONA_TOOL_IDS = ['persona_import_accounts'] as const
 
 const SHAREPOINT_TOOL_IDS = ['sharepoint_download_file', 'sharepoint_upload_file'] as const
 
-const QUIVER_TOOL_IDS = ['quiver_text_to_svg', 'quiver_image_to_svg'] as const
+const QUIVER_TOOL_IDS = [
+  'quiver_text_to_svg',
+  'quiver_image_to_svg',
+  'quiver_text_to_svg_v2',
+  'quiver_image_to_svg_v2',
+] as const
 
 const TELEGRAM_TOOL_IDS = ['telegram_send_document'] as const
 
@@ -1787,7 +1801,7 @@ export function getRegisteredInternalToolOperationIds(): string[] {
 
 export async function getInternalToolOperationHandler(
   toolId: string
-): Promise<InternalToolOperationHandler | null> {
+): Promise<InternalToolOperationHandler<InternalToolOperationResult> | null> {
   const loader = handlerLoaders.get(toolId)
   if (loader) return loader()
   if (isMcpTool(toolId)) {

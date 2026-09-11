@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const operationMocks = vi.hoisted(() => ({
   executeMicrosoftWordAppend: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock('@/lib/internal/microsoft-word/operations', () => operationMocks)
 
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { GraphRequestError } from '@/lib/internal/microsoft-word/client'
-import { executeMicrosoftWordTool } from '@/lib/internal/microsoft-word/execute-tool'
+import { executeMicrosoftWordTool as executeMicrosoftWordToolOperation } from '@/lib/internal/microsoft-word/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const READ_INPUT = { accessToken: 'token', documentId: 'document-1' }
@@ -70,6 +71,14 @@ const TOOL_CASES = [
   ],
 ] as const
 
+async function executeMicrosoftWordTool(
+  request: Parameters<typeof executeMicrosoftWordToolOperation>[0]
+): Promise<Response> {
+  const result = await executeMicrosoftWordToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
+}
+
 describe('executeMicrosoftWordTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -94,6 +103,22 @@ describe('executeMicrosoftWordTool', () => {
       requestId: 'request-1',
       signal: controller.signal,
     })
+  })
+
+  it('forwards file bytes without serializing the file result', async () => {
+    const fileResult = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    operationMocks.executeMicrosoftWordExportPdf.mockResolvedValueOnce(fileResult)
+    expect(
+      await executeMicrosoftWordToolOperation(
+        createRequest({
+          toolId: 'microsoft_word_export_pdf',
+          input: { accessToken: 'token', documentId: 'document-1' },
+        })
+      )
+    ).toBe(fileResult)
   })
 
   it('returns validation errors before provider work', async () => {

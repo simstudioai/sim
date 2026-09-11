@@ -11,6 +11,7 @@ const {
   mockUploadToS3,
   mockDeleteFromS3,
   mockInsertFileMetadata,
+  mockDeleteFileMetadata,
   mockInsertImmutableFileMetadata,
   mockCleanupUnboundKnowledgeUpload,
   mockGetSignedUrl,
@@ -26,6 +27,7 @@ const {
   mockUploadToS3: vi.fn(),
   mockDeleteFromS3: vi.fn(),
   mockInsertFileMetadata: vi.fn(),
+  mockDeleteFileMetadata: vi.fn(),
   mockInsertImmutableFileMetadata: vi.fn(),
   mockCleanupUnboundKnowledgeUpload: vi.fn(),
   mockGetSignedUrl: vi.fn(),
@@ -63,6 +65,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
   insertFileMetadata: mockInsertFileMetadata,
+  deleteFileMetadata: mockDeleteFileMetadata,
   insertImmutableFileMetadata: mockInsertImmutableFileMetadata,
 }))
 
@@ -87,6 +90,8 @@ describe('createMultipartUpload', () => {
     mockAbort.mockResolvedValue(undefined)
     mockUploadToS3.mockResolvedValue({ key: 'k', path: 'p', name: 'k', size: 0, type: 'text/csv' })
     mockInsertFileMetadata.mockResolvedValue({ id: 'file-1' })
+    mockDeleteFileMetadata.mockResolvedValue(undefined)
+    mockDeleteFromS3.mockResolvedValue(undefined)
     mockInsertImmutableFileMetadata.mockResolvedValue({ id: 'file-1' })
     mockCleanupUnboundKnowledgeUpload.mockResolvedValue(undefined)
     mockGetSignedUrl.mockResolvedValue('https://s3.example/create-only')
@@ -250,6 +255,101 @@ describe('createMultipartUpload', () => {
     expect(mockUploadToS3.mock.calls[1][7]).toBe(false)
     expect(mockInsertImmutableFileMetadata).not.toHaveBeenCalled()
     expect(mockCleanupUnboundKnowledgeUpload).not.toHaveBeenCalled()
+  })
+
+  it.each(['execution', 'copilot'] as const)(
+    'removes an owned new %s object if metadata persistence fails, even after cancellation',
+    async (context) => {
+      const key = `${context}/new-file-id/file.txt`
+      const failure = new Error('metadata unavailable')
+      const controller = new AbortController()
+      mockUploadToS3.mockResolvedValueOnce({ key })
+      mockInsertFileMetadata.mockImplementationOnce(async () => {
+        controller.abort(new Error('cancelled'))
+        throw failure
+      })
+
+      await expect(
+        uploadFile({
+          file: Buffer.from('hello'),
+          fileName: 'file.txt',
+          customKey: key,
+          preserveKey: true,
+          cleanupOnMetadataFailure: true,
+          contentType: 'text/plain',
+          context,
+          metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+          signal: controller.signal,
+        })
+      ).rejects.toBe(failure)
+
+      expect(mockDeleteFromS3).toHaveBeenCalledExactlyOnceWith(
+        key,
+        { bucket: 'b', region: 'r' },
+        undefined
+      )
+      expect(mockDeleteFileMetadata).toHaveBeenCalledExactlyOnceWith(key)
+    }
+  )
+
+  it('preserves the metadata error when cleanup of an owned object also fails', async () => {
+    const failure = new Error('metadata unavailable')
+    mockInsertFileMetadata.mockRejectedValueOnce(failure)
+    mockDeleteFromS3.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      uploadFile({
+        file: Buffer.from('hello'),
+        fileName: 'file.txt',
+        customKey: 'execution/new-file-id/file.txt',
+        preserveKey: true,
+        cleanupOnMetadataFailure: true,
+        contentType: 'text/plain',
+        context: 'execution',
+        metadata: { workspaceId: 'workspace-1' },
+      })
+    ).rejects.toBe(failure)
+    expect(mockDeleteFromS3).toHaveBeenCalledOnce()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it.each(['workspace', 'execution', 'copilot'] as const)(
+    'leaves existing %s replacement keys untouched without explicit new-key ownership',
+    async (context) => {
+      const failure = new Error('metadata unavailable')
+      mockInsertFileMetadata.mockRejectedValueOnce(failure)
+      await expect(
+        uploadFile({
+          file: Buffer.from('hello'),
+          fileName: 'existing.txt',
+          customKey: `${context}/existing.txt`,
+          preserveKey: true,
+          contentType: 'text/plain',
+          context,
+          metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+        })
+      ).rejects.toBe(failure)
+      expect(mockDeleteFromS3).not.toHaveBeenCalled()
+      expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { context: 'workspace', customKey: 'workspace/file.txt', preserveKey: true },
+    { context: 'execution', customKey: undefined, preserveKey: true },
+    { context: 'copilot', customKey: 'copilot/file.txt', preserveKey: false },
+  ] as const)('rejects cleanup without an explicitly owned ephemeral key: %j', async (scope) => {
+    await expect(
+      uploadFile({
+        ...scope,
+        file: Buffer.from('hello'),
+        fileName: 'file.txt',
+        contentType: 'text/plain',
+        cleanupOnMetadataFailure: true,
+        metadata: { userId: 'user-1' },
+      })
+    ).rejects.toThrow('newly allocated execution or Copilot key')
+    expect(mockUploadToS3).not.toHaveBeenCalled()
   })
 
   it('takes the single-shot PutObject path for a payload smaller than one part', async () => {

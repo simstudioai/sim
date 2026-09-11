@@ -2,7 +2,7 @@ import { dropboxCopyTool } from '@/tools/dropbox/copy'
 import { dropboxCreateFolderTool } from '@/tools/dropbox/create_folder'
 import { dropboxCreateSharedLinkTool } from '@/tools/dropbox/create_shared_link'
 import { dropboxDeleteTool } from '@/tools/dropbox/delete'
-import { dropboxDownloadTool } from '@/tools/dropbox/download'
+import { dropboxDownloadTool, dropboxDownloadV2Tool } from '@/tools/dropbox/download'
 import { dropboxGetMetadataTool } from '@/tools/dropbox/get_metadata'
 import { dropboxListFolderTool } from '@/tools/dropbox/list_folder'
 import { dropboxListRevisionsTool } from '@/tools/dropbox/list_revisions'
@@ -18,6 +18,7 @@ export {
   dropboxCreateSharedLinkTool,
   dropboxDeleteTool,
   dropboxDownloadTool,
+  dropboxDownloadV2Tool,
   dropboxGetMetadataTool,
   dropboxListFolderTool,
   dropboxListRevisionsTool,

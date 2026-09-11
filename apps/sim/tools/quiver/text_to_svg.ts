@@ -1,8 +1,13 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
-import type { QuiverSvgResponse, QuiverTextToSvgParams } from '@/tools/quiver/types'
+import { QUIVER_SVG_V2_OUTPUTS } from '@/tools/quiver/outputs'
+import type {
+  QuiverSvgResponse,
+  QuiverSvgV2Response,
+  QuiverTextToSvgParams,
+} from '@/tools/quiver/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const quiverTextToSvgTool: InternalToolConfig<QuiverTextToSvgParams, QuiverSvgResponse> = {
+export const quiverTextToSvgTool = {
   id: 'quiver_text_to_svg',
   name: 'Quiver Text to SVG',
   description: 'Generate SVG images from text prompts using QuiverAI',
@@ -123,7 +128,7 @@ export const quiverTextToSvgTool: InternalToolConfig<QuiverTextToSvgParams, Quiv
         },
         svgContent: {
           type: 'string',
-          description: 'Raw SVG markup content of the first result',
+          description: 'Raw SVG markup content of the first generated SVG',
         },
         id: {
           type: 'string',
@@ -141,4 +146,17 @@ export const quiverTextToSvgTool: InternalToolConfig<QuiverTextToSvgParams, Quiv
       },
     },
   },
-}
+} satisfies InternalToolConfig<QuiverTextToSvgParams, QuiverSvgResponse>
+
+export const quiverTextToSvgV2Tool: InternalToolConfig<QuiverTextToSvgParams, QuiverSvgV2Response> =
+  {
+    ...quiverTextToSvgTool,
+    id: 'quiver_text_to_svg_v2',
+    version: '2.0.0',
+    transformResponse: async (response) => {
+      const data: QuiverSvgV2Response = await response.json()
+      if (!data.success) throw new Error(data.error || 'Failed to generate SVG')
+      return data
+    },
+    outputs: QUIVER_SVG_V2_OUTPUTS,
+  }
