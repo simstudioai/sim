@@ -21,7 +21,7 @@ import {
   resolveSlackAppCredentials,
   slackBotCredentialVersion,
 } from '@/lib/slack-search/app-configuration'
-import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-configuration'
+import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 const stored = {
   id: 'ASHARED',

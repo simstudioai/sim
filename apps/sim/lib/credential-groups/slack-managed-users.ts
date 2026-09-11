@@ -31,7 +31,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
 import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
-import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-configuration'
+import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 const logger = createLogger('SlackManagedUsers')
 const SLACK_MANAGED_USERS_ATTEMPT_TTL_MS = 10 * 60 * 1000

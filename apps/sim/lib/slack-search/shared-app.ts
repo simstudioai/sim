@@ -3,7 +3,7 @@ import { slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-configuration'
+import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 /** Called only inside authorized installation/member operations; never returns secrets to a surface. */
 export async function readSharedSlackSearchApp() {

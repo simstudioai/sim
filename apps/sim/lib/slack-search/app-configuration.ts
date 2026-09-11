@@ -3,7 +3,7 @@ import { slackApp } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-configuration'
+import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 /** Shared credentials always come from the deployment, even for previously registered apps. */
 export async function resolveSlackAppCredentials(app: typeof slackApp.$inferSelect) {
