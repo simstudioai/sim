@@ -61,6 +61,12 @@ references do not count. Dynamic/ambiguous imports are not presented as exact us
 Zero means no references were enumerated, not proof of no consumers. Overrides, inactive
 variants and runtime conditions can prevent a referenced component from changing visually.
 
+Changed sources are analyzed before unchanged consumers. Once a source has flagged evidence,
+repeated downstream expansion can be omitted while its resolved usage inventory is retained.
+The report records the number of unchanged files omitted; categories describe retained evidence.
+Changed files, configured documentation inputs and infrastructure are still inspected. CSS/token
+sources retain a changed consumer example before further repeated expansion is omitted.
+
 Schema 3 readers must handle either literal values or a summary object containing
 `$truncated`, `preview`, `sha256`, `hashAlgorithm`, `originalBytes`, `previewBytes` and `omittedBytes`.
 `hashAlgorithm: sha256-merkle-v1` hashes the complete semantic tree, including order and types,
@@ -102,6 +108,7 @@ scripts/design-diff/
   refactors.ts                          Supported literal/refactor normalization
   mutations.ts                          Referenced collection/property writes
   finite.ts                             Static finite keys for computed environment reads
+  environment.ts                        Literal createEnv schema field comparison
   resolve.ts                            Bounded expression and import resolution
   inputs.ts                             Configured file-loaded documentation inputs
   infrastructure.ts                     Rendering lockfile dependency closure
@@ -167,12 +174,16 @@ because its name happens to be `cn` or `clsx`.
 Dependency propagation resolves named/default imports, aliases and static namespace members
 through named/star re-exports and import-then-export indexes to the defining module. A
 Button edit does not implicate a file merely because it imports an unrelated Icon from the
-same index. Changed top-level bindings and local dependents narrow the first propagation
-step and usage counts within a multi-export file. Both revisions are considered, including
+same index. Changed top-level bindings and local dependents narrow the propagation
+steps and usage counts within a multi-export file. Unresolved imports keep immediate module
+edges instead of bypassing intermediate binding checks with every transitive dependency.
+Literal `createEnv` schemas can narrow the first hop to changed keys, including keys from
+static feature-definition loops. Changed helper implementations, options, computed schemas
+and escaping collections retain conservative propagation. Both revisions are considered, including
 redirected re-exports. The module graph identifies candidates only. Actual findings require
 changed values, guards, referenced implementations or an explicitly unresolved imported input.
 Unrelated imports and dead re-exports cannot flag an unchanged expression. Object properties,
-destructured parameter defaults, and helper return paths are traced separately. Small immutable
+destructured parameter defaults, and selected helper return properties/guards are traced separately. Small immutable
 local literals are normalized before expression budgets, preserving supported constant hoists.
 The exact `Object.entries(...).reduce` record-map idiom is normalized to `Object.fromEntries`
 only with an empty accumulator, unchanged key and no accumulator reads in the mapped value. Unknown
@@ -286,7 +297,7 @@ bun run check:design-diff-types
 bun run check:api-validation
 ```
 
-Root script-test discovery includes every suite in `tests/`. The fixtures exercise visual
+Script-test discovery through `scripts/vitest.config.ts` includes every suite in `tests/`. The fixtures exercise visual
 categories, noops, movement, shared imports/themes, source order, documents/native rendering,
 Git divergence/renames/deletions/binaries/unusual names/missing history, bounded evaluation,
 deterministic output, CLI failure status and non-execution of proposed code/plugins.
@@ -357,7 +368,10 @@ Fetch manifest commit objects beforehand; missing history fails explicitly. The 
 the frozen comparison commits and GitHub file sets. Cache identity includes engine SHA, trusted
 config, lockfile, runtime and comparison commits, with report-content verification before reuse.
 It awaits native Bun process exit status and records per-comparison elapsed time and peak RSS
-separately from deterministic reports. Failed runs retain bounded stderr diagnostics in a
+separately from deterministic reports. The default comparison deadline is 900 seconds.
+For research, `--timeout-seconds` accepts 1–3600 seconds and enters the cache identity;
+it does not change the production workflow timeout. Report comparisons exceeding 900 seconds
+separately because they cannot fit that workflow budget. Failed runs retain bounded stderr diagnostics in a
 separate file, without printing source findings to logs.
 `/usr/bin/time` is required (macOS or Linux); source findings are not printed. Review original
 and holdout rates separately, and inspect every disagreement against the source label.

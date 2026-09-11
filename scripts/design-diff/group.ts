@@ -35,6 +35,19 @@ function usage(tree: SourceTree, file: string, symbols?: Set<string>): UsageCoun
   }
 }
 
+/** Attribute only changed sources reached by this definition's own dependency evidence. */
+export function causalSources(
+  change: Change,
+  causes: Map<string, Set<string>>,
+  renames: Map<string, string>
+): string[] {
+  const currentPath = (file: string) => [...renames].find(([, old]) => old === file)?.[0] ?? file
+  const file = fileOf(change)
+  return [...new Set([...(causes.get(file) ?? new Set([file]))].map(currentPath))].filter(
+    (root) => root === currentPath(file) || change.dependencies.map(currentPath).includes(root)
+  )
+}
+
 /** One finding per changed source, with direct evidence and one representative consumer. */
 export function groupFindings(
   changes: Change[],
@@ -46,10 +59,7 @@ export function groupFindings(
   const currentPath = (file: string) => [...renames].find(([, old]) => old === file)?.[0] ?? file
   const groups = new Map<string, Change[]>()
   for (const change of changes) {
-    const file = fileOf(change)
-    for (const root of new Set([...(causes.get(file) ?? new Set([file]))].map(currentPath))) {
-      if (root !== currentPath(file) && !change.dependencies.map(currentPath).includes(root))
-        continue
+    for (const root of causalSources(change, causes, renames)) {
       const entries = groups.get(root) ?? []
       entries.push(change)
       groups.set(root, entries)

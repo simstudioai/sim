@@ -26,6 +26,7 @@ interface Result {
   flagged: boolean | null
   exitCode: number | null
   seconds: number
+  timeoutSeconds: number
   peakMemoryBytes: number | null
   reportBytes: number
   reportSha256?: string
@@ -45,6 +46,7 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       manifest: { type: 'string' },
       output: { type: 'string' },
       workers: { type: 'string', default: '3' },
+      'timeout-seconds': { type: 'string', default: '900' },
     },
     strict: true,
   })
@@ -89,12 +91,16 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
     new Set(manifest.comparisons.map((item) => item.pr)).size !== manifest.comparisons.length
   )
     throw new Error('Invalid or duplicate comparison manifest')
+  const timeoutSeconds = Number(values['timeout-seconds'])
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600)
+    throw new Error('Timeout seconds must be 1..3600')
   const identity = hash(
     JSON.stringify({
       sha: values.sha,
       config: hash(readFileSync(path.join(engine, 'design-diff.config.json'))),
       lock: git('rev-parse', 'HEAD:bun.lock'),
       runtime: bunVersion,
+      timeoutSeconds,
     })
   )
   const workers = Number(values.workers)
@@ -119,6 +125,7 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       flagged: null,
       exitCode: null,
       seconds: 0,
+      timeoutSeconds,
       peakMemoryBytes: null,
       reportBytes: 0,
       categories: [],
@@ -168,7 +175,8 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
           reportFile,
         ],
         engine,
-        env
+        env,
+        timeoutSeconds * 1000
       )
       result.exitCode = execution.exitCode
       const metrics =
