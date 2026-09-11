@@ -49,12 +49,12 @@ import { getCustomBlockUsageCounts } from '@/lib/workflows/custom-blocks/operati
  * failure mode a downgrade disclosure cannot have. Now adding a section to
  * that union fails the build here until somebody decides whether it is gated.
  *
- * The gating mirrors `isOrganizationSettingsSectionAvailable`: on hosted every
- * section except `members` and `billing` resolves to `hasEnterprisePlan`. The
- * type is imported type-only so this domain module stays free of the settings
+ * The gating mirrors `isOrganizationSettingsSectionAvailable`. The type is
+ * imported type-only so this domain module stays free of the settings
  * navigation module's React and icon imports.
  */
 const ENTERPRISE_GATED_SECTION_LABELS: Record<OrganizationSettingsSection, string | null> = {
+  'recently-deleted': null,
   integrations: 'Sim Search source setup',
   'search-mcp': null,
   'search-slack': 'Sim Search in Slack',
