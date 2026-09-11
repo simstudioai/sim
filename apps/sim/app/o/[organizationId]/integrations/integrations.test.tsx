@@ -466,11 +466,42 @@ describe('grouped member integrations', () => {
     queryOverrides = { hasNextPage: true }
     rows = []
     await render('?integration=gmail')
-    await openMenu('Gmail')
-    await act(async () => menuItem('Load more connections').click())
+    expect(container.textContent).toContain('More connections to check')
+    await act(async () => buttons('Check connections')[0].click())
     expect(mocks.nextPage).toHaveBeenCalledOnce()
     expect(buttons('Connect')).toHaveLength(0)
   })
+  it.each(['needs_reauth', 'not_enrolled'] as const)(
+    'exposes an older %s source without marking a partial inventory connected',
+    async (membership) => {
+      rows = Array.from({ length: 25 }, (_, index) => ({
+        ...memberSource,
+        connectorId: `source-${index}`,
+        viewerMembership: 'connected',
+        viewerAccounts: [account],
+      }))
+      queryOverrides = { hasNextPage: true }
+      await render()
+      expect(container.textContent).toContain('More connections to check')
+      expect(container.textContent).not.toContain('Connected')
+      expect(buttons('Connect')).toHaveLength(0)
+      await act(async () => buttons('Check connections')[0].click())
+      expect(mocks.nextPage).toHaveBeenCalledOnce()
+      queryOverrides = { hasNextPage: true, isFetchingNextPage: true, isFetching: true }
+      await render()
+      expect(buttons('Checking…')[0]).toBeDisabled()
+      rows = [
+        ...rows,
+        { ...memberSource, connectorId: 'older-source', viewerMembership: membership },
+      ]
+      queryOverrides = { hasNextPage: false }
+      await render()
+      expect(buttons('Check connections')).toHaveLength(0)
+      const action = membership === 'needs_reauth' ? 'Reconnect' : 'Connect'
+      await act(async () => buttons(action)[0].click())
+      expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'older-source')
+    }
+  )
   it('retries a failed connection read directly from its flat row', async () => {
     queryOverrides = { isError: true, error: new Error('Could not load') }
     await render()
@@ -483,8 +514,8 @@ describe('grouped member integrations', () => {
     queryOverrides = { hasNextPage: true, isError: true, isFetchNextPageError: true }
     rows = []
     await render()
-    await openMenu('Gmail')
-    await act(async () => menuItem('Retry loading connections').click())
+    expect(container.textContent).toContain('Could not check remaining connections')
+    await act(async () => buttons('Retry')[0].click())
     expect(mocks.nextPage).toHaveBeenCalledOnce()
     expect(document.querySelector('[role="region"]')).toBeNull()
   })
@@ -622,7 +653,7 @@ describe('grouped member integrations', () => {
     await render('?integration=confluence')
     expect(
       mocks.accountMenu.mock.calls.at(-1)?.[0].actions.map((action: RowAction) => action.label)
-    ).toEqual(['Load more connections'])
+    ).toEqual([])
   })
   it('keeps the integration menu open during background indexing refreshes', async () => {
     mocks.overview.mockReturnValue({

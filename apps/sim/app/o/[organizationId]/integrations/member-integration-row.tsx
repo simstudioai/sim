@@ -145,19 +145,18 @@ export function MemberIntegrationRow({
     if (rows.some((source) => source.hasSyncError || source.viewerFailedDocumentCount > 0))
       return 'Sync needs attention'
     if (rows.some((source) => source.isSyncing)) return 'Indexing'
-    if (sources.hasNextPage) return accounts.length ? 'Connected' : 'More connections available'
+    if (sources.hasNextPage)
+      return sources.isFetchNextPageError
+        ? 'Could not check remaining connections'
+        : 'More connections to check'
     if (allCentral) return 'Connected by your organization'
     return accounts.length ? 'Connected' : 'No connected content'
   }
   const actions: RowAction[] = []
-  if (configured && ready && sources.hasNextPage)
-    actions.push({
-      label: sources.isFetchNextPageError ? 'Retry loading connections' : 'Load more connections',
-      onSelect: () => void sources.fetchNextPage(),
-      disabled: sources.isFetchingNextPage,
-    })
   if (configured && ready && !sources.hasNextPage && !allCentral && addLabel && onCreate)
     actions.push({ label: addLabel, onSelect: onCreate, disabled: enrollment.isPending })
+  const canCheckConnections =
+    configured && ready && sources.hasNextPage && !target && !needsEmailVerification
   const canConnect = ready && (target || (!configured && onCreate))
 
   return (
@@ -185,6 +184,19 @@ export function MemberIntegrationRow({
           {hasLoadError && (
             <Chip disabled={sources.isFetching} onClick={() => void sources.refetch()}>
               {sources.isFetching ? 'Retrying…' : 'Retry'}
+            </Chip>
+          )}
+          {canCheckConnections && (
+            <Chip
+              variant='primary'
+              disabled={sources.isFetching || enrollment.isPending}
+              onClick={() => void sources.fetchNextPage({ cancelRefetch: false })}
+            >
+              {sources.isFetchingNextPage
+                ? 'Checking…'
+                : sources.isFetchNextPageError
+                  ? 'Retry'
+                  : 'Check connections'}
             </Chip>
           )}
           {canConnect && (
