@@ -22,6 +22,7 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
@@ -240,10 +241,14 @@ export function SearchSourceSetup({
   ) {
     if (selectedType && session?.user?.id) {
       const accessMode = initialMode(selectedType)
-      const setupMode = scope.kind === 'organization' ? accessMode : 'choose'
+      const setupMode =
+        scope.kind === 'organization' &&
+        !(selectedMeta?.mirrorsSourceAcls && selectedMeta.auth.mode === 'oauth')
+          ? accessMode
+          : 'choose'
       return (
         <AddConnectorModal
-          key={`${session.user.id}:${knowledgeBaseId}:${selectedType}:${setupMode}`}
+          key={`${session.user.id}:${knowledgeBaseId}:${selectedType}:${setupMode}:${accessMode}`}
           open
           onOpenChange={(nextOpen) => {
             if (!nextOpen) void setSelectedType(null)
@@ -253,7 +258,8 @@ export function SearchSourceSetup({
           isSearchIndex
           initialConnectorType={selectedType}
           initialAccessMode={accessMode}
-          lockedAccessMode={scope.kind === 'organization' ? accessMode : undefined}
+          lockConnectorType={scope.kind === 'organization'}
+          lockedAccessMode={setupMode === 'choose' ? undefined : setupMode}
           setupDraftKey={`${session.user.id}:${resourceScopeKey(scope)}:${knowledgeBaseId}:${selectedType}:${setupMode}`}
           onConnectorTypeChange={(type) =>
             void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
@@ -280,6 +286,16 @@ export function SearchSourceSetup({
     }
   }
 
+  if (
+    selectedType &&
+    !failedQuery &&
+    !integrationAvailabilityError &&
+    !prepare.error &&
+    (!isIntegrationAvailabilityReady || selectedAvailable)
+  ) {
+    return null
+  }
+
   const normalizedSearch = search.trim().toLowerCase()
   const visibleTypes = SEARCH_SOURCE_TYPES.filter(
     ([type, meta]) =>
@@ -300,7 +316,9 @@ export function SearchSourceSetup({
       srTitle='Add source'
     >
       <ChipModalHeader onClose={close}>
-        {selectedMeta ? `Configure ${selectedMeta.name}` : 'Add source'}
+        {selectedType
+          ? getSearchConnectionLabels(selectedType, selectedAccessMode).title
+          : 'Add source'}
       </ChipModalHeader>
       <ChipModalBody>
         {failedQuery ? (

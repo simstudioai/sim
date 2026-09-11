@@ -103,6 +103,24 @@ sim configure [options]
 
 </CommandTable>
 
+## sim update
+
+Update this global CLI installation to the newest release on its channel
+
+```bash
+sim update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--package-manager <manager>` | No | Package manager that installed this copy. Accepted values: `npm`, `pnpm`, `bun`, `yarn`. |
+
+</CommandTable>
+
 ## sim chat
 
 Ask Sim and print the reply
@@ -170,6 +188,32 @@ sim profiles add <name> [options]
 | `-w, --workspace <id>` | No | Existing workspace to use; omit for an interactive picker. |
 
 </CommandTable>
+
+## sim telemetry
+
+### sim telemetry status
+
+Show whether usage reporting is on, and why not if it is off
+
+```bash
+sim telemetry status
+```
+
+### sim telemetry enable
+
+Turn usage reporting on for this machine
+
+```bash
+sim telemetry enable
+```
+
+### sim telemetry disable
+
+Turn usage reporting off for this machine
+
+```bash
+sim telemetry disable
+```
 
 ## sim audit-logs
 

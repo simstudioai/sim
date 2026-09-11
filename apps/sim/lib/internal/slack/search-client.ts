@@ -29,7 +29,11 @@ function requireSuccess(result: SlackApiResult) {
 }
 
 /** Verifies a workspace-installed bot and its granted scopes, never a user token. */
-export async function verifySlackSearchBot(accessToken: string, signal?: AbortSignal) {
+export async function verifySlackSearchBot(
+  accessToken: string,
+  signal?: AbortSignal,
+  requiredScopes: readonly string[] = SLACK_SEARCH_SCOPES
+) {
   const result = await requestSlackApi({ accessToken, method: 'auth.test', signal })
   const auth = requireSuccess(result)
   const teamId = slackString(auth, 'team_id')
@@ -40,7 +44,7 @@ export async function verifySlackSearchBot(accessToken: string, signal?: AbortSi
       'Slack Search requires a bot installed in a single Slack workspace'
     )
   }
-  const missing = SLACK_SEARCH_SCOPES.filter((scope) => !result.grantedScopes?.includes(scope))
+  const missing = requiredScopes.filter((scope) => !result.grantedScopes?.includes(scope))
   if (missing.length)
     throw new SlackSearchConfigurationError(
       `Reinstall the Slack bot with these scopes: ${missing.join(', ')}`

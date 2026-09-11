@@ -620,19 +620,13 @@ export interface PostHogEventMap {
     action_id?: string
   }
 
-  /** The chat composer's mode switcher picked a different mode. */
-  chat_mode_changed: {
-    workspace_id: string
-    mode: 'build' | 'search' | 'assistant'
-  }
-
   /**
    * A home-page suggested action was clicked. `action_id` is the candidate id
-   * (e.g. `gmail-0`); `connector` rows are the Search-mode "Connect X" rows.
+   * (e.g. `integrate-gmail`).
    */
   suggested_action_clicked: {
     workspace_id: string
-    kind: 'prompt' | 'integration' | 'connector'
+    kind: 'prompt' | 'integration'
     action_id: string
     label: string
     position: number

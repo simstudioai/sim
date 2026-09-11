@@ -64,12 +64,23 @@ const repositorySchema = z.object({
 export class GitHubInstallationError extends Error {
   constructor(
     message: string,
-    readonly status?: number
+    readonly status?: number,
+    readonly operation?: GitHubInstallationOperation
   ) {
     super(message)
     this.name = 'GitHubInstallationError'
   }
 }
+
+type GitHubInstallationOperation =
+  | 'user'
+  | 'memberships'
+  | 'installations'
+  | 'installation'
+  | 'repository'
+  | 'repository-list'
+  | 'repository-token'
+  | 'listing-token'
 
 function readConfiguration() {
   const appId = env.GITHUB_APP_ID?.trim()
@@ -143,7 +154,8 @@ async function request(
   path: string,
   token: string,
   signal: AbortSignal,
-  body?: unknown
+  body?: unknown,
+  operation: GitHubInstallationOperation = 'installation'
 ): Promise<unknown> {
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
   const response = await fetch(`${API_URL}${path}`, {
@@ -162,8 +174,11 @@ async function request(
   if (!response.ok) {
     await response.body?.cancel()
     throw new GitHubInstallationError(
-      `GitHub installation request failed with HTTP ${response.status}`,
-      response.status
+      operation === 'repository-token' && response.status === 422
+        ? 'Check that the repository is included in the selected GitHub App installation, then retry.'
+        : `GitHub ${operation} request failed with HTTP ${response.status}`,
+      response.status,
+      operation
     )
   }
   return readResponseJsonWithLimit(response, {
@@ -214,7 +229,7 @@ async function adminAccountIds(userAccessToken: string, signal: AbortSignal) {
     throw new GitHubInstallationError('Connect your GitHub account before choosing an installation')
   const user = z
     .object({ id: apiIdSchema, type: z.literal('User') })
-    .parse(await request('/user', userAccessToken, signal))
+    .parse(await request('/user', userAccessToken, signal, undefined, 'user'))
   const organizations = new Set<string>()
   const membershipsSchema = z
     .array(
@@ -231,7 +246,9 @@ async function adminAccountIds(userAccessToken: string, signal: AbortSignal) {
       await request(
         `/user/memberships/orgs?state=active&per_page=${PAGE_SIZE}&page=${page}`,
         userAccessToken,
-        signal
+        signal,
+        undefined,
+        'memberships'
       )
     )
     for (const membership of memberships) {
@@ -271,7 +288,9 @@ export async function listUserAdminGitHubInstallations(
       await request(
         `/user/installations?per_page=${PAGE_SIZE}&page=${page}`,
         userAccessToken,
-        signal
+        signal,
+        undefined,
+        'installations'
       )
     )
     for (const installation of data.installations) {
@@ -407,7 +426,8 @@ async function mintToken(
           ...(repositoryId
             ? { repository_ids: [Number(repositoryId)] }
             : { repositories: [repositoryName] }),
-        }
+        },
+        'repository-token'
       )
     )
   const expiresAt = Date.parse(response.expires_at)
@@ -449,7 +469,13 @@ export async function resolveGitHubInstallationRepository(
   await assertGitHubInstallationActive(binding, { signal })
   const token = await mintToken(binding, signal, undefined, repo)
   const resolved = repositorySchema.parse(
-    await request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, token, signal)
+    await request(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+      token,
+      signal,
+      undefined,
+      'repository'
+    )
   )
   if (String(resolved.owner.id) !== binding.accountId)
     throw new GitHubInstallationError('Repository belongs to another GitHub installation account')
@@ -457,6 +483,60 @@ export async function resolveGitHubInstallationRepository(
     id: String(resolved.id),
     fullName: resolved.full_name,
     defaultBranch: resolved.default_branch,
+  }
+}
+
+/** Browses one bounded page with metadata-only access; content tokens remain repository-scoped. */
+export async function listGitHubInstallationRepositories(
+  binding: GitHubInstallationBinding,
+  options: RequestOptions & { page?: number } = {}
+) {
+  const page = options.page ?? 1
+  if (!Number.isSafeInteger(page) || page < 1 || page > 100)
+    throw new GitHubInstallationError('GitHub repository page is invalid')
+  const signal = operationSignal(options)
+  await assertGitHubInstallationActive(binding, { signal })
+  const configuration = requireConfiguration()
+  const token = z
+    .object({
+      token: z.string().min(1).max(1024),
+      expires_at: z.iso.datetime(),
+      permissions: z.object({ metadata: z.literal('read') }).strict(),
+    })
+    .parse(
+      await request(
+        `/app/installations/${binding.installationId}/access_tokens`,
+        createAppJwt(configuration),
+        signal,
+        { permissions: { metadata: 'read' } },
+        'listing-token'
+      )
+    )
+  const expiresAt = Date.parse(token.expires_at)
+  if (expiresAt <= Date.now() || expiresAt > Date.now() + 65 * 60_000)
+    throw new GitHubInstallationError('GitHub returned an invalid installation token expiration')
+  const result = z
+    .object({
+      total_count: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+      repositories: z.array(repositorySchema).max(PAGE_SIZE),
+    })
+    .parse(
+      await request(
+        `/installation/repositories?per_page=${PAGE_SIZE}&page=${page}`,
+        token.token,
+        signal,
+        undefined,
+        'repository-list'
+      )
+    )
+  if (result.repositories.some((repository) => String(repository.owner.id) !== binding.accountId))
+    throw new GitHubInstallationError('Repository belongs to another GitHub installation account')
+  return {
+    repositories: result.repositories.map((repository) => ({
+      id: String(repository.id),
+      fullName: repository.full_name,
+    })),
+    hasMore: result.repositories.length === PAGE_SIZE && page * PAGE_SIZE < result.total_count,
   }
 }
 

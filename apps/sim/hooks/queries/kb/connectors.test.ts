@@ -3,6 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const mocks = vi.hoisted(() => ({
@@ -117,6 +118,29 @@ function lastListStatusUpdater() {
   const call = mocks.setQueryData.mock.calls.filter((c) => JSON.stringify(c[0]) === listKey).at(-1)
   return call?.[1] as (connectors?: ConnectorData[]) => ConnectorData[] | undefined
 }
+
+describe('connector permission cache reconciliation', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it.each([true, false])(
+    'refreshes document visibility after permission saves (failed=%s)',
+    (failed) => {
+      useUpdateConnector()
+      const options = mocks.useMutation.mock.calls.at(-1)![0]
+      options.onSettled(undefined, failed ? new Error('Conflict') : null, {
+        knowledgeBaseId: KB_ID,
+        connectorId: 'connector-1',
+        updates: { permissionConfig: { provider: 'gitlab', mode: 'csv', expectedRevision: 1 } },
+      })
+      for (const queryKey of [
+        knowledgeKeys.documentLists(KB_ID),
+        knowledgeKeys.documentDetails(KB_ID),
+        knowledgeKeys.searches(),
+      ]) {
+        expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey })
+      }
+    }
+  )
+})
 
 describe('isConnectorSyncingOrPending', () => {
   it('treats a queued sync as in flight', () => {

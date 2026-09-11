@@ -3,8 +3,12 @@
 import { useRef } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { ArrowUp } from '@sim/emcn/icons'
+import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
+import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import { useVoiceInput } from '@/hooks/use-voice-input'
 
 const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0 transition-colors'
 const SEND_BUTTON_ACTIVE =
@@ -35,10 +39,22 @@ export function Composer({
   onStop,
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { organization } = useOrganizationContext()
   useChatInputFocus({ textareaRef })
+  const voice = useVoiceInput({
+    organizationId: organization.id,
+    getValue: () => value,
+    onChange,
+  })
   const canSubmit = value.trim().length > 0
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
+
+  const submit = () => {
+    if (!canSubmit) return
+    voice.resetTranscript()
+    onSubmit()
+  }
 
   return (
     <div
@@ -60,7 +76,7 @@ export function Composer({
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
-              onSubmit()
+              submit()
             }
           }}
           placeholder={placeholder}
@@ -70,7 +86,14 @@ export function Composer({
         />
       </div>
 
-      <div className='flex items-center justify-end'>
+      <div className='flex items-center justify-end gap-1.5'>
+        {voice.isSupported && (
+          <MicButton
+            audioLevelsRef={voice.audioLevelsRef}
+            isListening={voice.isListening}
+            onToggle={voice.toggleListening}
+          />
+        )}
         {isSending ? (
           <Button
             type='button'
@@ -91,7 +114,7 @@ export function Composer({
           <Button
             type='button'
             variant='ghost'
-            onClick={onSubmit}
+            onClick={submit}
             disabled={!canSubmit}
             aria-label='Send'
             className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
@@ -100,6 +123,10 @@ export function Composer({
           </Button>
         )}
       </div>
+      <MicrophonePermissionHelp
+        open={voice.permissionHelpOpen}
+        onOpenChange={voice.setPermissionHelpOpen}
+      />
     </div>
   )
 }

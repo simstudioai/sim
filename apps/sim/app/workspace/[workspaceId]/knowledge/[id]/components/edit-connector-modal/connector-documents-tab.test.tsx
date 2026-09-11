@@ -50,6 +50,18 @@ function button(name: string) {
   if (!result) throw new Error(`Missing button ${name}`)
   return result
 }
+function selectStatus(label: string) {
+  act(() =>
+    document
+      .querySelector('[aria-label="Document status"]')
+      ?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+  )
+  const option = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
+    item.textContent?.includes(label)
+  )
+  if (!option) throw new Error(`Missing status option ${label}`)
+  act(() => option.click())
+}
 beforeEach(() => {
   vi.clearAllMocks()
   for (const state of [mocks.excludeState, mocks.restoreState, mocks.retryState]) {
@@ -69,16 +81,26 @@ beforeEach(() => {
               id: 'failed',
               filename: 'Handbook.txt',
               processingStatus: 'failed',
+              processingError: 'Source download failed',
               userExcluded: false,
             },
             {
               id: 'ready',
               filename: 'Guide.txt',
               processingStatus: 'completed',
+              processingError: null,
+              userExcluded: false,
+            },
+            {
+              id: 'skipped',
+              filename: 'logo.png',
+              processingStatus: 'failed',
+              processingOutcome: 'skipped',
+              processingError: 'Binary file was not indexed',
               userExcluded: false,
             },
           ],
-          counts: { active: 3, excluded: 0, failed: 1 },
+          counts: { active: 4, excluded: 0, failed: 1, skipped: 1 },
         },
       ],
     },
@@ -130,21 +152,46 @@ describe('connector document recovery', () => {
   })
   it('requests failed documents from the server and hides healthy placeholder rows', () => {
     render()
-    act(() =>
-      document
-        .querySelector('[aria-label="Document status"]')
-        ?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
-    )
-    const failed = [...document.querySelectorAll('[role="menuitem"]')].find((item) =>
-      item.textContent?.includes('Failed (1)')
-    ) as HTMLElement
-    act(() => failed.click())
+    selectStatus('Failed (1)')
     expect(mocks.query).toHaveBeenLastCalledWith('kb', 'connector', {
       filter: 'failed',
       search: undefined,
     })
     expect(document.body.textContent).toContain('Handbook.txt')
     expect(document.body.textContent).not.toContain('Guide.txt')
+    expect(document.body.textContent).not.toContain('logo.png')
+  })
+  it('keeps skipped documents included with their reason and reserves retries for real failures', () => {
+    render()
+    expect(document.body.textContent).toContain('Included (4)')
+    expect(document.body.textContent).toContain('logo.png')
+    expect(document.body.textContent).toContain('Skipped · Binary file was not indexed')
+    expect(document.body.textContent).toContain('Indexing failed')
+    expect(
+      [...document.querySelectorAll('button')].filter(
+        (node) => node.textContent?.trim() === 'Retry indexing'
+      )
+    ).toHaveLength(1)
+  })
+  it('requests skipped documents from the server without exposing failed rows or retries', () => {
+    render()
+    selectStatus('Skipped (1)')
+    expect(mocks.query).toHaveBeenLastCalledWith('kb', 'connector', {
+      filter: 'skipped',
+      search: undefined,
+    })
+    expect(document.body.textContent).toContain('logo.png')
+    expect(document.body.textContent).toContain('Skipped · Binary file was not indexed')
+    expect(document.body.textContent).not.toContain('Handbook.txt')
+    expect(document.body.textContent).not.toContain('Guide.txt')
+    expect(document.body.textContent).not.toContain('Retry indexing')
+    expect(document.body.textContent).not.toContain('Load more documents')
+    act(() => button('Exclude').click())
+    expect(mocks.exclude).toHaveBeenCalledWith({
+      knowledgeBaseId: 'kb',
+      connectorId: 'connector',
+      documentIds: ['skipped'],
+    })
   })
   it.each([false, true])(
     'clears prior action errors before retry (retry fails: %s)',

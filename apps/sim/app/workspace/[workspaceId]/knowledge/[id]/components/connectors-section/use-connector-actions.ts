@@ -33,9 +33,15 @@ export function useConnectorActions({
   const update = useUpdateConnector()
   const remove = useDeleteConnector()
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [confirmFullResync, setConfirmFullResync] = useState(false)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
+  const requiresDocumentDeletion = connector.accessMode !== 'workspace'
   const state = getConnectorSyncState(connector)
   const actionsDisabled = disabled || sync.isPending || update.isPending || remove.isPending
+  const syncRunning =
+    connector.status === 'syncing' ||
+    (state.syncsPerMember && connector.memberSyncStatus === 'running')
+  const pauseDisabled = actionsDisabled || syncRunning
 
   function resetErrors() {
     sync.reset()
@@ -44,9 +50,12 @@ export function useConnectorActions({
   }
 
   function triggerSync(rehydrate = false) {
-    if (!canEdit || actionsDisabled || state.syncDisabled) return
+    if (!canEdit || actionsDisabled || state.syncDisabled || (rehydrate && !state.canFullResync))
+      return
     resetErrors()
-    sync.mutate({ knowledgeBaseId, connectorId: connector.id, rehydrate })
+    const input = { knowledgeBaseId, connectorId: connector.id, rehydrate }
+    if (rehydrate) sync.mutate(input, { onSuccess: () => setConfirmFullResync(false) })
+    else sync.mutate(input)
   }
 
   function setRemoveOpen(open: boolean) {
@@ -71,7 +80,11 @@ export function useConnectorActions({
                 id: 'full-resync',
                 text: 'Full resync',
                 disabled: state.syncDisabled || actionsDisabled,
-                onSelect: () => triggerSync(true),
+                onSelect: () => {
+                  if (!canEdit || actionsDisabled || state.syncDisabled) return
+                  resetErrors()
+                  setConfirmFullResync(true)
+                },
               },
             ]
           : []),
@@ -80,10 +93,11 @@ export function useConnectorActions({
           : []),
         {
           id: 'pause',
-          text: state.canResume ? 'Resume' : 'Pause',
-          disabled: actionsDisabled,
+          text: state.canResume ? 'Resume syncing' : 'Pause syncing',
+          disabled: pauseDisabled,
+          tooltip: syncRunning ? 'Wait for the current sync to finish' : undefined,
           onSelect: () => {
-            if (actionsDisabled) return
+            if (!canEdit || pauseDisabled) return
             resetErrors()
             update.mutate({
               knowledgeBaseId,
@@ -94,7 +108,7 @@ export function useConnectorActions({
         },
         {
           id: 'delete',
-          text: 'Remove',
+          text: 'Remove connection',
           disabled: actionsDisabled,
           onSelect: () => {
             if (actionsDisabled) return
@@ -109,11 +123,23 @@ export function useConnectorActions({
     actions,
     actionsDisabled,
     canEdit,
-    error: sync.error ?? update.error,
+    error: (confirmFullResync ? null : sync.error) ?? update.error,
+    fullResync: {
+      open: confirmFullResync,
+      onOpenChange: (open: boolean) => {
+        if (sync.isPending) return
+        setConfirmFullResync(open)
+        if (!open) sync.reset()
+      },
+      pending: sync.isPending,
+      disabled: actionsDisabled || state.syncDisabled || !state.canFullResync,
+      error: sync.error,
+      onConfirm: () => triggerSync(true),
+    },
     removal: {
       open: confirmRemove,
       onOpenChange: setRemoveOpen,
-      syncsPerMember: state.syncsPerMember,
+      requiresDocumentDeletion,
       deleteDocuments,
       setDeleteDocuments,
       pending: remove.isPending,
@@ -125,7 +151,7 @@ export function useConnectorActions({
           {
             knowledgeBaseId,
             connectorId: connector.id,
-            deleteDocuments: state.syncsPerMember || deleteDocuments,
+            deleteDocuments: requiresDocumentDeletion || deleteDocuments,
           },
           {
             onSuccess: () => {

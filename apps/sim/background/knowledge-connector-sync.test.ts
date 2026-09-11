@@ -182,6 +182,20 @@ describe('knowledge connector sync worker', () => {
     ).toBe('completed')
   })
 
+  it('keeps a held deletion pass a completed task', () => {
+    const clean = {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 90,
+      docsSkipped: 0,
+      docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+    }
+    expect(classifyConnectorSyncResult({ ...clean, listingIncomplete: false })).toBe('completed')
+    expect(classifyConnectorSyncResult({ ...clean, listingIncomplete: true })).toBe('partial')
+  })
+
   it('classifies an isolated processing dispatch failure as partial', () => {
     expect(
       classifyConnectorSyncResult({

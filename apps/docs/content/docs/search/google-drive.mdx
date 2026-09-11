@@ -9,13 +9,13 @@ import { Image } from '@/components/ui/image'
 
 Search Google Docs, Sheets, Slides, and supported files in Drive. Members can connect their own accounts after an admin allows Google Drive, or an admin can configure a central service-account crawl.
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead.
 
 ## Choose your setup
 
 | Method | Use it when | What teammates do |
 | --- | --- | --- |
-| **Member accounts** | Each person should connect their own Drive access. No Google Workspace administrator setup is needed. | Connect their own Google Drive accounts. |
+| **Member accounts** | Each person connects their own Drive access. No domain-wide delegation is needed; your Google Workspace app policy may require administrator approval. | Connect their own Google Drive accounts. |
 | **Service account** | A Google Workspace administrator can configure delegation and directory access for a central crawl. | Join the Sim organization with matching verified email addresses; no personal Drive connection is needed for this source. |
 
 These are alternative setup paths. When only a central Drive source is configured, Integrations does not offer a personal Drive **Connect** action. Teammates use Search or Home directly. Existing member-account sources keep their connection actions.
@@ -31,36 +31,36 @@ These are alternative setup paths. When only a central Drive source is configure
 
 ### Allow Google Drive
 
-An organization admin opens **Settings → Sources** and turns on **Google Drive**. This allows personal connections; it does not create a source or connect anyone's account.
+An admin selects **Settings → Sources → Add source → Google Drive**, chooses **Sync using → Member accounts**, sets any filters, and selects **Set up member accounts**.
 
 </Step>
 <Step>
 
 ### Connect your account
 
-Join the Sim organization, then open **Integrations** and select **Connect** beside Google Drive. Use the Google account matching your verified Sim email. The first personal connection can create a source with default filters. Return to Integrations to see indexing status and your searchable document count.
+Join the Sim organization, then open **Integrations** and select **Connect** for Google Drive. Use the Google account matching your verified Sim email. Google Drive has one row even when the admin configures several folder selections; its row shows your connection and indexing status. Members do not re-enter the admin's folder filters.
 
 </Step>
 <Step>
 
 ### Adjust filters if needed
 
-An admin opens **Settings → Sources**, selects **Manage** beside **Google Drive**, opens **Advanced**, and selects the sync configuration's **Settings** tab. Leave **Folders** empty to include supported files each member can access, or narrow the source to folders. **Account for browsing** helps select folders; manual **Folder IDs** work without it. Browsing does not connect that account to Search.
+An admin opens **Settings → Sources → Google Drive**, selects the connection, then opens **Settings**. Leave **Folders** empty to include supported files each member can access, or narrow the source to folders. **Account for browsing** helps select folders; manual **Folder IDs** work without it. Browsing does not connect that account to Search.
 
 Keep **Sync documents with → Connected members** unless a dedicated account should fetch content. Members still connect to establish access. If the dedicated account is a delegated service account, **Crawl as** selects the Google Workspace user whose files it fetches. Save the source settings when finished.
 
 </Step>
 </Steps>
 
-Admins can request member connections from **Manage → Accounts → Request connections**. These requests do not grant organization membership. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
+Admins can request member connections from **Settings → Sources → People → Request connections** (filter by the integration first). These requests do not grant organization membership. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
 
 ## Set up a central service account
 
-Open **Settings → Sources** and turn on **Google Drive**. Select **Manage → Advanced → Add sync configuration** to open the central service-account form directly. If personal connections are disabled for your organization, select **Add source** from the provider page instead. Teammates do not need a personal Drive connection for this source.
+Open **Settings → Sources → Add source** and select **Google Drive**. This opens **Connect Google Drive service account**. To add another connection later, open **Google Drive** from the Sources list and select **Connect service account**.
 
 This requires a Google Workspace domain and a Workspace super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-drive-setup.jpg" alt="Google Drive central source setup with a service account, Directory administrator email, sharing policy, and optional folders" width={512} height={471} />
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-drive-setup.png" alt="Google Drive setup with a selected service account, directory administrator email, and folder filters" width={515} height={541} />
 
 <Steps>
 <Step>
@@ -101,7 +101,7 @@ Group permissions require groups and memberships that this administrator can rea
 
 ### Add the credential in Sim
 
-Under **Indexing account**, choose **Add service account**, or select an existing service account. Paste the JSON key into **Add Google Service Account**, give it a name, and add it. Sim returns you to the source form with that credential selected.
+Under **Service account**, choose **Add service account**, or select an existing service account. Paste the JSON key into **Add Google service account**, give it a name, and select **Add service account**. Sim returns you to the source form with that credential selected.
 
 <Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-service-account.jpg" alt="Add Google Service Account credential modal in Sim" width={520} height={562} />
 
@@ -110,22 +110,24 @@ Under **Indexing account**, choose **Add service account**, or select an existin
 
 ### Choose the directory administrator and users
 
-Set **Directory administrator email** to the Workspace administrator described above. Under **More options**, leave **Users** blank for everyone, or enter up to 100 primary Workspace email addresses separated by commas. Suspended, archived, and guest accounts are excluded.
+After selecting the service account, **Directory administrator email** appears. Enter the Workspace administrator described above. Under **More options**, leave **Users** blank for everyone, or enter up to 100 primary Workspace email addresses separated by commas. Suspended, archived, and guest accounts are excluded.
 
-Leave **Folders** empty to include supported files each selected user can access. To narrow the source, select folders visible to the Directory administrator or enter **Folder IDs** manually. The same folder filter applies to each selected user and does not grant access. Choose **Connect & Sync**. Sim validates the administrator and any selected users, and probes Drive access for an active user, before accepting the source.
+Leave **Folders** empty to include supported files each selected user can access. To narrow the source, select folders visible to the Directory administrator or enter **Folder IDs** manually. The same folder filter applies to each selected user and does not grant access. Choose **Connect & Sync**. Sim validates the administrator and any selected users, and probes Drive access for an active user, before accepting the connection.
 
-The crawl pages through each user’s files and shared drives, including shared-drive files the user has never opened. It resumes unfinished work and indexes a shared file once even when several users can access it. A file must be downloadable by at least one selected user to be indexed; the same requirement applies to a shortcut’s target. Sim must also verify its permissions before showing it in Search. Google can let a reader download a file while refusing to list its permissions; include an owner or another user who can read those permissions. Externally owned files can remain hidden when no selected user can verify their permissions.
+The crawl includes shared-drive files even if a selected user has never opened them. A selected user must be able to download each file and Sim must verify its permissions before showing it in Search; this also applies to shortcut targets. If a reader can download a file but cannot list its permissions, include its owner or another user who can read those permissions.
 
-Teammates join the Sim organization with their matching verified email; they do not connect personal Google accounts for this central source.
+Invite teammates through **Settings → Members → Invite**, using their Google Workspace email addresses. They accept, sign in with those matching verified emails, and open **Search** or **Home**. They do not connect personal Google accounts for this central source.
 
 </Step>
 </Steps>
 
 ## Source options
 
-An admin opens **Settings → Sources** and selects **Manage** beside **Google Drive** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a configuration's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed files and **Sync history** shows recent runs.
+An admin opens **Settings → Sources → Google Drive** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a connection's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed files and **Sync history** shows recent runs.
 
-**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Indexing account** and select **Change indexing account**.
+**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Service account** and select **Change service account**.
+
+Use **Sync now** to request an update, **Pause syncing** to stop scheduled syncs, and **Resume syncing** to restart them. **Remove connection** deletes the configuration and its indexed documents from Sim; it does not delete Drive files. These actions belong to the admin connection page. Members use **Connect**, **Reconnect**, or **Disconnect** on their Integrations row.
 
 | Option | Behavior |
 | --- | --- |
@@ -139,7 +141,7 @@ An admin opens **Settings → Sources** and selects **Manage** beside **Google D
 
 Sim exports Docs and Slides as text and Sheets as XLSX spreadsheets. Supported uploaded files use the knowledge-base document pipeline, including PDF and Office formats. Unsupported files and oversized exports cannot be indexed; Google limits Workspace exports to 10 MB. See [Drive export formats](https://developers.google.com/workspace/drive/api/guides/ref-export-formats) and [download limits](https://developers.google.com/workspace/drive/api/guides/manage-downloads).
 
-Search schedules syncs hourly. Central crawls revisit the selected users' files and permissions, including unchanged files, so permission changes and a new employee's older files are included. Unfinished crawls resume before deletion reconciliation. Content, deletions, and permissions refresh in the background; results are not a live read from Drive. **Accounts** on the provider page shows personal account connections where configured; it does not list the central service-account credential.
+Search schedules syncs hourly. Central crawls revisit the selected users' files and permissions, including unchanged files, so permission changes and a new employee's older files are included. Unfinished crawls resume before deletion reconciliation. Content, deletions, and permissions refresh in the background; results are not a live read from Drive. **People** on the Sources settings page shows personal account connections; it does not list the central service-account credential.
 
 ## Troubleshooting
 
@@ -168,7 +170,7 @@ https://<your-sim-domain>/api/auth/oauth2/callback/google-drive
 
 This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
 
-Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Refresh connection settings**, then affected teammates reconnect.
+Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Update sign-in settings**, then affected teammates reconnect.
 
 The current Sim Drive OAuth connection uses these scopes:
 

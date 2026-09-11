@@ -1,9 +1,11 @@
 import { Command, Option } from 'commander'
+import { updateCommand } from '#sim-cli/commands/update'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth'
 import { configureCommand } from './commands/configure'
 import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { attachSecretCommands } from './commands/secrets'
+import { telemetryCommand } from './commands/telemetry'
 import { OUTPUT_FORMATS } from './config/index'
 import {
   assertNoReservedProgramFlags,
@@ -142,6 +144,9 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
   program.addCommand(whoamiCommand())
   program.addCommand(profilesCommand())
   program.addCommand(configureCommand())
+  const update = updateCommand()
+  program.addCommand(update)
+  program.addCommand(telemetryCommand())
 
   for (const command of buildGeneratedCommands()) {
     program.addCommand(command)
@@ -153,7 +158,10 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
 
   program.addHelpText('after', HELP_EPILOGUE)
 
-  program.hook('preAction', () => announceUpdateIfAvailable())
+  program.hook('preAction', async (_program, command) => {
+    if (command === update) return
+    await announceUpdateIfAvailable()
+  })
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)

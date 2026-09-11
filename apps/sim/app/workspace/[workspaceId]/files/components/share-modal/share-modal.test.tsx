@@ -85,7 +85,7 @@ vi.mock('@sim/emcn/icons', () => ({
 
 vi.mock('@sim/emcn', () => ({
   toast: { success: mockToastSuccess },
-  ButtonGroup: ({
+  ChipButtonGroup: ({
     children,
     value,
     onValueChange,
@@ -110,7 +110,7 @@ vi.mock('@sim/emcn', () => ({
       )}
     </div>
   ),
-  ButtonGroupItem: ({
+  ChipButtonGroupItem: ({
     value,
     children,
     selectedValue,

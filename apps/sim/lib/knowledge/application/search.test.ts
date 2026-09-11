@@ -26,10 +26,15 @@ const mocks = vi.hoisted(() => ({
   importProvenance: vi.fn(),
   rerank: vi.fn(),
   searched: vi.fn(),
+  recordActivity: vi.fn(),
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { knowledgeBaseSearched: mocks.searched },
+}))
+
+vi.mock('@/lib/knowledge/search/activity', () => ({
+  recordOrganizationSearchActivity: mocks.recordActivity,
 }))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
@@ -209,6 +214,23 @@ describe('knowledge search application use case', () => {
       }
     })
 
+    it('meters only successful organization calls under the acting person', async () => {
+      await searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10, surface: 'mcp' },
+      })
+      if (scope === 'organization') {
+        expect(mocks.recordActivity).toHaveBeenCalledExactlyOnceWith({
+          organizationId: 'org-canonical',
+          userId: 'user-1',
+          surface: 'mcp',
+          results: expect.any(Array),
+        })
+      } else {
+        expect(mocks.recordActivity).not.toHaveBeenCalled()
+      }
+    })
+
     const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
     const input = { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10 }
 
@@ -274,6 +296,7 @@ describe('knowledge search application use case', () => {
         input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
       })
     ).rejects.toThrow('Search is not enabled for this organization')
+    expect(mocks.recordActivity).not.toHaveBeenCalled()
     expect(mocks.requireOrganizationSearch).toHaveBeenCalledExactlyOnceWith('org-canonical')
     expect(mocks.resolveBilling).not.toHaveBeenCalled()
     expect(mocks.generateEmbedding).not.toHaveBeenCalled()

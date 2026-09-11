@@ -129,7 +129,7 @@ describe('Slack Search installation configuration', () => {
       id: 'install1',
     })
     expect(mocks.credential).toHaveBeenCalledWith('cred1', 'org1')
-    expect(mocks.verifyBot).toHaveBeenCalledWith('secret-token', expect.any(AbortSignal))
+    expect(mocks.verifyBot).toHaveBeenCalledWith('secret-token', expect.any(AbortSignal), undefined)
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'admin',

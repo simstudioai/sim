@@ -40,25 +40,31 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
+  'browser_reload',
   'browser_open_tab',
   'browser_switch_tab',
   'browser_close_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
   'browser_wait_for',
   'browser_snapshot',
+  'browser_find',
   'browser_read_text',
   'browser_screenshot',
   'browser_extract',
   'browser_click',
   'browser_click_at',
   'browser_type',
+  'browser_fill_form',
   'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
+  'browser_set_checked',
   'browser_hover',
   'browser_drag',
+  'browser_zoom',
 ] as const
 
 export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]
@@ -98,6 +104,31 @@ export function normalizeBrowserWaitForTimeoutMs(value: unknown): number {
         : Number.NaN
   if (!Number.isFinite(parsed) || parsed <= 0) return BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS
   return Math.min(parsed, BROWSER_WAIT_FOR_MAX_TIMEOUT_MS)
+}
+
+/** Client execution budget, including authorization, native queueing, and result delivery. */
+export function browserToolRendererTimeoutMs(
+  tool: CurrentBrowserToolName,
+  params: Record<string, unknown> = {}
+): number {
+  switch (tool) {
+    case 'browser_navigate':
+    case 'browser_open_url':
+    case 'browser_go_back':
+    case 'browser_go_forward':
+    case 'browser_reload':
+    case 'browser_open_tab':
+    case 'browser_switch_tab':
+      return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
+    case 'browser_wait_for':
+      return (
+        BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+        normalizeBrowserWaitForTimeoutMs(params.timeoutMs) +
+        BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+      )
+    default:
+      return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
+  }
 }
 
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
@@ -199,10 +230,11 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus the legacy `takeover-done` action retained for persisted
- * `browser_request_takeover` cards. Page interactions need no protocol — the
- * user acts on the real embedded page directly, and its right-click menu is
- * native and lives entirely in the shell.
+ * reload), the resource tab strip (`switch-tab`, `close-tab`), plus the legacy
+ * `takeover-done` action retained for persisted `browser_request_takeover`
+ * cards. Page interactions need no protocol — the user acts on the real
+ * embedded page directly, and its right-click menu is native and lives
+ * entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:
@@ -210,8 +242,8 @@ export interface BrowserPanelAction {
     | 'reload'
     | 'back'
     | 'forward'
+    /** Fallback for installed shells that predate the acknowledged `openTab` bridge call. */
     | 'new-tab'
-    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'print'
@@ -223,8 +255,14 @@ export interface BrowserPanelAction {
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
+  /** Stable tab id for `switch-tab` and `close-tab`. */
   tabId?: string
+  /**
+   * `switch-tab` only: false when the switch mirrors a selection made outside
+   * the page (the resource strip), so it must not count as the user claiming
+   * the page from the agent. Older shells treat every switch as a claim.
+   */
+  claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
   /** Exact pending permission request being answered. */
@@ -335,8 +373,6 @@ export interface BrowserTabState {
   active: boolean
   /** Recoverable problem currently replacing this tab's native page surface. */
   issue?: BrowserPageIssue
-  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */
@@ -923,8 +959,18 @@ export function isPendingDesktopScopeId(scopeId: string): boolean {
  * environment stay consistent between the two.
  */
 export interface SimDesktopTerminalApi {
-  /** Open the first terminal, or adopt the ones already running. */
-  start(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Materializes a chat's saved shells without opening one for a chat that
+   * had none. Optional for compatibility with installed shells that only
+   * restored when the terminal panel started.
+   */
+  restoreScope?(scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Opens the first terminal, or adopts the chat's saved shells. Only shells
+   * without {@link restoreScope} still expose it; newer ones restore on
+   * activation and open shells one at a time.
+   */
+  start?(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
   /**
    * Execute one terminal operation. Resolves with the outcome; never rejects
    * for tool-level failures (those ride `ok: false`).
@@ -950,7 +996,15 @@ export interface SimDesktopTerminalApi {
   resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
-  switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Show a terminal. `claim: false` mirrors a resource-strip selection without
+   * recording the shell as the user's own; older shells treat every switch as a claim.
+   */
+  switchTerminal(
+    terminalId: string,
+    scopeId: string,
+    options?: { claim?: boolean }
+  ): Promise<ScopedTerminalTabsState>
   /** Move a terminal to its final position. Optional for older installed shells. */
   reorderTerminal?(
     terminalId: string,
@@ -1049,12 +1103,11 @@ export interface SimDesktopBrowserAgentApi {
   disposeScope(scopeId: string): Promise<boolean>
   /** Closes a soft-deleted chat's live pages while retaining its restart descriptor. */
   suspendScope(scopeId: string): Promise<boolean>
-  /** Pin or unpin a live browser tab. */
-  setTabPinned(tabId: string, pinned: boolean, scopeId: string): void
-  /** Opens the native tab actions menu without covering the embedded page. */
-  showTabContextMenu(tabId: string, scopeId: string): void
-  /** Move a live tab to a final list index. */
-  reorderTab(tabId: string, targetIndex: number, scopeId: string): void
+  /**
+   * Move a live tab to a final list index, mirroring the resource strip.
+   * Optional for compatibility with installed shells that predate strip-owned order.
+   */
+  reorderTab?(tabId: string, targetIndex: number, scopeId: string): void
   /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main

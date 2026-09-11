@@ -307,7 +307,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(dbChainMockFns.values.mock.calls[0][0].title).toBe('Fork | Generate Logs')
   })
 
-  it('repairs legacy page-level browser resources while forking', async () => {
+  it('drops legacy browser and terminal rows while forking, since the desktop app owns them', async () => {
     dbChainMockFns.limit.mockResolvedValue([
       {
         ...parentRow,
@@ -318,6 +318,8 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
             title: 'mship-todo (Channel) - sim - Slack',
           },
           { type: 'browser', id: 'browser-session', title: 'Browser' },
+          { type: 'terminal', id: 'terminal-session', title: 'Terminal' },
+          { type: 'file', id: 'file-1', title: 'report.csv' },
         ],
       },
     ])
@@ -326,7 +328,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
     expect(res.status).toBe(200)
     expect(dbChainMockFns.values.mock.calls[0][0].resources).toEqual([
-      { type: 'browser', id: 'browser-session', title: 'Browser' },
+      { type: 'file', id: 'file-1', title: 'report.csv' },
     ])
   })
 

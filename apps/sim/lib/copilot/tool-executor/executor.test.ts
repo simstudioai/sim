@@ -88,6 +88,26 @@ describe('copilot tool executor fallback', () => {
     }
   )
 
+  it.each([{ organizationId: 'org-1' }, { workspaceId: 'workspace-1' }])(
+    'rejects the retired inventory tool before dispatch for %j',
+    async (scope) => {
+      const handler = vi.fn()
+      registerHandler('list_integrations', handler)
+      const result = await executeTool(
+        'list_integrations',
+        {},
+        {
+          userId: 'user-1',
+          requestMode: 'assistant',
+          ...scope,
+        }
+      )
+      expect(result.success).toBe(false)
+      expect(handler).not.toHaveBeenCalled()
+      expect(executeAppTool).not.toHaveBeenCalled()
+    }
+  )
+
   it.each([
     ['run_workflow', undefined],
     ['gmail_send', undefined],

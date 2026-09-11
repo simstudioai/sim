@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
+import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
 const { mockGetToken, mockVerifyIdentity } = vi.hoisted(() => ({
   mockGetToken: vi.fn(),
@@ -235,6 +236,31 @@ describe('standard OAuth Credential Group provider', () => {
         policy,
       })
     ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it.each([
+    new OAuthIdentityVerificationError('email_mismatch', 'emails'),
+    new OAuthIdentityVerificationError('email_access_denied', 'emails', 403),
+    new OAuthIdentityVerificationError('provider_unavailable', 'profile', 503),
+  ])('preserves safe identity diagnostics through managed authorization: %s', async (failure) => {
+    mockVerifyIdentity.mockRejectedValueOnce(failure)
+    const context = buildContext()
+    const policy = await adapter.getPolicy(context.option, {
+      workspaceId: context.workspaceId,
+      credentialGroupId: context.credentialGroupId,
+    })
+    await expect(
+      adapter.exchangeAndVerify({
+        context,
+        attempt: buildAttempt(policy.scopeVersion),
+        code: 'code-1',
+        policy,
+      })
+    ).rejects.toMatchObject({
+      name: 'CredentialGroupOAuthError',
+      statusCode: 502,
+      identityFailure: failure,
+    })
   })
 
   it('uses the existing Atlassian callback and state-bound identity verification', async () => {

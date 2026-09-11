@@ -41,12 +41,8 @@ export interface PanelHost {
   activeTab: () => AgentTab | null
   /** Native backdrop used by a blank tab before its first page paint. */
   backgroundColor: () => string
-  /**
-   * Materializes the initial tab when the panel first becomes visible: a
-   * visible browser resource always represents one open browser window, and
-   * the tab strip, omnibox, and native session must not disagree about that.
-   */
-  ensureInitialTab: () => void
+  /** Hydrates the active scope's saved pages when the panel first becomes visible. */
+  restoreActiveScope: () => void
   /** Lets the session drop focus tracking for a view that is no longer attached. */
   onViewDetached: (view: WebContentsView | null) => void
 }
@@ -55,7 +51,7 @@ let host: PanelHost = {
   getMainWindow: () => null,
   activeTab: () => null,
   backgroundColor: () => '#ffffff',
-  ensureInitialTab: () => {},
+  restoreActiveScope: () => {},
   onViewDetached: () => {},
 }
 
@@ -834,7 +830,7 @@ export function setPanelBounds(
   panelBounds = bounds
   panelAnchor = bounds === null ? null : (anchor ?? null)
   if (bounds !== null) {
-    host.ensureInitialTab()
+    host.restoreActiveScope()
   } else {
     resetOcclusion()
   }

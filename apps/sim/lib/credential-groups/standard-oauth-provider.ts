@@ -26,6 +26,7 @@ import {
 import type { CredentialGroupStandardOAuthProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { refreshOAuthToken } from '@/lib/oauth'
+import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
 const OAUTH_DISCOVERY_TIMEOUT_MS = 10_000
 const OAUTH_DISCOVERY_MAX_BYTES = 256 * 1024
@@ -332,10 +333,11 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           clientId: current.connector.clientId,
           expectedEmail: context.email,
         })
-      } catch {
+      } catch (error) {
         throw new CredentialGroupOAuthError(
           `${service.name} returned an invalid identity token.`,
-          502
+          502,
+          error instanceof OAuthIdentityVerificationError ? error : undefined
         )
       }
       const nonceMatches =

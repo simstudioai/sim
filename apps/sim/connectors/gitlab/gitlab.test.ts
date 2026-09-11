@@ -14,6 +14,7 @@ vi.mock('@/connectors/gitlab/permissions', () => ({
 
 import { gitlabConnector } from '@/connectors/gitlab/gitlab'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import { setGitLabCsvContext } from '@/connectors/gitlab/permission-config/types'
 import type { ExternalDocument } from '@/connectors/types'
 import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES } from '@/connectors/utils'
 
@@ -365,5 +366,89 @@ describe('GitLab connector provider lifecycle', () => {
     await expect(list({ ...config, contentTypes: 'merge_requests' })).rejects.toThrow(
       'merge requests: 403'
     )
+  })
+
+  it('excludes confidential and unknown-status issues before hydration in CSV mode', async () => {
+    const context = { mirrorsSourceAcls: true }
+    setGitLabCsvContext(context, {
+      connectorId: 'csv-connector',
+      host: 'gitlab.example.com:8443',
+      projectId: 42,
+      projectPath: 'group/project',
+    })
+    const listing = await gitlabConnector.listDocuments(
+      'pat',
+      { ...config, contentTypes: 'issues' },
+      undefined,
+      context
+    )
+    expect(listing.documents[0]).toMatchObject({
+      title: 'Excluded GitLab issue',
+      content: '',
+      acl: [],
+      skippedExistingDisposition: 'replace',
+    })
+    expect(JSON.stringify(listing.documents[0])).not.toContain('Investigate indexing')
+    const hydrated = await gitlabConnector.getDocument('pat', config, 'issue:1', context)
+    expect(hydrated).toMatchObject({ skippedExistingDisposition: 'replace', acl: [], content: '' })
+    expect(calls.some((call) => call.url.pathname.endsWith('/notes'))).toBe(false)
+  })
+
+  it('revokes an issue that becomes confidential between listing and hydration', async () => {
+    const context = { mirrorsSourceAcls: true }
+    setGitLabCsvContext(context, {
+      connectorId: 'csv-connector',
+      host: 'gitlab.example.com:8443',
+      projectId: 42,
+      projectPath: 'group/project',
+    })
+    issues[0].confidential = false
+    const listing = await gitlabConnector.listDocuments(
+      'pat',
+      { ...config, contentTypes: 'issues' },
+      undefined,
+      context
+    )
+    expect(listing.documents[0].skippedReason).toBeUndefined()
+    issues[0].confidential = true
+    expect(await gitlabConnector.getDocument('pat', config, 'issue:1', context)).toMatchObject({
+      skippedExistingDisposition: 'replace',
+      content: '',
+      acl: [],
+    })
+    expect(calls.some((call) => call.url.pathname.endsWith('/notes'))).toBe(false)
+  })
+
+  it('excludes a newly hidden issue only after confirming the project is still readable', async () => {
+    const context = { mirrorsSourceAcls: true, projectPath: 'group/project' }
+    setGitLabCsvContext(context, {
+      connectorId: 'csv-connector',
+      host: 'gitlab.example.com:8443',
+      projectId: 42,
+      projectPath: 'group/project',
+    })
+    override = ({ url }) =>
+      url.pathname.endsWith('/issues/1') ? new Response(null, { status: 404 }) : undefined
+    expect(await gitlabConnector.getDocument('pat', config, 'issue:1', context)).toMatchObject({
+      skippedExistingDisposition: 'replace',
+      content: '',
+      acl: [],
+    })
+    expect(calls.some(({ url }) => url.pathname === PROJECT_PATH)).toBe(true)
+    override = () => new Response(null, { status: 404 })
+    await expect(gitlabConnector.getDocument('pat', config, 'issue:1', context)).rejects.toThrow(
+      'Cannot access GitLab project'
+    )
+  })
+
+  it('does not trust CSV setup supplied through sourceConfig', async () => {
+    const doc = await gitlabConnector.getDocument(
+      'pat',
+      { ...config, permissionConfig: { mode: 'csv' } },
+      'issue:1',
+      { mirrorsSourceAcls: true }
+    )
+    expect(doc?.skippedReason).toBeUndefined()
+    expect(doc?.metadata?.confidential).toBe(true)
   })
 })

@@ -6,6 +6,7 @@ import {
   assertGitHubInstallationActive,
   assertGitHubInstallationRepositoryActive,
   getGitHubInstallationConfiguration,
+  listGitHubInstallationRepositories,
   listUserAdminGitHubInstallations,
   parseGitHubInstallationBinding,
   resolveGitHubInstallationAccessToken,
@@ -91,6 +92,92 @@ function mockDiscovery(
 }
 
 describe('GitHub installation setup', () => {
+  it('reports the failing token operation without including provider response contents', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(installation))
+      .mockResolvedValueOnce(json({ message: 'sensitive provider detail' }, 422))
+    await expect(
+      resolveGitHubInstallationAccessToken(binding, { repositoryId: '101' })
+    ).rejects.toMatchObject({
+      operation: 'repository-token',
+      status: 422,
+      message:
+        'Check that the repository is included in the selected GitHub App installation, then retry.',
+    })
+  })
+  it('lists one metadata-only repository page with continuation and account checks', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(installation))
+      .mockResolvedValueOnce(json(tokenResponse(101, false)))
+      .mockResolvedValueOnce(
+        json({
+          total_count: 201,
+          repositories: Array.from({ length: 100 }, (_, i) => ({
+            id: 101 + i,
+            full_name: `team/repo-${i}`,
+            owner: { id: 11 },
+            default_branch: 'main',
+          })),
+        })
+      )
+    const controller = new AbortController()
+    const result = await listGitHubInstallationRepositories(binding, {
+      page: 2,
+      signal: controller.signal,
+    })
+    expect(result.repositories).toHaveLength(100)
+    expect(result.repositories[0]).toEqual({ id: '101', fullName: 'team/repo-0' })
+    expect(result.hasMore).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      permissions: { metadata: 'read' },
+    })
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      'https://api.github.com/installation/repositories?per_page=100&page=2'
+    )
+    controller.abort()
+    expect(fetchMock.mock.calls[2][1]?.signal?.aborted).toBe(true)
+  })
+
+  it.each([0, 101, 1.5, Number.NaN])(
+    'rejects an invalid repository page %s before provider reads',
+    async (page) => {
+      await expect(listGitHubInstallationRepositories(binding, { page })).rejects.toThrow(
+        'page is invalid'
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a suspended installation before minting a listing token', async () => {
+    fetchMock.mockResolvedValueOnce(json({ ...installation, suspended_at: '2026-01-01T00:00:00Z' }))
+    await expect(listGitHubInstallationRepositories(binding)).rejects.toThrow('unavailable')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('rejects content permissions in repository browsing tokens', async () => {
+    fetchMock.mockResolvedValueOnce(json(installation)).mockResolvedValueOnce(json(tokenResponse()))
+    await expect(listGitHubInstallationRepositories(binding)).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects repositories from another installation account', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(installation))
+      .mockResolvedValueOnce(json(tokenResponse(101, false)))
+      .mockResolvedValueOnce(
+        json({
+          total_count: 1,
+          repositories: [
+            { id: 101, full_name: 'other/repo', owner: { id: 12 }, default_branch: 'main' },
+          ],
+        })
+      )
+    await expect(listGitHubInstallationRepositories(binding)).rejects.toThrow(
+      'another GitHub installation account'
+    )
+  })
+
   it('rechecks repository installation selection without caching a previous success', async () => {
     fetchMock
       .mockResolvedValueOnce(json(installation))

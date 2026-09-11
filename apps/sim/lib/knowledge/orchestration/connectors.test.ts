@@ -108,6 +108,7 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   performCreateKnowledgeConnector,
   performDeleteKnowledgeConnector,
@@ -429,6 +430,52 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
+
+  it.each(['permissions', 'token'] as const)(
+    'commits a %s-only change without dispatching a content sync',
+    async (change) => {
+      const existing = {
+        id: 'conn-1',
+        connectorType: 'gitlab',
+        accessMode: 'admin',
+        status: 'active',
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      }
+      dbChainMockFns.limit.mockResolvedValueOnce([existing])
+      dbChainMockFns.returning.mockResolvedValueOnce([existing])
+      const write = vi.fn().mockResolvedValue(undefined)
+      const outcome = await performUpdateKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: existing.id,
+        updates: {},
+        permissionChange: {
+          requiresAclReset: false,
+          requiresContentSync: false,
+          ...(change === 'token' ? { encryptedApiKey: 'encrypted-fixture-pat' } : {}),
+          populateSyncContext: vi.fn(),
+          write,
+        },
+        resolveBillingAttribution,
+      })
+
+      expect(outcome).toMatchObject({ success: true })
+      expect(write).toHaveBeenCalledWith(expect.anything(), existing.id)
+      expect(mockRecordAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ updatedFields: ['permissionConfig'] }),
+        })
+      )
+      expect(mockDispatchSync).not.toHaveBeenCalled()
+      expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      if (change === 'token') {
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({ encryptedApiKey: 'encrypted-fixture-pat' })
+        )
+      }
+    }
+  )
 
   it('classifies a sub-hourly interval on an unentitled workspace as forbidden', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -1020,6 +1067,7 @@ describe('performSyncKnowledgeConnector', () => {
       billingAttribution: BILLING,
       requestId: 'req-1',
       rehydrate: true,
+      manual: true,
     })
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1063,6 +1111,33 @@ describe('performSyncKnowledgeConnector', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
+
+  it.each(['workspace', 'members'] as const)(
+    'preserves a transaction-wrapped cooldown conflict for %s without recording a sync',
+    async (accessMode) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', status: 'active', accessMode },
+      ])
+      const message = 'Sync finished recently. Try again in 60 seconds.'
+      const dispatch = accessMode === 'members' ? mockDispatchMemberSync : mockDispatchSync
+      dispatch.mockRejectedValueOnce(
+        new Error('Transaction failed', { cause: new OrchestrationError('conflict', message) })
+      )
+
+      const outcome = await performSyncKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: 'conn-1',
+        resolveBillingAttribution,
+      })
+
+      expect(dispatch).toHaveBeenCalledOnce()
+      expect(outcome).toMatchObject({ success: false, errorCode: 'conflict', error: message })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+    }
+  )
 
   it('reports a failed dispatch instead of claiming the sync was queued', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -1215,8 +1290,10 @@ describe('members-mode connectors', () => {
     expect(mockDispatchMemberSync).toHaveBeenCalledWith('c-1', {
       billingAttribution: BILLING,
       requestId: 'req-1',
+      manual: true,
     })
     expect(mockDispatchSync).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
   })
 
   it('refuses a manual sync while a member run is queued or running', async () => {

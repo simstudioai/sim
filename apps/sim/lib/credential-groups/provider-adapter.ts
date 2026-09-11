@@ -5,6 +5,7 @@ import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import type { DbOrTx } from '@/lib/db/types'
 import type { RefreshTokenResult } from '@/lib/oauth'
+import type { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
 export interface CredentialGroupProviderPolicy {
   provider: CredentialGroupProvider
@@ -83,7 +84,8 @@ export class CredentialGroupProviderConfigurationError extends Error {
 export class CredentialGroupOAuthError extends Error {
   constructor(
     message: string,
-    readonly statusCode: 400 | 401 | 403 | 404 | 409 | 502 | 503
+    readonly statusCode: 400 | 401 | 403 | 404 | 409 | 502 | 503,
+    readonly identityFailure?: OAuthIdentityVerificationError
   ) {
     super(message)
     this.name = 'CredentialGroupOAuthError'

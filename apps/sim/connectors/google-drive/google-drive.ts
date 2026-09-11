@@ -73,7 +73,21 @@ const SHORTCUT_FETCH_CONCURRENCY = 8
 const DRIVE_METADATA_MAX_BYTES = 1024 * 1024
 const DRIVE_PAGE_MAX_BYTES = 16 * 1024 * 1024
 const DRIVE_FILE_FIELDS =
-  'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed,parents,shortcutDetails(targetId,targetMimeType,targetResourceKey)'
+  'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed,parents,shortcutDetails(targetId,targetMimeType,targetResourceKey),capabilities(canDownload)'
+
+/**
+ * Recorded on a listed file whose owner disabled download, print, and copy for
+ * viewers. Drive rejects both `files.export` and `files.get?alt=media` for such a
+ * file (`cannotExportFile` / `cannotDownloadFile`), so the crawl skips the fetch
+ * and surfaces the restriction instead of failing hydration on every sync.
+ */
+export const DOWNLOAD_RESTRICTED_SKIP_REASON =
+  'The file owner has disabled downloading for viewers, so its content cannot be indexed'
+
+/** True when the file's metadata says the acting credential cannot read its bytes. */
+function isDownloadRestricted(file: DriveFile): boolean {
+  return file.capabilities?.canDownload === false
+}
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 
@@ -427,6 +441,13 @@ function driveChangeToExternal(
   if (change.removed || !file || !isFileInScope(file, sourceConfig)) {
     return { kind: 'removed', externalId }
   }
+  if (isDownloadRestricted(file)) {
+    return {
+      kind: 'upsert',
+      externalId,
+      document: markSkipped(fileToStub(file), DOWNLOAD_RESTRICTED_SKIP_REASON),
+    }
+  }
   return {
     kind: 'upsert',
     externalId,
@@ -731,7 +752,7 @@ async function readDriveFile(
   resourceKey?: string,
   permissions = false
 ): Promise<DriveFile> {
-  const fields = `${DRIVE_FILE_FIELDS}${permissions ? `,permissions(${DRIVE_PERMISSION_FIELDS}),capabilities(canDownload)` : ''}`
+  const fields = `${DRIVE_FILE_FIELDS}${permissions ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''}`
   const response = await fetchGoogleDriveWithRetry(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`,
     { method: 'GET', headers: driveRequestHeaders(accessToken, fileId, resourceKey) }
@@ -860,6 +881,8 @@ async function listedFileToDocument(
   }
   const contentFile = target ?? file
   if (!matchesFileType((sourceConfig.fileType as string) || 'all', contentFile)) return null
+  if (isDownloadRestricted(contentFile))
+    return markSkipped(fileToStub(file, acl, target), DOWNLOAD_RESTRICTED_SKIP_REASON)
   return stubOrSkipBySize(
     fileToStub(file, acl, target),
     Number(contentFile.size) || undefined,
@@ -1069,7 +1092,7 @@ const listGoogleDriveDocuments: ConnectorConfig['listDocuments'] = async (
      * crawl would pull a permission array per file and discard it.
      */
     fields: `kind,nextPageToken,incompleteSearch,files(${DRIVE_FILE_FIELDS}${
-      aclContext ? `,permissions(${DRIVE_PERMISSION_FIELDS}),capabilities(canDownload)` : ''
+      aclContext ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''
     })`,
     supportsAllDrives: 'true',
     includeItemsFromAllDrives: 'true',
@@ -1250,6 +1273,10 @@ export const googleDriveConnector: ConnectorConfig = {
         ...markSkipped(stub, 'File is no longer an indexable document'),
         skippedExistingDisposition: 'replace',
       }
+    }
+
+    if (isDownloadRestricted(contentFile)) {
+      return markSkipped(stub, DOWNLOAD_RESTRICTED_SKIP_REASON)
     }
 
     try {

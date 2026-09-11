@@ -76,6 +76,27 @@ describe('BarChart rendered geometry', () => {
   const widths = [280, 420, 680, 1024]
   const peaks = [7300, 173_000, 1_234_567]
 
+  it('renders date buckets and axes for a zero-only series without a no-data overlay', () => {
+    const svg = mountAtWidth(
+      680,
+      <BarChart
+        data={dailySeries(7, 0)}
+        label=''
+        color='var(--indicator-seat-filled)'
+        height={180}
+        timeZone='UTC'
+      />
+    )
+    expect(container.textContent).not.toContain('No data')
+    expect(container.textContent).toContain('Jan 1')
+    expect(container.textContent).toContain('Jan 7')
+    expect(container.textContent).not.toContain('Dec 31')
+    expect(svg.querySelectorAll('text').length).toBeGreaterThan(2)
+    expect(svg.querySelectorAll('rect')).toHaveLength(7)
+    expect(svg.querySelectorAll('rect[fill^="url"]')).toHaveLength(0)
+    expect(svg.querySelectorAll('line').length).toBeGreaterThan(0)
+  })
+
   it.each(widths.flatMap((width) => peaks.map((peak) => [width, peak] as const)))(
     'keeps the y-axis labels inside the box at width %i, peak %i',
     (width, peak) => {

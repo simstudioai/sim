@@ -24,6 +24,7 @@ import {
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
+import { resolveMothershipConversation } from '@/lib/mothership/conversation-id'
 import {
   areModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -485,7 +486,7 @@ function parseMothershipExecuteStreamLine(line: string): MothershipExecuteStream
 
 function formatMothershipBlockOutput(
   result: MothershipExecuteResult,
-  fallbackChatId: string
+  conversationId: string
 ): NormalizedBlockOutput {
   const formattedList = (result.toolCalls || []).map((tc: Record<string, unknown>) => ({
     name: typeof tc.name === 'string' ? tc.name : String(tc.name ?? ''),
@@ -503,7 +504,7 @@ function formatMothershipBlockOutput(
   return {
     content: result.content || '',
     model: result.model || 'mothership',
-    conversationId: result.conversationId || fallbackChatId,
+    conversationId,
     tokens: (result.tokens || {}) as NormalizedBlockOutput['tokens'],
     toolCalls,
     cost: result.cost as NormalizedBlockOutput['cost'] | undefined,
@@ -605,7 +606,7 @@ async function readMothershipExecuteResponse(
 
 function createMothershipStreamingExecution(
   response: Response,
-  fallbackChatId: string,
+  conversationId: string,
   blockId: string,
   options: {
     onCancel?: (reason?: unknown) => void
@@ -618,7 +619,7 @@ function createMothershipStreamingExecution(
     throw new Error('Sim execution stream ended without a response body')
   }
 
-  const output = formatMothershipBlockOutput({}, fallbackChatId)
+  const output = formatMothershipBlockOutput({}, conversationId)
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
   let cancelled = false
   let cleanedUp = false
@@ -664,7 +665,7 @@ function createMothershipStreamingExecution(
         if (event.type === 'final') {
           await consumeMothershipProvenance(event.data, response, options.registry)
           sawFinal = true
-          Object.assign(output, formatMothershipBlockOutput(event.data, fallbackChatId))
+          Object.assign(output, formatMothershipBlockOutput(event.data, conversationId))
           return
         }
 
@@ -890,9 +891,10 @@ export class MothershipBlockHandler implements BlockHandler {
         content: modelInputProjection.value.prompt,
       },
     ]
-    const providedConversationId =
-      typeof inputs.conversationId === 'string' ? inputs.conversationId.trim() : ''
-    const chatId = providedConversationId || generateId()
+    const { conversationId, chatId } = resolveMothershipConversation(
+      ctx.workspaceId ?? '',
+      inputs.conversationId
+    )
     const messageId = generateId()
     const requestId = generateId()
     const secretMountPolicy = normalizeSecretMountPolicy({
@@ -1003,15 +1005,20 @@ export class MothershipBlockHandler implements BlockHandler {
       }
 
       if (isContentSelectedForStreaming(ctx, block)) {
-        const streamingExecution = createMothershipStreamingExecution(response, chatId, block.id, {
-          onCancel: (reason) => {
-            if (!abortController.signal.aborted) {
-              abortController.abort(reason ?? 'mothership_stream_cancelled')
-            }
-          },
-          onDone: cleanupAbortListeners,
-          registry: resultRegistry,
-        })
+        const streamingExecution = createMothershipStreamingExecution(
+          response,
+          conversationId,
+          block.id,
+          {
+            onCancel: (reason) => {
+              if (!abortController.signal.aborted) {
+                abortController.abort(reason ?? 'mothership_stream_cancelled')
+              }
+            },
+            onDone: cleanupAbortListeners,
+            registry: resultRegistry,
+          }
+        )
         streamingExecution.diagnosticResolvedSecretTraceRegistry = resultRegistry
         if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
         cleanupImmediately = false
@@ -1019,7 +1026,7 @@ export class MothershipBlockHandler implements BlockHandler {
       }
 
       const result = await readMothershipExecuteResponse(response, resultRegistry)
-      const output = formatMothershipBlockOutput(result, chatId)
+      const output = formatMothershipBlockOutput(result, conversationId)
       if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
       return output
     } catch (error) {

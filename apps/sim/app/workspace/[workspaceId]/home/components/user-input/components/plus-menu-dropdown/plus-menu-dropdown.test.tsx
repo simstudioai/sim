@@ -22,7 +22,21 @@ const fixtures = vi.hoisted(() => ({
     data: [] as { id: string; name: string; parentId: string | null }[],
     isPending: false,
   },
-  tabs: [],
+  tabs: [] as Array<{
+    terminalId: string
+    title: string
+    cwd: string | null
+    running: string | null
+    interactive: boolean
+    active: boolean
+  }>,
+  browserTabs: [] as Array<{
+    tabId: string
+    title: string
+    url: string
+    loading: boolean
+    active: boolean
+  }>,
   logs: {
     data: {
       pages: [{ logs: [{ id: 'log-1', createdAt: '2026-01-01T12:00:00Z', status: 'success' }] }],
@@ -63,13 +77,11 @@ vi.mock('@/blocks/integration-matcher', () => ({
     { blockType: 'example', name: 'Example integration', icon: () => null },
   ],
 }))
-vi.mock('@/stores/browser-session/store', () => ({ useBrowserSessionStore: () => fixtures.tabs }))
+vi.mock('@/stores/browser-session/store', () => ({
+  useBrowserSessionStore: () => fixtures.browserTabs,
+}))
 vi.mock('@/stores/copilot-terminal/store', () => ({ useCopilotTerminalStore: () => fixtures.tabs }))
 
-import {
-  BROWSER_SESSION_RESOURCE_ID,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
 import { setDesktopPreferencesSnapshot } from '@/lib/desktop'
 import {
   mapResourceToContext,
@@ -146,6 +158,8 @@ describe('PlusMenuDropdown desktop resources', () => {
     }
     fixtures.browserAvailable.mockReturnValue(true)
     fixtures.terminalAvailable.mockReturnValue(true)
+    fixtures.browserTabs.length = 0
+    fixtures.tabs.length = 0
     setDesktopPreferencesSnapshot(PREFERENCES)
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       configurable: true,
@@ -168,6 +182,21 @@ describe('PlusMenuDropdown desktop resources', () => {
   })
 
   it('keeps shared categories in the same order in browse and mention modes', () => {
+    fixtures.tabs.push({
+      terminalId: '9',
+      title: 'sim',
+      cwd: '/code/sim',
+      running: null,
+      interactive: false,
+      active: true,
+    })
+    fixtures.browserTabs.push({
+      tabId: '7',
+      title: 'Sim Docs',
+      url: 'https://docs.sim.ai',
+      loading: false,
+      active: true,
+    })
     const { ref } = openMenu()
     const browseOrder = menuItems().map((item) => item.textContent)
     expect(browseOrder).toEqual([
@@ -186,36 +215,73 @@ describe('PlusMenuDropdown desktop resources', () => {
     expect(headings).toEqual(['Integrations', ...browseOrder])
   })
 
-  it.each([false, true])('selects the same whole Browser in mention=%s mode', (mention) => {
-    const { onResourceSelect } = openMenu(mention)
-    selectItem('Browser')
+  it('lists a live page under the Browser category in browse mode', () => {
+    fixtures.browserTabs.push({
+      tabId: '7',
+      title: 'Sim Docs',
+      url: 'https://docs.sim.ai',
+      loading: false,
+      active: true,
+    })
+    openMenu()
+    expect(menuItems().map((item) => item.textContent)).toContain('Browser')
+  })
+
+  it('offers each live browser tab as itself in mention mode', () => {
+    fixtures.browserTabs.push({
+      tabId: '7',
+      title: 'Sim Docs',
+      url: 'https://docs.sim.ai',
+      loading: false,
+      active: true,
+    })
+    const { onResourceSelect } = openMenu(true)
+    expect(menuItems().map((item) => item.textContent)).not.toContain('Browser')
+    selectItem('Sim Docs')
 
     expect(onResourceSelect).toHaveBeenCalledExactlyOnceWith({
       type: 'browser',
-      id: BROWSER_SESSION_RESOURCE_ID,
-      title: 'Browser',
+      id: '7',
+      title: 'Sim Docs',
     })
     expect(mapResourceToContext(onResourceSelect.mock.calls[0][0])).toEqual({
       kind: 'browser_tab',
-      tabId: BROWSER_SESSION_RESOURCE_ID,
-      label: 'Browser',
+      tabId: '7',
+      label: 'Sim Docs',
     })
   })
 
   it.each([false, true])(
-    'updates mounted desktop rows when preferences change in mention=%s mode',
+    'offers no desktop rows without a live page or shell in mention=%s mode',
     (mention) => {
       openMenu(mention)
-      expect(menuItems().map((item) => item.textContent)).toContain('Browser')
-
-      fixtures.browserAvailable.mockReturnValue(false)
-      act(() => setDesktopPreferencesSnapshot({ ...PREFERENCES, browserEnabled: false }))
-      expect(menuItems().map((item) => item.textContent)).not.toContain('Browser')
-      expect(menuItems().map((item) => item.textContent)).toContain('Terminal')
+      const names = menuItems().map((item) => item.textContent)
+      expect(names).not.toContain('Browser')
+      expect(names).not.toContain('Terminal')
     }
   )
 
-  it('finds Browser through plus-menu search and selects it with Enter', () => {
+  it('lists a live shell under the Terminal category in browse mode', () => {
+    fixtures.tabs.push({
+      terminalId: '9',
+      title: 'sim',
+      cwd: '/code/sim',
+      running: null,
+      interactive: false,
+      active: true,
+    })
+    openMenu()
+    expect(menuItems().map((item) => item.textContent)).toContain('Terminal')
+  })
+
+  it('finds a browser tab through plus-menu search by its family and selects it with Enter', () => {
+    fixtures.browserTabs.push({
+      tabId: '7',
+      title: 'Sim Docs',
+      url: 'https://docs.sim.ai',
+      loading: false,
+      active: true,
+    })
     const { onResourceSelect } = openMenu()
     const search = document.querySelector<HTMLInputElement>(
       'input[placeholder="Search resources..."]'
@@ -226,24 +292,44 @@ describe('PlusMenuDropdown desktop resources', () => {
       valueSetter.call(search, 'browser')
       search.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    expect(menuItems().map((item) => item.textContent)).toEqual(['Browser'])
+    expect(menuItems().map((item) => item.textContent)).toEqual(['Sim Docs'])
     act(() => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
     expect(onResourceSelect).toHaveBeenCalledExactlyOnceWith({
       type: 'browser',
-      id: BROWSER_SESSION_RESOURCE_ID,
-      title: 'Browser',
+      id: '7',
+      title: 'Sim Docs',
     })
   })
 
-  it.each([false, true])('keeps unavailable Browser hidden in mention=%s mode', (mention) => {
+  it('keeps unavailable Browser hidden while offering live shells in mention mode', () => {
     fixtures.browserAvailable.mockReturnValue(false)
-    const { onResourceSelect } = openMenu(mention)
-    expect(menuItems().some((item) => item.textContent === 'Browser')).toBe(false)
-    selectItem('Terminal')
+    fixtures.browserTabs.push({
+      tabId: '7',
+      title: 'Sim Docs',
+      url: 'https://docs.sim.ai',
+      loading: false,
+      active: true,
+    })
+    fixtures.tabs.push({
+      terminalId: '9',
+      title: 'sim',
+      cwd: '/code/sim',
+      running: null,
+      interactive: false,
+      active: true,
+    })
+    const { onResourceSelect } = openMenu(true)
+    expect(menuItems().some((item) => item.textContent === 'Sim Docs')).toBe(false)
+    selectItem('sim')
     expect(onResourceSelect).toHaveBeenCalledExactlyOnceWith({
       type: 'terminal',
-      id: TERMINAL_SESSION_RESOURCE_ID,
-      title: 'Terminal',
+      id: 'terminal:9',
+      title: 'sim',
+    })
+    expect(mapResourceToContext(onResourceSelect.mock.calls[0][0])).toEqual({
+      kind: 'terminal_tab',
+      terminalId: '9',
+      label: 'sim',
     })
   })
 

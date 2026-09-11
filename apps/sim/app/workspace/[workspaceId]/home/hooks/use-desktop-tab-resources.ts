@@ -1,0 +1,160 @@
+import { useEffect, useRef } from 'react'
+import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+
+/** One live desktop tab, as the strip needs to know it. */
+export interface DesktopTab {
+  id: string
+  title: string
+}
+
+export interface DesktopTabResourceCallbacks {
+  /** Adds a tab without activating it; activation goes through {@link onResourceEvent}. */
+  addResource: (resource: MothershipResource) => void
+  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  /** Explicit user selection, which claims the strip's selection for the user. */
+  selectResource: (resourceId: string) => void
+  /** Agent activity on a tab, subject to the panel's user-ownership policy. */
+  onResourceEvent: ResourceEventHandler
+}
+
+interface UseDesktopTabResourcesOptions extends DesktopTabResourceCallbacks {
+  type: 'browser' | 'terminal'
+  /** Desktop scope whose live tabs back this chat's resource tabs. */
+  scopeId: string
+  /** The desktop app's live tab list for the scope, in its order. */
+  tabs: readonly DesktopTab[]
+  /**
+   * Whether the renderer holds a bucket for the scope at all. A missing bucket
+   * means the scope has not been activated yet or was just migrated to its
+   * durable id; it says nothing about the tabs themselves.
+   */
+  hasSession: boolean
+  /** The tab the desktop app currently shows for the scope. */
+  activeTabId: string | null
+  /** The tab the agent is working in, while it is working. */
+  agentTabId: string | null
+  /** Shows a tab natively without claiming it for the user. */
+  switchTab: (tabId: string, scopeId: string) => void
+  resources: readonly MothershipResource[]
+  activeResourceId: string | null
+}
+
+/**
+ * Keeps one kind of desktop-backed resource tab equal to the desktop app's
+ * live tab list, one resource per native tab.
+ *
+ * The desktop app owns the tabs, so its list is the source of truth: a tab
+ * appearing there gains a resource tab and a tab leaving it loses one. Closing
+ * a resource tab closes its native tab at the strip, which then comes back
+ * through the same list. Visible selection is routed the same way — choosing
+ * a resource tab switches the native tab, and a native switch follows into the
+ * strip while the user is on that kind of tab.
+ *
+ * The agent never moves the visible tab itself. Its tab is announced as
+ * resource activity, so the existing view policy decides whether to show it or
+ * only badge it while the user is reading something else.
+ */
+export function useDesktopTabResources({
+  type,
+  scopeId,
+  tabs,
+  hasSession,
+  activeTabId,
+  agentTabId,
+  switchTab,
+  resources,
+  activeResourceId,
+  addResource,
+  removeResource,
+  selectResource,
+  onResourceEvent,
+}: UseDesktopTabResourcesOptions): void {
+  /**
+   * Tab ids whose resource has been seen in the strip for the current scope.
+   * A tab is projected until its resource shows up — chat hydration can
+   * replace the list underneath a fresh add — and once it has been seen, its
+   * absence means the user closed it and the native close is in flight.
+   */
+  const knownTabIdsRef = useRef<Set<string> | null>(null)
+  knownTabIdsRef.current ??= new Set()
+  const knownScopeRef = useRef(scopeId)
+  /** The native switch this hook asked for and has not seen land yet. */
+  const requestedTabIdRef = useRef<string | null>(null)
+  const scopeIdRef = useRef(scopeId)
+  scopeIdRef.current = scopeId
+  const tabsRef = useRef(tabs)
+  tabsRef.current = tabs
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
+  const resourcesRef = useRef(resources)
+  resourcesRef.current = resources
+  const activeResourceIdRef = useRef(activeResourceId)
+  activeResourceIdRef.current = activeResourceId
+  const switchTabRef = useRef(switchTab)
+  switchTabRef.current = switchTab
+  const selectResourceRef = useRef(selectResource)
+  selectResourceRef.current = selectResource
+  const onResourceEventRef = useRef(onResourceEvent)
+  onResourceEventRef.current = onResourceEvent
+
+  useEffect(() => {
+    const known = knownTabIdsRef.current
+    if (!known) return
+    if (knownScopeRef.current !== scopeId) {
+      knownScopeRef.current = scopeId
+      known.clear()
+      requestedTabIdRef.current = null
+    }
+    const resourceTabIds = new Set(
+      resources.filter((resource) => resource.type === type).map((resource) => resource.id)
+    )
+
+    for (const tab of tabs) {
+      if (resourceTabIds.has(tab.id)) {
+        known.add(tab.id)
+        continue
+      }
+      if (!known.has(tab.id)) addResource({ type, id: tab.id, title: tab.title })
+    }
+
+    if (!hasSession) return
+    const liveTabIds = new Set(tabs.map((tab) => tab.id))
+    for (const tabId of known) {
+      if (liveTabIds.has(tabId)) continue
+      known.delete(tabId)
+      if (resourceTabIds.has(tabId)) removeResource(type, tabId)
+    }
+  }, [addResource, hasSession, removeResource, resources, scopeId, tabs, type])
+
+  // Selecting a resource tab shows its native tab. Keyed on the selection
+  // alone: a native push must not re-assert a selection it just moved away
+  // from, or the two sides would trade switches forever.
+  useEffect(() => {
+    if (!activeResourceId || activeResourceId === activeTabIdRef.current) return
+    if (!tabsRef.current.some((tab) => tab.id === activeResourceId)) return
+    requestedTabIdRef.current = activeResourceId
+    switchTabRef.current(activeResourceId, scopeIdRef.current)
+  }, [activeResourceId])
+
+  // A native switch while the user is on this kind of tab follows into the
+  // strip. The switch this hook requested itself is not a native change of mind.
+  useEffect(() => {
+    if (requestedTabIdRef.current === activeTabId) {
+      requestedTabIdRef.current = null
+      return
+    }
+    const activeResource = resourcesRef.current.find(
+      (resource) => resource.id === activeResourceIdRef.current
+    )
+    if (!activeTabId || activeResource?.type !== type || activeResource.id === activeTabId) {
+      return
+    }
+    selectResourceRef.current(activeTabId)
+  }, [activeTabId, type])
+
+  // The agent's tab surfaces like any other agent activity.
+  useEffect(() => {
+    if (agentTabId) onResourceEventRef.current(agentTabId, { activate: true })
+  }, [agentTabId])
+}

@@ -655,7 +655,7 @@ describe('Confluence empty content through the shared content pass', () => {
   it('explicitly rehydrates a skipped source whose version is unchanged', async () => {
     sourceBody = { value: '<p>Local content is rechecked</p>' }
     const { result, hydrate } = await runPass({
-      existing: { ...EXISTING, contentHash: 'confluence:storage-local-body-v1:page:3' },
+      existing: { ...EXISTING, contentHash: 'confluence:storage-local-body-v2:page:3' },
       access: 'admin',
       readCurrent: true,
       forceRehydrate: true,
@@ -669,7 +669,7 @@ describe('Confluence empty content through the shared content pass', () => {
     hydrationVersion = 3
     await runPass({ existing: EXISTING, readCurrent: true, access: 'admin' })
     const skipped = contentWrite()
-    expect(skipped.contentHash).toBe('confluence:storage-local-body-v1:page:3')
+    expect(skipped.contentHash).toBe('confluence:storage-local-body-v2:page:3')
 
     hydrationVersion = undefined
     sourceBody = { value: '<p>Current version content</p>' }

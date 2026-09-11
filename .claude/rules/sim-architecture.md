@@ -1,4 +1,5 @@
 ---
+description: Core architecture principles for the Sim app
 paths:
   - "apps/sim/**"
 ---

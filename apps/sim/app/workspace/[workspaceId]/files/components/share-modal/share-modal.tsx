@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
   Chip,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -206,18 +206,18 @@ export function ShareModal({
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField type='custom' title='Access' hint={accessHint}>
-            <ButtonGroup
+            <ChipButtonGroup
               value={effectiveMode}
               onValueChange={(value) => setDraftMode(value as ShareAuthType)}
               aria-label='File access'
               disabled={upsertShare.isPending}
             >
               {accessModes.map((mode) => (
-                <ButtonGroupItem key={mode} value={mode}>
+                <ChipButtonGroupItem key={mode} value={mode}>
                   {ACCESS_LABELS[mode]}
-                </ButtonGroupItem>
+                </ChipButtonGroupItem>
               ))}
-            </ButtonGroup>
+            </ChipButtonGroup>
           </ChipModalField>
           {effectiveMode === 'password' ? (
             <ChipModalField

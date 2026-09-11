@@ -12,6 +12,7 @@ const { consent, mockCapture, mockInit, mockOptIn, mockOptOut, mockPostHog, mock
       capture: vi.fn(),
       init: vi.fn(),
       opt_in_capturing: vi.fn(),
+      register: vi.fn(),
       opt_out_capturing: vi.fn(),
     }
     posthog.init.mockImplementation(() => {

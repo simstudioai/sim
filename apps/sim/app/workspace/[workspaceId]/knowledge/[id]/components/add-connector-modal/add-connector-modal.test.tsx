@@ -13,18 +13,20 @@ import type { ConfigFieldMap } from '@/app/workspace/[workspaceId]/knowledge/[id
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   accountsQuery: vi.fn(),
+  oauthQuery: vi.fn(),
   configFields: vi.fn(),
   resolveSourceConfig: vi.fn((): Record<string, unknown> => ({})),
   sourceConfig: {} as ConfigFieldMap,
   selectionLabels: undefined as SourceSelectionLabels | undefined,
   canonicalModes: {} as Record<string, 'basic' | 'advanced'>,
   isFieldPopulated: vi.fn(() => true),
-  credentials: [] as Pick<Credential, 'id' | 'name' | 'type'>[],
+  credentials: [] as (Pick<Credential, 'id' | 'name' | 'type'> &
+    Partial<Pick<Credential, 'provider'>>)[],
   credentialsState: 'ready' as 'ready' | 'loading' | 'error',
   refetchCredentials: vi.fn(),
   oauthModal: vi.fn(),
   serviceAccountModal: vi.fn(),
-  githubInstallationModal: vi.fn(),
+  githubSetup: vi.fn(),
   serviceAccountTarget: null as ServiceAccountConnectTarget | null,
   memberAccess: true,
   mirroredAccess: true,
@@ -130,14 +132,17 @@ vi.mock('@/hooks/queries/source-accounts', () => ({
   },
 }))
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
-  useOAuthCredentials: () => ({
-    data: mocks.credentials,
-    isLoading: mocks.credentialsState === 'loading',
-    isSuccess: mocks.credentialsState === 'ready',
-    isFetching: mocks.credentialsState === 'loading',
-    error: mocks.credentialsState === 'error' ? new Error('Could not load accounts') : null,
-    refetch: mocks.refetchCredentials,
-  }),
+  useOAuthCredentials: (...args: unknown[]) => {
+    mocks.oauthQuery(...args)
+    return {
+      data: mocks.credentials,
+      isLoading: mocks.credentialsState === 'loading',
+      isSuccess: mocks.credentialsState === 'ready',
+      isFetching: mocks.credentialsState === 'loading',
+      error: mocks.credentialsState === 'error' ? new Error('Could not load accounts') : null,
+      refetch: mocks.refetchCredentials,
+    }
+  },
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: vi.fn() }))
 vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
@@ -158,6 +163,7 @@ vi.mock(
         <button
           onClick={() => {
             mocks.credentials = [
+              ...mocks.credentials,
               { id: 'new-service-account', name: 'New service account', type: 'service_account' },
             ]
             props.onCreated('new-service-account')
@@ -176,24 +182,28 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-confi
     return null
   },
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/github-installation-modal', () => ({
-  GitHubInstallationModal: (props: {
-    organizationId: string
+vi.mock('@/hooks/use-github-installation-setup', () => ({
+  useGitHubInstallationSetup: (props: {
+    organizationId?: string
     onConnected: (id: string) => void
   }) => {
-    mocks.githubInstallationModal(props)
-    return (
-      <button
-        onClick={() => {
-          mocks.credentials = [
-            { id: 'github-app-credential', name: 'GitHub App: acme', type: 'service_account' },
-          ]
-          props.onConnected('github-app-credential')
-        }}
-      >
-        Use GitHub installation
-      </button>
-    )
+    mocks.githubSetup(props)
+    return {
+      pending: false,
+      error: null,
+      cancel: vi.fn(),
+      connect: () => {
+        mocks.credentials = [
+          {
+            id: 'github-app-credential',
+            name: 'GitHub App: acme',
+            type: 'service_account',
+            provider: 'github-app-installation',
+          },
+        ]
+        props.onConnected('github-app-credential')
+      },
+    }
   },
 }))
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields', () => ({
@@ -413,6 +423,58 @@ describe('Slack member setup readiness', () => {
 })
 
 describe('Search methods requiring member identity', () => {
+  it.each(['browsing', 'content'] as const)(
+    'assigns a new service account to the %s field without changing the other credential',
+    async (field) => {
+      mocks.serviceAccountTarget = {
+        serviceAccountProviderId: 'google-service-account',
+        serviceName: 'Google',
+        serviceIcon: googleDriveConnectorMeta.icon,
+        label: 'Add service account',
+        hidden: false,
+      }
+      await render({
+        initialConnectorType: 'google_drive',
+        initialAccessMode: 'members',
+        scope: { kind: 'organization', organizationId: 'org-1' },
+      })
+      await act(async () => button('More options').click())
+      await act(async () => combobox('Source account').click())
+      const sourceOption = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((option) => option.textContent?.trim() === 'Source account')
+      expect(sourceOption).toBeDefined()
+      await act(async () =>
+        sourceOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      await act(async () =>
+        combobox(field === 'content' ? 'Connected members' : 'Source account').click()
+      )
+      const serviceOption = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((option) => option.textContent?.trim() === 'Add service account')
+      expect(serviceOption).toBeDefined()
+      await act(async () =>
+        serviceOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      await act(async () => button('Finish service account setup').click())
+
+      expect(combobox('New service account')).toBeDefined()
+      expect(configFieldsProps().credentialId).toBe(
+        field === 'content' ? 'credential-1' : 'new-service-account'
+      )
+      expect(combobox(field === 'content' ? 'Source account' : 'Connected members')).toBeDefined()
+      await act(async () => button('Set up member accounts').click())
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessMode: 'members',
+          credentialId: field === 'content' ? 'new-service-account' : undefined,
+        }),
+        expect.any(Object)
+      )
+    }
+  )
+
   it('selects a GitHub installation for content while preserving member access', async () => {
     mocks.resolveSourceConfig.mockReturnValue({ repository: 'acme/docs' })
     await render({
@@ -420,19 +482,23 @@ describe('Search methods requiring member identity', () => {
       initialAccessMode: 'members',
       scope: { kind: 'organization', organizationId: 'org-1' },
     })
-    expect(document.body.textContent).toContain('Sync documents with')
-    await act(async () => combobox('Connected members').click())
-    const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
-      (node) => node.textContent?.trim() === 'Connect GitHub App'
-    )
-    if (!option) throw new Error('Missing GitHub App option')
-    await act(async () => option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
-    expect(mocks.githubInstallationModal).toHaveBeenCalledWith(
+    expect(document.body.textContent).not.toContain('Sync documents with')
+    expect(document.body.textContent).not.toContain('Connected members')
+    expect(button('Add repository')).toBeDisabled()
+    await act(async () => button('Connect GitHub').click())
+    expect(mocks.githubSetup).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org-1' })
     )
-    await act(async () => button('Use GitHub installation').click())
-    expect(combobox('GitHub App: acme')).toBeDefined()
-    await act(async () => button('Add source').click())
+    expect(document.body.textContent).not.toContain('Use installation')
+    expect(document.body.textContent).not.toContain('Refresh')
+    expect(document.body.textContent).toContain('GitHub App: acme')
+    expect(
+      configFieldsProps().connectorConfig.configFields.find((field) => field.id === 'repository')
+    ).toMatchObject({
+      type: 'selector',
+      selectorKey: 'github.installationRepositories',
+    })
+    await act(async () => button('Add repository').click())
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialId: 'github-app-credential',
@@ -467,7 +533,7 @@ describe('Search methods requiring member identity', () => {
       expect(document.body.textContent).not.toContain('Sync using')
       expect(document.querySelector('button[aria-label="Choose another source"]')).toBeNull()
       await act(async () =>
-        button(accessMode === 'admin' ? 'Connect & Sync' : 'Add source').click()
+        button(accessMode === 'admin' ? 'Connect & Sync' : 'Add Confluence site').click()
       )
       expect(mocks.create).toHaveBeenCalledWith(
         expect.objectContaining({ connectorType: 'confluence', accessMode }),
@@ -497,7 +563,7 @@ describe('Search methods requiring member identity', () => {
     })
     expect(document.body.textContent).not.toContain('Sync using')
     expect(document.body.textContent).not.toContain('Choose another source')
-    await act(async () => button('Add source').click())
+    await act(async () => button('Add Confluence site').click())
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         connectorType: 'confluence',
@@ -737,7 +803,7 @@ describe('Search setup options', () => {
     }
   )
 
-  it.each(SEARCH_SETUP_FIELDS)(
+  it.each(SEARCH_SETUP_FIELDS.filter(({ connectorType }) => connectorType !== 'gitlab'))(
     'keeps $connectorType general knowledge-base fields and sync frequency outside document details',
     async ({ connectorType, primary, optional, cap }) => {
       await render({
@@ -756,6 +822,21 @@ describe('Search setup options', () => {
       expect(document.body.textContent).not.toContain('Metadata tags')
     }
   )
+
+  it('uses GitLab service-account access and token tabs without an access selector in regular KBs', async () => {
+    await render({
+      initialConnectorType: 'gitlab',
+      initialAccessMode: 'workspace',
+      isSearchIndex: false,
+    })
+    expect(document.body.textContent).toContain('Administrator token')
+    expect(document.body.textContent).toContain('Non-admin token')
+    expect(document.body.textContent).not.toContain('Connection method')
+    expect(button('More options')).toHaveAttribute('aria-expanded', 'false')
+    expect(document.body.textContent).not.toContain('Sync Frequency')
+    await act(async () => button('More options').click())
+    expect(document.body.textContent).toContain('Sync Frequency')
+  })
 
   it('keeps administrator-required fields in the primary form even if metadata marks them optional', async () => {
     mocks.credentials = [{ id: 'service', name: 'Indexing account', type: 'service_account' }]
@@ -809,6 +890,32 @@ describe('Search setup options', () => {
 })
 
 describe('Account connection dropdown', () => {
+  it.each(['jira', 'confluence'])(
+    'reuses the caller’s managed %s account for browsing member sources',
+    async (connectorType) => {
+      mocks.credentials = [
+        { id: 'managed-account', name: 'My Search account', type: 'managed_oauth' },
+      ]
+      await render({
+        initialConnectorType: connectorType,
+        lockedAccessMode: 'members',
+        scope: { kind: 'organization', organizationId: 'org-1' },
+      })
+      expect(mocks.oauthQuery).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({ purpose: 'browsing', organizationId: 'org-1' })
+      )
+      await act(async () => combobox('My Search account').click())
+      const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
+        (node) => node.textContent?.trim() === 'My Search account'
+      )
+      expect(option).toBeDefined()
+      await act(async () => option!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+      expect(mocks.configFields).toHaveBeenLastCalledWith(
+        expect.objectContaining({ credentialId: 'managed-account' })
+      )
+    }
+  )
   it.each(['google_drive', 'gmail', 'google_calendar'])(
     'opens only service-account creation for a central %s source and submits that credential',
     async (connectorType) => {
@@ -858,7 +965,10 @@ describe('Account connection dropdown', () => {
   )
 
   it('only offers service accounts when creating a central Confluence source', async () => {
-    mocks.credentials = [{ id: 'personal-account', name: 'Personal Confluence', type: 'oauth' }]
+    mocks.credentials = [
+      { id: 'personal-account', name: 'Personal Confluence', type: 'oauth' },
+      { id: 'managed-account', name: 'My Search account', type: 'managed_oauth' },
+    ]
     mocks.serviceAccountTarget = {
       serviceAccountProviderId: 'atlassian-service-account',
       serviceName: 'Atlassian',
@@ -893,15 +1003,16 @@ describe('Account connection dropdown', () => {
     expect(mocks.oauthModal).not.toHaveBeenCalled()
   })
 
-  it('offers GitHub indexing accounts directly without requiring a browsing credential', async () => {
+  it('keeps member and dedicated GitHub indexing choices in workspace Search', async () => {
     mocks.credentials = []
     await render({
       initialConnectorType: 'github',
       lockedAccessMode: 'members',
-      scope: { kind: 'organization', organizationId: 'org-1' },
+      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
       setupDraftKey: 'github-members',
     })
     expect(document.body.textContent).not.toContain('Account for browsing')
+    await act(async () => button('More options').click())
     expect(document.body.textContent).toContain('Sync documents with')
     await act(async () => combobox('Connected members').click())
     const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
@@ -914,7 +1025,7 @@ describe('Account connection dropdown', () => {
     expect(mocks.oauthModal).toHaveBeenLastCalledWith(
       expect.objectContaining({
         open: true,
-        organizationId: 'org-1',
+        workspaceId: 'workspace-1',
         connectorType: 'github',
         sourceAccess: 'members',
       })
@@ -958,7 +1069,7 @@ describe('Account connection dropdown', () => {
     })
 
     expect(document.body.textContent).toContain('Account for browsing')
-    expect(button('Add source')).toBeEnabled()
+    expect(button('Add Confluence site')).toBeEnabled()
     await act(async () => combobox('Select Confluence account').click())
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
     expect(options.map((option) => option.textContent?.trim())).toEqual([
@@ -996,7 +1107,7 @@ describe('Account connection dropdown', () => {
     await render({ initialConnectorType: 'confluence', initialAccessMode: 'admin' })
 
     expect(document.body.textContent).toContain('Could not load accounts')
-    expect(document.body.textContent).not.toContain('Connect Confluence')
+    expect(document.body.textContent).not.toContain('Connect Confluence account')
     expect(button('Connect & Sync')).toBeDisabled()
     await act(async () => button('Try again').click())
     expect(mocks.refetchCredentials).toHaveBeenCalledOnce()

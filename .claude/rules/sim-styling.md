@@ -1,4 +1,5 @@
 ---
+description: Tailwind CSS and styling conventions
 paths:
   - "apps/sim/**/*.tsx"
   - "apps/sim/**/*.css"

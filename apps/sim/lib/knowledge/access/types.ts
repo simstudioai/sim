@@ -93,6 +93,12 @@ export interface KnowledgeAccessProvider {
     documentIds: readonly string[],
     signal?: AbortSignal
   ): Promise<KnowledgeAccessScope>
+  /**
+   * Whether the reader holds any credential a live source (GitHub, Confluence) could
+   * authorize beyond the stored ACL. Without one, candidate discovery can only re-prove
+   * the ordinary predicate, so readers skip it. Absent means unknown: discover.
+   */
+  hasLiveSourceReaders?(): Promise<boolean>
 }
 
 /** Two existing search legs each contribute at most 200 candidates to one authorization batch. */

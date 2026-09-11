@@ -14,6 +14,7 @@ import { and, asc, eq, gt, inArray, isNotNull } from 'drizzle-orm'
 import { defineOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sameResourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { createCredentialGroupOAuthStartUrl } from '@/lib/credential-groups/enrollment-links'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
@@ -152,7 +153,18 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
       url.searchParams.set('optionId', account.optionId)
       url.searchParams.set('returnTo', 'accounts')
     }
-    return { invitationLink: url.toString() }
+    return {
+      invitationLink: url.toString(),
+      ...(account.type === 'managed_oauth' && account.optionId
+        ? {
+            authorizationUrl: createCredentialGroupOAuthStartUrl({
+              invitationLink,
+              optionId: account.optionId,
+              returnTo: 'accounts',
+            }),
+          }
+        : {}),
+    }
   },
 })
 
