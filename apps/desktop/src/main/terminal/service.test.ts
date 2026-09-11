@@ -108,17 +108,17 @@ describe('closing terminals', () => {
     expect(after.activeTerminalId).not.toBe(secondId)
   })
 
-  it('resets the last terminal instead of emptying the panel', () => {
-    // A panel whose resource IS a terminal must never be left with no shell:
-    // there is nothing to show and no way back from inside it.
+  it('leaves no terminal behind when the last one closes', () => {
+    // Each shell is its own resource tab, so the strip simply drops the last
+    // one; nothing is spawned in its place.
     const terminal = service()
     const started = terminal.start({ cols: 80, rows: 24 })
     const onlyId = started.activeTerminalId as string
 
     const after = terminal.closeTerminal(onlyId)
 
-    expect(after.tabs).toHaveLength(1)
-    expect(after.activeTerminalId).not.toBe(onlyId)
+    expect(after.tabs).toHaveLength(0)
+    expect(after.activeTerminalId).toBeNull()
   })
 
   it('refuses to close a terminal that does not exist', () => {
@@ -542,6 +542,20 @@ describe('closing', () => {
     expect(terminal.getTabs().tabs).toHaveLength(2)
   })
 
+  it('lets the agent close its own shell after the user closed the last one', async () => {
+    const terminal = service()
+    const claimed = terminal.start({ cols: 80, rows: 24 }).activeTerminalId as string
+    terminal.switchTerminal(claimed)
+    terminal.closeTerminal(claimed)
+
+    const opened = await terminal.executeTool('call-new', 'new', {})
+    const agentId = (opened.result as { activeTerminalId: string }).activeTerminalId
+    const closed = await terminal.executeTool('call-close', 'close', { terminalId: agentId })
+
+    expect(closed.ok).toBe(true)
+    expect(terminal.getTabs().tabs).toHaveLength(0)
+  })
+
   it('opens and closes an agent terminal without changing visible selection', async () => {
     const terminal = service()
     const started = terminal.start({ cols: 80, rows: 24 })
@@ -582,19 +596,18 @@ describe('closing', () => {
 })
 
 describe('a shell that ends by itself', () => {
-  it('replaces the only terminal instead of leaving a dead tab', () => {
+  it('drops the only terminal instead of leaving a dead tab', () => {
     const terminal = service()
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
     const original = activeTerminalId as string
 
     stubSessions.get(original)?.exit()
 
-    // The panel's whole content is the terminal, so an exited last shell used
-    // to sit there unusable — nothing to type into and no way to get it back.
+    // An exited shell can no longer do anything, so its tab goes away rather
+    // than sitting there unusable; the strip is free to offer a new one.
     const after = terminal.getTabs()
-    expect(after.tabs).toHaveLength(1)
-    expect(after.activeTerminalId).not.toBe(original)
-    expect(after.tabs[0]?.terminalId).toBe(after.activeTerminalId)
+    expect(after.tabs).toHaveLength(0)
+    expect(after.activeTerminalId).toBeNull()
   })
 
   it('removes one of several and activates a neighbour', () => {

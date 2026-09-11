@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { byResourceMenuOrder } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -18,7 +17,7 @@ const groups = [
   },
   {
     type: 'terminal' as const,
-    items: [{ id: TERMINAL_SESSION_RESOURCE_ID, name: 'Terminal' }],
+    items: [{ id: 'terminal', name: 'Terminal' }],
   },
 ]
 
@@ -64,38 +63,40 @@ describe('withBrowserTabMentions', () => {
 })
 
 describe('withTerminalTabMentions', () => {
-  it('keeps Terminal as a flat resource mention with no live shells', () => {
-    const result = withTerminalTabMentions(groups, [])
+  it('drops the Terminal launcher when no shell is open', () => {
+    const result = withTerminalTabMentions(groups, [], new Set())
 
-    expect(result.find((group) => group.type === 'terminal')?.items).toEqual([
-      expect.objectContaining({ id: TERMINAL_SESSION_RESOURCE_ID, name: 'Terminal' }),
-    ])
+    expect(result.find((group) => group.type === 'terminal')?.items).toEqual([])
+    expect(result.find((group) => group.type === 'workflow')).toBe(groups[0])
   })
 
-  it('offers the whole Terminal first and every live shell after it', () => {
-    const result = withTerminalTabMentions(groups, [
-      {
-        terminalId: 'terminal-1',
-        title: 'sim',
-        cwd: '/code/sim',
-        running: null,
-        interactive: false,
-        active: true,
-      },
-      {
-        terminalId: 'terminal-2',
-        title: 'sim',
-        cwd: '/tmp/sim',
-        running: null,
-        interactive: false,
-        active: false,
-      },
-    ])
+  it('offers every live shell as its own Terminal mention, named like the strip', () => {
+    const result = withTerminalTabMentions(
+      groups,
+      [
+        {
+          terminalId: 'terminal-1',
+          title: 'sim',
+          cwd: '/code/sim',
+          running: 'bun run build',
+          interactive: false,
+          active: true,
+        },
+        {
+          terminalId: 'terminal-2',
+          title: 'sim',
+          cwd: '/tmp/sim',
+          running: null,
+          interactive: false,
+          active: false,
+        },
+      ],
+      new Set(['terminal-1'])
+    )
 
-    expect(result.find((group) => group.type === 'terminal')?.items).toMatchObject([
-      { id: TERMINAL_SESSION_RESOURCE_ID, name: 'Terminal' },
-      { id: 'terminal-1', name: 'sim 1' },
-      { id: 'terminal-2', name: 'sim 2' },
+    expect(result.find((group) => group.type === 'terminal')?.items).toEqual([
+      { id: 'terminal:terminal-1', name: 'bun run build', mentionFamily: 'Terminal' },
+      { id: 'terminal:terminal-2', name: 'sim', mentionFamily: 'Terminal' },
     ])
   })
 })

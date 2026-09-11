@@ -347,12 +347,20 @@ export class TerminalService {
     return this.getAgentTabs()
   }
 
-  switchTerminal(terminalId: string): TerminalTabsState {
+  /**
+   * Shows a terminal. `claim` records it as the user's own; a switch that only
+   * mirrors the renderer's resource-strip selection passes false so the agent
+   * can still close or adopt the shell as its own.
+   */
+  switchTerminal(
+    terminalId: string,
+    { claim = true }: { claim?: boolean } = {}
+  ): TerminalTabsState {
     if (!this.sessions.has(terminalId)) {
       throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(terminalId))
     }
     this.activeId = terminalId
-    this.activeTerminalUserSelected = true
+    if (claim) this.activeTerminalUserSelected = true
     this.emitTabs()
     void this.sessions.get(terminalId)?.refreshCwd()
     return this.getTabs()
@@ -387,19 +395,11 @@ export class TerminalService {
   }
 
   /**
-   * Closes a terminal, or resets it when it is the only one left.
-   *
-   * Emptying the panel is not an option the close button should have: the
-   * resource IS a terminal, so a panel with no shell in it is a dead end the
-   * user has to close and reopen to escape. Replacing the last shell with a
-   * fresh one in the same directory gives the button a sensible meaning at
-   * every count — the same shape as closing a browser's last tab, which
-   * leaves you a tab rather than an empty window.
-   *
-   * A shell that ends by itself — `exit`, or Ctrl-D — goes the same way. It
-   * leaves behind a session that can no longer do anything, so it has to be
-   * reaped either way; treating it as a close means the last one is replaced
-   * rather than leaving a dead tab that cannot be typed into.
+   * Closes a terminal. Each shell is its own resource tab in the renderer, so
+   * closing the last one simply leaves none; the strip drops the tab and a new
+   * shell comes back through `+ Terminal` or the agent. A shell that ends by
+   * itself — `exit`, or Ctrl-D — goes the same way: it leaves behind a session
+   * that can no longer do anything, so it is reaped like a close.
    */
   closeTerminal(terminalId: string): TerminalTabsState {
     if (!this.sessions.has(terminalId)) {
@@ -451,16 +451,13 @@ export class TerminalService {
   }
 
   /**
-   * Drops a terminal and decides what replaces it. Closing and exiting share
-   * this so the two cannot drift into different answers for "what happens to
-   * the last one".
+   * Drops a terminal and moves both cursors to a neighbour. Closing and
+   * exiting share this so the two cannot drift into different answers.
    */
   private retire(terminalId: string): TerminalTabsState {
     const session = this.sessions.get(terminalId)
     if (!session) return this.getTabs()
     const closedCwd = session.currentCwd
-    const cols = session.cols
-    const rows = session.rows
     const order = [...this.sessions.keys()]
     const index = order.indexOf(terminalId)
     session.dispose()
@@ -468,15 +465,10 @@ export class TerminalService {
     this.tmuxCache.delete(terminalId)
     this.releasePendingRuns(terminalId)
 
-    if (this.sessions.size === 0) {
-      this.spawn(this.resolveCwd(closedCwd), cols, rows, {
-        activateVisible: true,
-        activateAgent: true,
-      })
-      return this.getTabs()
-    }
-
     this.rememberClosed(closedCwd)
+    // Nothing is left for the user to hold on to; the next shell the agent
+    // opens must not inherit a claim on a terminal that no longer exists.
+    if (this.sessions.size === 0) this.activeTerminalUserSelected = false
     if (this.activeId === terminalId) {
       this.activeId = order[index + 1] ?? order[index - 1] ?? null
     }

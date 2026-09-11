@@ -32,6 +32,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
@@ -123,16 +124,26 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
+    const settledCommands = useSettledTerminalCommands(terminalTabs)
     const visibleResources = useMemo(() => {
-      const resources = withBrowserTabMentions(
-        withFolderMentions(availableResources, structureFolders),
-        browserTabs
+      const resources = withTerminalTabMentions(
+        withBrowserTabMentions(
+          withFolderMentions(availableResources, structureFolders),
+          browserTabs
+        ),
+        terminalTabs,
+        settledCommands
       )
-      if (isMention) {
-        return withTerminalTabMentions(resources, terminalTabs)
-      }
+      if (isMention) return resources
       return resources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
-    }, [availableResources, structureFolders, browserTabs, isMention, terminalTabs])
+    }, [
+      availableResources,
+      structureFolders,
+      browserTabs,
+      isMention,
+      settledCommands,
+      terminalTabs,
+    ])
 
     const treeSections = useResourceTreeSections({
       groups: availableResources,

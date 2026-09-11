@@ -4,7 +4,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-tab-icon'
+import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/terminal-tab-icon'
+import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 vi.mock('@/components/ui', async () => {
   const { createElement } = await import('react')
@@ -16,6 +17,9 @@ vi.mock('@/components/ui', async () => {
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
+const SCOPE = 'chat-1'
+
+/** Drives the icon the way the store does: an agent command targeting the shell, and reset epochs. */
 function render(active: boolean, resetEpoch = 0): void {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   if (!container) {
@@ -23,7 +27,20 @@ function render(active: boolean, resetEpoch = 0): void {
     document.body.appendChild(container)
     root = createRoot(container)
   }
-  act(() => root?.render(<TerminalTabIcon key={resetEpoch} active={active} />))
+  act(() => {
+    useCopilotTerminalStore.setState({
+      activeScopeId: SCOPE,
+      sessions: {
+        [SCOPE]: {
+          tabs: { tabs: [], activeTerminalId: null },
+          agentCommandTerminalIds: active ? { 'tool-1': '7' } : {},
+          activityResetEpoch: resetEpoch,
+          suspended: false,
+        },
+      },
+    })
+    root?.render(<TerminalTabIcon terminalId='7' scopeId={SCOPE} />)
+  })
 }
 
 afterEach(() => {

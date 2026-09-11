@@ -1516,39 +1516,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return fillCoordinator()?.fillCredential(id, scope) ?? false
       },
     },
-    'terminal:start': {
+    'terminal:restore-scope': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
-      denied: { ok: false, code: 'ACCESS_DENIED', error: 'Not allowed from this page.' },
-      handler: (sender, raw, rawScope) => {
-        const contents = sender as WebContents
-        const scope = rendererScope(terminalScopeBySender, contents, rawScope)
-        if (!scope) {
-          return { ok: false, code: 'STALE_SCOPE', error: 'This terminal chat is not active.' }
-        }
-        const options = isRecordLike(raw) ? raw : {}
-        const cols = Number(options.cols)
-        const rows = Number(options.rows)
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
         try {
-          return {
-            ok: true,
-            tabs: {
-              ...deps.terminal.start(scope, {
-                cols: toCellCount(cols, 80),
-                rows: toCellCount(rows, 24),
-              }),
-              scopeId: scope,
-            },
-          }
+          return { ...deps.terminal.restoreScope(scope), scopeId: scope }
         } catch (error) {
-          const failure = error as { code?: string; message?: string }
-          return {
-            ok: false,
-            code: failure.code ?? 'SPAWN_FAILED',
-            error: failure.message ?? 'Could not open a terminal.',
-          }
+          logger.warn('Could not restore saved terminals', { error: getErrorMessage(error) })
+          return { ...deps.terminal.getTabs(scope), scopeId: scope }
         }
       },
     },
@@ -1778,12 +1759,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'terminal',
       passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: (sender, terminalId, rawScope) => {
+      handler: (sender, terminalId, rawScope, rawOptions) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope) return { tabs: [], activeTerminalId: null }
+        const claim = !(isRecordLike(rawOptions) && rawOptions.claim === false)
         const tabs =
           typeof terminalId === 'string'
-            ? deps.terminal.switchTerminal(scope, terminalId)
+            ? deps.terminal.switchTerminal(scope, terminalId, { claim })
             : deps.terminal.getTabs(scope)
         return { ...tabs, scopeId: scope }
       },
@@ -1850,7 +1832,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, cols, rows, rawScope) => {
         // `typeof NaN === 'number'`, and the downstream `cols <= 0` guard is
         // false for NaN, so an unfinite value reached pty.resize() intact.
-        // Matches the clamping terminal:start already applies to these fields.
         if (typeof terminalId !== 'string') return
         if (!isPositiveFinite(cols) || !isPositiveFinite(rows)) return
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
