@@ -492,6 +492,37 @@ describe('defineInternalJsonRoute', () => {
     })
   })
 
+  it('keeps every cookie a finalizer clears on its own header line', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'ok' }
+        },
+      },
+      finalizeResponse: () => ({
+        headers: new Headers([
+          ['set-cookie', 'session_token=; Max-Age=0; Path=/'],
+          ['set-cookie', 'session_data=; Max-Age=0; Path=/'],
+        ]),
+      }),
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.getSetCookie()).toEqual([
+      'session_token=; Max-Age=0; Path=/',
+      'session_data=; Max-Age=0; Path=/',
+    ])
+  })
+
   it('selects a declared success status from the application result', async () => {
     const replayableContract = defineRouteContract({
       method: 'POST',

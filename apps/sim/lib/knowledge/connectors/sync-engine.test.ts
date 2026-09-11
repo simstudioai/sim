@@ -2107,6 +2107,25 @@ describe('completeSyncLog', () => {
   })
 })
 
+describe('isContentPassIncomplete', () => {
+  it('is true only when the listing has not finished or a source read failed', async () => {
+    const { isContentPassIncomplete } = await import('@/lib/knowledge/connectors/sync-engine')
+    const checkpoint = { startedAt: '2026-09-04T00:00:00Z', listedCount: 4 }
+    for (const complete of [true, false]) {
+      for (const unsafe of [true, false]) {
+        for (const contentFailures of [true, false, undefined]) {
+          expect(
+            isContentPassIncomplete({
+              complete,
+              checkpoint: { ...checkpoint, unsafe, contentFailures },
+            })
+          ).toBe(!complete || contentFailures === true)
+        }
+      }
+    }
+  })
+})
+
 describe('completeSuccessfulSync', () => {
   const RESULT = {
     docsAdded: 1,
@@ -2199,6 +2218,48 @@ describe('completeSuccessfulSync', () => {
       (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'active'
     )?.[0] as Record<string, unknown>
     expect(connectorUpdate).not.toHaveProperty('lastSyncAt')
+    expect(connectorUpdate.listingCheckpoint).toBeNull()
+    expect((connectorUpdate.nextSyncAt as Date).getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
+  })
+
+  it('records a held listing as a completed sync whose watermark advances', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+    const holdNotice = 'Source listing is incomplete; unlisted documents were kept.'
+
+    expect(
+      await completeSuccessfulSync(
+        'c-1',
+        'kb-1',
+        'log-1',
+        60,
+        { ...RESULT, docsFailed: 0 },
+        holdNotice,
+        {
+          complete: true,
+          checkpoint: {
+            unsafe: true,
+            contentFailures: false,
+            startedAt: '2026-09-04T00:00:00Z',
+            listedCount: 4,
+          },
+        }
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed', docsFailed: 0, listedCount: 4 })
+    )
+    const connectorUpdate = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'active'
+    )?.[0] as Record<string, unknown>
+    expect(connectorUpdate.lastSyncAt).toEqual(new Date('2026-09-04T00:00:00Z'))
+    expect(connectorUpdate.lastSyncError).toBe(holdNotice)
     expect(connectorUpdate.listingCheckpoint).toBeNull()
     expect((connectorUpdate.nextSyncAt as Date).getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
   })
