@@ -273,7 +273,6 @@ export function useOrganizationMothershipChats(
       return data.data.map(mapChat)
     },
     staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
-    refetchInterval: (query) => (query.state.data?.some((chat) => chat.isActive) ? 5_000 : false),
   })
 }
 
@@ -337,11 +336,11 @@ export function useDeleteMothershipChat(owner?: MothershipChatOwner) {
     mutationFn: deleteChat,
     onSuccess: async (_data, chatId) => {
       await suspendDesktopChatScopes(chatId)
-    },
-    onSettled: (_data, _error, chatId) => {
-      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       useMothershipQueueStore.getState().clearChat(chatId)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
   })
 }
@@ -374,24 +373,20 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (chatIds: string[]) => {
-      // Couple each successful DELETE to its own native suspension. If one
-      // sibling request fails, Promise.all rejects but the independently
-      // successful tasks still stop their pages and PTYs instead of being
-      // stranded live behind the aggregate onSuccess callback.
-      await Promise.all(
+      /** Reconcile only after every request settles, while cleaning up only deleted chats. */
+      const results = await Promise.allSettled(
         chatIds.map(async (chatId) => {
           await deleteChat(chatId)
           await suspendDesktopChatScopes(chatId)
+          queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+          useMothershipQueueStore.getState().clearChat(chatId)
         })
       )
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed) throw failed.reason
     },
-    onSettled: (_data, _error, chatIds) => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
-      const queueStore = useMothershipQueueStore.getState()
-      for (const chatId of chatIds) {
-        queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-        queueStore.clearChat(chatId)
-      }
     },
   })
 }

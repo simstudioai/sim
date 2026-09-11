@@ -119,7 +119,7 @@ vi.mock('@/lib/copilot/request/session/sse', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: null,
+  publishChatStatusChanged: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/go/fetch', () => ({

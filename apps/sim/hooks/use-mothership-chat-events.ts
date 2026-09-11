@@ -3,17 +3,27 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
-import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import {
+  type MothershipChatHistory,
+  type MothershipChatOwner,
+  mothershipChatKeys,
+} from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')
 
-/** Workspaces this process has subscribed to before, so a re-subscribe can be told from a first one. */
+/** Owner scopes this process subscribed to, so returning to a scope reconciles missed events. */
 const everSubscribed = new Set<string>()
 
-const CHAT_STATUS_TYPES = ['started', 'completed', 'created', 'deleted', 'renamed'] as const
+const CHAT_STATUS_TYPES = [
+  'started',
+  'completed',
+  'created',
+  'deleted',
+  'renamed',
+  'updated',
+] as const
 type ChatStatusEventType = (typeof CHAT_STATUS_TYPES)[number]
 const CHAT_STATUS_TYPE_SET = new Set<string>(CHAT_STATUS_TYPES)
 
@@ -98,7 +108,7 @@ function parseChatStatusEventPayload(data: unknown): ChatStatusEventPayload | nu
 
 export function handleMothershipChatStatusEvent(
   queryClient: Pick<QueryClient, 'getQueryData' | 'invalidateQueries' | 'removeQueries'>,
-  workspaceId: string,
+  owner: MothershipChatOwner,
   data: unknown
 ): void {
   const payload = parseChatStatusEventPayload(data)
@@ -107,9 +117,8 @@ export function handleMothershipChatStatusEvent(
     return
   }
 
-  // workspaceLists covers both the active and archived (Recently Deleted)
-  // lists: delete/restore events move chats between the two scopes.
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
+  /** Delete and restore move chats between active and archived owner lists. */
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
   if (!payload.chatId) return
   if (payload.type === 'deleted') {
     // A task may be deleted from another window, browser, or device. Stop its
@@ -149,9 +158,9 @@ export function handleMothershipChatStatusEvent(
  */
 export function resyncMothershipChatCaches(
   queryClient: Pick<QueryClient, 'invalidateQueries'>,
-  workspaceId: string
+  owner: MothershipChatOwner
 ): void {
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
 }
 
 /**
@@ -162,38 +171,46 @@ export function resyncMothershipChatCaches(
  * without the guard every session would hold an open connection to an endpoint
  * that cannot serve it.
  */
-export function useMothershipChatEvents(workspaceId: string | undefined) {
+export function useMothershipChatEvents(
+  owner: MothershipChatOwner | undefined,
+  chatEnabled: boolean
+) {
   const queryClient = useQueryClient()
-  const { chatEnabled } = useDeploymentShape()
+  const workspaceId = typeof owner === 'string' ? owner : undefined
+  const organizationId = typeof owner === 'object' ? owner.organizationId : undefined
 
   useEffect(() => {
-    if (!workspaceId || !chatEnabled) return
+    if ((!workspaceId && !organizationId) || !chatEnabled) return
 
-    const isResubscribe = everSubscribed.has(workspaceId)
-    everSubscribed.add(workspaceId)
+    const eventOwner = organizationId ? { organizationId } : workspaceId!
+    const ownerParam = organizationId
+      ? `organizationId=${encodeURIComponent(organizationId)}`
+      : `workspaceId=${encodeURIComponent(workspaceId!)}`
+    const isResubscribe = everSubscribed.has(ownerParam)
+    everSubscribed.add(ownerParam)
     const connection = createRotatingEventSource({
-      url: `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+      url: `/api/mothership/events?${ownerParam}`,
       events: {
         task_status: (event) => {
           handleMothershipChatStatusEvent(
             queryClient,
-            workspaceId,
+            eventOwner,
             event instanceof MessageEvent ? event.data : undefined
           )
         },
       },
       onOpen: (reason) => {
         if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) {
-          resyncMothershipChatCaches(queryClient, workspaceId)
+          resyncMothershipChatCaches(queryClient, eventOwner)
         }
       },
       onError: () => {
-        logger.warn(`SSE connection error for workspace ${workspaceId}`)
+        logger.warn('Chat status SSE connection error')
       },
     })
 
     return () => {
       connection.close()
     }
-  }, [workspaceId, queryClient, chatEnabled])
+  }, [workspaceId, organizationId, queryClient, chatEnabled])
 }

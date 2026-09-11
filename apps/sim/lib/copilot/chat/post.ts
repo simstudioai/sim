@@ -48,7 +48,7 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
@@ -362,7 +362,7 @@ type UnifiedChatBranch =
       goRoute: '/api/copilot'
       titleModel: string
       titleProvider?: string
-      notifyWorkspaceStatus: false
+      notifyChatStatus: false
       buildPayload: (params: {
         message: string
         userId: string
@@ -408,7 +408,7 @@ type UnifiedChatBranch =
       goRoute: '/api/mothership'
       titleModel: string
       titleProvider?: undefined
-      notifyWorkspaceStatus: boolean
+      notifyChatStatus: boolean
       buildPayload: (params: {
         message: string
         userId: string
@@ -578,7 +578,9 @@ async function persistUserMessage(params: {
   fileAttachments?: UnifiedChatRequest['fileAttachments']
   contexts?: UnifiedChatRequest['contexts']
   workspaceId?: string
-  notifyWorkspaceStatus: boolean
+  notifyChatStatus: boolean
+  organizationId?: string
+  userId?: string
   requestMode?: 'assistant' | 'agent'
   /**
    * Root context for the mothership request. When present the persist
@@ -597,7 +599,9 @@ async function persistUserMessage(params: {
     fileAttachments,
     contexts,
     workspaceId,
-    notifyWorkspaceStatus,
+    organizationId,
+    userId,
+    notifyChatStatus,
     parentOtelContext,
   } = params
   if (!chatId) return
@@ -649,13 +653,15 @@ async function persistUserMessage(params: {
         updated ? CopilotChatPersistOutcome.Appended : CopilotChatPersistOutcome.ChatNotFound
       )
 
-      if (notifyWorkspaceStatus && updated && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'started',
-          streamId: userMessageId,
-        })
+      if (notifyChatStatus && updated) {
+        publishChatStatusChanged(
+          { workspaceId, organizationId, userId },
+          {
+            chatId,
+            type: 'started',
+            streamId: userMessageId,
+          }
+        )
       }
     },
     parentOtelContext
@@ -724,7 +730,9 @@ function buildOnComplete(params: {
   userMessageId: string
   requestId: string
   workspaceId?: string
-  notifyWorkspaceStatus: boolean
+  notifyChatStatus: boolean
+  organizationId?: string
+  userId?: string
   requestMode?: 'assistant' | 'agent'
   /**
    * Root agent span for this request. When present, the final
@@ -740,7 +748,16 @@ function buildOnComplete(params: {
     }) => void
   }
 }) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus, otelRoot } = params
+  const {
+    chatId,
+    userMessageId,
+    requestId,
+    workspaceId,
+    organizationId,
+    userId,
+    notifyChatStatus,
+    otelRoot,
+  } = params
 
   return async (result: OrchestratorResult) => {
     if (otelRoot && result.success) {
@@ -770,13 +787,15 @@ function buildOnComplete(params: {
           finalization.updated ||
           finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
-        if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
-          chatPubSub?.publishStatusChanged({
-            workspaceId,
-            chatId,
-            type: 'completed',
-            streamId: userMessageId,
-          })
+        if (notifyChatStatus && shouldPublishCompletion) {
+          publishChatStatusChanged(
+            { workspaceId, organizationId, userId },
+            {
+              chatId,
+              type: 'completed',
+              streamId: userMessageId,
+            }
+          )
         }
         return
       }
@@ -796,13 +815,15 @@ function buildOnComplete(params: {
         ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
       })
 
-      if (notifyWorkspaceStatus && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-          streamId: userMessageId,
-        })
+      if (notifyChatStatus) {
+        publishChatStatusChanged(
+          { workspaceId, organizationId, userId },
+          {
+            chatId,
+            type: 'completed',
+            streamId: userMessageId,
+          }
+        )
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist chat messages`, {
@@ -818,10 +839,20 @@ function buildOnError(params: {
   userMessageId: string
   requestId: string
   workspaceId?: string
-  notifyWorkspaceStatus: boolean
+  notifyChatStatus: boolean
+  organizationId?: string
+  userId?: string
   requestMode?: 'assistant' | 'agent'
 }) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
+  const {
+    chatId,
+    userMessageId,
+    requestId,
+    workspaceId,
+    organizationId,
+    userId,
+    notifyChatStatus,
+  } = params
 
   return async (_error: Error, result?: OrchestratorResult) => {
     if (!chatId) return
@@ -843,13 +874,15 @@ function buildOnError(params: {
         streamMarkerPolicy: 'active-or-cleared',
       })
 
-      if (notifyWorkspaceStatus && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-          streamId: userMessageId,
-        })
+      if (notifyChatStatus) {
+        publishChatStatusChanged(
+          { workspaceId, organizationId, userId },
+          {
+            chatId,
+            type: 'completed',
+            streamId: userMessageId,
+          }
+        )
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
@@ -898,7 +931,7 @@ async function resolveBranch(params: {
       effectiveModel: DEFAULT_MODEL,
       goRoute: '/api/mothership',
       titleModel: DEFAULT_MODEL,
-      notifyWorkspaceStatus: false,
+      notifyChatStatus: true,
       buildPayload: async (payloadParams) =>
         buildCopilotRequestPayload(
           {
@@ -948,7 +981,7 @@ async function resolveBranch(params: {
       goRoute: '/api/copilot',
       titleModel: selectedModel,
       titleProvider: provider,
-      notifyWorkspaceStatus: false,
+      notifyChatStatus: false,
       buildPayload: async (payloadParams) =>
         buildCopilotRequestPayload(
           {
@@ -1017,7 +1050,7 @@ async function resolveBranch(params: {
     effectiveModel: DEFAULT_MODEL,
     goRoute: '/api/mothership',
     titleModel: DEFAULT_MODEL,
-    notifyWorkspaceStatus: true,
+    notifyChatStatus: true,
     buildPayload: async (payloadParams) =>
       buildCopilotRequestPayload(
         {
@@ -1508,7 +1541,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         fileAttachments,
         contexts: normalizedContexts,
         workspaceId,
-        notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
+        notifyChatStatus: branch.notifyChatStatus,
+        organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
+        userId: authenticatedUserId,
         requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
         parentOtelContext: activeOtelRoot.context,
       })
@@ -1658,7 +1693,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             userMessageId,
             requestId,
             workspaceId,
-            notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
+            notifyChatStatus: branch.notifyChatStatus,
+            organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
+            userId: authenticatedUserId,
             requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
             otelRoot,
           }),
@@ -1667,7 +1704,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             userMessageId,
             requestId,
             workspaceId,
-            notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
+            notifyChatStatus: branch.notifyChatStatus,
+            organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
+            userId: authenticatedUserId,
             requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
           }),
         },

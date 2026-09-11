@@ -262,7 +262,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                     organizationId={organization.id}
                     isCollapsed={isCollapsed}
                     pathname={pathname}
-                    onContextMenu={handleHrefContextMenu}
                   />
                   {searchAccess.memberScoped && (
                     <OrganizationChats

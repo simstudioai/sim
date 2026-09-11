@@ -12,7 +12,7 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
@@ -512,13 +512,7 @@ function fireTitleGeneration(params: {
         type: MothershipStreamV1EventType.session,
         payload: { kind: MothershipStreamV1SessionKind.title, title },
       })
-      if (workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'renamed',
-        })
-      }
+      publishChatStatusChanged({ workspaceId, organizationId, userId }, { chatId, type: 'renamed' })
     })
     .catch((error) => {
       logger.error(`[${requestId}] Title generation failed:`, error)

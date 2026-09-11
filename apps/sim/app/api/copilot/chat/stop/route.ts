@@ -11,7 +11,7 @@ import {
   withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   CopilotChatFinalizeOutcome,
   CopilotStopOutcome,
@@ -87,9 +87,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
       const shouldPublishCompleted =
         result.updated || result.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
-      if (shouldPublishCompleted && result.workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId: result.workspaceId,
+      if (shouldPublishCompleted) {
+        publishChatStatusChanged(chat, {
           chatId,
           type: 'completed',
           streamId,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
@@ -16,6 +16,7 @@ import {
   useWorkspacesQuery,
   type Workspace,
 } from '@/hooks/queries/workspace'
+import { useWorkspaceOrder } from '@/hooks/use-workspace-order'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useWorkspaceManagement')
@@ -96,8 +97,6 @@ export function useWorkspaceManagement({
   workspacesRef.current = workspaces
   routerRef.current = router
 
-  const [recencySortKey, setRecencySortKey] = useState(0)
-
   useEffect(() => {
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
@@ -112,7 +111,6 @@ export function useWorkspaceManagement({
     if (validIds.length > 0) {
       WorkspaceRecencyStorage.prune(new Set(validIds))
     }
-    setRecencySortKey((k) => k + 1)
 
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
     syncTimerRef.current = setTimeout(() => {
@@ -122,23 +120,7 @@ export function useWorkspaceManagement({
     }, 1000)
   }, [])
 
-  /**
-   * Pinned workspaces float to the top, recency ordering them within each group.
-   * Matches `resource-sort.ts`: pinning is a user-declared priority layered over
-   * the list's own sort, not a competing sort key.
-   */
-  const sortedWorkspaces = useMemo(() => {
-    const byRecency = WorkspaceRecencyStorage.sortByRecency(workspaces)
-    if (pinnedWorkspaceIds.size === 0) return byRecency
-    const pinned: Workspace[] = []
-    const unpinned: Workspace[] = []
-    for (const workspace of byRecency) {
-      if (pinnedWorkspaceIds.has(workspace.id)) pinned.push(workspace)
-      else unpinned.push(workspace)
-    }
-    return [...pinned, ...unpinned]
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaces, recencySortKey, pinnedWorkspaceIds])
+  const sortedWorkspaces = useWorkspaceOrder(workspaces, pinnedWorkspaceIds)
 
   const toggleWorkspacePin = useCallback(
     (workspaceId: string) => {

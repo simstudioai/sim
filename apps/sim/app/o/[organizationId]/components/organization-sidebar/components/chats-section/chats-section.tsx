@@ -19,6 +19,7 @@ import {
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
+import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
@@ -233,8 +234,17 @@ export function ChatsSection({
         isPinned={Boolean(selectedChat?.isPinned)}
         showMarkAsRead={Boolean(selectedChat?.isUnread)}
         showMarkAsUnread={Boolean(selectedChat) && !selectedChat?.isUnread}
-        showDelete={false}
+        onDelete={actions.startDelete}
+        showDelete={Boolean(selectedChat)}
         showDuplicate={false}
+      />
+      <DeleteModal
+        isOpen={actions.chatToDelete !== null}
+        onClose={actions.cancelDelete}
+        onConfirm={actions.confirmDelete}
+        isDeleting={actions.isDeleting}
+        itemType='task'
+        itemName={actions.chatToDelete?.name}
       />
     </>
   )

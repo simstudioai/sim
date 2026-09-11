@@ -59,7 +59,7 @@ vi.mock('@/lib/copilot/chat/persisted-message', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: vi.fn() },
+  publishChatStatusChanged: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -71,7 +71,8 @@ vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
 }))
 
-import { DELETE, GET } from '@/app/api/mothership/chats/[chatId]/route'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
+import { DELETE, GET, PATCH } from '@/app/api/mothership/chats/[chatId]/route'
 
 function makeContext(chatId: string) {
   return { params: Promise.resolve({ chatId }) }
@@ -305,5 +306,69 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
     expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization chat mutations publish private owner updates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
+      userId: 'user-1',
+      isAuthenticated: true,
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    })
+    mockGetAccessibleCopilotChat.mockResolvedValue({
+      id: 'chat-1',
+      type: 'mothership',
+      organizationId: 'org-1',
+      userId: 'user-1',
+    })
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: 'chat-1', workspaceId: null, organizationId: 'org-1' },
+    ])
+  })
+
+  it.each([{ title: 'New title' }, { pinned: true }, { isUnread: true }, { isUnread: false }])(
+    'publishes after updating %j',
+    async (body) => {
+      const response = await PATCH(
+        new NextRequest('http://localhost/api/mothership/chats/chat-1', {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        }),
+        makeContext('chat-1')
+      )
+      expect(response.status).toBe(200)
+      expect(publishChatStatusChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
+        { chatId: 'chat-1', type: 'title' in body ? 'renamed' : 'updated' }
+      )
+    }
+  )
+
+  it('publishes deletion under the same owner', async () => {
+    const response = await DELETE(
+      new NextRequest('http://localhost/api/mothership/chats/chat-1', { method: 'DELETE' }),
+      makeContext('chat-1')
+    )
+    expect(response.status).toBe(200)
+    expect(publishChatStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
+      { chatId: 'chat-1', type: 'deleted' }
+    )
+  })
+
+  it('does not publish if a concurrent deletion leaves no updated row', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    const response = await PATCH(
+      new NextRequest('http://localhost/api/mothership/chats/chat-1', {
+        method: 'PATCH',
+        body: JSON.stringify({ pinned: true }),
+      }),
+      makeContext('chat-1')
+    )
+    expect(response.status).toBe(404)
+    expect(publishChatStatusChanged).not.toHaveBeenCalled()
   })
 })

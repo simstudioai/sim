@@ -17,6 +17,9 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 
+vi.mock('@/lib/copilot/chat-status', () => ({ publishChatStatusChanged: vi.fn() }))
+
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import { POST } from '@/app/api/mothership/chats/read/route'
 
 function createRequest() {
@@ -64,6 +67,22 @@ describe('POST /api/mothership/chats/read', () => {
         { type: 'isNull', column: 'copilotChats.lastSeenAt' },
         { type: 'lt', left: 'copilotChats.lastSeenAt', right: 'copilotChats.updatedAt' },
       ])
+    )
+  })
+
+  it('broadcasts only a changed read marker, avoiding read/refetch loops', async () => {
+    mockGetAccessibleChat.mockResolvedValue({
+      id: 'chat-1',
+      type: 'mothership',
+      organizationId: 'org-1',
+      userId: 'user-1',
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'chat-1' }]).mockResolvedValueOnce([])
+    await POST(createRequest())
+    await POST(createRequest())
+    expect(publishChatStatusChanged).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
+      { chatId: 'chat-1', type: 'updated' }
     )
   })
 

@@ -117,11 +117,39 @@ export const STORAGE_KEYS = {
 
 export class WorkspaceRecencyStorage {
   private static readonly KEY = STORAGE_KEYS.WORKSPACE_RECENCY
+  private static readonly CHANGE_EVENT = 'workspace-recency-changed'
+
+  static subscribe(onChange: () => void): () => void {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === WorkspaceRecencyStorage.KEY || event.key === null) onChange()
+    }
+    window.addEventListener('storage', onStorage)
+    window.addEventListener(WorkspaceRecencyStorage.CHANGE_EVENT, onChange)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(WorkspaceRecencyStorage.CHANGE_EVENT, onChange)
+    }
+  }
+
+  /** A stable snapshot lets both sidebars follow visits without render-time writes. */
+  static getSnapshot(): string | null {
+    try {
+      return window.localStorage.getItem(WorkspaceRecencyStorage.KEY)
+    } catch {
+      return null
+    }
+  }
+
+  private static save(map: Record<string, number>): void {
+    if (BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)) {
+      window.dispatchEvent(new Event(WorkspaceRecencyStorage.CHANGE_EVENT))
+    }
+  }
 
   static touch(workspaceId: string): void {
     const map = WorkspaceRecencyStorage.getAll()
     map[workspaceId] = Date.now()
-    BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
+    WorkspaceRecencyStorage.save(map)
   }
 
   static getAll(): Record<string, number> {
@@ -139,7 +167,7 @@ export class WorkspaceRecencyStorage {
   static remove(workspaceId: string): void {
     const map = WorkspaceRecencyStorage.getAll()
     delete map[workspaceId]
-    BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
+    WorkspaceRecencyStorage.save(map)
   }
 
   /**
@@ -156,7 +184,7 @@ export class WorkspaceRecencyStorage {
       }
     }
     if (pruned) {
-      BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
+      WorkspaceRecencyStorage.save(map)
     }
   }
 
