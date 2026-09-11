@@ -167,4 +167,38 @@ describe('uploadExecutionFile key allocation', () => {
     expect(mockDeleteFromS3).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
   })
+
+  it('removes the uploaded object and metadata when creating its download URL fails', async () => {
+    mockGetPresignedUrlWithConfig.mockRejectedValueOnce(new Error('Presigning failed'))
+
+    await expect(
+      uploadExecutionFile(context, Buffer.from('file'), 'file.txt', 'text/plain', 'user-1')
+    ).rejects.toThrow('Presigning failed')
+
+    expect(mockDeleteFromS3.mock.calls[0]?.[0]).toBe(mockUploadToS3.mock.calls[0]?.[1])
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes its unique object when metadata insertion fails before uploadFile returns', async () => {
+    dbChainMockFns.returning.mockRejectedValueOnce(new Error('Metadata persistence failed'))
+
+    await expect(
+      uploadExecutionFile(context, Buffer.from('file'), 'file.txt', 'text/plain', 'user-1')
+    ).rejects.toThrow('Metadata persistence failed')
+
+    expect(mockDeleteFromS3.mock.calls[0]?.[0]).toBe(mockUploadToS3.mock.calls[0]?.[1])
+    expect(mockDeleteFromS3).toHaveBeenCalledOnce()
+    expect(mockGetPresignedUrlWithConfig).not.toHaveBeenCalled()
+  })
+
+  it('keeps the original upload error if cleanup also fails', async () => {
+    mockGetPresignedUrlWithConfig.mockRejectedValueOnce(new Error('Presigning failed'))
+    mockDeleteFromS3.mockRejectedValueOnce(new Error('Deletion failed'))
+
+    await expect(
+      uploadExecutionFile(context, Buffer.from('file'), 'file.txt', 'text/plain', 'user-1')
+    ).rejects.toThrow('Presigning failed')
+
+    expect(mockDeleteFromS3).toHaveBeenCalledTimes(1)
+  })
 })

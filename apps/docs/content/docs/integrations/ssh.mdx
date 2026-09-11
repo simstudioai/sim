@@ -6,7 +6,7 @@ description: Connect to remote servers via SSH
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="ssh"
+  type="ssh_v2"
   color="#000000"
 />
 
@@ -163,7 +163,6 @@ Download a file from a remote SSH server
 | --------- | ---- | ----------- |
 | `downloaded` | boolean | Whether the file was downloaded successfully |
 | `file` | file | Downloaded file stored in execution files |
-| `fileContent` | string | File content \(base64 encoded for binary files\) |
 | `fileName` | string | Name of the downloaded file |
 | `remotePath` | string | Source path on the remote server |
 | `size` | number | File size in bytes |

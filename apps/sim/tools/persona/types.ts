@@ -300,7 +300,7 @@ export interface PersonaPrintInquiryPdfResponse extends ToolResponse {
     file: {
       name: string
       mimeType: string
-      data: string
+      data: Buffer | string
       size: number
     }
   }

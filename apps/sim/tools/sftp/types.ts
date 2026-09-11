@@ -48,6 +48,14 @@ export interface SftpDownloadResult extends ToolResponse {
   }
 }
 
+export type SftpDownloadV2Params = Omit<SftpDownloadParams, 'encoding'>
+
+export interface SftpDownloadV2Result extends ToolResponse {
+  output: Omit<SftpDownloadResult['output'], 'content' | 'encoding' | 'file'> & {
+    file?: UserFile
+  }
+}
+
 export interface SftpListParams extends SftpConnectionConfig {
   remotePath: string
   detailed?: boolean

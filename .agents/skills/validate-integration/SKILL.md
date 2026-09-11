@@ -345,6 +345,12 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] List/search tools expose API limits and do not auto-fetch every page into memory
 - [ ] Transform logic does not build unbounded arrays, maps, sets, or `Promise.all` fan-outs
 - [ ] File and HTTP body reads use explicit byte caps or existing stream-limit helpers
+- [ ] Internal file results reach `createInternalToolFileResult` / `createInternalToolFilesResult`
+      before JSON serialization; external raw downloads explicitly use `request.responseType: 'binary'`
+      and return a buffered `output.file`. Provider base64 JSON needs separate handling
+- [ ] Transforms retain stored `UserFile` identity/access fields, and tests cover a >10 MiB file
+      crossing executor admission without another upload. New file outputs contain references only,
+      without inline content aliases; preserve legacy versions when removing existing inline fields
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 

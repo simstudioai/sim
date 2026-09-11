@@ -1,15 +1,18 @@
+import { omit } from '@sim/utils/object'
 import { QuiverIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
-import type { QuiverSvgResponse } from '@/tools/quiver/types'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import type { QuiverSvgResponse, QuiverSvgV2Response } from '@/tools/quiver/types'
 
 const REFERENCE_IMAGES_FIELD = ['referenceFiles', 'referenceInput'] as const
 const IMAGE_FIELD = ['imageFile', 'imageInput'] as const
 
-export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
+export const QuiverBlock = {
   type: 'quiver',
-  name: 'Quiver',
+  name: 'Quiver (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'quiver_v2' },
   description: 'Generate and vectorize SVGs',
   longDescription:
     'Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.',
@@ -255,6 +258,34 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
       description: 'List of available models (list_models operation only)',
     },
   },
+} satisfies BlockConfig<QuiverSvgResponse>
+
+const selectQuiverV2Tool = createVersionedToolSelector({
+  baseToolSelector: (params: Record<string, string>) =>
+    `quiver_${params.operation || 'text_to_svg'}`,
+  suffix: '_v2',
+  fallbackToolId: 'quiver_text_to_svg_v2',
+})
+
+export const QuiverV2Block: BlockConfig<QuiverSvgV2Response> = {
+  ...QuiverBlock,
+  type: 'quiver_v2',
+  name: 'Quiver',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...QuiverBlock.tools,
+    access: ['quiver_text_to_svg_v2', 'quiver_image_to_svg_v2', 'quiver_list_models'],
+    config: {
+      ...QuiverBlock.tools.config,
+      tool: (params: Record<string, string>) =>
+        params.operation === 'list_models' ? 'quiver_list_models' : selectQuiverV2Tool(params),
+    },
+  },
+  outputs: {
+    ...omit(QuiverBlock.outputs, ['svgContent']),
+    files: { type: 'file[]', description: 'All generated SVG files' },
+  },
 }
 
 export const QuiverBlockMeta = {
@@ -294,13 +325,13 @@ export const QuiverBlockMeta = {
       name: 'generate-brand-icon',
       description: 'Generate a clean SVG icon from a text prompt and save it to the files store.',
       content:
-        '# Generate Brand Icon\n\nTurn a text description into a production-ready SVG icon using Quiver text-to-SVG.\n\n## Steps\n1. Collect the icon concept (for example, a product name plus a brand color and style cues).\n2. Run the text_to_svg operation with a focused prompt that names the subject, color palette, and visual style (flat, line, filled).\n3. Optionally set n greater than 1 to generate several variations to choose from.\n4. Save the returned SVG file to the files store, or pass svgContent downstream for embedding.\n\n## Output\nReport the saved file location and the request id. When multiple variations are generated, list each so the user can pick one.',
+        '# Generate Brand Icon\n\nTurn a text description into a production-ready SVG icon using Quiver text-to-SVG.\n\n## Steps\n1. Collect the icon concept (for example, a product name plus a brand color and style cues).\n2. Run the text_to_svg operation with a focused prompt that names the subject, color palette, and visual style (flat, line, filled).\n3. Optionally set n greater than 1 to generate several variations to choose from.\n4. Save the returned SVG file to the files store, or pass the file downstream.\n\n## Output\nReport the saved file location and the request id. When multiple variations are generated, list each so the user can pick one.',
     },
     {
       name: 'vectorize-raster-image',
       description: 'Convert an uploaded raster image (PNG or JPG) into a clean editable SVG.',
       content:
-        '# Vectorize Raster Image\n\nConvert a bitmap logo or graphic into a scalable SVG with Quiver image-to-SVG.\n\n## Steps\n1. Accept the raster image upload and pass it as the image input.\n2. Run the image_to_svg operation, optionally setting auto_crop and a target_size to tighten the output.\n3. Inspect svgContent for fidelity; rerun with adjusted instructions if details are lost.\n4. Save the SVG file for use in presentations, exports, or the web.\n\n## Output\nReturn the vectorized SVG file and confirm dimensions. Note any visual elements that did not vectorize cleanly.',
+        '# Vectorize Raster Image\n\nConvert a bitmap logo or graphic into a scalable SVG with Quiver image-to-SVG.\n\n## Steps\n1. Accept the raster image upload and pass it as the image input.\n2. Run the image_to_svg operation, optionally setting auto_crop and a target_size to tighten the output.\n3. Inspect the generated SVG file for fidelity; rerun with adjusted instructions if details are lost.\n4. Save the SVG file for use in presentations, exports, or the web.\n\n## Output\nReturn the vectorized SVG file and confirm dimensions. Note any visual elements that did not vectorize cleanly.',
     },
     {
       name: 'create-data-diagram',

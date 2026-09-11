@@ -4,18 +4,12 @@ import { isCanonicalBase64 } from '@/lib/api/contracts/primitives'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
-import { MAX_FILE_SIZE, sniffImageContentType } from '@/lib/uploads/utils/validation'
+import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolDefinition, ToolFileData } from '@/tools/types'
 
 const logger = createLogger('FileToolProcessor')
-
-const IMAGE_FILE_EXTENSIONS: Record<string, string> = {
-  'image/gif': 'gif',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-}
 
 /**
  * Strip a base64 `data:` URI prefix, leaving the encoded payload. An empty payload is
@@ -40,30 +34,6 @@ function normalizeBase64(payload: string): string {
 function assertFileSize(size: number, fileName: string): void {
   if (size > MAX_FILE_SIZE) {
     throw new Error(`File '${fileName}' exceeds the maximum allowed size of ${MAX_FILE_SIZE} bytes`)
-  }
-}
-
-function resolveStoredFileMetadata(
-  fileName: string,
-  declaredMimeType: string,
-  buffer: Buffer
-): { fileName: string; mimeType: string } {
-  if (!declaredMimeType.startsWith('image/')) {
-    return { fileName, mimeType: declaredMimeType }
-  }
-
-  const mimeType = sniffImageContentType(buffer)
-  if (!mimeType) {
-    return {
-      fileName: `${fileName.replace(/\.[^.]+$/, '')}.bin`,
-      mimeType: 'application/octet-stream',
-    }
-  }
-
-  const extension = IMAGE_FILE_EXTENSIONS[mimeType]
-  return {
-    fileName: extension ? `${fileName.replace(/\.[^.]+$/, '')}.${extension}` : fileName,
-    mimeType,
   }
 }
 

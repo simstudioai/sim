@@ -6,7 +6,7 @@ description: Manage records in Microsoft Dataverse tables
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="microsoft_dataverse"
+  type="microsoft_dataverse_v2"
   color="#FFFFFF"
 />
 
@@ -136,7 +136,7 @@ Remove an association between two records in Microsoft Dataverse. For collection
 
 ### Download File from Microsoft Dataverse
 
-Download a file from a file or image column on a Dataverse record. Stores the file in execution storage and returns a file reference, plus the base64 content and metadata directly.
+Download a file from a Dataverse file or image column and return its stored file reference and metadata
 
 #### Input
 
@@ -152,7 +152,6 @@ Download a file from a file or image column on a Dataverse record. Stores the fi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
-| `fileContent` | string | Base64-encoded file content |
 | `fileName` | string | Name of the downloaded file |
 | `fileSize` | number | File size in bytes |
 | `mimeType` | string | MIME type of the file |

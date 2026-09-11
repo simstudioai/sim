@@ -50,6 +50,113 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it('preserves a satisfies block and replaces only the versioned download operation', () => {
+    const [block] = extractAllBlockConfigs(`
+      export const DownloadBlock = ({
+        type: 'download', name: 'Download (Legacy)', description: 'Download stored files',
+        category: 'tools', integrationType: IntegrationType.Documents, bgColor: '#123456',
+        hideFromToolbar: true,
+        subBlocks: [
+          { id: 'operation', type: 'dropdown', options: [
+            { id: 'download', label: 'Download' }, { id: 'list', label: 'List' },
+          ] },
+          { id: 'fileId', type: 'short-input' },
+        ],
+        tools: { access: ['download_file', 'download_list'] },
+        outputs: { file: { type: 'file' }, content: { type: 'string' } },
+      } as const) satisfies BlockConfig<Response>
+      export const DownloadV2Block: BlockConfig = {
+        ...DownloadBlock,
+        type: 'download_v2', name: 'Download', hideFromToolbar: false,
+        tools: { access: DownloadBlock.tools.access.map((toolId) =>
+          toolId === 'download_file' ? 'download_file_v2' : toolId
+        ) },
+        outputs: omit(DownloadBlock.outputs, ['content']),
+      }
+    `)
+    expect(block).toMatchObject({
+      type: 'download_v2',
+      description: 'Download stored files',
+      category: 'tools',
+      bgColor: '#123456',
+      tools: { access: ['download_file_v2', 'download_list'] },
+    })
+    expect(block.operations).toHaveLength(2)
+    expect(block.userSettableParamIds).toContain('fileId')
+    expect(block.outputs).toHaveProperty('file')
+    expect(block.outputs).not.toHaveProperty('content')
+  })
+
+  it('inherits tool descriptions and params but omits removed outputs from a versioned tool', () => {
+    const source = `
+      export const downloadTool = ({
+        id: 'example_download', description: 'Download a file',
+        params: { fileId: { type: 'string', required: true, description: 'File ID', } },
+        outputs: { file: { type: 'file', description: 'Stored file' }, content: { type: 'string' } },
+      }) satisfies ToolConfig<Params, Response>
+      export const downloadV2Tool: ToolConfig<Params, V2Response> = {
+        ...downloadTool, id: 'example_download_v2',
+        outputs: omit(downloadTool.outputs, ['content']),
+      }
+    `
+    const legacy = extractToolInfo('example_download', source)
+    const current = extractToolInfo('example_download_v2', source)
+    expect(legacy?.outputs).toHaveProperty('content')
+    expect(current?.description).toBe('Download a file')
+    expect(current?.params).toEqual([
+      { name: 'fileId', type: 'string', required: true, description: 'File ID' },
+    ])
+    expect(current?.outputs).toHaveProperty('file')
+    expect(current?.outputs).not.toHaveProperty('content')
+  })
+
+  it('keeps inherited block outputs available to unchanged operations', () => {
+    const source = fs.readFileSync(path.resolve('apps/sim/blocks/blocks/servicenow.ts'), 'utf8')
+    const current = extractAllBlockConfigs(source).find((block) => block.type === 'servicenow_v2')
+    expect(current?.outputs).toHaveProperty('record')
+    expect(current?.outputs).toHaveProperty('records')
+    expect(current?.outputs).toHaveProperty('attachments')
+    expect(current?.outputs).toHaveProperty('file')
+    expect(current?.outputs?.content.description).toBe('HTML body of a knowledge article')
+  })
+
+  it('preserves the existing block-output fallback for unchanged ServiceNow operations', async () => {
+    const tool = await getToolInfo('servicenow_create_incident')
+    expect(tool?.params.map((param) => param.name)).toContain('shortDescription')
+    expect(tool?.outputs).toEqual({})
+  }, 15_000)
+
+  it.each([
+    ['box', 'box_download_file_v2'],
+    ['dropbox', 'dropbox_download_v2'],
+    ['dub', 'dub_get_qr_code_v2'],
+    ['microsoft_dataverse', 'microsoft_dataverse_download_file_v2'],
+    ['servicenow', 'servicenow_download_attachment_v2'],
+    ['quiver', 'quiver_text_to_svg_v2'],
+    ['sftp', 'sftp_download_v2'],
+    ['ssh', 'ssh_download_file_v2'],
+  ])(
+    'documents the current %s block with its file-only download output',
+    async (service, toolId) => {
+      const source = fs.readFileSync(
+        path.resolve('apps/sim/blocks/blocks', `${service}.ts`),
+        'utf8'
+      )
+      const current = extractAllBlockConfigs(source).find((block) => block.type === `${service}_v2`)
+      expect(current?.description).toBeTruthy()
+      expect(current?.operations?.length).toBeGreaterThan(0)
+      expect(current?.tools?.access).toContain(toolId)
+      const info = await getToolInfo(toolId, current?.userSettableParamIds)
+      expect(info?.description).toBeTruthy()
+      expect(info?.params.length).toBeGreaterThan(0)
+      expect(info?.outputs).toHaveProperty('file')
+      expect(info?.outputs).not.toHaveProperty('content')
+      expect(info?.outputs).not.toHaveProperty('fileContent')
+      expect(info?.outputs).not.toHaveProperty('svgContent')
+    },
+    15_000
+  )
+
   it('uses evaluated outputs for factory-defined tools', async () => {
     const approve = await getToolInfo('sailpoint_approve_access_request')
     const identity = await getToolInfo('sailpoint_get_identity')

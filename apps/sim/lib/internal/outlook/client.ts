@@ -1,5 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
 
 const MICROSOFT_GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
@@ -97,5 +101,41 @@ export class OutlookClient {
     }
     await response.body?.cancel()
     signal?.throwIfAborted()
+  }
+
+  async buffer(
+    path: string,
+    maxBytes: number,
+    fallbackError: string,
+    signal?: AbortSignal
+  ): Promise<{ buffer: Buffer; contentType: string | null }> {
+    signal?.throwIfAborted()
+    const response = await fetch(this.url(path), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+      signal,
+    })
+    if (!response.ok) {
+      let data: OutlookJsonObject = {}
+      try {
+        data = parseJson(
+          await readResponseTextWithLimit(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Microsoft Graph error response',
+            signal,
+          })
+        )
+      } catch {
+        signal?.throwIfAborted()
+      }
+      throw new OutlookOperationError(graphErrorMessage(data, fallbackError), response.status)
+    }
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes,
+      label: 'Outlook attachment',
+      signal,
+    })
+    signal?.throwIfAborted()
+    return { buffer, contentType: response.headers.get('content-type') }
   }
 }

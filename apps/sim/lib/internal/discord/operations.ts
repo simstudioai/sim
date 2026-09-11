@@ -6,6 +6,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { sendDiscordMessage } from '@/lib/internal/discord/client'
 import { DiscordOperationError } from '@/lib/internal/discord/errors'
 import type { DiscordSendMessageInput } from '@/lib/internal/discord/schema'
+import { createInternalToolFilesResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -92,8 +93,7 @@ export async function executeDiscordSendMessage(
     return {
       name: file.name,
       mimeType,
-      data: downloaded.buffer.toString('base64'),
-      size: downloaded.buffer.length,
+      buffer: downloaded.buffer,
     }
   })
   const data = await sendDiscordMessage(
@@ -103,13 +103,13 @@ export async function executeDiscordSendMessage(
     'multipart',
     context.signal
   )
-  return {
+  return createInternalToolFilesResult(files, (storedFiles) => ({
     success: true,
     output: {
       message: typeof data.content === 'string' ? data.content : undefined,
       data,
       fileCount: userFiles.length,
-      files,
+      files: storedFiles,
     },
-  }
+  }))
 }

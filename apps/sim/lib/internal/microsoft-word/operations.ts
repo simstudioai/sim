@@ -17,6 +17,7 @@ import type {
   MicrosoftWordReplaceTextInput,
   MicrosoftWordUpdateInput,
 } from '@/lib/internal/microsoft-word/schema'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import {
   appendParagraphsToDocx,
   buildDocxFromContent,
@@ -322,15 +323,8 @@ export async function executeMicrosoftWordExportPdf(
     name,
     size: pdfBuffer.length,
   })
-  return {
-    success: true as const,
-    output: {
-      file: {
-        name,
-        mimeType: PDF_MIME_TYPE,
-        data: pdfBuffer.toString('base64'),
-        size: pdfBuffer.length,
-      },
-    },
-  }
+  return createInternalToolFileResult(
+    { buffer: pdfBuffer, name, mimeType: PDF_MIME_TYPE },
+    (file) => ({ success: true, output: { file } })
+  )
 }

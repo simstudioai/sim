@@ -57,6 +57,28 @@ describe('FileToolProcessor', () => {
     } satisfies UserFile)
   })
 
+  it('passes stored file descriptors through without downloading or uploading again', async () => {
+    const stored: UserFile = {
+      id: 'file-1',
+      key: 'execution/workspace-1/workflow-1/execution-1/file-1/workbook.xlsx',
+      name: 'workbook.xlsx',
+      size: 12 * 1024 * 1024,
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      url: 'https://storage.example/workbook.xlsx',
+      context: 'execution',
+    }
+
+    const result = await FileToolProcessor.processToolOutputs(
+      { file: stored },
+      toolConfig,
+      executionContext
+    )
+
+    expect(result.file).toBe(stored)
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockDownloadFileFromUrl).not.toHaveBeenCalled()
+  })
+
   it('caps URL downloads and stores raster images using byte-derived metadata', async () => {
     const png = Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),

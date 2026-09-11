@@ -5,7 +5,11 @@ import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { DiscordOperationError } from '@/lib/internal/discord/errors'
 import { executeDiscordSendMessage } from '@/lib/internal/discord/operations'
 import { discordSendMessageInputSchema } from '@/lib/internal/discord/schema'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('DiscordToolExecution')
 
@@ -26,7 +30,9 @@ function inputSizeError(input: unknown): Response | null {
     : null
 }
 
-export const executeDiscordTool: InternalToolOperationHandler = async (request) => {
+export const executeDiscordTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'discord_send_message') {
     return Response.json(
@@ -54,7 +60,7 @@ export const executeDiscordTool: InternalToolOperationHandler = async (request) 
       userId,
     })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof DiscordOperationError) {

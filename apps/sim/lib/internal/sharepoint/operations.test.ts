@@ -63,6 +63,17 @@ const userFile = {
   type: 'application/pdf',
 }
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
 describe('SharePoint operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -147,13 +158,14 @@ describe('SharePoint operations', () => {
     expect(mocks.uploadGraph).not.toHaveBeenCalled()
   })
 
-  it('preserves the inline download output contract and cancellation signal', async () => {
+  it('keeps a large download in process until a stored file can be presented', async () => {
     const controller = new AbortController()
     mocks.getMetadata.mockResolvedValue({
       name: 'source.txt',
       file: { mimeType: 'text/plain' },
     })
-    mocks.downloadGraph.mockResolvedValue(Buffer.from('hello'))
+    const buffer = Buffer.alloc(12 * 1024 * 1024, 1)
+    mocks.downloadGraph.mockResolvedValue(buffer)
 
     const response = await executeSharePointDownloadFile(
       { accessToken: 'token', driveId: 'drive', itemId: 'item', fileName: 'renamed.txt' },
@@ -161,16 +173,11 @@ describe('SharePoint operations', () => {
     )
 
     expect(mocks.clientConstructed).toHaveBeenCalledWith('token', controller.signal)
-    expect(await response.json()).toEqual({
-      success: true,
-      output: {
-        file: {
-          name: 'renamed.txt',
-          mimeType: 'text/plain',
-          data: Buffer.from('hello').toString('base64'),
-          size: 5,
-        },
-      },
-    })
+    if (response instanceof Response) throw new Error('Expected a file output')
+    expect(response.files).toHaveLength(1)
+    expect(response.files[0]?.name).toBe('renamed.txt')
+    expect(response.files[0]?.mimeType).toBe('text/plain')
+    expect(response.files[0]?.buffer).toBe(buffer)
+    expect(response.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
   })
 })

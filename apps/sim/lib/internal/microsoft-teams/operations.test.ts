@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
@@ -54,6 +55,7 @@ describe('deleteMicrosoftTeamsChatMessage', () => {
     expect(mocks.fetch.mock.calls[1][1]).toEqual(
       expect.objectContaining({ method: 'POST', signal: controller.signal })
     )
+    if (isInternalToolFileResult(result)) throw new Error('Expected a JSON result')
     expect(result.output).toEqual({
       deleted: true,
       messageId: 'message-1',
@@ -83,6 +85,7 @@ describe('deleteMicrosoftTeamsChatMessage', () => {
     expect(mocks.fetch.mock.calls[0][1]).toEqual(
       expect.objectContaining({ method: 'POST', signal: controller.signal })
     )
+    if (isInternalToolFileResult(result)) throw new Error('Expected a JSON result')
     expect(result.output).toEqual({
       updatedContent: true,
       metadata: {
@@ -93,6 +96,50 @@ describe('deleteMicrosoftTeamsChatMessage', () => {
         url: 'https://teams.example/message-1',
       },
     })
+  })
+
+  it('keeps multiple valid attachments out of the message response body', async () => {
+    const buffer = Buffer.alloc(4 * 1024 * 1024, 1)
+    const sourceFiles = Array.from({ length: 3 }, (_, index) => ({
+      id: `source-${index}`,
+      key: `workspace/file-${index}.txt`,
+      name: `file-${index}.txt`,
+      size: buffer.length,
+      type: 'text/plain',
+    }))
+    mocks.processFilesToUserFiles.mockReturnValue(sourceFiles)
+    mocks.downloadServableFileFromStorage.mockResolvedValue({ buffer, contentType: 'text/plain' })
+    mocks.fetch.mockReset()
+    for (const file of sourceFiles) {
+      mocks.fetch
+        .mockResolvedValueOnce(Response.json({ id: file.id }))
+        .mockResolvedValueOnce(
+          Response.json({ id: file.id, webDavUrl: `https://teams.example/${file.name}` })
+        )
+    }
+    mocks.fetch.mockResolvedValueOnce(Response.json({ id: 'message-1', chatId: 'chat-1' }))
+
+    const result = await writeMicrosoftTeamsChatMessage(
+      { accessToken: 'token', chatId: 'chat-1', content: 'hello', files: sourceFiles },
+      { requestId: 'request-1', userId: 'user-1' }
+    )
+
+    if (!isInternalToolFileResult(result)) throw new Error('Expected a file output')
+    expect(result.files).toHaveLength(3)
+    for (const file of result.files) expect(file.buffer).toBe(buffer)
+    expect(mocks.downloadServableFileFromStorage).toHaveBeenCalledTimes(3)
+    expect(mocks.fetch).toHaveBeenCalledTimes(7)
+    const storedFiles = sourceFiles.map((file) => ({
+      ...file,
+      mimeType: file.type,
+      url: `/api/files/${file.id}`,
+      context: 'execution' as const,
+    }))
+    const presented = result.present(storedFiles)
+    expect(presented).toMatchObject({
+      output: { files: storedFiles, metadata: { attachmentCount: 3 } },
+    })
+    expect(Buffer.byteLength(JSON.stringify(presented))).toBeLessThan(10 * 1024)
   })
 
   it('resolves mentions in-process while preserving the enhanced output envelope', async () => {
@@ -120,6 +167,7 @@ describe('deleteMicrosoftTeamsChatMessage', () => {
       body: { contentType: 'html', content: '<at id="0">Ada</at> hello' },
       mentions: [{ id: 0, mentionText: 'Ada' }],
     })
+    if (isInternalToolFileResult(result)) throw new Error('Expected a JSON result')
     expect(result.output).toMatchObject({
       updatedContent: true,
       metadata: { chatId: 'chat-1', attachmentCount: 0 },

@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { MicrosoftDataverseIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -8,9 +9,11 @@ import type { DataverseResponse } from '@/tools/microsoft_dataverse/types'
 /** Canonical upload pair for the file column payload, basic then advanced. */
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
 
-export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
+export const MicrosoftDataverseBlock = {
   type: 'microsoft_dataverse',
-  name: 'Microsoft Dataverse',
+  name: 'Microsoft Dataverse (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'microsoft_dataverse_v2' },
   description: 'Manage records in Microsoft Dataverse tables',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -788,6 +791,32 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       description: 'Full raw table metadata response (get table metadata)',
     },
   },
+} satisfies BlockConfig<DataverseResponse>
+
+export const MicrosoftDataverseV2Block: BlockConfig = {
+  ...MicrosoftDataverseBlock,
+  type: 'microsoft_dataverse_v2',
+  name: 'Microsoft Dataverse',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...MicrosoftDataverseBlock.tools,
+    access: MicrosoftDataverseBlock.tools.access.map((toolId) =>
+      toolId === 'microsoft_dataverse_download_file'
+        ? 'microsoft_dataverse_download_file_v2'
+        : toolId
+    ),
+    config: {
+      ...MicrosoftDataverseBlock.tools.config,
+      tool: (params) => {
+        const toolId = MicrosoftDataverseBlock.tools.config.tool(params)
+        return toolId === 'microsoft_dataverse_download_file'
+          ? 'microsoft_dataverse_download_file_v2'
+          : toolId
+      },
+    },
+  },
+  outputs: omit(MicrosoftDataverseBlock.outputs, ['fileContent']),
 }
 
 export const MicrosoftDataverseBlockMeta = {

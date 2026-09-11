@@ -1,12 +1,16 @@
 import { ClipboardList, Download, File, Search, Server, Wrench } from '@sim/emcn/icons'
+import { omit } from '@sim/utils/object'
 import { SshIcon, SshTerminalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { SSHResponse } from '@/tools/ssh/types'
 
-export const SSHBlock: BlockConfig<SSHResponse> = {
+export const SSHBlock = {
   type: 'ssh',
-  name: 'SSH',
+  name: 'SSH (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ssh_v2' },
   description: 'Connect to remote servers via SSH',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -660,6 +664,40 @@ Examples:
     hostname: { type: 'string', description: 'Server hostname' },
     os: { type: 'string', description: 'Operating system' },
     message: { type: 'string', description: 'Operation status message' },
+  },
+} satisfies BlockConfig<SSHResponse>
+
+const selectSshV2Tool = createVersionedToolSelector({
+  baseToolSelector: SSHBlock.tools.config.tool,
+  suffix: '_v2',
+  fallbackToolId: 'ssh_download_file_v2',
+})
+
+export const SSHV2Block: BlockConfig = {
+  ...SSHBlock,
+  type: 'ssh_v2',
+  name: 'SSH',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...SSHBlock.tools,
+    access: SSHBlock.tools.access.map((toolId) =>
+      toolId === 'ssh_download_file' ? 'ssh_download_file_v2' : toolId
+    ),
+    config: {
+      ...SSHBlock.tools.config,
+      tool: (params) =>
+        params.operation === 'ssh_download_file'
+          ? selectSshV2Tool(params)
+          : SSHBlock.tools.config.tool(params),
+    },
+  },
+  outputs: {
+    ...omit(SSHBlock.outputs, ['fileContent']),
+    content: {
+      ...SSHBlock.outputs.content,
+      condition: { field: 'operation', value: 'ssh_read_file_content' },
+    },
   },
 }
 

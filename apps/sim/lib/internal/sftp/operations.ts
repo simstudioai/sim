@@ -23,6 +23,8 @@ import type {
   SftpMkdirInput,
   SftpUploadInput,
 } from '@/lib/internal/sftp/schema'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type { InternalToolOperationResult } from '@/lib/internal/tool-operations/types'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
@@ -335,10 +337,20 @@ export async function executeSftpList(
   }
 }
 
-export async function executeSftpDownload(
+export function executeSftpDownload(
   input: SftpDownloadInput,
   context: SftpOperationContext
-): Promise<Response> {
+): Promise<Response>
+export function executeSftpDownload(
+  input: Omit<SftpDownloadInput, 'encoding'>,
+  context: SftpOperationContext,
+  version: 'v2'
+): Promise<InternalToolOperationResult>
+export async function executeSftpDownload(
+  input: Omit<SftpDownloadInput, 'encoding'> & { encoding?: SftpDownloadInput['encoding'] },
+  context: SftpOperationContext,
+  version: 'v1' | 'v2' = 'v1'
+): Promise<InternalToolOperationResult> {
   if (!isPathSafe(input.remotePath)) return unsafePathResponse()
   try {
     return await withSftp(input, context, async (sftp) => {
@@ -370,20 +382,29 @@ export async function executeSftpDownload(
       const fileName = path.basename(remotePath)
       const extension = getFileExtension(fileName)
       const mimeType = getMimeTypeFromExtension(extension)
-      return Response.json({
+      if (version === 'v1') {
+        return Response.json({
+          success: true,
+          fileName,
+          file: {
+            name: fileName,
+            mimeType,
+            data: buffer.toString('base64'),
+            size: buffer.length,
+          },
+          content: buffer.toString(input.encoding === 'base64' ? 'base64' : 'utf-8'),
+          size: buffer.length,
+          encoding: input.encoding,
+          message: `Successfully downloaded ${fileName}`,
+        })
+      }
+      return createInternalToolFileResult({ buffer, name: fileName, mimeType }, (file) => ({
         success: true,
         fileName,
-        file: {
-          name: fileName,
-          mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
-        content: buffer.toString(input.encoding === 'base64' ? 'base64' : 'utf-8'),
+        file,
         size: buffer.length,
-        encoding: input.encoding,
         message: `Successfully downloaded ${fileName}`,
-      })
+      }))
     })
   } catch (error) {
     context.signal?.throwIfAborted()

@@ -9,6 +9,10 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { CursorOperationError } from '@/lib/internal/cursor/errors'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import type { DownloadArtifactParams } from '@/tools/cursor/types'
 
 const logger = createLogger('CursorOperations')
@@ -28,10 +32,7 @@ export interface CursorOperationContext {
 export async function downloadCursorArtifact(
   input: DownloadArtifactParams,
   context: CursorOperationContext
-): Promise<{
-  success: true
-  output: { file: { name: string; mimeType: string; data: string; size: number } }
-}> {
+): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const authHeader = `Basic ${Buffer.from(`${input.apiKey}:`).toString('base64')}`
   const artifactResponse = await fetch(
@@ -86,15 +87,17 @@ export async function downloadCursorArtifact(
   const file = {
     name: input.path.split('/').pop() || 'artifact',
     mimeType: downloadResponse.headers.get('content-type') || 'application/octet-stream',
-    data: fileBuffer.toString('base64'),
-    size: fileBuffer.length,
+    buffer: fileBuffer,
   }
   logger.info(`[${context.requestId}] Cursor artifact downloaded`, {
     agentId: input.agentId,
     path: input.path,
-    size: file.size,
+    size: fileBuffer.length,
   })
-  return { success: true, output: { file } }
+  return createInternalToolFileResult(file, (storedFile) => ({
+    success: true,
+    output: { file: storedFile },
+  }))
 }
 
 export function cursorOperationErrorMessage(error: unknown): string {

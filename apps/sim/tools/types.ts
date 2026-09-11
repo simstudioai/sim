@@ -213,6 +213,8 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /** Raw binary downloads use the bounded file-transfer budget before file processing. */
+    responseType?: 'binary'
     /**
      * Allows the resolved request URL to target this Sim instance. Reserved for generic,
      * user-directed HTTP capabilities; integration tools must use an in-process operation.

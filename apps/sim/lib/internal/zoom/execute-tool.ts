@@ -1,6 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { ZoomOperationError } from '@/lib/internal/zoom/errors'
 import { getZoomMeetingRecordings } from '@/lib/internal/zoom/operations'
 
@@ -12,7 +16,9 @@ const inputSchema = z.object({
   downloadFiles: z.boolean().default(false),
 })
 
-export const executeZoomTool: InternalToolOperationHandler = async (request) => {
+export const executeZoomTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'zoom_get_meeting_recordings') {
     return Response.json(
@@ -25,12 +31,11 @@ export const executeZoomTool: InternalToolOperationHandler = async (request) => 
     return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
   }
   try {
-    return Response.json(
-      await getZoomMeetingRecordings(parsed.data, {
-        requestId: request.requestId,
-        signal: request.signal,
-      })
-    )
+    const result = await getZoomMeetingRecordings(parsed.data, {
+      requestId: request.requestId,
+      signal: request.signal,
+    })
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof ZoomOperationError) {

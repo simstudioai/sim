@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({ downloadCursorArtifact: vi.fn() }))
 
@@ -15,7 +16,7 @@ vi.mock('@/lib/internal/cursor/operations', () => ({
 }))
 
 import { CursorOperationError } from '@/lib/internal/cursor/errors'
-import { executeCursorTool } from '@/lib/internal/cursor/execute-tool'
+import { executeCursorTool as executeCursorToolOperation } from '@/lib/internal/cursor/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 function request(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
@@ -27,6 +28,14 @@ function request(overrides: Partial<InternalToolOperationCall> = {}): InternalTo
     requestId: 'request-1',
     ...overrides,
   }
+}
+
+async function executeCursorTool(
+  request: Parameters<typeof executeCursorToolOperation>[0]
+): Promise<Response> {
+  const result = await executeCursorToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
 }
 
 describe('executeCursorTool', () => {
@@ -51,6 +60,15 @@ describe('executeCursorTool', () => {
       )
     }
   )
+
+  it('forwards file bytes without serializing the file result', async () => {
+    const fileResult = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    mocks.downloadCursorArtifact.mockResolvedValueOnce(fileResult)
+    expect(await executeCursorToolOperation(request())).toBe(fileResult)
+  })
 
   it('rejects invalid input before provider work', async () => {
     const response = await executeCursorTool(request({ input: { apiKey: '' } }))

@@ -33,6 +33,7 @@ import {
   sanitizePath,
 } from '@/lib/internal/ssh/client'
 import { SshOperationError } from '@/lib/internal/ssh/errors'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 
 export interface SshOperationContext {
@@ -281,7 +282,8 @@ export async function executeSshDeleteFile(
 
 export async function executeSshDownloadFile(
   input: DownloadFileInput,
-  context: SshOperationContext
+  context: SshOperationContext,
+  version: 'v1' | 'v2' = 'v1'
 ): Promise<unknown> {
   return withClient(input, context, async (client) => {
     const sftp = await getSftp(client, context.signal)
@@ -307,21 +309,38 @@ export async function executeSshDownloadFile(
       context.signal
     )
     const fileName = path.basename(remotePath)
-    const base64Content = content.toString('base64')
-    return {
-      downloaded: true,
-      file: {
+    if (version === 'v1') {
+      const base64Content = content.toString('base64')
+      return {
+        downloaded: true,
+        file: {
+          name: fileName,
+          mimeType: getMimeTypeFromExtension(getFileExtension(fileName)),
+          data: base64Content,
+          size: content.length,
+        },
+        content: base64Content,
+        fileName,
+        remotePath,
+        size: content.length,
+        message: `File downloaded successfully from ${remotePath}`,
+      }
+    }
+    return createInternalToolFileResult(
+      {
+        buffer: content,
         name: fileName,
         mimeType: getMimeTypeFromExtension(getFileExtension(fileName)),
-        data: base64Content,
-        size: content.length,
       },
-      content: base64Content,
-      fileName,
-      remotePath,
-      size: content.length,
-      message: `File downloaded successfully from ${remotePath}`,
-    }
+      (file) => ({
+        downloaded: true,
+        file,
+        fileName,
+        remotePath,
+        size: content.length,
+        message: `File downloaded successfully from ${remotePath}`,
+      })
+    )
   })
 }
 

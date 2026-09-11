@@ -67,12 +67,19 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
 import { executeFunctionTool } from '@/lib/internal/function/execute'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import {
+  presentInternalToolOperationResult,
+  storeInternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result.server'
 import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/registry.server'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
@@ -1069,7 +1076,6 @@ import { normalizeToolId } from '@/tools/normalize'
  * Next.js 16 has a default middleware/proxy body limit of 10MB.
  */
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
-const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
  * User-friendly error message for body size limit exceeded
@@ -1170,6 +1176,7 @@ function handleResponseSizeLimitError(error: unknown, requestId: string, context
     maxBytes: error.maxBytes,
     observedBytes: error.observedBytes,
   })
+  if (error.maxBytes !== MAX_TOOL_RESPONSE_BODY_BYTES) throw error
   throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
 }
 
@@ -2206,6 +2213,7 @@ async function executeToolImplementation(
               toolId,
               tool,
               contextParams,
+              operationContext,
               effectiveSignal,
               resolvedSecretTraceRegistry
             ),
@@ -2231,6 +2239,7 @@ async function executeToolImplementation(
                   toolId,
                   tool,
                   contextParams,
+                  operationContext,
                   effectiveSignal,
                   resolvedSecretTraceRegistry
                 )
@@ -2241,6 +2250,7 @@ async function executeToolImplementation(
           toolId,
           tool,
           contextParams,
+          operationContext,
           effectiveSignal,
           resolvedSecretTraceRegistry
         )
@@ -2729,7 +2739,7 @@ async function executeDeclaredInternalOperation({
           : DEFAULT_EXECUTION_TIMEOUT_MS
     const operationController = createTimeoutAbortController(operationTimeout, signal)
     try {
-      response = await handler({
+      const result = await handler({
         toolId,
         input: operationInput,
         headers,
@@ -2737,6 +2747,11 @@ async function executeDeclaredInternalOperation({
         requestId,
         signal: operationController.signal,
       })
+      response = await presentInternalToolOperationResult(
+        result,
+        context,
+        operationController.signal
+      )
     } finally {
       operationController.cleanup()
     }
@@ -2796,6 +2811,7 @@ async function executeToolRequest(
   toolId: string,
   tool: ToolConfig,
   params: Record<string, any>,
+  context: InternalToolOperationContext | undefined,
   signal?: AbortSignal,
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<ToolResponse> {
@@ -2832,6 +2848,8 @@ async function executeToolRequest(
 
     let response: Response | undefined
     let lastError: unknown
+    const maxResponseBytes =
+      tool.request.responseType === 'binary' ? MAX_FILE_SIZE : MAX_TOOL_RESPONSE_BODY_BYTES
     const nullBodyStatuses = new Set([101, 204, 205, 304])
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -2858,7 +2876,7 @@ async function executeToolRequest(
           headers: headersRecord,
           body: requestParams.body ?? undefined,
           timeout: requestParams.timeout,
-          maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+          maxResponseBytes,
           signal,
           proxyUrl: proxyOption,
           stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
@@ -2895,6 +2913,7 @@ async function executeToolRequest(
             requestId,
             toolId,
             signal,
+            maxBytes: secureResponse.ok ? maxResponseBytes : MAX_TOOL_RESPONSE_BODY_BYTES,
           })
           response = new Response(new Uint8Array(bodyBuffer), {
             status: secureResponse.status,
@@ -3096,6 +3115,30 @@ async function executeToolRequest(
         } as Response
 
         const data = await tool.transformResponse(mockResponse, params)
+        if (tool.request.responseType === 'binary' && data.success) {
+          if (!context) throw new Error('Binary file output requires trusted execution context')
+          const file = data.output?.file
+          if (
+            !isRecordLike(file) ||
+            !Buffer.isBuffer(file.data) ||
+            typeof file.name !== 'string' ||
+            typeof file.mimeType !== 'string'
+          ) {
+            throw new Error('Binary download tools must return a buffered file output')
+          }
+          return await storeInternalToolFileResult(
+            createInternalToolFileResult(
+              { buffer: file.data, name: file.name, mimeType: file.mimeType },
+              (stored) => ({ ...data, output: { ...data.output, file: stored } })
+            ),
+            context,
+            (body) => {
+              if (!isToolResponse(body)) throw new Error('Invalid binary tool response')
+              return body
+            },
+            signal
+          )
+        }
         return data
       } catch (transformError) {
         const normalizedError = toError(transformError)
@@ -3242,7 +3285,7 @@ async function executeMcpTool(
     validateRequestBodySize(JSON.stringify(params), actualRequestId, `mcp:${toolId}`)
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
-    const response = await handler({
+    const resultResponse = await handler({
       toolId,
       input: params,
       headers: new Headers(),
@@ -3250,6 +3293,11 @@ async function executeMcpTool(
       requestId: actualRequestId,
       signal,
     })
+    const response = await presentInternalToolOperationResult(
+      resultResponse,
+      context ?? { workflowId: '' },
+      signal
+    )
     const responseBody = await readToolResponseBody(response, {
       requestId: actualRequestId,
       toolId,

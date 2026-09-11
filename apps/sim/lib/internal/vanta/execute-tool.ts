@@ -1,5 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { VantaOperationError } from '@/lib/internal/vanta/errors'
 import {
   vantaDownloadDocumentFileInputSchema,
@@ -13,7 +17,9 @@ import {
 import { vantaQueryBodySchema } from '@/lib/internal/vanta/schema'
 
 /** Executes the Vanta tool family without a same-origin HTTP hop. */
-export const executeVantaTool: InternalToolOperationHandler = async (request) => {
+export const executeVantaTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   const schema =
     request.toolId === 'vanta_upload_document_file'
@@ -47,7 +53,7 @@ export const executeVantaTool: InternalToolOperationHandler = async (request) =>
               context
             )
       request.signal?.throwIfAborted()
-      return Response.json(result)
+      return isInternalToolFileResult(result) ? result : Response.json(result)
     }
 
     const query = vantaQueryBodySchema.parse(parsed.data)

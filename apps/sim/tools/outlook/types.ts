@@ -476,7 +476,7 @@ export interface OutlookGetAttachmentResponse extends ToolResponse {
   output: {
     message: string
     results: CleanedOutlookAttachmentMetadata
-    attachments: OutlookAttachment[]
+    attachments: UserFile[]
   }
 }
 

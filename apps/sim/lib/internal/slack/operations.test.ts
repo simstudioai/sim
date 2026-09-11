@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   resolveFiles: vi.fn(),
@@ -195,11 +200,23 @@ describe('Slack operations', () => {
       }),
       'uploadUrl'
     )
-    expect(result.output).toMatchObject({
-      channel: 'C1',
-      fileCount: 1,
-      ts: '10',
-      files: [{ name: 'hello.txt', size: 5 }],
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'hello.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'hello.txt',
+      type: 'text/plain',
+      mimeType: 'text/plain',
+      size: 5,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { channel: 'C1', fileCount: 1, ts: '10', files: [storedFile] },
     })
   })
 
@@ -234,12 +251,21 @@ describe('Slack operations', () => {
         signal: controller.signal,
       }
     )
-    expect(result.output.file).toEqual({
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from('pdf') },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
       name: 'report.pdf',
+      type: 'application/pdf',
       mimeType: 'application/pdf',
-      data: Buffer.from('pdf').toString('base64'),
       size: 3,
-    })
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
   })
 
   it.each([
