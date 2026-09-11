@@ -13,12 +13,12 @@ try {
   const orders: number[] = JSON.parse(process.env.REMAINING_ORDERS ?? 'null')
   if (
     !Number.isInteger(shardCount) ||
-    shardCount !== 14 ||
+    shardCount !== 30 ||
     !Number.isInteger(shard) ||
     shard < 0 ||
     shard >= shardCount ||
     !Array.isArray(orders) ||
-    orders.length !== 84 ||
+    orders.length !== 180 ||
     new Set(orders).size !== orders.length ||
     orders.some((order) => !Number.isInteger(order) || order < 0 || order >= 180)
   )
