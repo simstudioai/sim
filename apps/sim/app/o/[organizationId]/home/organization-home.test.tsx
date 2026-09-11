@@ -16,10 +16,12 @@ const mocks = vi.hoisted(() => ({
   apiKeys: vi.fn(),
   authorizedApps: vi.fn(),
   fetchNextPage: vi.fn(),
+  upload: vi.fn(),
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
 }))
+vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/lib/core/utils/browser-storage', () => ({
   MothershipHandoffStorage: { consume: mocks.consume },
 }))
@@ -46,6 +48,14 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'URL',
+    class extends URL {
+      static createObjectURL = vi.fn(() => 'blob:image-preview')
+      static revokeObjectURL = vi.fn()
+    }
+  )
+  mocks.upload.mockResolvedValue({ key: 'image-key', path: '/image-path' })
   mocks.context.mockReturnValue({
     organization: { id: 'organization-a' },
     searchAccess: { memberScoped: true },
@@ -289,6 +299,90 @@ describe('organization home', () => {
     await act(async () => composerProps().onChange('   '))
     await act(async () => composerProps().onSubmit())
     expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('sends image-only turns with canonical attachment properties and clears the draft', async () => {
+    await act(async () => root.render(<OrganizationHome />))
+    const files = [new File(['image'], 'screenshot.png', { type: 'image/png' })]
+    await act(async () =>
+      composerProps().files.processFiles(
+        Object.assign(files, { item: (index: number) => files[index] ?? null })
+      )
+    )
+    await act(async () => composerProps().onSubmit())
+    expect(mocks.send).toHaveBeenCalledWith(
+      '',
+      [
+        expect.objectContaining({
+          id: expect.any(String),
+          key: 'image-key',
+          filename: 'screenshot.png',
+          media_type: 'image/png',
+          size: 5,
+          path: '/image-path',
+        }),
+      ],
+      undefined,
+      { requestMode: 'assistant' }
+    )
+    expect(composerProps().files.attachedFiles).toEqual([])
+  })
+
+  it('restores queued images when editing and includes them in the replacement turn', async () => {
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    const attachments = [
+      {
+        id: 'image-a',
+        key: 'image-key',
+        filename: 'screenshot.png',
+        media_type: 'image/png',
+        size: 5,
+      },
+    ]
+    mocks.chat.mockReturnValue({
+      messages: [],
+      sendMessage: mocks.send,
+      editQueuedMessage: () => ({
+        id: 'queued-a',
+        content: 'Explain this',
+        fileAttachments: attachments,
+      }),
+    })
+    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    await act(async () => mocks.renderer.mock.lastCall![0].onEditQueuedMessage('queued-a'))
+    expect(composerProps().files.attachedFiles[0]).toEqual(
+      expect.objectContaining({
+        name: 'screenshot.png',
+        key: 'image-key',
+        uploading: false,
+        path: '/api/files/serve/image-key?context=mothership&preview=1',
+      })
+    )
+    await act(async () => composerProps().onSubmit())
+    expect(mocks.send).toHaveBeenCalledWith(
+      'Explain this',
+      [{ ...attachments[0], path: '/api/files/serve/image-key?context=mothership&preview=1' }],
+      undefined,
+      {
+        requestMode: 'assistant',
+      }
+    )
+  })
+
+  it('resumes image-only handoffs without dropping their attachments', async () => {
+    const attachments = [
+      {
+        id: 'image-a',
+        key: 'image-key',
+        filename: 'screenshot.png',
+        media_type: 'image/png',
+        size: 5,
+      },
+    ]
+    mocks.consume.mockReturnValueOnce({ message: '', fileAttachments: attachments })
+    await act(async () => root.render(<OrganizationHome />))
+    expect(mocks.send).toHaveBeenCalledWith('', attachments, undefined, {
+      requestMode: 'assistant',
+    })
   })
   it('resumes a scoped handoff with the original search filters', async () => {
     const assistantSearch = { documentIds: ['document-a'] }

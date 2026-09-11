@@ -63,6 +63,14 @@ function grantAccess(cloudKey: string) {
 }
 
 describe('verifyKBFileAccess (binding-only)', () => {
+  it.each(['mothership', 'profile-pictures', 'general'] as const)(
+    'refuses organization image keys through legacy %s authorization',
+    async (context) => {
+      await expect(
+        verifyFileAccess('assistant/org-1/user-1/upload-1/image.png', USER_ID, undefined, context)
+      ).resolves.toBe(false)
+    }
+  )
   beforeEach(() => {
     vi.clearAllMocks()
     // Default liveness query result: one active document references the exact storage key.

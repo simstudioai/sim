@@ -78,6 +78,7 @@ export async function createPurposeUploadSession(
         localOrigin,
       })
     case 'mothership_attachment':
+      if (!body.workspaceId) throw new UploadSessionError('validation', 'workspaceId is required')
       await requireWorkspacePermission(userId, body.workspaceId, 'write')
       return createUploadSession({
         purpose: body.purpose,

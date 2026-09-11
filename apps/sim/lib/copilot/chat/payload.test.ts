@@ -647,6 +647,33 @@ describe('Assistant payload', () => {
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
   })
+  it('sends prepared organization images as model-readable attachments without workspace tracking', async () => {
+    mockTrackChatUpload.mockClear()
+    const image = {
+      type: 'image' as const,
+      filename: 'image.png',
+      source: { type: 'base64' as const, media_type: 'image/png', data: 'aW1hZ2U=' },
+    }
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: '',
+        userId: 'user-1',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        mode: 'assistant',
+        model: '',
+        assistantImages: [image],
+        fileAttachments: [{ id: 'image', key: 'private-upload', size: 5 }],
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.message).toBe('')
+    expect(payload.fileAttachments).toEqual([image])
+    expect(payload).not.toHaveProperty('context')
+    expect(payload).not.toHaveProperty('workspaceId')
+    expect(mockTrackChatUpload).not.toHaveBeenCalled()
+  })
+
   it('forwards organization scope without workspace, integration, or desktop authority', async () => {
     const payload = await buildCopilotRequestPayload(
       {

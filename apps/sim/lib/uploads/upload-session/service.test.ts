@@ -153,6 +153,64 @@ describe('upload sessions', () => {
     })
   })
 
+  it('binds organization images to the creating session and stores them without a workspace', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      uploadRow({
+        purpose: 'mothership_attachment',
+        workspaceId: null,
+        storageContext: 'mothership',
+        finalKey: 'assistant/org-1/user-1/upload-1/image.png',
+        contentType: 'image/png',
+      }),
+    ])
+    await createUploadSession({
+      id: 'upload-1',
+      userId: 'user-1',
+      purpose: 'mothership_attachment',
+      organizationId: 'org-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      fileName: 'image.png',
+      contentType: 'image/png',
+      fileSize: 100,
+      metadata: { organizationAttachment: { organizationId: 'forged' } },
+    })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: null,
+        finalKey: 'assistant/org-1/user-1/upload-1/image.png',
+        metadata: {
+          organizationAttachment: {
+            organizationId: 'org-1',
+            userId: 'user-1',
+            sessionId: 'session-1',
+          },
+        },
+      })
+    )
+    expect(mockCreatePutTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'mothership', fileSize: 100 })
+    )
+  })
+
+  it.each([
+    { contentType: 'text/html', fileSize: 100 },
+    { contentType: 'image/png', fileSize: 5 * 1024 * 1024 + 1 },
+  ])('rejects invalid organization images before storage initialization', async (file) => {
+    await expect(
+      createUploadSession({
+        id: 'upload-1',
+        userId: 'user-1',
+        purpose: 'mothership_attachment',
+        organizationId: 'org-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        fileName: 'image.png',
+        ...file,
+      })
+    ).rejects.toThrow('Assistant attachments must be')
+    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
   // Local storage stores an object's metadata sidecar beside it, under the
   // object's own name, so the whole key + suffix must fit one path component.
   // Three purposes built their key by hand and admitted a 255-character name

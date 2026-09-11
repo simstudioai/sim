@@ -10,6 +10,7 @@ import {
   isAssistantIntegrationTool,
 } from '@/lib/copilot/assistant/tool-policy'
 import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
+import type { AssistantImageContent } from '@/lib/copilot/chat/assistant-images'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
   type IntegrationGateConfig,
@@ -52,6 +53,7 @@ interface BuildPayloadParams {
    */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
+  assistantImages?: AssistantImageContent[]
   commands?: string[]
   chatId?: string
   prefetch?: boolean
@@ -412,6 +414,9 @@ export async function buildCopilotRequestPayload(
     ...(provider ? { provider } : {}),
     mode: transportMode,
     ...(isAssistant && params.assistantSearch ? { assistantSearch: params.assistantSearch } : {}),
+    ...(isAssistant && params.organizationId && params.assistantImages?.length
+      ? { fileAttachments: params.assistantImages }
+      : {}),
     messageId: userMessageId,
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(chatId ? { chatId } : {}),

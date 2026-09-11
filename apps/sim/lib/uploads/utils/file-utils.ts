@@ -801,6 +801,7 @@ export function tryInferContextFromKey(key: string): StorageContext | null {
   if (key.startsWith('copilot/')) return 'copilot'
   if (key.startsWith('execution/')) return 'execution'
   if (key.startsWith('workspace/')) return 'workspace'
+  if (key.startsWith('assistant/')) return 'mothership'
   if (key.startsWith('profile-pictures/')) return 'profile-pictures'
   if (key.startsWith('og-images/')) return 'og-images'
   if (key.startsWith('workspace-logos/')) return 'workspace-logos'

@@ -362,22 +362,27 @@ export class MothershipHandoffStorage {
    * accumulate — "Add to chat" can fire twice before the route swap completes,
    * and the second write must not drop the first.
    * @returns True if stored, false when the workspace is empty or the handoff
-   * carries neither a message nor a context.
+   * carries no message, context, or attachment.
    */
   static store(handoff: MothershipHandoff, owner: MothershipHandoffOwner): boolean {
     const workspaceId = typeof owner === 'string' ? owner : undefined
     const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
     const message = handoff.message?.trim()
+    const hasAttachments = Boolean(handoff.fileAttachments?.length)
     const contexts = handoff.contexts ?? []
-    if (!(workspaceId || organizationId) || (!message && contexts.length === 0)) {
+    if (
+      !(workspaceId || organizationId) ||
+      (!message && !hasAttachments && contexts.length === 0)
+    ) {
       return false
     }
 
     return BrowserStorage.setItem(MothershipHandoffStorage.KEY, {
-      ...(message ? { message } : {}),
-      contexts: message
-        ? contexts
-        : [...MothershipHandoffStorage.pendingContexts(owner), ...contexts],
+      ...(message || hasAttachments ? { message: message ?? '' } : {}),
+      contexts:
+        message || hasAttachments
+          ? contexts
+          : [...MothershipHandoffStorage.pendingContexts(owner), ...contexts],
       ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
@@ -398,7 +403,13 @@ export class MothershipHandoffStorage {
    */
   private static pendingContexts(owner: MothershipHandoffOwner): ChatContext[] {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
-    if (!data || data.message || !MothershipHandoffStorage.belongsTo(data, owner)) return []
+    if (
+      !data ||
+      data.message ||
+      data.fileAttachments?.length ||
+      !MothershipHandoffStorage.belongsTo(data, owner)
+    )
+      return []
     if (!data.timestamp || Date.now() - data.timestamp > MothershipHandoffStorage.MAX_AGE_MS) {
       return []
     }
@@ -433,10 +444,11 @@ export class MothershipHandoffStorage {
     MothershipHandoffStorage.clear()
 
     const contexts = Array.isArray(data.contexts) ? data.contexts : []
+    const hasAttachments = Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
     if (
       !(data.workspaceId || data.organizationId) ||
       Boolean(data.workspaceId && data.organizationId) ||
-      (!data.message && contexts.length === 0) ||
+      (!data.message && !hasAttachments && contexts.length === 0) ||
       !data.timestamp ||
       Date.now() - data.timestamp > maxAge
     ) {
@@ -447,7 +459,7 @@ export class MothershipHandoffStorage {
     if (!assistantSearch.success) return null
 
     return {
-      ...(data.message ? { message: data.message } : {}),
+      ...(data.message || hasAttachments ? { message: data.message ?? '' } : {}),
       contexts,
       ...(data.requestMode === 'assistant' ? { requestMode: 'assistant' as const } : {}),
       ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
