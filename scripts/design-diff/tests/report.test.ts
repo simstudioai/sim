@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import { analyze, emptyReport } from '#design-diff/analyze'
 import { previewValue, REPORT_BYTES, serializeReport } from '#design-diff/report'
 import { compareFiles, config, FixtureRepo } from '#design-diff/tests/helpers'
+import type { Data } from '#design-diff/types'
 
 it('preserves small literal values and hashes changes beyond the retained preview', () => {
   expect(previewValue('red')).toBe('red')
@@ -66,4 +67,22 @@ it('repeats the analysis itself byte-identically with shortened values and sampl
   } finally {
     repo.close()
   }
+})
+
+it('hashes a large shared symbolic tree without expanding its repeated JSON', () => {
+  let value: Data = 'x'.repeat(1024)
+  for (let level = 0; level < 30; level++) value = [value, value]
+  const first = previewValue(value)
+  expect(first).toMatchObject({ $truncated: true, hashAlgorithm: 'sha256-merkle-v1' })
+  expect(JSON.stringify(first).length).toBeLessThan(6000)
+  expect(previewValue(value)).toEqual(first)
+  expect(previewValue(first)).toBe(first)
+  expect(previewValue([value, 'changed'])).not.toEqual(previewValue([value, 'original']))
+})
+
+it('gives shared and independently constructed equivalent trees the same full identity', () => {
+  const part = { copy: 'x'.repeat(5000), styles: ['red', 'p-2'] }
+  const shared = [part, part]
+  expect(previewValue(shared)).toEqual(previewValue(JSON.parse(JSON.stringify(shared))))
+  expect(previewValue([part, 'a', 'b'])).not.toEqual(previewValue([part, 'b', 'a']))
 })

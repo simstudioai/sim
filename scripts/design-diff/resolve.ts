@@ -1,7 +1,6 @@
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import {
-  canonicalJson,
   fingerprint,
   jsxText,
   parseSource,
@@ -9,8 +8,11 @@ import {
   symbolName,
   traverse,
 } from '#design-diff/ast'
+import { finiteKeys } from '#design-diff/finite'
+import { reclaimMemory } from '#design-diff/memory'
 import { mutations } from '#design-diff/mutations'
 import { previewValue } from '#design-diff/report'
+import type { SemanticValues } from '#design-diff/semantic'
 import type { SourceTree } from '#design-diff/source'
 import type { Data, Evidence } from '#design-diff/types'
 
@@ -33,16 +35,23 @@ interface Module {
 /** A bounded interpreter for data expressions. It never invokes a source function. */
 export class Resolver {
   private readonly modules = new Map<string, Module>()
+  private readonly semantics: SemanticValues
   private readonly evaluations = new WeakMap<t.Node, Evidence>()
-  private readonly unknowns = new WeakMap<t.Node, Map<string, Evidence>>()
+  private unknowns = new WeakMap<t.Node, Map<string, Evidence>>()
   private readonly opaqueValues = new Map<string, Evidence>()
   private readonly resolvingUnknown = new Set<t.Node>()
   private steps = 0
+  private parsedModules = 0
   private readonly active = new Set<t.Node>()
   private dependencies = new Set<string>()
   private unresolved = new Set<string>()
 
-  constructor(readonly tree: SourceTree) {}
+  constructor(
+    readonly tree: SourceTree,
+    private readonly affected?: ReadonlySet<string>
+  ) {
+    this.semantics = tree.semantics
+  }
 
   module(file: string): Module {
     const cached = this.modules.get(file)
@@ -51,6 +60,8 @@ export class Resolver {
       this.modules.set(file, cached)
       return cached
     }
+    /** A single expression may load many modules before the outer file batch can collect them. */
+    if (++this.parsedModules % 16 === 0) reclaimMemory()
     const source = this.tree.texts.get(file)
     if (source === undefined) throw new Error('Source unavailable')
     const ast = parseSource(source, file)
@@ -91,12 +102,17 @@ export class Resolver {
         unresolved: [...cached.unresolved],
       }
     this.currentFile = file
+    /** Nested fallback evidence belongs to this evaluation budget, not earlier consumers. */
+    this.unknowns = new WeakMap()
     this.steps = 0
     this.active.clear()
     this.resolvingUnknown.clear()
     this.dependencies = new Set([file])
     this.unresolved = new Set()
-    const value = this.value(path, file, 0)
+    const fullValue = this.value(path, file, 0)
+    const value = previewValue(fullValue, undefined, this.semantics)
+    if (value !== fullValue)
+      this.unresolved.add('Large visual input summarized after full semantic hashing')
     const result = {
       value,
       dependencies: [...this.dependencies].sort(),
@@ -349,6 +365,20 @@ export class Resolver {
           const origin = target && this.tree.graph?.resolvedExport(target, name)?.origin
           if (origin) {
             this.dependencies.add(origin.file)
+            if (origin.file.endsWith('.json') && origin.exported === 'default') {
+              try {
+                const value = this.tree.json(origin.file)
+                if (object(value) && Object.hasOwn(value, key)) return value[key]
+                return undefined
+              } catch {
+                this.unresolved.add('Imported JSON could not be parsed')
+                return {
+                  $unresolvedJsonProperty: key,
+                  file: origin.file,
+                  blob: this.tree.entries.get(origin.file)?.oid ?? null,
+                }
+              }
+            }
             const exported = this.module(origin.file).exports.get(origin.exported)
             if (exported) return this.selected(exported, key, origin.file, depth + 1, seen)
           }
@@ -532,7 +562,11 @@ export class Resolver {
     const body = child(path, 'body')
     if (!body.isBlockStatement())
       return {
-        $function: previewValue([{ value: this.value(body, file, depth + 1), conditions: [] }]),
+        $function: previewValue(
+          [{ value: this.value(body, file, depth + 1), conditions: [] }],
+          undefined,
+          this.semantics
+        ),
       }
     const returns: Data[] = []
     body.traverse({
@@ -565,7 +599,7 @@ export class Resolver {
       },
     })
     this.unresolved.add('Function return paths are analyzed statically, not executed')
-    return { $function: previewValue(returns) }
+    return { $function: previewValue(returns, undefined, this.semantics) }
   }
 
   private opaqueNode(path: NodePath, file: string): Data {
@@ -675,18 +709,21 @@ export class Resolver {
             : '*'
         this.dependencies.add(target)
         const member = reference.parentPath
-        if (
-          member?.isMemberExpression() &&
-          member.node.object === reference.node &&
-          (!member.node.computed ||
-            t.isStringLiteral(member.node.property) ||
-            t.isNumericLiteral(member.node.property))
-        ) {
-          const key = propertyName(member.node.property)
-          const selected = this.selected(reference, key, file, 0)
-          if (selected !== undefined) {
-            inputs.set(`${target}:${name}.${key}`, selected)
-            return
+        if (member?.isMemberExpression() && member.node.object === reference.node) {
+          const selection = member.node.computed
+            ? finiteKeys(child(member, 'property'), file, this)
+            : { keys: [propertyName(member.node.property)], dependencies: [] }
+          if (selection?.keys) {
+            for (const file of selection.dependencies) this.dependencies.add(file)
+            const values = selection.keys.map((key) =>
+              this.selected(reference, String(key), file, 0)
+            )
+            if (values.every((value) => value !== undefined)) {
+              inputs.set(`${target}:${name}.[${selection.keys.join(',')}]`, {
+                $finiteSelection: selection.keys.map((key, index) => [key, values[index]!] as Data),
+              })
+              return
+            }
           }
         }
         const origin = this.tree.graph?.resolvedExport(target, name)?.origin
@@ -738,14 +775,13 @@ export class Resolver {
   private exported(file: string, name: string, depth: number, visited = new Set<string>()): Data {
     const key = `${file}:${name}`
     if (depth > this.tree.config.limits.resolutionDepth || visited.has(key)) {
-      this.unresolved.add('Dependency cycle or resolution depth limit')
+      this.unresolved.add(visited.has(key) ? 'Dependency cycle' : 'Export resolution depth limit')
       return { $unresolved: key }
     }
     visited.add(key)
     this.dependencies.add(file)
     try {
-      if (file.endsWith('.json') && name === 'default')
-        return canonicalJson(JSON.parse(this.tree.texts.get(file) ?? 'null'))
+      if (file.endsWith('.json') && name === 'default') return this.tree.json(file)
       const resolved = this.tree.graph?.resolvedExport(file, name)
       if (resolved) {
         for (const route of resolved.routes) this.dependencies.add(route)
@@ -760,6 +796,9 @@ export class Resolver {
       const module = this.module(file)
       const exported = module.exports.get(name)
       if (exported) {
+        /** Its indexed dependency region is unchanged in this comparison; preserve callable identity and analyze changed arguments at the caller. */
+        if (this.affected && !this.affected.has(file) && exported.isFunction())
+          return { $unchangedFunction: { file, export: name } }
         if (exported.isExportSpecifier()) {
           const parent = exported.parentPath
           if (parent.isExportNamedDeclaration() && parent.node.source) {
@@ -778,6 +817,7 @@ export class Resolver {
       if (candidates.length > 1) this.unresolved.add('Ambiguous re-export')
     } catch {
       this.unresolved.add('Imported source could not be parsed')
+      return { $unresolvedExport: key, blob: this.tree.entries.get(file)?.oid ?? null }
     }
     return { $missing: key }
   }
@@ -950,6 +990,26 @@ export class Resolver {
       return { $template: node.quasis.map((q) => q.value.cooked ?? q.value.raw), values }
     }
     if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
+      if (node.computed) {
+        const selection = finiteKeys(child(path, 'property'), file, this)
+        if (selection && !selection.keys)
+          return this.unknown(path, 'Computed key collection may be mutated', file)
+        if (selection?.keys) {
+          const values = selection.keys.map((key) =>
+            this.selected(child(path, 'object'), String(key), file, depth + 1)
+          )
+          if (values.every((value) => value !== undefined)) {
+            for (const file of selection.dependencies) this.dependencies.add(file)
+            return values.length === 1
+              ? values[0]!
+              : {
+                  $finiteSelection: selection.keys.map(
+                    (key, index) => [key, values[index]!] as Data
+                  ),
+                }
+          }
+        }
+      }
       const key = node.computed ? read('property') : propertyName(node.property)
       const selected =
         typeof key === 'string' || typeof key === 'number'

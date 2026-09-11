@@ -62,7 +62,11 @@ Zero means no references were enumerated, not proof of no consumers. Overrides, 
 variants and runtime conditions can prevent a referenced component from changing visually.
 
 Schema 3 readers must handle either literal values or a summary object containing
-`$truncated`, `preview`, `sha256`, `originalBytes`, `previewBytes` and `omittedBytes`.
+`$truncated`, `preview`, `sha256`, `hashAlgorithm`, `originalBytes`, `previewBytes` and `omittedBytes`.
+`hashAlgorithm: sha256-merkle-v1` hashes the complete semantic tree, including order and types,
+without expanding shared symbolic subtrees; it is not the SHA-256 of flat JSON bytes.
+Large resolver inputs are summarized before retention, with a limitation, so comparison and
+report construction cannot expand shared helper evidence into gigabytes of repeated JSON.
 The default preview is at most 4 KiB. Full semantic evidence is compared before presentation
 values are shortened; large opaque helper summaries retain full-value hashes too.
 `truncation` records the 5 MiB serialized-report limit, total/omitted findings, and total/omitted
@@ -97,10 +101,12 @@ scripts/design-diff/
   ast.ts                                Babel parsing and syntax normalization
   refactors.ts                          Supported literal/refactor normalization
   mutations.ts                          Referenced collection/property writes
+  finite.ts                             Static finite keys for computed environment reads
   resolve.ts                            Bounded expression and import resolution
   inputs.ts                             Configured file-loaded documentation inputs
   infrastructure.ts                     Rendering lockfile dependency closure
   report.ts                             Value previews and bounded JSON serialization
+  semantic.ts                           Full semantic hashes without repeated tree expansion
   benchmark.ts                          Immutable-engine historical replay
   process.ts                            Native Bun process status and bounded diagnostics
   benchmark/comparisons.json            Frozen original/holdout comparison manifest
@@ -235,7 +241,13 @@ This engine is conservative, not a runtime equivalence prover:
   consumer example instead of thousands of downstream records. Large changed definitions
   and usage inventories are sampled deterministically within the report budget.
 - The default limits are 2 MiB per source file, 256 MiB per source snapshot, 24 resolution
-  levels and 5,000 evaluation steps per expression. Per-file/parser/expression limits produce
+  levels and 5,000 evaluation steps per expression. Resolver caches are isolated per visual
+  source file, fallback caches per expression, and parser garbage collection also runs within
+  large import walks. JSON imports and their full semantic identities are cached per revision;
+  malformed imported JSON retains its source blob as uncertainty evidence. Exported functions outside the affected dependency region retain their
+  identity while changed caller arguments are still compared. Computed keys drawn from
+  immutable Object.entries/values loops are bounded to their declared literal keys; escaping
+  or mutated collections retain uncertainty. Literal-alias normalization caps expanded clones at 128 AST nodes. Per-file/parser/expression limits produce
   flags with limitations; snapshot/Git failures are operational failures, never clean results.
 
 ## Cloud execution and activation
@@ -332,6 +344,8 @@ source-reviewed nonvisual cases) and the next 60 entries of the original SHA-256
 order. Holdout source-review labels were frozen before revised engine results: 37 clear
 visual/content, 18 nonvisual and 5 uncertain. Labels describe source edits, not rendered pixel
 ground truth. Corrections must be documented separately rather than rewriting frozen labels.
+Holdout PRs #6986 and #6929 were inspected while debugging resolver precision and resource
+use after labels were frozen, so this is not a wholly untouched blind evaluation.
 
 ```sh
 bun --no-env-file scripts/design-diff/benchmark.ts \

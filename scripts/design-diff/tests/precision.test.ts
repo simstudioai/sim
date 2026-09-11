@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest'
+import { semanticSource } from '#design-diff/ast'
 import { allChanges, compareFiles, config } from '#design-diff/tests/helpers'
 
 const settings = { ...config, themes: [] }
@@ -383,3 +384,97 @@ it('projects namespace members even when an outer expression reaches its resolut
   expect((await compareFiles(files, { [data]: source('red', 2) }, bounded)).flagged).toBe(false)
   expect((await compareFiles(files, { [data]: source('blue', 1) }, bounded)).flagged).toBe(true)
 })
+
+it('bounds expansion of repeated local literal aliases before cloning ASTs', () => {
+  const declarations = ['const value0=["red"]']
+  for (let index = 1; index < 35; index++)
+    declarations.push(`const value${index}=[value${index - 1},value${index - 1}]`)
+  const source = `${declarations.join(';')};export const Page=()=> <div data-tree={value34}/>`
+  expect(semanticSource(source, view).length).toBeLessThan(100000)
+})
+
+it('retains changed call arguments and switched exports when helper dependencies are unchanged', async () => {
+  const helpers =
+    'export function red(){return "red"};export function blue(){return "blue"};export function paint(colour){return colour}'
+  const source = (fn: string, value: string) =>
+    `import {${fn} as helper} from './data';export const Page=()=> <span style={{color:helper('${value}')}}/>`
+  const files = { [data]: helpers, [view]: source('paint', 'red') }
+  expect((await compareFiles(files, { [view]: source('paint', 'blue') }, settings)).flagged).toBe(
+    true
+  )
+  expect(
+    (
+      await compareFiles(
+        { [data]: helpers, [view]: source('red', '') },
+        { [view]: source('blue', '') },
+        settings
+      )
+    ).flagged
+  ).toBe(true)
+})
+
+it('projects JSON import properties without parsing JSON as an application module', async () => {
+  const json = 'apps/sim/palette.json'
+  const files = {
+    [json]: '{"colour":"red","unused":1}',
+    [view]:
+      'import palette from "./palette.json";export const Page=()=> <span style={{color:palette.colour}}/>',
+  }
+  expect(
+    (await compareFiles(files, { [json]: '{"colour":"red","unused":2}' }, settings)).flagged
+  ).toBe(false)
+  const report = await compareFiles(files, { [json]: '{"colour":"blue","unused":1}' }, settings)
+  expect(report.flagged).toBe(true)
+  expect(
+    allChanges(report).some(
+      (change) => change.category === 'colour' && change.after?.location.file === view
+    )
+  ).toBe(true)
+})
+
+it('retains changed malformed imported JSON as evidence instead of a stable missing value', async () => {
+  const json = 'apps/sim/palette.json'
+  const report = await compareFiles(
+    {
+      [json]: '{broken',
+      [view]:
+        'import palette from "./palette.json";export const Page=()=> <span style={{color:palette.colour}}/>',
+    },
+    { [json]: '{alsoBroken' },
+    settings
+  )
+  expect(report.flagged).toBe(true)
+  expect(allChanges(report).some((change) => change.dependencies.includes(json))).toBe(true)
+})
+
+it.each([5, 24])(
+  'bounds dynamic environment keys from static feature definitions at depth %s',
+  async (resolutionDepth) => {
+    const source = (tables: boolean, batch: number) =>
+      `import {createEnv} from '@t3-oss/env-nextjs';export const env=createEnv({server:{TABLES:rule(${tables}),BATCH:rule(${batch})}})`
+    const files = {
+      [data]: source(true, 1),
+      [view]: `import {env} from './data';const definitions={table:{fallback:'TABLES'}};export function Page(){const flags={};for(const [name,def] of Object.entries(definitions) as Array<[string,{fallback:string}]>){flags[name]={enabled:env[def.fallback]}}return <span hidden={!flags.table.enabled}/>}`,
+    }
+    const bounded = { ...settings, limits: { ...settings.limits, resolutionDepth } }
+    expect((await compareFiles(files, { [data]: source(true, 2) }, bounded)).flagged).toBe(false)
+    expect((await compareFiles(files, { [data]: source(false, 1) }, bounded)).flagged).toBe(true)
+  }
+)
+
+it.each(['definitions.table.fallback=runtimeKey', 'mutate(definitions)'])(
+  'keeps mutated or escaping feature definitions conservative: %s',
+  async (mutation) => {
+    const source = (batch: number) =>
+      `import {createEnv} from '@t3-oss/env-nextjs';export const env=createEnv({server:{TABLES:rule(true),BATCH:rule(${batch})}})`
+    const report = await compareFiles(
+      {
+        [data]: source(1),
+        [view]: `import {env} from './data';const definitions={table:{fallback:'TABLES'}};${mutation};export function Page(){const flags={};for(const [name,def] of Object.entries(definitions) as Array<[string,{fallback:string}]>){flags[name]={enabled:env[def.fallback]}}return <span hidden={!flags.table.enabled}/>} `,
+      },
+      { [data]: source(2) },
+      settings
+    )
+    expect(report.flagged).toBe(true)
+  }
+)

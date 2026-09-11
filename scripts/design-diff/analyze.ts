@@ -131,16 +131,14 @@ export async function analyze(
         }
       }
     }
-    const previousResolver = new Resolver(before)
-    const nextResolver = new Resolver(after)
     const previousTailwind = new TailwindNormalizer(before)
     const nextTailwind = new TailwindNormalizer(after)
     const extract = async (
       tree: SourceTree,
-      resolver: Resolver,
       tailwind: TailwindNormalizer,
       file: string
     ): Promise<Definition[]> => {
+      const resolver = new Resolver(tree, affected)
       const entry = tree.entries.get(file)
       if (!entry) return []
       if (tree.failures.has(file))
@@ -198,8 +196,8 @@ export async function analyze(
       if (!scoped(file, config) && !infrastructure(file, config)) continue
       if ([...renames.values()].includes(file) && !after.entries.has(file)) continue
       const oldFile = renames.get(file) ?? file
-      const a = await extract(before, previousResolver, previousTailwind, oldFile)
-      const b = await extract(after, nextResolver, nextTailwind, file)
+      const a = await extract(before, previousTailwind, oldFile)
+      const b = await extract(after, nextTailwind, file)
       findings.push(...compareDefinitions(a, b, affected))
       if (
         changed.has(file) &&
