@@ -102,24 +102,22 @@ export default defineConfig({
    * environment variables whether Trigger.dev is available: a process that
    * Trigger.dev is executing has Trigger.dev available by definition.
    *
-   * Also warms both Redis connections a run opens — the shared client, whose
-   * first call is typically a lock acquire, and the execution-signal subscriber,
-   * whose first call is the cancellation subscription — because each would
-   * otherwise pay its handshake inside its own deadline. Warmed in parallel so
-   * the run waits for the slower of the two, not the sum; awaited so both are up
+   * Also warms the shared Redis connection, because nearly every task's first
+   * Redis call — a lock acquire, a usage reservation — would otherwise pay the
+   * handshake inside its own command deadline. Awaited so the connection is up
    * before `run()` issues anything; imported dynamically so deploy-time
-   * evaluation of this config does not pull the clients; and neither ever
-   * throws, because a throw here fails the run.
+   * evaluation of this config does not pull the client; and never throwing,
+   * because a throw here fails the run. The execution-signal subscriber is
+   * deliberately not warmed here: only the tasks that execute a workflow ever
+   * subscribe, and they are a minority of runs, so that connection is warmed
+   * on intent at the execution entry point instead.
    *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
   init: async () => {
     markInsideTriggerRun()
-    const [{ warmRedisConnection }, { warmExecutionSignalHub }] = await Promise.all([
-      import('./lib/core/config/redis'),
-      import('./lib/execution/execution-signal'),
-    ])
-    await Promise.all([warmRedisConnection(), warmExecutionSignalHub()])
+    const { warmRedisConnection } = await import('./lib/core/config/redis')
+    await warmRedisConnection()
   },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {

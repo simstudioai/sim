@@ -306,10 +306,13 @@ export function getExecutionSignalHub(): ExecutionSignalHub {
 }
 
 /**
- * Establishes the hub's subscriber connection ahead of the first execution, so
- * a run's cancellation subscription does not pay the handshake inside its own
- * readiness budget. Never throws: this runs from process start-up hooks where
- * a throw would fail the run, and a cold hub is only slower, not wrong.
+ * Establishes the hub's subscriber connection ahead of a cancellation
+ * subscription, so that subscribe does not pay the handshake inside its own
+ * readiness budget. Called fire-and-forget at the execution entry point — the
+ * one path every execution shares, early enough to overlap the work ahead of
+ * the subscribe — and at boot in long-lived servers. Never throws or rejects:
+ * a throw from a start-up hook would fail the run, and a cold hub is only
+ * slower, not wrong.
  */
 export async function warmExecutionSignalHub(): Promise<boolean> {
   let hub: ExecutionSignalHub

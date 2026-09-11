@@ -22,6 +22,7 @@ import {
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
+import { warmExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -381,6 +382,14 @@ async function finalizeExecutionError(params: {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
+  // First, and not awaited: every execution subscribes to cancellation signals
+  // once its engine starts, so the subscriber's handshake is begun here — the
+  // one path all of them share — and overlaps the reads and preprocessing
+  // ahead of that subscribe instead of being paid inside its readiness budget.
+  // Warming on intent rather than at worker start keeps the tasks that never
+  // execute a workflow, most of the fleet by volume, from opening a connection
+  // they would never use.
+  void warmExecutionSignalHub()
   const workspaceId = options.snapshot.metadata.workspaceId
   const rows = workspaceId
     ? await withDatabaseReadRetry(() => getCustomBlockRowsForWorkspace(workspaceId), {
