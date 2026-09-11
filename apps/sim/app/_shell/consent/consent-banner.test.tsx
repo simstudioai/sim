@@ -63,6 +63,19 @@ describe('ConsentBanner', () => {
     }
   )
 
+  it('still renders a dialog the visitor opened, so the published control works', () => {
+    mockUseHeadlessConsentUI.mockReturnValue({
+      banner: { isVisible: false, allowedActions: [] },
+      dialog: { isVisible: true, allowedActions: ['accept', 'reject', 'customize'] },
+      openDialog: vi.fn(),
+      performAction: vi.fn(),
+      saveCustomPreferences: vi.fn(),
+    })
+    mockUseConsentManager.mockReturnValue({ initDataSource: 'offline-fallback' })
+
+    expect(isBannerShown(render())).toBe(true)
+  })
+
   it('asks nothing when the policy lookup fell back', () => {
     // A bot challenge on the third-party `/init` makes the runtime substitute a
     // generic opt-in policy, which would otherwise re-prompt visitors who had
