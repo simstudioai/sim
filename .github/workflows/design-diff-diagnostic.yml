@@ -27,7 +27,7 @@ jobs:
           bun --no-env-file -e '
             const fs=require("node:fs"),cp=require("node:child_process");
             const manifest=JSON.parse(fs.readFileSync("scripts/design-diff/benchmark/comparisons.json","utf8"));
-            manifest.comparisons=manifest.comparisons.filter(p=>p.pr===7252);
+            manifest.comparisons=manifest.comparisons.filter(p=>p.pr===7683);
             const item=manifest.comparisons[0];
             fs.writeFileSync(process.env.RUNNER_TEMP+"/diagnostic-manifest.json",JSON.stringify(manifest));
             for(const [name,sha] of [["BASE_SHA",item.base],["HEAD_SHA",item.head]]){
