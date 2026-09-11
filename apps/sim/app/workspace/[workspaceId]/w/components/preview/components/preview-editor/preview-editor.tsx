@@ -29,6 +29,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useParams } from 'next/navigation'
+import { WorkflowLoader } from '@/components/ui/workflow-loader'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
@@ -1347,16 +1348,7 @@ function PreviewEditorContent({
                   <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                     {resolvedIsLoadingChildWorkflow ? (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                        <div
-                          className='size-[18px] animate-spin rounded-full'
-                          style={{
-                            background:
-                              'conic-gradient(from 0deg, var(--text-tertiary) 0deg 120deg, transparent 120deg 180deg, var(--text-tertiary) 180deg 300deg, transparent 300deg 360deg)',
-                            mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                            WebkitMask:
-                              'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                          }}
-                        />
+                        <WorkflowLoader label='Loading child workflow' />
                       </div>
                     ) : resolvedChildWorkflowState ? (
                       <>

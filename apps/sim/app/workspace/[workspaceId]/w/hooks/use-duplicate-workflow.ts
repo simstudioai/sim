@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { useRouter } from 'next/navigation'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
@@ -26,7 +26,7 @@ interface UseDuplicateWorkflowProps {
  * @returns Duplicate workflow handlers and state
  */
 export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWorkflowProps) {
-  const router = useRouter()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const duplicateMutation = useDuplicateWorkflowMutation()
 
   const workspaceIdRef = useRef(workspaceId)
@@ -91,7 +91,7 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
         })
 
         if (duplicatedIds.length === 1) {
-          router.push(`/workspace/${workspaceIdRef.current}/w/${duplicatedIds[0]}`)
+          navigateToWorkflow(`/workspace/${workspaceIdRef.current}/w/${duplicatedIds[0]}`)
         }
 
         onSuccessRef.current?.()
@@ -100,7 +100,7 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
         throw error
       }
     },
-    [router]
+    [navigateToWorkflow]
   )
 
   return {

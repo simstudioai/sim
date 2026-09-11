@@ -7,13 +7,22 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-  Duplicate,
-  PlayOutline,
   Tooltip,
-  Trash,
   toast,
 } from '@sim/emcn'
-import { Ban, Circle, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn/icons'
+import {
+  Ban,
+  Circle,
+  Duplicate,
+  Loader,
+  Lock,
+  LogOut,
+  Palette,
+  PlayOutline,
+  Square,
+  Trash,
+  Unlock,
+} from '@sim/emcn/icons'
 import {
   DEFAULT_NOTE_COLOR,
   isNoteColor,
@@ -91,27 +100,32 @@ const ACTION_BUTTON_STYLES = [
 const RUNNING_FILL =
   'bg-[repeating-linear-gradient(75deg,var(--surface-2)_11.59px_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.485px_36.7px)]'
 
-/** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
-const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
+/** Matches the Stop highlight's 2px inset plus the node's 0.75px outer stroke. */
+const RUNNING_FILL_INSET_SWELL = 'left-[42.75px]'
 const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
 
 /**
- * Trims the fill to the swell's tapered end.
- *
- * The row is a rectangle but the swell is not: its last slot cuts a diagonal
- * (`M16.25 0 … L36.59 19.9 …`) so the shape narrows toward the top. A rectangular
- * overlay therefore paints past the gray edge at the top while still sitting
- * inside it at the bottom — the fill visibly ran off the block. The per-slot
- * version never did, because each button's own clip contained it.
- *
- * Same taper, read off that path. Its straight run — (22.4, 2.88) to
- * (36.59, 19.9) in the slot's own 40×24 box — has a slope of 20/24, so across
- * the full row it moves from 20px in at the top to flush at the bottom. The
- * overlay spans the row, so those are its two numbers; they are the slot's own
- * edge continued, which is what puts the hatch's end exactly where a hovered
- * slot's fill ends. Changing the end silhouette means changing them with it.
+ * A vertical entry with 6px corners, matching the buttons’ rounded-md radius.
+ * The solid body overlaps each end cap
+ * by 1px to avoid seams at fractional zoom; the plain bar keeps a square end.
  */
-const RUNNING_FILL_END_TAPER = '[clip-path:polygon(0_0,calc(100%_-_20px)_0,100%_100%,0_100%)]'
+const RUNNING_FILL_MASK = [
+  '[mask-image:linear-gradient(black,black),url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2024%22%3E%3Cpath%20d%3D%22M6%200H16V24H6A6%206%200%200%201%200%2018V6A6%206%200%200%201%206%200Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"),var(--running-fill-end-mask,linear-gradient(black,black))]',
+  '[mask-size:calc(100%_-_54px)_100%,16px_100%,40px_100%]',
+  '[mask-position:15px_top,left_top,right_top]',
+  '[mask-repeat:no-repeat]',
+].join(' ')
+
+/** Uses the delete button's rounded contour for the swell's right end cap. */
+const RUNNING_FILL_ROUNDED_END =
+  '[--running-fill-end-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2024%22%3E%3Cpath%20d%3D%22M0%200H16.25A8%208%200%200%201%2022.4%202.88L36.59%2019.9A2.5%202.5%200%200%201%2034.66%2024H0Z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E")]'
+
+/** Keeps the outer shoulder and matches the buttons’ 6px rounded-md inner corners. */
+const RUNNING_BUTTON_CLIP_SWELL =
+  "[clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24H34A6_6_0_0_0_40_18V6A6_6_0_0_0_34_0Z')]"
+
+/** The clip path owns the corners within the standard 40px slot. */
+const RUNNING_BUTTON_LAYOUT_SWELL = 'relative w-[40px]! shrink-0 rounded-none'
 
 const ICON_SIZE = 'size-[14px]'
 
@@ -128,26 +142,15 @@ type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' |
 function RunningActionIcon() {
   return (
     <span
-      className='relative grid size-[14px] translate-x-[8px] translate-y-px place-items-center'
+      className='relative grid size-[18px] translate-x-[8px] translate-y-px place-items-center'
       role='status'
     >
       <span className='sr-only'>Block running</span>
       <span
         aria-hidden='true'
-        className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-safe:animate-spin motion-reduce:transition-none'
+        className='-translate-x-[1px] col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-reduce:transition-none'
       >
-        <svg className='size-[14px]' viewBox='0 0 24 24' fill='none'>
-          <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='2' opacity='0.25' />
-          <circle
-            cx='12'
-            cy='12'
-            r='10'
-            stroke='currentColor'
-            strokeWidth='2'
-            strokeLinecap='round'
-            strokeDasharray='18 45'
-          />
-        </svg>
+        <Loader className='size-[18px]' animate />
       </span>
       <span
         aria-hidden='true'
@@ -345,8 +348,12 @@ export const ActionBar = memo(
             'dark:focus-visible:bg-[var(--surface-4)]! dark:focus-visible:text-[var(--text-primary)]!',
           ],
         isSwell &&
-          actionId === firstActionId &&
-          "w-[40px]! [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&>svg]:translate-y-px",
+          actionId === firstActionId && [
+            '[&>svg]:translate-y-px',
+            isSweeping && actionId === 'run'
+              ? [RUNNING_BUTTON_LAYOUT_SWELL, RUNNING_BUTTON_CLIP_SWELL]
+              : "w-[40px]! [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')]",
+          ],
         isSwell &&
           actionId === firstActionId &&
           (actionId === 'run' || actionId === 'color'
@@ -443,7 +450,8 @@ export const ActionBar = memo(
                    the container's own inset. */
                 'pointer-events-none absolute inset-y-0 right-0 overflow-hidden',
                 isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN,
-                isSwell && RUNNING_FILL_END_TAPER
+                RUNNING_FILL_MASK,
+                isSwell && RUNNING_FILL_ROUNDED_END
               )}
             >
               <span

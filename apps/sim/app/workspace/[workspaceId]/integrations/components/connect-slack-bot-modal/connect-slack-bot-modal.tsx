@@ -633,7 +633,7 @@ function StepDone({ searchOnly, pending, created, error, onRetry }: StepDoneProp
   if (pending) {
     return (
       <div className='flex flex-col items-center gap-3 py-10 text-center'>
-        <Loader className='size-6 animate-spin text-[var(--text-muted)]' />
+        <Loader className='size-6 text-[var(--text-muted)]' animate />
         <p className='text-[var(--text-secondary)] text-sm'>Verifying your bot and connecting…</p>
       </div>
     )

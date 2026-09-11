@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox, cn } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Loader, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -216,7 +216,7 @@ function SingleFileSelector({
         disabled={isDeleting}
       >
         {isDeleting ? (
-          <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+          <Loader className='size-4' animate />
         ) : (
           <X className='size-4 opacity-50 hover-hover:opacity-100' />
         )}
@@ -768,11 +768,7 @@ export function FileUpload({
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
-          {isDeleting ? (
-            <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-          ) : (
-            <X className='size-4 opacity-50' />
-          )}
+          {isDeleting ? <Loader className='size-4' animate /> : <X className='size-4 opacity-50' />}
         </Button>
       </div>
     )
@@ -791,7 +787,7 @@ export function FileUpload({
           </span>
         </div>
         <div className='flex size-5 shrink-0 items-center justify-center'>
-          <div className='size-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+          <Loader className='size-3.5' animate />
         </div>
       </div>
     )

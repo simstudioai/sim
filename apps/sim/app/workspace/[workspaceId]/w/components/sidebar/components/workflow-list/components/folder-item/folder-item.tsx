@@ -13,7 +13,6 @@ import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emc
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -30,6 +29,7 @@ import {
   buildDragResources,
   createSidebarDragGhost,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import {
   useCanDelete,
   useDeleteFolder,
@@ -69,7 +69,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
     onItemDragStart,
     onItemDragEnd,
   } = useSidebarListContext()
-  const router = useRouter()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
   const createWorkflowMutate = createWorkflowMutation.mutate
@@ -167,9 +167,16 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
 
     useWorkflowRegistry.getState().markWorkflowCreating(id)
     expandFolder()
-    router.push(`/workspace/${workspaceId}/w/${id}`)
+    navigateToWorkflow(`/workspace/${workspaceId}/w/${id}`)
     window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
-  }, [createWorkflowMutate, workspaceId, folder.id, effectiveLocked, router, expandFolder])
+  }, [
+    createWorkflowMutate,
+    workspaceId,
+    folder.id,
+    effectiveLocked,
+    navigateToWorkflow,
+    expandFolder,
+  ])
 
   const handleCreateFolderInFolder = useCallback(async () => {
     if (effectiveLocked) return

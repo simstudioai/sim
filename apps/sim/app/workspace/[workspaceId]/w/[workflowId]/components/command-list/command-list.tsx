@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback } from 'react'
-import { Button, cn, handleKeyboardActivation, Library } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { Button, buttonVariants, cn } from '@sim/emcn'
+import { Library, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
+import { WordmarkFrame } from '@/components/ui/wordmark-frame'
+import { WORDMARK_MORPH_TRANSFORM, WORDMARK_PATHS } from '@/lib/branding/wordmark'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 
@@ -47,7 +48,7 @@ const commands: CommandItem[] = [
 
 /**
  * CommandList component that displays available commands with keyboard shortcuts
- * Centered on the screen for empty workflows
+ * Centers the Sim mark and commands together within the canvas.
  */
 export function CommandList() {
   const params = useParams()
@@ -157,75 +158,58 @@ export function CommandList() {
   }, [])
 
   return (
-    <div
-      ref={preventZoomRef}
-      className={cn(
-        'pointer-events-none absolute inset-0 mb-[50px] flex items-center justify-center'
-      )}
-    >
+    <div ref={preventZoomRef} className='pointer-events-none absolute inset-0 flex overflow-y-auto'>
       <div
-        className='pointer-events-auto flex flex-col gap-2'
+        className='pointer-events-auto m-auto flex flex-col items-center py-4'
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        {/* Logo */}
-        <div className='mb-5 flex justify-center'>
-          <Image
-            src='/logo/b&w/text/b&w.svg'
-            alt='Sim'
-            width={99.56}
-            height={48.56}
-            className='opacity-70'
-            style={{
-              filter:
-                'brightness(0) saturate(100%) invert(69%) sepia(0%) saturate(0%) hue-rotate(202deg) brightness(94%) contrast(89%)',
-            }}
-          />
-        </div>
+        <WordmarkFrame label='Sim'>
+          <g fill='currentColor' transform={WORDMARK_MORPH_TRANSFORM}>
+            {WORDMARK_PATHS.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </g>
+        </WordmarkFrame>
 
-        {commands.map((command) => {
-          const Icon = command.icon
-          const shortcuts = Array.isArray(command.shortcut) ? command.shortcut : [command.shortcut]
-          return (
-            <div
-              key={command.label}
-              role='button'
-              tabIndex={0}
-              className='group flex cursor-pointer items-center justify-between gap-[60px]'
-              onClick={() => handleCommandClick(command.label)}
-              onKeyDown={(event) =>
-                handleKeyboardActivation(event, () => handleCommandClick(command.label))
-              }
-            >
-              {/* Left side: Icon and Label */}
-              <div className='flex items-center gap-2'>
-                <Icon className='size-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
-                <span className='text-[var(--text-tertiary)] text-sm group-hover:text-[var(--text-primary)]'>
-                  {command.label}
+        <div className='flex w-max flex-col gap-2 pt-5'>
+          {commands.map((command) => {
+            const Icon = command.icon
+            const shortcuts = Array.isArray(command.shortcut)
+              ? command.shortcut
+              : [command.shortcut]
+            return (
+              <Button
+                key={command.label}
+                type='button'
+                variant='ghost'
+                className='group justify-between gap-[60px] p-0 text-left'
+                onClick={() => handleCommandClick(command.label)}
+              >
+                <span className='flex items-center gap-2'>
+                  <Icon className='size-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
+                  <span className='text-[var(--text-tertiary)] text-sm group-hover:text-[var(--text-primary)]'>
+                    {command.label}
+                  </span>
                 </span>
-              </div>
 
-              {/* Right side: Keyboard Shortcut */}
-              <div className='flex items-center gap-1'>
-                <Button
-                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
-                  variant='3d'
-                >
-                  <span>⌘</span>
-                </Button>
-                {shortcuts.map((shortcut) => (
-                  <Button
-                    key={shortcut}
-                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
-                    variant='3d'
-                  >
-                    {shortcut}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )
-        })}
+                <span className='flex items-center gap-1'>
+                  {['⌘', ...shortcuts].map((shortcut) => (
+                    <kbd
+                      key={shortcut}
+                      className={cn(
+                        buttonVariants({ variant: '3d' }),
+                        'group-hover:-translate-y-0.5 w-[26px] py-[3px] font-sans text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
+                      )}
+                    >
+                      {shortcut}
+                    </kbd>
+                  ))}
+                </span>
+              </Button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

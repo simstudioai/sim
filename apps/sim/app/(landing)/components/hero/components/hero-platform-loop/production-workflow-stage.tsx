@@ -1,16 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, Tooltip, usePrefersReducedMotion } from '@sim/emcn'
 import {
-  Button,
-  cn,
+  Circle,
   Duplicate,
+  Loader,
+  Minus,
   PlayOutline,
-  Tooltip,
+  Plus,
+  Square,
   Trash,
-  usePrefersReducedMotion,
-} from '@sim/emcn'
-import { Circle, Minus, Plus, Square, Unlock } from '@sim/emcn/icons'
+  Unlock,
+} from '@sim/emcn/icons'
 import {
   CanvasSentenceView,
   InlineChip,
@@ -175,20 +177,9 @@ function RunningActionIcon() {
       <span className='sr-only'>Block running</span>
       <span
         aria-hidden='true'
-        className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 motion-safe:animate-spin motion-reduce:transition-none'
+        className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 motion-reduce:transition-none'
       >
-        <svg className='size-[14px]' viewBox='0 0 24 24' fill='none'>
-          <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='2' opacity='0.25' />
-          <circle
-            cx='12'
-            cy='12'
-            r='10'
-            stroke='currentColor'
-            strokeWidth='2'
-            strokeLinecap='round'
-            strokeDasharray='18 45'
-          />
-        </svg>
+        <Loader className='size-[14px]' animate />
       </span>
       <span
         aria-hidden='true'

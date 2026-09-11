@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { useRouter } from 'next/navigation'
 import { getChildFolders, getFolderById } from '@/lib/folders/tree'
+import { useNavigateToWorkflow } from '@/app/workspace/[workspaceId]/w/components/workflow-navigation'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -30,7 +30,7 @@ interface UseDuplicateSelectionProps {
  * @returns Duplicate selection handlers and state
  */
 export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSelectionProps) {
-  const router = useRouter()
+  const navigateToWorkflow = useNavigateToWorkflow()
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const duplicateFolderMutation = useDuplicateFolderMutation()
   const [isDuplicating, setIsDuplicating] = useState(false)
@@ -128,7 +128,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
         })
 
         if (duplicatedWorkflowIds.length === 1 && duplicatedFolderIds.length === 0) {
-          router.push(`/workspace/${workspaceIdRef.current}/w/${duplicatedWorkflowIds[0]}`)
+          navigateToWorkflow(`/workspace/${workspaceIdRef.current}/w/${duplicatedWorkflowIds[0]}`)
         }
 
         onSuccessRef.current?.()
@@ -144,7 +144,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
       generateDuplicateFolderName,
       duplicateFolderMutation,
       duplicateWorkflowMutation,
-      router,
+      navigateToWorkflow,
     ]
   )
 

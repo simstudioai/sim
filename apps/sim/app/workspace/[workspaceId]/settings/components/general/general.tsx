@@ -17,7 +17,7 @@ import {
   Switch,
   Tooltip,
 } from '@sim/emcn'
-import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
+import { Camera, Check, CircleInfo, Loader, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
@@ -367,7 +367,7 @@ export function General() {
                     }`}
                   >
                     {isUploadingProfilePicture ? (
-                      <div className='size-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+                      <Loader className='size-4 text-[var(--white)]' animate />
                     ) : (
                       <Camera className='size-4 text-white' />
                     )}

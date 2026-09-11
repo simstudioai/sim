@@ -1,0 +1,26 @@
+.animated {
+  animation: gravity-orbit var(--loader-duration, 1.4s) linear infinite;
+  transform-box: border-box;
+  transform-origin: center;
+}
+
+/** Matched speeds keep the loop continuous, with a gentle slowdown at the top. */
+@keyframes gravity-orbit {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.55, 0.3, 0.8, 0.5);
+  }
+  50% {
+    transform: rotate(180deg);
+    animation-timing-function: cubic-bezier(0.2, 0.5, 0.45, 0.7);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated {
+    animation: none;
+  }
+}

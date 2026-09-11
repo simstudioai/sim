@@ -10,13 +10,12 @@ import {
   DashedDividerLine,
   FieldDivider,
   Label,
-  Loader,
   OverflowText,
   Switch,
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Loader, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
@@ -698,7 +697,7 @@ export function WorkflowSidebarBody({
               <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                 {workflowState.isLoading ? (
                   <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                    <Loader className='size-5 animate-spin text-[var(--text-tertiary)]' />
+                    <Loader className='size-5 text-[var(--text-tertiary)]' animate />
                   </div>
                 ) : workflowState.data ? (
                   <>

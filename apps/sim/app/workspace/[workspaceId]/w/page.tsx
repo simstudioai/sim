@@ -5,27 +5,13 @@ import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'
+import { WorkflowLoader } from '@/components/ui/workflow-loader'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflowOperations } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
 const logger = createLogger('WorkflowsPage')
-
-function Spinner() {
-  return (
-    <div
-      className='size-[18px] animate-spin rounded-full'
-      style={{
-        background:
-          'conic-gradient(from 0deg, var(--text-icon) 0deg 120deg, transparent 120deg 180deg, var(--text-icon) 180deg 300deg, transparent 300deg 360deg)',
-        mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-        WebkitMask:
-          'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-      }}
-    />
-  )
-}
 
 export default function WorkflowsPage() {
   const router = useRouter()
@@ -104,7 +90,7 @@ export default function WorkflowsPage() {
               )}
             </div>
           ) : (
-            <Spinner />
+            <WorkflowLoader />
           )}
         </div>
         <ReactFlowProvider>

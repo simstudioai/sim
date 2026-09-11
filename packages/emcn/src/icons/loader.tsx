@@ -1,27 +1,23 @@
+'use client'
+
 import type { SVGProps } from 'react'
-import { cn } from '../lib/cn'
-import styles from './animate/loader.module.css'
+import { cn } from '@sim/emcn'
+import styles from '@sim/emcn/icons/animate/ring-loader.module.css'
 
 export interface LoaderProps extends SVGProps<SVGSVGElement> {
   /**
-   * Enable animation on the loader icon
+   * Enable the weighted rotation. Otherwise the dot rests at the top of the ring.
    * @default false
    */
   animate?: boolean
 }
 
 /**
- * Loader icon component with optional CSS-based spinning animation
- * Based on refresh-cw but without the arrows, just the circular arcs.
- * When animate is false, this is a lightweight static icon with no animation overhead.
- * When animate is true, CSS module animations are applied for continuous spin;
- * the period defaults to 1s and follows `--loader-duration` when a consumer sets it
- * (for example `className='[--loader-duration:650ms]'`).
- * @param props - SVG properties including className, animate, etc.
+ * Shared loading ring with a dot that accelerates downward and slows on the climb.
+ * Inherits the caller's color and sizing; reduced motion holds the dot still.
+ * Consumers can override the 1.4s period with `--loader-duration`.
  */
 export function Loader({ animate = false, className, ...props }: LoaderProps) {
-  const svgClassName = cn(animate && styles['animated-loader-svg'], className)
-
   return (
     <svg
       xmlns='http://www.w3.org/2000/svg'
@@ -29,16 +25,12 @@ export function Loader({ animate = false, className, ...props }: LoaderProps) {
       height='24'
       viewBox='0 0 24 24'
       fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      className={svgClassName}
+      className={cn(animate && styles.animated, className)}
       aria-hidden='true'
       {...props}
     >
-      <path d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74' />
-      <path d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74' />
+      <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' opacity='.25' />
+      <circle cx='12' cy='2' r='2' fill='currentColor' />
     </svg>
   )
 }

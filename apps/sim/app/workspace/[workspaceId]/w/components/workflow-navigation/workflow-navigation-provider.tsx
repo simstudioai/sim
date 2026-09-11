@@ -1,0 +1,91 @@
+'use client'
+
+import {
+  createContext,
+  type ReactNode,
+  startTransition,
+  useCallback,
+  useContext,
+  useOptimistic,
+} from 'react'
+import { useRouter } from 'next/navigation'
+
+interface WorkflowNavigationOptions {
+  replace?: boolean
+  scroll?: boolean
+  transitionTypes?: string[]
+}
+
+type NavigateToWorkflow = (href: string, options?: WorkflowNavigationOptions) => void
+
+const NavigateContext = createContext<NavigateToWorkflow | null>(null)
+const PendingNavigationContext = createContext(false)
+
+interface WorkflowNavigationProviderProps {
+  children: ReactNode
+}
+
+/** Shows navigation intent immediately, then lets React clear it when routing settles. */
+export function WorkflowNavigationProvider({ children }: WorkflowNavigationProviderProps) {
+  const router = useRouter()
+  const [isNavigating, setIsNavigating] = useOptimistic(false)
+
+  const navigate = useCallback<NavigateToWorkflow>(
+    (href, options) => {
+      const destination = new URL(href, window.location.href)
+      const isWorkflowSwitch =
+        destination.origin === window.location.origin &&
+        /^\/workspace\/[^/]+\/w\/[^/]+\/?$/.test(destination.pathname) &&
+        destination.pathname !== window.location.pathname
+
+      startTransition(() => {
+        setIsNavigating(isWorkflowSwitch)
+        if (options?.replace) {
+          router.replace(href, { scroll: options.scroll, transitionTypes: options.transitionTypes })
+        } else if (options) {
+          router.push(href, { scroll: options.scroll, transitionTypes: options.transitionTypes })
+        } else {
+          router.push(href)
+        }
+      })
+    },
+    [router, setIsNavigating]
+  )
+
+  return (
+    <NavigateContext.Provider value={navigate}>
+      <PendingNavigationContext.Provider value={isNavigating}>
+        {children}
+      </PendingNavigationContext.Provider>
+    </NavigateContext.Provider>
+  )
+}
+
+/** Returns provider-backed navigation, or null so links outside the provider retain native behavior. */
+export function useWorkflowNavigation() {
+  return useContext(NavigateContext)
+}
+
+/** Navigates with immediate workflow feedback, falling back to router push/replace outside the provider. */
+export function useNavigateToWorkflow() {
+  const navigate = useWorkflowNavigation()
+  const router = useRouter()
+  const fallback = useCallback<NavigateToWorkflow>(
+    (href, options) => {
+      if (options?.replace) {
+        router.replace(href, { scroll: options.scroll, transitionTypes: options.transitionTypes })
+      } else if (options) {
+        router.push(href, { scroll: options.scroll, transitionTypes: options.transitionTypes })
+      } else {
+        router.push(href)
+      }
+    },
+    [router]
+  )
+  return navigate ?? fallback
+}
+
+/** Reports pending workflow navigation within the provider; returns false outside it. */
+export function usePendingWorkflowNavigation() {
+  return useContext(PendingNavigationContext)
+}

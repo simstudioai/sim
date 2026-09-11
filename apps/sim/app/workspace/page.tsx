@@ -5,6 +5,7 @@ import { Chip } from '@sim/emcn'
 import { CircleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { WorkflowLoader } from '@/components/ui/workflow-loader'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
@@ -222,16 +223,7 @@ export default function WorkspacePage() {
   return (
     <div className='desktop-title-bar-page flex w-full items-center justify-center'>
       <DesktopTitleBarLane />
-      <div
-        className='size-[18px] animate-spin rounded-full'
-        style={{
-          background:
-            'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-          mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-          WebkitMask:
-            'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-        }}
-      />
+      <WorkflowLoader label='Loading workspace' />
     </div>
   )
 }
