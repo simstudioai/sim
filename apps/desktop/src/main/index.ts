@@ -35,6 +35,7 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { attachClientInfo } from '@/main/client-info'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -265,6 +266,7 @@ function main(): void {
     setupPermissionHandlers(ses, appOrigin)
     attachLocalPageProtocol(ses)
     attachCspFallback(ses, appOrigin)
+    attachClientInfo(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
     ses.setSpellCheckerLanguages(['en-US'])

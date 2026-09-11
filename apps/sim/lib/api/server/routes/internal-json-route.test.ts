@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { getRequestContext } from '@sim/logger'
+import { getRequestContext, setRequestAuth } from '@sim/logger'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -76,6 +76,27 @@ describe('defineInternalJsonRoute', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ value: 'ok' })
     expect(response.headers.get('x-request-id')).toBeTruthy()
+  })
+
+  it('records how the request authenticated once the principal is known', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'ok' }
+        },
+      },
+    })
+
+    await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith({ kind: 'session' })
   })
 
   it('applies a user-scoped admission limit after authentication and before execution', async () => {

@@ -751,6 +751,27 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
   }
 }
 
+/**
+ * How a principal was authenticated, for request logs and analytics: its kind,
+ * plus the service behind a delegated or system principal and the OAuth client
+ * behind an access token. Identifiers that name a person, key, or token are
+ * deliberately left out — this describes the credential's kind, not the actor.
+ */
+export interface PrincipalAuthDescriptor {
+  kind: Principal['kind']
+  service?: string
+  clientId?: string
+}
+
+export function describePrincipalAuth(principal: Principal): PrincipalAuthDescriptor {
+  const actor = toPrincipalActor(principal)
+  return {
+    kind: actor.kind,
+    ...('serviceId' in actor ? { service: actor.serviceId } : {}),
+    ...('clientId' in actor ? { clientId: actor.clientId } : {}),
+  }
+}
+
 export function resolvePrincipalAuditAttribution(principal: Principal): PrincipalAuditAttribution {
   const actor = toPrincipalActor(principal)
 

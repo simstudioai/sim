@@ -1,0 +1,75 @@
+---
+title: Usage data
+description: What the CLI reports about how it is used, what it never sends, and how to turn reporting off
+---
+
+The `sim` CLI reports anonymous usage data so the team can see which commands
+are used, which fail, and how long they take. Reporting is on by default and
+takes one command to turn off.
+
+## What is sent
+
+One event per command, after the command finishes:
+
+| Field | Example | Notes |
+| --- | --- | --- |
+| Command | `workflows list` | The command's name, never its arguments |
+| Flags | `--output`, `--workspace` | Flag names only, never their values |
+| Argument count | `1` | How many positional arguments, never what they were |
+| Outcome | exit code `0`, `SimApiError`, HTTP `404`, API code `NOT_FOUND` | Never an error message |
+| Duration | `1432` ms | From process start to completion |
+| CLI, Node, OS, CPU | `2.1.2`, `22.14.0`, `darwin`, `arm64` | |
+| Terminal and CI | `is_tty`, `is_ci` | Whether stdout is a terminal, whether a CI variable is set |
+| Coding agent | `claude-code` | When the CLI runs inside an AI coding agent's shell |
+| Deployment kind | `hosted` or `self_hosted` | Never the address |
+| Device and session ids | random UUIDs | See below |
+
+## What is never sent
+
+Nothing you type. No argument values, flag values, file paths, workflow or
+workspace ids, error messages, environment variable values, credentials, or the
+address of the deployment you talk to. The report leaves your machine from a
+separate short-lived process that is not given your API key.
+
+## Identity
+
+The first run mints a random device id and stores it in `telemetry.json` under
+`~/.sim` (or `SIM_CONFIG_DIR`). It is not derived from your hardware, account,
+or network. Commands run within thirty minutes of each other share a session id
+and are numbered, so a sequence of commands can be read back. No profile is
+created for the device, and the data is not joined to your Sim account.
+
+Deleting `telemetry.json` forgets the device id and shows the first-run notice
+again.
+
+## Turning it off
+
+Any of these turns reporting off. The first one that applies is the one
+`sim telemetry status` names.
+
+```bash
+export DO_NOT_TRACK=1            # the cross-tool convention, honoured before anything else
+export SIM_TELEMETRY_DISABLED=1  # this CLI only, for one shell or CI job
+sim telemetry disable            # this machine, saved in telemetry.json
+```
+
+`sim telemetry enable` reverses the saved setting. `sim telemetry status` shows
+the current state.
+
+Turning reporting off also stops the CLI from telling the API which coding
+agent, if any, is driving it. The CLI still identifies itself as the CLI on
+every request, the way every official client does; that is how a request is
+attributed, not usage data.
+
+## The first-run notice
+
+The first time the CLI would report from an interactive terminal it prints a
+short notice on stderr and does not report that run. The notice is not shown in
+CI or when stderr is redirected, and it is shown once per device.
+
+## Self-hosted deployments
+
+Reporting is tied to the CLI build, not to the deployment it talks to. The
+published `sim` package reports to Sim. A build made from the repository without
+`SIM_CLI_TELEMETRY_KEY` set has no destination and reports nothing; setting it
+to your own PostHog project token at build time reports to your own project.

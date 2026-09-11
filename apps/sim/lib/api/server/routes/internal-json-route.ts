@@ -1,13 +1,16 @@
 import {
   type DelegatedPrincipal,
+  describePrincipalAuth,
   type Principal,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
   type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
+import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
@@ -73,19 +76,19 @@ export function createInternalSessionOrExecutorAuth(
 
   return {
     async authenticate(request, params) {
-      if (request.headers.has('x-api-key')) {
+      if (request.headers.has(API_KEY_HEADER)) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
 
       const authorization = request.headers.get('authorization')
       if (!authorization) return internalSessionAuth.authenticate()
-      if (!authorization.startsWith('Bearer ')) {
+      if (!authorization.startsWith(BEARER_PREFIX)) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
 
       let delegation
       try {
-        delegation = await verifyInternalDelegationToken(authorization.slice('Bearer '.length))
+        delegation = await verifyInternalDelegationToken(authorization.slice(BEARER_PREFIX.length))
       } catch (error) {
         if (!(error instanceof InvalidInternalDelegationTokenError)) throw error
         throw new InternalUnauthenticatedError('Authentication required')
@@ -370,6 +373,7 @@ export function defineInternalJsonRoute<
         }
         throw error
       }
+      setRequestAuth(describePrincipalAuth(principal))
 
       const rateLimitResponse = await options.rateLimit.enforce(request, principal)
       if (rateLimitResponse) return responseWithRequestId(rateLimitResponse)

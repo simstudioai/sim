@@ -49,15 +49,39 @@ const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
 const DEFAULT_API_EXPOSED_HEADERS =
   'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
-const DEFAULT_API_ALLOWED_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
+/**
+ * Every API policy allows these. `X-Sim-Client-Info` is here rather than on one
+ * policy because every official client sends it on every request.
+ */
+const BASE_API_ALLOWED_HEADERS = [
+  'X-CSRF-Token',
+  'X-Requested-With',
+  'Accept',
+  'Accept-Version',
+  'Content-Length',
+  'Content-MD5',
+  'Content-Type',
+  'Date',
+  'X-Api-Version',
+  'X-API-Key',
+  'Authorization',
+  'X-Sim-Client-Info',
+] as const
 
-const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
+function allowedHeaders(...extra: string[]): string {
+  return [...BASE_API_ALLOWED_HEADERS, ...extra].join(', ')
+}
+
+const DEFAULT_API_ALLOWED_HEADERS = allowedHeaders()
+
+const WORKFLOW_EXECUTE_HEADERS = allowedHeaders(
+  'X-Execution-Id',
+  'X-Execution-Mode',
+  'X-Execution-Timeout-Seconds'
+)
 
 /** v2 execute: run identity and modes use the v2 wire names while streaming negotiates its protocol. */
-const WORKFLOW_EXECUTE_V2_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Run-Id, X-Sim-Stream-Protocol'
+const WORKFLOW_EXECUTE_V2_HEADERS = allowedHeaders('X-Run-Id', 'X-Sim-Stream-Protocol')
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])

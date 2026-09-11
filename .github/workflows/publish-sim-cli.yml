@@ -63,6 +63,11 @@ jobs:
 
       - name: Build package
         working-directory: packages/sim-cli
+        env:
+          # Public PostHog project token for anonymous CLI usage reporting; a
+          # build without it reports nothing. See docs/cli/usage-data.
+          SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
+          SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
         run: bun run build
 
       - name: Resolve release channel

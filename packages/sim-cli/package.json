@@ -11,7 +11,7 @@
   },
   "scripts": {
     "prebuild": "bun run clean",
-    "build": "bun build src/index.ts --target=node --format=esm --packages=bundle --reject-unresolved --outfile=dist/index.js",
+    "build": "bun build src/index.ts --target=node --format=esm --packages=bundle --reject-unresolved --env='SIM_CLI_TELEMETRY_*' --outfile=dist/index.js",
     "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
