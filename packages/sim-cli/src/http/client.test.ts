@@ -286,7 +286,7 @@ describe('non-JSON responses', () => {
       name: 'SimApiError',
       status,
       code: 'RESPONSE_READ_FAILED',
-      message: 'Unable to read the response: Connection closed during response',
+      message: expect.stringContaining('Response interrupted: Connection closed during response'),
     })
     expect(fetch).toHaveBeenCalledTimes(1)
   })
@@ -492,6 +492,92 @@ describe('a request that never answers', () => {
 
     await expect(client().request('/api/v2/workflows')).rejects.toThrow(/did not answer within/)
   })
+})
+
+describe('interrupted response bodies', () => {
+  it('reports a failed read without implying a write occurred', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            new ReadableStream({ start: (controller) => controller.error(new Error('Dropped')) })
+          )
+        )
+    )
+
+    await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+      name: 'SimApiError',
+      status: 200,
+      code: 'RESPONSE_READ_FAILED',
+      message: expect.stringContaining('Retry the request when the connection is restored.'),
+    })
+  })
+
+  it.each(['timeout', 'cancel'])('explains a %s during a mutation response', async (reason) => {
+    const controller = new AbortController()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => {
+        if (reason === 'cancel') controller.abort()
+        return new Response(
+          new ReadableStream({
+            start: (stream) =>
+              stream.error(
+                new DOMException(reason, reason === 'timeout' ? 'TimeoutError' : 'AbortError')
+              ),
+          })
+        )
+      })
+    )
+
+    const failure = await client()
+      .request('/api/v2/workflows/workflow-1/operations', {
+        method: 'POST',
+        body: { operations: [] },
+        signal: controller.signal,
+      })
+      .catch((error: unknown) => error)
+
+    expect(failure).toMatchObject({
+      name: 'SimApiError',
+      status: 200,
+      code: 'RESPONSE_READ_FAILED',
+      message: expect.stringContaining(reason === 'timeout' ? 'Timed out' : 'Request cancelled'),
+    })
+    expect(failure).toMatchObject({ message: expect.stringContaining('may have completed') })
+  })
+
+  it.each([200, 500])(
+    'reports a truncated HTTP %i mutation response without retrying',
+    async (status) => {
+      const response = new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"data":'))
+            controller.error(new Error('Connection dropped after response headers'))
+          },
+        }),
+        { status, headers: { 'content-type': 'application/json' } }
+      )
+      const fetchMock = vi.fn().mockResolvedValue(response)
+      vi.stubGlobal('fetch', fetchMock)
+
+      const failure = await client()
+        .request('/api/v2/workflows/workflow-1/operations', {
+          method: 'POST',
+          body: { operations: [] },
+        })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(SimApiError)
+      expect(failure).toMatchObject({
+        message: expect.stringContaining('may have completed'),
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    }
+  )
 })
 
 describe('tracing a request', () => {

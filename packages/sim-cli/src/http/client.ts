@@ -215,18 +215,6 @@ function transportErrorMessage(error: unknown): string {
   return messages.join(': ') || 'Unknown network error'
 }
 
-async function readResponseText(response: Response): Promise<string> {
-  try {
-    return await response.text()
-  } catch (error) {
-    throw new SimApiError(
-      `Unable to read the response: ${transportErrorMessage(error)}`,
-      response.status,
-      'RESPONSE_READ_FAILED'
-    )
-  }
-}
-
 /**
  * Whether this is the refusal a workspace-scoped key gets from an operation only
  * a personal key may perform, under either code that expresses it.
@@ -571,13 +559,38 @@ export class SimClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const { response, url } = await this.send(path, options)
-    const raw = await readResponseText(response)
+    const raw = await this.readResponseText(response, url, options)
 
     if (!raw) return undefined as T
     try {
       return JSON.parse(raw) as T
     } catch {
       throw toNonJsonError(url, response.status, response.headers.get('content-type'), raw)
+    }
+  }
+
+  private async readResponseText(
+    response: Response,
+    url: string,
+    options: RequestOptions
+  ): Promise<string> {
+    try {
+      return await response.text()
+    } catch (cause) {
+      const reason = options.signal?.aborted
+        ? 'Request cancelled while receiving the response.'
+        : isRequestTimeout(cause)
+          ? `Timed out while receiving the response. ${RAISE_TIMEOUT_HINT}`
+          : `Response interrupted: ${transportErrorMessage(cause)}`
+      const retryHint =
+        (options.method ?? 'GET') === 'GET'
+          ? 'Retry the request when the connection is restored.'
+          : 'The operation may have completed. Check the saved state or run status before retrying.'
+      throw new SimApiError(
+        `${url}: ${reason} ${retryHint}`,
+        response.status,
+        'RESPONSE_READ_FAILED'
+      )
     }
   }
 
@@ -668,7 +681,7 @@ export class SimClient {
     }
 
     if (!response.ok) {
-      const raw = await readResponseText(response)
+      const raw = await this.readResponseText(response, url, options)
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
