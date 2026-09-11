@@ -5,7 +5,7 @@ import {
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
-import { uploadSession } from '@sim/db/schema'
+import { organization, uploadSession, user } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
@@ -941,8 +941,17 @@ export async function cleanupExpiredUploadSessions(): Promise<{
     .where(
       and(
         inArray(uploadSession.status, ['completed', 'aborted', 'expired']),
-        /** Completed organization sessions are the durable private-image ownership records. */
-        sql`NOT (${uploadSession.status} = 'completed' AND ${uploadSession.purpose} = 'mothership_attachment' AND ${uploadSession.workspaceId} IS NULL)`,
+        /** Keep private images while both their uploader and organization exist. */
+        sql`NOT (
+          ${uploadSession.status} = 'completed'
+          AND ${uploadSession.purpose} = 'mothership_attachment'
+          AND ${uploadSession.workspaceId} IS NULL
+          AND EXISTS (SELECT 1 FROM ${user} WHERE ${user.id} = ${uploadSession.userId})
+          AND EXISTS (
+            SELECT 1 FROM ${organization}
+            WHERE ${organization.id} = ${uploadSession.metadata}->'organizationAttachment'->>'organizationId'
+          )
+        )`,
         lt(uploadSession.completedAt, terminalCutoff),
         or(
           isNull(uploadSession.processingLeaseId),
@@ -964,7 +973,11 @@ export async function cleanupExpiredUploadSessions(): Promise<{
         candidate.status,
         cleanupDb
       )
-      if (claimed.status === 'aborted' || claimed.status === 'expired') {
+      if (
+        claimed.status === 'aborted' ||
+        claimed.status === 'expired' ||
+        (claimed.purpose === 'mothership_attachment' && claimed.workspaceId === null)
+      ) {
         await deleteOwnedFinalObject(claimed)
       } else if (claimed.status !== 'completed') {
         throw new Error(`Invalid terminal upload status ${claimed.status}`)
