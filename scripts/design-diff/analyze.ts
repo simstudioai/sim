@@ -156,7 +156,7 @@ export async function analyze(
       }
       try {
         if (scriptPattern.test(file)) {
-          const defs = extractTsx(resolver, file, true)
+          const defs = extractTsx(resolver, file)
           if (config.nativeRendering.includes(file))
             defs.push(
               review(
@@ -183,7 +183,7 @@ export async function analyze(
           /\.html?$/.test(file) ||
           (/\.mdx?$/.test(file) && config.renderedMarkdown.some((root) => file.startsWith(root)))
         )
-          return normalizeAll(extractDocument(source, file, resolver, true))
+          return normalizeAll(extractDocument(source, file, resolver))
         if (/\.(?:scss|sass|less|vue|svelte)$/.test(file))
           return [review(file, entry.oid, 'Unsupported rendering syntax')]
       } catch {

@@ -153,7 +153,7 @@ scripts/design-diff/
   tailwind.ts                         Pinned compiler and trusted class helpers
   compare.ts, policy.ts, movement.ts   Matching, decisions and categories
   group.ts, report.ts, semantic.ts     Grouping, full hashes and bounded JSON
-  inputs.ts, document-content.ts       Documentation data handling
+  inputs.ts                           Configured file inputs
   infrastructure.ts                   Rendering dependency diagnostics
   memory.ts, process.ts                Resource handling
   types.ts, tsconfig.json              Report contract and isolated type check

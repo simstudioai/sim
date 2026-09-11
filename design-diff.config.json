@@ -126,30 +126,6 @@
     }
   ],
   "documentationContent": {
-    "roots": ["apps/docs/content/", "apps/sim/content/"],
-    "frontmatterFields": [
-      "title",
-      "description",
-      "author",
-      "authors",
-      "date",
-      "updated",
-      "publishedAt",
-      "updatedAt",
-      "readingTime",
-      "tags",
-      "category",
-      "keywords",
-      "slug",
-      "canonical",
-      "ogAlt",
-      "about",
-      "timeRequired",
-      "faq",
-      "draft",
-      "featured",
-      "technical"
-    ],
     "components": [
       {
         "module": "fumadocs-ui/components/callout",

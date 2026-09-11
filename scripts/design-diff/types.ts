@@ -97,8 +97,6 @@ export interface Config {
   nativeAppearance: string[]
   infrastructure: string[]
   documentationContent?: {
-    roots: string[]
-    frontmatterFields: string[]
     components: { module: string; names: string[]; contentProps: string[] }[]
   }
   fileInputs?: {

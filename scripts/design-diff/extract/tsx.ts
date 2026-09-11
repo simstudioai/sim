@@ -1,14 +1,7 @@
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { appearanceAttributes, mediaElement } from '#design-diff/appearance'
-import {
-  fingerprint,
-  jsxText,
-  location,
-  propertyName,
-  symbolName,
-  traverse,
-} from '#design-diff/ast'
+import { location, propertyName, symbolName, traverse } from '#design-diff/ast'
 import { svgMovement } from '#design-diff/movement'
 import { child, children, object, type Resolver } from '#design-diff/resolve'
 import type { Data, Definition, Evidence } from '#design-diff/types'
@@ -17,10 +10,9 @@ const nonvisualAttributes = /^(?:key|ref|on[A-Z].*)$/
 const knownAttributes =
   /^(?:className|class|style|src|srcSet|sizes|alt|title|placeholder|value|defaultValue|checked|defaultChecked|disabled|hidden|open|type|width|height|size|rows|cols|fill|stroke.*|viewBox|d|points|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|transform|opacity|color|animate|initial|exit|transition|while.*|layout.*|dangerouslySetInnerHTML|children)$/
 
-export function extractTsx(resolver: Resolver, file: string, appearanceOnly = false): Definition[] {
+export function extractTsx(resolver: Resolver, file: string): Definition[] {
   const definitions: Definition[] = []
   const counts = new Map<string, number>()
-  const guards = new WeakMap<t.Node, { value: Data; evidence: Evidence }[]>()
   const elements = new WeakMap<t.Node, string>()
   const domReceiver = (path: NodePath, seen = new Set<t.Node>()): boolean => {
     if (!path.node || seen.has(path.node) || seen.size > 16) return false
@@ -72,92 +64,11 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
   const emit = (path: NodePath, kind: Definition['kind'], property: string, evidence: Evidence) => {
     const symbol = symbolName(path)
     const element = path.findParent((parent) => parent.isJSXElement())
-    const tag =
-      appearanceOnly && element?.isJSXElement()
-        ? propertyName(element.node.openingElement.name)
-        : ''
+    const tag = element?.isJSXElement() ? propertyName(element.node.openingElement.name) : ''
     const prefix = `${symbol}:${kind}:${property}:${tag}`
     const count = counts.get(prefix) ?? 0
     counts.set(prefix, count + 1)
     const conditions: Data[] = []
-    const owner = path.getFunctionParent()
-    if (owner && !appearanceOnly) {
-      if (!guards.has(owner.node)) {
-        const entries: { value: Data; evidence: Evidence }[] = []
-        owner.traverse({
-          Function(p) {
-            p.skip()
-          },
-          IfStatement(p) {
-            let returns = false
-            p.traverse({
-              Function(nested) {
-                nested.skip()
-              },
-              ReturnStatement() {
-                returns = true
-              },
-            })
-            if (returns) {
-              const test = resolver.evaluate(child(p, 'test'), file)
-              entries.push({
-                value: { guard: test.value, alternate: !!p.node.alternate },
-                evidence: test,
-              })
-            }
-          },
-        })
-        guards.set(owner.node, entries)
-      }
-      for (const guard of guards.get(owner.node) ?? []) {
-        conditions.push(guard.value)
-        evidence.dependencies.push(...guard.evidence.dependencies)
-        evidence.unresolved.push(...guard.evidence.unresolved)
-      }
-    }
-    for (let p = appearanceOnly ? null : path.parentPath; p; p = p.parentPath) {
-      if (p.isConditionalExpression() || p.isIfStatement()) {
-        const test = resolver.evaluate(child(p, 'test'), file)
-        conditions.push({
-          test: test.value,
-          branch:
-            (path.parentPath === p ? path : path.findParent((parent) => parent.parentPath === p))
-              ?.key === 'alternate'
-              ? 'else'
-              : 'then',
-        })
-        evidence.dependencies.push(...test.dependencies)
-        evidence.unresolved.push(...test.unresolved)
-      }
-      if (p.isLogicalExpression()) {
-        const test = resolver.evaluate(child(p, 'left'), file)
-        conditions.push({ operator: p.node.operator, test: test.value })
-        evidence.dependencies.push(...test.dependencies)
-        evidence.unresolved.push(...test.unresolved)
-      }
-      if (p.isSwitchCase() && p.parentPath.isSwitchStatement()) {
-        const discriminant = resolver.evaluate(child(p.parentPath, 'discriminant'), file)
-        const test = resolver.evaluate(child(p, 'test'), file)
-        conditions.push({ switch: discriminant.value, case: test.value })
-        evidence.dependencies.push(...discriminant.dependencies, ...test.dependencies)
-        evidence.unresolved.push(...discriminant.unresolved, ...test.unresolved)
-      }
-      if (
-        p.isForStatement() ||
-        p.isForOfStatement() ||
-        p.isForInStatement() ||
-        p.isWhileStatement() ||
-        p.isDoWhileStatement()
-      ) {
-        const iterable = resolver.evaluate(
-          child(p, p.isForOfStatement() || p.isForInStatement() ? 'right' : 'test'),
-          file
-        )
-        conditions.push({ loop: p.node.type, test: iterable.value, syntax: fingerprint(p.node) })
-        evidence.dependencies.push(...iterable.dependencies)
-        evidence.unresolved.push('Loop rendering requires review', ...iterable.unresolved)
-      }
-    }
     definitions.push({
       ...evidence,
       dependencies: [...new Set(evidence.dependencies)].sort(),
@@ -174,92 +85,16 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
   const literal = (value: Data): Evidence => ({ value, dependencies: [file], unresolved: [] })
   const ast = resolver.module(file).ast
   traverse(ast, {
-    ImportDeclaration(path) {
-      if (appearanceOnly) return
-      if (
-        path.node.importKind === 'type' ||
-        !/\.(?:css|scss|sass|less)(?:[?#].*)?$/.test(path.node.source.value)
-      )
-        return
-      const target = resolver.tree.resolve(file, path.node.source.value)
-      emit(path, 'review', 'infrastructure', {
-        value: path.node.source.value,
-        dependencies: target ? [file, target] : [file],
-        unresolved: ['Stylesheet import order, side effects and selector reach are not executed'],
-      })
-    },
     JSXElement(path) {
-      if (appearanceOnly) {
-        if (media(path)) return
-        emit(path, 'markup', propertyName(path.node.openingElement.name), literal(null))
-        const definition = definitions[definitions.length - 1]
-        elements.set(path.node, definition.key)
-        definition.appearance = { element: definition.key }
-        return
-      }
-      const opening = path.node.openingElement
-      const name = propertyName(opening.name)
-      const childShapes = path.node.children.flatMap((node) => {
-        if (t.isJSXText(node)) return jsxText(node.value) ? ['text'] : []
-        if (t.isJSXExpressionContainer(node) && t.isJSXEmptyExpression(node.expression)) return []
-        return [t.isJSXElement(node) ? propertyName(node.openingElement.name) : node.type]
-      })
-      const attributeOrder = opening.attributes
-        .filter(
-          (attr) =>
-            !t.isJSXAttribute(attr) ||
-            (!nonvisualAttributes.test(propertyName(attr.name)) &&
-              !resolver.eventOnlyProp(
-                child(child(path, 'openingElement'), 'name'),
-                propertyName(attr.name),
-                file
-              ))
-        )
-        .map((attr) => (t.isJSXAttribute(attr) ? propertyName(attr.name) : '...spread'))
-      const evidence = literal({ tag: name, children: childShapes, attributeOrder })
-      if (/^[A-Z]/.test(name)) {
-        const binding = path.scope.getBinding(name.split('.')[0])
-        if (
-          binding &&
-          (binding.path.isImportSpecifier() ||
-            binding.path.isImportDefaultSpecifier() ||
-            binding.path.isImportNamespaceSpecifier())
-        ) {
-          const parent = binding.path.parentPath
-          if (parent.isImportDeclaration()) {
-            const imported = binding.path.isImportSpecifier()
-              ? propertyName(binding.path.node.imported)
-              : binding.path.isImportNamespaceSpecifier()
-                ? (name.split('.')[1] ?? '*')
-                : 'default'
-            const origin = resolver.tree.graph?.imported(file, parent.node.source.value, imported)
-            if (origin)
-              evidence.dependencies.push(
-                ...origin.routes,
-                ...origin.origins.map((item) => item.file)
-              )
-            if (origin && (origin.uncertain || !origin.origins.length))
-              evidence.unresolved.push(
-                'Component import could not be resolved to a unique implementation'
-              )
-            if (origin?.effects.length)
-              evidence.unresolved.push('Imported module effects are not executed')
-            evidence.value = {
-              tag: name,
-              children: childShapes,
-              attributeOrder,
-              from: parent.node.source.value,
-              imported,
-              origin: origin ?? null,
-            }
-          }
-        }
-      }
-      emit(path, 'markup', name, evidence)
+      if (media(path)) return
+      emit(path, 'markup', propertyName(path.node.openingElement.name), literal(null))
+      const definition = definitions[definitions.length - 1]
+      elements.set(path.node, definition.key)
+      definition.appearance = { element: definition.key }
     },
     JSXAttribute(path) {
       const name = propertyName(path.node.name)
-      if (appearanceOnly && (!appearanceAttributes.test(name) || media(path))) return
+      if (!appearanceAttributes.test(name) || media(path)) return
       if (nonvisualAttributes.test(name)) return
       if (resolver.eventOnlyProp(child(path.parentPath, 'name'), name, file)) return
       const value = child(path, 'value')
@@ -294,33 +129,12 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
         }
       }
     },
-    JSXSpreadAttribute(path) {
-      if (appearanceOnly) return
-      emit(path, 'review', 'spread', resolver.evaluate(child(path, 'argument'), file))
-    },
-    JSXText(path) {
-      if (appearanceOnly) return
-      const value = jsxText(path.node.value)
-      if (value) emit(path, 'content', 'text', literal(value))
-    },
-    JSXExpressionContainer(path) {
-      if (appearanceOnly) return
-      if (
-        path.parentPath.isJSXAttribute() ||
-        t.isJSXEmptyExpression(path.node.expression) ||
-        t.isJSXElement(path.node.expression) ||
-        t.isJSXFragment(path.node.expression)
-      )
-        return
-      emit(path, 'content', 'expression', resolver.evaluate(child(path, 'expression'), file))
-    },
     CallExpression(path) {
-      if (appearanceOnly && media(path)) return
+      if (media(path)) return
       const name = propertyName(path.node.callee)
       if (resolver.tree.config.variantFunctions.includes(name))
         emit(path, 'class', 'variants', resolver.evaluate(path, file))
       if (
-        appearanceOnly &&
         t.isMemberExpression(path.node.callee) &&
         domReceiver(child(child(path, 'callee'), 'object'))
       ) {
@@ -339,8 +153,6 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
         if (method === 'setProperty' && args[0]?.isStringLiteral() && args[1])
           emit(path, 'style', args[0].node.value, resolver.evaluate(args[1], file))
       }
-      if (!appearanceOnly && resolver.renderingCall(path, file))
-        emit(path, 'review', 'imperative-rendering', resolver.evaluate(path, file))
       if (file.startsWith('apps/desktop/') && t.isMemberExpression(path.node.callee)) {
         const method = propertyName(path.node.callee.property)
         if (
@@ -361,32 +173,11 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
         propertyName(lhs.property) === 'themeSource'
       )
         emit(path, 'native', 'themeSource', resolver.evaluate(child(path, 'right'), file))
-      if (appearanceOnly) {
-        if (
-          t.isMemberExpression(lhs) &&
-          t.isMemberExpression(lhs.object) &&
-          propertyName(lhs.object.property) === 'style' &&
-          domReceiver(child(child(path, 'left'), 'object'))
-        )
-          emit(
-            path,
-            'style',
-            propertyName(lhs.property),
-            resolver.evaluate(child(path, 'right'), file)
-          )
-        return
-      }
-      if (
-        t.isMemberExpression(lhs) &&
-        /^(?:innerHTML|outerHTML|textContent|className|cssText|fillStyle|strokeStyle|font)$/.test(
-          propertyName(lhs.property)
-        )
-      )
-        emit(path, 'review', 'imperative-rendering', resolver.evaluate(child(path, 'right'), file))
       if (
         t.isMemberExpression(lhs) &&
         t.isMemberExpression(lhs.object) &&
-        propertyName(lhs.object.property) === 'style'
+        propertyName(lhs.object.property) === 'style' &&
+        domReceiver(child(child(path, 'left'), 'object'))
       )
         emit(
           path,
@@ -411,20 +202,6 @@ export function extractTsx(resolver: Resolver, file: string, appearanceOnly = fa
         }
         if (evidence.unresolved.length) emit(path, 'review', 'native-options', evidence)
       } else emit(path, 'review', 'native-options', evidence)
-    },
-    TaggedTemplateExpression(path) {
-      if (appearanceOnly) return
-      /** A tag is only a standalone visual definition for a known styling binding. SQL and String.raw still participate when explicitly read by a visual input. */
-      const tag = child(path, 'tag')
-      const root = tag.isMemberExpression() ? child(tag, 'object') : tag
-      if (!root.isIdentifier()) return
-      const binding = root.scope.getBinding(root.node.name)
-      const declaration = binding?.path.parentPath
-      if (
-        declaration?.isImportDeclaration() &&
-        /^(?:styled-components|@emotion\/)/.test(declaration.node.source.value)
-      )
-        emit(path, 'review', 'tagged-template', resolver.evaluate(path, file))
     },
   })
   return definitions
