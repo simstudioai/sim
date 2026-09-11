@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
-      ENGINE_SHA: e279fddb00dfc22ca181838352c436d7f480c286
+      ENGINE_SHA: 18ca63a3a90b29a2884b1da9c4283fa94439e2c2
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
