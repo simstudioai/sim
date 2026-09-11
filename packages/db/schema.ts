@@ -2491,6 +2491,7 @@ export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
   'knowledge_document',
   'profile_picture',
   'workspace_logo',
+  'organization_logo',
   'mothership_attachment',
   'execution_attachment',
 ])

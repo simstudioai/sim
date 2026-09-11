@@ -47,6 +47,7 @@ import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { captureEvent } from '@/lib/posthog/client'
+import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -102,7 +103,6 @@ import {
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
   useWorkspaceWorkflowsRoom,
-  WORKSPACE_LOGO_ACCEPT_ATTRIBUTE,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   compareByOrder,
@@ -1275,7 +1275,7 @@ export const Sidebar = memo(function Sidebar() {
       <input
         ref={logoFileInputRef}
         type='file'
-        accept={WORKSPACE_LOGO_ACCEPT_ATTRIBUTE}
+        accept={LOGO_ACCEPT_ATTRIBUTE}
         className='hidden'
         onChange={handleLogoFileChange}
       />

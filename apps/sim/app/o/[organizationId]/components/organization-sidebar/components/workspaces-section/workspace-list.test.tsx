@@ -108,6 +108,16 @@ describe('WorkspaceList rail view', () => {
     expect(document.body.textContent).toContain('No workspaces yet')
   })
 
+  it('keeps every workspace accessible in the flyout without a search field', async () => {
+    workspacesState.workspaces = Array.from({ length: 8 }, (_, index) => ({
+      id: `ws-${index}`,
+      name: `Workspace ${index}`,
+    }))
+    await render()
+    expect(document.querySelectorAll('a')).toHaveLength(8)
+    expect(document.querySelector('input')).toBeNull()
+  })
+
   it('shows the loading row while the list resolves', async () => {
     workspacesState.isLoading = true
     await render()

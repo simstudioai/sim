@@ -238,7 +238,8 @@ export const GET = withRouteHandler(
       const isPublicByKeyPrefix =
         cloudKey.startsWith('profile-pictures/') ||
         cloudKey.startsWith('og-images/') ||
-        cloudKey.startsWith('workspace-logos/')
+        cloudKey.startsWith('workspace-logos/') ||
+        cloudKey.startsWith('organization-logos/')
 
       if (isPublicByKeyPrefix) {
         const context = inferContextFromKey(cloudKey)

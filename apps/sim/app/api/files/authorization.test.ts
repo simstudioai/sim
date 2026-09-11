@@ -182,6 +182,22 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
     return verifyFileAccess(cloudKey, USER_ID, undefined, context, false, { requireWrite: true })
   }
 
+  it('allows organization logo reads and denies generic deletes even for the uploader', async () => {
+    const key = 'organization-logos/org-1/logo.png'
+    mockGetFileMetadata.mockResolvedValue({ userId: USER_ID })
+    await expect(verifyFileAccess(key, USER_ID, undefined, 'organization-logos')).resolves.toBe(
+      true
+    )
+    await expect(
+      verifyFileAccess(key, USER_ID, undefined, 'organization-logos', false, { requireWrite: true })
+    ).resolves.toBe(false)
+    await expect(
+      verifyFileAccess(key, USER_ID, undefined, 'general', false, { requireWrite: true })
+    ).resolves.toBe(false)
+    expect(mockGetFileMetadata).not.toHaveBeenCalled()
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
   it('grants public reads without any ownership check', async () => {
     await expect(read('og-images/banner.png', 'og-images')).resolves.toBe(true)
     await expect(read('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(true)

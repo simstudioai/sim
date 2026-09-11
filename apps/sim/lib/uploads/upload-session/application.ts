@@ -7,6 +7,10 @@ import {
   authorizeOrganizationAttachmentControl,
   createOrganizationAssistantAttachment,
 } from '@/lib/uploads/contexts/organization-assistant/application'
+import {
+  authorizeOrganizationLogoControl,
+  createOrganizationLogoUpload,
+} from '@/lib/uploads/contexts/organization-logo/application'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   abortUploadSession,
@@ -86,6 +90,9 @@ export async function createInternalPurposeUploadSession(
   body: CreateInternalFileUploadBody,
   request: OrchestrationRequestContext
 ): Promise<Awaited<ReturnType<typeof createUploadSession>>> {
+  if (body.purpose === 'organization_logo') {
+    return createOrganizationLogoUpload(principal, { ...body, localOrigin: requestOrigin(request) })
+  }
   if (body.purpose === 'mothership_attachment' && body.organizationId) {
     return createOrganizationAssistantAttachment(principal, {
       ...body,
@@ -107,7 +114,8 @@ export async function loadAuthorizedInternalUploadSession(
     uploadToken: input.uploadToken,
     userId: principalUserId(principal),
   })
-  if (session.purpose === 'workspace_file') assertUploadSessionAuthBinding(session, principal)
+  if (session.purpose === 'workspace_file' || session.purpose === 'organization_logo')
+    assertUploadSessionAuthBinding(session, principal)
   if (session.purpose === 'mothership_attachment' && session.workspaceId === null) {
     assertUploadSessionAuthBinding(session, principal)
   }
@@ -122,6 +130,8 @@ export async function issueInternalUploadPartUrls(
   const session = await loadAuthorizedInternalUploadSession(principal, input)
   if (session.purpose === 'workspace_file') {
     await reauthorizeWorkspaceUploadPurpose(principal, session, fileOperations.uploadParts)
+  } else if (session.purpose === 'organization_logo') {
+    await authorizeOrganizationLogoControl(principal, session)
   } else if (session.purpose === 'mothership_attachment' && session.workspaceId === null) {
     await authorizeOrganizationAttachmentControl(principal, session)
   } else {
@@ -143,6 +153,8 @@ export async function abortInternalUploadSession(
   const session = await loadAuthorizedInternalUploadSession(principal, input)
   if (session.purpose === 'workspace_file') {
     await reauthorizeWorkspaceUploadPurpose(principal, session, fileOperations.uploadCancel)
+  } else if (session.purpose === 'organization_logo') {
+    await authorizeOrganizationLogoControl(principal, session)
   } else if (session.purpose === 'mothership_attachment' && session.workspaceId === null) {
     await authorizeOrganizationAttachmentControl(principal, session)
   } else {
@@ -164,6 +176,8 @@ export async function completeInternalUploadSession(
   const authorize = async (claimed: UploadSessionRecord) => {
     if (claimed.purpose === 'workspace_file') {
       await reauthorizeWorkspaceUploadPurpose(principal, claimed, fileOperations.uploadComplete)
+    } else if (claimed.purpose === 'organization_logo') {
+      await authorizeOrganizationLogoControl(principal, claimed)
     } else if (claimed.purpose === 'mothership_attachment' && claimed.workspaceId === null) {
       await authorizeOrganizationAttachmentControl(principal, claimed)
     } else {
