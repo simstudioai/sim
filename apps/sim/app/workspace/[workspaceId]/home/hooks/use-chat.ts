@@ -4396,14 +4396,14 @@ export function useChat(
       // Edit-in-place: replace at the original index. If the slot was already
       // dispatched mid-edit (UI-guard race), fall through to a tail-append.
       if (editingId) {
-        const existing = queueStore.queues[activeChatKey] ?? []
-        if (existing.some((m) => m.id === editingId)) {
+        const existing = queueStore.queues[activeChatKey]?.find((m) => m.id === editingId)
+        if (existing) {
           queueStore.replaceAt(activeChatKey, editingId, {
             content: message,
             fileAttachments,
             contexts,
-            requestMode: options?.requestMode,
-            assistantSearch: options?.assistantSearch,
+            requestMode: options?.requestMode ?? existing.requestMode,
+            assistantSearch: options?.assistantSearch ?? existing.assistantSearch,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
