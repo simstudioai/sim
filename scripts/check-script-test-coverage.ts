@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 /**
- * Asserts every root script test and nested design-diff test is collected by the root Vitest config.
+ * Asserts every root script test and nested design-diff test is collected by the scripts Vitest config.
  *
  * The root `test` script once chained a hand-maintained list of `test:*` entries, and a
  * hand-maintained list silently drifts from the files on disk: a test added without a matching
  * entry never runs, in CI or locally, and nothing reports it. `scripts/check-migrations-safety.test.ts`
- * sat unreferenced and green for exactly that reason. The root `vitest.scripts.config.ts` now collects
+ * sat unreferenced and green for exactly that reason. `scripts/vitest.config.ts` now collects
  * the directory by glob, so drift can only come from a file the glob does not match (a test in a
  * subdirectory, a different suffix) or from the `test` script no longer chaining `test:scripts`.
  * This guard checks both by asking Vitest which files it would run.
@@ -42,7 +42,7 @@ if (!reachableScripts('test').has('test:scripts')) {
 }
 
 const listed = Bun.spawnSync(
-  ['bunx', 'vitest', 'list', '--json', '--filesOnly', '--config', 'vitest.scripts.config.ts'],
+  ['bunx', 'vitest', 'list', '--json', '--filesOnly', '--config', 'scripts/vitest.config.ts'],
   {
     cwd: ROOT,
   }
@@ -70,11 +70,11 @@ const orphaned = onDisk.filter((file) => !collected.has(file))
 if (orphaned.length > 0) {
   console.error(
     `Script tests never run by \`bun run test\`:\n${orphaned.map((file) => `  - ${file}`).join('\n')}\n` +
-      'Make sure the root `vitest.scripts.config.ts` include glob matches them.'
+      'Make sure the `scripts/vitest.config.ts` include glob matches them.'
   )
   process.exit(1)
 }
 
 console.log(
-  `Script test coverage passed: ${onDisk.length} script tests collected by the root Vitest config.`
+  `Script test coverage passed: ${onDisk.length} script tests collected by the scripts Vitest config.`
 )

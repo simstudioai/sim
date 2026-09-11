@@ -468,20 +468,20 @@ describe('registerIpcHandlers', () => {
     deps.accountDataAvailable = () => false
     const { invoke } = collectHandlers()
     const localFilesystemHandle = vi.spyOn(deps.localFilesystem, 'handle')
-    const terminalStart = vi.spyOn(deps.terminal, 'start')
+    const terminalRestore = vi.spyOn(deps.terminal, 'restoreScope')
 
     await expect(
       invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
     ).resolves.toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
     await expect(invoke.get('browser-credentials:list')?.(appEvent)).resolves.toEqual([])
-    await expect(invoke.get('terminal:start')?.(appEvent, {}, 'chat-a')).resolves.toMatchObject({
-      ok: false,
-      code: 'ACCESS_DENIED',
+    await expect(invoke.get('terminal:restore-scope')?.(appEvent, 'chat-a')).resolves.toEqual({
+      tabs: [],
+      activeTerminalId: null,
     })
 
     expect(localFilesystemHandle).not.toHaveBeenCalled()
     expect(listCredentials).not.toHaveBeenCalled()
-    expect(terminalStart).not.toHaveBeenCalled()
+    expect(terminalRestore).not.toHaveBeenCalled()
   })
 
   it('requires an active user gesture for granting or revoking folder access', async () => {
@@ -1146,25 +1146,6 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
   })
 
-  it('restricts browser-tab pinning to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-tab-pinned')
-
-    expect(() => handler?.(evilEvent, '1', true)).not.toThrow()
-    expect(() => handler?.(appEvent, 1, true)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', 'yes')).not.toThrow()
-    expect(() => handler?.(appEvent, '1', true)).not.toThrow()
-  })
-
-  it('restricts browser-tab context menus to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:show-tab-context-menu')
-
-    expect(() => handler?.(evilEvent, '1')).not.toThrow()
-    expect(() => handler?.(appEvent, 1)).not.toThrow()
-    expect(() => handler?.(appEvent, '1')).not.toThrow()
-  })
-
   it('restricts browser-tab reordering to typed app-origin messages', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:reorder-tab')
@@ -1337,7 +1318,6 @@ describe('registerIpcHandlers', () => {
           title: 'Restored',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
       activeTabId: '1',
@@ -1369,7 +1349,6 @@ describe('registerIpcHandlers', () => {
           title: '',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
       activeTabId: '2',

@@ -45,6 +45,17 @@ function browserUpsertEvent(id: string, title: string): PersistedStreamEventEnve
   } as PersistedStreamEventEnvelope
 }
 
+function terminalUpsertEvent(id: string, title: string): PersistedStreamEventEnvelope {
+  return {
+    type: 'resource',
+    v: 1,
+    seq: 1,
+    ts: '',
+    stream: { streamId: 's', cursor: '1' },
+    payload: { op: 'upsert', resource: { type: 'terminal', id, title } },
+  } as PersistedStreamEventEnvelope
+}
+
 describe('handleResourceEvent removal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -86,7 +97,7 @@ describe('handleResourceEvent removal', () => {
     )
   })
 
-  it('normalizes a page-shaped browser event into the singleton Browser panel', () => {
+  it('ignores browser events because browser tabs come from the desktop tab list', () => {
     const onResourceEvent = vi.fn()
     const deps = makeStreamLoopDeps({
       onResourceEventRef: { current: onResourceEvent },
@@ -98,13 +109,22 @@ describe('handleResourceEvent removal', () => {
       browserUpsertEvent('browser-session:slack-tab', 'mship-todo (Channel) - sim - Slack')
     )
 
-    expect(deps.addResource).toHaveBeenCalledWith({
-      type: 'browser',
-      id: 'browser-session',
-      title: 'Browser',
-    })
+    expect(deps.addResource).not.toHaveBeenCalled()
     expect(deps.setActiveResourceId).not.toHaveBeenCalled()
-    expect(onResourceEvent).toHaveBeenCalledWith('browser-session')
+    expect(onResourceEvent).not.toHaveBeenCalled()
+  })
+  it('ignores terminal events because terminal tabs come from the desktop tab list', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({
+      onResourceEventRef: { current: onResourceEvent },
+    })
+    const ctx = { deps } as StreamLoopContext
+
+    handleResourceEvent(ctx, terminalUpsertEvent('terminal-session', 'Terminal'))
+
+    expect(deps.addResource).not.toHaveBeenCalled()
+    expect(deps.setActiveResourceId).not.toHaveBeenCalled()
+    expect(onResourceEvent).not.toHaveBeenCalled()
   })
 })
 

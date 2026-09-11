@@ -20,7 +20,18 @@ const PERMISSION_REASONS = new Set([
   'insufficientFilePermissions',
   'teamDriveMembershipRequired',
 ])
-const POLICY_REASONS = new Set(['domainPolicy', 'download_restricted_for_revision'])
+/**
+ * Owner- or admin-imposed restrictions on an otherwise readable file. The
+ * credential is valid, so these are not authorization failures; `cannotExportFile`
+ * and `cannotDownloadFile` are what Drive returns when the owner disabled
+ * download, print, and copy for viewers.
+ */
+const POLICY_REASONS = new Set([
+  'domainPolicy',
+  'download_restricted_for_revision',
+  'cannotDownloadFile',
+  'cannotExportFile',
+])
 const UNSUPPORTED_EXPORT_REASONS = new Set(['fileNotDownloadable', 'fileNotExportable'])
 const QUOTA_REASONS = new Set(['dailyLimitExceeded', 'quotaExceeded'])
 const RATE_LIMIT_REASONS = new Set([

@@ -1,3 +1,7 @@
+---
+description: Global coding standards that apply to all files
+---
+
 # Global Standards
 
 ## Logging

@@ -1,11 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { type NextRequest, NextResponse } from 'next/server'
+import { after, type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { receiveSlackSearchCommand } from '@/lib/knowledge/application/slack-search/commands'
 import { resolveSlackAppInstallation } from '@/lib/knowledge/application/slack-search/ingress'
+import {
+  revokeSlackSearchAccess,
+  slackSearchLifecycleSchema,
+} from '@/lib/knowledge/application/slack-search/lifecycle'
+import { dispatchSlackSearchTurn } from '@/lib/knowledge/application/slack-search/outbox'
 import { loadSlackAppConfiguration } from '@/lib/slack-search/app-configuration'
+import { slackSearchCommandEventId, slackSearchCommandSchema } from '@/lib/slack-search/commands'
 import { dispatchSlackSearch } from '@/lib/slack-search/dispatcher'
 import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
@@ -69,6 +76,20 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     return authError
   }
 
+  const lifecycle = slackSearchLifecycleSchema.safeParse(payload)
+  if (lifecycle.success) {
+    await revokeSlackSearchAccess.execute({
+      principal: {
+        kind: 'slack_app',
+        appId,
+        appRevision: configuration.app.revision,
+        receivedAt: new Date(receivedAt),
+      },
+      input: lifecycle.data,
+    })
+    return new NextResponse(null, { status: 200 })
+  }
+
   const interactionTeam = payload.team as { id?: unknown } | undefined
   const searchTeamId = typeof payload.team_id === 'string' ? payload.team_id : interactionTeam?.id
   const searchInstallation =
@@ -83,6 +104,27 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
           input: { teamId: searchTeamId },
         })
       : null
+  const command = slackSearchCommandSchema.safeParse(payload)
+  if (command.success) {
+    if (!searchInstallation)
+      return NextResponse.json({
+        response_type: 'ephemeral',
+        text: 'An admin needs to install and enable Sim Search for this workspace.',
+      })
+    const { turnId, ...response } = await receiveSlackSearchCommand.execute({
+      principal: {
+        kind: 'slack_installation',
+        ...searchInstallation,
+        appId,
+        teamId: command.data.team_id,
+        eventId: slackSearchCommandEventId(command.data),
+        receivedAt: new Date(receivedAt),
+      },
+      input: command.data,
+    })
+    if (turnId) after(() => dispatchSlackSearchTurn(turnId))
+    return NextResponse.json(response)
+  }
   if (searchInstallation) {
     await Promise.all([
       dispatchSlackSearch({ ...searchInstallation, body, receivedAt }),

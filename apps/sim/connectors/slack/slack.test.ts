@@ -550,6 +550,31 @@ describe('Slack incomplete and unsafe provider responses', () => {
     }
   )
 
+  it.each([
+    { code: 'ratelimited', status: 429, category: 'rate_limit' },
+    { code: 'token_revoked', status: 401, category: 'authorization' },
+    { code: 'missing_scope', status: 403, category: 'authorization' },
+    { code: 'internal_error', status: 503, category: 'provider_unavailable' },
+    { code: 'invalid_arguments', status: 400, category: 'request_rejected' },
+  ])('classifies the $code envelope as HTTP $status $category', async ({ code, ...expected }) => {
+    failure = (call) =>
+      call.method === 'conversations.replies' ? { ok: false, error: code } : undefined
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toMatchObject({
+      name: 'SlackApiError',
+      code,
+      ...expected,
+    })
+  })
+
+  it('keeps the HTTP status of a non-OK response for failure classification', async () => {
+    fetchMock.mockImplementationOnce(async () => new Response('forbidden', { status: 403 }))
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toMatchObject({
+      name: 'ConnectorSourceError',
+      status: 403,
+      message: expect.stringMatching(/^Slack [a-z.]+ failed with HTTP 403$/),
+    })
+  })
+
   it('propagates Slack envelope throttling so the sync scheduler can cool down', async () => {
     failure = (call) =>
       call.method === 'conversations.replies' ? { ok: false, error: 'ratelimited' } : undefined

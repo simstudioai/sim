@@ -283,12 +283,10 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     return last?.type === 'agent_group' && last.agentName === 'mothership' ? last : null
   }
 
-  // Top-level (mothership) tool calls render in a collapsible group. Reuse that
-  // group only while it is still the most recent segment so consecutive tools
-  // stay together; once another visible segment (main text or a spawned
-  // subagent) breaks the run, the next tool opens a fresh group below it
-  // instead of jumping back up into the original one. This keeps the mothership's
-  // tools and prose interleaved in the order they actually happened.
+  /**
+   * Reuse only the latest main activity segment so tools remain interleaved
+   * with prose and subagents in stream order.
+   */
   const ensureMothership = (): AgentGroupSegment => {
     const existing = tailMothershipGroup()
     if (existing) return existing
@@ -492,7 +490,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * Groups content blocks into agent-scoped segments.
  * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
  * into the agent header. Inner tool_calls are nested underneath their agent.
- * Orphan tool_calls (no calledBy, not a dispatch) group under "Sim".
+ * Main-agent segments retain their tool history for inline activity summaries.
  *
  * New backends stamp every subagent block with deterministic span identity; in
  * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The
@@ -500,10 +498,9 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * span identity existed.
  */
 export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
-  if (blocks.some((block) => Boolean(block.spanId))) {
-    return parseBlocksWithSpanTree(blocks)
-  }
-  return parseBlocksLegacy(blocks)
+  return blocks.some((block) => Boolean(block.spanId))
+    ? parseBlocksWithSpanTree(blocks)
+    : parseBlocksLegacy(blocks)
 }
 
 function joinRenderableText(parts: string[]): string {
@@ -762,22 +759,17 @@ export function assistantMessageHasRenderableContent(
 }
 
 /** True when the transcript is already rendering an executing tool row. */
-export function assistantMessageHasVisibleExecutingTool(blocks: ContentBlock[]): boolean {
-  const subagentDispatchCallIds = new Set<string>()
-  for (const block of blocks) {
-    if (block.type === 'subagent' && block.parentToolCallId) {
-      subagentDispatchCallIds.add(block.parentToolCallId)
-    }
-  }
+export function assistantMessageHasVisibleExecutingTool(segments: MessageSegment[]): boolean {
+  const hasExecutingTool = (items: AgentGroupItem[]): boolean =>
+    items.some((item) =>
+      item.type === 'tool'
+        ? item.data.status === 'executing'
+        : item.type === 'agent_group' && hasExecutingTool(item.group.items)
+    )
 
-  return blocks.some((block) => {
-    const toolCall = block.toolCall
-    if (!toolCall || toolCall.status !== 'executing') return false
-    if (isHiddenToolCall(toolCall.name)) return false
-    if (toolCall.name === ReadTool.id && isToolResultRead(toolCall.params)) return false
-    if (SUBAGENT_KEYS.has(toolCall.name)) return false
-    return !subagentDispatchCallIds.has(toolCall.id)
-  })
+  return segments.some(
+    (segment) => segment.type === 'agent_group' && hasExecutingTool(segment.items)
+  )
 }
 
 export function shouldSmoothTextSegment({
@@ -962,7 +954,7 @@ function MessageContentInner({
   // A mid-stream special tag renders nothing until complete, so its bytes are a
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
-  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
+  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(segments)
   const showShimmer =
     thinkingExpanded &&
     thinkingLabel !== null &&
@@ -1024,7 +1016,6 @@ function MessageContentInner({
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}
-                    isCurrentSection={i === segments.length - 1}
                     isLaneOpen={segment.isOpen}
                   />
                 </div>

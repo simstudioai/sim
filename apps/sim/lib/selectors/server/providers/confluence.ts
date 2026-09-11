@@ -135,7 +135,7 @@ async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' 
   if (args.request.kind === 'detail') {
     const requestedId = args.request.id.trim()
     if (!requestedId || requestedId.length > 255) throw new SelectorContextUnavailableError()
-    if (/^[1-9][0-9]{0,19}$/.test(requestedId)) {
+    if (identifier === 'id' && /^[1-9][0-9]{0,19}$/.test(requestedId)) {
       const space = await fetchProviderJson<ConfluenceSpace>(
         `https://api.atlassian.com/ex/confluence/${auth.cloudId}/wiki/api/v2/spaces/${requestedId}`,
         {
@@ -162,12 +162,6 @@ async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' 
       requestSpaces({ ...auth, params: paramsFor('archived'), signal: args.signal }),
     ])
     args.signal?.throwIfAborted()
-    if (current.status === 'rejected' && archived.status === 'rejected') {
-      for (const result of [current, archived]) {
-        if (isPublicSelectorError(result.reason)) throw result.reason
-      }
-      throw new SelectorOptionsUnavailableError()
-    }
     const spaces = [
       ...(current.status === 'fulfilled'
         ? (current.value.results ?? []).map((space) => ({ space, status: 'current' as const }))
@@ -177,6 +171,14 @@ async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' 
         : []),
     ]
     const match = spaces.find(({ space }) => space.key === key)
+    if (!match && (current.status === 'rejected' || archived.status === 'rejected')) {
+      for (const result of [current, archived]) {
+        if (result.status === 'rejected' && isPublicSelectorError(result.reason)) {
+          throw result.reason
+        }
+      }
+      throw new SelectorOptionsUnavailableError()
+    }
     return detailSelectorResult(
       match
         ? {

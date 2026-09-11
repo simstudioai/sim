@@ -27,6 +27,7 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
+  resourceTabWidthClass,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
 export type HeroResourceId = 'workflow' | 'table' | 'brief'
@@ -155,7 +156,7 @@ export function HeroResourcePanel({
         onSelect={(id) => onActiveChange(id as HeroResourceId)}
         onClose={(id) => onCloseResource(id as HeroResourceId)}
         variant='floating'
-        className={RESOURCE_HEADER_CLASSES.stripGeometry}
+        className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, resourceTabWidthClass(tabs.length))}
         newTabControl={
           <DropdownMenu>
             <Tooltip.Root>

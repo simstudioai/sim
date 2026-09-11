@@ -217,7 +217,6 @@ export function HeroChatLoop({
               agentLabel='Workflow Agent'
               items={WORKFLOW_AGENT_BUILDING_ITEMS}
               isStreaming
-              isCurrentSection
               isLaneOpen
               defaultExpanded
               autoScrollActivity={false}
@@ -237,7 +236,6 @@ export function HeroChatLoop({
                 agentName='mothership'
                 agentLabel='Sim'
                 items={SIM_ITEMS}
-                defaultExpanded
               />
               <HeroChatReply
                 content={replyComplete ? replyMessage : replyWords.slice(0, revealedWords).join('')}

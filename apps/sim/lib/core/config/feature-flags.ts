@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'slack-search-shared-app': {
+    description:
+      'Enable the official shared Slack app for existing Search customers. Global on/off only.',
+    fallback: 'SLACK_SEARCH_SHARED_APP',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +

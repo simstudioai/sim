@@ -53,7 +53,8 @@ function SearchIntegrationConnectionControl({
   })
   const name = connector?.meta.name ?? target.provider
   const action = target.credentialId ? 'Reconnect' : 'Connect'
-  const label = connection.connected
+  const connected = connection.connected
+  const label = connected
     ? `Connected ${name}`
     : connection.isLoading
       ? `Checking ${name} connections…`
@@ -76,18 +77,14 @@ function SearchIntegrationConnectionControl({
           !connector ||
           connection.isLoading ||
           connection.isStarting ||
-          connection.connected ||
+          connected ||
           (!connection.available && !connection.pending)
         }
         onClick={handleConnect}
         leading={
           connector && <BrandIcon icon={connector.serviceIcon} className='size-[16px] shrink-0' />
         }
-        trailing={
-          connection.connected ? (
-            <Check className='size-[16px] text-[var(--text-icon)]' />
-          ) : undefined
-        }
+        trailing={connected ? <Check className='size-[16px] text-[var(--text-icon)]' /> : undefined}
       />
       {connection.pending && <Chip onClick={connection.cancel}>Cancel</Chip>}
       {connection.error && (
@@ -100,6 +97,8 @@ function SearchIntegrationConnectionControl({
       )}
       {setupOpen && connector && (
         <SourceSetupModal
+          organizationId={organizationId}
+          onConnected={connection.completeSetup}
           connector={connector}
           onClose={() => setSetupOpen(false)}
           isPending={connection.isStarting}

@@ -114,7 +114,7 @@
     "test:workflow-sync": "bun --no-env-file scripts/test-workflow-sync.ts",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts",
-    "test:scripts": "vitest run --config vitest.scripts.config.ts",
+    "test:scripts": "vitest run --config scripts/vitest.config.ts",
     "design:diff": "bun --no-env-file scripts/design-diff/cli.ts",
     "check:design-diff-types": "tsc --noEmit --project scripts/design-diff/tsconfig.json"
   },

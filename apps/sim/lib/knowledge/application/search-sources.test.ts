@@ -646,7 +646,23 @@ describe('bounded Search source pagination', () => {
     ])
   })
 
-  it.each(['filter', 'provider', 'viewer', 'scope'] as const)(
+  it('excludes an account-level provider before paginating repository sources', async () => {
+    seed([source('drive')])
+    await listSearchSources.execute({
+      principal,
+      input: { ...input, excludeConnectorType: 'github' },
+    })
+    expect(dbChainMockFns.where.mock.calls).toContainEqual([
+      expect.objectContaining({
+        type: 'and',
+        conditions: expect.arrayContaining([
+          { type: 'ne', left: knowledgeConnector.connectorType, right: 'github' },
+        ]),
+      }),
+    ])
+  })
+
+  it.each(['filter', 'provider', 'excluded-provider', 'viewer', 'scope'] as const)(
     'rejects a cursor replayed under a different %s before reading sources',
     async (change) => {
       seed(rows(26))
@@ -666,6 +682,7 @@ describe('bounded Search source pagination', () => {
             cursor: first.nextCursor!,
             ...(change === 'filter' ? { mine: true } : {}),
             ...(change === 'provider' ? { connectorType: 'gmail' } : {}),
+            ...(change === 'excluded-provider' ? { excludeConnectorType: 'github' } : {}),
           },
         })
       ).rejects.toMatchObject({ code: 'validation' })

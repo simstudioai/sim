@@ -420,6 +420,22 @@ describe('manage_knowledge_base trusted application delegation', () => {
     expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
   })
 
+  it('attributes knowledge queries to the trusted Slack context', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },
+      {
+        ...CONTEXT,
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+        searchSurface: 'slack',
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockSearchKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ surface: 'slack' }) })
+    )
+  })
+
   it('asks for citations where per-member access is on', async () => {
     const result = await knowledgeBaseServerTool.execute(
       { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },

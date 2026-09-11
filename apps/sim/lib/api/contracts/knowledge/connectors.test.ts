@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  connectorDocumentDataSchema,
   connectorDocumentsQuerySchema,
   createConnectorBodySchema,
   updateConnectorAccessBodySchema,
@@ -16,7 +17,7 @@ const base = {
 
 describe('connector document list contracts', () => {
   it('accepts each document set and trims filename search without interpreting wildcards', () => {
-    for (const filter of ['active', 'excluded', 'failed']) {
+    for (const filter of ['active', 'excluded', 'failed', 'skipped']) {
       expect(
         connectorDocumentsQuerySchema.parse({ filter, search: '  50%_report  ' })
       ).toMatchObject({
@@ -24,6 +25,26 @@ describe('connector document list contracts', () => {
         search: '50%_report',
       })
     }
+  })
+
+  it('adds skipped outcomes without requiring them from older document responses', () => {
+    const document = {
+      id: 'document',
+      filename: 'logo.png',
+      externalId: 'logo.png',
+      sourceUrl: null,
+      enabled: true,
+      userExcluded: false,
+      uploadedAt: '2026-01-01T00:00:00Z',
+      processingStatus: 'failed',
+    }
+    expect(connectorDocumentDataSchema.parse(document)).toMatchObject({
+      processingStatus: 'failed',
+      processingOutcome: null,
+    })
+    expect(
+      connectorDocumentDataSchema.parse({ ...document, processingOutcome: 'skipped' })
+    ).toMatchObject({ processingStatus: 'failed', processingOutcome: 'skipped' })
   })
 
   it('preserves legacy flags when no document filter is supplied', () => {

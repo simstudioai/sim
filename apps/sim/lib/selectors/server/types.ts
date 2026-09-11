@@ -51,6 +51,11 @@ export type SelectorCredentialPolicy =
 export interface AuthorizedSelectorCredential {
   suppliedId: string
   organization?: { principal: SessionPrincipal; organizationId: string }
+  personalSearchSetup?: {
+    principal: SessionPrincipal
+    organizationId: string
+    connectorType: 'jira' | 'confluence'
+  }
   access?: CredentialAccessResult
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */

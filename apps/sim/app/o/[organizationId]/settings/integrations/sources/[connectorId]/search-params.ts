@@ -1,4 +1,5 @@
 import { parseAsStringLiteral } from 'nuqs/server'
+import { connectorDocumentFilterSchema } from '@/lib/api/contracts/knowledge/connectors'
 
 export const sourceViewParam = {
   key: 'view',
@@ -7,7 +8,7 @@ export const sourceViewParam = {
 
 export const sourceDocumentFilterParam = {
   key: 'document-filter',
-  parser: parseAsStringLiteral(['active', 'excluded', 'failed']).withDefault('active'),
+  parser: parseAsStringLiteral(connectorDocumentFilterSchema.options).withDefault('active'),
 } as const
 
 export type SourceView = NonNullable<ReturnType<typeof sourceViewParam.parser.parse>>

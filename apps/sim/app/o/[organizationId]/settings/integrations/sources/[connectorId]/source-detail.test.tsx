@@ -144,8 +144,8 @@ describe('organization source detail navigation', () => {
           disabled: options.disabled,
           onSelect: vi.fn(),
         },
-        { id: 'pause', text: 'Pause', disabled: options.disabled, onSelect: vi.fn() },
-        { id: 'delete', text: 'Remove', disabled: options.disabled, onSelect: vi.fn() },
+        { id: 'pause', text: 'Pause syncing', disabled: options.disabled, onSelect: vi.fn() },
+        { id: 'delete', text: 'Remove connection', disabled: options.disabled, onSelect: vi.fn() },
       ],
     }))
     mocks.form.mockImplementation(() => ({
@@ -205,31 +205,20 @@ describe('organization source detail navigation', () => {
     )
   })
 
-  it.each(['members', 'admin'] as const)(
-    'links member sources to personal Search connections: %s',
-    async (accessMode) => {
-      mocks.detail.mockReturnValue({ data: { ...connector, accessMode } })
-      await render()
-      const link = container.querySelector('a[aria-label="Manage your Search accounts"]')
-      if (accessMode === 'members') {
-        expect(link).toHaveAttribute('href', '/o/org-one/integrations')
-        expect(container.textContent).toContain(
-          'Each person connects from Integrations to sync content they can access.'
-        )
-      } else {
-        expect(link).toBeNull()
-      }
+  it.each(['excluded', 'failed', 'skipped'])(
+    'restores document search and %s status from the shared URL',
+    async (filter) => {
+      await render(`?search=notes&document-filter=${filter}`)
+      expect(mocks.documents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: 'notes', filter })
+      )
+      expect(mocks.documents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          searchControl: { value: 'notes', onChange: expect.any(Function) },
+        })
+      )
     }
   )
-  it('restores document search and status from the shared URL', async () => {
-    await render('?search=notes&document-filter=excluded')
-    expect(mocks.documents).toHaveBeenLastCalledWith(
-      expect.objectContaining({ search: 'notes', filter: 'excluded' })
-    )
-    expect(mocks.documents).toHaveBeenLastCalledWith(
-      expect.objectContaining({ searchControl: { value: 'notes', onChange: expect.any(Function) } })
-    )
-  })
 
   it.each(['', '?view=history'])(
     'shows a concise incomplete-update notice without provider details at %s',
@@ -239,8 +228,10 @@ describe('organization source detail navigation', () => {
       })
       await render(searchParams)
 
-      expect(container.textContent).toContain('Some source updates are incomplete')
-      expect(container.textContent).toContain('Review the source settings and try syncing again.')
+      expect(container.textContent).toContain('Some connection updates are incomplete')
+      expect(container.textContent).toContain(
+        'Review the connection settings and try syncing again.'
+      )
       expect(container.textContent).not.toContain('Provider denied')
       expect(container.textContent).not.toContain('org-private-id')
     }
@@ -248,8 +239,10 @@ describe('organization source detail navigation', () => {
 
   it('keeps a healthy active source quiet', async () => {
     await render()
-    expect(container.textContent).not.toContain('Some source updates are incomplete')
-    expect(container.textContent).not.toContain('Review the source settings and try syncing again.')
+    expect(container.textContent).not.toContain('Some connection updates are incomplete')
+    expect(container.textContent).not.toContain(
+      'Review the connection settings and try syncing again.'
+    )
   })
 
   it.each(['', '?view=settings', '?view=history'])(
@@ -293,7 +286,7 @@ describe('organization source detail navigation', () => {
     async (status) => {
       mocks.detail.mockReturnValue({ data: { ...connector, status, lastSyncError: 'Old failure' } })
       await render()
-      expect(container.textContent).not.toContain('Some source updates are incomplete')
+      expect(container.textContent).not.toContain('Some connection updates are incomplete')
     }
   )
 
@@ -319,7 +312,9 @@ describe('organization source detail navigation', () => {
         },
       })
       await render()
-      expect(container.textContent?.includes('Some source updates are incomplete')).toBe(showNotice)
+      expect(container.textContent?.includes('Some connection updates are incomplete')).toBe(
+        showNotice
+      )
       expect(container.textContent).not.toContain('private-account-id')
     }
   )
@@ -351,7 +346,7 @@ describe('organization source detail navigation', () => {
     await render()
     expect(mocks.actions).not.toHaveBeenCalled()
     expect(mocks.documents).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Loading source')
+    expect(container.textContent).toContain('Loading connection')
   })
   it('does not load protected source data for non-admins', async () => {
     mocks.admin = false
@@ -368,7 +363,7 @@ describe('organization source detail navigation', () => {
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: null }, isPending: false })
     mocks.detail.mockReturnValue({})
     await render()
-    expect(container.textContent).toContain('This source is no longer available')
+    expect(container.textContent).toContain('This connection is no longer available')
     expect(mocks.actions).not.toHaveBeenCalled()
     await click('Sources')
     expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
@@ -379,7 +374,7 @@ describe('organization source detail navigation', () => {
     expect(mocks.actions).toHaveBeenLastCalledWith(
       expect.objectContaining({ disabled: true, primarySync: false })
     )
-    for (const label of ['Sync now', 'Pause', 'Remove']) {
+    for (const label of ['Sync now', 'Pause syncing', 'Remove connection']) {
       const action = Array.from(container.querySelectorAll('button')).find(
         (item) => item.textContent === label
       )
@@ -402,7 +397,7 @@ describe('organization source detail navigation', () => {
     const sync = Array.from(container.querySelectorAll('button')).find(
       (item) => item.textContent === 'Sync now'
     )
-    const tabs = container.querySelector('[aria-label="Source views"]')
+    const tabs = container.querySelector('[aria-label="Connection views"]')
     expect(sync).toBeTruthy()
     expect(tabs).toBeTruthy()
     expect(sync!.compareDocumentPosition(tabs!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -512,8 +507,8 @@ describe('organization source detail navigation', () => {
       await render('?view=settings')
       for (const label of [
         'Sync now',
-        'Pause',
-        'Remove',
+        'Pause syncing',
+        'Remove connection',
         'Saving...',
         ...(dirty ? ['Discard'] : []),
       ]) {

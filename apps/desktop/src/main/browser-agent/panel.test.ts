@@ -20,7 +20,7 @@ function freshPanel(): PanelModule {
     getMainWindow: () => null,
     activeTab: () => null,
     backgroundColor: () => '#ffffff',
-    ensureInitialTab: () => {},
+    restoreActiveScope: () => {},
     onViewDetached: () => {},
   })
   panelModule.activatePanelScope('chat-test')
@@ -33,12 +33,12 @@ const PANEL_RECT = { x: 400, y: 64, width: 600, height: 800 }
 function showPanel(panel: PanelModule) {
   const win = new BrowserWindow()
   const view = new WebContentsView()
-  const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
+  const active = { id: 'tab-1', scopeId: 'chat-test', view }
   panel.initPanel({
     getMainWindow: () => win,
     activeTab: () => active,
     backgroundColor: () => '#0c0c0c',
-    ensureInitialTab: () => {},
+    restoreActiveScope: () => {},
     onViewDetached: () => {},
   })
   panel.activatePanelScope('chat-test')
@@ -56,13 +56,13 @@ describe('panel chat scope', () => {
   it('returns keyboard focus to the renderer when attaching a view steals it mid-typing', () => {
     const win = new BrowserWindow()
     const view = new WebContentsView()
-    const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
+    const active = { id: 'tab-1', scopeId: 'chat-test', view }
     vi.mocked(win.webContents.isFocused).mockReturnValue(true)
     panel.initPanel({
       getMainWindow: () => win,
       activeTab: () => active,
       backgroundColor: () => '#0c0c0c',
-      ensureInitialTab: () => {},
+      restoreActiveScope: () => {},
       onViewDetached: () => {},
     })
     panel.activatePanelScope('chat-test')
@@ -327,12 +327,12 @@ describe('panel chat scope', () => {
   it('applies a forced hide before the panel reports its first bounds', () => {
     const win = new BrowserWindow()
     const view = new WebContentsView()
-    const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
+    const active = { id: 'tab-1', scopeId: 'chat-test', view }
     panel.initPanel({
       getMainWindow: () => win,
       activeTab: () => active,
       backgroundColor: () => '#0c0c0c',
-      ensureInitialTab: () => {},
+      restoreActiveScope: () => {},
       onViewDetached: () => {},
     })
     panel.activatePanelScope('chat-test')

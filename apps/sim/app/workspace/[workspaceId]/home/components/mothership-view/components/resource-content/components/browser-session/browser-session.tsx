@@ -8,7 +8,6 @@ import type {
   BrowserPanelBounds,
   BrowserPanelSnapshot,
   BrowserSitePermissionRequest,
-  BrowserTabState,
 } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
 import type {
@@ -33,7 +32,6 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
-  toast,
 } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Globe, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
@@ -53,20 +51,15 @@ import {
   onBrowserFindOpen,
   onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
-  openBrowserTab,
-  reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
   reportBrowserTheme,
   sendBrowserPanelAction,
   setBrowserPanelOccluded,
-  setBrowserTabPinned,
   showBrowserCredentialChooser,
-  showBrowserTabContextMenu,
   showBrowserToolbarMenu,
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
-import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
@@ -75,7 +68,6 @@ import {
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
-import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
@@ -89,7 +81,6 @@ import {
   mutationsTouchNativeSurfaceOcclusion,
   useBrowserPanelOcclusion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
-import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
 import { BrowserThemeNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-theme-notice'
 import {
   buildOmniboxSuggestions,
@@ -110,9 +101,7 @@ import type { ChatContext } from '@/stores/panel'
 /** Ties the omnibox to its listbox for assistive tech. */
 const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
 const SEARCH_SUGGESTIONS_DEBOUNCE_MS = 160
-const NEW_TAB_CONFIRM_TIMEOUT_MS = 10_000
 const OMNIBOX_DRAG_THRESHOLD_PX = 4
-const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
 
@@ -368,15 +357,6 @@ interface BrowserSessionProps {
   onOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
-/** Administrative suspension retains the resource even though live tabs are gone. */
-export function shouldRemoveBrowserResource(
-  sessionAlive: boolean,
-  observedLiveSession: boolean,
-  suspended: boolean
-): boolean {
-  return !suspended && !sessionAlive && observedLiveSession
-}
-
 /** A suspended scope never leases native compositor bounds. */
 export function shouldReportBrowserBounds(visible: boolean, suspended: boolean): boolean {
   return visible && !suspended
@@ -421,23 +401,6 @@ export function initialUrlSuggestionIndex(
   return query.trim() || !pageUrl || pageUrl === 'about:blank' ? 0 : null
 }
 
-/** A new-tab request is complete only after the authoritative strip grows and activates a new id. */
-export function hasConfirmedBrowserTabCreation(
-  previousActiveTabId: string | null,
-  previousTabCount: number,
-  activeTabId: string | null,
-  tabCount: number
-): boolean {
-  return tabCount > previousTabCount && activeTabId !== null && activeTabId !== previousActiveTabId
-}
-
-interface PendingNewTabFocus {
-  scopeId: string
-  previousActiveTabId: string | null
-  previousTabCount: number
-  timeoutId: number
-}
-
 interface OmniboxPointerSelection {
   pointerId: number
   originX: number
@@ -461,26 +424,8 @@ export function BrowserSession({
   // panel. Direct selection prevents that one render from showing or acting on
   // another chat's tabs.
   const pageState = useBrowserSessionStore((state) => state.sessions[scopeId]?.pageState ?? null)
-  const tabs = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.tabs ?? EMPTY_BROWSER_TABS
-  )
   const activeTabId = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.activeTabId ?? null
-  )
-  const automationTabId = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.automationTabId ?? null
-  )
-  const automationActive = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.automationActive ?? false
-  )
-  const automationNeedsAttention = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.automationNeedsAttention ?? false
-  )
-  const browserAgentActive = useBrowserSessionStore(
-    (state) => (state.sessions[scopeId]?.agentRunIds.length ?? 0) > 0
-  )
-  const sessionAlive = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.sessionAlive ?? true
   )
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
   const showEmptyState = Boolean(
@@ -507,42 +452,14 @@ export function BrowserSession({
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
-  const pendingNewTabFocusRef = useRef<PendingNewTabFocus | null>(null)
   const handledPermissionRequestIdsRef = useRef<Set<string>>(new Set())
   const [answeredPermissionRequestId, setAnsweredPermissionRequestId] = useState<string | null>(
     null
   )
   const visibleRef = useRef(visible)
   visibleRef.current = visible
-  const { removeResource } = useMothershipResources()
   const { navigateToSettings } = useSettingsNavigation()
 
-  // The browser session ending closes the panel, the way the terminal panel
-  // goes when its last shell does. What it leaves otherwise is a tab whose
-  // only content explains that there is nothing to show and that starting
-  // again has to happen from somewhere else — the agent reopens the panel on
-  // its next browser action anyway. Guarded on having seen a live session so
-  // that opening the panel while the store still remembers a closed one does
-  // not immediately close it again.
-  const observedLiveSession = useRef(false)
-  useEffect(() => {
-    if (suspended) {
-      observedLiveSession.current = false
-      return
-    }
-    if (sessionAlive) {
-      // A new scope starts optimistically alive until the desktop answers.
-      // Only a real tab proves that this panel observed a live session;
-      // otherwise the expected empty response from lazy activation would look
-      // like a user closing the last tab and delete the persisted resource
-      // before its encrypted descriptor gets a chance to hydrate.
-      if (tabs.length > 0) observedLiveSession.current = true
-      return
-    }
-    if (!shouldRemoveBrowserResource(sessionAlive, observedLiveSession.current, suspended)) return
-    observedLiveSession.current = false
-    removeResource('browser', BROWSER_SESSION_RESOURCE_ID)
-  }, [sessionAlive, suspended, tabs.length, removeResource])
   const pageUrlRef = useRef(pageState?.url ?? '')
   pageUrlRef.current = pageState?.url ?? ''
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
@@ -734,61 +651,18 @@ export function BrowserSession({
     })
   }, [])
 
-  const clearPendingNewTabFocus = useCallback((pending?: PendingNewTabFocus): boolean => {
-    const current = pendingNewTabFocusRef.current
-    if (!current || (pending && current !== pending)) return false
-    window.clearTimeout(current.timeoutId)
-    pendingNewTabFocusRef.current = null
-    return true
-  }, [])
-
-  // New shells acknowledge tab creation directly; older installed shells only
-  // publish the resulting strip. Both paths land here so neither clears the
-  // current page's omnibox before a distinct tab actually exists.
-  useEffect(() => {
-    const pending = pendingNewTabFocusRef.current
-    if (
-      !pending ||
-      pending.scopeId !== scopeId ||
-      !hasConfirmedBrowserTabCreation(
-        pending.previousActiveTabId,
-        pending.previousTabCount,
-        activeTabId,
-        tabs.length
-      )
-    ) {
-      return
-    }
-    if (!clearPendingNewTabFocus(pending)) return
-    if (visible) focusOmnibox('clear')
-  }, [activeTabId, clearPendingNewTabFocus, focusOmnibox, scopeId, tabs.length, visible])
-
-  useEffect(() => {
-    return () => {
-      const pending = pendingNewTabFocusRef.current
-      if (pending?.scopeId === scopeId) clearPendingNewTabFocus(pending)
-    }
-  }, [clearPendingNewTabFocus, scopeId])
-
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
 
-  // Follow the agent's tab. The panel already marks the automated tab in the
-  // strip; this makes it the VISIBLE one, so watching the agent never means
-  // hunting for which tab it moved to. Keyed on the automation target
-  // CHANGING, not on it merely being set — the user can still browse a
-  // different tab mid-run and is only pulled along when the agent itself
-  // moves to another tab.
-  const followedAutomationTabRef = useRef<string | null>(null)
+  // A fresh blank tab coming on screen — opened from the resource strip or by
+  // Cmd+T — gets the omnibox, the way Chrome's new-tab page does. A tab with a
+  // page keeps its content.
+  const focusedBlankTabIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!automationActive || !automationTabId) {
-      if (!automationActive) followedAutomationTabRef.current = null
-      return
-    }
-    if (followedAutomationTabRef.current === automationTabId) return
-    followedAutomationTabRef.current = automationTabId
-    if (automationTabId === activeTabId) return
-    sendBrowserPanelAction('switch-tab', { tabId: automationTabId }, scopeId)
-  }, [activeTabId, automationActive, automationTabId, scopeId])
+    if (!visible || !activeTabId || !showEmptyState) return
+    if (focusedBlankTabIdRef.current === activeTabId) return
+    focusedBlankTabIdRef.current = activeTabId
+    focusOmnibox('clear')
+  }, [activeTabId, focusOmnibox, showEmptyState, visible])
 
   // Sim owns keyboard events while its renderer has focus. Claim Cmd+L here
   // before the workspace's global "Go to Logs" command can navigate away.
@@ -1128,46 +1002,6 @@ export function BrowserSession({
     urlInputRef.current?.blur()
   }
 
-  const handleNewTab = useCallback(() => {
-    setSuggestionsVisible(false)
-    setSuggestionQuery(null)
-    setActiveSuggestion(null)
-    setSuggestionOriginUrl('')
-    clearPendingNewTabFocus()
-    const pending: PendingNewTabFocus = {
-      scopeId,
-      previousActiveTabId: activeTabId,
-      previousTabCount: tabs.length,
-      timeoutId: 0,
-    }
-    pending.timeoutId = window.setTimeout(() => {
-      if (clearPendingNewTabFocus(pending)) {
-        toast.error('Could not open a new browser tab. Please try again.')
-      }
-    }, NEW_TAB_CONFIRM_TIMEOUT_MS)
-    pendingNewTabFocusRef.current = pending
-    void openBrowserTab(scopeId)
-      .then((state) => {
-        // Older shells resolve null and confirm through the tab-state effect.
-        if (!state) return
-        if (
-          !hasConfirmedBrowserTabCreation(
-            pending.previousActiveTabId,
-            pending.previousTabCount,
-            state.activeTabId,
-            state.tabs.length
-          )
-        ) {
-          throw new Error('The desktop browser did not create a distinct tab.')
-        }
-      })
-      .catch(() => {
-        if (clearPendingNewTabFocus(pending)) {
-          toast.error('Could not open a new browser tab. Please try again.')
-        }
-      })
-  }, [activeTabId, clearPendingNewTabFocus, scopeId, tabs.length])
-
   /**
    * Opens the shell's native account chooser under the key icon. Called
    * directly from the click so the page still has an active user gesture,
@@ -1196,70 +1030,9 @@ export function BrowserSession({
     showBrowserToolbarMenu({ x: rect.left, y: rect.bottom }, scopeId)
   }, [scopeId])
 
-  const handleSwitchTab = useCallback(
-    (tabId: string) => {
-      setSuggestionsVisible(false)
-      setSuggestionQuery(null)
-      setUrlDraft(null)
-      urlInputRef.current?.blur()
-      sendBrowserPanelAction('switch-tab', { tabId }, scopeId)
-    },
-    [scopeId]
-  )
-
-  const handleCloseTab = useCallback(
-    (tabId: string) => {
-      setSuggestionsVisible(false)
-      setSuggestionQuery(null)
-      setUrlDraft(null)
-      urlInputRef.current?.blur()
-      sendBrowserPanelAction('close-tab', { tabId }, scopeId)
-    },
-    [scopeId]
-  )
-
-  const handleDuplicateTab = useCallback(
-    (tabId: string) => {
-      sendBrowserPanelAction('duplicate-tab', { tabId }, scopeId)
-    },
-    [scopeId]
-  )
-
-  const handleSetTabPinned = useCallback(
-    (tabId: string, pinned: boolean) => {
-      setBrowserTabPinned(tabId, pinned, scopeId)
-    },
-    [scopeId]
-  )
-
-  const handleReorderTab = useCallback(
-    (tabId: string, targetIndex: number) => {
-      reorderBrowserTab(tabId, targetIndex, scopeId)
-    },
-    [scopeId]
-  )
-
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
       <div className='relative shrink-0 border-[var(--border)] border-b bg-[var(--bg)]'>
-        <BrowserTabStrip
-          tabs={tabs}
-          activeTabId={activeTabId}
-          automationTabId={automationTabId}
-          automationActive={automationActive || browserAgentActive}
-          automationNeedsAttention={automationNeedsAttention}
-          onNewTab={handleNewTab}
-          onSwitchTab={handleSwitchTab}
-          onCloseTab={handleCloseTab}
-          onDuplicateTab={handleDuplicateTab}
-          onSetTabPinned={handleSetTabPinned}
-          onOpenTabMenu={(tabId) =>
-            requestOverlay('tab', () => showBrowserTabContextMenu(tabId, scopeId))
-          }
-          onCloseTabMenu={() => void closeOverlay('tab')}
-          onReorderTab={handleReorderTab}
-          contextMenuOpen={activeOverlay === 'tab'}
-        />
         <div className='flex items-center gap-1 px-2.5 py-1.5'>
           <Button
             type='button'

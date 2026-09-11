@@ -304,9 +304,7 @@ it('preserves a mirror path, query, and reduced request headers', async () => {
 
       expect(result).toMatchObject({ code: 0, signal: null, stderr: '' })
       const output = JSON.parse(result.stdout) as CheckOutput
-      expect(output.notices).toEqual([
-        'Update available: sim 2.1.2 → 2.1.5. Run: npm install -g sim@latest\n',
-      ])
+      expect(output.notices).toEqual(['Update available: sim 2.1.2 → 2.1.5. Run: sim update\n'])
       expect(requestPath).toBe('/api/npm/repo/-/package/sim/dist-tags?token=abc')
       expect(requestHeaders).toMatchObject({
         accept: 'application/json',

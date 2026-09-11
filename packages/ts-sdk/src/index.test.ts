@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SimStudioClient, SimStudioError } from './index'
+import { SDK_VERSION, SimStudioClient, SimStudioError } from './index'
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
@@ -786,5 +787,33 @@ describe('SimStudioError', () => {
     expect(error.message).toBe('Test error')
     expect(error.code).toBe('TEST_CODE')
     expect(error.status).toBe(400)
+  })
+})
+
+describe('client identity', () => {
+  it('keeps SDK_VERSION in step with package.json', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+    expect(SDK_VERSION).toBe(manifest.version)
+  })
+
+  it('identifies the SDK on every request', async () => {
+    const client = new SimStudioClient({ apiKey: 'test-api-key', baseUrl: 'https://test.sim.ai' })
+    vi.mocked(mockFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: { isDeployed: true } }),
+    } as any)
+
+    await client.getWorkflowStatus('workflow-id')
+
+    const headers = vi.mocked(mockFetch).mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers['X-Sim-Client-Info']).toBe(
+      `sdk-js/${SDK_VERSION}; node/${process.versions.node}`
+    )
+    expect(headers['User-Agent']).toBe(
+      `simstudio-ts-sdk/${SDK_VERSION} node/${process.versions.node}`
+    )
+    expect(headers['X-API-Key']).toBe('test-api-key')
   })
 })

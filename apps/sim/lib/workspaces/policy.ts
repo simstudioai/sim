@@ -111,6 +111,18 @@ export interface WorkspaceCreationPolicy {
   blockedReasonCode?: 'organization-subscription-inactive' | 'permission-group-denied'
 }
 
+/**
+ * The acting user's row is gone, so no workspace can reference it. Reached
+ * when a request still carrying a cached session cookie arrives after the
+ * account was deleted; the caller should answer as unauthenticated.
+ */
+export class WorkspaceOwnerMissingError extends Error {
+  constructor(userId: string) {
+    super(`User ${userId} no longer exists`)
+    this.name = 'WorkspaceOwnerMissingError'
+  }
+}
+
 export class WorkspaceCreationContextChangedError extends Error {
   constructor(message = 'Workspace creation context changed before the workspace was inserted') {
     super(message)

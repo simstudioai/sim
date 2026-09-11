@@ -7,6 +7,7 @@ export const SLACK_SEARCH_SCOPES = [
   'users:read',
   'users:read.email',
 ] as const
+export const SLACK_SHARED_SEARCH_BOT_SCOPES = [...SLACK_SEARCH_SCOPES, 'commands'] as const
 export const SLACK_SEARCH_MAX_DURATION_SECONDS = 180
 export const SLACK_SEARCH_CONCURRENCY = 2
 export const SLACK_SEARCH_MAX_PENDING_TURNS = 20

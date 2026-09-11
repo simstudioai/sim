@@ -1,6 +1,7 @@
-import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
+import { describePrincipalAuth, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { type InternalSandboxProfile, verifyInternalToken } from '@/lib/auth/internal'
@@ -14,20 +15,6 @@ export const AuthType = {
 } as const
 
 export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
-
-const API_KEY_HEADER = 'x-api-key'
-const BEARER_PREFIX = 'Bearer '
-
-/**
- * Lightweight header-only check for whether a request carries external API credentials.
- * Does NOT validate the credentials — only inspects headers to classify the request
- * as programmatic API traffic vs interactive session traffic.
- */
-export function hasExternalApiCredentials(headers: Headers): boolean {
-  if (headers.has(API_KEY_HEADER)) return true
-  const auth = headers.get('authorization')
-  return auth?.startsWith(BEARER_PREFIX) ?? false
-}
 
 export interface AuthResult {
   success: boolean
@@ -96,14 +83,14 @@ function resolveUserFromJwt(
  * @param options - Optional configuration
  * @param options.requireWorkflowId - Whether workflowId/userId is required (default: true)
  */
-export async function checkInternalAuth(
+async function resolveInternalAuth(
   request: NextRequest,
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
   try {
     const authHeader = request.headers.get('authorization')
 
-    const apiKeyHeader = request.headers.get('x-api-key')
+    const apiKeyHeader = request.headers.get(API_KEY_HEADER)
     if (apiKeyHeader) {
       return {
         success: false,
@@ -111,7 +98,7 @@ export async function checkInternalAuth(
       }
     }
 
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith(BEARER_PREFIX)) {
       return {
         success: false,
         error: 'Internal authentication required',
@@ -144,13 +131,13 @@ export async function checkInternalAuth(
  * @param options - Optional configuration
  * @param options.requireWorkflowId - Whether workflowId/userId is required for JWT (default: true)
  */
-export async function checkSessionOrInternalAuth(
+async function resolveSessionOrInternalAuth(
   request: NextRequest,
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
   try {
     // 1. Reject API keys first
-    const apiKeyHeader = request.headers.get('x-api-key')
+    const apiKeyHeader = request.headers.get(API_KEY_HEADER)
     if (apiKeyHeader) {
       return {
         success: false,
@@ -160,7 +147,7 @@ export async function checkSessionOrInternalAuth(
 
     // 2. Check for internal JWT token
     const authHeader = request.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith(BEARER_PREFIX)) {
       const token = authHeader.split(' ')[1]
       const verification = await verifyInternalToken(token)
 
@@ -208,13 +195,13 @@ export async function checkSessionOrInternalAuth(
  *
  * For internal JWT calls, requires workflowId to determine user context
  */
-export async function checkHybridAuth(
+async function resolveHybridAuth(
   request: NextRequest,
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
   try {
     const authHeader = request.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith(BEARER_PREFIX)) {
       const token = authHeader.split(' ')[1]
       const verification = await verifyInternalToken(token)
 
@@ -290,3 +277,36 @@ export async function checkHybridAuth(
     }
   }
 }
+
+type AuthCheck = (
+  request: NextRequest,
+  options?: { requireWorkflowId?: boolean }
+) => Promise<AuthResult>
+
+/**
+ * Records how a request authenticated on the request context, so the logs and
+ * analytics of a route that authenticates through these helpers rather than a
+ * route builder carry the same `auth` attribution. A principal describes
+ * itself; an internal JWT that produced none is recorded by its auth type.
+ */
+function recordingAuth(resolve: AuthCheck): AuthCheck {
+  return async (request, options) => {
+    const result = await resolve(request, options)
+    if (!result.success) return result
+    if (result.principal) {
+      setRequestAuth(describePrincipalAuth(result.principal))
+    } else if (result.authType) {
+      setRequestAuth({ kind: result.authType })
+    }
+    return result
+  }
+}
+
+/** Internal JWT authentication only. See {@link resolveInternalAuth}. */
+export const checkInternalAuth = recordingAuth(resolveInternalAuth)
+
+/** Session or internal JWT authentication, never an API key. See {@link resolveSessionOrInternalAuth}. */
+export const checkSessionOrInternalAuth = recordingAuth(resolveSessionOrInternalAuth)
+
+/** Any of the three supported credentials. See {@link resolveHybridAuth}. */
+export const checkHybridAuth = recordingAuth(resolveHybridAuth)

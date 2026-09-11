@@ -155,8 +155,8 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
 
 /**
  * Synthetic client-side panels are context-only: never persisted to the chat.
- * Browser tab attachments are normalized to the singleton Browser panel before
- * persistence; their page title and URL remain request context only.
+ * Browser tabs are among them — the desktop app restores its own pages — so
+ * their page title and URL remain request context only.
  */
 function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
   return !isEphemeralResource({
@@ -1336,9 +1336,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         actualChatId &&
         body.resourceAttachments?.length
       ) {
-        // Canonicalizes here, not just inside `persistChatResources`: several
-        // browser tabs collapse onto the one Browser panel before they are
-        // stored, so the chat reopens with a single tab rather than one per page.
+        // Canonicalizes here, not just inside `persistChatResources`, so the
+        // singleton terminal panel is stored once however it was attached.
         const persistable = sanitizeChatResources(
           body.resourceAttachments.filter(isPersistableAttachment).map((resource) => ({
             type: resource.type,

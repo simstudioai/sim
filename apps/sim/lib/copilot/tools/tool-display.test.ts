@@ -795,3 +795,24 @@ describe('resource-naming titles', () => {
     )
   })
 })
+
+/** Skipped live calls and interrupted history must not retain running titles. */
+describe('getToolStatusDisplayTitle for skipped and interrupted calls', () => {
+  it.each([
+    ['skipped', 'Skipped running checks'],
+    ['interrupted', 'Stopped running checks'],
+  ] as const)('projects %s titles once', (status, expected) => {
+    expect(getToolStatusDisplayTitle('Running checks', status)).toBe(expected)
+    expect(getToolStatusDisplayTitle(expected, status)).toBe(expected)
+  })
+
+  it('preserves titles already describing a terminal outcome', () => {
+    expect(getToolStatusDisplayTitle('Skipped reading notes', 'interrupted')).toBe(
+      'Skipped reading notes'
+    )
+    expect(getToolStatusDisplayTitle('Attempted to run checks', 'skipped')).toBe(
+      'Attempted to run checks'
+    )
+    expect(getToolStatusDisplayTitle('Checks', 'skipped')).toBe('Skipped: Checks')
+  })
+})

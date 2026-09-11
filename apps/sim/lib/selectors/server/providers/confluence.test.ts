@@ -134,23 +134,70 @@ describe('Confluence server selector adapters', () => {
     )
   })
 
-  it('hydrates a legacy numeric value in the key selector without rewriting it', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: '12345', key: 'ENG', name: 'Engineering' }), {
-        status: 200,
+  it.each(['current', 'archived'] as const)(
+    'looks up a numeric %s space key as a key rather than a resource ID',
+    async (status) => {
+      mockFetch.mockImplementation((input: URL) => {
+        const matches = new URL(input).searchParams.get('status') === status
+        return new Response(
+          JSON.stringify({
+            results: matches ? [{ id: '99999', key: '12345', name: 'Numeric key' }] : [],
+          }),
+          { status: 200 }
+        )
       })
-    )
 
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute({
+          ...spaceDetailArgs(),
+          request: { kind: 'detail', id: '12345' },
+        })
+      ).resolves.toEqual({
+        kind: 'detail',
+        item: {
+          id: '12345',
+          label: status === 'archived' ? 'Numeric key (12345) — archived' : 'Numeric key (12345)',
+        },
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      for (const [input] of mockFetch.mock.calls) {
+        const url = new URL(String(input))
+        expect(url.pathname).toBe('/ex/confluence/cloud-1/wiki/api/v2/spaces')
+        expect(url.searchParams.get('keys')).toBe('12345')
+      }
+    }
+  )
+
+  it('does not accept a numeric resource ID as a matching space key', async () => {
+    mockFetch.mockImplementation(
+      () =>
+        new Response(
+          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          { status: 200 }
+        )
+    )
     await expect(
       confluenceSelectorAttachments['confluence.spaces'].execute({
         ...spaceDetailArgs(),
         request: { kind: 'detail', id: '12345' },
       })
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: '12345', label: 'Engineering (ENG)' },
-    })
-    expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/wiki/api/v2/spaces/12345')
+    ).resolves.toEqual({ kind: 'detail', item: null })
+  })
+
+  it('preserves key aliases when hydrating the ID selector', async () => {
+    mockFetch.mockImplementation(
+      () =>
+        new Response(
+          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          { status: 200 }
+        )
+    )
+    await expect(
+      confluenceSelectorAttachments['confluence.spacesById'].execute({
+        ...spaceIdDetailArgs(),
+        request: { kind: 'detail', id: 'ENG' },
+      })
+    ).resolves.toEqual({ kind: 'detail', item: { id: 'ENG', label: 'Engineering (ENG)' } })
   })
 
   it('projects provider IDs for block space lists while key selectors remain unchanged', async () => {
@@ -305,6 +352,87 @@ describe('Confluence server selector adapters', () => {
         request: { kind: 'list' },
       })
     ).rejects.toMatchObject({ name: 'SelectorConnectionUnavailableError', status: 403 })
+  })
+
+  it.each([
+    { failedStatus: 'current', status: 401 },
+    { failedStatus: 'current', status: 403 },
+    { failedStatus: 'current', status: 429 },
+    { failedStatus: 'archived', status: 401 },
+    { failedStatus: 'archived', status: 403 },
+    { failedStatus: 'archived', status: 429 },
+  ])(
+    'preserves $status from the $failedStatus lookup when the other status has no matching space',
+    async ({ failedStatus, status }) => {
+      mockFetch.mockImplementation((input: URL) =>
+        new URL(input).searchParams.get('status') === failedStatus
+          ? new Response(null, { status })
+          : Response.json({ results: [{ id: '99999', key: 'OTHER', name: 'Other space' }] })
+      )
+
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+      ).rejects.toMatchObject({
+        name:
+          status === 429 ? 'SelectorOptionsUnavailableError' : 'SelectorConnectionUnavailableError',
+        status,
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it.each(['current', 'archived'] as const)(
+    'returns an exact %s match even when the other status lookup fails',
+    async (matchingStatus) => {
+      mockFetch.mockImplementation((input: URL) =>
+        new URL(input).searchParams.get('status') === matchingStatus
+          ? Response.json({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] })
+          : new Response(null, { status: 429 })
+      )
+
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+      ).resolves.toEqual({
+        kind: 'detail',
+        item: {
+          id: 'ENG',
+          label:
+            matchingStatus === 'archived' ? 'Engineering (ENG) — archived' : 'Engineering (ENG)',
+        },
+      })
+    }
+  )
+
+  it('reports a space key missing only when both status lookups succeed without a match', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        Response.json({ results: [{ id: '99999', key: 'OTHER', name: 'Other space' }] })
+      )
+      .mockResolvedValueOnce(Response.json({ results: [] }))
+
+    await expect(
+      confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+    ).resolves.toEqual({ kind: 'detail', item: null })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('sanitizes an arbitrary partial lookup failure rather than reporting the key missing', async () => {
+    const fetchProviderJson = vi
+      .spyOn(providerHttp, 'fetchProviderJson')
+      .mockRejectedValueOnce(new Error('raw provider failure'))
+      .mockResolvedValueOnce({ results: [] })
+
+    try {
+      await expect(
+        confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+      ).rejects.toMatchObject({
+        name: 'SelectorOptionsUnavailableError',
+        message: 'Options unavailable',
+        status: 502,
+      })
+    } finally {
+      fetchProviderJson.mockRestore()
+    }
   })
 
   it('preserves the first safe provider failure when both space detail requests fail', async () => {

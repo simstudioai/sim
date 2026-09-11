@@ -153,7 +153,14 @@ beforeEach(async () => {
     .where(eq(knowledgeConnectorMember.id, memberId))
   await db
     .update(document)
-    .set({ processingStatus: 'completed', enabled: true, userExcluded: false })
+    .set({
+      processingStatus: 'completed',
+      enabled: true,
+      userExcluded: false,
+      contentHash: null,
+      storageKey: null,
+      fileUrl: 'https://fixture.test/private',
+    })
     .where(eq(document.id, documentId))
 })
 
@@ -276,9 +283,44 @@ describe('organization operational overview with real SQL', () => {
     })
     expect(await provider('gmail')).toMatchObject({ status: 'active' })
   })
-  it('reports inaccessible processing failures without exposing documents, and ignores excluded failures', async () => {
-    await db.update(document).set({ processingStatus: 'failed' }).where(eq(document.id, documentId))
-    expect(await provider('google_drive')).toMatchObject({ status: 'needs_attention' })
+  it('ignores intentional skips while reporting inaccessible source and indexing failures', async () => {
+    await db
+      .update(document)
+      .set({ processingStatus: 'failed', contentHash: 'immutable-sha', fileUrl: '' })
+      .where(eq(document.id, documentId))
+    expect(await provider('google_drive')).toMatchObject({
+      status: 'active',
+      issue: null,
+      isSyncing: false,
+    })
+    await db
+      .update(knowledgeConnector)
+      .set({ lastSyncError: 'previous sync failed' })
+      .where(eq(knowledgeConnector.id, driveId))
+    expect(await provider('google_drive')).toMatchObject({
+      status: 'needs_attention',
+      issue: 'sync_failed',
+      isSyncing: false,
+    })
+    await db
+      .update(knowledgeConnector)
+      .set({ lastSyncError: null })
+      .where(eq(knowledgeConnector.id, driveId))
+    await db.update(document).set({ contentHash: null }).where(eq(document.id, documentId))
+    expect(await provider('google_drive')).toMatchObject({
+      status: 'needs_attention',
+      issue: 'document_indexing_failed',
+      isSyncing: false,
+    })
+    await db
+      .update(document)
+      .set({ contentHash: 'immutable-sha', storageKey: 'fixture-retained-artifact' })
+      .where(eq(document.id, documentId))
+    expect(await provider('google_drive')).toMatchObject({
+      status: 'needs_attention',
+      issue: 'document_indexing_failed',
+      isSyncing: false,
+    })
     await db.update(document).set({ userExcluded: true }).where(eq(document.id, documentId))
     expect(await provider('google_drive')).toMatchObject({ status: 'active' })
     await db

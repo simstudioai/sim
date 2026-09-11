@@ -1,5 +1,7 @@
+import { CLIENT_INFO_HEADER } from '@sim/utils/client-info'
 import chalk from 'chalk'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import { clientInfoHeader } from '../telemetry/client-info'
 import { USER_AGENT } from '../version'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
@@ -619,6 +621,7 @@ export class SimClient {
             : {}),
           accept: 'application/json',
           'user-agent': USER_AGENT,
+          [CLIENT_INFO_HEADER]: clientInfoHeader(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },

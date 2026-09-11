@@ -2,17 +2,21 @@
 
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalError, ChipSwitch, toast } from '@sim/emcn'
-import { useQueryState } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationIntegrationsSetup } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup'
-import { organizationIntegrationsTabParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { OrganizationSourcePeople } from '@/app/o/[organizationId]/settings/components/integrations/organization-source-people'
+import { OrganizationSourceStats } from '@/app/o/[organizationId]/settings/components/integrations/organization-source-stats'
+import {
+  organizationIntegrationsTabParam,
+  organizationPeopleIntegrationParam,
+} from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
 import {
   useOrganizationAccounts,
   useUpdateOrganizationAccounts,
@@ -20,10 +24,10 @@ import {
 
 export function OrganizationIntegrationsSettings() {
   const { organization, viewer } = useOrganizationContext()
-  const [tab, setTab] = useQueryState(
-    organizationIntegrationsTabParam.key,
-    organizationIntegrationsTabParam.parser
-  )
+  const [{ tab }, setNavigation] = useQueryStates({
+    [organizationIntegrationsTabParam.key]: organizationIntegrationsTabParam.parser,
+    [organizationPeopleIntegrationParam.key]: organizationPeopleIntegrationParam.parser,
+  })
   const accounts = useOrganizationAccounts(viewer.isAdmin ? organization.id : undefined)
   const update = useUpdateOrganizationAccounts()
   const [refreshOpen, setRefreshOpen] = useState(false)
@@ -39,58 +43,68 @@ export function OrganizationIntegrationsSettings() {
       {
         onSuccess: () => {
           setRefreshOpen(false)
-          toast.success('Connection settings refreshed')
+          toast.success('Sign-in settings updated')
         },
       }
     )
   }
   if (!viewer.isAdmin) return null
 
+  const tabs = (
+    <ChipSwitch
+      aria-label='Source settings'
+      value={tab}
+      onChange={(value) => void setNavigation({ tab: value, integration: null })}
+      options={[
+        { value: 'providers', label: 'Sources' },
+        { value: 'people', label: 'People' },
+        { value: 'stats', label: 'Stats' },
+      ]}
+    />
+  )
+
   return (
     <div className='flex flex-col gap-6'>
-      <div className='flex items-center justify-between gap-4'>
-        <ChipSwitch
-          aria-label='Source settings'
-          value={tab}
-          onChange={(value) => void setTab(value)}
-          options={[
-            { value: 'providers', label: 'Sources' },
-            { value: 'people', label: 'People' },
-          ]}
-        />
-        {tab === 'providers' && !accounts.error && group && group.options.length > 0 && (
-          <RowActionsMenu
-            label='More source actions'
-            actions={[
-              {
-                label: 'Refresh connection settings',
-                disabled: update.isPending,
-                onSelect: () => {
-                  update.reset()
-                  setRefreshOpen(true)
+      {tab === 'providers' && (
+        <div className='flex items-center justify-between gap-4'>
+          {tabs}
+          {tab === 'providers' && !accounts.error && group && group.options.length > 0 && (
+            <RowActionsMenu
+              label='More source actions'
+              actions={[
+                {
+                  label: 'Update sign-in settings',
+                  disabled: update.isPending,
+                  onSelect: () => {
+                    update.reset()
+                    setRefreshOpen(true)
+                  },
                 },
-              },
-            ]}
-          />
-        )}
-      </div>
+              ]}
+            />
+          )}
+        </div>
+      )}
       <ChipConfirmModal
         open={refreshOpen}
         onOpenChange={(open) => {
           if (!update.isPending) setRefreshOpen(open)
         }}
-        title='Refresh connection settings?'
-        text='Apply the latest sign-in settings to all integrations. Affected accounts will need to reconnect.'
-        confirm={{ label: 'Refresh', pending: update.isPending, onClick: refreshConnections }}
+        title='Update sign-in settings?'
+        text='Apply Sim’s current OAuth app and permission settings to member connections. People whose settings changed must reconnect. This does not sync content.'
+        confirm={{ label: 'Update', pending: update.isPending, onClick: refreshConnections }}
       >
         <ChipModalError>{update.error?.message}</ChipModalError>
       </ChipConfirmModal>
       {tab === 'providers' && <OrganizationIntegrationsSetup />}
+      {tab === 'stats' && <OrganizationSourceStats organizationId={organization.id} tabs={tabs} />}
       {tab === 'people' && (
-        <OrganizationAccountPeople
+        <OrganizationSourcePeople
           key={organization.id}
           organizationId={organization.id}
-          enabled={!accounts.error && (!accounts.data || Boolean(accounts.data.credentialGroup))}
+          options={group?.options ?? []}
+          tabs={tabs}
+          enabled={Boolean(accounts.isSuccess && group)}
           setupFallback={
             accounts.error ? (
               <SettingsQueryErrorState
@@ -107,7 +121,9 @@ export function OrganizationIntegrationsSettings() {
                 <SettingsEmptyState variant='inline'>
                   Add a source that uses member accounts before requesting connections.
                 </SettingsEmptyState>
-                <Chip onClick={() => void setTab('providers')}>View sources</Chip>
+                <Chip onClick={() => void setNavigation({ tab: 'providers', integration: null })}>
+                  View sources
+                </Chip>
               </div>
             ) : undefined
           }

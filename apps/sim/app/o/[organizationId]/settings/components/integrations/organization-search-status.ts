@@ -1,16 +1,16 @@
 import type { OrganizationSearchProviderSummary } from '@/lib/api/contracts/knowledge/connectors'
 
 const STATUS_LABELS: Record<OrganizationSearchProviderSummary['status'], string> = {
-  needs_setup: 'Source not configured',
+  needs_setup: 'Setup required',
   waiting_for_connections: 'Waiting for connections',
   indexing: 'Indexing',
   needs_attention: 'Sync failed',
   paused: 'Paused',
-  active: 'Enabled',
+  active: 'Ready to search',
 }
 
 export function organizationSearchStatusLabel(provider: OrganizationSearchProviderSummary): string {
-  if (!provider.approved) return 'Disabled'
+  if (!provider.approved) return 'Deactivated'
   if (provider.status === 'needs_setup' && provider.sourceCount > 0) return 'Waiting for first sync'
   if (provider.status === 'needs_attention') {
     const error =

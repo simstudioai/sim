@@ -54,7 +54,7 @@ import {
   SLACK_SEARCH_FAILED_ANSWER,
   SLACK_SEARCH_MAX_DURATION_SECONDS,
 } from '@/lib/slack-search/constants'
-import type { SlackSearchJob } from '@/lib/slack-search/types'
+import { type SlackSearchJob, slackSearchThreadTimestamp } from '@/lib/slack-search/types'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -204,7 +204,7 @@ export async function runSlackSearchAssistant(
     const responseStream = new SlackSearchAssistantStream({
       token: secret.botToken,
       channel: job.message.channelId,
-      threadTs: job.message.threadTs ?? job.message.messageTs,
+      threadTs: slackSearchThreadTimestamp(job.message),
       slackUserId: job.message.userId,
       controller,
       registry: environmentContext.resolvedSecretTraceRegistry,
@@ -255,6 +255,7 @@ export async function runSlackSearchAssistant(
       abortSignal: controller.signal,
       timeout: SLACK_SEARCH_MAX_DURATION_SECONDS * 1000,
       autoExecuteTools: true,
+      searchSurface: 'slack',
       onEvent: async (event) => {
         try {
           await responseStream.onEvent(event)

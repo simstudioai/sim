@@ -449,7 +449,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               knowledgeBaseIds: [args.knowledgeBaseId],
               query: modelQuery,
               topK,
-              surface: 'copilot',
+              surface: context?.searchSurface ?? 'copilot',
               resultSecretRegistry: context.resolvedSecretTraceRegistry,
               signal: context.abortSignal,
             }),

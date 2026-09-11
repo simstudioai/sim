@@ -1,4 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeOrganizationOperation,
@@ -11,6 +13,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { validateUpdateCredentialGroupInput } from '@/lib/credential-groups/application/validation'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
+import { createCredentialGroupOAuthStartUrl } from '@/lib/credential-groups/enrollment-links'
 import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { ManagedMcpConnectorError } from '@/lib/credential-groups/managed-mcp-service'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
@@ -26,6 +29,7 @@ import type {
   CredentialGroupOptionInput,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
+import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 
 export const organizationAccountOperations = {
@@ -129,8 +133,16 @@ export function defineOrganizationAccountsUseCase<
 export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase({
   operation: organizationAccountOperations.read,
   async execute({ context }) {
+    const credentialGroup = await getOrganizationAccountsGroup(context.organizationId)
     return {
-      credentialGroup: await getOrganizationAccountsGroup(context.organizationId),
+      credentialGroup,
+      viewerAccounts: credentialGroup
+        ? await listViewerOrganizationAccounts({
+            organizationId: context.organizationId,
+            userId: context.userId,
+            matching: eq(credentialGroupTable.id, credentialGroup.id),
+          })
+        : [],
       availableProviders: listConfiguredCredentialGroupProviders(),
       canManage: context.role === 'owner' || context.role === 'admin',
       indexingAvailable: await isKnowledgeMemberAccessAvailable({
@@ -219,6 +231,13 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     const url = new URL(invitationLink)
     url.searchParams.set('optionId', input.optionId)
     url.searchParams.set('returnTo', 'search')
-    return { invitationLink: url.toString() }
+    return {
+      invitationLink: url.toString(),
+      authorizationUrl: createCredentialGroupOAuthStartUrl({
+        invitationLink,
+        optionId: input.optionId,
+        returnTo: 'search',
+      }),
+    }
   },
 })

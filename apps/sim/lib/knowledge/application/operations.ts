@@ -102,6 +102,69 @@ const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
 } as const
 
 export const knowledgeOperations = {
+  completeGitHubSetupOAuth: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.oauth.complete',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  startGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.start',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.read',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  cancelGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.cancel',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  continueGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.continue',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  selectGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.select',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  completeGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.complete',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   listGitHubInstallations: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.github.installations.list',
@@ -758,6 +821,15 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  readOrganizationSearchStats: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.stats.read',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   approveSearchIntegration: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.approve',
@@ -799,6 +871,24 @@ export const knowledgeOperations = {
   simSearchConnect: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.simSearch.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listPersonalSourceSetupAccounts: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personalSetup.accounts.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  personalSourceSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personalSetup',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',

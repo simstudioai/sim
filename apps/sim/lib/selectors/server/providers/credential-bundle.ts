@@ -3,7 +3,10 @@ import {
   resolveCredentialTokenBundle,
   type ServiceAccountTokenResult,
 } from '@/lib/oauth/credential-service'
-import { waitForSelectorCredentialResolution } from '@/lib/selectors/server/credentials'
+import {
+  resolveSelectorOAuthAccessToken,
+  waitForSelectorCredentialResolution,
+} from '@/lib/selectors/server/credentials'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import type {
   AuthorizedSelectorCredential,
@@ -26,6 +29,16 @@ export async function resolveSelectorCredentialBundle(input: {
   if (!credential) throw new SelectorConnectionUnavailableError()
 
   credential.signal?.throwIfAborted()
+  if (credential.personalSearchSetup) {
+    if (!input.providerId) throw new SelectorConnectionUnavailableError()
+    return {
+      accessToken: await resolveSelectorOAuthAccessToken({
+        ...input,
+        credential,
+        serviceId: input.providerId,
+      }),
+    }
+  }
   if (credential.fixedToken) {
     if (input.providerId) {
       input.recordCredentialUse?.(credential.providerId ?? input.providerId)

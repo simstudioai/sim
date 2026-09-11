@@ -4,6 +4,7 @@ import { Chip, ChipDropdown, ChipInput, ChipLink, Skeleton } from '@sim/emcn'
 import { RefreshCw, Search, SquareArrowUpRight } from '@sim/emcn/icons'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -59,9 +60,10 @@ export function ConnectorDocuments({
   const documents = (data?.pages.flatMap((page) => page.documents) ?? []).filter((document) =>
     filter === 'excluded'
       ? document.userExcluded
-      : !document.userExcluded && (filter !== 'failed' || document.processingStatus === 'failed')
+      : !document.userExcluded &&
+        (filter === 'active' || getDocumentIndexingStatus(document) === filter)
   )
-  const counts = data?.pages[0]?.counts ?? { active: 0, excluded: 0, failed: 0 }
+  const counts = data?.pages[0]?.counts ?? { active: 0, excluded: 0, failed: 0, skipped: 0 }
   const visibleDocumentCount = counts[filter]
   const hasMoreVisibleDocuments = Boolean(hasNextPage && documents.length < visibleDocumentCount)
 
@@ -92,7 +94,12 @@ export function ConnectorDocuments({
             aria-label='Document status'
             value={filter}
             onChange={(value) => {
-              if (value === 'active' || value === 'excluded' || value === 'failed')
+              if (
+                value === 'active' ||
+                value === 'excluded' ||
+                value === 'failed' ||
+                value === 'skipped'
+              )
                 onFilterChange(value)
             }}
             matchTriggerWidth={false}
@@ -103,6 +110,7 @@ export function ConnectorDocuments({
                 label: isLoading ? 'Excluded' : `Excluded (${counts.excluded})`,
               },
               { value: 'failed', label: isLoading ? 'Failed' : `Failed (${counts.failed})` },
+              { value: 'skipped', label: isLoading ? 'Skipped' : `Skipped (${counts.skipped})` },
             ]}
           />
         </div>
@@ -128,7 +136,9 @@ export function ConnectorDocuments({
                   ? 'No excluded documents'
                   : filter === 'failed'
                     ? 'No failed documents'
-                    : 'No documents yet'}
+                    : filter === 'skipped'
+                      ? 'No skipped documents'
+                      : 'No documents yet'}
             </SettingsEmptyState>
           ) : (
             documents.map((doc) => (
@@ -136,13 +146,17 @@ export function ConnectorDocuments({
                 key={doc.id}
                 title={doc.filename}
                 description={
-                  doc.processingStatus === 'failed'
+                  getDocumentIndexingStatus(doc) === 'failed'
                     ? 'Indexing failed'
-                    : doc.processingStatus === 'pending'
-                      ? 'Waiting to index'
-                      : doc.processingStatus === 'processing'
-                        ? 'Indexing'
-                        : undefined
+                    : getDocumentIndexingStatus(doc) === 'skipped'
+                      ? doc.processingError
+                        ? `Skipped · ${doc.processingError}`
+                        : 'Skipped'
+                      : doc.processingStatus === 'pending'
+                        ? 'Waiting to index'
+                        : doc.processingStatus === 'processing'
+                          ? 'Indexing'
+                          : undefined
                 }
                 trailing={
                   <div className='flex items-center gap-2'>
@@ -155,7 +169,7 @@ export function ConnectorDocuments({
                         aria-label={`Open ${doc.filename}`}
                       />
                     )}
-                    {doc.processingStatus === 'failed' && !doc.userExcluded && (
+                    {getDocumentIndexingStatus(doc) === 'failed' && !doc.userExcluded && (
                       <Chip
                         disabled={isRecoveryPending}
                         onClick={() => {

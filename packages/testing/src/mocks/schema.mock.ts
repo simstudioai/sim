@@ -1629,6 +1629,15 @@ export const schemaMock = {
     approved: 'organizationSearchIntegration.approved',
     updatedAt: 'organizationSearchIntegration.updatedAt',
   },
+  organizationSearchInvocation: {
+    id: 'organizationSearchInvocation.id',
+    organizationId: 'organizationSearchInvocation.organizationId',
+    userId: 'organizationSearchInvocation.userId',
+    surface: 'organizationSearchInvocation.surface',
+    sourceTypes: 'organizationSearchInvocation.sourceTypes',
+    resultCount: 'organizationSearchInvocation.resultCount',
+    createdAt: 'organizationSearchInvocation.createdAt',
+  },
   knowledgeConnector: {
     id: 'knowledgeConnector.id',
     knowledgeBaseId: 'knowledgeConnector.knowledgeBaseId',

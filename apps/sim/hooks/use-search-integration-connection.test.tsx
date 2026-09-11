@@ -134,6 +134,20 @@ afterEach(() => {
 })
 
 describe('Search connection card lifecycle', () => {
+  it('confirms account-first setup against inventory and reflects later revocation', () => {
+    m.requestedTarget = { type: 'link', provider: 'jira', connectorType: 'jira' }
+    render()
+    act(() => connection().completeSetup({ connectorId: 'new-source', credentialId: 'mine' }))
+    expect(connection().connectorId).toBe('new-source')
+    expect(connection().connected).toBe(false)
+    expect(m.mutate).not.toHaveBeenCalled()
+    m.accounts = [{ credentialId: 'mine', status: 'connected' }]
+    render()
+    expect(connection().connected).toBe(true)
+    m.accounts = [{ credentialId: 'mine', status: 'reconnect_needed' }]
+    render()
+    expect(connection().connected).toBe(false)
+  })
   it('starts OAuth only on click and completes only when its receipt and current account agree', async () => {
     render()
     expect(m.mutate).not.toHaveBeenCalled()

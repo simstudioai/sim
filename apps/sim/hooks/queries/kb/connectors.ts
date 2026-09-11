@@ -35,8 +35,11 @@ import {
   type ViewerConnectorMembership,
   type WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge'
+import type {
+  CreateConnectorBody,
+  UpdateConnectorBody,
+} from '@/lib/api/contracts/knowledge/connectors'
 import {
-  type ConnectorAccessMode,
   type ConnectorDocumentsQuery,
   type PrepareSearchSourceBody,
   prepareSearchSourceContract,
@@ -294,17 +297,7 @@ function optimisticallyQueueSync(
   return { status: cached.status }
 }
 
-interface CreateConnectorParams {
-  knowledgeBaseId: string
-  connectorType: string
-  credentialId?: string
-  apiKey?: string
-  sourceConfig: Record<string, unknown>
-  syncIntervalMinutes?: number
-  accessMode?: ConnectorAccessMode
-  credentialGroupId?: string
-  credentialGroupOptionId?: string
-}
+type CreateConnectorParams = CreateConnectorBody & { knowledgeBaseId: string }
 
 async function createConnector({
   knowledgeBaseId,
@@ -350,11 +343,7 @@ export function useCreateConnector() {
 interface UpdateConnectorParams {
   knowledgeBaseId: string
   connectorId: string
-  updates: {
-    sourceConfig?: Record<string, unknown>
-    syncIntervalMinutes?: number
-    status?: 'active' | 'paused'
-  }
+  updates: UpdateConnectorBody
 }
 
 async function updateConnector({
@@ -392,10 +381,20 @@ export function useUpdateConnector() {
         })
       }
     },
-    onSettled: (_data, _error, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, updates }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
+      if (updates.permissionConfig || updates.apiKey !== undefined) {
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(knowledgeBaseId),
+          exact: true,
+        })
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
+      }
     },
   })
 }
@@ -501,7 +500,13 @@ export function useOrganizationSearchOverview(
 
 export function useSearchSources(
   owner?: string | ResourceScope,
-  options?: { enabled?: boolean; search?: string; mine?: boolean; connectorType?: string }
+  options?: {
+    enabled?: boolean
+    search?: string
+    mine?: boolean
+    connectorType?: string
+    excludeConnectorType?: string
+  }
 ) {
   const queryClient = useQueryClient()
   const scope =
@@ -517,6 +522,9 @@ export function useSearchSources(
     search: options?.search?.trim().toLowerCase() ?? '',
     mine: options?.mine ?? false,
     ...(options?.connectorType?.trim() ? { connectorType: options.connectorType.trim() } : {}),
+    ...(options?.excludeConnectorType?.trim()
+      ? { excludeConnectorType: options.excludeConnectorType.trim() }
+      : {}),
   }
   const summary = useInfiniteQuery({
     queryKey: searchSourceKeys.pages(scope, filters),

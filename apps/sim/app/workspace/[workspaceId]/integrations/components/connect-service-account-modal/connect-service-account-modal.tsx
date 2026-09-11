@@ -551,7 +551,16 @@ function AtlassianServiceAccountModalForm({
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='API token' required hint={ATLASSIAN_COVERAGE_HINT}>
+        <ChipModalField
+          type='custom'
+          title='API token'
+          required
+          hint={
+            atlassianProduct === 'confluence'
+              ? 'Use a service-account token with Confluence access. Required scopes are listed in the setup guide.'
+              : ATLASSIAN_COVERAGE_HINT
+          }
+        >
           {(aria) => (
             <SecretInput
               {...aria}
