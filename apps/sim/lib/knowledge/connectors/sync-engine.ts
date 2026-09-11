@@ -289,6 +289,32 @@ class SyncCompletionOwnershipLost extends Error {
   }
 }
 
+/** What a finished content pass reports to the sync-log and connector close. */
+export interface ContentPassOutcome {
+  complete: boolean
+  checkpoint: {
+    unsafe: boolean
+    contentFailures?: boolean
+    startedAt: string
+    listedCount: number
+    incrementalSince?: string | null
+  }
+}
+
+/**
+ * A content pass is incomplete when the listing has not reached the end of the
+ * source (the generation resumes on the next run) or a source read failed (the
+ * next pass replays it). `checkpoint.unsafe` is deliberately not part of this:
+ * it means "do not infer deletions from this listing" and is honored by the
+ * deletion hold in `reconcileCompletedListing`. A held pass is still a
+ * completed sync whose watermark advances.
+ */
+export function isContentPassIncomplete(
+  contentPass: Pick<ContentPassOutcome, 'complete' | 'checkpoint'>
+): boolean {
+  return !contentPass.complete || contentPass.checkpoint.contentFailures === true
+}
+
 /**
  * Atomically publishes the completed log and connector terminal state.
  *
@@ -303,16 +329,7 @@ export async function completeSuccessfulSync(
   syncIntervalMinutes: number,
   result: SyncResult,
   reconciliationHoldNotice: string | null,
-  contentPass?: {
-    complete: boolean
-    checkpoint: {
-      unsafe: boolean
-      contentFailures?: boolean
-      startedAt: string
-      listedCount: number
-      incrementalSince?: string | null
-    }
-  }
+  contentPass?: ContentPassOutcome
 ): Promise<boolean> {
   try {
     return await db.transaction(async (tx) => {
@@ -361,13 +378,7 @@ export async function completeSuccessfulSync(
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
         .set({
-          status:
-            contentPass &&
-            (!contentPass.complete ||
-              contentPass.checkpoint.unsafe ||
-              contentPass.checkpoint.contentFailures)
-              ? 'partial'
-              : 'completed',
+          status: contentPass && isContentPassIncomplete(contentPass) ? 'partial' : 'completed',
           completedAt: now,
           listedCount: contentPass?.complete
             ? contentPass.checkpoint.incrementalSince
@@ -398,19 +409,12 @@ export async function completeSuccessfulSync(
             actualDocCount,
             contentPass && !contentPass.complete ? now : calculateNextSyncTime(syncIntervalMinutes),
             reconciliationHoldNotice,
-            result.docsFailed === 0 &&
-              (!contentPass ||
-                (contentPass.complete &&
-                  !contentPass.checkpoint.unsafe &&
-                  !contentPass.checkpoint.contentFailures))
+            result.docsFailed === 0 && (!contentPass || !isContentPassIncomplete(contentPass))
           ),
           /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
           accessRewritePending: false,
           ...(contentPass?.complete ? { listingCheckpoint: null } : {}),
-          ...(contentPass?.complete &&
-          !contentPass.checkpoint.unsafe &&
-          !contentPass.checkpoint.contentFailures &&
-          result.docsFailed === 0
+          ...(contentPass && !isContentPassIncomplete(contentPass) && result.docsFailed === 0
             ? { lastSyncAt: new Date(contentPass.checkpoint.startedAt) }
             : {}),
         })
@@ -1119,10 +1123,7 @@ export async function executeSync(
         : undefined,
     })
 
-    result.listingIncomplete =
-      !contentPass.complete ||
-      contentPass.checkpoint.unsafe ||
-      contentPass.checkpoint.contentFailures
+    result.listingIncomplete = isContentPassIncomplete(contentPass)
     const reconciliationHoldNotice = contentPass.holdNotice
     const directoryError = await directoryRefreshed
     if (directoryError) throw directoryError
