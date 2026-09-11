@@ -1,5 +1,5 @@
 {
-  "id": "50aacfdd-df65-4309-8f8b-3b94bbe4a92c",
+  "id": "ae1f15e2-2725-434a-a1ac-9ea8a857868d",
   "prevId": "1bdee29d-c55a-4de9-a0a3-03a6c6aa68aa",
   "version": "7",
   "dialect": "postgresql",
@@ -17053,6 +17053,10 @@
         "slack_app_owner_check": {
           "name": "slack_app_owner_check",
           "value": "(\"slack_app\".\"kind\" = 'custom' AND \"slack_app\".\"organization_id\" IS NOT NULL) OR (\"slack_app\".\"kind\" = 'shared' AND \"slack_app\".\"organization_id\" IS NULL)"
+        },
+        "slack_app_custom_credentials_check": {
+          "name": "slack_app_custom_credentials_check",
+          "value": "\"slack_app\".\"kind\" = 'shared' OR (\"slack_app\".\"client_id\" IS NOT NULL AND \"slack_app\".\"encrypted_client_secret\" IS NOT NULL AND \"slack_app\".\"encrypted_signing_secret\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false

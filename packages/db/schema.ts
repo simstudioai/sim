@@ -4979,6 +4979,10 @@ export const slackApp = pgTable(
       'slack_app_owner_check',
       sql`(${table.kind} = 'custom' AND ${table.organizationId} IS NOT NULL) OR (${table.kind} = 'shared' AND ${table.organizationId} IS NULL)`
     ),
+    customCredentialsCheck: check(
+      'slack_app_custom_credentials_check',
+      sql`${table.kind} = 'shared' OR (${table.clientId} IS NOT NULL AND ${table.encryptedClientSecret} IS NOT NULL AND ${table.encryptedSigningSecret} IS NOT NULL)`
+    ),
   })
 )
 
