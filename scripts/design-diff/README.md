@@ -96,6 +96,7 @@ scripts/design-diff/
   dependencies.ts                       Export-aware imports and source reference counts
   ast.ts                                Babel parsing and syntax normalization
   refactors.ts                          Supported literal/refactor normalization
+  mutations.ts                          Referenced collection/property writes
   resolve.ts                            Bounded expression and import resolution
   inputs.ts                             Configured file-loaded documentation inputs
   infrastructure.ts                     Rendering lockfile dependency closure
@@ -179,7 +180,7 @@ The configured Fumadocs `OPENAPI_SPEC_FILES` list is parsed from Git in each rev
 JSON inputs are compared semantically, retaining array order and attributing changes to both
 the spec and configured renderer. Malformed/missing configured inputs flag with a limitation.
 
-The graph reuses up to 10,000 import/export snapshots keyed by source blob, resolving their
+The graph reuses up to 32,768 import/export snapshots keyed by source blob, resolving their
 paths again for each revision. The resolver retains at most 32 parsed modules per revision,
 and requests Bun garbage collection between parser batches. These resource controls do
 not change evidence or decisions. The Node-based test runner uses its own garbage collector.

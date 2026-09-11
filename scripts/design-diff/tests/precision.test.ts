@@ -299,3 +299,48 @@ it('preserves value/type names shared by generated schema declarations', async (
       .some((reason) => /parser|extraction failed/i.test(reason))
   ).toBe(false)
 })
+
+it.each([
+  (colour: string) =>
+    `export function colours(){const values=[];values.push('${colour}');return values}`,
+  (colour: string) =>
+    `export function colours(){const values={colour:'red'};values.colour='${colour}';return values.colour}`,
+])('retains writes to const collections feeding rendering', async (source) => {
+  const report = await compareFiles(
+    {
+      [data]: source('red'),
+      [view]: 'import {colours} from "./data";export const Page=()=> <Panel colours={colours()}/>',
+    },
+    { [data]: source('blue') },
+    settings
+  )
+  expect(report.flagged).toBe(true)
+})
+
+it('retains conditions around collection writes', async () => {
+  const source = (enabled: boolean) =>
+    `export function colours(){const values=[];if(${enabled})values.push('red');return values}`
+  const report = await compareFiles(
+    {
+      [data]: source(true),
+      [view]: 'import {colours} from "./data";export const Page=()=> <Panel colours={colours()}/>',
+    },
+    { [data]: source(false) },
+    settings
+  )
+  expect(report.flagged).toBe(true)
+})
+
+it('isolates unrelated mutable object fields such as telemetry warmup state', async () => {
+  const source = (warm: boolean) =>
+    `const state={client:null,warmup:false};state.client=connect();state.warmup=${warm};export function client(){return state.client}`
+  const report = await compareFiles(
+    {
+      [data]: source(false),
+      [view]: 'import {client} from "./data";export const Page=()=> <Panel client={client()}/>',
+    },
+    { [data]: source(true) },
+    settings
+  )
+  expect(report.flagged).toBe(false)
+})
