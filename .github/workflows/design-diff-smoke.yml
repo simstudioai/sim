@@ -1,0 +1,57 @@
+name: Design diff cloud smoke
+
+on:
+  push:
+    branches: [codex/design-diff-cloud-smoke]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-diff-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout pinned engine
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ee213d9a7e4ad5ec944d4d55003c378b2f2787d4
+          path: engine
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout test runner
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          persist-credentials: false
+          sparse-checkout: scripts/design-diff/cloud-smoke.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Install pinned dependencies
+        working-directory: engine
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Exercise controlled diffs
+        env:
+          REPORT_DIRECTORY: ${{ runner.temp }}/design-diff-smoke
+        run: bun --no-env-file harness/scripts/design-diff/cloud-smoke.ts --repo engine --output "$REPORT_DIRECTORY"
+
+      - name: Retain reports and test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-diff-smoke-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/design-diff-smoke/*.json
+          retention-days: 7
+          if-no-files-found: error
