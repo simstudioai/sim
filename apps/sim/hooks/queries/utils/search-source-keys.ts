@@ -12,7 +12,12 @@ export const searchSourceKeys = {
     ] as const,
   pages: (
     scope: string | ResourceScope | undefined,
-    filters: { search: string; mine: boolean; connectorType?: string }
+    filters: {
+      search: string
+      mine: boolean
+      connectorType?: string
+      excludeConnectorType?: string
+    }
   ) => [...searchSourceKeys.list(scope), 'pages', filters] as const,
   overview: (scope?: string | ResourceScope) =>
     [...searchSourceKeys.list(scope), 'overview'] as const,

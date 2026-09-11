@@ -306,6 +306,20 @@ describe('focused Search enrollment', () => {
     expect(oauthLinks()[0]?.getAttribute('href')).toContain('/site-two?returnTo=search')
   })
 
+  it.each([
+    ['github_email_mismatch', 'add and verify the email address'],
+    ['github_email_access_denied', 'Email addresses: Read-only permission'],
+    ['provider_unavailable', 'Try connecting again in a few minutes'],
+  ])(
+    'renders recovery guidance for %s without treating it as a connection',
+    async (oauth, message) => {
+      await render({ returnTo: 'search', optionId: 'site-two', oauth })
+      expect(document.querySelector('[role="status"]')?.textContent).toContain(message)
+      expect(oauthLinks()[0]?.textContent).toBe('Connect')
+      expect(document.body.textContent).toContain('Not connected')
+    }
+  )
+
   it('does not resolve enrollment metadata or trust a return workspace after authentication fails', async () => {
     mocks.authenticate.mockResolvedValue(null)
     await render({ returnTo: 'search', optionId: 'site-two', workspaceId: 'other-workspace' })

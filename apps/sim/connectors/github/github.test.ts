@@ -7,6 +7,7 @@ import {
   listingFingerprint,
   runResumableListing,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
+import { classifyExternalDoc } from '@/lib/knowledge/connectors/sync-primitives'
 import { githubConnector } from '@/connectors/github/github'
 import type { ExternalDocument } from '@/connectors/types'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -153,6 +154,7 @@ describe('githubConnector member listing', () => {
       content: '',
       contentDeferred: true,
       contentHash: 'git-sha:blob-sha',
+      skippedRetryPolicy: 'source-change',
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0]![1].headers.Authorization).toBe('Bearer member-token')
@@ -486,6 +488,94 @@ describe('githubConnector.getDocument', () => {
   })
 })
 
+describe('githubConnector content outcomes', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([
+    ['empty.txt', '', 'Empty file was not indexed'],
+    ['blank.txt', ' \n\t ', 'Empty file was not indexed'],
+    ['image.png', 'binary\0contents', 'Binary file was not indexed'],
+  ])(
+    'records %s as a verified omission and reuses its unchanged hash',
+    async (path, body, reason) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(treeResponse([treeFile(path, 'blob-sha')]))
+        .mockResolvedValueOnce(new Response(body))
+      vi.stubGlobal('fetch', fetchMock)
+      const context = {}
+      const listing = await githubConnector.listDocuments('token', source, undefined, context)
+      const skipped = await githubConnector.getDocument('token', source, path, context)
+      expect(skipped).toMatchObject({
+        content: '',
+        contentDeferred: false,
+        contentHash: listing.documents[0].contentHash,
+        skippedReason: reason,
+        skippedExistingDisposition: 'replace',
+      })
+      const existing = { id: 'document', contentHash: skipped!.contentHash, storageKey: null }
+      expect(classifyExternalDoc(listing.documents[0], existing)).toEqual({ type: 'unchanged' })
+      expect(
+        classifyExternalDoc({ ...listing.documents[0], contentHash: 'git-sha:new-blob' }, existing)
+      ).toEqual({ type: 'update', existingId: 'document' })
+      expect(classifyExternalDoc(listing.documents[0], { ...existing, contentHash: null })).toEqual(
+        {
+          type: 'update',
+          existingId: 'document',
+        }
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('skips a known empty blob before downloading it', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(treeResponse([treeFile('empty.pdf', 'sha', 0)]))
+    vi.stubGlobal('fetch', fetchMock)
+    const context = {}
+    const listing = await githubConnector.listDocuments('token', source, undefined, context)
+    const document = await githubConnector.getDocument('token', source, 'empty.pdf', context)
+    expect(listing.documents[0]).toMatchObject({
+      skippedReason: 'Empty file was not indexed',
+      skippedExistingDisposition: 'replace',
+      contentDeferred: false,
+    })
+    expect(document?.skippedReason).toBe('Empty file was not indexed')
+    expect(document?.sourceFile).toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['report.pdf', 'application/pdf'],
+    ['report.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ])('hands the original %s bytes to the shared document processor', async (path, mimeType) => {
+    const bytes = Buffer.from([0x50, 0x4b, 0x00, 0x03, 0x04])
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(treeResponse([treeFile(path, 'blob-sha', bytes.length)]))
+      .mockResolvedValueOnce(new Response(bytes))
+    vi.stubGlobal('fetch', fetchMock)
+    const context = {}
+    const listing = await githubConnector.listDocuments('token', source, undefined, context)
+    const document = await githubConnector.getDocument('token', source, path, context)
+    expect(document).toMatchObject({
+      content: '',
+      contentDeferred: false,
+      mimeType,
+      sourceFile: { bytes, fileName: path, mimeType },
+      contentHash: listing.documents[0].contentHash,
+    })
+    expect(document?.skippedReason).toBeUndefined()
+    expect(
+      classifyExternalDoc(listing.documents[0], {
+        id: 'previously-skipped',
+        contentHash: 'git-sha:blob-sha',
+        storageKey: null,
+      })
+    ).toEqual({ type: 'update', existingId: 'previously-skipped' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('githubConnector symlinks', () => {
   afterEach(() => vi.unstubAllGlobals())
 
@@ -574,6 +664,43 @@ describe('githubConnector symlinks', () => {
     ])
   })
 
+  it('skips a directory link without requesting a directory as file content', async () => {
+    const directory = { ...treeFile('docs/folder'), mode: '040000', type: 'tree' }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(treeResponse([link, directory]))
+      .mockResolvedValueOnce(new Response('folder'))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(githubConnector.getDocument('token', source, link.path)).resolves.toMatchObject({
+      skippedReason: 'Symbolic link target is not a repository file',
+      skippedRetryPolicy: 'source-change',
+      skippedExistingDisposition: 'replace',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('routes a document symlink through the shared parser using its displayed file format', async () => {
+    const documentLink = { ...link, path: 'docs/report.pdf' }
+    const bytes = Buffer.from('%PDF-1.7\n\0binary document content')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(treeResponse([documentLink, target]))
+      .mockResolvedValueOnce(new Response('target.md'))
+      .mockResolvedValueOnce(new Response(bytes))
+    vi.stubGlobal('fetch', fetchMock)
+    const context = {}
+    const listing = await githubConnector.listDocuments('token', source, undefined, context)
+    const document = await githubConnector.getDocument('token', source, documentLink.path, context)
+    expect(document).toMatchObject({
+      externalId: documentLink.path,
+      title: 'report.pdf',
+      sourceFile: { bytes, fileName: 'report.pdf', mimeType: 'application/pdf' },
+      contentHash: listing.documents[0].contentHash,
+    })
+    expect(document?.skippedReason).toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('follows an in-repository link chain outside the configured listing prefix', async () => {
     const nextLink = { ...treeFile('intermediate.md', 'next-link-sha'), mode: '120000' }
     vi.stubGlobal(
@@ -657,6 +784,7 @@ describe('githubConnector symlinks', () => {
       await expect(githubConnector.getDocument('token', source, link.path)).resolves.toMatchObject({
         content: '',
         skippedReason: reason,
+        skippedExistingDisposition: 'replace',
       })
     }
   })

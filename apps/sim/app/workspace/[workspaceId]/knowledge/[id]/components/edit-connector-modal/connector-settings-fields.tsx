@@ -17,6 +17,7 @@ import {
   getServiceAccountProviderForProviderId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import {
   ConnectServiceAccountModal,
@@ -42,6 +43,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
 import {
   GitLabPermissionTabs,
   GitLabPermissionUploads,
@@ -50,6 +52,7 @@ import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 
 const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
   workspace: 'Every workspace member can read every synced document once the next sync completes.',
@@ -68,6 +71,7 @@ export interface ConnectorSettingsFieldsProps {
     refetch: () => unknown
   }
   isSearchIndex: boolean
+  usesGitHubInstallation?: boolean
   connectorConfig: ConnectorMeta | null
   selectionLabels: SourceSelectionLabels
   sourceConfig: ConfigFieldMap
@@ -113,6 +117,7 @@ export function ConnectorSettingsFields({
   gitlabPermissions,
   availability,
   isSearchIndex,
+  usesGitHubInstallation = false,
   connectorConfig,
   sourceConfig,
   selectionLabels,
@@ -154,6 +159,12 @@ export function ConnectorSettingsFields({
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
       : null
   const syncsPerMember = access.accessMode === 'members'
+  const isGitHubInstallationSource =
+    usesGitHubInstallation &&
+    isSearchIndex &&
+    scope.kind === 'organization' &&
+    connectorConfig?.id === 'github' &&
+    syncsPerMember
   const requiresServiceAccount = Boolean(
     connectorConfig &&
       !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
@@ -172,11 +183,20 @@ export function ConnectorSettingsFields({
     serviceIcon: connectorConfig?.icon,
   })
   const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
+  const githubSetup = useGitHubInstallationSetup({
+    organizationId:
+      isGitHubInstallationSource && canAdmin && scope.kind === 'organization'
+        ? scope.organizationId
+        : undefined,
+    onConnected: onContentCredentialChange,
+  })
   const [showMoreOptions, setShowMoreOptions] = useState(false)
   const isContentCredentialChange = accessDirty && !accessModeChanged
   const {
     data: rawCredentials = [],
     isLoading: credentialsLoading,
+    isFetching: credentialsFetching,
+    error: credentialsError,
     refetch: refetchCredentials,
   } = useOAuthCredentials(providerId ?? undefined, {
     enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
@@ -187,6 +207,9 @@ export function ConnectorSettingsFields({
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
   const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
   const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
+  const installations = rawCredentials.filter(
+    (credential) => credential.provider === GITHUB_INSTALLATION_PROVIDER_ID
+  )
   const credentialOptions = useMemo<ComboboxOption[]>(
     () =>
       rawCredentials
@@ -255,16 +278,60 @@ export function ConnectorSettingsFields({
           />
         </ChipModalField>
       )}
-      {syncsPerMember && connectorConfig?.supportsSeparateContentCredential && (
-        <ConnectorContentCredentialField
+      {isGitHubInstallationSource && (
+        <GitHubInstallationConnectionField
+          installations={installations}
           credentialId={contentCredentialId}
-          onChange={onContentCredentialChange}
-          options={credentialOptions}
           isLoading={credentialsLoading}
+          isFetching={credentialsFetching}
+          error={credentialsError}
           disabled={isSaving || !canAdmin}
-        />
+          onRetry={() => void refetchCredentials()}
+          onConnect={() => void githubSetup.connect(installations.length ? 'install' : undefined)}
+          connecting={githubSetup.pending}
+          connectionError={githubSetup.error}
+          hint={
+            accessDirty
+              ? 'Keeps the current repository. To add another repository, add a new source.'
+              : undefined
+          }
+          onCancel={githubSetup.cancel}
+          onChange={onContentCredentialChange}
+        >
+          {(accessDirty || canReenableMemberSync) && (
+            <div className='flex items-center gap-2'>
+              <Chip
+                variant='primary'
+                onClick={onApplyAccess}
+                disabled={!accessComplete || !contentCredentialId || isSaving || !canAdmin}
+              >
+                {isSwitchingAccess
+                  ? 'Updating…'
+                  : canReenableMemberSync
+                    ? 'Re-enable sync'
+                    : 'Change connection'}
+              </Chip>
+              {accessDirty && (
+                <Chip onClick={onResetAccess} disabled={isSaving}>
+                  Cancel
+                </Chip>
+              )}
+            </div>
+          )}
+        </GitHubInstallationConnectionField>
       )}
-      {connectorConfig && showAccessField && (
+      {!isGitHubInstallationSource &&
+        syncsPerMember &&
+        connectorConfig?.supportsSeparateContentCredential && (
+          <ConnectorContentCredentialField
+            credentialId={contentCredentialId}
+            onChange={onContentCredentialChange}
+            options={credentialOptions}
+            isLoading={credentialsLoading}
+            disabled={isSaving || !canAdmin}
+          />
+        )}
+      {connectorConfig && showAccessField && !isGitHubInstallationSource && (
         <ConnectorAccessField
           scope={scope}
           connectorConfig={connectorConfig}
@@ -387,6 +454,7 @@ export function ConnectorSettingsFields({
       )}
 
       {connectorConfig &&
+        !isGitHubInstallationSource &&
         syncsPerMember &&
         connectorConfig.configFields.some(
           (field) => field.type === 'selector' && isFieldVisible(field)

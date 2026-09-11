@@ -166,19 +166,38 @@ describe('executeSelector', () => {
     ])
   })
 
-  it('keeps generic organization browsing admin-only', async () => {
-    mocks.requireOrganizationMembership.mockRejectedValueOnce(new Error('Admin required'))
-    await expect(
-      execute({ scope: { kind: 'organization', organizationId: 'org-1' } })
-    ).rejects.toThrow('Admin required')
-    expect(mocks.requireOrganizationMembership).toHaveBeenCalledWith(
-      principal,
-      'org-1',
-      'admin',
-      'knowledge.use'
+  it.each(['gmail.labels', 'github.installationRepositories'])(
+    'keeps generic organization browsing admin-only for %s',
+    async (selectorKey) => {
+      mocks.requireOrganizationMembership.mockRejectedValueOnce(new Error('Admin required'))
+      await expect(
+        execute({ selectorKey, scope: { kind: 'organization', organizationId: 'org-1' } })
+      ).rejects.toThrow('Admin required')
+      expect(mocks.requireOrganizationMembership).toHaveBeenCalledWith(
+        principal,
+        'org-1',
+        'admin',
+        'knowledge.use'
+      )
+      expect(mocks.authorizePersonalSearch).not.toHaveBeenCalled()
+      expect(mocks.getAttachment).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses organization GitHub installation browsing from workspace scope before resolving credentials', async () => {
+    mocks.resolveScope.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      selectorKey: 'github.installationRepositories',
+      selectorManifest: getSelectorManifestEntry('github.installationRepositories'),
+      selectorScope: scope,
+    })
+    await expect(execute({ selectorKey: 'github.installationRepositories' })).rejects.toThrow(
+      'Context unavailable'
     )
-    expect(mocks.authorizePersonalSearch).not.toHaveBeenCalled()
-    expect(mocks.getAttachment).not.toHaveBeenCalled()
+    expect(mocks.authorizeCredential).not.toHaveBeenCalled()
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
 
   it('rejects a personal setup marker outside its approved provider selector and organization scope', async () => {

@@ -500,7 +500,13 @@ export function useOrganizationSearchOverview(
 
 export function useSearchSources(
   owner?: string | ResourceScope,
-  options?: { enabled?: boolean; search?: string; mine?: boolean; connectorType?: string }
+  options?: {
+    enabled?: boolean
+    search?: string
+    mine?: boolean
+    connectorType?: string
+    excludeConnectorType?: string
+  }
 ) {
   const queryClient = useQueryClient()
   const scope =
@@ -516,6 +522,9 @@ export function useSearchSources(
     search: options?.search?.trim().toLowerCase() ?? '',
     mine: options?.mine ?? false,
     ...(options?.connectorType?.trim() ? { connectorType: options.connectorType.trim() } : {}),
+    ...(options?.excludeConnectorType?.trim()
+      ? { excludeConnectorType: options.excludeConnectorType.trim() }
+      : {}),
   }
   const summary = useInfiniteQuery({
     queryKey: searchSourceKeys.pages(scope, filters),

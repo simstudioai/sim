@@ -66,6 +66,7 @@ vi.mock('@/connectors/registry', () => ({
       auth: { mode: 'oauth', provider: 'google-calendar', adminCredentialType: 'service_account' },
     },
     slack: { name: 'Slack', auth: { mode: 'oauth', provider: 'slack' } },
+    github: { name: 'GitHub', auth: { mode: 'oauth', provider: 'github-repositories' } },
     gitlab: { name: 'GitLab', auth: { mode: 'apiKey' } },
   },
 }))
@@ -220,6 +221,29 @@ describe('organization provider management', () => {
       },
     })
   }
+
+  it.each(['members', 'admin'])(
+    'shows GitHub repositories without an account method label for %s access',
+    async (accessMode) => {
+      mocks.overview.mockReturnValue({
+        data: { providers: [{ ...provider, connectorType: 'github', sourceCount: 1 }] },
+      })
+      mocks.sources.mockReturnValue({
+        data: [
+          { ...source, connectorType: 'github', sourceDescription: 'acme/platform', accessMode },
+        ],
+        isPending: false,
+      })
+      await render('github')
+      expect(container.textContent).toContain('acme/platform')
+      expect(container.textContent).toContain('Last synced')
+      expect(container.textContent).not.toContain('Member accounts')
+      expect(container.textContent).not.toContain('Admin or service account')
+      expect(
+        container.querySelector('a[href="/o/org-one/settings/integrations/sources/source-one"]')
+      ).not.toBeNull()
+    }
+  )
 
   it.each(['gmail', 'google_calendar', 'google_drive'])(
     'offers configuration setup directly for %s without an Accounts or Advanced tab',

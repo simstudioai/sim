@@ -73,6 +73,14 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: mocks.userId } } }),
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
+vi.mock('@/hooks/use-github-installation-setup', () => ({
+  useGitHubInstallationSetup: () => ({
+    connect: vi.fn(),
+    cancel: vi.fn(),
+    pending: false,
+    error: null,
+  }),
+}))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map([

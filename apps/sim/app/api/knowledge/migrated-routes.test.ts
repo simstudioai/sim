@@ -316,7 +316,7 @@ describe('migrated internal Knowledge routes', () => {
         documents: [
           expect.objectContaining({ id: 'document-1', uploadedAt: '2026-01-01T00:00:00.000Z' }),
         ],
-        counts: { active: 1, excluded: 0, failed: 0 },
+        counts: { active: 1, excluded: 0, failed: 0, skipped: 0 },
         hasMore: false,
       },
     })

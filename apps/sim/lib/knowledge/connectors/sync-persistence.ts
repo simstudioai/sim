@@ -258,7 +258,7 @@ export interface KnowledgeBaseOwner {
   userId: string
 }
 
-/** Builds a content-less `failed` document row for a skipped (e.g. oversized) file. */
+/** Builds a content-less document row for an intentional source exclusion. */
 function buildSkippedDocumentRow(
   knowledgeBaseId: string,
   connectorId: string,
@@ -295,7 +295,7 @@ function buildSkippedDocumentRow(
 }
 
 /**
- * Records source files that were intentionally not indexed as content-less `failed`
+ * Records source files that were intentionally not indexed as content-less
  * documents. New rows are inserted in bulk; authoritative skips replace stale rows.
  * This keeps the files visible in the knowledge base UI — with `processingError`
  * explaining why — instead of silently dropping them. The rows have no storage key,

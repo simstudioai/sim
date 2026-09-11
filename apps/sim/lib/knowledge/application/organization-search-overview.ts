@@ -8,7 +8,7 @@ import {
   knowledgeConnectorSyncLog,
   organizationSearchIntegration,
 } from '@sim/db/schema'
-import { and, eq, exists, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
@@ -17,6 +17,7 @@ import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contex
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { MAX_SEARCH_SOURCE_PROVIDER_TYPES } from '@/lib/knowledge/constants'
+import { failedDocumentCondition } from '@/lib/knowledge/documents/processing-status'
 import { canConnectWithDefaults, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 
 interface OrganizationSearchOverviewInput {
@@ -136,7 +137,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
           )
         )
     )
-    const hasDocumentsInState = (statuses: string[]) =>
+    const hasDocumentsInState = (condition: SQL) =>
       exists(
         db
           .select({ id: document.id })
@@ -149,7 +150,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
               eq(document.userExcluded, false),
               isNull(document.archivedAt),
               isNull(document.deletedAt),
-              inArray(document.processingStatus, statuses)
+              condition
             )
           )
       )
@@ -194,7 +195,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
           hasError: sql<boolean>`bool_or(NOT ${paused} AND (
           ${knowledgeConnector.status} = 'error'
           OR ${knowledgeConnector.lastSyncError} IS NOT NULL
-          OR ${hasDocumentsInState(['failed'])}
+          OR ${hasDocumentsInState(failedDocumentCondition())}
           OR (${knowledgeConnector.accessMode} = 'admin' AND ${latestCentralRunHasError})
           OR (${knowledgeConnector.accessMode} = 'members' AND (
             ${knowledgeConnector.memberSyncStatus} = 'error'
@@ -203,12 +204,12 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
           ))
         ))`,
           hasAccountError: sql<boolean>`bool_or(NOT ${paused} AND ${knowledgeConnector.accessMode} = 'members' AND ${hasMemberError})`,
-          hasDocumentError: sql<boolean>`bool_or(NOT ${paused} AND ${hasDocumentsInState(['failed'])})`,
+          hasDocumentError: sql<boolean>`bool_or(NOT ${paused} AND ${hasDocumentsInState(failedDocumentCondition())})`,
           hasIndexing: sql<boolean>`bool_or(NOT ${paused}
             AND (${knowledgeConnector.accessMode} <> 'members' OR ${hasActiveMembers} OR ${knowledgeConnector.credentialId} IS NOT NULL)
             AND (
           ${knowledgeConnector.status} IN ('pending', 'syncing')
-          OR ${continuing} OR ${hasDocumentsInState(['pending', 'processing'])}
+          OR ${continuing} OR ${hasDocumentsInState(inArray(document.processingStatus, ['pending', 'processing']))}
           OR (${knowledgeConnector.accessMode} = 'members' AND (
             ${knowledgeConnector.memberSyncStatus} IN ('pending', 'running') OR ${hasMemberFirstListing}
           ))

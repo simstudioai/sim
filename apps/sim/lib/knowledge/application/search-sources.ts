@@ -1,7 +1,7 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
-import { and, desc, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import {
   listSearchSourcesContract,
   searchSourceCursorSchema,
@@ -22,6 +22,7 @@ import {
   SEARCH_SOURCE_CANDIDATE_PAGE_SIZE,
   SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
+import { failedDocumentCondition } from '@/lib/knowledge/documents/processing-status'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorMeta } from '@/connectors/registry'
@@ -30,6 +31,7 @@ export interface ListSearchSourcesInput extends ResourceOwner {
   cursor?: string
   connectorId?: string
   connectorType?: string
+  excludeConnectorType?: string
   search?: string
   mine?: boolean
 }
@@ -43,12 +45,14 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     const userId = requirePrincipalSubjectUserId(principal)
     const search = input.search?.trim().toLowerCase() ?? ''
     const connectorType = input.connectorType?.trim()
+    const excludeConnectorType = input.excludeConnectorType?.trim()
     const cursorScope = cursorScopeKey(cursorRoute(listSearchSourcesContract), {
       workspaceId: context.workspaceId,
       organizationId: context.organizationId,
       userId: userId,
       search,
       connectorType: connectorType ?? '',
+      ...(excludeConnectorType ? { excludeConnectorType } : {}),
       connectorId: input.connectorId ?? '',
       mine: input.mine === true,
       order: 'newest',
@@ -95,6 +99,9 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
           connectorType ? eq(knowledgeConnector.connectorType, connectorType) : undefined,
+          excludeConnectorType
+            ? ne(knowledgeConnector.connectorType, excludeConnectorType)
+            : undefined,
           input.connectorId ? eq(knowledgeConnector.id, input.connectorId) : undefined,
           cursor
             ? or(
@@ -179,7 +186,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
               .where(and(eq(embedding.documentId, document.id), eq(embedding.enabled, true)))
           )}
         )::int`,
-        failedCount: sql<number>`count(*) FILTER (WHERE ${document.processingStatus} = 'failed')::int`,
+        failedCount: sql<number>`count(*) FILTER (WHERE ${failedDocumentCondition()})::int`,
         isIndexing: sql<boolean>`bool_or(${document.processingStatus} IN ('pending', 'processing'))`,
       })
       .from(document)

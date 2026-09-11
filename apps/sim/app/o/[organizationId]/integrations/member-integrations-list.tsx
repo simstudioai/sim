@@ -10,6 +10,7 @@ import {
   SEARCH_SOURCE_TYPES,
   type SearchConnector,
 } from '@/lib/sim-search/connectors'
+import { GitHubMemberIntegration } from '@/app/o/[organizationId]/integrations/github-member-integration'
 import { MemberIntegrationRow } from '@/app/o/[organizationId]/integrations/member-integration-row'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
@@ -19,7 +20,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { RESOURCE_LIST_STACK } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSearchSourceOverview, useSearchSources } from '@/hooks/queries/kb/connectors'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import {
+  organizationAccountsKeys,
+  useOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 import { usePersonalSearchIntegrations } from '@/hooks/queries/personal-search-integrations'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
@@ -40,6 +44,15 @@ export function MemberIntegrationsList({
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const overview = useSearchSourceOverview(scope)
   const integrations = useSearchIntegrations(organization.id)
+  const organizationAccounts = useOrganizationAccounts(organization.id)
+  const githubAccounts =
+    organizationAccounts.data?.viewerAccounts?.filter(
+      (account) => account.providerId === 'github-repositories'
+    ) ?? []
+  const usesGitHubInventory =
+    organizationAccounts.isPending ||
+    organizationAccounts.isError ||
+    organizationAccounts.data?.viewerAccounts !== undefined
   const slackInventory = usePersonalSearchIntegrations({
     organizationId: organization.id,
     connectorType: 'slack',
@@ -71,7 +84,10 @@ export function MemberIntegrationsList({
           isIntegrationAvailabilityReady: availability.isIntegrationAvailabilityReady,
         }).members
     )
-    return configured.has(type) || canCreate
+    const hasGitHubAccount =
+      type === 'github' &&
+      (githubAccounts.length > 0 || organizationAccounts.isPending || organizationAccounts.isError)
+    return configured.has(type) || canCreate || hasGitHubAccount
       ? [{ type, meta, connector, canCreate, configured: configured.has(type) }]
       : []
   })
@@ -79,21 +95,41 @@ export function MemberIntegrationsList({
   const query = search.trim().toLowerCase()
   const showSlackSetupError =
     slackInventory.isError && approved.has('slack') && 'slack'.includes(query)
-  const visible = providers.filter((provider) => provider.meta.name.toLowerCase().includes(query))
+  const visible = providers.filter(
+    (provider) =>
+      provider.meta.name.toLowerCase().includes(query) ||
+      (provider.type === 'github' &&
+        githubAccounts.some((account) => account.displayName.toLowerCase().includes(query)))
+  )
+  const githubProvider = visible.find((provider) => provider.type === 'github')
+  const githubRow =
+    githubProvider && usesGitHubInventory ? (
+      <GitHubMemberIntegration
+        organizationId={organization.id}
+        inventory={organizationAccounts}
+        canConnect={githubProvider.canCreate}
+      />
+    ) : null
 
   return (
     <>
       <div className={RESOURCE_LIST_STACK}>
         {failedQuery ? (
-          <SettingsQueryErrorState
-            error={failedQuery.error}
-            fallback='Could not load integrations'
-            isRetrying={failedQuery.isFetching}
-            onRetry={() => void failedQuery.refetch()}
-            variant='inline'
-          />
+          <>
+            <SettingsQueryErrorState
+              error={failedQuery.error}
+              fallback='Could not load integrations'
+              isRetrying={failedQuery.isFetching}
+              onRetry={() => void failedQuery.refetch()}
+              variant='inline'
+            />
+            {githubRow}
+          </>
         ) : overview.isPending || integrations.isPending ? (
-          <SettingsEmptyState variant='inline'>Loading integrations…</SettingsEmptyState>
+          <>
+            <SettingsEmptyState variant='inline'>Loading integrations…</SettingsEmptyState>
+            {githubRow}
+          </>
         ) : (
           <>
             {showSlackSetupError && (
@@ -116,15 +152,23 @@ export function MemberIntegrationsList({
             )}
             {providers.map((provider) => (
               <div key={provider.type} hidden={!visible.includes(provider)}>
-                <MemberIntegration
-                  scope={scope}
-                  connectorType={provider.type}
-                  configured={provider.configured}
-                  connector={provider.connector}
-                  canCreate={provider.canCreate}
-                  memberAccessAvailable={searchAccess.memberScoped}
-                  mirroredAccessAvailable={searchAccess.sourceMirrored}
-                />
+                {provider.type === 'github' && usesGitHubInventory ? (
+                  <GitHubMemberIntegration
+                    organizationId={organization.id}
+                    inventory={organizationAccounts}
+                    canConnect={provider.canCreate}
+                  />
+                ) : (
+                  <MemberIntegration
+                    scope={scope}
+                    connectorType={provider.type}
+                    configured={provider.configured}
+                    connector={provider.connector}
+                    canCreate={provider.canCreate}
+                    memberAccessAvailable={searchAccess.memberScoped}
+                    mirroredAccessAvailable={searchAccess.sourceMirrored}
+                  />
+                )}
               </div>
             ))}
             {showEmpty &&

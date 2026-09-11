@@ -4,7 +4,7 @@
 
 import { document, knowledgeConnector, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
@@ -151,7 +151,9 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import { internalOrchestrationErrorPolicy } from '@/lib/api/server/routes/internal-json-route'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import * as encryption from '@/lib/core/security/encryption'
 import {
   createApprovedSearchSource,
   createKnowledgeConnector,
@@ -165,6 +167,7 @@ import {
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH } from '@/lib/knowledge/constants'
+import * as githubInstallation from '@/lib/oauth/github-installation'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
@@ -926,7 +929,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
     queueTableRows(document, [{ value: 5 }])
     queueTableRows(document, [{ value: 2 }])
-    queueTableRows(document, [{ value: 1 }])
+    queueTableRows(document, [{ failed: 1, skipped: 3 }])
     queueTableRows(document, [
       { id: 'document-3', filename: 'c.txt', userExcluded: false },
       { id: 'document-4', filename: 'd.txt', userExcluded: true },
@@ -949,7 +952,7 @@ describe('knowledge connector application use cases', () => {
         { id: 'document-3', filename: 'c.txt', userExcluded: false },
         { id: 'document-4', filename: 'd.txt', userExcluded: true },
       ],
-      counts: { active: 5, excluded: 2, failed: 1 },
+      counts: { active: 5, excluded: 2, failed: 1, skipped: 3 },
       hasMore: false,
       offset: 2,
       limit: 2,
@@ -1649,5 +1652,192 @@ describe('organization connector credential authorization', () => {
     })
     expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
     expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
+  })
+})
+
+describe('GitHub installation source rejection at the application boundary', () => {
+  const principal = { kind: 'session', userId: 'org-admin', sessionId: 'session' } as const
+  const sourceConfig = { repository: 'example/private', githubRepositoryId: '123' }
+  const credential = {
+    id: 'installation-credential',
+    organizationId: 'org',
+    workspaceId: null,
+    providerId: 'github-app-installation',
+    type: 'service_account',
+    encryptedServiceAccountKey: 'encrypted-binding',
+    providerSubjectId: '42',
+    providerTenantId: '7',
+    revokedAt: null,
+  }
+  const connector = {
+    id: 'source',
+    connectorType: 'github',
+    credentialId: credential.id,
+    accessMode: 'members' as const,
+    sourceConfig,
+    encryptedApiKey: null,
+  }
+  const createInput = {
+    knowledgeBaseId: 'org-index',
+    assertedOrganizationId: 'org',
+    connectorType: 'github',
+    credentialId: credential.id,
+    accessMode: 'members' as const,
+    sourceConfig,
+    syncIntervalMinutes: 60,
+  }
+  const validationMessage =
+    'Check that the repository is included in the selected GitHub App installation, then retry.'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(member, [{ role: 'admin' }])
+    const context = {
+      organizationId: 'org',
+      knowledgeBaseId: 'org-index',
+      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
+    }
+    mocks.resolveKnowledgeBase.mockResolvedValue(context)
+    mocks.resolveConnector.mockResolvedValue({ ...context, connectorId: connector.id, connector })
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    mocks.authorizeOrganizationCredentialUse.mockResolvedValue({ credential })
+    mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'service_account' })
+    mocks.resolveTokenBundle.mockResolvedValue({ accessToken: 'repository-token' })
+    mocks.resolveMembersBinding.mockResolvedValue({
+      credentialGroupId: 'group',
+      credentialGroupOptionId: 'option',
+      organizationId: 'org',
+      sourceConfig,
+    })
+    vi.spyOn(encryption, 'decryptSecret').mockResolvedValue({
+      decrypted: JSON.stringify({
+        type: 'github_app_installation',
+        version: 1,
+        appId: '1',
+        appClientId: 'app-client',
+        installationId: '42',
+        accountId: '7',
+        accountType: 'Organization',
+        accountLogin: 'example',
+        repositorySelection: 'selected',
+      }),
+    })
+    vi.spyOn(githubInstallation, 'resolveGitHubInstallationRepository').mockResolvedValue({
+      id: '123',
+      fullName: sourceConfig.repository,
+      defaultBranch: 'main',
+    })
+    mocks.createConnector.mockImplementation(
+      async (input: { resolveAccessToken(id: string): Promise<unknown> }) => {
+        await input.resolveAccessToken(credential.id)
+        throw new Error('Unexpected connector persistence')
+      }
+    )
+    mocks.updateConnector.mockImplementation(
+      async (input: {
+        prepareSourceConfig(
+          currentConnector: typeof connector,
+          config: typeof sourceConfig
+        ): Promise<typeof sourceConfig>
+        validateSourceConfig(
+          currentConnector: typeof connector,
+          config: typeof sourceConfig
+        ): Promise<unknown>
+      }) => {
+        const prepared = await input.prepareSourceConfig(connector, sourceConfig)
+        await input.validateSourceConfig(connector, prepared)
+        throw new Error('Unexpected connector persistence')
+      }
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    resetDbChainMock()
+  })
+
+  it.each([
+    [422, 'repository-token'],
+    [404, 'repository'],
+  ] as const)(
+    'returns a safe validation response for GitHub %s during %s',
+    async (status, operation) => {
+      vi.mocked(githubInstallation.resolveGitHubInstallationRepository).mockRejectedValueOnce(
+        new githubInstallation.GitHubInstallationError(
+          'private provider payload',
+          status,
+          operation
+        )
+      )
+      const error = await createKnowledgeConnector
+        .execute({ principal, input: createInput })
+        .catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(OrchestrationError)
+      expect(internalOrchestrationErrorPolicy.project(error)).toMatchObject({
+        status: 400,
+        body: { error: validationMessage },
+      })
+      expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
+        expect.objectContaining({ principal, organizationId: 'org', credentialId: credential.id })
+      )
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['create', 'update'] as const)(
+    'classifies a repository token rejected during authorized %s validation',
+    async (operation) => {
+      mocks.resolveTokenBundle.mockRejectedValueOnce(
+        new githubInstallation.GitHubInstallationError(
+          'private token response',
+          422,
+          'repository-token'
+        )
+      )
+      const result =
+        operation === 'create'
+          ? createKnowledgeConnector.execute({ principal, input: createInput })
+          : updateKnowledgeConnector.execute({
+              principal,
+              input: {
+                knowledgeBaseId: 'org-index',
+                connectorId: connector.id,
+                updates: { sourceConfig },
+              },
+            })
+      await expect(result).rejects.toMatchObject({ code: 'validation', message: validationMessage })
+      expect(mocks.resolveTokenBundle).toHaveBeenCalledOnce()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([403, 429, 503])(
+    'preserves GitHub %s and its operation for retry classification',
+    async (status) => {
+      const failure = new githubInstallation.GitHubInstallationError(
+        'GitHub provider request failed',
+        status,
+        'repository-token'
+      )
+      mocks.resolveTokenBundle.mockRejectedValueOnce(failure)
+      await expect(
+        createKnowledgeConnector.execute({ principal, input: createInput })
+      ).rejects.toBe(failure)
+      expect(internalOrchestrationErrorPolicy.project(failure)).toBeNull()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('preserves network failures during authorized source creation', async () => {
+    const failure = new TypeError('Network request failed')
+    mocks.resolveTokenBundle.mockRejectedValueOnce(failure)
+    await expect(createKnowledgeConnector.execute({ principal, input: createInput })).rejects.toBe(
+      failure
+    )
+    expect(internalOrchestrationErrorPolicy.project(failure)).toBeNull()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 })
