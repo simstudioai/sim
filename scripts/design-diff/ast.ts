@@ -43,6 +43,15 @@ export function canonical(value: unknown): Data {
     return canonical(node.expression)
   const result: Record<string, Data> = Object.create(null)
   for (const key of Object.keys(node).sort()) {
+    /** Babel builders and parsed nodes spell absent optional fields differently. */
+    if (
+      (key === 'optional' && /Expression$/.test(String(node.type)) && !node[key]) ||
+      (key === 'method' && node.type === 'ObjectProperty' && node[key] === false) ||
+      (['id', 'generator', 'expression'].includes(key) &&
+        node.type === 'ArrowFunctionExpression' &&
+        !node[key])
+    )
+      continue
     if (
       [
         'start',
