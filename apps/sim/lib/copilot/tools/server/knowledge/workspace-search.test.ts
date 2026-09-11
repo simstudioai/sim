@@ -35,9 +35,6 @@ vi.mock('@/lib/knowledge/application/read-search-document', () => ({
     execute: mocks.read,
   },
 }))
-vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
-  projectResolvedSecretModelContent: (value: unknown) => ({ safe: true, value }),
-}))
 
 import {
   readDocumentServerTool,
@@ -188,6 +185,23 @@ describe('Assistant retrieval tools', () => {
       })
     )
   })
+  it('returns only the projected query to the model', async () => {
+    const secret = 'private-resolved-query-token'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', secret)
+    const result = await searchWorkspaceServerTool.execute(
+      { query: `Find ${secret}` },
+      { ...context, resolvedSecretTraceRegistry: registry }
+    )
+    expect(result).toMatchObject({ success: true, data: { query: 'Find {{TOKEN}}' } })
+    expect(mocks.search).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ query: 'Find {{TOKEN}}' }) })
+    )
+    expect(JSON.stringify(result)).not.toContain(secret)
+  })
+
   it.each([0, 20, 50])(
     'measures UTF-8 bytes for %i passages without logging their content',
     async (count) => {

@@ -95,7 +95,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
               success: true,
               message: `${result.retrieval.status === 'partial' ? 'Partial search: a retrieval branch reached its deadline. These results cannot establish absence or completeness. ' : ''}Found ${result.results.length} passage previews. Read a document at its chunkIndex for more context. ${CITATION_INSTRUCTION}`,
               data: {
-                query,
+                query: safeQuery,
                 retrieval: result.retrieval,
                 results: result.results.map((item) => {
                   const content = projectResolvedSecretModelContent(item.content, registry)

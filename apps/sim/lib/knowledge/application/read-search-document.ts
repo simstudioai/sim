@@ -31,6 +31,8 @@ export interface ReadSearchDocumentInput {
 /** Bounds model text to at most 24KB of UTF-8, with continuation even inside a large chunk. */
 const READ_PAGE_CHARACTERS = 8000
 const READ_PAGE_CHUNKS = 8
+const STALE_POSITION_MESSAGE =
+  'The passage position is no longer available; search again or read from the chunk start'
 
 /** Reads enabled indexed passages with the same document scope and ACLs as search. */
 export const readSearchDocument = defineAuthorizedKnowledgeUseCase({
@@ -100,6 +102,9 @@ export const readSearchDocument = defineAuthorizedKnowledgeUseCase({
       )
     )
     if (page.pagination.total === 0) throw new OrchestrationError('not_found', 'Document not found')
+    if (input.startChunkIndex !== undefined && page.chunks.length === 0) {
+      throw new OrchestrationError('validation', STALE_POSITION_MESSAGE)
+    }
     const provenance = await measureSearchStage('result_provenance', () =>
       importKnowledgeSearchResultSecretProvenance({
         registry: input.resultSecretRegistry,
@@ -131,10 +136,7 @@ export const readSearchDocument = defineAuthorizedKnowledgeUseCase({
       (projectedChunks[0]?.chunkIndex !== input.startChunkIndex ||
         input.startOffset >= projectedChunks[0].content.length)
     ) {
-      throw new OrchestrationError(
-        'validation',
-        'The passage position is no longer available; search again or read from the chunk start'
-      )
+      throw new OrchestrationError('validation', STALE_POSITION_MESSAGE)
     }
     let remaining = READ_PAGE_CHARACTERS
     const chunks: ReadSearchDocumentResult['chunks'] = []

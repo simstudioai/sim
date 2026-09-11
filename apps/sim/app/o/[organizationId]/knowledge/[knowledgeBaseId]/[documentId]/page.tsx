@@ -1,16 +1,21 @@
 import { ChipLink } from '@sim/emcn'
 import { notFound, redirect } from 'next/navigation'
+import type { SearchParams } from 'nuqs/server'
 import { readSearchDocumentResultSchema } from '@/lib/api/contracts/knowledge/documents'
 import { getSession } from '@/lib/auth'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import {
+  loadDocumentReadParams,
+  serializeDocumentReadParams,
+} from '@/app/o/[organizationId]/knowledge/[knowledgeBaseId]/[documentId]/search-params'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface OrganizationDocumentPageProps {
   params: Promise<{ organizationId: string; knowledgeBaseId: string; documentId: string }>
-  searchParams: Promise<{ offset?: string }>
+  searchParams: Promise<SearchParams>
 }
 
 export default async function OrganizationDocumentPage({
@@ -18,15 +23,15 @@ export default async function OrganizationDocumentPage({
   searchParams,
 }: OrganizationDocumentPageProps) {
   const { organizationId, knowledgeBaseId, documentId } = await params
-  const { offset: rawOffset } = await searchParams
-  const offset = rawOffset === undefined ? 0 : Number(rawOffset)
-  if (!Number.isInteger(offset) || offset < 0 || offset > 5000) notFound()
+  const position = await loadDocumentReadParams(searchParams, { strict: true }).catch(() =>
+    notFound()
+  )
   const href = `/o/${encodeURIComponent(organizationId)}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
   const session = await getSession()
   if (!session?.user) {
     redirect(
       buildAuthCrossLink('/login', {
-        callbackUrl: offset ? `${href}?offset=${offset}` : href,
+        callbackUrl: serializeDocumentReadParams(href, position),
         isInviteFlow: false,
       })
     )
@@ -39,15 +44,15 @@ export default async function OrganizationDocumentPage({
       input: {
         documentId,
         assertedOrganizationId: organizationId,
-        offset,
-        limit: 20,
+        ...position,
+        limit: 3,
         resultSecretRegistry: registry,
       },
     })
   } catch (error) {
     if (
       error instanceof OrchestrationError &&
-      (error.code === 'not_found' || error.code === 'forbidden')
+      (error.code === 'not_found' || error.code === 'forbidden' || error.code === 'validation')
     )
       notFound()
     throw error
@@ -71,11 +76,11 @@ export default async function OrganizationDocumentPage({
           </p>
         ))}
         <nav className='flex gap-2' aria-label='Document pages'>
-          {offset > 0 && (
-            <ChipLink href={`${href}?offset=${Math.max(0, offset - 20)}`}>Previous</ChipLink>
+          {(position.startChunkIndex > 0 || position.startOffset > 0) && (
+            <ChipLink href={href}>Start</ChipLink>
           )}
-          {document.nextOffset !== null && (
-            <ChipLink href={`${href}?offset=${document.nextOffset}`}>Next</ChipLink>
+          {document.next && (
+            <ChipLink href={serializeDocumentReadParams(href, document.next)}>Next</ChipLink>
           )}
         </nav>
       </article>

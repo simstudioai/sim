@@ -253,6 +253,17 @@ describe('precise bounded passage expansion', () => {
     )
   })
 
+  it('rejects a continuation when all remaining chunks have disappeared', async () => {
+    mocks.chunks.mockResolvedValue({
+      chunks: [],
+      pagination: { total: 2, hasMore: false },
+    })
+    await expect(
+      readSearchDocument.execute({ principal, input: { ...input, startChunkIndex: 7 } })
+    ).rejects.toThrow('no longer available')
+    expect(mocks.provenance).not.toHaveBeenCalled()
+  })
+
   it('rejects positions without an anchor and stale within-chunk continuation', async () => {
     await expect(
       readSearchDocument.execute({ principal, input: { ...input, startOffset: 2 } })
