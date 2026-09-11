@@ -401,7 +401,20 @@ describe('Connector credential reauthorization', () => {
 
     expect(controls[0].getAttribute('aria-expanded')).toBe('true')
     expect(controls[1].getAttribute('aria-expanded')).toBe('false')
-    expect(document.getElementById(historyId!)).not.toBeNull()
+    const history = document.getElementById(historyId!)!
+    const collapse = findButton(history, 'Hide history')
+    expect(collapse.getAttribute('aria-controls')).toBe(historyId)
+    expect(collapse.getAttribute('aria-expanded')).toBe('true')
+    act(() => {
+      collapse.focus()
+      collapse.click()
+    })
+    expect(document.getElementById(historyId!)).toBeNull()
+    expect(controls[0].getAttribute('aria-expanded')).toBe('false')
+    expect(controls[1].getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(
+      container.querySelector('button[aria-label="Connection actions"]')
+    )
     expect(lifecycle.sync.mutate).not.toHaveBeenCalled()
   })
 

@@ -1,7 +1,7 @@
 'use client'
 
-import { useId, useState } from 'react'
-import { Badge, cn } from '@sim/emcn'
+import { useId, useRef, useState } from 'react'
+import { Badge, Chip, cn } from '@sim/emcn'
 import { Loader, Users } from '@sim/emcn/icons'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
@@ -106,6 +106,7 @@ function ConnectorCard({
   isSearchIndex,
   onEdit,
 }: ConnectorCardProps) {
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null)
   const actions = useConnectorActions({ connector, knowledgeBaseId, canEdit, onEdit })
   const historyId = useId()
   const [expanded, setExpanded] = useState(false)
@@ -155,6 +156,7 @@ function ConnectorCard({
         trailing={
           <ConnectorActions
             state={actions}
+            triggerRef={actionsTriggerRef}
             history={{
               expanded,
               contentId: historyId,
@@ -180,9 +182,21 @@ function ConnectorCard({
       <ConnectorActionFeedback state={actions} />
       {expanded && (
         <div id={historyId} className='border-[var(--border)] border-t pt-3'>
-          {syncDetails && (
-            <p className='mb-2 text-[var(--text-muted)] text-caption'>{syncDetails}</p>
-          )}
+          <div className='mb-2 flex items-start justify-end gap-2'>
+            {syncDetails && (
+              <p className='flex-1 text-[var(--text-muted)] text-caption'>{syncDetails}</p>
+            )}
+            <Chip
+              aria-expanded={expanded}
+              aria-controls={historyId}
+              onClick={() => {
+                setExpanded(false)
+                actionsTriggerRef.current?.focus()
+              }}
+            >
+              Hide history
+            </Chip>
+          </div>
           {lastSyncError && <SettingsResourceRow title={lastSyncError} />}
           <ConnectorSyncHistory connector={connector} knowledgeBaseId={knowledgeBaseId} />
         </div>

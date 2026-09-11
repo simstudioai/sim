@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useId } from 'react'
+import { Fragment, type Ref, useId } from 'react'
 import {
   Checkbox,
   Chip,
@@ -21,6 +21,7 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 
 interface ConnectorActionsProps {
   state: ConnectorActionState
+  triggerRef?: Ref<HTMLButtonElement>
   history?: {
     expanded: boolean
     contentId: string
@@ -28,7 +29,7 @@ interface ConnectorActionsProps {
   }
 }
 
-export function ConnectorActions({ state, history }: ConnectorActionsProps) {
+export function ConnectorActions({ state, triggerRef, history }: ConnectorActionsProps) {
   if (!state.canEdit && !history) return null
   const actions = orderHeaderActions([
     ...state.actions,
@@ -45,7 +46,7 @@ export function ConnectorActions({ state, history }: ConnectorActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Chip aria-label='Connection actions' leftIcon={MoreHorizontal} />
+        <Chip ref={triggerRef} aria-label='Connection actions' leftIcon={MoreHorizontal} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         {actions.map(({ action }, index) => (
