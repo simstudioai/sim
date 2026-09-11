@@ -61,10 +61,12 @@ export function WorkflowNavigationProvider({ children }: WorkflowNavigationProvi
   )
 }
 
+/** Returns provider-backed navigation, or null so links outside the provider retain native behavior. */
 export function useWorkflowNavigation() {
   return useContext(NavigateContext)
 }
 
+/** Navigates with immediate workflow feedback, falling back to router push/replace outside the provider. */
 export function useNavigateToWorkflow() {
   const navigate = useWorkflowNavigation()
   const router = useRouter()
@@ -83,6 +85,7 @@ export function useNavigateToWorkflow() {
   return navigate ?? fallback
 }
 
+/** Reports pending workflow navigation within the provider; returns false outside it. */
 export function usePendingWorkflowNavigation() {
   return useContext(PendingNavigationContext)
 }
