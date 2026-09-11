@@ -53,6 +53,7 @@ export const EMPTY_BLOCK_SUBBLOCK_VALUES: Record<string, SubBlockValue> = {}
  *
  * - remote-broadcast application — already persisted server-side
  * - undo/redo — persists via its own queued inverse operations
+ * - canonical tool reindexing — queues paired tool values and modes in one operation
  * - synthetic tool subblock ids — excluded from both persistence and comparison
  * - whole-document replacement — the server's own state, re-seeded
  * - webhook management's runtime ids (webhookId/triggerPath/triggerConfig/

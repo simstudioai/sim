@@ -12,7 +12,7 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
-import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import type { BlockRetryConfig, SubBlockState } from '@sim/workflow-types/workflow'
 import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Edge } from '@xyflow/react'
@@ -58,6 +58,10 @@ import type {
 import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
+
+interface CanonicalModeSubBlockState extends Omit<SubBlockState, 'value'> {
+  value: unknown
+}
 
 export function useCollaborativeWorkflow() {
   const queryClient = useQueryClient()
@@ -245,6 +249,13 @@ export function useCollaborativeWorkflow() {
               useWorkflowStore
                 .getState()
                 .setBlockCanonicalModes(payload.id, payload.data?.canonicalModes ?? {})
+              if (payload.subBlocks) {
+                for (const [subBlockId, subBlock] of Object.entries(
+                  payload.subBlocks as Record<string, CanonicalModeSubBlockState>
+                )) {
+                  useSubBlockStore.getState().setValue(payload.id, subBlockId, subBlock.value)
+                }
+              }
               break
           }
         } else if (target === OPERATION_TARGETS.BLOCKS) {
@@ -1367,14 +1378,24 @@ export function useCollaborativeWorkflow() {
    * {@link collaborativeSetBlockCanonicalMode}. Needed to reindex nested tool-input overrides on
    * reorder/removal: a merge can't atomically drop a now-stale index key, and sequential
    * per-key sets can clobber each other when two tools swap positions.
+   * Paired tool values travel in the same operation so their indexes stay aligned with the modes.
    */
   const collaborativeSetBlockCanonicalModes = useCallback(
-    (id: string, canonicalModes: Record<string, 'basic' | 'advanced'>) => {
+    (
+      id: string,
+      canonicalModes: Record<string, 'basic' | 'advanced'>,
+      subBlocks?: Record<string, CanonicalModeSubBlockState>
+    ) => {
       if (isBaselineDiffView) {
         return
       }
 
       useWorkflowStore.getState().setBlockCanonicalModes(id, canonicalModes)
+      if (subBlocks) {
+        for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
+          useSubBlockStore.getState().setValue(id, subBlockId, subBlock.value)
+        }
+      }
 
       if (!activeWorkflowId) {
         return
@@ -1386,7 +1407,7 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
           target: OPERATION_TARGETS.BLOCK,
-          payload: { id, data: { canonicalModes } },
+          payload: { id, data: { canonicalModes }, ...(subBlocks ? { subBlocks } : {}) },
         },
         workflowId: activeWorkflowId,
         userId: session?.user?.id || 'unknown',
