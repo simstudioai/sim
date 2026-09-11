@@ -1,4 +1,5 @@
 import { db, dbFor } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   organization,
   usageLog,
@@ -698,7 +699,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const startTime = new Date()
 
     const [workflowLog] = await execDb
-      .insert(workflowExecutionLogs)
+      .insert(withInsertColumns(workflowExecutionLogs, workflowExecutionLogColumns))
       .values({
         id: generateId(),
         workflowId,

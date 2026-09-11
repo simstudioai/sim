@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -179,7 +180,7 @@ async function insertFileMetadataWithExecutor(
 
   try {
     const [inserted] = await executor
-      .insert(workspaceFiles)
+      .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
       .values({
         id: fileId,
         key,
@@ -235,7 +236,7 @@ async function insertImmutableFileMetadataWithExecutor(
   } = options
   assertFileMetadataOrganizationOwner(options)
   const [inserted] = await executor
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values({
       id: id || generateId(),
       key,
@@ -316,7 +317,7 @@ export async function insertFileMetadataMany(
   const uniqueRows = [...uniqueRowsByKey.values()]
 
   const inserted = await db
-    .insert(workspaceFiles)
+    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
     .values(
       uniqueRows.map((row) => ({
         id: row.id || generateId(),

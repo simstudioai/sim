@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
+import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   member,
   organization,
@@ -11,6 +12,7 @@ import {
   usageLog,
   user,
   userStats,
+  userStatsColumns,
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -1524,7 +1526,7 @@ export async function grantDashboardUserBalance(
         ? null
         : getPerUserMinimumLimit(initialSubscription).toString()
     await tx
-      .insert(userStats)
+      .insert(withInsertColumns(userStats, userStatsColumns))
       .values({
         id: generateId(),
         userId,

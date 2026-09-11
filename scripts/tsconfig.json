@@ -11,6 +11,9 @@
     "resolveJsonModule": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "paths": {
+      "@scripts/*": ["./*"]
+    },
     "jsx": "react-jsx"
   },
   "ts-node": {
