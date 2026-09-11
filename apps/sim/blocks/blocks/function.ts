@@ -13,6 +13,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     'This is a core workflow block. Execute custom JavaScript, Python, or Shell code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports, Python, and Shell run in a remote sandbox.',
   bestPractices: `
   - JavaScript code without external imports runs in a local VM for fastest execution.
+  - Local JavaScript includes Buffer, atob, btoa, TextEncoder, and TextDecoder for data conversion without imports. Use Buffer.from(text, 'utf8').toString('base64') for Unicode text; btoa only accepts binary strings.
   - JavaScript code with import/require statements runs in a remote sandbox.
   - Python code always runs in a remote sandbox.
   - Shell code runs CLI commands in a remote sandbox.
@@ -63,7 +64,7 @@ IMPORTANT FORMATTING RULES:
 1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. In JavaScript and Python, prefer the unquoted form when the placeholder is the complete expression (for example, 'const apiKey = {{SERVICE_API_KEY}};'). Quoted and embedded string forms such as '"Bearer {{SERVICE_API_KEY}}"', template literals, and JavaScript regex literals are also supported. In Shell, prefer '"{{SERVICE_API_KEY}}"' when the secret should be one scalar argument; use a bare placeholder only when Bash word-splitting or pattern semantics are intentional. Sim binds the resolved value separately from the source at execution time, preserving its exact string contents.
 2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes (e.g., use 'userId = <userId>;' not 'userId = "<userId>";'). This includes parameters defined in the block's schema and outputs from previous blocks.
 3. Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
-4. Imports: Standard Node.js built-in modules (e.g., 'crypto', 'fs') are always available. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
+4. Runtime APIs: Buffer, atob, btoa, TextEncoder, and TextDecoder are available without imports. Use Buffer.from(text, 'utf8').toString('base64') for Unicode text; btoa only accepts binary strings. Importing Node.js built-in modules (e.g., 'crypto', 'fs') runs the code in a remote sandbox. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
 5. Output: Ensure the code returns a value if the function is expected to produce output. Use 'return'.
 6. Clarity: Write clean, readable code.
 7. No Explanations: Do NOT include markdown formatting, comments explaining the rules, or any text other than the raw JavaScript code for the function body.

@@ -148,6 +148,7 @@ export default defineConfig({
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
+          './lib/execution/sandbox/bundles/function-globals.cjs',
           './lib/execution/sandbox/bundles/pptxgenjs.cjs',
           './lib/execution/sandbox/bundles/docx.cjs',
           './lib/execution/sandbox/bundles/pdf-lib.cjs',
