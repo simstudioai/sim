@@ -529,11 +529,11 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
-  it('points every browser mention at its exact tab and describes the whole Terminal', async () => {
+  it('points every browser and terminal mention at its exact tab', async () => {
     const result = await processContextsServer(
       [
         { kind: 'browser_tab', tabId: '3', label: 'Sim Docs' },
-        { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
+        { kind: 'terminal_tab', terminalId: '4', label: 'sim' },
       ],
       'user-1'
     )
@@ -546,12 +546,12 @@ describe('processContextsServer - browser and terminal selections', () => {
       },
       {
         type: 'terminal_tab',
-        tag: '@Terminal',
-        content: expect.stringContaining('resource as a whole'),
+        tag: '@sim',
+        content: expect.stringContaining('terminalId 4'),
       },
     ])
     expect(result[0].content).toContain('browser_switch_tab')
-    expect(result[1].content).toContain('terminal list operation')
+    expect(result[1].content).toContain('pass that terminalId')
   })
 
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {

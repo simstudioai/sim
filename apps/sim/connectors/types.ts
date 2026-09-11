@@ -1,4 +1,6 @@
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 
@@ -325,6 +327,8 @@ export interface ConnectorConfigField {
  * mirroring the `XBlockMeta` pattern in `blocks/`.
  */
 export interface ConnectorMeta {
+  /** Restricts new setup and mode changes; existing sources keep their stored access policy. */
+  supportedAccessModes?: readonly ConnectorAccessMode[]
   /** Opts a source into workspace Search after its indexing and permission paths are verified. */
   search?: true
   /** Source setup guide shown only in Search connection flows. */
@@ -429,6 +433,8 @@ export interface ConnectorMeta {
  * Adding a new connector = creating one of these + registering it.
  */
 export interface ConnectorConfig extends ConnectorMeta {
+  /** Optional private permission setup, including transactional replacement and worker context. */
+  permissionConfig?: ConnectorPermissionConfigCapability
   /** Bounds local hydration fan-out to avoid queueing siblings behind a serial provider gate. */
   contentConcurrency?: 1 | 2 | 3 | 4 | 5
   /**

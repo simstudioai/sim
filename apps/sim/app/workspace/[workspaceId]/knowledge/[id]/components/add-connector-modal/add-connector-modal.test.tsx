@@ -794,7 +794,7 @@ describe('Search setup options', () => {
     }
   )
 
-  it.each(SEARCH_SETUP_FIELDS)(
+  it.each(SEARCH_SETUP_FIELDS.filter(({ connectorType }) => connectorType !== 'gitlab'))(
     'keeps $connectorType general knowledge-base fields and sync frequency outside document details',
     async ({ connectorType, primary, optional, cap }) => {
       await render({
@@ -813,6 +813,21 @@ describe('Search setup options', () => {
       expect(document.body.textContent).not.toContain('Metadata tags')
     }
   )
+
+  it('uses GitLab service-account access and token tabs without an access selector in regular KBs', async () => {
+    await render({
+      initialConnectorType: 'gitlab',
+      initialAccessMode: 'workspace',
+      isSearchIndex: false,
+    })
+    expect(document.body.textContent).toContain('Administrator token')
+    expect(document.body.textContent).toContain('Non-admin token')
+    expect(document.body.textContent).not.toContain('Connection method')
+    expect(button('More options')).toHaveAttribute('aria-expanded', 'false')
+    expect(document.body.textContent).not.toContain('Sync Frequency')
+    await act(async () => button('More options').click())
+    expect(document.body.textContent).toContain('Sync Frequency')
+  })
 
   it('keeps administrator-required fields in the primary form even if metadata marks them optional', async () => {
     mocks.credentials = [{ id: 'service', name: 'Indexing account', type: 'service_account' }]

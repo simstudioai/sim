@@ -21,6 +21,7 @@ import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/ic
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
+import { initialConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -62,6 +63,11 @@ import {
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import {
+  GitLabPermissionTabs,
+  GitLabPermissionUploads,
+} from '@/connectors/gitlab/permission-config/fields'
+import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -134,14 +140,16 @@ export function AddConnectorModal({
     draft?.contentCredentialId ?? null
   )
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
-    accessMode:
+    accessMode: initialConnectorAccessMode(
+      initialType ? CONNECTOR_META_REGISTRY[initialType] : undefined,
       lockedAccessMode ??
-      (lockConnectorType ? initialAccessMode : draft?.accessMode) ??
-      (isSearchIndex && initialAccessMode === 'workspace'
-        ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
-          ? 'admin'
-          : 'members'
-        : initialAccessMode),
+        (lockConnectorType ? initialAccessMode : draft?.accessMode) ??
+        (isSearchIndex && initialAccessMode === 'workspace'
+          ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
+            ? 'admin'
+            : 'members'
+          : initialAccessMode)
+    ),
   }))
   const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(
     () => new Set(draft?.disabledTagIds)
@@ -154,6 +162,7 @@ export function AddConnectorModal({
   )
   const [showGitHubInstallationModal, setShowGitHubInstallationModal] = useState(false)
 
+  const gitlabPermissions = useGitLabPermissionForm()
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [useApiKey, setUseApiKey] = useState(!isSearchIndex)
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
@@ -182,6 +191,7 @@ export function AddConnectorModal({
       ? getSearchConnectionLabels(selectedType, access.accessMode)
       : undefined
   const modalTitle = searchLabels?.title ?? `Configure ${connectorConfig?.name}`
+  const showGitLabPermissions = selectedType === 'gitlab' && access.accessMode === 'admin'
   const isMembersMode = access.accessMode === 'members'
   const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
   const isApiKeyMode =
@@ -347,7 +357,7 @@ export function AddConnectorModal({
   }
 
   const isOptionalSetupField = (field: ConnectorConfigField) =>
-    isSearchIndex &&
+    (isSearchIndex || connectorConfig?.supportedAccessModes?.length === 1) &&
     field.setupGroup === 'options' &&
     Boolean(connectorConfig && !isConnectorFieldRequired(field, connectorConfig, access.accessMode))
   const hasOptionalSetupFields = connectorConfig?.configFields.some(
@@ -433,24 +443,32 @@ export function AddConnectorModal({
 
   const closeSetup = (nextOpen: boolean) => {
     if (!nextOpen && setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
+    if (!nextOpen) {
+      gitlabPermissions.reset()
+      setApiKeyValue('')
+    }
     onOpenChange(nextOpen)
   }
 
   const handleSelectType = (type: string) => {
     if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
+    gitlabPermissions.reset()
     setSelectedType(type)
     setSourceConfig(
       isSearchIndex ? { ...CONNECTOR_META_REGISTRY[type]?.searchDefaultSourceConfig } : {}
     )
     setSelectedCredentialId(null)
     setContentCredentialId(null)
-    setAccess(
-      isSearchIndex
-        ? {
-            accessMode: CONNECTOR_META_REGISTRY[type]?.auth.mode === 'apiKey' ? 'admin' : 'members',
-          }
-        : WORKSPACE_ACCESS
-    )
+    setAccess({
+      accessMode: initialConnectorAccessMode(
+        CONNECTOR_META_REGISTRY[type],
+        isSearchIndex
+          ? CONNECTOR_META_REGISTRY[type]?.auth.mode === 'apiKey'
+            ? 'admin'
+            : 'members'
+          : 'workspace'
+      ),
+    })
     setApiKeyValue('')
     setUseApiKey(!isSearchIndex)
     setApiKeyFocused(false)
@@ -477,6 +495,7 @@ export function AddConnectorModal({
   const canSubmit = Boolean(
     connectorConfig &&
       hasRequiredCredential &&
+      (!showGitLabPermissions || gitlabPermissions.complete) &&
       hasSearchAccess &&
       (access.accessMode !== 'admin' || allowAdmin) &&
       (!isMembersMode || allowMembers) &&
@@ -518,6 +537,7 @@ export function AddConnectorModal({
       {
         knowledgeBaseId,
         connectorType: selectedType,
+        ...(showGitLabPermissions ? { permissionConfig: gitlabPermissions.input } : {}),
         accessMode: access.accessMode,
         ...(isApiKeyMode
           ? apiKeyValue.trim()
@@ -625,6 +645,9 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
+              {showGitLabPermissions && (
+                <GitLabPermissionTabs form={gitlabPermissions} disabled={isCreating} />
+              )}
               {integrationAvailabilityError && (
                 <ChipModalField type='custom' title='Connection availability'>
                   <SettingsQueryErrorState
@@ -774,6 +797,9 @@ export function AddConnectorModal({
                       }
                     />
                   )}
+                  {showGitLabPermissions && (
+                    <GitLabPermissionUploads form={gitlabPermissions} disabled={isCreating} />
+                  )}
 
                   {(hasOptionalSetupFields ||
                     contentCredentialField ||
@@ -786,7 +812,9 @@ export function AddConnectorModal({
                           aria-expanded={showMetadata}
                           onClick={() => setShowMetadata((visible) => !visible)}
                         >
-                          {isSearchIndex ? 'More options' : 'Document details (optional)'}
+                          {isSearchIndex || hasOptionalSetupFields
+                            ? 'More options'
+                            : 'Document details (optional)'}
                         </Chip>
                       </div>
                       {showMetadata && (
@@ -841,15 +869,19 @@ export function AddConnectorModal({
                     </>
                   )}
 
-                  {!isSearchIndex && (
+                  {!isSearchIndex && (!hasOptionalSetupFields || showMetadata) && (
                     <ChipModalField
                       type='custom'
                       title='Sync Frequency'
-                      hint={connectorSyncFrequencyHint(
-                        access.accessMode,
-                        syncInterval,
-                        Boolean(contentCredentialId)
-                      )}
+                      hint={
+                        showGitLabPermissions && gitlabPermissions.mode === 'csv'
+                          ? undefined
+                          : connectorSyncFrequencyHint(
+                              access.accessMode,
+                              syncInterval,
+                              Boolean(contentCredentialId)
+                            )
+                      }
                     >
                       <ButtonGroup
                         value={String(syncInterval)}

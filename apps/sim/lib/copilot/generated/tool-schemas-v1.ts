@@ -3474,25 +3474,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  list_integrations: {
-    parameters: {
-      additionalProperties: false,
-      properties: {
-        connectorType: {
-          maxLength: 100,
-          minLength: 1,
-          type: 'string',
-        },
-        cursor: {
-          maxLength: 1024,
-          minLength: 1,
-          type: 'string',
-        },
-      },
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   list_workspace_mcp_servers: {
     parameters: {
       type: 'object',

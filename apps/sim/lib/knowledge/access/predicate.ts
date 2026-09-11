@@ -217,6 +217,7 @@ function storedKnowledgeAccessCondition(
       OR EXISTS (
         SELECT 1 FROM ${knowledgeConnector}
         WHERE ${knowledgeConnector.id} = ${document.connectorId}
+          AND ${knowledgeConnector.accessRewritePending} = false
           AND ${searchIntegrationAccessCondition()}
           AND ${liveSourceAccess}
           AND (

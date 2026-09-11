@@ -431,6 +431,52 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
+  it.each(['permissions', 'token'] as const)(
+    'commits a %s-only change without dispatching a content sync',
+    async (change) => {
+      const existing = {
+        id: 'conn-1',
+        connectorType: 'gitlab',
+        accessMode: 'admin',
+        status: 'active',
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      }
+      dbChainMockFns.limit.mockResolvedValueOnce([existing])
+      dbChainMockFns.returning.mockResolvedValueOnce([existing])
+      const write = vi.fn().mockResolvedValue(undefined)
+      const outcome = await performUpdateKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: existing.id,
+        updates: {},
+        permissionChange: {
+          requiresAclReset: false,
+          requiresContentSync: false,
+          ...(change === 'token' ? { encryptedApiKey: 'encrypted-fixture-pat' } : {}),
+          populateSyncContext: vi.fn(),
+          write,
+        },
+        resolveBillingAttribution,
+      })
+
+      expect(outcome).toMatchObject({ success: true })
+      expect(write).toHaveBeenCalledWith(expect.anything(), existing.id)
+      expect(mockRecordAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ updatedFields: ['permissionConfig'] }),
+        })
+      )
+      expect(mockDispatchSync).not.toHaveBeenCalled()
+      expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      if (change === 'token') {
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({ encryptedApiKey: 'encrypted-fixture-pat' })
+        )
+      }
+    }
+  )
+
   it('classifies a sub-hourly interval on an unentitled workspace as forbidden', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },

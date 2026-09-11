@@ -1,7 +1,8 @@
 import type { BrowserTabState } from '@sim/browser-protocol'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
-import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { terminalResourceId } from '@/lib/terminal/resource-id'
+import { terminalTabTitle } from '@/lib/terminal/tab-label'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -80,35 +81,32 @@ export function withBrowserTabMentions(
   )
 }
 
-/** Adds live shells after the always-present Terminal mention. */
+/**
+ * Replaces the Terminal launcher row with the live shells, which are the only
+ * terminal things that can be attached or mentioned. With no shell open the
+ * family disappears from the menu. A shell is named after its settled
+ * foreground program, else its directory; the strip settles the same way.
+ */
 export function withTerminalTabMentions(
   groups: readonly ResourceMentionGroup[],
-  terminalTabs: readonly TerminalTabState[]
+  terminalTabs: readonly TerminalTabState[],
+  settledCommands: ReadonlySet<string>
 ): ResourceMentionGroup[] {
-  const terminalNames = uniqueTabNames(terminalTabs, (tab) => tab.title.trim() || 'Terminal')
-
-  return groups.map((group) => {
-    if (group.type === 'terminal') {
-      const existing = group.items.find((item) => item.id === TERMINAL_SESSION_RESOURCE_ID)
-      return {
-        ...group,
-        items: [
-          {
-            ...existing,
-            id: TERMINAL_SESSION_RESOURCE_ID,
-            name: 'Terminal',
-            mentionFamily: 'Terminal',
-          },
-          ...terminalTabs.map((tab, index) => ({
-            id: tab.terminalId,
+  const terminalNames = uniqueTabNames(terminalTabs, (tab) =>
+    terminalTabTitle(tab, settledCommands)
+  )
+  return groups.map((group) =>
+    group.type === 'terminal'
+      ? {
+          ...group,
+          items: terminalTabs.map((tab, index) => ({
+            id: terminalResourceId(tab.terminalId),
             name: terminalNames[index],
             mentionFamily: 'Terminal',
           })),
-        ],
-      }
-    }
-    return group
-  })
+        }
+      : group
+  )
 }
 
 /** One row of the `@` list: an item plus the family it came from. */

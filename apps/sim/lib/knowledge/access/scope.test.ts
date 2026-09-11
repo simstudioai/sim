@@ -11,11 +11,13 @@ const {
   mockCheckWorkspaceAccess,
   mockGitHubReadGrants,
   mockConfluenceReadGrants,
+  mockCsvGrants,
 } = vi.hoisted(() => ({
   mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
   mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
   mockGitHubReadGrants: vi.fn(async () => []),
   mockConfluenceReadGrants: vi.fn(async () => []),
+  mockCsvGrants: vi.fn(async () => [] as string[]),
 }))
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
@@ -29,6 +31,9 @@ vi.mock('@/lib/knowledge/access/confluence-site', () => ({
 }))
 vi.mock('@/lib/knowledge/access/github-installation', () => ({
   resolveGitHubInstallationReadGrants: mockGitHubReadGrants,
+}))
+vi.mock('@/lib/knowledge/access/connector-permissions', () => ({
+  loadConnectorPermissionGroupTokens: mockCsvGrants,
 }))
 
 import {

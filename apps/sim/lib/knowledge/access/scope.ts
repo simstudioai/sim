@@ -24,6 +24,7 @@ import {
   type ConfluenceReaderCredential,
   resolveConfluenceSiteReadGrants,
 } from '@/lib/knowledge/access/confluence-site'
+import { loadConnectorPermissionGroupTokens } from '@/lib/knowledge/access/connector-permissions'
 import {
   domainMemberWildcard,
   EXTERNAL_GROUP_STALE_AFTER_MS,
@@ -274,6 +275,10 @@ async function loadUserAccess(
     const email = rows[0]?.email
     const own = userToken(email)
     if (own) identityTokens.add(own)
+    if (own) {
+      for (const token of await loadConnectorPermissionGroupTokens(own, scope))
+        identityTokens.add(token)
+    }
     const groupMemberTokens = [...identityTokens]
     if (own && email) groupMemberTokens.push(domainMemberWildcard(emailDomain(email)))
     if (groupMemberTokens.length > 0) {

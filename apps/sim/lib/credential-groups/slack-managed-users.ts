@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -29,6 +29,7 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type { DbOrTx } from '@/lib/db/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
+import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
 
 const logger = createLogger('SlackManagedUsers')
 const SLACK_MANAGED_USERS_ATTEMPT_TTL_MS = 10 * 60 * 1000
@@ -504,8 +505,10 @@ export async function createSlackManagedUsersAttempt(params: {
       .where(
         and(
           eq(slackApp.id, params.appId),
-          eq(slackApp.organizationId, scope.organizationId),
-          eq(slackApp.kind, 'custom')
+          or(
+            and(eq(slackApp.organizationId, scope.organizationId), eq(slackApp.kind, 'custom')),
+            and(eq(slackApp.kind, 'shared'), isNull(slackApp.organizationId))
+          )
         )
       )
       .limit(1)
@@ -514,6 +517,7 @@ export async function createSlackManagedUsersAttempt(params: {
         'Set up this organization’s Slack app first.',
         'invalid_response'
       )
+    await requireSlackSearchAppAvailable(configured.app.id)
     identity = { appId: configured.app.id, teamId: configured.teamId }
     clientId = configured.app.clientId
     clientSecret = (await decryptSecret(configured.app.encryptedClientSecret)).decrypted
@@ -690,12 +694,18 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         .where(
           and(
             eq(slackApp.id, params.attempt.expectedAppId),
-            eq(slackApp.organizationId, params.attempt.organizationId),
-            eq(slackApp.kind, 'custom')
+            or(
+              and(
+                eq(slackApp.organizationId, params.attempt.organizationId),
+                eq(slackApp.kind, 'custom')
+              ),
+              and(eq(slackApp.kind, 'shared'), isNull(slackApp.organizationId))
+            )
           )
         )
         .limit(1)
         .for('update')
+      if (app?.kind === 'shared') await requireSlackSearchAppAvailable(app.id)
       if (
         !app ||
         !params.attempt.appRevision ||

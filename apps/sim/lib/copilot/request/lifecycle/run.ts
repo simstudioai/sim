@@ -13,6 +13,7 @@ import {
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { loadCopilotSearchIntegrations } from '@/lib/copilot/application/load-search-integrations'
 import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
@@ -398,6 +399,19 @@ export async function runCopilotLifecycle(
 
   try {
     await ensureModelEgressRegistry(execContext, lifecycleOptions)
+    if (organizationId && goRoute !== '/api/tools/resume') {
+      if (!chatId) throw new Error('Search integration context requires a private chat ID')
+      requestPayload = {
+        ...requestPayload,
+        workspaceContext: await loadCopilotSearchIntegrations({
+          userId,
+          organizationId,
+          chatId,
+          messageId: payloadMsgId,
+          signal: lifecycleOptions.abortSignal,
+        }),
+      }
+    }
     const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
       requestPayload,
       lifecycleOptions.workspaceId

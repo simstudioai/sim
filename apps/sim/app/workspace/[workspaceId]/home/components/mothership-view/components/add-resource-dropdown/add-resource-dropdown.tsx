@@ -18,7 +18,6 @@ import {
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import {
@@ -56,11 +55,12 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
  */
 export const BROWSER_LAUNCHER_ID = 'browser'
 
+/** Placeholder id for the Terminal launcher row; the shell the desktop app opens becomes the tab. */
+export const TERMINAL_LAUNCHER_ID = 'terminal'
+
 export interface AddResourceDropdownProps {
   workspaceId: string
-  existingKeys: Set<string>
   onAdd: (resource: MothershipResource) => void
-  onOpenExisting?: (resource: MothershipResource) => void
   /**
    * Resource types to hide from the dropdown. Must be referentially stable
    * (a module constant) — it keys the underlying group memo.
@@ -326,7 +326,7 @@ export function useAvailableResources(
         type: 'terminal' as const,
         items: [
           {
-            id: TERMINAL_SESSION_RESOURCE_ID,
+            id: TERMINAL_LAUNCHER_ID,
             name: 'Terminal',
           },
         ],
@@ -544,10 +544,13 @@ export function ResourceMenuSections({
         const Icon = config.icon
         const section = sectionByType.get(type)
 
-        // The Browser launcher and the Terminal panel are flat rows: one opens
-        // a new page, the other the terminal and its inner shells. Live browser
-        // pages offered as context are an ordinary picker submenu.
-        if (!section && (type === 'terminal' || items[0]?.id === BROWSER_LAUNCHER_ID)) {
+        // The Browser and Terminal launchers are flat rows that open a new page
+        // or shell. Live pages and shells offered as context are an ordinary
+        // picker submenu.
+        if (
+          !section &&
+          (items[0]?.id === BROWSER_LAUNCHER_ID || items[0]?.id === TERMINAL_LAUNCHER_ID)
+        ) {
           const item = items[0]
           return (
             <DropdownMenuItem key={type} onClick={() => onSelect(resourceFromItem(type, item))}>
@@ -591,9 +594,7 @@ export function ResourceMenuSections({
 
 export function AddResourceDropdown({
   workspaceId,
-  existingKeys,
   onAdd,
-  onOpenExisting,
   excludeTypes,
   onRequestOpen,
   onClose,
@@ -642,13 +643,7 @@ export function AddResourceDropdown({
   }
 
   const select = (resource: MothershipResource) => {
-    void closeMenu().then(() => {
-      if (onOpenExisting && existingKeys.has(`${resource.type}:${resource.id}`)) {
-        onOpenExisting(resource)
-      } else {
-        onAdd(resource)
-      }
-    })
+    void closeMenu().then(() => onAdd(resource))
   }
 
   const filtered = useMemo(() => {

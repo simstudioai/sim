@@ -20,7 +20,7 @@ describe('ToolCallItem', () => {
   })
 
   it.each(['executing', 'success', 'error', 'cancelled'] as const)(
-    'renders the %s tool row without an icon',
+    'renders the %s tool row with its EMCN icon',
     (status) => {
       const markup = renderToStaticMarkup(
         <ToolCallItem
@@ -30,7 +30,7 @@ describe('ToolCallItem', () => {
         />
       )
 
-      expect(markup).not.toContain('<svg')
+      expect(markup).toContain('<svg')
     }
   )
 

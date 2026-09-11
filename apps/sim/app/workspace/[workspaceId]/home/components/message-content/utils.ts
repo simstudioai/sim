@@ -30,6 +30,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   glob: FolderCode,
   grep: Search,
   read: File,
+  read_document: File,
   mv: FolderCode,
   cp: Layout,
   mkdir: FolderCode,
@@ -48,6 +49,10 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   apply_file_edit: File,
   create_workflow: Layout,
   edit_workflow: Pencil,
+  run_workflow: PlayOutline,
+  run_workflow_until_block: PlayOutline,
+  deploy_as_api: Rocket,
+  table_rows: TableIcon,
   workflow: Hammer,
   debug: Bug,
   run: PlayOutline,
@@ -75,6 +80,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   ffmpeg: Wrench,
   browser: Globe,
   browser_navigate: Cursor,
+  browser_open_url: Cursor,
   browser_go_back: Cursor,
   browser_go_forward: Cursor,
   browser_reload: Cursor,
@@ -91,7 +97,11 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   browser_screenshot: Eye,
   browser_extract: Search,
   browser_click: Cursor,
+  browser_click_at: Cursor,
+  browser_drag: Cursor,
   browser_type: Pencil,
+  browser_insert_text: Pencil,
+  browser_fill_form: Pencil,
   browser_press_key: Cursor,
   browser_scroll: Cursor,
   browser_select_option: Cursor,
@@ -110,6 +120,10 @@ const TOOL_ICONS: Record<string, IconComponent> = {
 
 export function getAgentIcon(name: string): IconComponent {
   return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? Blimp
+}
+
+export function getToolIcon(name: string): IconComponent {
+  return TOOL_ICONS[name] ?? Wrench
 }
 
 export type MessagePhase = 'streaming' | 'revealing' | 'settled'

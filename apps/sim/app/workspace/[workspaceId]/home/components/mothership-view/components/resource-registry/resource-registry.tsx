@@ -16,7 +16,9 @@ import {
 } from '@sim/emcn/icons'
 import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'
+import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/terminal-tab-icon'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -248,8 +250,12 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'terminal',
     label: 'Terminal',
     icon: TerminalWindow,
-    renderTabIcon: (_resource, className) => (
-      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    renderTabIcon: (resource, className, desktopScopeId) => (
+      <TerminalTabIcon
+        terminalId={terminalIdFromResourceId(resource.id)}
+        scopeId={desktopScopeId}
+        className={className}
+      />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
   },

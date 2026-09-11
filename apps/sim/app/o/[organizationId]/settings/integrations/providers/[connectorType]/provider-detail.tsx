@@ -244,7 +244,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                   : meta.auth.mode === 'oauth' &&
                       meta.auth.adminCredentialType === 'service_account'
                     ? 'Service account'
-                    : 'Admin account',
+                    : 'Admin or service account',
                 !approved
                   ? 'Deactivated'
                   : !source.enabled

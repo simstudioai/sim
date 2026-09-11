@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   sources: vi.fn(),
   overview: vi.fn(),
   integrations: vi.fn(),
+  slackInventory: vi.fn(),
   filters: vi.fn(),
   connect: vi.fn(),
   connectSearchSource: vi.fn(),
@@ -36,6 +37,9 @@ vi.mock(
     },
   })
 )
+vi.mock('@/hooks/queries/personal-search-integrations', () => ({
+  usePersonalSearchIntegrations: mocks.slackInventory,
+}))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
 }))
@@ -163,6 +167,11 @@ beforeEach(() => {
     searchAccess: { memberScoped: true, sourceMirrored: true },
   })
   mocks.filters.mockReturnValue({ search: '' })
+  mocks.slackInventory.mockReturnValue({
+    data: { available: [] },
+    isPending: false,
+    isError: false,
+  })
   mocks.integrations.mockReturnValue({
     data: [{ connectorType: 'gmail', approved: true }],
     isPending: false,
@@ -455,6 +464,74 @@ describe('grouped member integrations', () => {
       undefined
     )
     expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+  it.each([false, true])(
+    'preserves shared Slack onboarding without a duplicate row (configured: %s)',
+    async (configured) => {
+      mocks.overview.mockReturnValue({
+        data: { providers: configured ? [{ connectorType: 'slack' }] : [] },
+        isPending: false,
+      })
+      mocks.integrations.mockReturnValue({
+        data: [{ connectorType: 'slack', approved: true }],
+        isPending: false,
+      })
+      mocks.availability.mockReturnValue({
+        integrationAvailability: new Map([['slack_v2', { state: 'ready', oauthAvailable: true }]]),
+        oauthServiceAvailability: new Map([['slack', true]]),
+        isIntegrationAvailabilityReady: true,
+      })
+      mocks.slackInventory.mockReturnValue({
+        data: { available: [{ target: { connectorType: 'slack' } }] },
+        isPending: false,
+        isError: false,
+      })
+      rows = configured ? [{ ...memberSource, connectorType: 'slack' }] : []
+      await render()
+      expect(buttons('Connect')).toHaveLength(1)
+      expect(mocks.slackInventory).toHaveBeenCalledWith({
+        organizationId: scope.organizationId,
+        connectorType: 'slack',
+      })
+      await act(async () => buttons('Connect')[0].click())
+      if (configured) {
+        expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'source-a')
+        expect(mocks.connectSearchSource).not.toHaveBeenCalled()
+      } else {
+        expect(mocks.connectSearchSource).toHaveBeenCalledExactlyOnceWith(
+          scope,
+          expect.objectContaining({ type: 'slack' }),
+          undefined
+        )
+        expect(mocks.connect).not.toHaveBeenCalled()
+      }
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    }
+  )
+  it.each([
+    { data: { available: [] }, isPending: false, isError: false },
+    {
+      data: { available: [{ target: { connectorType: 'slack', connectorId: 'existing' } }] },
+      isPending: false,
+      isError: false,
+    },
+    { data: undefined, isPending: true, isError: false },
+    { data: undefined, isPending: false, isError: true, error: new Error('Could not load Slack') },
+  ])('withholds new Slack setup without a ready shared-app target: %o', async (inventory) => {
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'slack', approved: true }],
+      isPending: false,
+    })
+    mocks.availability.mockReturnValue({
+      integrationAvailability: new Map([['slack_v2', { state: 'ready', oauthAvailable: true }]]),
+      oauthServiceAvailability: new Map([['slack', true]]),
+      isIntegrationAvailabilityReady: true,
+    })
+    mocks.slackInventory.mockReturnValue(inventory)
+    await render()
+    expect(buttons('Connect')).toHaveLength(0)
+    expect(mocks.connectSearchSource).not.toHaveBeenCalled()
   })
   it('withholds new setup on failed/incomplete provider data', async () => {
     mocks.overview.mockReturnValue({

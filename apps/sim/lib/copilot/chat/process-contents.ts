@@ -19,7 +19,6 @@ import {
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
-import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import {
   canonicalBlockVfsPath,
   canonicalKnowledgeBaseVfsDir,
@@ -233,14 +232,6 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
-        if (ctx.terminalId === TERMINAL_SESSION_RESOURCE_ID) {
-          return {
-            type: 'terminal_tab',
-            tag: ctx.label ? `@${ctx.label}` : '@Terminal',
-            content:
-              'The user tagged the Terminal resource as a whole, not a specific shell. Inspect the live terminals with the terminal list operation and choose the relevant one from their request. If no terminal is open yet, create one as needed.',
-          }
-        }
         const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`
         return {
           type: 'terminal_tab',

@@ -25,13 +25,11 @@ import {
   DropOverlay,
   MicButton,
   MicrophonePermissionHelp,
-  ModeSwitcher,
   PromptEditor,
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
-import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -62,21 +60,6 @@ interface UserInputProps {
   onStopGeneration: () => void
   isInitialView?: boolean
   onSendQueuedHead?: () => void
-  /**
-   * Whether the composer offers Search mode. Only the Home composer answers a
-   * search with documents; the workflow copilot always talks to the agent, so
-   * it must not show a mode it cannot honour.
-   */
-  canSearch?: boolean
-  /**
-   * Whether the text is cleared once submitted. A search keeps its query in
-   * the box, the way a search bar does, so it can be read and refined against
-   * the results; a message to the agent clears, since it now lives in the
-   * transcript. Defaults to clearing.
-   */
-  clearOnSubmit?: boolean
-  /** Called when the text becomes empty after having had content, such as a search being cleared. */
-  onCleared?: () => void
   onEditQueuedTail?: () => void
 }
 
@@ -88,8 +71,6 @@ export interface UserInputHandle {
    * names chip with brand icons. Focuses the input and places the caret at the
    * end. Does NOT submit. Safe to call with the same text twice in a row. */
   populatePrompt: (text: string) => void
-  /** Empties the composer and its draft, as a send does; for a question handed to the agent from outside the box. */
-  clear: () => void
 }
 
 /**
@@ -107,21 +88,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isInitialView = true,
     onSendQueuedHead,
     onEditQueuedTail,
-    canSearch = false,
-    clearOnSubmit = true,
-    onCleared,
   },
   ref
 ) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
-  const [mode] = useMothershipMode()
-  const isSearch = canSearch && mode === 'search'
-  const contextsEnabled = !canSearch || mode === 'build'
-  const contextsEnabledRef = useRef(contextsEnabled)
-  contextsEnabledRef.current = contextsEnabled
-
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
     if (!draftScopeKey) return ''
@@ -134,17 +106,16 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const files = useFileAttachments({
     userId,
     workspaceId,
-    disabled: !contextsEnabled,
     isLoading: isSending,
   })
-  const hasFiles = contextsEnabled && files.attachedFiles.some((f) => !f.uploading && f.key)
-  const hasUploadingFiles = contextsEnabled && files.attachedFiles.some((f) => f.uploading)
+  const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
+  const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
 
   const filesRef = useRef(files)
   filesRef.current = files
 
   const handlePasteFiles = useCallback((pasted: FileList) => {
-    if (contextsEnabledRef.current) filesRef.current.processFiles(pasted)
+    filesRef.current.processFiles(pasted)
   }, [])
 
   const editor = usePromptEditor({
@@ -152,7 +123,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     initialValue,
     onContextAdd,
     onPasteFiles: handlePasteFiles,
-    contextsEnabled,
   })
   const editorRef = useRef(editor)
   editorRef.current = editor
@@ -167,7 +137,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
    */
   useEffect(() => {
     const handleAddContext = (event: Event) => {
-      if (contextsEnabledRef.current) handleMothershipAddContextEvent(event, editorRef.current)
+      handleMothershipAddContextEvent(event, editorRef.current)
     }
 
     window.addEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handleAddContext)
@@ -176,8 +146,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const draftScopeKeyRef = useRef(draftScopeKey)
   draftScopeKeyRef.current = draftScopeKey
-  const clearOnSubmitRef = useRef(clearOnSubmit)
-  clearOnSubmitRef.current = clearOnSubmit
 
   const hasRestoredDraftRef = useRef(false)
   useEffect(() => {
@@ -212,8 +180,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       useMothershipDraftsStore.getState().clearDraft(draftScopeKey)
       return
     }
-    if (contextsEnabled && restoredContexts) editor.setContexts(restoredContexts)
-    if (contextsEnabled && restoredFiles) files.restoreAttachedFiles(restoredFiles)
+    if (restoredContexts) editor.setContexts(restoredContexts)
+    if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
     if (caretText !== null) {
       const textarea = textareaRef.current
       if (textarea) {
@@ -222,15 +190,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
-
-  const onClearedRef = useRef(onCleared)
-  onClearedRef.current = onCleared
-  const hadTextRef = useRef(false)
-  useEffect(() => {
-    const hasText = editor.value.trim().length > 0
-    if (hadTextRef.current && !hasText) onClearedRef.current?.()
-    hadTextRef.current = hasText
-  }, [editor.value])
 
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
@@ -321,8 +280,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
    * landing prompt panel as well as curated CTAs. Curated producers opt their
    * bare names in at the store seam (`storeCuratedPrompt`), so prose seeded here
    * is never bare-chipped (the scunthorpe constraint).
-   * An empty seed must not erase a queued message loaded in the same event
-   * that clears the search URL. The mode menu clears its query explicitly.
+   * An empty seed must not erase a queued message loaded for editing.
    */
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
@@ -390,7 +348,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         currentEditor.setContexts(msg.contexts ?? [])
         currentEditor.focusAtEnd()
       },
-      clear: clearComposer,
       populatePrompt: (text: string) => {
         // `text` is a curated prompt, so opt its bare integration names into
         // `@`-mention form before chipification (the auto-mention pipeline only
@@ -405,7 +362,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   )
 
   const handleFileSelectStable = useCallback(() => {
-    if (contextsEnabledRef.current) filesRef.current.handleFileSelect()
+    filesRef.current.handleFileSelect()
   }, [])
 
   const handleFileClick = useCallback((file: AttachedFile) => {
@@ -431,10 +388,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const handleContainerDrop = useCallback(
     (e: React.DragEvent) => {
-      if (!contextsEnabledRef.current) {
-        e.preventDefault()
-        return
-      }
       const resourcesJson = e.dataTransfer.getData(SIM_RESOURCES_DRAG_TYPE)
       if (resourcesJson) {
         e.preventDefault()
@@ -494,8 +447,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }, [isSending, textareaRef])
 
   /**
-   * Menu rows are excluded alongside buttons: the mode switcher's items are
-   * portaled, so their clicks still bubble here through the React tree.
+   * Portaled dialogs and menus still bubble clicks through the React tree;
+   * they must keep focus rather than returning it to the composer.
    */
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button, [role="dialog"], [role="menu"]')) return
@@ -523,9 +476,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     const currentFiles = filesRef.current
     const currentEditor = editorRef.current
 
-    const fileAttachmentsForApi: FileAttachmentForApi[] = (
-      contextsEnabledRef.current ? currentFiles.attachedFiles : []
-    )
+    const fileAttachmentsForApi: FileAttachmentForApi[] = currentFiles.attachedFiles
       .filter((f) => !f.uploading && f.key)
       .map((f) => ({
         id: f.id,
@@ -545,12 +496,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       activeContexts.length > 0 ? activeContexts : undefined
     )
-    /**
-     * A composer that keeps its text (Search mode) keeps its attachments and
-     * chips too: the search took the query alone, and the person may hand the
-     * rest to the agent next.
-     */
-    if (clearOnSubmitRef.current) clearComposer()
+    clearComposer()
   }, [onSubmit, clearComposer])
 
   /**
@@ -613,27 +559,17 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       onDragOver={handleContainerDragOver}
       onDrop={handleContainerDrop}
     >
-      {!isSearch && mode !== 'assistant' && (
-        <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
-      )}
+      <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
 
-      {contextsEnabled && (
-        <AttachedFilesList
-          attachedFiles={files.attachedFiles}
-          onFileClick={handleFileClick}
-          onRemoveFile={handleRemoveFile}
-        />
-      )}
+      <AttachedFilesList
+        attachedFiles={files.attachedFiles}
+        onFileClick={handleFileClick}
+        onRemoveFile={handleRemoveFile}
+      />
 
       <PromptEditor
         editor={editor}
-        placeholder={
-          isSearch
-            ? 'Search your documents…'
-            : mode === 'assistant'
-              ? 'Ask about your documents or take action…'
-              : 'Ask Sim to '
-        }
+        placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
         className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
@@ -641,46 +577,41 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-1'>
-          {contextsEnabled && (
-            <>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Chip
-                    shape='round'
-                    leftIcon={Plus}
-                    onClick={handlePlusClick}
-                    aria-label='Add resources'
-                  />
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Add resources</Tooltip.Content>
-              </Tooltip.Root>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Chip
-                    shape='round'
-                    leftIcon={Paperclip}
-                    onClick={handleFileSelectStable}
-                    aria-label='Attach file'
-                  />
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Attach file</Tooltip.Content>
-              </Tooltip.Root>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Chip
-                    shape='round'
-                    leftIcon={Slash}
-                    onClick={handleSlashTriggerClick}
-                    aria-label='Skills'
-                  />
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Skills</Tooltip.Content>
-              </Tooltip.Root>
-            </>
-          )}
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Chip
+                shape='round'
+                leftIcon={Plus}
+                onClick={handlePlusClick}
+                aria-label='Add resources'
+              />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Add resources</Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Chip
+                shape='round'
+                leftIcon={Paperclip}
+                onClick={handleFileSelectStable}
+                aria-label='Attach file'
+              />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Chip
+                shape='round'
+                leftIcon={Slash}
+                onClick={handleSlashTriggerClick}
+                aria-label='Skills'
+              />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Skills</Tooltip.Content>
+          </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          {canSearch && <ModeSwitcher onModeChange={clearComposer} />}
           {isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}
@@ -704,7 +635,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         className='hidden'
         accept={MOTHERSHIP_ACCEPT_ATTRIBUTE}
         multiple
-        disabled={!contextsEnabled}
       />
 
       {files.isDragging && <DropOverlay />}

@@ -950,6 +950,8 @@ export async function executeSync(
       /** Tells a connector to carry permissions with its listing; without it, none are read. */
       ...(mirrored ? { mirrorsSourceAcls: true } : {}),
     }
+    if (mirrored)
+      await connectorConfig.permissionConfig?.populateSyncContext(connectorId, syncContext)
 
     // Shared cutoff for both the tombstone-retry bound below and the stuck-document
     // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.

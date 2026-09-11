@@ -7,6 +7,11 @@ import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import { gitLabPermissionConfig } from '@/connectors/gitlab/permission-config/capability'
+import {
+  getGitLabCsvContext,
+  setGitLabCsvContext,
+} from '@/connectors/gitlab/permission-config/types'
 import {
   getGitLabDocumentAcls,
   openGitLabDirectory,
@@ -611,6 +616,9 @@ function workItemToStub(
   kind: WorkItemKind,
   syncContext?: Record<string, unknown>
 ): ExternalDocument {
+  if (kind === 'issue' && getGitLabCsvContext(syncContext) && item.confidential !== false) {
+    return excludedCsvIssue(item.iid)
+  }
   const title =
     item.title?.trim() || `${kind === 'issue' ? 'Issue #' : 'Merge Request !'}${item.iid}`
   const resource = kind === 'issue' ? 'issues' : 'merge_requests'
@@ -640,6 +648,25 @@ function workItemToStub(
       createdAt: item.created_at ?? '',
       updatedAt: item.updated_at ?? item.created_at ?? '',
     },
+  }
+}
+
+/** An authoritative exclusion revokes any older indexed version without retaining private metadata. */
+function excludedCsvIssue(iid: number): ExternalDocument {
+  return {
+    ...markSkipped(
+      {
+        externalId: `${ISSUE_PREFIX}${iid}`,
+        title: 'Excluded GitLab issue',
+        content: '',
+        contentHash: `gitlab:excluded-issue:${iid}`,
+        mimeType: 'text/plain',
+        metadata: { contentType: 'issue' },
+        acl: [],
+      },
+      'Non-admin token connections exclude issues unless GitLab explicitly marks them non-confidential.'
+    ),
+    skippedExistingDisposition: 'replace',
   }
 }
 
@@ -764,6 +791,10 @@ async function resolveProjectPath(
   }
 
   const project = (await response.json()) as GitLabProject
+  const csv = getGitLabCsvContext(syncContext)
+  if (csv && (project.id !== csv.projectId || new URL(apiBase).host !== csv.host)) {
+    throw new Error('GitLab project identity changed. Reconfigure the connection before syncing.')
+  }
   const path = project.path_with_namespace ?? ''
   if (syncContext) {
     if (path) syncContext.projectPath = path
@@ -886,6 +917,7 @@ function applyMaxItemsCap(
 
 export const gitlabConnector: ConnectorConfig = {
   ...gitlabConnectorMeta,
+  permissionConfig: gitLabPermissionConfig,
   openDirectory: openGitLabDirectory,
   getDocumentAcls: getGitLabDocumentAcls,
 
@@ -1230,11 +1262,24 @@ export const gitlabConnector: ConnectorConfig = {
           maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
         })
         if (!response.ok) {
-          if (response.status === 404) return null
+          if (response.status === 404) {
+            const csv = getGitLabCsvContext(syncContext)
+            if (kind === 'issue' && csv) {
+              /** A fresh project check distinguishes item exclusion from lost project access. */
+              const currentContext = {}
+              setGitLabCsvContext(currentContext, csv)
+              await resolveProjectPath(currentContext, apiBase, encodedProject, accessToken)
+              return excludedCsvIssue(iid)
+            }
+            return null
+          }
           throw new Error(`Failed to fetch GitLab ${kind}: ${response.status}`)
         }
         const item = readWorkItem(await response.json())
         if (item.iid !== iid) throw new Error('GitLab returned a different issue or merge request')
+        if (kind === 'issue' && getGitLabCsvContext(syncContext) && item.confidential !== false) {
+          return excludedCsvIssue(iid)
+        }
         return hydrateWorkItem(accessToken, apiBase, encodedProject, host, projectPath, item, kind)
       }
 
@@ -1313,7 +1358,7 @@ export const gitlabConnector: ConnectorConfig = {
     const choice = getContentTypeChoice(sourceConfig)
 
     try {
-      if (syncContext?.mirrorsSourceAcls === true) {
+      if (syncContext?.mirrorsSourceAcls === true && !getGitLabCsvContext(syncContext)) {
         await validateGitLabPermissionToken(accessToken, sourceConfig)
       }
       const response = await fetchProject(
@@ -1334,6 +1379,13 @@ export const gitlabConnector: ConnectorConfig = {
       }
 
       const projectRecord = (await response.json()) as GitLabProject
+      const csv = getGitLabCsvContext(syncContext)
+      if (csv && (projectRecord.id !== csv.projectId || host !== csv.host)) {
+        return {
+          valid: false,
+          error: 'GitLab returned a different project. Reload the connection settings.',
+        }
+      }
 
       if (activePhases(choice).includes('wiki')) {
         const accessLevel = projectRecord.wiki_access_level

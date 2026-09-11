@@ -43,7 +43,7 @@ Source availability depends on the deployment and organization policy. An unavai
 
 ## Choose the right connection method
 
-Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation, and GitLab requires an administrator token for a self-managed instance.
+Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation. GitLab supports a self-managed instance administrator token, or a non-admin token with uploaded CSV permissions.
 
 | Method | What the admin does | What teammates do |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ Sources can use member accounts or a central connection. Gmail, Google Calendar,
 | **GitHub App installation** | Installs the App, selects it under **Sync documents with**, and adds repository sources. | Connect GitHub once. Sim checks each reader's current repository access before returning installation-indexed content. |
 | **Google Workspace service account** | Configures domain-wide delegation, supplies a Directory administrator email, and selects users and content filters. | Join with a matching verified email. No personal Google connection is needed for that source. Gmail remains private to the mailbox owner; Calendar preserves each person's event view; Drive uses file permissions. |
 | **Confluence service account** | Connects an account that can read the selected content and its permissions. | Join the organization and connect Confluence to establish identity. |
-| **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
+| **Administrator token / Non-admin token** (GitLab) | Connects one self-managed project. Administrator tokens refresh permissions from GitLab; non-admin tokens use uploaded CSV permissions. | Join with a verified email matching GitLab or the uploaded user mapping. No personal connection is needed. |
 
 Open an integration from the Sources list to manage its connections. Use **Connect service account** for Google, **Add Confluence site**, **Add projects** for Jira, **Add repository** for GitHub, **Add project** for GitLab, or **Add channels or DMs** for Slack.
 
@@ -69,7 +69,7 @@ Some member sources offer **Sync documents with**, either directly in setup or u
 | --- | --- | --- |
 | [Confluence](/search/confluence) | Pages and blog posts | Service account or member accounts; each teammate connects |
 | [GitHub](/search/github) | Repository text files | App installation or member indexing; each teammate connects |
-| [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed instance administrator token; no member connection |
+| [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed administrator token, or non-admin token with CSV permissions; no member connection |
 | [Gmail](/search/gmail) | Email thread text | Delegated service account or member accounts |
 | [Google Calendar](/search/google-calendar) | Meetings | Delegated service account or member accounts |
 | [Google Drive](/search/google-drive) | Supported Drive files | Delegated service account or member accounts |
@@ -90,7 +90,7 @@ Connection requests do not grant organization membership. See [Connect your acco
 
 ## Manage sources and documents
 
-Open **Settings → Sources**, choose the integration, then select its site, project, repository, or account connection. Each row identifies **Member accounts**, **Service account**, or **Admin account** and shows its sync status.
+Open **Settings → Sources**, choose the integration, then select its site, project, repository, or account connection. Each row identifies its account method and shows its sync status.
 
 Edit **Settings** to change an existing connection's filters. Adding another connection creates a separate selection. For Gmail, one member-account connection is usually enough: its filters apply separately to each connected mailbox, including accounts connected later. A central Google connection applies to its selected **Users**, or all active users when that field is blank.
 

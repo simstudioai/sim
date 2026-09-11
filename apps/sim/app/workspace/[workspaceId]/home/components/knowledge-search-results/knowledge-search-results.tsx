@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
-import { ShimmerText } from '@/components/ui/shimmer-text'
+import { ActivityStatus } from '@/components/ui/activity-status'
 import type {
   WorkspaceKnowledgeSearchResult,
   WorkspaceSearchFilters,
@@ -99,7 +99,7 @@ type KnowledgeSearchResultsProps = (
 }
 
 /**
- * The composer's Search mode: the documents the signed-in person may read that
+ * Search results include documents the signed-in person may read that
  * match their query in the canonical Enterprise Search index, as rows
  * that open the source. A header says how many and that the search ran as
  * them; while a connected source is still indexing it says so, and the list
@@ -190,9 +190,9 @@ export function KnowledgeSearchResults({
   }
   if (isPending || (isFetching && !results)) {
     return (
-      <p role='status' className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-        <ShimmerText className='[--shimmer-rest:var(--text-muted)]'>Searching…</ShimmerText>
-      </p>
+      <div className='px-2 py-2'>
+        <ActivityStatus label='Searching…' isActive />
+      </div>
     )
   }
 

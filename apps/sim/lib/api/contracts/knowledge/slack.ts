@@ -9,12 +9,14 @@ export const slackSearchInstallationSchema = z.object({
   appId: z.string().min(1).max(200),
   teamId: z.string().min(1).max(200),
   teamName: z.string().min(1).max(200),
+  appKind: z.enum(['custom', 'shared']),
   enabled: z.boolean(),
   needsValidation: z.boolean(),
   lastOutcome: z.string().max(100).nullable(),
   lastEventAt: z.string().datetime().nullable(),
 })
 export const listSlackSearchResponseSchema = z.object({
+  sharedAppAvailable: z.boolean(),
   installations: z.array(slackSearchInstallationSchema).max(100),
   bots: z
     .array(z.object({ id: z.string().min(1).max(200), displayName: z.string().max(500) }))
@@ -64,6 +66,7 @@ export const prepareSlackSearchContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
+      sharedAppId: z.string().min(1).max(200).nullable(),
       manifest: z.string().max(20_000),
       existingApp: z
         .object({ appId: z.string().min(1).max(200), teamId: z.string().min(1).max(200) })
@@ -74,6 +77,7 @@ export const prepareSlackSearchContract = defineRouteContract({
 })
 
 export const startSlackSearchOAuthBodySchema = prepareSlackSearchBodySchema.extend({
+  mode: z.enum(['custom', 'shared']).default('custom'),
   installationId: z.string().min(1).max(200).optional(),
   clientId: z.string().trim().min(1).max(200).optional(),
   clientSecret: z.string().trim().min(1).max(500).optional(),
