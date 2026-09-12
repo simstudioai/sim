@@ -237,7 +237,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       await transport.dispatcher.destroy()
     }
   })
-  it('streams Request bodies, encodes multipart data, and honors manual redirects', async () => {
+  it('preserves Request bodies, encodes multipart data, and honors manual redirects', async () => {
     const transport = createPinnedFetchWithDispatcher('127.0.0.1', options)
     try {
       await runWithOutboundOrganization('org_a', async () => {
