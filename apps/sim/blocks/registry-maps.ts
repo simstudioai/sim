@@ -1,6 +1,7 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
 import { AffinityBlock, AffinityBlockMeta } from '@/blocks/blocks/affinity'
 import { AgentBlock } from '@/blocks/blocks/agent'
+import { AgentGuildBlock, AgentGuildBlockMeta } from '@/blocks/blocks/agent_guild'
 import { AgentMailBlock, AgentMailBlockMeta } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone'
 import { AgiloftBlock, AgiloftBlockMeta } from '@/blocks/blocks/agiloft'
@@ -385,6 +386,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   a2a: A2ABlock,
   affinity: AffinityBlock,
   agent: AgentBlock,
+  agent_guild: AgentGuildBlock,
   agentmail: AgentMailBlock,
   agentphone: AgentPhoneBlock,
   agiloft: AgiloftBlock,
@@ -755,6 +757,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  */
 export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   affinity: AffinityBlockMeta,
+  agent_guild: AgentGuildBlockMeta,
   agentmail: AgentMailBlockMeta,
   agentphone: AgentPhoneBlockMeta,
   agiloft: AgiloftBlockMeta,

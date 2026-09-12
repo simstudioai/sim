@@ -317,6 +317,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   a2a: A2AIcon,
   affinity: AffinityIcon,
   agent: AgentIcon,
+  agent_guild: SearchIcon,
   agentmail: AgentMailIcon,
   agentphone: AgentPhoneIcon,
   agiloft: AgiloftIcon,

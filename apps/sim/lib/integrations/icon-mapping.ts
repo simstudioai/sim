@@ -214,6 +214,7 @@ import {
   SapConcurIcon,
   SapS4HanaIcon,
   SESIcon,
+  SearchIcon,
   SecretsManagerIcon,
   SemrushIcon,
   SendblueIcon,
@@ -282,6 +283,7 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 export const blockTypeToIconMap: Record<string, IconComponent> = {
   a2a: A2AIcon,
   affinity: AffinityIcon,
+  agent_guild: SearchIcon,
   agentmail: AgentMailIcon,
   agentphone: AgentPhoneIcon,
   agiloft: AgiloftIcon,
