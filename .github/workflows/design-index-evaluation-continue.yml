@@ -33,7 +33,7 @@ jobs:
           import json, os
           data=json.load(open('scripts/design-diff/benchmark/index-evaluation-pending.json'))
           prs=[item['pr'] for item in data['comparisons']]
-          assert len(prs)==len(set(prs))==44 and all(type(pr) is int and pr>0 for pr in prs)
+          assert len(prs)==len(set(prs))==3 and all(type(pr) is int and pr>0 for pr in prs)
           with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('prs='+json.dumps(prs)+'\n')
           PY
 
