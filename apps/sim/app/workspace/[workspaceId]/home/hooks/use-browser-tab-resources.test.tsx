@@ -165,6 +165,22 @@ describe('useBrowserTabResources', () => {
     expect(selectResource).not.toHaveBeenCalled()
   })
 
+  it('shows a page selected before the pages landed, once it arrives', () => {
+    render({ selectedResourceId: '2', activeResourceId: '2' })
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
+      'switch-tab',
+      { tabId: '2', claim: false },
+      SCOPE
+    )
+
+    // The requested switch landing is not a native change to follow.
+    pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
+    expect(selectResource).not.toHaveBeenCalled()
+  })
+
   it('adopts the native active page on reopen instead of pushing the fallback tab', () => {
     const resources: MothershipResource[] = [
       { type: 'browser', id: '1', title: 'Page 1' },

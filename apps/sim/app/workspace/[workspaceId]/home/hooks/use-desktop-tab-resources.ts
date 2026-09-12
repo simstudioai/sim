@@ -187,16 +187,22 @@ export function useDesktopTabResources({
     }
   }, [addResource, hasSession, removeResource, resources, scopeId, tabs, type])
 
+  /** Whether the selected resource is one of this kind's live tabs. */
+  const selectedTabIsLive =
+    selectedResourceId !== null && tabs.some((tab) => tab.id === selectedResourceId)
+
   // Selecting a resource tab shows its native tab. Keyed on the explicit
-  // selection alone: a native push must not re-assert a selection it just
-  // moved away from, or the two sides would trade switches forever, and the
-  // strip's fallback is not a choice to impose on the desktop app.
+  // selection alone — the strip's fallback is not a choice to impose on the
+  // desktop app, and a native push must not re-assert a selection it just
+  // moved away from, or the two sides would trade switches forever — and on
+  // that tab being live, so a selection made before the desktop app published
+  // its tab list is shown once the tab arrives rather than dropped.
   useEffect(() => {
-    if (!selectedResourceId || selectedResourceId === activeTabIdRef.current) return
-    if (!tabsRef.current.some((tab) => tab.id === selectedResourceId)) return
+    if (!selectedResourceId || !selectedTabIsLive) return
+    if (selectedResourceId === activeTabIdRef.current) return
     requestedTabIdRef.current = selectedResourceId
     switchTabRef.current(selectedResourceId, scopeIdRef.current)
-  }, [selectedResourceId])
+  }, [selectedResourceId, selectedTabIsLive])
 
   // With no effective selection the strip falls back to a tab of its own
   // choosing. The desktop app still shows the tab the user was last on, so the
