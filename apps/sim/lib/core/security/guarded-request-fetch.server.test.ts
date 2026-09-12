@@ -134,6 +134,93 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     expect(await response.text()).toBe('final-body')
   })
 
+  it.each([
+    [307, 'POST'],
+    [308, 'POST'],
+    [301, 'PUT'],
+    [302, 'PUT'],
+  ] as const)('replays a Request body through same-origin %s redirects', async (status, method) => {
+    const payloads: string[] = []
+    mockUndiciRequest.mockImplementation(async (_url, options: { body: Buffer | Readable }) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of options.body instanceof Readable ? options.body : [options.body]) {
+        chunks.push(Buffer.from(chunk))
+      }
+      payloads.push(Buffer.concat(chunks).toString())
+      return payloads.length < 3
+        ? undiciReply(status, { location: `/hop-${payloads.length}` }, byteStream(''))
+        : undiciReply(200, {}, byteStream('done'))
+    })
+    const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
+    try {
+      const response = await transport.fetch(
+        new Request('https://api.example.com/start', {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: '{"payload":"replay"}',
+        })
+      )
+      expect(await response.text()).toBe('done')
+      expect(payloads).toEqual(Array(3).fill('{"payload":"replay"}'))
+      expect(response.redirected).toBe(true)
+      expect(mockUndiciRequest.mock.calls.map(([, options]) => options.method)).toEqual(
+        Array(3).fill(method)
+      )
+    } finally {
+      await transport.dispatcher.destroy()
+    }
+  })
+
+  it.each(['manual', 'error'] as const)(
+    'keeps Request bodies streaming in %s mode',
+    async (redirect) => {
+      const request = new Request('https://api.example.com/upload', {
+        method: 'POST',
+        redirect,
+        body: 'payload',
+      })
+      const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
+      mockUndiciRequest.mockImplementationOnce(async (_url, options: { body: Readable }) => {
+        expect(options.body).toBeInstanceOf(Readable)
+        const chunks: Buffer[] = []
+        for await (const chunk of options.body) chunks.push(Buffer.from(chunk))
+        expect(Buffer.concat(chunks).toString()).toBe('payload')
+        return undiciReply(200, {}, byteStream('done'))
+      })
+      try {
+        expect(await (await transport.fetch(request)).text()).toBe('done')
+      } finally {
+        await transport.dispatcher.destroy()
+      }
+    }
+  )
+
+  it('does not read the Request body when init supplies a replacement', async () => {
+    const request = new Request('https://api.example.com/upload', {
+      method: 'POST',
+      body: 'original',
+    })
+    const clone = vi.spyOn(request, 'clone')
+    const bodyOverride = vi.fn().mockReturnValueOnce('replacement').mockReturnValue(undefined)
+    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('done')))
+    const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
+    try {
+      const response = await transport.fetch(request, {
+        get body() {
+          return bodyOverride()
+        },
+      })
+      expect(await response.text()).toBe('done')
+      expect(mockUndiciRequest.mock.calls[0][1].body).toBe('replacement')
+      expect(request.bodyUsed).toBe(false)
+      expect(clone).not.toHaveBeenCalled()
+      expect(bodyOverride).toHaveBeenCalledTimes(1)
+    } finally {
+      await request.body?.cancel()
+      await transport.dispatcher.destroy()
+    }
+  })
+
   it('supports buffered reads (.json()) through the constructed body', async () => {
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(

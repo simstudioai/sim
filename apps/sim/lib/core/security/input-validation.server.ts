@@ -893,26 +893,32 @@ async function undiciRequestAsResponse(
  * fetch semantics) so a manual redirect follower can't silently downgrade a POST Request to a
  * bare GET or lose its headers.
  */
-function liftFetchArgs(
+async function liftFetchArgs(
   input: RequestInfo | URL,
   init?: RequestInit
-): { target: string; effectiveInit: RequestInit } {
+): Promise<{ target: string; effectiveInit: RequestInit }> {
   const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   if (typeof Request !== 'undefined' && input instanceof Request) {
     const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
-    return {
-      target,
-      effectiveInit: {
-        method: input.method,
-        headers: input.headers,
-        body: bodyAllowed ? input.body : undefined,
-        signal: input.signal,
-        // Carry the Request's redirect mode so the pinned fetch honors `manual`/`error`
-        // instead of defaulting a `Request({ redirect: 'manual' })` to `follow`.
-        redirect: input.redirect,
-        ...init,
-      },
+    const effectiveInit: RequestInit = {
+      method: input.method,
+      headers: input.headers,
+      body: bodyAllowed ? input.body : undefined,
+      signal: input.signal,
+      // Carry the Request's redirect mode so the pinned fetch honors `manual`/`error`
+      // instead of defaulting a `Request({ redirect: 'manual' })` to `follow`.
+      redirect: input.redirect,
+      ...init,
     }
+    /** Request hides its original body source, so following redirects requires replayable bytes. */
+    if (
+      !Object.hasOwn(init ?? {}, 'body') &&
+      effectiveInit.body &&
+      (effectiveInit.redirect ?? 'follow') === 'follow'
+    ) {
+      effectiveInit.body = await input.clone().arrayBuffer()
+    }
+    return { target, effectiveInit }
   }
   return { target, effectiveInit: init ?? {} }
 }
@@ -941,7 +947,7 @@ function createValidatedFetch(
   return {
     dispatcher,
     fetch: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const { target, effectiveInit } = liftFetchArgs(input, init)
+      const { target, effectiveInit } = await liftFetchArgs(input, init)
       const mode = effectiveInit.redirect ?? 'follow'
       // double-cast-allowed: DOM and Undici RequestInit represent the same wire request in this bridge
       const undiciInit = effectiveInit as unknown as UndiciRequestInit
