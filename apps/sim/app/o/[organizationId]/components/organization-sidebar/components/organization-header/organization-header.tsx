@@ -135,7 +135,7 @@ export function OrganizationHeader({
                     aria-label='Change organization logo'
                     aria-busy={isUploadingLogo}
                     textValue='Change organization logo'
-                    className='h-auto shrink-0 p-1'
+                    className='h-auto shrink-0 p-0 hover-hover:opacity-70 focus-visible:opacity-70'
                     disabled={isUploadingLogo}
                     onSelect={(event) => {
                       event.preventDefault()

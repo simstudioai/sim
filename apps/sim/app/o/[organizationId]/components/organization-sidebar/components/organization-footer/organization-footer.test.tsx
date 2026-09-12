@@ -10,15 +10,6 @@ const { mockNavigate, mockPush, context } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   context: {
     organization: { id: 'org-1' },
-    viewer: { isAdmin: true },
-    settingsFeatures: {
-      billingEnabled: true,
-      hasEnterprisePlan: false,
-      hosted: true,
-      selfHosted: {},
-    },
-    connectedAccountsAvailable: true,
-    searchAccess: { memberScoped: true },
   },
 }))
 
@@ -52,9 +43,6 @@ vi.mock('next/link', () => ({
   ),
 }))
 vi.mock('@/lib/auth/sign-out', () => ({ signOutAndRedirect: vi.fn() }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'user-1' } } }),
-}))
 vi.mock('@/lib/desktop', () => ({ getDesktopUpdates: () => null }))
 vi.mock('@/hooks/use-desktop-update-state', () => ({
   useDesktopUpdateState: () => ({ status: 'idle' }),
@@ -69,8 +57,6 @@ vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/components', () => (
   SidebarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }))
 vi.mock('@/components/icons', () => ({
-  CodeIcon: () => <svg />,
-  McpIcon: () => <svg />,
   SlackIcon: () => <svg />,
 }))
 
@@ -83,8 +69,6 @@ let root: Root
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.clearAllMocks()
-  context.viewer.isAdmin = true
-  context.settingsFeatures.billingEnabled = true
   useSettingsDirtyStore.getState().reset()
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -126,45 +110,13 @@ async function selectSettings() {
 }
 
 describe('OrganizationFooter settings navigation', () => {
-  it('preserves unsaved settings when opening a shortcut', async () => {
-    useSettingsDirtyStore.getState().setDirty(true)
+  it('keeps only Settings and Sign out in the organization profile menu', async () => {
     await openProfileMenu()
-    const members = document.querySelector<HTMLAnchorElement>('a[href="/o/org-1/settings/members"]')
-    if (!members) throw new Error('Members shortcut is missing')
-    await act(async () => members.click())
-    expect(mockPush).not.toHaveBeenCalled()
-    act(() => useSettingsDirtyStore.getState().confirmLeave())
-    expect(mockPush).toHaveBeenCalledWith('/o/org-1/settings/members')
+    expect(
+      [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+    ).toEqual(['Settings', 'Sign out'])
+    expect(document.querySelector('[role="separator"]')).toBeNull()
   })
-
-  it.each([
-    { isAdmin: true, billingEnabled: true, showBilling: true },
-    { isAdmin: false, billingEnabled: true, showBilling: false },
-    { isAdmin: true, billingEnabled: false, showBilling: false },
-  ])(
-    'matches settings visibility for $isAdmin admin, $billingEnabled billing',
-    async ({ isAdmin, billingEnabled, showBilling }) => {
-      context.viewer.isAdmin = isAdmin
-      context.settingsFeatures.billingEnabled = billingEnabled
-      await openProfileMenu()
-      expect(
-        [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
-      ).toEqual([
-        'Settings',
-        ...(showBilling ? ['Subscription'] : []),
-        'Members',
-        'Recently deleted',
-        'Sign out',
-      ])
-      expect(document.querySelector('[role="separator"]')).toBeNull()
-      const members = document.querySelector<HTMLAnchorElement>(
-        'a[href="/o/org-1/settings/members"]'
-      )
-      if (!members) throw new Error('Members shortcut is missing')
-      await act(async () => members.click())
-      expect(mockPush).toHaveBeenCalledWith('/o/org-1/settings/members')
-    }
-  )
 
   it('navigates immediately when settings are clean', async () => {
     await selectSettings()
