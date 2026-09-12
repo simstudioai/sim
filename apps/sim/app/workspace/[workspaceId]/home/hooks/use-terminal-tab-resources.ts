@@ -16,6 +16,7 @@ interface UseTerminalTabResourcesOptions extends DesktopTabResourceCallbacks {
   scopeId: string
   resources: readonly MothershipResource[]
   activeResourceId: string | null
+  selectedResourceId: string | null
 }
 
 function showTerminal(resourceId: string, scopeId: string): void {
@@ -32,9 +33,11 @@ export function useTerminalTabResources({
   scopeId,
   resources,
   activeResourceId,
+  selectedResourceId,
   addResource,
   removeResource,
   selectResource,
+  restoreResource,
   onResourceEvent,
 }: UseTerminalTabResourcesOptions): void {
   const hasSession = useCopilotTerminalStore((state) => state.sessions[scopeId] !== undefined)
@@ -69,9 +72,11 @@ export function useTerminalTabResources({
     switchTab: showTerminal,
     resources,
     activeResourceId,
+    selectedResourceId,
     addResource,
     removeResource,
     selectResource,
+    restoreResource,
     onResourceEvent,
   })
 }

@@ -338,18 +338,21 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     addResource,
     removeResource,
     selectResource: selectResourceFromUser,
+    restoreResource: setActiveResourceId,
     onResourceEvent: handleResourceEvent,
   }
   useBrowserTabResources({
     scopeId: desktopScopeId,
     resources,
     activeResourceId,
+    selectedResourceId: activeResourceParam,
     ...desktopTabResourceCallbacks,
   })
   useTerminalTabResources({
     scopeId: desktopScopeId,
     resources,
     activeResourceId,
+    selectedResourceId: activeResourceParam,
     ...desktopTabResourceCallbacks,
   })
 

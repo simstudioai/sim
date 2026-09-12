@@ -21,6 +21,7 @@ interface UseBrowserTabResourcesOptions extends DesktopTabResourceCallbacks {
   scopeId: string
   resources: readonly MothershipResource[]
   activeResourceId: string | null
+  selectedResourceId: string | null
 }
 
 function switchBrowserTab(tabId: string, scopeId: string): void {
@@ -35,9 +36,11 @@ export function useBrowserTabResources({
   scopeId,
   resources,
   activeResourceId,
+  selectedResourceId,
   addResource,
   removeResource,
   selectResource,
+  restoreResource,
   onResourceEvent,
 }: UseBrowserTabResourcesOptions): void {
   const hasSession = useBrowserSessionStore((state) => state.sessions[scopeId] !== undefined)
@@ -73,9 +76,11 @@ export function useBrowserTabResources({
     switchTab: switchBrowserTab,
     resources,
     activeResourceId,
+    selectedResourceId,
     addResource,
     removeResource,
     selectResource,
+    restoreResource,
     onResourceEvent,
   })
 

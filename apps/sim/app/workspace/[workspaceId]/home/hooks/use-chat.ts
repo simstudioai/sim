@@ -2476,22 +2476,22 @@ export function useChat(
       )
 
     if (mergedResources.length > 0) {
-      // An explicit selection wins. Otherwise fall back to the last resource
-      // the server holds, not the last on screen: local-only browser tabs can
-      // land before the history does, and which side arrives first must not
-      // decide which tab the chat opens on.
+      // An explicit selection wins. Otherwise pin the last resource the server
+      // holds, not the last on screen: local-only browser tabs can land before
+      // the history does, and which side arrives first must not decide which
+      // tab the chat opens on. When the server holds nothing, hydration writes
+      // no fallback: the desktop app remembers which of its tabs the user was
+      // on, and the desktop tab hooks adopt that tab instead of the last one.
       const selectedResourceId = selectedResourceIdRef.current
       const hydratedActiveResourceId =
         selectedResourceId && mergedResources.some((resource) => resource.id === selectedResourceId)
           ? selectedResourceId
-          : (
-              restorableResources[restorableResources.length - 1] ??
-              mergedResources[mergedResources.length - 1]
-            ).id
+          : (restorableResources[restorableResources.length - 1]?.id ?? null)
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
-        activeResourceIdRef.current = hydratedActiveResourceId
+        activeResourceIdRef.current =
+          hydratedActiveResourceId ?? mergedResources[mergedResources.length - 1].id
         setResources(mergedResources)
         setActiveResourceId(hydratedActiveResourceId)
       }

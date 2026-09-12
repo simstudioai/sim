@@ -14,6 +14,12 @@ export interface DesktopTabResourceCallbacks {
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   /** Explicit user selection, which claims the strip's selection for the user. */
   selectResource: (resourceId: string) => void
+  /**
+   * Adopts the desktop app's remembered tab as the shown resource without
+   * claiming the selection for the user, so agent activity can still take the
+   * view the way it does on any chat open.
+   */
+  restoreResource: (resourceId: string) => void
   /** Agent activity on a tab, subject to the panel's user-ownership policy. */
   onResourceEvent: ResourceEventHandler
 }
@@ -37,7 +43,10 @@ interface UseDesktopTabResourcesOptions extends DesktopTabResourceCallbacks {
   /** Shows a tab natively without claiming it for the user. */
   switchTab: (tabId: string, scopeId: string) => void
   resources: readonly MothershipResource[]
+  /** The resource the strip shows: the explicit selection or its fallback. */
   activeResourceId: string | null
+  /** The explicit selection alone, without the strip's fallback. */
+  selectedResourceId: string | null
 }
 
 /**
@@ -49,7 +58,10 @@ interface UseDesktopTabResourcesOptions extends DesktopTabResourceCallbacks {
  * a resource tab closes its native tab at the strip, which then comes back
  * through the same list. Visible selection is routed the same way — choosing
  * a resource tab switches the native tab, and a native switch follows into the
- * strip while the user is on that kind of tab.
+ * strip while the user is on that kind of tab. Without an explicit selection
+ * the desktop app's own active tab wins: it remembers the tab the user left a
+ * chat on, so reopening the chat lands there instead of on the strip's
+ * last-tab fallback.
  *
  * The agent never moves the visible tab itself. Its tab is announced as
  * resource activity, so the existing view policy decides whether to show it or
@@ -65,9 +77,11 @@ export function useDesktopTabResources({
   switchTab,
   resources,
   activeResourceId,
+  selectedResourceId,
   addResource,
   removeResource,
   selectResource,
+  restoreResource,
   onResourceEvent,
 }: UseDesktopTabResourcesOptions): void {
   /**
@@ -81,6 +95,8 @@ export function useDesktopTabResources({
   const knownScopeRef = useRef(scopeId)
   /** The native switch this hook asked for and has not seen land yet. */
   const requestedTabIdRef = useRef<string | null>(null)
+  /** A selected tab that is not live yet, such as a reload with the tab in the URL. */
+  const pendingSelectedTabIdRef = useRef<string | null>(null)
   const scopeIdRef = useRef(scopeId)
   scopeIdRef.current = scopeId
   const tabsRef = useRef(tabs)
@@ -95,6 +111,8 @@ export function useDesktopTabResources({
   switchTabRef.current = switchTab
   const selectResourceRef = useRef(selectResource)
   selectResourceRef.current = selectResource
+  const restoreResourceRef = useRef(restoreResource)
+  restoreResourceRef.current = restoreResource
   const onResourceEventRef = useRef(onResourceEvent)
   onResourceEventRef.current = onResourceEvent
 
@@ -105,6 +123,7 @@ export function useDesktopTabResources({
       knownScopeRef.current = scopeId
       known.clear()
       requestedTabIdRef.current = null
+      pendingSelectedTabIdRef.current = null
     }
     const resourceTabIds = new Set(
       resources.filter((resource) => resource.type === type).map((resource) => resource.id)
@@ -118,6 +137,15 @@ export function useDesktopTabResources({
       if (!known.has(tab.id)) addResource({ type, id: tab.id, title: tab.title })
     }
 
+    const pendingSelectedTabId = pendingSelectedTabIdRef.current
+    if (pendingSelectedTabId && tabs.some((tab) => tab.id === pendingSelectedTabId)) {
+      pendingSelectedTabIdRef.current = null
+      if (pendingSelectedTabId !== activeTabIdRef.current) {
+        requestedTabIdRef.current = pendingSelectedTabId
+        switchTabRef.current(pendingSelectedTabId, scopeId)
+      }
+    }
+
     if (!hasSession) return
     const liveTabIds = new Set(tabs.map((tab) => tab.id))
     for (const tabId of known) {
@@ -127,15 +155,35 @@ export function useDesktopTabResources({
     }
   }, [addResource, hasSession, removeResource, resources, scopeId, tabs, type])
 
-  // Selecting a resource tab shows its native tab. Keyed on the selection
-  // alone: a native push must not re-assert a selection it just moved away
-  // from, or the two sides would trade switches forever.
+  // Selecting a resource tab shows its native tab. Keyed on the explicit
+  // selection alone: a native push must not re-assert a selection it just
+  // moved away from, or the two sides would trade switches forever, and the
+  // strip's fallback is not a choice to impose on the desktop app. A selected
+  // tab that has not landed yet is switched to by the projection above once it
+  // does, so a reload with the tab in the URL still shows that page.
   useEffect(() => {
-    if (!activeResourceId || activeResourceId === activeTabIdRef.current) return
-    if (!tabsRef.current.some((tab) => tab.id === activeResourceId)) return
-    requestedTabIdRef.current = activeResourceId
-    switchTabRef.current(activeResourceId, scopeIdRef.current)
-  }, [activeResourceId])
+    pendingSelectedTabIdRef.current = null
+    if (!selectedResourceId || selectedResourceId === activeTabIdRef.current) return
+    if (!tabsRef.current.some((tab) => tab.id === selectedResourceId)) {
+      pendingSelectedTabIdRef.current = selectedResourceId
+      return
+    }
+    requestedTabIdRef.current = selectedResourceId
+    switchTabRef.current(selectedResourceId, scopeIdRef.current)
+  }, [selectedResourceId])
+
+  // With no effective selection the strip falls back to a tab of its own
+  // choosing. The desktop app still shows the tab the user was last on, so the
+  // strip adopts that one rather than showing a page the user did not pick.
+  useEffect(() => {
+    if (selectedResourceId && selectedResourceId === activeResourceId) return
+    const activeTabId = activeTabIdRef.current
+    if (!activeTabId || activeTabId === activeResourceId) return
+    const activeResource = resourcesRef.current.find((resource) => resource.id === activeResourceId)
+    if (activeResource?.type !== type) return
+    if (!tabsRef.current.some((tab) => tab.id === activeTabId)) return
+    restoreResourceRef.current(activeTabId)
+  }, [activeResourceId, selectedResourceId, type])
 
   // A native switch while the user is on this kind of tab follows into the
   // strip. The switch this hook requested itself is not a native change of mind.

@@ -41,9 +41,11 @@ interface HostProps {
   scopeId: string
   resources: MothershipResource[]
   activeResourceId: string | null
+  selectedResourceId: string | null
   addResource: (resource: MothershipResource) => void
   removeResource: (type: MothershipResource['type'], id: string) => void
   selectResource: (id: string) => void
+  restoreResource: (id: string) => void
   onResourceEvent: (id: string, options?: { activate?: boolean }) => void
 }
 
@@ -58,6 +60,7 @@ describe('useBrowserTabResources', () => {
   const addResource = vi.fn()
   const removeResource = vi.fn()
   const selectResource = vi.fn()
+  const restoreResource = vi.fn()
   const onResourceEvent = vi.fn()
 
   function render(overrides: Partial<HostProps> = {}) {
@@ -65,9 +68,11 @@ describe('useBrowserTabResources', () => {
       scopeId: SCOPE,
       resources: [],
       activeResourceId: null,
+      selectedResourceId: null,
       addResource,
       removeResource,
       selectResource,
+      restoreResource,
       onResourceEvent,
       ...overrides,
     }
@@ -153,11 +158,82 @@ describe('useBrowserTabResources', () => {
       { type: 'browser', id: '1', title: 'Page 1' },
       { type: 'browser', id: '2', title: 'Page 2' },
     ]
-    const rerender = render({ resources, activeResourceId: '1' })
+    const rerender = render({ resources, activeResourceId: '1', selectedResourceId: '1' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
 
-    rerender({ activeResourceId: '2' })
+    rerender({ activeResourceId: '2', selectedResourceId: '2' })
+    expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
+      'switch-tab',
+      { tabId: '2', claim: false },
+      SCOPE
+    )
+
+    // The requested switch landing is not a native change to follow.
+    pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
+    expect(selectResource).not.toHaveBeenCalled()
+  })
+
+  it('adopts the native active page on reopen instead of pushing the fallback tab', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+      { type: 'browser', id: '3', title: 'Page 3' },
+    ]
+    // The user left this chat on page 2. On reopen the strip starts empty, the
+    // pages land, and it falls back to its last tab until it learns better.
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1'), tab('2', true), tab('3')], '2')
+    rerender({ resources, activeResourceId: '3', selectedResourceId: null })
+
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('2')
+    expect(selectResource).not.toHaveBeenCalled()
+
+    // The adopted tab is now both the selection and the native page: settled.
+    restoreResource.mockClear()
+    rerender({ activeResourceId: '2', selectedResourceId: '2' })
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('adopts the native active page when the selection is stale', () => {
+    const rerender = render({ selectedResourceId: 'deleted-file' })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '2', title: 'Page 2' },
+      ],
+      activeResourceId: '2',
+      selectedResourceId: 'deleted-file',
+    })
+
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('leaves a fallback that is not a browser tab alone', () => {
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'file', id: 'f', title: 'notes.md' },
+      ],
+      activeResourceId: 'f',
+      selectedResourceId: null,
+    })
+
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('switches to a selected page once it lands, as after a reload with the tab in the URL', () => {
+    render({ selectedResourceId: '2' })
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
       'switch-tab',
       { tabId: '2', claim: false },
@@ -175,7 +251,7 @@ describe('useBrowserTabResources', () => {
       { type: 'browser', id: '2', title: 'Page 2' },
       { type: 'file', id: 'f', title: 'notes.md' },
     ]
-    const rerender = render({ resources, activeResourceId: '1' })
+    const rerender = render({ resources, activeResourceId: '1', selectedResourceId: '1' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
 
     pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
@@ -183,7 +259,7 @@ describe('useBrowserTabResources', () => {
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
 
     selectResource.mockClear()
-    rerender({ activeResourceId: 'f' })
+    rerender({ activeResourceId: 'f', selectedResourceId: 'f' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(selectResource).not.toHaveBeenCalled()
   })
@@ -192,6 +268,7 @@ describe('useBrowserTabResources', () => {
     render({
       resources: [{ type: 'browser', id: '1', title: 'Page 1' }],
       activeResourceId: '1',
+      selectedResourceId: '1',
     })
     pushTabs(SCOPE, [tab('1', true)], '1')
     act(() => {
