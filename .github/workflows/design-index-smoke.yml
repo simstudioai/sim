@@ -1,0 +1,148 @@
+name: Design index cloud smoke
+
+on:
+  push:
+    branches: [codex/design-index-cloud-smoke]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-index-cloud-smoke
+  cancel-in-progress: true
+
+env:
+  ENGINE: 7f2c2fd67fda51ff9bd46af1cd5f79ad70d7f75d
+
+jobs:
+  baseline:
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    outputs:
+      key: ${{ steps.identity.outputs.key }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ env.ENGINE }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - id: identity
+        run: echo "key=design-index-smoke-$(bun --no-env-file scripts/design-diff/index-cli.ts --identity)-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Build and checkpoint baseline
+        env:
+          CACHE: ${{ runner.temp }}/index-cache
+          METRICS: ${{ runner.temp }}/baseline.metrics.json
+        run: bun run design:index --ref "$ENGINE" --cache-dir "$CACHE" --metrics "$METRICS" > /dev/null 2>&1
+      - name: Save immutable baseline cache
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ runner.temp }}/index-cache
+          key: ${{ steps.identity.outputs.key }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: index-smoke-baseline-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/baseline.metrics.json
+          retention-days: 7
+          if-no-files-found: error
+
+  comparison:
+    needs: baseline
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ env.ENGINE }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Restore baseline to isolated job
+        id: cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ runner.temp }}/index-cache
+          key: ${{ needs.baseline.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Verify cache delivery
+        env:
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        run: test "$CACHE_HIT" = true
+      - name: Prepare source-only synthetic commits
+        id: fixtures
+        env:
+          REPORTS: ${{ runner.temp }}/reports
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          base = os.environ['ENGINE']
+          output = pathlib.Path(os.environ['REPORTS'])
+          output.mkdir()
+          env = {**os.environ, 'GIT_INDEX_FILE': str(output / 'source-index'), 'GIT_AUTHOR_NAME': 'Design index smoke', 'GIT_AUTHOR_EMAIL': 'design-index@example.invalid', 'GIT_COMMITTER_NAME': 'Design index smoke', 'GIT_COMMITTER_EMAIL': 'design-index@example.invalid', 'GIT_AUTHOR_DATE': '2000-01-01T00:00:00Z', 'GIT_COMMITTER_DATE': '2000-01-01T00:00:00Z'}
+          def git(*args, data=None):
+              return subprocess.check_output(['git', *args], input=data, env=env, stderr=subprocess.DEVNULL).decode().strip()
+          file = 'packages/emcn/src/components/button/button.tsx'
+          source = git('show', base + ':' + file)
+          heads = {}
+          for name, before, after in [('shape', 'rounded-[5px]', 'rounded-none'), ('comment', 'a section-header action.', 'an action in a section header.')]:
+              assert source.count(before) == 1
+              blob = git('hash-object', '-w', '--stdin', data=source.replace(before, after).encode())
+              git('read-tree', base)
+              git('update-index', '--add', '--cacheinfo', '100644', blob, file)
+              tree = git('write-tree')
+              heads[name] = git('commit-tree', tree, '-p', base, data=b'Isolated design index fixture\n')
+          (output / 'comparison.json').write_text(json.dumps({'engine': base, 'heads': heads, 'workflow': os.environ['GITHUB_SHA'], 'run': os.environ['GITHUB_RUN_ID'], 'attempt': os.environ['GITHUB_RUN_ATTEMPT']}, indent=2))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+              for name, head in heads.items(): stream.write(f'{name}={head}\n')
+          (output / 'source-index').unlink()
+          PY
+      - name: Run cached, uncached, repeated and clean comparisons
+        env:
+          SHAPE: ${{ steps.fixtures.outputs.shape }}
+          COMMENT: ${{ steps.fixtures.outputs.comment }}
+          CACHE: ${{ runner.temp }}/index-cache
+          REPORTS: ${{ runner.temp }}/reports
+        run: |
+          bun run design:diff --base "$ENGINE" --head "$SHAPE" --cache-dir "$CACHE" --output "$REPORTS/warm.json" --metrics "$REPORTS/warm.metrics.json" > /dev/null 2>&1
+          bun run design:diff --base "$ENGINE" --head "$SHAPE" --no-cache --output "$REPORTS/uncached.json" --metrics "$REPORTS/uncached.metrics.json" > /dev/null 2>&1
+          bun run design:diff --base "$ENGINE" --head "$SHAPE" --cache-dir "$CACHE" --output "$REPORTS/repeat.json" --metrics "$REPORTS/repeat.metrics.json" > /dev/null 2>&1
+          bun run design:diff --base "$ENGINE" --head "$COMMENT" --cache-dir "$CACHE" --output "$REPORTS/comment.json" --metrics "$REPORTS/comment.metrics.json" > /dev/null 2>&1
+          if bun run design:diff --base missing-revision --head "$SHAPE" --cache-dir "$CACHE" --output "$REPORTS/failure.json" > /dev/null 2>&1; then exit 1; fi
+      - name: Verify results without logging findings
+        env:
+          REPORTS: ${{ runner.temp }}/reports
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          root = pathlib.Path(os.environ['REPORTS'])
+          load = lambda name: json.loads((root / name).read_text())
+          assert (root/'warm.json').read_bytes() == (root/'uncached.json').read_bytes() == (root/'repeat.json').read_bytes()
+          report = load('warm.json'); identity = load('comparison.json')
+          assert (report['schemaVersion'], report['engineVersion'], report['policyVersion']) == ('3.0.0', '0.6.0', '5.0.0')
+          assert report['commits'] == {'base': identity['engine'], 'head': identity['heads']['shape'], 'mergeBase': identity['engine']}
+          assert report['status'] == 'completed' and report['flagged'] is True
+          groups = [f for f in report['findings'] if f['source']['after']['file'] == 'packages/emcn/src/components/button/button.tsx' and f['decision'] == 'flag']
+          assert len(groups) == 1 and 'shape-effects' in groups[0]['categories']
+          assert groups[0]['impact']['after']['referenceCount'] > 0
+          assert load('comment.json')['flagged'] is False
+          assert load('failure.json')['status'] == 'failed' and load('failure.json')['flagged'] is None
+          assert load('warm.metrics.json')['counters']['cache.hits'] > 0
+          result = {'status': 'passed', 'parity': True, 'cacheRestored': True, 'checks': ['shape-evidence', 'resolved-consumers', 'comment-clean', 'missing-revision-failure'], 'metrics': {name: load(name+'.metrics.json') for name in ['warm', 'uncached', 'repeat']}, **identity}
+          (root/'test-results.json').write_text(json.dumps(result, indent=2))
+          print('Design index cloud smoke passed: cache restore, parity, detection and failure handling')
+          PY
+      - name: Retain reports and metrics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: index-smoke-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reports/*.json
+          retention-days: 7
+          if-no-files-found: error
