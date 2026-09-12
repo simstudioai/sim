@@ -19,7 +19,7 @@ vi.mock('@sim/utils/helpers', () => ({
   sleep: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { loadRuntimeSecrets } from './index'
+import { fetchSecretMap, loadRuntimeSecrets } from './index'
 
 const TOUCHED = ['SIM_ENV_SECRET_ID', 'FOO', 'BAZ'] as const
 
@@ -87,5 +87,32 @@ describe('loadRuntimeSecrets', () => {
 
     await expect(loadRuntimeSecrets()).rejects.toThrow(/Failed to fetch runtime secrets/)
     expect(mockSend).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('fetchSecretMap', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the parsed secret without touching process.env', async () => {
+    mockSend.mockResolvedValue({ SecretString: JSON.stringify({ FOO: 'bar' }) })
+
+    await expect(fetchSecretMap('/test/sim/env-vars')).resolves.toEqual({ FOO: 'bar' })
+    expect(process.env.FOO).toBeUndefined()
+  })
+
+  it('requests the secret id it was given', async () => {
+    mockSend.mockResolvedValue({ SecretString: '{}' })
+
+    await fetchSecretMap('/production/sim/env-vars')
+
+    expect(mockSend.mock.calls[0][0].input).toEqual({ SecretId: '/production/sim/env-vars' })
+  })
+
+  it('throws when the secret JSON is not an object', async () => {
+    mockSend.mockResolvedValue({ SecretString: JSON.stringify(['a']) })
+
+    await expect(fetchSecretMap('/test/sim/env-vars')).rejects.toThrow(/must be a JSON object/)
   })
 })
