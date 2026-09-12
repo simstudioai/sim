@@ -122,4 +122,40 @@ describe.runIf(Boolean(databaseUrl))('embedding width migration in PostgreSQL', 
       sql`UPDATE embedding SET embedding_768 = ${vector(768)}::vector WHERE id = 'legacy'`
     ).rejects.toMatchObject({ code: '23514', constraint_name: 'embedding_width_check' })
   })
+
+  it('rebuilds compact candidate indexes on replay and uses them at every stored width', async () => {
+    await applyMigration(correctiveMigration)
+    const migration = await readFile(
+      new URL('./migrations/0342_clean_weapon_omega.sql', import.meta.url),
+      'utf8'
+    )
+    for (const width of SUPPORTED_WIDTHS) {
+      await insertEmbedding(width, `width-${width}`)
+      const name =
+        width === 1536 ? 'embedding_binary_hnsw_idx' : `embedding_${width}_binary_hnsw_idx`
+      /** Seed interrupted builds in the isolated schema, never an index in the shared public schema. */
+      await sql.unsafe(`CREATE INDEX "${name}" ON embedding (id)`)
+    }
+    await applyMigration(migration)
+    await applyMigration(migration)
+    await sql`SET enable_seqscan = off`
+    try {
+      for (const width of SUPPORTED_WIDTHS) {
+        const column = width === 1536 ? 'embedding' : `embedding_${width}`
+        const name =
+          width === 1536 ? 'embedding_binary_hnsw_idx' : `embedding_${width}_binary_hnsw_idx`
+        const plan = await sql.unsafe(
+          `EXPLAIN (FORMAT JSON) SELECT id FROM embedding
+          ORDER BY binary_quantize("${column}")::bit(${width}) <~> binary_quantize($1::vector)::bit(${width}) LIMIT 1`,
+          [vector(width)]
+        )
+        expect(JSON.stringify(plan)).toContain(name)
+      }
+      const indexes = await sql`SELECT count(*)::int AS count FROM pg_index
+        WHERE indrelid = 'embedding'::regclass AND indisvalid`
+      expect(indexes[0].count).toBeGreaterThanOrEqual(10)
+    } finally {
+      await sql`RESET enable_seqscan`
+    }
+  })
 })

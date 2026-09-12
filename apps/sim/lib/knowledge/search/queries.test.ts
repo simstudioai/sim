@@ -528,6 +528,7 @@ describe('live repository authorization follows ranked candidates', () => {
       schemaMock.embedding,
       Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
     )
+    queueTableRows(schemaMock.embedding, [{ id: 'far' }, { id: 'near' }])
     queueTableRows(schemaMock.embedding, [
       { ...candidate('far', 'allowed-source'), distance: 0.3 },
       { ...candidate('near', 'allowed-source'), distance: 0.1 },
@@ -544,13 +545,17 @@ describe('live repository authorization follows ranked candidates', () => {
     })
     expect(rows.map((row) => row.id)).toEqual(['near'])
     expect(dbChainMockFns.orderBy.mock.calls[0]).toHaveLength(1)
-    expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toEqual(['id', 'distance'])
+    expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toEqual(['id'])
+    expect(render(dbChainMockFns.orderBy.mock.calls[0][0]).sql).toContain('binary_quantize')
+    expect(JSON.stringify(dbChainMockFns.orderBy.mock.calls[1][0])).toContain('<=>')
+    expect(dbChainMockFns.limit.mock.calls[1]).toEqual([4000])
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls[1][0])).not.toContain('<=>')
     expect(dbChainMockFns.limit.mock.invocationCallOrder[1]).toBeLessThan(
       dbChainMockFns.select.mock.invocationCallOrder[2]
     )
     expect(JSON.stringify(dbChainMockFns.where.mock.calls[1][0])).toContain('OFFSET 0')
     expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls[2][0])).toContain('github_read_grant')
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls[3][0])).toContain('github_read_grant')
   })
 
   it('finishes empty scopes after the bounded probe without scanning HNSW or calling providers', async () => {
@@ -592,6 +597,7 @@ describe('live repository authorization follows ranked candidates', () => {
       schemaMock.embedding,
       Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
     )
+    queueTableRows(schemaMock.embedding, [{ id: 'partial' }])
     queueTableRows(schemaMock.embedding, [candidate('partial', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
@@ -614,6 +620,10 @@ describe('live repository authorization follows ranked candidates', () => {
       candidate(`approximate-${index}`, 'allowed-source')
     )
     queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(
+      schemaMock.embedding,
+      approximate.map(({ id }) => ({ id }))
+    )
     queueTableRows(schemaMock.embedding, approximate)
     queueTableRows(schemaMock.embedding, [])
     queueTableRows(schemaMock.embedding, probe)
@@ -628,7 +638,7 @@ describe('live repository authorization follows ranked candidates', () => {
     const rows = await handleVectorOnlySearch({ ...params, structuredFilters: undefined })
 
     expect(rows.map((row) => row.id)).toEqual(['selected'])
-    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [20], [0], [20]])
+    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [0], [20]])
     expect(getForConnectors).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
   })
@@ -638,6 +648,7 @@ describe('live repository authorization follows ranked candidates', () => {
       candidate(`probe-${index}`, 'allowed-source')
     )
     queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, [{ id: 'far' }])
     queueTableRows(schemaMock.embedding, [
       { ...candidate('far', 'allowed-source'), distance: 0.7 },
       ...Array.from({ length: 19 }, (_, index) => candidate(`hidden-${index}`, 'allowed-source')),
@@ -662,7 +673,7 @@ describe('live repository authorization follows ranked candidates', () => {
     })
 
     expect(rows.map((row) => row.id)).toEqual(['nearer', 'near'])
-    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [20], [0]])
+    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [0]])
     expect(
       hasMockCondition(
         dbChainMockFns.where.mock.calls.at(-1)![0],

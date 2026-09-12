@@ -47,6 +47,7 @@ export type SearchStage =
   | 'vector.settings'
   | 'vector.probe'
   | 'vector.ann'
+  | 'vector.rerank'
   | 'vector.exact'
 
 /** Fixed, content-free fields. Never pass queries, filters, document identities, SQL, or errors. */
@@ -68,6 +69,8 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
+  vectorRanking?: 'exact' | 'binary-rerank'
+  vectorCandidateCount?: number
   resultCount?: number
   /** Tool output before the executor's final egress projection; counts only, never content. */
   toolResultBytes?: number
