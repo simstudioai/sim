@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import crypto from 'crypto'
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, inputValidationMock } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { vercelHandler } from '@/lib/webhooks/providers/vercel'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('vercelHandler', () => {
   describe('verifyAuth', () => {

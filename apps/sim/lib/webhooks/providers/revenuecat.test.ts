@@ -1,7 +1,9 @@
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function requestWithAuth(authValue?: string): NextRequest {
   return new NextRequest('http://localhost/test', {

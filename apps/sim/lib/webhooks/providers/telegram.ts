@@ -2,6 +2,7 @@ import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -12,6 +13,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Telegram')
 
@@ -127,7 +132,7 @@ export const telegramHandler: WebhookProviderHandler = {
     const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
 
     try {
-      const telegramResponse = await fetch(telegramApiUrl, {
+      const telegramResponse = await providerFetch(telegramApiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +203,7 @@ export const telegramHandler: WebhookProviderHandler = {
       }
 
       const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
-      const telegramResponse = await fetch(telegramApiUrl, {
+      const telegramResponse = await providerFetch(telegramApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })

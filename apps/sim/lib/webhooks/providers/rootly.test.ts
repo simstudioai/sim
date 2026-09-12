@@ -1,8 +1,10 @@
 import crypto from 'node:crypto'
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rootlyHandler } from '@/lib/webhooks/providers/rootly'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function signRootlyBody(secret: string, timestamp: string, rawBody: string): string {
   return crypto.createHmac('sha256', secret).update(`${timestamp}${rawBody}`, 'utf8').digest('hex')

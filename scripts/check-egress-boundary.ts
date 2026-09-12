@@ -55,6 +55,7 @@ const TRANSPORTS = new Set([
   'node:https',
   'node:http2',
   'undici',
+  'undici/index.js',
   'http-proxy-agent',
   'https-proxy-agent',
   // Present in node_modules as transitive dependencies. Nothing scanned imports
@@ -72,6 +73,10 @@ const TRANSPORTS = new Set([
 const ALLOWED = new Set([
   // The guard itself: resolves, classifies, pins, and follows redirects.
   'apps/sim/lib/core/security/input-validation.server.ts',
+  /** TLS wrapping preserves the validated destination and upstream certificate identity. */
+  'apps/sim/lib/core/network/gateway.server.ts',
+  /** Owns validated direct and environment-proxy pools for the shared HTTP adapters. */
+  'apps/sim/lib/core/network/transport.server.ts',
   // Streaming MCP transport, built on the guard's pinned dispatcher.
   'apps/sim/lib/mcp/pinned-fetch.ts',
   // Builds a dispatcher to carry a caller's deadline; issues no request itself.

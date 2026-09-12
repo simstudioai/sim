@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -12,6 +13,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Typeform')
 
@@ -104,7 +109,7 @@ export const typeformHandler: WebhookProviderHandler = {
         requestBody.secret = secret
       }
 
-      const typeformResponse = await fetch(typeformApiUrl, {
+      const typeformResponse = await providerFetch(typeformApiUrl, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -192,7 +197,7 @@ export const typeformHandler: WebhookProviderHandler = {
       const tag = webhookTag || `sim-${(ctx.webhook.id as string).substring(0, 8)}`
       const typeformApiUrl = `https://api.typeform.com/forms/${formId}/webhooks/${tag}`
 
-      const typeformResponse = await fetch(typeformApiUrl, {
+      const typeformResponse = await providerFetch(typeformApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

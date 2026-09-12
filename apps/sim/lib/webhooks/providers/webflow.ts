@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -12,6 +13,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Webflow')
 
@@ -103,7 +108,7 @@ export const webflowHandler: WebhookProviderHandler = {
         }
       }
 
-      const webflowResponse = await fetch(webflowApiUrl, {
+      const webflowResponse = await providerFetch(webflowApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -219,7 +224,7 @@ export const webflowHandler: WebhookProviderHandler = {
 
       const webflowApiUrl = `https://api.webflow.com/v2/sites/${siteId}/webhooks/${externalId}`
 
-      const webflowResponse = await fetch(webflowApiUrl, {
+      const webflowResponse = await providerFetch(webflowApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,

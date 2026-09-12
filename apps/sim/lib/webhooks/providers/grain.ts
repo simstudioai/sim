@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -12,6 +13,10 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { skipByEventTypes } from '@/lib/webhooks/providers/utils'
 import { GRAIN_V2_TRIGGER_TO_HOOK_TYPES } from '@/triggers/grain/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Grain')
 
@@ -62,7 +67,7 @@ async function createGrainV2Hooks(params: {
 
   try {
     for (const hookType of hookTypes) {
-      const response = await fetch(`${GRAIN_V2_HOOKS_BASE}/create`, {
+      const response = await providerFetch(`${GRAIN_V2_HOOKS_BASE}/create`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -106,7 +111,7 @@ async function deleteGrainV2Hook(params: {
   hookId: string
   requestId: string
 }): Promise<void> {
-  const response = await fetch(`${GRAIN_V2_HOOKS_BASE}/${params.hookId}`, {
+  const response = await providerFetch(`${GRAIN_V2_HOOKS_BASE}/${params.hookId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${params.apiKey}`,
@@ -194,7 +199,7 @@ async function createLegacyV1Subscription(params: {
     requestBody.actions = actions
   }
 
-  const grainResponse = await fetch('https://api.grain.com/_/public-api/hooks', {
+  const grainResponse = await providerFetch('https://api.grain.com/_/public-api/hooks', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -238,13 +243,16 @@ async function deleteLegacyV1Hook(params: {
   hookId: string
   requestId: string
 }): Promise<void> {
-  const response = await fetch(`https://api.grain.com/_/public-api/hooks/${params.hookId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-  })
+  const response = await providerFetch(
+    `https://api.grain.com/_/public-api/hooks/${params.hookId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${params.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
   if (!response.ok && response.status !== 404 && response.status !== 410) {
     throw new Error(`Failed to delete Grain webhook ${params.hookId}: ${response.status}`)
   }

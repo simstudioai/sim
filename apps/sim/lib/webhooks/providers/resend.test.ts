@@ -1,5 +1,8 @@
+import { inputValidationMock } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('Resend webhook provider', () => {
   it('formatInput exposes documented email metadata and distinct data.created_at', async () => {

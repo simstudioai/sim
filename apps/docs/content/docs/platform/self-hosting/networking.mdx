@@ -302,33 +302,28 @@ A proxy body limit of 250 MB accommodates all three defaults. If you lower the a
 
 ## Outbound connectivity
 
-The app makes outbound calls to model providers, integration APIs, your email provider, object storage, and your telemetry backend. Whether `HTTP_PROXY` / `HTTPS_PROXY` apply depends on which of those paths a call takes — there is no single answer, and no global setting that covers all of them.
+The shared HTTP transport honors `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` on both Bun and Node. This covers guarded HTTP requests, pinned model-provider clients, and webhook providers using Sim's fetch adapter. It does not configure a global dispatcher or route non-HTTP protocols.
 
-The server runs on Bun, and Bun's native `fetch` honors `$HTTP_PROXY`, `$HTTPS_PROXY`, and `$NO_PROXY`. Sim installs no global dispatcher, so every call that goes through the default `fetch` is proxied. The rest either build their own HTTP agent or speak a non-HTTP protocol.
+Use an `http://` or `https://` proxy URL. For proxy authentication, both the username and password must be nonempty; partial credentials are refused. Lowercase variables take precedence over uppercase ones. `HTTP_PROXY` also applies to HTTPS when `HTTPS_PROXY` is unset. `NO_PROXY` matches the original destination hostname, with optional ports; it accepts exact names, domain suffixes, and `*`, but not CIDR ranges.
 
-<Callout type="warn">
-  This depends on the runtime. The published images run Bun. If you build the standalone output and run it under Node instead, Node ignores these variables unless started with `NODE_USE_ENV_PROXY=1` (Node 22.21+ / 24.5+), and the `fetch`-based "Yes" rows stop being proxied — model providers, Resend, Gmail sending, the desktop update feed, and the telemetry relay. The Azure Blob, GCS and Azure Communication Services rows still hold: those SDKs read the proxy variables through their own agents rather than through `fetch`.
-</Callout>
+The transport resolves and validates destinations locally, then sends the approved numeric IP address in a CONNECT request. The original hostname remains in the HTTP Host header and TLS certificate verification. Both HTTP and HTTPS destinations require a proxy that accepts numeric CONNECT authorities. Proxy tunnels use HTTP/1.1; direct connections, including `NO_PROXY` matches, retain each client's HTTP/2 configuration. A proxy that requires hostname-only CONNECT or resolves names unavailable to the application cannot be used by this transport. Use NAT or transparent egress for those environments. Proxy failures never fall back to a direct connection.
+
+An environment proxy is trusted deployment configuration, so its own address can be private or loopback. Its DNS answers are checked and pinned before connecting, and cloud metadata addresses are always refused. This trust does not change destination permissions: content URLs remain public-only, while configured private services still need the applicable [egress allowance](/platform/self-hosting/security#the-ssrf-boundary).
 
 | Outbound path | Honors `HTTP_PROXY` / `HTTPS_PROXY` |
 |---|---|
-| Model providers reached over the default `fetch` — Anthropic, OpenAI, Google/Gemini, Vertex, Groq, Cerebras, xAI, Mistral, DeepSeek, OpenRouter, Together, Fireworks, Ollama, LiteLLM, and the other OpenAI-compatible providers | Yes |
-| Email via Resend, Azure Communication Services, and Gmail sending | Yes |
-| The desktop update feed's calls to GitHub | Yes |
-| Object storage — Azure Blob and GCS | Yes — their SDK pipelines read the proxy variables |
-| Everything through the SSRF guard — the HTTP block, tools, connectors, outbound webhooks, content fetches, MCP servers | No |
-| Azure OpenAI, Azure Anthropic, vLLM | Only when the endpoint comes from `AZURE_OPENAI_ENDPOINT`, `AZURE_ANTHROPIC_ENDPOINT`, or `VLLM_BASE_URL`. An endpoint typed into the block is validated and pinned to its resolved IP, which bypasses the proxy |
-| Amazon Bedrock, and object storage on S3 | No — the AWS SDK uses its own request handler |
-| Email via SMTP | No — Nodemailer opens a raw TCP connection |
-| Email via Amazon SES | No — the AWS SDK transport, over HTTPS |
+| Shared guarded HTTP transport: tools, connectors, outbound webhooks, content fetches, MCP HTTP connections, and model-provider clients using Sim's fetch adapter | Yes, on Bun and Node, subject to the CONNECT requirements above |
+| Amazon Bedrock and AWS integration clients | No, these clients use their own AWS SDK transport |
+| Object storage on Azure Blob and GCS; Azure Communication Services email | Yes, through the SDK's own proxy support |
+| Native `fetch` paths and SDKs that use it, including Resend email, the desktop update feed, and the `/api/telemetry` relay | Yes on Bun; Node requires [`NODE_USE_ENV_PROXY=1`](https://nodejs.org/api/cli.html#node_use_env_proxy1) (Node 22.21+ / 24.0+) |
+| Application object storage on S3; application email via Amazon SES | No, these clients use their own AWS SDK transport |
+| Email via SMTP, Postgres, and Redis | No, these use raw TCP |
 | OTLP export from the server SDK | No |
-| The `/api/telemetry` relay that forwards browser events | Yes — it uses the default `fetch` |
-| Postgres and Redis | No — raw TCP |
 
-The practical consequence: a mandatory-egress-proxy environment can route most LLM traffic, Resend mail, and Azure/GCS storage through the proxy, but guarded integration calls, S3, Bedrock, SMTP, telemetry, and datastore traffic still need a transparent proxy or NAT-based egress.
+An explicit HTTP-block `proxyUrl` takes precedence over environment proxy settings.
 
 <Callout type="info">
-  Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over the same default `fetch`, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference.
+  Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over HTTP, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference.
 
   Set it in the application environment, not your shell — under `app.env` on Helm, or the service's `environment:` on Compose. On Helm the suffixes alone are not enough: the chart wires `SOCKET_SERVER_URL`, `PII_URL`, and `OLLAMA_URL` to bare Service names, which no domain suffix matches. Add those names too — `helm template` prints the rendered ones, and the prefix is the release name unless it already contains `sim`, in which case it is the release name alone:
 
@@ -349,9 +344,9 @@ The practical consequence: a mandatory-egress-proxy environment can route most L
   ```
 </Callout>
 
-### The per-request escape hatch
+### Per-request proxies
 
-The HTTP block's `proxyUrl` is honored per request by the SSRF guard, which builds a proxy agent for that call instead of pinning the target IP. It applies only to that path — connectors, content fetches, and MCP calls take a different guarded transport with no per-request proxy option.
+The HTTP block's `proxyUrl` builds a proxy agent for that request. It applies only to the HTTP block; connectors, content fetches, and MCP calls use deployment proxy settings. This per-request path validates the destination locally but lets the proxy resolve the destination hostname, unlike the numeric CONNECT used by environment proxies.
 
 <Callout type="warn">
   `proxyUrl` must be an `http://` URL **and** must resolve to a public address. The guard validates the proxy host under a dedicated `proxy` profile that has no operator allowlist, so `EGRESS_ALLOWED_HOSTS` and `EGRESS_ALLOWED_IP_RANGES` do not reach it. A corporate proxy on an RFC 1918 address is refused even when that range is allowlisted for everything else. See [Security](/platform/self-hosting/security#the-ssrf-boundary).

@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -14,6 +15,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Rootly')
 
@@ -174,7 +179,7 @@ export const rootlyHandler: WebhookProviderHandler = {
         },
       }
 
-      const response = await fetch('https://api.rootly.com/v1/webhooks/endpoints', {
+      const response = await providerFetch('https://api.rootly.com/v1/webhooks/endpoints', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -255,13 +260,16 @@ export const rootlyHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(`https://api.rootly.com/v1/webhooks/endpoints/${externalId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: 'application/vnd.api+json',
-        },
-      })
+      const response = await providerFetch(
+        `https://api.rootly.com/v1/webhooks/endpoints/${externalId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'application/vnd.api+json',
+          },
+        }
+      )
 
       if (response.ok || response.status === 404) {
         await response.body?.cancel()

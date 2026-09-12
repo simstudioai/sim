@@ -18,6 +18,8 @@ import {
   type EgressPolicy,
   type InsecureHttpPolicy,
 } from '@sim/security/egress'
+import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import { env } from '@/lib/core/config/env'
 import {
   getEgressAllowedHosts,
   getEgressAllowedIpRanges,
@@ -30,7 +32,8 @@ import {
  *
  * - `configuredEndpoint` — a base or server URL entered during setup, or a
  *   vendor host built in process: GitHub Enterprise, Grafana, a data-drain
- *   destination, a connector's host. See `selfHostedService` for the on-prem
+ *   destination, a connector's host. Off-hosted, operator-configured Azure model
+ *   and OCR hosts are trusted alongside the allowlist. See `selfHostedService` for the on-prem
  *   software that expects plain HTTP.
  * - `requestTarget` — supplied per run by the workflow author: the HTTP block's
  *   `url`, an A2A agent URL, an RSS feed, a Function block's `fetch`.
@@ -45,7 +48,8 @@ import {
  *   on-prem: vLLM, Jupyter, 1Password Connect, ClickHouse, an MCP server. Same
  *   reachability as `configuredEndpoint`, but plain HTTP is expected rather than
  *   conditional, because that is how these are ordinarily served inside a
- *   network. An arbitrary internal port comes with being allowlisted.
+ *   network. Off-hosted, operator-configured Ollama, vLLM and LiteLLM hosts are
+ *   trusted alongside the allowlist. Trust names a host, not a particular port.
  * - `proxy` — the egress proxy itself. Held to the strictest rule of all,
  *   because it is the component that decides where everything else may go: plain
  *   HTTP by protocol, but public destinations only, and no allowlist.
@@ -144,6 +148,8 @@ const SOURCE_NAMES = {
 interface DeploymentConfig {
   readonly hosts: string | undefined
   readonly ranges: string | undefined
+  readonly selfHostedModelUrls: readonly (string | undefined)[]
+  readonly configuredModelUrls: readonly (string | undefined)[]
   readonly legacyPrivate: boolean
   readonly hosted: boolean
 }
@@ -152,6 +158,12 @@ function readDeploymentConfig(): DeploymentConfig {
   return {
     hosts: getEgressAllowedHosts(),
     ranges: getEgressAllowedIpRanges(),
+    selfHostedModelUrls: [env.OLLAMA_URL, env.VLLM_BASE_URL, env.LITELLM_BASE_URL],
+    configuredModelUrls: [
+      env.AZURE_OPENAI_ENDPOINT,
+      env.AZURE_ANTHROPIC_ENDPOINT,
+      env.OCR_AZURE_ENDPOINT,
+    ],
     legacyPrivate: isLegacyPrivateDatabaseAccessAllowed(),
     hosted: isHosted,
   }
@@ -166,11 +178,49 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
       // guarantee true even if that source ever regressed — the more critical a
       // property, the more it is worth enforcing in both places.
       const honorsAllowlist = spec.honorsAllowlist && !config.hosted
+      const allowedHosts = (config.hosts ?? '').split(',')
+      const allowedRanges = (config.ranges ?? '').split(',')
+      const modelUrls =
+        profile === 'selfHostedService'
+          ? config.selfHostedModelUrls
+          : profile === 'configuredEndpoint'
+            ? config.configuredModelUrls
+            : []
+      if (honorsAllowlist) {
+        for (const endpoint of modelUrls) {
+          if (!endpoint) continue
+          try {
+            const url = new URL(endpoint)
+            const host = unwrapIpv6Brackets(url.hostname).replace(/\.$/, '')
+            if (
+              (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+              url.username ||
+              url.password ||
+              host.includes('*') ||
+              host.includes(',')
+            ) {
+              continue
+            }
+            if (isIpLiteral(host)) {
+              allowedRanges.push(host)
+            } else if (
+              host &&
+              !host.includes(':') &&
+              host.split('.').every((label) => label.length > 0)
+            ) {
+              allowedHosts.push(host)
+            }
+          } catch {
+            /** A malformed model endpoint never grants network access. */
+          }
+        }
+      }
+
       return [
         profile,
         createEgressPolicy({
-          allowedHosts: honorsAllowlist ? config.hosts : undefined,
-          allowedRanges: honorsAllowlist ? config.ranges : undefined,
+          allowedHosts: honorsAllowlist ? allowedHosts : undefined,
+          allowedRanges: honorsAllowlist ? allowedRanges : undefined,
           insecureHttp:
             config.hosted && spec.insecureHttp === 'always' && !spec.schemeFixedByProtocol
               ? 'whenVouched'
@@ -188,6 +238,8 @@ function sameConfig(a: DeploymentConfig, b: DeploymentConfig): boolean {
   return (
     a.hosts === b.hosts &&
     a.ranges === b.ranges &&
+    a.selfHostedModelUrls.every((url, index) => url === b.selfHostedModelUrls[index]) &&
+    a.configuredModelUrls.every((url, index) => url === b.configuredModelUrls[index]) &&
     a.legacyPrivate === b.legacyPrivate &&
     a.hosted === b.hosted
   )

@@ -5,6 +5,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
@@ -27,6 +28,10 @@ import {
   bitbucketRepositoryPath,
   encodeBitbucketSegment,
 } from '@/tools/bitbucket/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Bitbucket')
 const BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS = 15_000
@@ -70,7 +75,7 @@ function bitbucketHooksUrl(workspaceSlug: string, repoSlug: string): string {
 }
 
 function fetchBitbucketManagement(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, {
+  return providerFetch(url, {
     ...init,
     signal: AbortSignal.timeout(BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS),
   })

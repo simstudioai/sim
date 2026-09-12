@@ -8,6 +8,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
+  createSsrfGuardedFetchWithDispatcher,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -24,6 +25,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slack/shared'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Slack')
 
@@ -285,7 +290,7 @@ async function resolveSlackFileInfo(
   botToken: string
 ): Promise<{ url_private?: string; name?: string; mimetype?: string; size?: number } | null> {
   try {
-    const response = await fetch(
+    const response = await providerFetch(
       `https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`,
       { headers: { Authorization: `Bearer ${botToken}` } }
     )
@@ -413,7 +418,7 @@ async function fetchSlackMessageText(
 ): Promise<string> {
   try {
     const params = new URLSearchParams({ channel, timestamp: messageTs })
-    const response = await fetch(`https://slack.com/api/reactions.get?${params}`, {
+    const response = await providerFetch(`https://slack.com/api/reactions.get?${params}`, {
       headers: { Authorization: `Bearer ${botToken}` },
     })
     const data = (await response.json()) as {
@@ -456,7 +461,7 @@ export async function fetchSlackTeamId(botToken: string): Promise<{
   userId: string | undefined
   teamName: string | undefined
 }> {
-  const response = await fetch('https://slack.com/api/auth.test', {
+  const response = await providerFetch('https://slack.com/api/auth.test', {
     headers: { Authorization: `Bearer ${botToken}` },
   })
   const data = (await response.json()) as {

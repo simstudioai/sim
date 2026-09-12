@@ -119,6 +119,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `LITELLM_BASE_URL` | LiteLLM proxy base URL |
 | `LITELLM_API_KEY` | Optional bearer token for LiteLLM |
 
+On self-hosted deployments, the hosts configured in `OLLAMA_URL`, `VLLM_BASE_URL`, `LITELLM_BASE_URL`, `AZURE_OPENAI_ENDPOINT`, `AZURE_ANTHROPIC_ENDPOINT`, and `OCR_AZURE_ENDPOINT` can be reached on private networks without adding them to `EGRESS_ALLOWED_HOSTS`. Existing allowlists still apply. See [model host permissions](/platform/self-hosting/security#the-ssrf-boundary) for which requests this permits.
+
 ## Login Providers
 
 Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).

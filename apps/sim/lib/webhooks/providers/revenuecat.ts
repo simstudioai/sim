@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -13,6 +14,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:RevenueCat')
 
@@ -106,7 +111,7 @@ export const revenueCatHandler: WebhookProviderHandler = {
       requestBody.environment = environment
     }
 
-    const response = await fetch(
+    const response = await providerFetch(
       `${REVENUECAT_API_BASE}/projects/${encodeURIComponent(projectId)}/integrations/webhooks`,
       {
         method: 'POST',
@@ -182,7 +187,7 @@ export const revenueCatHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await providerFetch(
         `${REVENUECAT_API_BASE}/projects/${encodeURIComponent(projectId)}/integrations/webhooks/${encodeURIComponent(externalId)}`,
         {
           method: 'DELETE',

@@ -4,6 +4,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -17,6 +18,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Kept local rather than imported from `@/tools/ashby/utils`, which has the same
@@ -313,7 +318,7 @@ export const ashbyHandler: WebhookProviderHandler = {
         secretToken,
       }
 
-      const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.create', {
+      const ashbyResponse = await providerFetch('https://api.ashbyhq.com/webhook.create', {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,
@@ -402,7 +407,7 @@ export const ashbyHandler: WebhookProviderHandler = {
 
       const authString = Buffer.from(`${apiKey}:`).toString('base64')
 
-      const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.delete', {
+      const ashbyResponse = await providerFetch('https://api.ashbyhq.com/webhook.delete', {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,

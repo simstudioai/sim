@@ -172,7 +172,7 @@ Resource ceilings for the in-process path:
 
 ## The SSRF boundary
 
-By default Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Two things soften it on a self-hosted deployment: the provenances marked **Yes** below reach whatever you allowlist, and a configured endpoint, self-hosted service, or request target written as `localhost` or a loopback literal is reachable without any allowlist at all — a local Ollama or Jupyter is the ordinary case. That second carve-out stops short in two places: it does not lift the blocked-port list, and it does not extend to a database, cache, or mail connector on `localhost` — loopback is where Sim's own database and Redis listen, so reaching them has to be asked for. Neither softening applies on Sim Cloud. Every outbound request is classified by where its URL came from:
+By default Sim blocks outbound requests to private, reserved, and loopback addresses. The allowances below let a self-hosted deployment reach services its operator has configured. The provenances marked **Yes** reach whatever you allowlist. A configured endpoint, self-hosted service, or request target written as `localhost` or a loopback literal is also reachable without an allowlist. That loopback allowance does not lift the blocked-port list or apply to database, cache, and mail connectors. These allowances do not apply on Sim Cloud. Every outbound request is classified by where its URL came from:
 
 | Provenance | Examples | Reaches allowlisted private destinations |
 |---|---|---|
@@ -181,9 +181,11 @@ By default Sim blocks outbound requests to private, reserved, and loopback addre
 | Request target | The HTTP block's URL, an A2A agent, an RSS feed, a Function block's `fetch` | Yes |
 | Database host | A database, cache, or mail connector's host | Yes |
 | Content fetch | An image URL, a file imported by URL, a link from a third-party API response | **No** |
-| Proxy | The outbound HTTP proxy itself | **No** |
+| Per-request proxy | The HTTP block's `proxyUrl` | **No** |
 
-Content fetches never reach a private destination, allowlist or not — that is the class where SSRF is actually exploited. Nor does the proxy: it is the component deciding where everything else may go, so it is held to public destinations regardless of what the allowlist says.
+The hosts in `OLLAMA_URL`, `VLLM_BASE_URL`, and `LITELLM_BASE_URL` are also trusted for self-hosted services. The hosts in `AZURE_OPENAI_ENDPOINT`, `AZURE_ANTHROPIC_ENDPOINT`, and `OCR_AZURE_ENDPOINT` are trusted for configured endpoints. These must be HTTP or HTTPS URLs without embedded credentials or wildcard hostnames. This trust covers the exact host or IP address across ports, without replacing your existing allowlists. It does not grant access through an HTTP block, a Function block's `fetch`, or a URL taken from content. Cloud metadata endpoints remain blocked, and model URL settings grant no private-network access on Sim Cloud.
+
+Content fetches never reach a private destination, allowlist or not — that is the class where SSRF is actually exploited. The HTTP block's per-request proxy must also resolve to a public address regardless of the allowlist. Deployment proxies configured through `HTTP_PROXY` or `HTTPS_PROXY` can use private or loopback addresses; their DNS answers are checked and pinned, and metadata endpoints remain blocked. They do not expand which destinations a request may reach. See [Outbound connectivity](/platform/self-hosting/networking#outbound-connectivity).
 
 Deployments frequently need to reach an internal service by name or address. Name the destinations:
 

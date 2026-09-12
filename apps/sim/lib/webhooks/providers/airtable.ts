@@ -3,6 +3,7 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   getOAuthToken,
@@ -21,6 +22,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Airtable')
 
@@ -194,7 +199,7 @@ async function fetchAndProcessAirtablePayloads(
 
       try {
         const fetchStartTime = Date.now()
-        const response = await fetch(fullUrl, {
+        const response = await providerFetch(fullUrl, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -518,7 +523,7 @@ export const airtableHandler: WebhookProviderHandler = {
         specification: specification,
       }
 
-      const airtableResponse = await fetch(airtableApiUrl, {
+      const airtableResponse = await providerFetch(airtableApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -639,7 +644,7 @@ export const airtableHandler: WebhookProviderHandler = {
           const expectedNotificationUrl = getNotificationUrl(webhookRecord)
 
           const listUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
-          const listResp = await fetch(listUrl, {
+          const listResp = await providerFetch(listUrl, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
@@ -705,7 +710,7 @@ export const airtableHandler: WebhookProviderHandler = {
       }
 
       const airtableDeleteUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks/${resolvedExternalId}`
-      const airtableResponse = await fetch(airtableDeleteUrl, {
+      const airtableResponse = await providerFetch(airtableDeleteUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,

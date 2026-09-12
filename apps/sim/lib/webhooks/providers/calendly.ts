@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -8,6 +9,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Calendly')
 
@@ -82,7 +87,7 @@ export const calendlyHandler: WebhookProviderHandler = {
         scope: 'organization',
       }
 
-      const calendlyResponse = await fetch(calendlyApiUrl, {
+      const calendlyResponse = await providerFetch(calendlyApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -188,7 +193,7 @@ export const calendlyHandler: WebhookProviderHandler = {
 
       const calendlyApiUrl = `https://api.calendly.com/webhook_subscriptions/${externalId}`
 
-      const calendlyResponse = await fetch(calendlyApiUrl, {
+      const calendlyResponse = await providerFetch(calendlyApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

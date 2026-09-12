@@ -1,7 +1,10 @@
 import crypto from 'node:crypto'
+import { inputValidationMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function signLinearBody(secret: string, rawBody: string): string {
   return crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex')

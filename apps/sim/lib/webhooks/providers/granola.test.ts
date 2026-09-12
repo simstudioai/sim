@@ -1,7 +1,10 @@
 import crypto from 'node:crypto'
+import { inputValidationMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { granolaHandler } from '@/lib/webhooks/providers/granola'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const SECRET_BYTES = Buffer.from('granola-test-secret-key-padding!!!!!')
 const SIGNING_SECRET = `whsec_${SECRET_BYTES.toString('base64')}`

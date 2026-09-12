@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -15,6 +16,10 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_ALL_WEBHOOK_EVENT_TYPES, LINQ_TRIGGER_TO_EVENT_TYPE } from '@/triggers/linq/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Linq')
 
@@ -182,7 +187,7 @@ export const linqHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(`${LINQ_API_BASE}/webhook-subscriptions`, {
+    const response = await providerFetch(`${LINQ_API_BASE}/webhook-subscriptions`, {
       method: 'POST',
       headers: linqHeaders(apiKey),
       body: JSON.stringify(requestBody),
@@ -243,7 +248,7 @@ export const linqHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(`${LINQ_API_BASE}/webhook-subscriptions/${externalId}`, {
+      const response = await providerFetch(`${LINQ_API_BASE}/webhook-subscriptions/${externalId}`, {
         method: 'DELETE',
         headers: linqHeaders(apiKey),
       })

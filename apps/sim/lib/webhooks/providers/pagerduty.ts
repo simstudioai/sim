@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -13,6 +14,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:PagerDuty')
 
@@ -55,7 +60,7 @@ async function cleanupPagerDutySubscription(
 ): Promise<void> {
   let id = subscriptionId
   if (!id) {
-    const listRes = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
+    const listRes = await providerFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
       headers: pagerdutyHeaders(apiKey),
     }).catch(() => null)
     if (!listRes || !listRes.ok) return
@@ -65,7 +70,7 @@ async function cleanupPagerDutySubscription(
     id = body?.webhook_subscriptions?.find((sub) => sub.delivery_method?.url === url)?.id
   }
   if (!id) return
-  await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${id}`, {
+  await providerFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${id}`, {
     method: 'DELETE',
     headers: pagerdutyHeaders(apiKey),
   }).catch(() => null)
@@ -149,7 +154,7 @@ export const pagerdutyHandler: WebhookProviderHandler = {
       throw new Error('PagerDuty API Key is required to create the webhook subscription.')
 
     const { getPagerDutyEvents } = await import('@/triggers/pagerduty/utils')
-    const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
+    const res = await providerFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
       method: 'POST',
       headers: pagerdutyHeaders(apiKey),
       body: JSON.stringify({
@@ -206,7 +211,7 @@ export const pagerdutyHandler: WebhookProviderHandler = {
       return
     }
 
-    const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${externalId}`, {
+    const res = await providerFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${externalId}`, {
       method: 'DELETE',
       headers: pagerdutyHeaders(apiKey),
     })

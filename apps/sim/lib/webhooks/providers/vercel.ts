@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -14,6 +15,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Vercel')
 
@@ -143,7 +148,7 @@ export const vercelHandler: WebhookProviderHandler = {
         ? `https://api.vercel.com/v1/webhooks?teamId=${encodeURIComponent(teamId)}`
         : 'https://api.vercel.com/v1/webhooks'
 
-      const vercelResponse = await fetch(apiUrl, {
+      const vercelResponse = await providerFetch(apiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -228,7 +233,7 @@ export const vercelHandler: WebhookProviderHandler = {
         ? `https://api.vercel.com/v1/webhooks/${encodeURIComponent(externalId)}?teamId=${encodeURIComponent(teamId)}`
         : `https://api.vercel.com/v1/webhooks/${encodeURIComponent(externalId)}`
 
-      const response = await fetch(apiUrl, {
+      const response = await providerFetch(apiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

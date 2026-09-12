@@ -402,16 +402,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2292,
+      "modules": 2341,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 707,
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 736,
         "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/auth/index.ts": 366,
+        "apps/sim/lib/auth/index.ts": 378,
         "apps/sim/blocks/registry.ts": 354,
-        "apps/sim/lib/webhooks/providers/index.ts": 118,
-        "apps/sim/lib/webhooks/providers/registry.ts": 116,
-        "apps/sim/ee/access-control/components/access-control.tsx": 75,
-        "apps/sim/ee/access-control/components/group-detail.tsx": 73
+        "apps/sim/lib/webhooks/providers/index.ts": 117,
+        "apps/sim/lib/webhooks/providers/registry.ts": 115,
+        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 80,
+        "apps/sim/ee/access-control/components/access-control.tsx": 75
       }
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/layout.tsx": {

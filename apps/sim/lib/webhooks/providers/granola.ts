@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -15,6 +16,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { GRANOLA_TRIGGER_TO_EVENT_TYPES } from '@/triggers/granola/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Granola')
 
@@ -114,7 +119,7 @@ function granolaUserFacingError(status: number, body: string): string {
 
 /** Delete one Granola webhook endpoint. Treats an already-deleted endpoint as success. */
 async function deleteGranolaEndpoint(apiKey: string, endpointId: string): Promise<void> {
-  const response = await fetch(
+  const response = await providerFetch(
     `${GRANOLA_WEBHOOK_ENDPOINTS_URL}/${encodeURIComponent(endpointId)}`,
     {
       method: 'DELETE',
@@ -289,7 +294,7 @@ export const granolaHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
+    const response = await providerFetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,

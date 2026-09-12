@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/credential-service', () => ({
@@ -19,6 +20,8 @@ import {
 } from '@/lib/webhooks/pending-verification'
 import { getCredentialOwner } from '@/lib/webhooks/provider-subscription-utils'
 import { mapZohoWebhookError, zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function errorStatus(err: unknown): number | undefined {
   return (err as { status?: number })?.status

@@ -14,9 +14,14 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   Agent,
   type Dispatcher,
+  errors,
   type RequestInit as UndiciRequestInit,
-  request as undiciRequest,
-} from 'undici'
+} from 'undici/index.js'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import {
+  createOutboundTransport,
+  requestWithOutboundDispatcher,
+} from '@/lib/core/network/transport.server'
 import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   checkEgressUrl,
@@ -403,6 +408,7 @@ export interface SecureFetchResponse {
 }
 
 const DEFAULT_MAX_REDIRECTS = 5
+const DEFAULT_USER_AGENT = 'undici'
 
 /**
  * Fail-safe ceiling applied by {@link secureFetchWithPinnedIP} when the caller does not
@@ -760,33 +766,29 @@ function contentEncodingDecoder(
  * `redirect: 'manual'`.
  */
 async function undiciRequestAsResponse(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  dispatcher: Dispatcher
+  url: string,
+  effectiveInit: UndiciRequestInit,
+  dispatcher: Dispatcher,
+  maxResponseSize?: number
 ): Promise<Response> {
-  let url: string
-  let effectiveInit = init as UndiciRequestInit
-  if (typeof Request !== 'undefined' && input instanceof Request) {
-    // A Request input carries its own method/headers/body/signal; lift them (explicit
-    // init fields win, per fetch semantics) so a guarded POST isn't downgraded to GET.
-    const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
-    effectiveInit = {
-      method: input.method,
-      headers: input.headers,
-      body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
-      signal: input.signal,
-      ...(init as UndiciRequestInit),
-      // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
-    } as unknown as UndiciRequestInit
-    url = input.url
-  } else {
-    url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-  }
-
   const method = (effectiveInit.method ?? 'GET').toUpperCase()
   const canHaveBody = method !== 'GET' && method !== 'HEAD'
   const requestHeaders = toUndiciRequestHeaders(effectiveInit.headers) ?? {}
-  const requestBody = canHaveBody ? toUndiciRequestBody(effectiveInit.body) : undefined
+  if (!Object.keys(requestHeaders).some((name) => name.toLowerCase() === 'user-agent')) {
+    requestHeaders['user-agent'] = DEFAULT_USER_AGENT
+  }
+  let requestBody = canHaveBody ? toUndiciRequestBody(effectiveInit.body) : undefined
+  if (
+    canHaveBody &&
+    (effectiveInit.body instanceof FormData || effectiveInit.body instanceof Blob)
+  ) {
+    const encoded = new Request(url, { method, body: effectiveInit.body })
+    if (!Object.keys(requestHeaders).some((key) => key.toLowerCase() === 'content-type')) {
+      const contentType = encoded.headers.get('content-type')
+      if (contentType) requestHeaders['content-type'] = contentType
+    }
+    requestBody = encoded.body ? toUndiciRequestBody(encoded.body) : undefined
+  }
   // fetch auto-adds a form content-type for a URLSearchParams body; preserve that parity
   // when the caller didn't set one (the MCP SDK does set it explicitly, but not every caller).
   if (
@@ -796,7 +798,7 @@ async function undiciRequestAsResponse(
   ) {
     requestHeaders['content-type'] = 'application/x-www-form-urlencoded;charset=UTF-8'
   }
-  const { statusCode, headers, body } = await undiciRequest(url, {
+  const { statusCode, headers, body } = await requestWithOutboundDispatcher(url, {
     method: method as Dispatcher.HttpMethod,
     headers: requestHeaders,
     body: requestBody,
@@ -815,7 +817,8 @@ async function undiciRequestAsResponse(
   // Null-body statuses (204/205/304) can't carry a body; drain undici's (empty) stream so its
   // socket returns to the pool. Attach an error listener first so a socket reset mid-drain
   // surfaces as a handled event, not an unhandled 'error' that crashes the process.
-  const isNullBody = statusCode === 204 || statusCode === 205 || statusCode === 304
+  const isNullBody =
+    method === 'HEAD' || statusCode === 204 || statusCode === 205 || statusCode === 304
   if (isNullBody) {
     body.on('error', () => {})
     body.resume()
@@ -839,11 +842,33 @@ async function undiciRequestAsResponse(
   // `nodeReadableToWebStream` attaches its `error` listener synchronously, so wiring the pipe
   // AFTER it means a synchronous zlib error (e.g. a server mislabeling a non-gzip body as gzip)
   // is caught and rejects the reader instead of taking down the process.
-  const webBody = nodeReadableToWebStream(decoder ?? body)
+  let webBody = nodeReadableToWebStream(decoder ?? body)
+  if (decoder && maxResponseSize !== undefined && maxResponseSize >= 0) {
+    let decodedBytes = 0
+    webBody = webBody.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          decodedBytes += chunk.byteLength
+          if (decodedBytes > maxResponseSize) throw new errors.ResponseExceededMaxSizeError()
+          controller.enqueue(chunk)
+        },
+      })
+    )
+  }
   if (decoder) {
-    body.once('error', (err) => decoder.destroy(err)) // forward maxResponseSize / socket reset
-    decoder.once('close', () => body.destroy()) // tear the source down so the socket can't leak
+    const signal = effectiveInit.signal
+    const onAbort = () => decoder.destroy(toError(signal?.reason ?? new Error('Aborted')))
+    signal?.addEventListener('abort', onAbort, { once: true })
+    body.once('error', (error) => decoder.destroy(error))
+    body.once('close', () => {
+      if (!body.readableEnded) decoder.destroy(new Error('Response body closed before completing'))
+    })
+    decoder.once('close', () => {
+      signal?.removeEventListener('abort', onAbort)
+      body.destroy()
+    })
     body.pipe(decoder)
+    if (signal?.aborted) onAbort()
   }
 
   try {
@@ -856,6 +881,7 @@ async function undiciRequestAsResponse(
   } catch (err) {
     // `new Response` rejects an out-of-range status (a 1xx undici shouldn't surface, but
     // defensively): destroy the source so its socket can't leak, then rethrow.
+    decoder?.destroy()
     body.destroy()
     throw err
   }
@@ -874,25 +900,83 @@ async function liftFetchArgs(
   const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   if (typeof Request !== 'undefined' && input instanceof Request) {
     const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
-    return {
-      target,
-      effectiveInit: {
-        method: input.method,
-        headers: input.headers,
-        body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
-        signal: input.signal,
-        // Carry the Request's redirect mode so the pinned fetch honors `manual`/`error`
-        // instead of defaulting a `Request({ redirect: 'manual' })` to `follow`.
-        redirect: input.redirect,
-        ...init,
-      },
+    const effectiveInit: RequestInit = {
+      method: input.method,
+      headers: input.headers,
+      body: bodyAllowed ? input.body : undefined,
+      signal: input.signal,
+      // Carry the Request's redirect mode so the pinned fetch honors `manual`/`error`
+      // instead of defaulting a `Request({ redirect: 'manual' })` to `follow`.
+      redirect: input.redirect,
+      ...init,
     }
+    /** Request hides its original body source, so following redirects requires replayable bytes. */
+    if (
+      !Object.hasOwn(init ?? {}, 'body') &&
+      effectiveInit.body &&
+      (effectiveInit.redirect ?? 'follow') === 'follow'
+    ) {
+      effectiveInit.body = await input.clone().arrayBuffer()
+    }
+    return { target, effectiveInit }
   }
   return { target, effectiveInit: init ?? {} }
 }
 
+export interface OutboundFetchDispatcher {
+  close(): Promise<void>
+  destroy(): Promise<void>
+}
+
+/** Owns routing, redirect validation and connection pools for pinned and DNS-guarded fetches. */
+function createValidatedFetch(
+  direct: Agent,
+  options: {
+    profile: EgressProfile
+    resolvedIP?: string
+    maxResponseSize?: number
+    allowH2?: boolean
+  }
+): { fetch: typeof fetch; dispatcher: OutboundFetchDispatcher } {
+  const dispatcher = createOutboundTransport({ ...options, direct })
+  const rawFetch = async (url: string, init: UndiciRequestInit): Promise<Response> => {
+    const selected = await dispatcher.selectDispatcher()
+    if (!selected) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    return undiciRequestAsResponse(url, init, selected, options.maxResponseSize)
+  }
+  return {
+    dispatcher,
+    fetch: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const { target, effectiveInit } = await liftFetchArgs(input, init)
+      const mode = effectiveInit.redirect ?? 'follow'
+      // double-cast-allowed: DOM and Undici RequestInit represent the same wire request in this bridge
+      const undiciInit = effectiveInit as unknown as UndiciRequestInit
+      if (mode === 'follow') {
+        return followRedirectsGuarded(
+          rawFetch,
+          target,
+          undiciInit,
+          options.profile,
+          options.resolvedIP
+        )
+      }
+      assertGuardedRedirectTarget(new URL(target), options.profile, options.resolvedIP)
+      const response = await rawFetch(target, undiciInit)
+      if (
+        mode === 'error' &&
+        isRedirectStatus(response.status) &&
+        response.headers.has('location')
+      ) {
+        await response.body?.cancel().catch(() => {})
+        throw new TypeError('Outbound fetch received an unexpected redirect')
+      }
+      return response
+    },
+  }
+}
+
 /**
- * SSRF-guarded `fetch` + its `Agent` for outbound requests to user-controlled
+ * SSRF-guarded `fetch` + its dispatcher for outbound requests to user-controlled
  * hosts: DNS resolves normally, and every socket connect validates the chosen
  * addresses via {@link createSsrfGuardedLookup}; redirects are followed manually
  * with per-hop validation (see {@link followRedirectsGuarded}) so IP-literal
@@ -904,7 +988,7 @@ export function createSsrfGuardedFetchWithDispatcher(options: {
   maxResponseSize?: number
 }): {
   fetch: typeof fetch
-  dispatcher: Agent
+  dispatcher: OutboundFetchDispatcher
 } {
   const dispatcher = new Agent({
     allowH2: false,
@@ -912,22 +996,7 @@ export function createSsrfGuardedFetchWithDispatcher(options: {
     ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
-  const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
-    // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
-    undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
-
-  const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const { target, effectiveInit } = await liftFetchArgs(input, init)
-    return followRedirectsGuarded(
-      rawFetch,
-      target,
-      // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-      effectiveInit as unknown as UndiciRequestInit,
-      options.profile
-    )
-  }
-
-  return { fetch: guarded, dispatcher }
+  return createValidatedFetch(dispatcher, options)
 }
 
 /**
@@ -975,48 +1044,14 @@ export function createPinnedFetch(
 export function createPinnedFetchWithDispatcher(
   resolvedIP: string,
   options: { profile: EgressProfile; allowH2?: boolean; maxResponseSize?: number }
-): { fetch: typeof fetch; dispatcher: Agent } {
+): { fetch: typeof fetch; dispatcher: OutboundFetchDispatcher } {
   const dispatcher = new Agent({
     allowH2: options.allowH2 ?? false,
     connect: { lookup: createPinnedLookup(resolvedIP) },
     ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
-  const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
-    // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
-    undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
-
-  // Requests go through `undici.request` (not `undici.fetch`) because fetch's streaming
-  // `response.body` never delivers under the Bun runtime the server runs on — the same bug
-  // {@link createSsrfGuardedFetchWithDispatcher} works around. Redirects are handled here (not
-  // by a caller's wrapper — the pinned fetch is passed straight to provider/A2A SDKs), honoring
-  // the request's `redirect` mode: `manual`/`error` must NOT transparently follow (e.g.
-  // `detectMcpAuthType` inspects the 3xx to classify auth). The default `follow` uses
-  // {@link followRedirectsGuarded}, which drops headers on cross-origin hops (so a redirect
-  // can't disclose a provider `api-key` to another origin) and stamps the final `response.url`.
-  // Every hop still dispatches through the pinned `Agent` (its `connect.lookup` forces
-  // `resolvedIP`), so a redirect can't escape to another address.
-  const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const { target, effectiveInit } = await liftFetchArgs(input, init)
-    const mode = effectiveInit.redirect ?? 'follow'
-    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    const undiciInit = effectiveInit as unknown as UndiciRequestInit
-    if (mode === 'manual') {
-      return rawFetch(target, undiciInit)
-    }
-    if (mode === 'error') {
-      const response = await rawFetch(target, undiciInit)
-      const location = response.headers.get('location')
-      if (response.status >= 300 && response.status < 400 && location) {
-        await response.body?.cancel().catch(() => {})
-        throw new TypeError('Pinned fetch received an unexpected redirect (redirect: "error")')
-      }
-      return response
-    }
-    return followRedirectsGuarded(rawFetch, target, undiciInit, options.profile, resolvedIP)
-  }
-
-  return { fetch: pinned, dispatcher }
+  return createValidatedFetch(dispatcher, { ...options, resolvedIP })
 }
 
 /**
@@ -1041,14 +1076,23 @@ export async function secureFetchWithPinnedIP(
       ? requestedMaxResponseBytes
       : DEFAULT_MAX_RESPONSE_BYTES
 
+  const transport = createOutboundTransport({
+    profile: options.profile,
+    resolvedIP,
+    proxyUrl: options.proxyUrl,
+  })
+  const outboundDispatcher = await transport.selectDispatcher()
+
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
     const isHttps = parsed.protocol === 'https:'
     const defaultPort = isHttps ? 443 : 80
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
 
-    let agent: http.Agent
-    if (options.proxyUrl) {
+    let agent: http.Agent | undefined
+    if (outboundDispatcher) {
+      agent = undefined
+    } else if (options.proxyUrl) {
       // Proxy connection is already IP-pinned by validateAndPinProxyUrl; target-IP
       // pinning is intentionally bypassed (the proxy resolves the target). https
       // targets tunnel via CONNECT, http targets use absolute-URI forwarding.
@@ -1060,6 +1104,9 @@ export async function secureFetchWithPinnedIP(
     }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
+    if (!Object.keys(sanitizedHeaders).some((name) => name.toLowerCase() === 'user-agent')) {
+      sanitizedHeaders['user-agent'] = DEFAULT_USER_AGENT
+    }
     const hasExplicitFraming = Object.keys(sanitizedHeaders).some((name) => {
       const header = name.toLowerCase()
       return header === 'content-length' || header === 'transfer-encoding'
@@ -1081,8 +1128,14 @@ export async function secureFetchWithPinnedIP(
       timeout: options.timeout || 300000,
     }
 
-    const protocol = isHttps ? https : http
-    const req = protocol.request(requestOptions, (res) => {
+    let destroyRequest: () => void = () => {}
+    const onResponse = (
+      res: Readable & {
+        statusCode?: number
+        headers: http.IncomingHttpHeaders
+        statusMessage?: string
+      }
+    ) => {
       const statusCode = res.statusCode || 0
       const location = res.headers.location
 
@@ -1212,6 +1265,7 @@ export async function secureFetchWithPinnedIP(
       const isBodylessResponse =
         (requestOptions.method || 'GET').toUpperCase() === 'HEAD' ||
         statusCode === 204 ||
+        statusCode === 205 ||
         statusCode === 304
       const contentLength = headersRecord['content-length']
       if (contentLength && !isBodylessResponse) {
@@ -1219,7 +1273,7 @@ export async function secureFetchWithPinnedIP(
         if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {
           cleanupAbort()
           res.destroy()
-          req.destroy()
+          destroyRequest()
           if (isRetryableHttpStatus(statusCode)) {
             settledResolve({
               ok: false,
@@ -1244,38 +1298,69 @@ export async function secureFetchWithPinnedIP(
         }
       }
 
+      const decoder = isBodylessResponse
+        ? null
+        : contentEncodingDecoder((headersRecord['content-encoding'] ?? '').toLowerCase().trim())
+      const responseHeaders = decoder
+        ? stripHeaders(headersRecord, ['content-encoding', 'content-length'])
+        : headersRecord
+
       let totalBytes = 0
-      const nodeRes = res
+      let bodySettled = false
+      const nodeRes = decoder ?? res
+      const destroyTransport = destroyRequest
+      destroyRequest = () => {
+        nodeRes.destroy()
+        if (decoder) res.destroy()
+        destroyTransport()
+      }
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
+          const fail = (error: Error) => {
+            if (bodySettled) return
+            bodySettled = true
+            cleanupAbort()
+            controller.error(error)
+            destroyRequest()
+          }
           nodeRes.on('data', (chunk: Buffer) => {
+            if (bodySettled) return
             totalBytes += chunk.length
             if (totalBytes > maxResponseBytes) {
-              cleanupAbort()
-              controller.error(
+              fail(
                 new PayloadSizeLimitError({
                   label: 'response body',
                   maxBytes: maxResponseBytes,
                   observedBytes: totalBytes,
                 })
               )
-              nodeRes.destroy()
               return
             }
             controller.enqueue(new Uint8Array(chunk))
           })
-          nodeRes.on('end', () => {
+          nodeRes.once('end', () => {
+            if (bodySettled) return
+            bodySettled = true
             cleanupAbort()
             controller.close()
           })
-          nodeRes.on('error', (err) => {
-            cleanupAbort()
-            controller.error(err)
+          nodeRes.once('error', fail)
+          nodeRes.once('close', () => {
+            if (!bodySettled) fail(new Error('Response body closed before completing'))
           })
+          if (decoder) {
+            res.once('error', (error) => decoder.destroy(error))
+            res.once('close', () => {
+              if (!res.readableEnded)
+                decoder.destroy(new Error('Response body closed before completing'))
+            })
+            res.pipe(decoder)
+          }
         },
         cancel() {
+          bodySettled = true
           cleanupAbort()
-          nodeRes.destroy()
+          destroyRequest()
         },
       })
 
@@ -1300,7 +1385,7 @@ export async function secureFetchWithPinnedIP(
         ok: statusCode >= 200 && statusCode < 300,
         status: statusCode,
         statusText: res.statusMessage || '',
-        headers: new SecureFetchHeaders(headersRecord, setCookieArray),
+        headers: new SecureFetchHeaders(responseHeaders, setCookieArray),
         body,
         text: async () => (await readBodyAsBuffer()).toString('utf-8'),
         json: async () => JSON.parse((await readBodyAsBuffer()).toString('utf-8')),
@@ -1309,7 +1394,7 @@ export async function secureFetchWithPinnedIP(
           return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
         },
       })
-    })
+    }
 
     let onAbort: (() => void) | null = null
     const cleanupAbort = () => {
@@ -1326,29 +1411,66 @@ export async function secureFetchWithPinnedIP(
       reject(reason)
     }
 
-    req.on('error', (error) => {
-      settledReject(error)
-    })
-
-    req.on('timeout', () => {
-      req.destroy()
-      settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
-    })
+    let send: () => void
+    if (outboundDispatcher) {
+      const dispatcher = outboundDispatcher
+      const controller = new AbortController()
+      destroyRequest = () => {
+        controller.abort()
+        void transport.destroy()
+      }
+      send = () => {
+        void requestWithOutboundDispatcher(url, {
+          dispatcher,
+          method: (options.method || 'GET') as Dispatcher.HttpMethod,
+          headers: sanitizedHeaders,
+          body: options.body,
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(options.timeout || 300_000),
+          ]),
+        })
+          .then(({ statusCode, headers, body }) => {
+            body.once('close', () => {
+              void transport.destroy()
+            })
+            onResponse(Object.assign(body, { statusCode, headers }))
+          })
+          .catch((error) => {
+            void transport.destroy()
+            settledReject(error)
+          })
+      }
+    } else {
+      const protocol = isHttps ? https : http
+      const req = protocol.request(requestOptions, onResponse)
+      destroyRequest = () => {
+        req.destroy()
+      }
+      req.on('error', settledReject)
+      req.on('timeout', () => {
+        destroyRequest()
+        settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+      })
+      send = () => {
+        req.end(options.body)
+      }
+    }
 
     if (options.signal) {
       if (options.signal.aborted) {
-        req.destroy()
+        destroyRequest()
         settledReject(options.signal.reason ?? new Error('Aborted'))
         return
       }
       onAbort = () => {
-        req.destroy()
+        destroyRequest()
         settledReject(options.signal?.reason ?? new Error('Aborted'))
       }
       options.signal.addEventListener('abort', onAbort, { once: true })
     }
 
-    req.end(options.body)
+    send()
   })
 }
 

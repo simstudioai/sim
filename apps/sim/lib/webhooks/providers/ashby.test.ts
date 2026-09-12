@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import crypto from 'crypto'
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, inputValidationMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
 import type {
@@ -10,6 +10,8 @@ import type {
   EventMatchContext,
   FormatInputContext,
 } from '@/lib/webhooks/providers/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function authContext(
   request: AuthContext['request'],

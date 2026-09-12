@@ -109,7 +109,7 @@ describe('createPinnedFetch', () => {
     expect(url).toBe('https://myresource.openai.azure.com/openai/v1/responses')
     expect(options.dispatcher).toBeInstanceOf(mockAgent)
     expect(options.method).toBe('POST')
-    expect(options.headers).toEqual({ 'api-key': 'secret' })
+    expect(options.headers).toEqual({ 'api-key': 'secret', 'user-agent': 'undici' })
     expect(options.body).toBe('{}')
     expect(options.signal).toBe(controller.signal)
   })
@@ -159,7 +159,7 @@ describe('createPinnedFetch', () => {
       string
     >
     expect(secondHopHeaders['api-key']).toBeUndefined()
-    expect(Object.keys(secondHopHeaders)).toHaveLength(0)
+    expect(secondHopHeaders).toEqual({ 'user-agent': 'undici' })
     expect(response.status).toBe(200)
     expect(response.url).toBe('https://other-origin.example/final')
     expect(response.redirected).toBe(true)

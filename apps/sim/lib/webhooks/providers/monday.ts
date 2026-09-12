@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
@@ -17,6 +18,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Monday')
 
@@ -106,7 +111,7 @@ export const mondayHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(ctx.webhook)
 
     try {
-      const response = await fetch(MONDAY_API_URL, {
+      const response = await providerFetch(MONDAY_API_URL, {
         method: 'POST',
         headers: mondayHeaders(accessToken),
         body: JSON.stringify({
@@ -219,7 +224,7 @@ export const mondayHandler: WebhookProviderHandler = {
     }
 
     try {
-      const response = await fetch(MONDAY_API_URL, {
+      const response = await providerFetch(MONDAY_API_URL, {
         method: 'POST',
         headers: mondayHeaders(accessToken),
         body: JSON.stringify({

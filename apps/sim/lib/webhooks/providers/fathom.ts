@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -7,6 +8,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Fathom')
 
@@ -56,7 +61,7 @@ export const fathomHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
 
-      const fathomResponse = await fetch('https://api.fathom.ai/external/v1/webhooks', {
+      const fathomResponse = await providerFetch('https://api.fathom.ai/external/v1/webhooks', {
         method: 'POST',
         headers: {
           'X-Api-Key': apiKey,
@@ -154,7 +159,7 @@ export const fathomHandler: WebhookProviderHandler = {
 
       const fathomApiUrl = `https://api.fathom.ai/external/v1/webhooks/${externalId}`
 
-      const fathomResponse = await fetch(fathomApiUrl, {
+      const fathomResponse = await providerFetch(fathomApiUrl, {
         method: 'DELETE',
         headers: {
           'X-Api-Key': apiKey,
