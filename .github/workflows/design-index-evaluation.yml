@@ -1,0 +1,92 @@
+name: Design index frozen evaluation
+
+on:
+  push:
+    branches: [codex/design-index-cloud-smoke]
+    paths: [.github/workflows/design-index-evaluation.yml, scripts/design-diff/benchmark/index-evaluation.json]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-index-frozen-evaluation
+  cancel-in-progress: true
+
+env:
+  ENGINE: 7f2c2fd67fda51ff9bd46af1cd5f79ad70d7f75d
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      prs: ${{ steps.manifest.outputs.prs }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/design-diff/benchmark/index-evaluation.json
+          sparse-checkout-cone-mode: false
+      - id: manifest
+        run: |
+          python3 - <<'PY'
+          import json, os
+          data=json.load(open('scripts/design-diff/benchmark/index-evaluation.json'))
+          prs=[item['pr'] for item in data['comparisons']]
+          assert len(prs)==len(set(prs))==180 and all(type(pr) is int and pr>0 for pr in prs)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('prs='+json.dumps(prs)+'\n')
+          PY
+
+  measure:
+    needs: manifest
+    strategy:
+      fail-fast: false
+      max-parallel: 30
+      matrix:
+        pr: ${{ fromJSON(needs.manifest.outputs.prs) }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ env.ENGINE }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Select frozen comparison and fetch Git data
+        env:
+          PR_NUMBER: ${{ matrix.pr }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git show "$GITHUB_SHA:scripts/design-diff/benchmark/index-evaluation.json" > "$RUNNER_TEMP/frozen.json"
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          frozen=json.loads((root/'frozen.json').read_text())
+          entries=[item for item in frozen['comparisons'] if item['pr']==int(os.environ['PR_NUMBER'])]
+          assert len(entries)==1
+          assert all(re.fullmatch('[a-f0-9]{40}',entries[0][key]) for key in ['base','head','mergeBase'])
+          (root/'comparison.json').write_text(json.dumps({'comparisons':entries}))
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('BASE_SHA='+entries[0]['base']+'\nHEAD_SHA='+entries[0]['head']+'\n')
+          PY
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          BASE_SHA="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/comparison.json"))["comparisons"][0]["base"])')"
+          HEAD_SHA="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/comparison.json"))["comparisons"][0]["head"])')"
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH_HEADER" fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA" > /dev/null 2>&1
+      - name: Measure cold and baseline-warm analysis and require identical reports
+        run: |
+          bun --no-env-file scripts/design-diff/benchmark.ts --engine "$GITHUB_WORKSPACE" --sha "$ENGINE" --manifest "$RUNNER_TEMP/comparison.json" --output "$RUNNER_TEMP/results" --workers 1 --profile-index --no-results-cache
+      - name: Retain comparison reports and metrics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: index-evaluation-${{ matrix.pr }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/results/*.json
+            ${{ runner.temp }}/comparison.json
+          retention-days: 7
+          if-no-files-found: error
