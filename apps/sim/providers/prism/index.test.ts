@@ -129,81 +129,96 @@ describe('prismProvider', () => {
     )
   })
 
-  it('uses the shared tool loop with reasoning replay and returns tool results', async () => {
-    mockPrepareTools.mockReturnValue({
-      tools: [
-        {
-          type: 'function',
-          function: {
-            name: 'lookup',
-            description: 'Look up a value',
-            parameters: { type: 'object', properties: {}, required: [] },
-          },
-        },
-      ],
-      toolChoice: 'auto',
-      forcedTools: [],
-    })
-    mockCreateToolStream.mockImplementation(
-      (options: { onComplete: (result: Record<string, unknown>) => void }) => {
-        options.onComplete({
-          content: 'Found it',
-          tokens: { input: 10, output: 5, total: 15 },
-          cost: { input: 0, output: 0, toolCost: 0.25, total: 0.25 },
-          toolCalls: { list: [], count: 0 },
-          toolResults: [{ value: 'result' }],
-          modelTime: 1,
-          toolsTime: 1,
-          firstResponseTime: 1,
-          iterations: 2,
-        })
-        return new ReadableStream({
-          start(controller) {
-            controller.close()
-          },
-        })
-      }
-    )
-
-    const result = await prismProvider.executeRequest(
-      request({
-        responseFormat: undefined,
+  it.each([
+    { mode: 'non-streaming', stream: false },
+    { mode: 'streaming', stream: true },
+  ])(
+    'uses the shared tool loop with reasoning replay and returns tool results ($mode)',
+    async ({ stream }) => {
+      mockPrepareTools.mockReturnValue({
         tools: [
           {
-            id: 'lookup',
-            description: 'Look up a value',
-            params: {},
-            parameters: { type: 'object', properties: {}, required: [] },
+            type: 'function',
+            function: {
+              name: 'lookup',
+              description: 'Look up a value',
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
           },
         ],
+        toolChoice: 'auto',
+        forcedTools: [],
       })
-    )
+      mockCreateToolStream.mockImplementation(
+        (options: { onComplete: (result: Record<string, unknown>) => void }) => {
+          options.onComplete({
+            content: 'Found it',
+            tokens: { input: 10, output: 5, total: 15 },
+            cost: { input: 0, output: 0, toolCost: 0.25, total: 0.25 },
+            toolCalls: { list: [], count: 0 },
+            toolResults: [{ value: 'result' }],
+            modelTime: 1,
+            toolsTime: 1,
+            firstResponseTime: 1,
+            iterations: 2,
+          })
+          return new ReadableStream({
+            start(controller) {
+              controller.close()
+            },
+          })
+        }
+      )
 
-    expect(mockCreateToolStream).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerName: 'Prism',
-        preserveAssistantReasoning: true,
-        basePayload: expect.objectContaining({
-          model: 'prism/deepseek-v4.1-flash',
-          tool_choice: 'auto',
-        }),
+      const result = await prismProvider.executeRequest(
+        request({
+          responseFormat: undefined,
+          stream,
+          tools: [
+            {
+              id: 'lookup',
+              description: 'Look up a value',
+              params: {},
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
+          ],
+        })
+      )
+
+      expect(mockCreateToolStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerName: 'Prism',
+          preserveAssistantReasoning: true,
+          basePayload: expect.objectContaining({
+            model: 'prism/deepseek-v4.1-flash',
+            tool_choice: 'auto',
+          }),
+        })
+      )
+
+      if ('stream' in result) {
+        const reader = result.stream.getReader()
+        while (!(await reader.read()).done) {}
+        expect(result.execution.output.toolResults).toEqual([{ value: 'result' }])
+        return
+      }
+
+      expect(result).toMatchObject({ toolResults: [{ value: 'result' }] })
+      expect(mockCalculateCost).toHaveBeenCalledWith('prism/deepseek-v4.1-flash', 10, 5)
+      expect(result.cost).toEqual({
+        input: 0.000003,
+        output: 0.000006,
+        toolCost: 0.25,
+        total: 0.250009,
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.07,
+          output: 1.2,
+          updatedAt: '2026-09-12',
+        },
       })
-    )
-    expect(result).toMatchObject({ toolResults: [{ value: 'result' }] })
-    expect(mockCalculateCost).toHaveBeenCalledWith('prism/deepseek-v4.1-flash', 10, 5)
-    expect(result.cost).toEqual({
-      input: 0.000003,
-      output: 0.000006,
-      toolCost: 0.25,
-      total: 0.250009,
-      pricing: {
-        input: 0.3,
-        cachedInput: 0.07,
-        output: 1.2,
-        updatedAt: '2026-09-12',
-      },
-    })
-  })
+    }
+  )
 
   it.each(['none', 'low', 'medium', 'high'])('sends Prism reasoning effort %s', async (value) => {
     await prismProvider.executeRequest(request({ reasoningEffort: value }))

@@ -9,8 +9,8 @@ import type {
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
-import { createReadableStreamFromPrismStream } from '@/providers/prism/utils'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import type { StreamingToolLoopComplete } from '@/providers/streaming-tool-loop-shared'
@@ -183,6 +183,7 @@ export const prismProvider: ProviderConfig = {
                 output.tokens = result.tokens
                 output.cost = result.cost
                 output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+                output.toolResults = result.toolResults
                 if (output.providerTiming) {
                   output.providerTiming.modelTime = result.modelTime
                   output.providerTiming.toolsTime = result.toolsTime
@@ -251,23 +252,26 @@ export const prismProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromPrismStream(streamResponse, (content, usage, thinking) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-              output.cost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              if (thinking) {
-                const segment = output.providerTiming?.timeSegments?.[0]
-                if (segment) segment.thinkingContent = thinking
-              }
-              finalizeTiming()
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'Prism',
+              onComplete: (result) => {
+                output.content = result.content
+                output.tokens = {
+                  input: result.usage.prompt_tokens,
+                  output: result.usage.completion_tokens,
+                  total: result.usage.total_tokens,
+                }
+                output.cost = calculateCost(
+                  request.model,
+                  result.usage.prompt_tokens,
+                  result.usage.completion_tokens
+                )
+                if (result.thinking) {
+                  const segment = output.providerTiming?.timeSegments?.[0]
+                  if (segment) segment.thinkingContent = result.thinking
+                }
+                finalizeTiming()
+              },
             }),
         })
       }
