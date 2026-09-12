@@ -68,7 +68,11 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }),
       })
 
-      return result?.workflowId ?? null
+      if (!result) {
+        throw new Error('The file does not contain valid workflow JSON.')
+      }
+
+      return result.workflowId
     },
     [clearDiff, createWorkflow, workspaceId]
   )
@@ -91,7 +95,13 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
 
         if (hasZip && fileArray.length === 1) {
           const zipFile = fileArray[0]
-          const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
+          const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(
+            zipFile
+          ).catch((error: unknown) => {
+            throw new Error('Failed to import ZIP file. Check that it is a valid ZIP archive.', {
+              cause: error,
+            })
+          })
 
           const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
           const importFolder = await createFolder({
