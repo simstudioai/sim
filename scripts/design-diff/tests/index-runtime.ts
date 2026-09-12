@@ -221,6 +221,12 @@ try {
       )
     )
     assert.equal((await cached()).report, await fresh())
+  } else if (mode === 'missing-source') {
+    await cached()
+    const blob = repo.git('rev-parse', `${base}:${file}`)
+    rmSync(path.join(repo.cwd, '.git/objects', blob.slice(0, 2), blob.slice(2)))
+    await assert.rejects(cached(), /Unreadable Git blob metadata/)
+    await assert.rejects(fresh(), /Unreadable Git blob metadata/)
   } else if (mode === 'themes') {
     const theme = 'apps/sim/app/globals.css'
     const themedBase = repo.commit({

@@ -13,6 +13,7 @@ it.each([
   'themes',
   'sentinels',
   'restart',
+  'missing-source',
 ])(
   'maintains indexed correctness: %s',
   (mode) => {

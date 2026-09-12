@@ -77,3 +77,20 @@ it('fails explicitly for unreadable revisions and missing history', async () => 
     rmSync(shallow, { recursive: true, force: true })
   }
 })
+
+it('rejects missing source blobs even when Git returns successful tree metadata', async () => {
+  const repo = new FixtureRepo()
+  try {
+    const file = 'apps/sim/control.tsx'
+    const base = repo.commit({ [file]: 'export const Control=()=> <button className="p-2"/>' })
+    const head = repo.commit({ 'README.md': 'Nonvisual edit' })
+    const blob = repo.git('rev-parse', `${base}:${file}`)
+    rmSync(path.join(repo.cwd, '.git/objects', blob.slice(0, 2), blob.slice(2)))
+    expect(() => new GitReader(repo.cwd).tree(base)).toThrow('Unreadable Git blob metadata')
+    await expect(analyze(repo.cwd, base, head, config)).rejects.toThrow(
+      'Unreadable Git blob metadata'
+    )
+  } finally {
+    repo.close()
+  }
+})

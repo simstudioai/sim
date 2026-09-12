@@ -62,8 +62,11 @@ export class GitReader {
       const tab = record.indexOf('\t')
       const [mode, type, oid, size] = record.slice(0, tab).trim().split(/\s+/)
       if (type !== 'blob') continue
+      const bytes = Number(size)
+      // Git can exit successfully with size BAD for a missing blob. Cached facts must not hide it.
+      if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error('Unreadable Git blob metadata')
       const path = record.slice(tab + 1)
-      entries.set(path, { path, mode, oid, size: Number(size) })
+      entries.set(path, { path, mode, oid, size: bytes })
     }
     return entries
   }
