@@ -334,27 +334,21 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [setActiveResourceId, clearResourceActivity]
   )
 
-  const desktopTabResourceCallbacks = {
+  const desktopTabResourceOptions = {
+    scopeId: desktopScopeId,
+    resources,
+    activeResourceId,
+    selectedResourceId: activeResourceParam,
+    // A chat without an id has nothing stored to wait for.
+    hydrated: resolvedChatId === undefined || !isChatHistoryPending,
     addResource,
     removeResource,
     selectResource: selectResourceFromUser,
     restoreResource: setActiveResourceId,
     onResourceEvent: handleResourceEvent,
   }
-  useBrowserTabResources({
-    scopeId: desktopScopeId,
-    resources,
-    activeResourceId,
-    selectedResourceId: activeResourceParam,
-    ...desktopTabResourceCallbacks,
-  })
-  useTerminalTabResources({
-    scopeId: desktopScopeId,
-    resources,
-    activeResourceId,
-    selectedResourceId: activeResourceParam,
-    ...desktopTabResourceCallbacks,
-  })
+  useBrowserTabResources(desktopTabResourceOptions)
+  useTerminalTabResources(desktopTabResourceOptions)
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {

@@ -38,17 +38,7 @@ function pushTabs(scopeId: string, tabs: TerminalTabState[], activeTerminalId: s
   })
 }
 
-interface HostProps {
-  scopeId: string
-  resources: MothershipResource[]
-  activeResourceId: string | null
-  selectedResourceId: string | null
-  addResource: (resource: MothershipResource) => void
-  removeResource: (type: MothershipResource['type'], id: string) => void
-  selectResource: (id: string) => void
-  restoreResource: (id: string) => void
-  onResourceEvent: (id: string, options?: { activate?: boolean }) => void
-}
+type HostProps = Parameters<typeof useTerminalTabResources>[0]
 
 function Host(props: HostProps) {
   useTerminalTabResources(props)
@@ -70,6 +60,7 @@ describe('useTerminalTabResources', () => {
       resources: [],
       activeResourceId: null,
       selectedResourceId: null,
+      hydrated: true,
       addResource,
       removeResource,
       selectResource,

@@ -37,17 +37,7 @@ function pushTabs(scopeId: string, tabs: ReturnType<typeof tab>[], activeTabId: 
   })
 }
 
-interface HostProps {
-  scopeId: string
-  resources: MothershipResource[]
-  activeResourceId: string | null
-  selectedResourceId: string | null
-  addResource: (resource: MothershipResource) => void
-  removeResource: (type: MothershipResource['type'], id: string) => void
-  selectResource: (id: string) => void
-  restoreResource: (id: string) => void
-  onResourceEvent: (id: string, options?: { activate?: boolean }) => void
-}
+type HostProps = Parameters<typeof useBrowserTabResources>[0]
 
 function Host(props: HostProps) {
   useBrowserTabResources(props)
@@ -69,6 +59,7 @@ describe('useBrowserTabResources', () => {
       resources: [],
       activeResourceId: null,
       selectedResourceId: null,
+      hydrated: true,
       addResource,
       removeResource,
       selectResource,
@@ -206,7 +197,6 @@ describe('useBrowserTabResources', () => {
         { type: 'browser', id: '2', title: 'Page 2' },
       ],
       activeResourceId: '2',
-      selectedResourceId: 'deleted-file',
     })
 
     expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
@@ -229,20 +219,94 @@ describe('useBrowserTabResources', () => {
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
   })
 
-  it('switches to a selected page once it lands, as after a reload with the tab in the URL', () => {
-    render({ selectedResourceId: '2' })
+  it('adopts the native active page only once the chat history has been applied', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render({ hydrated: false })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null, hydrated: false })
+    expect(restoreResource).not.toHaveBeenCalled()
+
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null, hydrated: true })
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
+  })
+
+  it('leaves a stored resource the history pinned alone once hydrated', () => {
+    const rerender = render({ hydrated: false })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '2', title: 'Page 2' },
+        { type: 'file', id: 'f', title: 'notes.md' },
+      ],
+      activeResourceId: 'f',
+      selectedResourceId: 'f',
+      hydrated: true,
+    })
+    expect(restoreResource).not.toHaveBeenCalled()
+  })
+
+  it('does not adopt a page the user just closed in the strip', () => {
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1'), tab('2', true), tab('3')], '2')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '2', title: 'Page 2' },
+        { type: 'browser', id: '3', title: 'Page 3' },
+      ],
+      activeResourceId: '2',
+      selectedResourceId: '2',
+    })
+    expect(restoreResource).not.toHaveBeenCalled()
+
+    // The strip dropped page 2 before the native close landed.
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '3', title: 'Page 3' },
+      ],
+      activeResourceId: '3',
+      selectedResourceId: null,
+    })
+    expect(restoreResource).not.toHaveBeenCalled()
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('adopts the first reported active page without claiming it', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render()
+    // The pages land before the desktop app reports which one it shows.
+    pushTabs(SCOPE, [tab('1'), tab('2')], null)
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null })
+    expect(restoreResource).not.toHaveBeenCalled()
 
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
-    expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
-      'switch-tab',
-      { tabId: '2', claim: false },
-      SCOPE
-    )
-
-    // The requested switch landing is not a native change to follow.
-    pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
     expect(selectResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('claims a native switch away from a page it was already showing', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({ resources, activeResourceId: '1', selectedResourceId: null })
+    expect(selectResource).not.toHaveBeenCalled()
+
+    // A keyboard shortcut in the page moved the desktop app off page 1.
+    pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
+    expect(selectResource).toHaveBeenCalledExactlyOnceWith('2')
+    expect(restoreResource).not.toHaveBeenCalled()
   })
 
   it('follows a native switch into the strip only while the user is on the browser', () => {
