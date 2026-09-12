@@ -709,9 +709,6 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       }
     }
     annotateSearchDiagnostics({ resultCount: results.length })
-    if (retrieved.retrieval.status === 'partial' && results.length === 0) {
-      throw new SearchDeadlineError()
-    }
     const cost = baseCost
       ? {
           input: baseCost.input,

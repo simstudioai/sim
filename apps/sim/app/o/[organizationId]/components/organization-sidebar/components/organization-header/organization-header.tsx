@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   Chip,
   ChipChevronDown,
@@ -12,13 +12,14 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { PanelLeft, Settings } from '@sim/emcn/icons'
+import { PanelLeft, Send, Settings } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import type { OrganizationSurfaceOrganization } from '@/lib/organizations/surface'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
+import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 
@@ -29,6 +30,7 @@ function getOrganizationInitial(name: string): string {
 interface OrganizationHeaderProps {
   organization: OrganizationSurfaceOrganization
   canEditLogo: boolean
+  canInviteMembers: boolean
   isCollapsed: boolean
   /** Expands the rail; the collapsed header is itself the expand control. */
   onExpandSidebar: () => void
@@ -44,6 +46,7 @@ interface OrganizationHeaderProps {
 export function OrganizationHeader({
   organization,
   canEditLogo,
+  canInviteMembers,
   isCollapsed,
   onExpandSidebar,
 }: OrganizationHeaderProps) {
@@ -52,6 +55,7 @@ export function OrganizationHeader({
   const { mutate: uploadLogo, isPending: isUploadingLogo } = useUploadOrganizationLogo(
     organization.id
   )
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const initial = getOrganizationInitial(organization.name)
 
   if (isCollapsed) {
@@ -131,7 +135,7 @@ export function OrganizationHeader({
                     aria-label='Change organization logo'
                     aria-busy={isUploadingLogo}
                     textValue='Change organization logo'
-                    className='h-auto shrink-0 p-1'
+                    className='h-auto shrink-0 p-0 hover-hover:opacity-70 focus-visible:opacity-70'
                     disabled={isUploadingLogo}
                     onSelect={(event) => {
                       event.preventDefault()
@@ -161,8 +165,23 @@ export function OrganizationHeader({
               Settings
             </SettingsGuardedLink>
           </DropdownMenuItem>
+          {canInviteMembers && (
+            <DropdownMenuItem onSelect={() => setIsInviteModalOpen(true)}>
+              <Send className='size-[14px]' />
+              Invite people
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {isInviteModalOpen && (
+        <InviteModal
+          open={isInviteModalOpen}
+          onOpenChange={setIsInviteModalOpen}
+          organizationId={organization.id}
+          isOrganizationAdmin={canEditLogo}
+          canInvite={canInviteMembers}
+        />
+      )}
     </div>
   )
 }

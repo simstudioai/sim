@@ -2388,6 +2388,13 @@
       "when": 1789154850550,
       "tag": "0341_organization_logo_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 342,
+      "version": "7",
+      "when": 1789171419865,
+      "tag": "0342_clean_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

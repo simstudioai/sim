@@ -3,11 +3,21 @@
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNavigateToSettings, mockWorkspacePermissions } = vi.hoisted(() => ({
+const { mockNavigateToSettings, mockWorkspacePermissions, hostContext } = vi.hoisted(() => ({
   mockNavigateToSettings: vi.fn(),
+  hostContext: {
+    hostOrganizationId: null as string | null,
+    viewer: { isHostOrganizationMember: false },
+    features: { organizationSearch: false as boolean | undefined },
+  },
   mockWorkspacePermissions: { canAdmin: true, canEdit: true, canRead: true },
+}))
+
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+  useWorkspaceHostContext: () => hostContext,
 }))
 
 const onWorkspaceSwitch = vi.fn()
@@ -15,9 +25,15 @@ const onWorkspaceSwitch = vi.fn()
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
 }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/workspace/ws-emir/home',
+}))
 vi.mock('@/lib/auth/auth-client', () => ({ useActiveOrganization: () => ({ data: null }) }))
 vi.mock('@/hooks/use-settings-navigation', () => ({
-  useSettingsNavigation: () => ({ navigateToSettings: mockNavigateToSettings }),
+  useSettingsNavigation: () => ({
+    navigateToSettings: mockNavigateToSettings,
+  }),
 }))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({ isInvitationsDisabled: false }),
@@ -89,29 +105,33 @@ function render(overrides: Partial<Parameters<typeof WorkspaceHeader>[0]> = {}) 
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => {
-    root.render(
-      <WorkspaceHeader
-        activeWorkspace={{ name: "Emir's Workspace" }}
-        workspaceId='ws-emir'
-        workspaces={WORKSPACES}
-        pinnedWorkspaceIds={NO_PINS}
-        onToggleWorkspacePin={() => {}}
-        isWorkspacesLoading={false}
-        isCreatingWorkspace={false}
-        isWorkspaceMenuOpen
-        setIsWorkspaceMenuOpen={() => {}}
-        onWorkspaceSwitch={onWorkspaceSwitch}
-        onCreateWorkspace={async () => {}}
-        onRenameWorkspace={async () => {}}
-        onDeleteWorkspace={async () => {}}
-        isDeletingWorkspace={false}
-        onUploadLogo={() => {}}
-        onLeaveWorkspace={async () => {}}
-        isLeavingWorkspace={false}
-        {...overrides}
-      />
-    )
+    root.render(header(overrides))
   })
+}
+
+function header(overrides: Partial<Parameters<typeof WorkspaceHeader>[0]> = {}) {
+  return (
+    <WorkspaceHeader
+      activeWorkspace={{ name: "Emir's Workspace" }}
+      workspaceId='ws-emir'
+      workspaces={WORKSPACES}
+      pinnedWorkspaceIds={NO_PINS}
+      onToggleWorkspacePin={() => {}}
+      isWorkspacesLoading={false}
+      isCreatingWorkspace={false}
+      isWorkspaceMenuOpen
+      setIsWorkspaceMenuOpen={() => {}}
+      onWorkspaceSwitch={onWorkspaceSwitch}
+      onCreateWorkspace={async () => {}}
+      onRenameWorkspace={async () => {}}
+      onDeleteWorkspace={async () => {}}
+      isDeletingWorkspace={false}
+      onUploadLogo={() => {}}
+      onLeaveWorkspace={async () => {}}
+      isLeavingWorkspace={false}
+      {...overrides}
+    />
+  )
 }
 
 function row(name: string): HTMLElement {
@@ -150,6 +170,9 @@ function typeInto(input: HTMLInputElement, value: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  hostContext.hostOrganizationId = null
+  hostContext.viewer.isHostOrganizationMember = false
+  hostContext.features.organizationSearch = false
   Object.assign(mockWorkspacePermissions, { canAdmin: true, canEdit: true, canRead: true })
   // jsdom implements neither; the component scrolls the active row into view.
   Element.prototype.scrollIntoView = vi.fn()
@@ -161,6 +184,80 @@ afterEach(() => {
 })
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
+  it.each([false, true])(
+    'renders prefetched workspace identity before hydration (collapsed: %s)',
+    (isCollapsed) => {
+      render({ isWorkspaceMenuOpen: false, isCollapsed })
+      const html = renderToString(header({ isWorkspaceMenuOpen: false, isCollapsed }))
+      expect(html).toContain(isCollapsed ? 'Expand sidebar' : 'Switch workspace')
+      expect(html).not.toContain('animate-pulse')
+    }
+  )
+
+  it.each([5, 6])('only shows search once there are six workspaces: %i', (count) => {
+    render({ workspaces: WORKSPACES.slice(0, count) })
+    expect(Boolean(document.querySelector('input[placeholder="Search workspaces..."]'))).toBe(
+      count === 6
+    )
+  })
+
+  it('handles a no-match query without navigating and restores rows when cleared', () => {
+    render()
+    const search = document.querySelector<HTMLInputElement>(
+      'input[placeholder="Search workspaces..."]'
+    )!
+    act(() => typeInto(search, 'no-such-workspace'))
+    expect(document.querySelectorAll('[data-workspace-row-idx]')).toHaveLength(0)
+    expect(document.body).toHaveTextContent('No results for "no-such-workspace"')
+    act(() => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    expect(onWorkspaceSwitch).not.toHaveBeenCalled()
+
+    act(() => typeInto(search, '  ACME  '))
+    expect(document.querySelectorAll('[data-workspace-row-idx]')).toHaveLength(1)
+    expect(isMarked('Acme')).toBe(true)
+    act(() => typeInto(search, ''))
+    expect(document.querySelectorAll('[data-workspace-row-idx]')).toHaveLength(WORKSPACES.length)
+  })
+
+  it('keeps search focused when the pointer crosses a workspace row', () => {
+    render()
+    const search = document.querySelector<HTMLInputElement>(
+      'input[placeholder="Search workspaces..."]'
+    )!
+    act(() => search.focus())
+    const item = row('RVT').querySelector<HTMLElement>('[role="menuitem"]')!
+    const pointerMove = new MouseEvent('pointermove', { bubbles: true, cancelable: true })
+    Object.defineProperty(pointerMove, 'pointerType', { value: 'mouse' })
+    act(() => item.dispatchEvent(pointerMove))
+    expect(document.activeElement).toBe(search)
+    const pointerOut = new MouseEvent('pointerout', { bubbles: true, cancelable: true })
+    Object.defineProperty(pointerOut, 'pointerType', { value: 'mouse' })
+    act(() => item.dispatchEvent(pointerOut))
+    expect(document.activeElement).toBe(search)
+  })
+
+  it('keeps pinned status available to assistive technology', () => {
+    render({ pinnedWorkspaceIds: new Set(['ws-rvt']) })
+    expect(row('RVT').querySelector('[aria-label="Pinned"]')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    )
+  })
+
+  it('does not open creation when workspace policy disallows it', () => {
+    const setIsWorkspaceMenuOpen = vi.fn()
+    render({
+      workspaceCreationPolicy: { canCreate: false, reason: 'Organization limit reached' },
+      setIsWorkspaceMenuOpen,
+    })
+    const create = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+      (item) => item.textContent?.trim() === 'New workspace'
+    )!
+    expect(create).toHaveAttribute('aria-disabled', 'true')
+    act(() => create.click())
+    expect(setIsWorkspaceMenuOpen).not.toHaveBeenCalled()
+  })
+
   it.each([
     { role: 'viewer', canAdmin: false, canEdit: false },
     { role: 'editor', canAdmin: false, canEdit: true },
@@ -170,13 +267,32 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
     ({ canAdmin, canEdit }) => {
       Object.assign(mockWorkspacePermissions, { canAdmin, canEdit })
       render()
-      const invite = [...document.querySelectorAll('button')].find(
-        (button) => button.textContent?.trim() === 'Invite teammates'
+      const invite = [...document.querySelectorAll('[role="menuitem"]')].find(
+        (item) => item.textContent?.trim() === 'Invite teammates'
       )
       expect(Boolean(invite)).toBe(canAdmin)
       expect(container.querySelector('button[aria-label="Switch workspace"]')).not.toBeDisabled()
     }
   )
+
+  it('selects a workspace through the menu keyboard interaction', () => {
+    render()
+    const item = row('RVT').querySelector<HTMLElement>('[role="menuitem"]')!
+    act(() => item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    expect(onWorkspaceSwitch).toHaveBeenCalledOnce()
+    expect(onWorkspaceSwitch).toHaveBeenCalledWith(WORKSPACES[0])
+  })
+
+  it('opens workspace options without switching workspaces', () => {
+    render()
+    const options = row('RVT').querySelector<HTMLButtonElement>('[aria-label="Workspace options"]')!
+    act(() => {
+      options.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      options.click()
+    })
+    expect(onWorkspaceSwitch).not.toHaveBeenCalled()
+    expect(isMarked('RVT')).toBe(true)
+  })
 
   it('shows the route workspace identity while the switcher list is unavailable', () => {
     render({
@@ -284,5 +400,35 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
     expect(isMarked('Globex')).toBe(false)
     expect(isMarked('Acme')).toBe(false)
     expect(isMarked("Emir's Workspace")).toBe(true)
+  })
+})
+
+describe('WorkspaceHeader context navigation', () => {
+  it('links to the current host organization for enrolled members', () => {
+    hostContext.hostOrganizationId = 'host-org'
+    hostContext.viewer.isHostOrganizationMember = true
+    hostContext.features.organizationSearch = true
+    render()
+    expect(document.querySelector('a[href="/o/host-org"]')).toHaveTextContent(
+      'Back to organization'
+    )
+  })
+
+  it.each([
+    { org: null, member: true, enabled: true },
+    { org: 'host-org', member: false, enabled: true },
+    { org: 'host-org', member: true, enabled: false },
+    { org: 'host-org', member: true, enabled: undefined },
+  ])('hides inaccessible organization navigation: %j', ({ org, member, enabled }) => {
+    hostContext.hostOrganizationId = org
+    hostContext.viewer.isHostOrganizationMember = member
+    hostContext.features.organizationSearch = enabled
+    render()
+    expect(document.querySelector('a[href^="/o/"]')).toBeNull()
+  })
+
+  it('keeps settings in the profile menu instead of duplicating it in the switcher', () => {
+    render()
+    expect(document.querySelector('a[href="/workspace/ws-emir/settings/teammates"]')).toBeNull()
   })
 })
