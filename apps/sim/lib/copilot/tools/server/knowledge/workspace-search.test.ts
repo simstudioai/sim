@@ -84,6 +84,29 @@ describe('Assistant retrieval tools', () => {
       next: null,
     })
   })
+  it('returns empty incomplete retrieval as a recoverable search outcome and logs coverage', async () => {
+    mocks.search.mockResolvedValue({
+      retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+      knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
+      results: [],
+    })
+
+    const result = await searchWorkspaceServerTool.execute({ query: 'canaries' }, context)
+
+    expect(result).toMatchObject({
+      success: true,
+      message: expect.stringContaining('cannot establish absence or completeness'),
+      data: {
+        retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+        results: [],
+      },
+    })
+    expect(result).not.toHaveProperty('error')
+    expect(mocks.info).toHaveBeenCalledWith(
+      'Knowledge search completed',
+      expect.objectContaining({ passageBytes: 0, originalPassageBytes: 0, outcome: 'success' })
+    )
+  })
   it('pins organization and private chat while reusing the canonical search index and citations', async () => {
     const orgContext = {
       ...context,

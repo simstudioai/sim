@@ -93,7 +93,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             const names = new Map(result.knowledgeBases.map((base) => [base.id, base.name]))
             const output = {
               success: true,
-              message: `${result.retrieval.status === 'partial' ? 'Partial search: a retrieval branch reached its deadline. These results cannot establish absence or completeness. ' : ''}Found ${result.results.length} passage previews. Read a document at its chunkIndex for more context. ${CITATION_INSTRUCTION}`,
+              message: `${result.retrieval.status === 'partial' ? 'Search coverage is incomplete. Continue with a more specific query or source filter; these results cannot establish absence or completeness. ' : ''}Found ${result.results.length} passage previews. Read a document at its chunkIndex for more context. ${CITATION_INSTRUCTION}`,
               data: {
                 query: safeQuery,
                 retrieval: result.retrieval,

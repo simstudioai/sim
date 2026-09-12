@@ -17,7 +17,11 @@ import {
   SearchDeadlineError,
   type SearchExecutor,
 } from '@/lib/knowledge/search/budget'
-import { measureSearchStage, recordSearchStageDuration } from '@/lib/knowledge/search/diagnostics'
+import {
+  annotateSearchDiagnostics,
+  measureSearchStage,
+  recordSearchStageDuration,
+} from '@/lib/knowledge/search/diagnostics'
 import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
@@ -27,7 +31,7 @@ import {
   uncompilableTagFilterError,
 } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import { embeddingDistance } from '@/lib/knowledge/vector-columns'
+import { embeddingCandidateDistance, embeddingDistance } from '@/lib/knowledge/vector-columns'
 
 const logger = createLogger('KnowledgeSearchQueries')
 
@@ -35,6 +39,14 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
 const HNSW_MAX_SCAN_TUPLES = '20000'
+/** Compact graphs can visit a wider frontier without retaining full vectors for each neighbor. */
+const BINARY_HNSW_MAX_SCAN_TUPLES = '100000'
+const BINARY_HNSW_EF_SEARCH = '200'
+const BINARY_HNSW_SCAN_MEM_MULTIPLIER = '4'
+/** Bounded cosine reranking pool, sized for recall under permission filtering and sign quantization. */
+const MIN_VECTOR_RERANK_CANDIDATES = 4000
+const MAX_VECTOR_RERANK_CANDIDATES = 8000
+const VECTOR_RERANK_OVERSAMPLING = 40
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -49,7 +61,8 @@ let hnswSettingsUnsupportedUntil = 0
  */
 async function withVectorScanSettings<T>(
   run: (executor: SearchExecutor) => Promise<T>,
-  budget?: SearchBudget
+  budget?: SearchBudget,
+  ranking: 'cosine' | 'binary' = 'cosine'
 ): Promise<T> {
   const untuned = () => runSearchQuery(budget, 'vector.ann', run)
   if (Date.now() < hnswSettingsUnsupportedUntil) return untuned()
@@ -62,7 +75,9 @@ async function withVectorScanSettings<T>(
       applyingSettings = true
       await measureSearchStage('vector.settings', () =>
         tx.execute(
-          sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
+          ranking === 'binary'
+            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${BINARY_HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${BINARY_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${BINARY_HNSW_SCAN_MEM_MULTIPLIER}, true)`
+            : sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
         )
       )
       applyingSettings = false
@@ -778,11 +793,12 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 }
 
 /**
- * Keep broad candidate visibility correlated with the vector scan. Flattening
+ * Keep broad candidate visibility correlated with the compact vector scan. Flattening
  * the document join can make PostgreSQL prefer sorting every vector (whose
  * TOAST reads it undercosts) before checking access. OFFSET 0 keeps that
- * visibility check inside the scan, before LIMIT. Only bounded identities join
- * back for source metadata; content still requires live authorization below.
+ * visibility check inside the scan, before LIMIT. Binary candidates are reranked
+ * by cosine distance before relevance filtering or live source authorization;
+ * full vectors and content are never loaded while traversing inaccessible neighbors.
  * Small scopes and underfilled approximate pages use exact ranking, so selective
  * permissions do not force a fruitless index walk or lose reachable matches.
  */
@@ -793,6 +809,12 @@ async function selectLiveVectorResults(
   filters: (SQL | undefined)[]
 ): Promise<SearchResult[]> {
   const conditions = [inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...filters]
+  const queryVector = params.queryVector!
+  const candidateDistance = embeddingCandidateDistance(queryVector.dimensions, queryVector.vector)
+  const candidateLimit = Math.min(
+    MAX_VECTOR_RERANK_CANDIDATES,
+    Math.max(MIN_VECTOR_RERANK_CANDIDATES, params.topK * VECTOR_RERANK_OVERSAMPLING)
+  )
   let useExactRanking = false
   const rows = await selectAuthorizedSearchResults({
     leg: 'vector',
@@ -815,6 +837,7 @@ async function selectLiveVectorResults(
       const exactPage = async (candidateIds?: string[]) => {
         const exactOffset = useExactRanking ? offset : 0
         useExactRanking = true
+        annotateSearchDiagnostics({ vectorRanking: 'exact' })
         const candidates = await runSearchQuery(params.budget, 'vector.exact', (executor) =>
           executor
             .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
@@ -850,35 +873,53 @@ async function selectLiveVectorResults(
         return exactPage(probe.map((candidate) => candidate.id))
       }
       if (useExactRanking) return exactPage()
-      const ann = async (executor: SearchExecutor) => {
-        const ranked = executor
-          .select({ id: embedding.id, distance: distance.as('distance') })
-          .from(embedding)
-          .where(
-            and(
-              ...conditions,
-              sql`EXISTS (
+      const identities = await withVectorScanSettings(
+        (executor) =>
+          executor
+            .select({ id: embedding.id })
+            .from(embedding)
+            .where(
+              and(
+                inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds),
+                sql`EXISTS (
             SELECT 1 FROM ${document}
             WHERE ${and(eq(document.id, embedding.documentId), ...visibility)}
             OFFSET 0
           )`
+              )
+            )
+            .orderBy(candidateDistance)
+            .limit(candidateLimit),
+        params.budget,
+        'binary'
+      )
+      annotateSearchDiagnostics({
+        vectorRanking: 'binary-rerank',
+        vectorCandidateCount: identities.length,
+      })
+      if (!identities.length) return exactPage()
+      const page = await runSearchQuery(params.budget, 'vector.rerank', (executor) =>
+        executor
+          .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
+          .from(embedding)
+          .innerJoin(document, eq(document.id, embedding.documentId))
+          .where(
+            and(
+              inArray(
+                embedding.id,
+                identities.map(({ id }) => id)
+              ),
+              ...conditions,
+              ...visibility
             )
           )
-          .orderBy(distance)
+          .orderBy(sql`(${distance}) + 0`, embedding.id)
           .limit(limit)
           .offset(offset)
-          .as('ranked_search_candidates')
-        return executor
-          .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: ranked.distance })
-          .from(ranked)
-          .innerJoin(embedding, eq(embedding.id, ranked.id))
-          .innerJoin(document, eq(document.id, embedding.documentId))
-          .orderBy(ranked.distance, ranked.id)
-      }
-      const page = await withVectorScanSettings(ann, params.budget)
+      )
       if (page.length < limit) return exactPage()
       return {
-        candidates: page.sort((a, b) => a.distance - b.distance),
+        candidates: page,
         nextOffset: offset + page.length,
       }
     },
@@ -893,8 +934,7 @@ async function selectLiveVectorResults(
         params.budget
       ),
   })
-  /** Relaxed HNSW scans can return adjacent pages out of distance order. */
-  return rows.sort((a, b) => a.distance - b.distance)
+  return rows
 }
 
 /**
@@ -1261,7 +1301,6 @@ export async function retrieveKnowledgeSearch(
     const timedOutLegs = Object.values(budgets)
       .filter((budget) => budget.timedOut)
       .map((budget) => budget.leg)
-    if (timedOutLegs.length && !rows.length) throw new SearchDeadlineError()
     return {
       rows: boostRecency ? applyRecencyBoost(rows) : rows,
       retrieval: { status: timedOutLegs.length ? 'partial' : 'complete', timedOutLegs },

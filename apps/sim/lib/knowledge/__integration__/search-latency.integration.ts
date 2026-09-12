@@ -83,7 +83,11 @@ const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
 const organizationChatId = generateId()
-const queryVector = Array.from({ length: dimensions }, (_, index) => (index === 0 ? 1 : 0))
+const queryVector = Array.from({ length: dimensions }, (_, index) =>
+  Math.sin((index + 1) * 12.9898)
+)
+const queryMagnitude = Math.hypot(...queryVector)
+for (let index = 0; index < queryVector.length; index++) queryVector[index] /= queryMagnitude
 const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
@@ -133,6 +137,7 @@ const explainSchema = z.array(z.object({ Plan: explainNodeSchema }).passthrough(
 
 function usesVectorIndex(node: ExplainNode): boolean {
   return (
+    node['Index Name'] === 'embedding_binary_hnsw_idx' ||
     node['Index Name'] === 'embedding_vector_hnsw_idx' ||
     (node.Plans?.some(usesVectorIndex) ?? false)
   )
@@ -237,14 +242,21 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
     const plan = await db.$client.begin(async (tx) => {
       await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
       await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 20000')
+      if (query.query.includes('binary_quantize')) {
+        await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 100000')
+        await tx.unsafe('SET LOCAL hnsw.ef_search = 200')
+        await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 4')
+      }
       return tx.unsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.query}`, query.parameters)
     })
     plans.push({
       kind: query.query.includes('keyword_rank')
         ? 'keyword'
-        : query.query.includes('order by')
+        : query.query.includes('binary_quantize')
           ? 'vector'
-          : 'probe',
+          : query.query.includes('order by')
+            ? 'rerank'
+            : 'probe',
       query: query.query,
       parameters: query.parameters,
       plan: explainSchema.parse(plan[0]['QUERY PLAN']),
@@ -378,8 +390,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
             CASE WHEN n % 8 = 0 THEN 'Orion deployment reference. ' ELSE 'Engineering operations reference. ' END ||
               (SELECT string_agg(md5(n::text || ':' || paragraph::text), ' ') FROM generate_series(1, 90) paragraph),
             3000, 750, 0, 3000,
-            l2_normalize(ARRAY(SELECT (CASE WHEN coordinate = n % 32 + 1 THEN 1 ELSE 0 END +
-              0.025 * sin(n::double precision * coordinate * 12.9898 + coordinate * 78.233))::real
+            l2_normalize(ARRAY(SELECT (sin(coordinate * (n % 32 + 1) * 12.9898) +
+              0.25 * sin(n::double precision * coordinate * 12.9898 + coordinate * 78.233))::real
               FROM generate_series(1, ${dimensions}) coordinate)::vector(1536))
           FROM generate_series(${first}::int, ${last}::int) n`)
           })
@@ -494,7 +506,13 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
           }
         )
         if (delayedLegs === 'both') {
-          expect(result).toMatchObject({ success: false, retryable: true })
+          expect(result).toMatchObject({
+            success: true,
+            data: {
+              retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+              results: [],
+            },
+          })
           return
         }
         expect(result).toMatchObject({
@@ -526,6 +544,18 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       const vectorPlans = plans.filter((plan) => plan.kind === 'vector')
       expect(vectorPlans).toHaveLength(1)
       expect(usesVectorIndex(vectorPlans[0].plan[0].Plan)).toBe(true)
+      expect(plans.some((plan) => plan.kind === 'rerank')).toBe(true)
+      const rerank = plans.find((plan) => plan.kind === 'rerank')!
+      const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
+      const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
+        ORDER BY (embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, id
+        LIMIT ${actual.length}`)
+      const expectedIds = new Set(expected.map(({ id }) => id))
+      const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
+      expect(recall).toBeGreaterThanOrEqual(0.95)
+      report[`recall.${iteration}`] = { neighbors: expected.length, recall }
+      saveReport()
     }
     expect(embeddingCalls - before).toBe(2)
   }, 180_000)
@@ -578,7 +608,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       expect(probe).toHaveLength(1)
       expect(probe[0].query).not.toContain('<=>')
       expect(probe[0].plan[0].Plan['Actual Rows']).toBe(12)
-      const vector = plans.filter((plan) => plan.kind === 'vector')
+      const vector = plans.filter((plan) => plan.kind === 'rerank')
       expect(vector).toHaveLength(1)
       expect(vector[0].query).toContain('"embedding"."id" in')
     } finally {
@@ -672,7 +702,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   }, 180_000)
   /** Opt in with local Sim and Go URLs; uses the real configured provider, billing adapter, and async resume protocol. */
   it.skipIf(!process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL)(
-    'answers through local Go Assistant with progressive reads and citations',
+    'recovers quietly from incomplete search through local Go Assistant, then reads and cites evidence',
     async () => {
       const assistantUrl = new URL(process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL!)
       const simUrl = new URL(process.env.KNOWLEDGE_SEARCH_SIM_URL!)
@@ -708,6 +738,18 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         bytes: number
       }> = []
       let answer = ''
+      let incompleteSearch = true
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (incompleteSearch) await tx.execute(sql`SELECT pg_sleep(9)`)
+          return run(tx)
+        }) as Promise<T>
+      })
       const started = performance.now()
       try {
         await db
@@ -808,9 +850,20 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
                 bytes: Buffer.byteLength(JSON.stringify(result)),
               })
               const { success } = z.object({ success: z.boolean() }).parse(result)
+              expect(success).toBe(true)
+              if (incompleteSearch) {
+                expect(call.toolName).toBe('search_workspace')
+                expect(result).toMatchObject({
+                  data: {
+                    retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+                    results: [],
+                  },
+                })
+              }
               return { callId, name: call.toolName, success, data: result }
             })
           )
+          incompleteSearch = false
           path = '/api/tools/resume'
           body = {
             checkpointId: checkpoint.checkpointId,
@@ -828,10 +881,12 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         expect(answer).toContain('SILVER COMET')
         expect(answer).toContain('K7M2-84')
         expect(answer).toContain('<source>')
+        expect(answer).not.toMatch(/timed?\s*out|timeout|internal retr(?:y|ies)/i)
         expect(calls.some((call) => call.name === 'read_document')).toBe(true)
-        expect(calls.some((call) => call.name === 'search_workspace')).toBe(true)
+        expect(calls.filter((call) => call.name === 'search_workspace').length).toBeGreaterThan(1)
         expect(calls.every((call) => call.bytes < 40000)).toBe(true)
       } finally {
+        delayed.mockRestore()
         await db.update(embedding).set(original).where(eq(embedding.id, chunkId))
       }
     },
