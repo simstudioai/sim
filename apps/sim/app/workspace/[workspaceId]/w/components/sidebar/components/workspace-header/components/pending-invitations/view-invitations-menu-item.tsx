@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
+import { DropdownMenuItem } from '@sim/emcn'
 import { Mail } from '@sim/emcn/icons'
 import { useMyPendingInvitations } from '@/hooks/queries/invitations'
 
@@ -22,8 +22,9 @@ export function ViewInvitationsMenuItem({ onOpen }: ViewInvitationsMenuItemProps
   }
 
   return (
-    <Chip leftIcon={Mail} onClick={onOpen} fullWidth className='select-none'>
+    <DropdownMenuItem size='lg' onSelect={onOpen}>
+      <Mail className='size-[14px]' />
       View invitations
-    </Chip>
+    </DropdownMenuItem>
   )
 }

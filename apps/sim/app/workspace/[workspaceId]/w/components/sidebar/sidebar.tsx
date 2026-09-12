@@ -23,6 +23,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import {
+  Building,
   Database,
   Files,
   Integration,
@@ -39,6 +40,7 @@ import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
+import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -48,12 +50,16 @@ import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
+import { getWorkspaceOrganizationHref } from '@/lib/workspaces/organization-navigation'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+import {
+  allNavigationItems,
+  type SettingsSection,
+} from '@/app/workspace/[workspaceId]/settings/navigation'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   ChatNavigationLink,
@@ -124,6 +130,7 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useContextMenu } from '@/hooks/use-context-menu'
@@ -375,7 +382,9 @@ export const Sidebar = memo(function Sidebar() {
 
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
-  const { workspace: routeWorkspace } = useWorkspaceHostContext()
+  const { data: profile } = useUserProfile()
+  const hostContext = useWorkspaceHostContext()
+  const { workspace: routeWorkspace } = hostContext
   const { hosted, chatEnabled } = useDeploymentShape()
   const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
   const {
@@ -823,6 +832,30 @@ export const Sidebar = memo(function Sidebar() {
       setSidebarWidth(SIDEBAR_WIDTH.MIN)
     }
     navigateToSettings({ section })
+  }
+
+  const profileNavigationLinks = allNavigationItems
+    .filter(
+      ({ id }) =>
+        id === 'teammates' ||
+        id === 'recently-deleted' ||
+        (id === 'billing' && canViewWorkspaceBillingSettings(hostContext, profile?.id))
+    )
+    .map(({ id, label, icon }) => ({
+      label,
+      icon,
+      href: getSettingsHref({ section: id }),
+      onNavigate: () => handleOpenSettings(id),
+    }))
+
+  const organizationHref = getWorkspaceOrganizationHref(hostContext)
+  if (organizationHref) {
+    profileNavigationLinks.push({
+      label: 'Organization',
+      icon: Building,
+      href: organizationHref,
+      onNavigate: () => router.push(organizationHref),
+    })
   }
 
   const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
@@ -1764,12 +1797,12 @@ export const Sidebar = memo(function Sidebar() {
                 ) : null}
 
                 <SidebarFooter
-                  workspaceId={workspaceId}
                   showDivider={scrollEdges.bottom}
                   isCollapsed={isCollapsed}
                   showCollapsedTooltips={showCollapsedTooltips}
-                  getSettingsHref={(section) => getSettingsHref({ section })}
-                  onOpenSettings={handleOpenSettings}
+                  accountSettingsHref={getSettingsHref({ section: 'general' })}
+                  onOpenAccountSettings={() => handleOpenSettings('general')}
+                  navigationLinks={profileNavigationLinks}
                   onOpenDocs={handleOpenDocs}
                   onJoinSlack={handleOpenSlackCommunity}
                   onContactSupport={handleOpenHelpFromMenu}
