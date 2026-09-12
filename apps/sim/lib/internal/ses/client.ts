@@ -22,6 +22,7 @@ import {
   UpdateEmailTemplateCommand,
 } from '@aws-sdk/client-sesv2'
 import { z } from 'zod'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import type { SESConnectionConfig } from '@/tools/ses/types'
 
 const SesBulkEmailDestinationSchema = z.object({
@@ -33,6 +34,7 @@ type SesBulkEmailDestination = z.infer<typeof SesBulkEmailDestinationSchema>
 
 export function createSESClient(config: SESConnectionConfig): SESv2Client {
   return new SESv2Client({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

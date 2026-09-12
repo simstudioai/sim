@@ -263,13 +263,16 @@ async function executeCode(request, executionId) {
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
           return
         }
-        sendIpcRequest({ type: 'fetch', fetchId, requestId, url, optionsJson }, (err) => {
-          const pending = pendingFetches.get(fetchId)
-          if (!pending) return
-          clearTimeout(pending.timeout)
-          pendingFetches.delete(fetchId)
-          pending.resolve(JSON.stringify({ error: `Fetch IPC send failed: ${err.message}` }))
-        })
+        sendIpcRequest(
+          { type: 'fetch', fetchId, executionId, requestId, url, optionsJson },
+          (err) => {
+            const pending = pendingFetches.get(fetchId)
+            if (!pending) return
+            clearTimeout(pending.timeout)
+            pendingFetches.delete(fetchId)
+            pending.resolve(JSON.stringify({ error: `Fetch IPC send failed: ${err.message}` }))
+          }
+        )
       })
     })
     await jail.set('__fetchRef', fetchCallback)

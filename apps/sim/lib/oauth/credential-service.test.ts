@@ -3,7 +3,7 @@
  */
 import { generateKeyPairSync, verify } from 'node:crypto'
 import { account, credential } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, inputValidationMock, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -51,8 +51,7 @@ vi.mock('@/lib/oauth/microsoft', () => ({
   PROACTIVE_REFRESH_THRESHOLD_DAYS: 7,
 }))
 
-vi.mock('@/lib/oauth/oauth', () => ({
-  OAUTH_PROVIDERS: {},
+vi.mock('@/lib/oauth/refresh-token.server', () => ({
   refreshOAuthToken: mocks.refreshOAuthToken,
 }))
 
@@ -82,6 +81,8 @@ import {
   resolveCredentialTokenBundle,
 } from '@/lib/oauth/credential-service'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'

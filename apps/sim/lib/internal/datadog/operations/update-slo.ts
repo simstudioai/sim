@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { UpdateSloParams } from '@/tools/datadog/types'
 import {
@@ -8,13 +9,15 @@ import {
   mergeSloUpdatePayload,
 } from '@/tools/datadog/utils'
 
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
+
 export const executeUpdateSloOperation: InternalToolOperationImplementation<
   UpdateSloParams
 > = async (params, signal) => {
   const url = datadogApiUrl(params.site, `/api/v1/slo/${datadogPathSegment(params.sloId)}`)
   const headers = datadogHeaders(params)
 
-  const existingResponse = await fetch(url, { method: 'GET', headers, signal })
+  const existingResponse = await providerFetch(url, { method: 'GET', headers, signal })
   if (!existingResponse.ok) {
     return {
       success: false,
@@ -33,7 +36,7 @@ export const executeUpdateSloOperation: InternalToolOperationImplementation<
     }
   }
 
-  const response = await fetch(url, {
+  const response = await providerFetch(url, {
     method: 'PUT',
     headers,
     body: JSON.stringify(mergeSloUpdatePayload(stored, params)),

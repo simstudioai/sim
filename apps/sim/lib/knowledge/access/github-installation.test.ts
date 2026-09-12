@@ -1,5 +1,11 @@
 /** @vitest-environment node */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  inputValidationMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   GITHUB_READ_CONCURRENCY,
@@ -9,6 +15,11 @@ import {
   resolveGitHubInstallationReadGrants,
 } from '@/lib/knowledge/access/github-installation'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const mocks = vi.hoisted(() => ({
   token: vi.fn(),
@@ -94,8 +105,9 @@ describe('live GitHub installation reader access', () => {
     for (const [, init] of mocks.fetch.mock.calls)
       expect(init).toMatchObject({
         headers: { Authorization: 'Bearer ghu_alice' },
-        cache: 'no-store',
-        redirect: 'error',
+        profile: 'configuredEndpoint',
+        maxRedirects: 0,
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
       })
   })
 

@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { hasToolId } from '@/tools/tool-ids'
 import { isAzureDevOpsEventMatch } from '@/triggers/azure_devops/utils'

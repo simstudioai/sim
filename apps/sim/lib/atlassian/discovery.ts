@@ -1,6 +1,7 @@
 import { sha256Hex } from '@sim/security/hash'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { LRUCache } from 'lru-cache'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import {
   type HTTPError,
   isRetryableError,
@@ -158,7 +159,9 @@ export function fetchAtlassianDiscoveryJson<T>(
 ): Promise<T> {
   return retryWithExponentialBackoff(
     async () => {
-      const response = await fetch(url, {
+      const response = await secureFetchWithValidation(url, {
+        profile: 'configuredEndpoint',
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
         method: 'GET',
         headers,
         signal: AbortSignal.timeout(DISCOVERY_REQUEST_TIMEOUT_MS),

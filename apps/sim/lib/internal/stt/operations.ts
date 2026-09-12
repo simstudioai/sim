@@ -5,7 +5,10 @@ import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -27,6 +30,8 @@ import {
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TranscriptSegment } from '@/tools/stt/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('SttOperations')
 const ELEVENLABS_STT_MODEL = 'scribe_v2'
@@ -495,7 +500,7 @@ async function transcribeWithWhisper(
   }
 
   const endpoint = translate ? 'translations' : 'transcriptions'
-  const response = await fetch(`https://api.openai.com/v1/audio/${endpoint}`, {
+  const response = await providerFetch(`https://api.openai.com/v1/audio/${endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -565,15 +570,21 @@ async function transcribeWithDeepgram(
     params.append('diarize', 'true')
   }
 
-  const response = await fetch(`https://api.deepgram.com/v1/listen?${params.toString()}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${apiKey}`,
-      'Content-Type': mimeType || 'audio/mpeg',
-    },
-    body: new Uint8Array(audioBuffer),
-    signal,
-  })
+  const response = await secureFetchWithValidation(
+    `https://api.deepgram.com/v1/listen?${params.toString()}`,
+    {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      method: 'POST',
+      headers: {
+        Authorization: `Token ${apiKey}`,
+        'Content-Type': mimeType || 'audio/mpeg',
+      },
+      body: new Uint8Array(audioBuffer),
+      signal,
+    }
+  )
 
   if (!response.ok) {
     const error = (await response.json()) as DeepgramApiResponse
@@ -648,7 +659,7 @@ async function transcribeWithElevenLabs(
     formData.append('timestamps_granularity', 'word')
   }
 
-  const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+  const response = await providerFetch('https://api.elevenlabs.io/v1/speech-to-text', {
     method: 'POST',
     headers: {
       'xi-api-key': apiKey,
@@ -708,7 +719,10 @@ async function transcribeWithAssemblyAI(
   entities?: Record<string, unknown>[]
   summary?: string
 }> {
-  const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
+  const uploadResponse = await secureFetchWithValidation('https://api.assemblyai.com/v2/upload', {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     method: 'POST',
     headers: {
       authorization: apiKey,
@@ -767,15 +781,21 @@ async function transcribeWithAssemblyAI(
     transcriptRequest.summary_type = 'bullets'
   }
 
-  const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
-    method: 'POST',
-    headers: {
-      authorization: apiKey,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(transcriptRequest),
-    signal,
-  })
+  const transcriptResponse = await secureFetchWithValidation(
+    'https://api.assemblyai.com/v2/transcript',
+    {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      method: 'POST',
+      headers: {
+        authorization: apiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(transcriptRequest),
+      signal,
+    }
+  )
 
   if (!transcriptResponse.ok) {
     const error = (await transcriptResponse.json()) as AssemblyAiApiResponse
@@ -791,12 +811,18 @@ async function transcribeWithAssemblyAI(
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
 
   while (attempts < maxAttempts) {
-    const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
-      headers: {
-        authorization: apiKey,
-      },
-      signal,
-    })
+    const statusResponse = await secureFetchWithValidation(
+      `https://api.assemblyai.com/v2/transcript/${id}`,
+      {
+        profile: 'configuredEndpoint',
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+        maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+        headers: {
+          authorization: apiKey,
+        },
+        signal,
+      }
+    )
 
     if (!statusResponse.ok) {
       const error = (await statusResponse.json()) as AssemblyAiApiResponse
@@ -905,9 +931,12 @@ async function transcribeWithGemini(
     ],
   }
 
-  const response = await fetch(
+  const response = await secureFetchWithValidation(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
     {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

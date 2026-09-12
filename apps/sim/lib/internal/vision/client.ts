@@ -1,8 +1,10 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { requireDirectOutboundTransport } from '@/lib/core/network/context.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
+  createSsrfGuardedFetchWithDispatcher,
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
 } from '@/lib/core/security/input-validation.server'
@@ -14,6 +16,8 @@ import {
 import { VisionOperationError } from '@/lib/internal/vision/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { convertUsageMetadata, extractTextContent } from '@/providers/google/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('VisionClient')
 const MAX_PROVIDER_ERROR_BYTES = 64 * 1024
@@ -121,6 +125,7 @@ async function analyzeWithGemini(
   signal?.throwIfAborted()
   const base64Payload = await fetchGeminiImage(input, signal)
   const { mediaType, base64Data } = parseDataImage(base64Payload)
+  await requireDirectOutboundTransport()
   const ai = new GoogleGenAI({ apiKey: input.apiKey })
   const response = await ai.models.generateContent({
     model: input.model,
@@ -197,7 +202,7 @@ async function analyzeWithHttpProvider(
   }
 
   signal?.throwIfAborted()
-  const response = await fetch(apiUrl, {
+  const response = await providerFetch(apiUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(isClaude ? anthropicRequest(input) : openAiRequest(input)),

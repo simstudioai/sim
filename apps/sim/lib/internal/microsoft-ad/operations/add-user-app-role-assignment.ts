@@ -1,4 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import {
   mapAppRoleAssignment,
@@ -16,9 +20,12 @@ export const executeAddUserAppRoleAssignmentOperation: InternalToolOperationImpl
   const { userId, resourceId, appRoleId } = readIdentifiers(params)
   const principalId = await resolveGraphUserObjectId(userId, params.accessToken, signal)
 
-  const response = await fetch(
+  const response = await secureFetchWithValidation(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/appRoleAssignments`,
     {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
       method: 'POST',
       headers: {
         Authorization: `Bearer ${params.accessToken}`,

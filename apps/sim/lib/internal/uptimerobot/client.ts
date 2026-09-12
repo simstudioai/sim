@@ -1,9 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { UptimeRobotOperationError } from '@/lib/internal/uptimerobot/errors'
 import { mapPsp, UPTIMEROBOT_API_BASE, type UptimeRobotPsp } from '@/tools/uptimerobot/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('UptimeRobotClient')
 
@@ -24,7 +29,7 @@ export async function requestUptimeRobotPsp(args: {
 }): Promise<UptimeRobotPsp> {
   const { apiKey, method, path, form, signal } = args
   signal?.throwIfAborted()
-  const response = await fetch(`${UPTIMEROBOT_API_BASE}${path}`, {
+  const response = await providerFetch(`${UPTIMEROBOT_API_BASE}${path}`, {
     method,
     headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
     body: form,

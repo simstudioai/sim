@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
@@ -6,6 +7,10 @@ import {
   type GoogleCalendarQuickAddResponse,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GoogleCalendarQuickAddTool')
 
@@ -110,7 +115,7 @@ export const quickAddTool: ToolConfig<
 
           const updateUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
-          const updateResponse = await fetch(updateUrl, {
+          const updateResponse = await providerFetch(updateUrl, {
             method: 'PATCH',
             headers: {
               Authorization: `Bearer ${params.accessToken}`,
@@ -239,7 +244,7 @@ export const quickAddV2Tool: ToolConfig<
 
           const updateUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
-          const updateResponse = await fetch(updateUrl, {
+          const updateResponse = await providerFetch(updateUrl, {
             method: 'PATCH',
             headers: {
               Authorization: `Bearer ${params.accessToken}`,

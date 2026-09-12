@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import type { FirefliesUploadAudioInput } from '@/lib/internal/fireflies/schema'
@@ -96,7 +97,10 @@ export async function executeFirefliesUploadAudio(
     if (body.clientReferenceId) input.client_reference_id = body.clientReferenceId
     if (body.attendees !== undefined) input.attendees = body.attendees
 
-    const response = await fetch(FIREFLIES_API_URL, {
+    const response = await secureFetchWithValidation(FIREFLIES_API_URL, {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_FIREFLIES_RESPONSE_BYTES,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

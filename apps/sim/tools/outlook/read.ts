@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -12,6 +13,10 @@ import type {
 } from '@/tools/outlook/types'
 import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 interface OutlookDownloadAttachmentMetadata {
   '@odata.type'?: string
@@ -31,7 +36,7 @@ export async function downloadAttachments(
   const path = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`
   try {
     budget.signal?.throwIfAborted()
-    const response = await fetch(`${path}?$select=id,name,contentType,size`, {
+    const response = await providerFetch(`${path}?$select=id,name,contentType,size`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -50,7 +55,7 @@ export async function downloadAttachments(
       try {
         if (attachment.size !== undefined) budget.assertSize(attachment.size, 'Outlook attachments')
         budget.signal?.throwIfAborted()
-        const content = await fetch(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
+        const content = await providerFetch(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           signal: budget.signal,
         })

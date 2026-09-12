@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { enrowHosting } from '@/tools/enrow/hosting'
 import type {
   EnrowFindEmailParams,
@@ -11,6 +12,10 @@ import {
   ENROW_QUALIFICATION_OUTPUT,
 } from '@/tools/enrow/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const POLL_INTERVAL_MS = 3000
 const MAX_POLL_TIME_MS = 120_000
@@ -142,7 +147,7 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
       await sleep(POLL_INTERVAL_MS)
       elapsed += POLL_INTERVAL_MS
 
-      const pollResponse = await fetch(
+      const pollResponse = await providerFetch(
         `https://api.enrow.io/email/find/single?id=${encodeURIComponent(jobId)}`,
         {
           headers: {

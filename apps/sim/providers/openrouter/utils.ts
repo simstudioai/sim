@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
@@ -24,7 +25,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>> {
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/models', {
+    const response = await secureFetchWithValidation('https://openrouter.ai/api/v1/models', {
+      profile: 'configuredEndpoint',
+      maxRedirects: 20,
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
       headers: { 'Content-Type': 'application/json' },
     })
 
@@ -36,10 +40,10 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
       return new Map()
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { data?: OpenRouterModelData[] }
     const capabilities = new Map<string, ModelCapabilities>()
 
-    for (const model of (data.data ?? []) as OpenRouterModelData[]) {
+    for (const model of data.data ?? []) {
       const supportedParams = model.supported_parameters ?? []
       capabilities.set(model.id, {
         supportsStructuredOutputs: supportedParams.includes('structured_outputs'),

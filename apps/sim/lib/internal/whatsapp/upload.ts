@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readWhatsAppGraphResponse } from '@/lib/internal/whatsapp/client'
 import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
@@ -10,6 +11,8 @@ import {
   extractWhatsAppErrorMessage,
   whatsappMediaLimitFor,
 } from '@/tools/whatsapp/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('WhatsAppMediaUpload')
 
@@ -93,7 +96,7 @@ export async function uploadWhatsAppMedia({
     userFile.name
   )
 
-  const response = await fetch(buildMediaUploadUrl(phoneNumberId), {
+  const response = await providerFetch(buildMediaUploadUrl(phoneNumberId), {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken.trim()}` },
     body: formData,

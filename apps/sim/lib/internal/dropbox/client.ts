@@ -1,3 +1,4 @@
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -35,21 +36,27 @@ export class DropboxClient {
     }
   ): Promise<Record<string, unknown>> {
     this.signal?.throwIfAborted()
-    const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': httpHeaderSafeJson({
-          path,
-          mode: options.mode || 'add',
-          autorename: options.autorename ?? false,
-          mute: options.mute ?? false,
-        }),
-      },
-      body: new Uint8Array(buffer),
-      signal: this.signal,
-    })
+    const response = await secureFetchWithValidation(
+      'https://content.dropboxapi.com/2/files/upload',
+      {
+        profile: 'configuredEndpoint',
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+        maxResponseBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/octet-stream',
+          'Dropbox-API-Arg': httpHeaderSafeJson({
+            path,
+            mode: options.mode || 'add',
+            autorename: options.autorename ?? false,
+            mute: options.mute ?? false,
+          }),
+        },
+        body: new Uint8Array(buffer),
+        signal: this.signal,
+      }
+    )
     const data = await readResponseJsonWithLimit<Record<string, unknown> & DropboxErrorBody>(
       response,
       {

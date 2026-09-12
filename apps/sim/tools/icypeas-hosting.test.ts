@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { icypeasFindEmailTool } from '@/tools/icypeas/find_email'
 import { ICYPEAS_CREDIT_USD } from '@/tools/icypeas/hosting'

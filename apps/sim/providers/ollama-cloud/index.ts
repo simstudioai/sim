@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeOllamaProviderRequest } from '@/providers/ollama/core'
 import { createReadableStreamFromOllamaCloudStream } from '@/providers/ollama-cloud/utils'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('OllamaCloudProvider')
 
@@ -37,6 +40,9 @@ export const ollamaCloudProvider: ProviderConfig = {
         providerLabel: 'Ollama Cloud',
         createClient: () =>
           new OpenAI({
+            fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+              profile: 'configuredEndpoint',
+            })).fetch,
             ...openAICompatTransport(),
             apiKey,
             baseURL: OLLAMA_CLOUD_BASE_URL,

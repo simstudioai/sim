@@ -1,8 +1,13 @@
 import { selectAtlassianCloudId } from '@/lib/atlassian/discovery'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
   id: 'jira_bulk_read',
@@ -60,7 +65,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       const refTrimmed = (ref || '').trim()
       if (!refTrimmed) return refTrimmed
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${encodeURIComponent(refTrimmed)}`
-      const resp = await fetch(url, {
+      const resp = await providerFetch(url, {
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       })
@@ -95,7 +100,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       if (nextPageToken) queryParams.set('nextPageToken', nextPageToken)
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${queryParams.toString()}`
-      const pageResponse = await fetch(url, {
+      const pageResponse = await providerFetch(url, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${params!.accessToken}`,

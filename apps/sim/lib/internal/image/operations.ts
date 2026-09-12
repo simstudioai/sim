@@ -5,6 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
@@ -438,15 +439,21 @@ async function generateWithOpenAI(
     requestBody.moderation = pickAllowed(body.moderation, OPENAI_MODERATION_LEVELS, 'auto')
   }
 
-  const openaiResponse = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-    signal,
-  })
+  const openaiResponse = await secureFetchWithValidation(
+    'https://api.openai.com/v1/images/generations',
+    {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal,
+    }
+  )
 
   if (!openaiResponse.ok) {
     const error = await readResponseTextWithLimit(openaiResponse, {
@@ -533,9 +540,16 @@ async function generateWithGemini(
     ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
   }
 
-  const geminiResponse = await fetch(
+  const geminiResponse = await secureFetchWithValidation(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
+      profile: 'configuredEndpoint',
+      redirectPolicy: {
+        mode: 'standard',
+        sendCredentialsOnCrossOriginRedirect: false,
+        sensitiveHeaders: ['x-goog-api-key'],
+      },
+      maxResponseBytes: MAX_IMAGE_JSON_BYTES,
       method: 'POST',
       headers: {
         'x-goog-api-key': apiKey,
@@ -706,15 +720,21 @@ async function generateWithFalAI(
     requestBody.thinking_level = pickAllowed(body.thinkingLevel, ['minimal', 'high'], 'minimal')
   }
 
-  const createResponse = await fetch(`https://queue.fal.run/${modelConfig.endpoint}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Key ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-    signal,
-  })
+  const createResponse = await secureFetchWithValidation(
+    `https://queue.fal.run/${modelConfig.endpoint}`,
+    {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+      method: 'POST',
+      headers: {
+        Authorization: `Key ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal,
+    }
+  )
 
   if (!createResponse.ok) {
     const error = await readResponseTextWithLimit(createResponse, {

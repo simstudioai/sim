@@ -1,4 +1,8 @@
 /** @vitest-environment node */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }))

@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeCbinsightsChatOperation } from '@/lib/internal/cbinsights/operations/chat'
 import { executeCbinsightsGetCommercialMaturityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-commercial-maturity-history'

@@ -1,4 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import { mapZoneSetting, zoneSettingUrl } from '@/tools/cloudflare/get_zone_settings'
 import type {
@@ -31,7 +35,10 @@ export const executeGetZoneSettingsOperation: InternalToolOperationImplementatio
   const reads = await Promise.all(
     settingIds.map(async (settingId) => {
       try {
-        const response = await fetch(zoneSettingUrl(zoneId, settingId), {
+        const response = await secureFetchWithValidation(zoneSettingUrl(zoneId, settingId), {
+          profile: 'configuredEndpoint',
+          redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+          maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
           method: 'GET',
           headers,
           signal,

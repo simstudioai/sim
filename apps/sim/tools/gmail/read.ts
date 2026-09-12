@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -17,6 +18,10 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GmailReadTool')
 
@@ -157,7 +162,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
         try {
           // Get the first message details
           const messageId = data.messages[0].id
-          const messageResponse = await fetch(
+          const messageResponse = await providerFetch(
             `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}?format=full`,
             {
               headers: {
@@ -204,7 +209,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
           const messages: GmailMessage[] = []
           for (const msg of data.messages.slice(0, maxResults)) {
             context?.signal?.throwIfAborted()
-            const messageResponse = await fetch(
+            const messageResponse = await providerFetch(
               `${GMAIL_API_BASE}/messages/${encodeURIComponent(msg.id)}?format=full`,
               {
                 headers: { Authorization: `Bearer ${params?.accessToken || ''}` },

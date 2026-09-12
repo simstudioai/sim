@@ -30,10 +30,12 @@ import {
   GetLatestConfigurationCommand,
   StartConfigurationSessionCommand,
 } from '@aws-sdk/client-appconfigdata'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import type { AppConfigConnectionConfig } from '@/tools/appconfig/types'
 
 export function createAppConfigClient(config: AppConfigConnectionConfig): AppConfigClient {
   return new AppConfigClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -44,6 +46,7 @@ export function createAppConfigClient(config: AppConfigConnectionConfig): AppCon
 
 export function createAppConfigDataClient(config: AppConfigConnectionConfig): AppConfigDataClient {
   return new AppConfigDataClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

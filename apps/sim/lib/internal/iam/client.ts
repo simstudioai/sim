@@ -38,10 +38,12 @@ import {
   SimulatePrincipalPolicyCommand,
   UpdateAccessKeyCommand,
 } from '@aws-sdk/client-iam'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import type { IAMConnectionConfig, IAMSimulateContextEntry } from '@/tools/iam/types'
 
 export function createIAMClient(config: IAMConnectionConfig): IAMClient {
   return new IAMClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -316,9 +318,7 @@ export async function createAccessKey(
   userName?: string | null,
   signal?: AbortSignal
 ) {
-  const command = new CreateAccessKeyCommand({
-    ...(userName ? { UserName: userName } : {}),
-  })
+  const command = new CreateAccessKeyCommand(userName ? { UserName: userName } : {})
 
   const response = await client.send(command, { abortSignal: signal })
   const key = response.AccessKey

@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/update-slo'
 import * as datadogTools from '@/tools/datadog'

@@ -22,7 +22,10 @@ const {
   mockResolveInternalFileUrl: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
   extractStorageKey: vi.fn(() => 'storage-key'),
   isInternalFileUrl: mockIsInternalFileUrl,

@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   attachRetryHeaders,
   isRetryableError,
@@ -10,6 +11,10 @@ import {
   type ConnectorSourceFailureCategory,
 } from '@/connectors/source-error'
 import { readBodyWithLimit } from '@/connectors/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const GOOGLE_ERROR_BODY_MAX_BYTES = 64 * 1024
 const GOOGLE_ERROR_REASON_MAX_COUNT = 16
@@ -202,7 +207,7 @@ export async function fetchGoogleDriveWithRetry(
 ): Promise<Response> {
   return retryWithExponentialBackoff(
     async () => {
-      const response = await fetch(url, options)
+      const response = await providerFetch(url, options)
       if (response.ok) return response
 
       const error = await readGoogleDriveApiError(response)

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { DaytonaOperationError } from '@/lib/internal/daytona/errors'
 import { isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
@@ -9,6 +10,8 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { DaytonaUploadFileParams, DaytonaUploadFileResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl } from '@/tools/daytona/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('DaytonaOperations')
 const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024
@@ -96,7 +99,7 @@ export async function uploadDaytonaFile(
     new Blob([new Uint8Array(fileBuffer)], { type: 'application/octet-stream' }),
     fileName
   )
-  const response = await fetch(
+  const response = await providerFetch(
     daytonaToolboxUrl(
       input.sandboxId,
       `/files/upload-v2?path=${encodeURIComponent(destinationPath)}`

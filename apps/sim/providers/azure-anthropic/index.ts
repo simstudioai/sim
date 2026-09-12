@@ -1,12 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  createPinnedFetch,
+  createSsrfGuardedFetchWithDispatcher,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('AzureAnthropicProvider')
 
@@ -77,9 +83,13 @@ export const azureAnthropicProvider: ProviderConfig = {
           cacheKey,
           () =>
             new Anthropic({
+              fetch:
+                pinnedFetch ??
+                (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+                  profile: 'configuredEndpoint',
+                })).fetch,
               baseURL,
               apiKey,
-              ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
               defaultHeaders: {
                 'anthropic-version': anthropicVersion,
               },

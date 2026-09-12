@@ -302,7 +302,7 @@ A proxy body limit of 250 MB accommodates all three defaults. If you lower the a
 
 ## Outbound connectivity
 
-The shared HTTP transport honors `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` on both Bun and Node. This covers guarded HTTP requests, pinned model-provider clients, and webhook providers using Sim's fetch adapter. It does not configure a global dispatcher or route non-HTTP protocols.
+The shared HTTP transport honors `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` on both Bun and Node. This covers guarded HTTP requests, model-provider clients using Sim's fetch adapter, and AWS clients using Sim's shared request handler. It does not configure a global dispatcher or route non-HTTP protocols.
 
 Use an `http://` or `https://` proxy URL. For proxy authentication, both the username and password must be nonempty; partial credentials are refused. Lowercase variables take precedence over uppercase ones. `HTTP_PROXY` also applies to HTTPS when `HTTPS_PROXY` is unset. `NO_PROXY` matches the original destination hostname, with optional ports; it accepts exact names, domain suffixes, and `*`, but not CIDR ranges.
 
@@ -313,14 +313,14 @@ An environment proxy is trusted deployment configuration, so its own address can
 | Outbound path | Honors `HTTP_PROXY` / `HTTPS_PROXY` |
 |---|---|
 | Shared guarded HTTP transport: tools, connectors, outbound webhooks, content fetches, MCP HTTP connections, and model-provider clients using Sim's fetch adapter | Yes, on Bun and Node, subject to the CONNECT requirements above |
-| Amazon Bedrock and AWS integration clients | No, these clients use their own AWS SDK transport |
+| Amazon Bedrock and AWS integration clients using Sim's shared request handler | Yes, on Bun and Node |
 | Object storage on Azure Blob and GCS; Azure Communication Services email | Yes, through the SDK's own proxy support |
 | Native `fetch` paths and SDKs that use it, including Resend email, the desktop update feed, and the `/api/telemetry` relay | Yes on Bun; Node requires [`NODE_USE_ENV_PROXY=1`](https://nodejs.org/api/cli.html#node_use_env_proxy1) (Node 22.21+ / 24.0+) |
 | Application object storage on S3; application email via Amazon SES | No, these clients use their own AWS SDK transport |
 | Email via SMTP, Postgres, and Redis | No, these use raw TCP |
 | OTLP export from the server SDK | No |
 
-An explicit HTTP-block `proxyUrl` takes precedence over environment proxy settings.
+An assigned organization gateway takes precedence over environment proxy settings. An explicit HTTP-block `proxyUrl` takes precedence over environment settings on direct routes, and is refused when organization policy requires a gateway.
 
 <Callout type="info">
   Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over HTTP, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference.

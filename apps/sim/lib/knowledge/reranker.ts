@@ -10,6 +10,7 @@ import {
   recordProviderCooldown,
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -25,6 +26,8 @@ import {
   projectKnowledgeModelInputs,
 } from '@/lib/knowledge/model-input-provenance'
 import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('Reranker')
 
@@ -159,7 +162,9 @@ export async function rerank<T extends RerankItem>(
         maxWaitMs: Math.max(0, deadlineAt - Date.now()),
       })
       attempt += 1
-      const res = await fetch('https://api.cohere.com/v2/rerank', {
+      const res = await (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+        profile: 'configuredEndpoint',
+      })).fetch('https://api.cohere.com/v2/rerank', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,

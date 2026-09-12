@@ -4,7 +4,12 @@ import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
-import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  createPinnedFetch,
+  createSsrfGuardedFetchWithDispatcher,
+  secureFetchWithValidation,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -36,6 +41,8 @@ import {
 } from '@/providers/utils'
 import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('VLLMProvider')
 const VLLM_VERSION = '1.0.0'
@@ -70,7 +77,12 @@ export const vllmProvider: ProviderConfig = {
         headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
       }
 
-      const response = await fetch(`${apiBaseUrl}/models`, { headers })
+      const response = await secureFetchWithValidation(`${apiBaseUrl}/models`, {
+        profile: 'selfHostedService',
+        maxRedirects: 20,
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+        headers,
+      })
       if (!response.ok) {
         await response.text().catch(() => {})
         useProvidersStore.getState().setProviderModels('vllm', [])
@@ -148,10 +160,14 @@ export const vllmProvider: ProviderConfig = {
       `vllm::${apiKey}::${apiBaseUrl}::${pinnedIP ?? 'no-pin'}`,
       () =>
         new OpenAI({
+          fetch:
+            pinnedFetch ??
+            (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+              profile: 'selfHostedService',
+            })).fetch,
           ...openAICompatTransport(),
           apiKey,
           baseURL: apiBaseUrl,
-          ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
         })
     )
 

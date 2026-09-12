@@ -8,6 +8,7 @@ import {
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -230,11 +231,13 @@ export function defineAuthorizedKnowledgeUseCase<
         context: resolved.context,
         request,
       }
-      const result = await definition.execute(executionContext)
-      const resultContext = { ...executionContext, result }
-      recordOrganizationAudit(resultContext, resolved.context.organizationId)
-      await definition.afterSuccess?.(resultContext)
-      return result
+      return runWithOutboundOrganization(resolved.context.organizationId, async () => {
+        const result = await definition.execute(executionContext)
+        const resultContext = { ...executionContext, result }
+        recordOrganizationAudit(resultContext, resolved.context.organizationId)
+        await definition.afterSuccess?.(resultContext)
+        return result
+      })
     },
   }
 }

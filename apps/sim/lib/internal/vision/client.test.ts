@@ -14,7 +14,11 @@ vi.mock('@google/genai', () => ({
     models = { generateContent: mocks.generateContent }
   },
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
   MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
   secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
 }))

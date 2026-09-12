@@ -1,7 +1,12 @@
 import { isRecordLike } from '@sim/utils/object'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { CrowdStrikeBaseParams, CrowdStrikeCloud } from '@/tools/crowdstrike/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export type JsonRecord = Record<string, unknown>
 
@@ -192,7 +197,7 @@ export async function getAccessToken(
 ): Promise<string> {
   signal?.throwIfAborted()
   const baseUrl = getCloudBaseUrl(params.cloud)
-  const response = await fetch(`${baseUrl}/oauth2/token`, {
+  const response = await providerFetch(`${baseUrl}/oauth2/token`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -271,7 +276,7 @@ export async function callCrowdStrike(
     headers['Content-Type'] = 'application/json'
   }
 
-  const response = await fetch(buildUrl(baseUrl, options), {
+  const response = await providerFetch(buildUrl(baseUrl, options), {
     method: options.method,
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),

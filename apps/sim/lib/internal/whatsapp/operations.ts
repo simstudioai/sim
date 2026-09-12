@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
+  createSsrfGuardedFetchWithDispatcher,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -34,6 +35,8 @@ import {
   extractWhatsAppErrorMessage,
   WHATSAPP_MEDIA_MAX_BYTES,
 } from '@/tools/whatsapp/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('WhatsAppOperations')
 const DOWNLOAD_USER_AGENT = 'SimWhatsAppMedia/1.0'
@@ -149,7 +152,7 @@ export async function executeWhatsAppSendMedia(
       caption: input.caption ?? undefined,
       filename,
     })
-    const response = await fetch(buildMessagesUrl(input.phoneNumberId), {
+    const response = await providerFetch(buildMessagesUrl(input.phoneNumberId), {
       method: 'POST',
       headers: buildAuthHeaders(input.accessToken),
       body: JSON.stringify(messageBody),
@@ -183,10 +186,13 @@ export async function executeWhatsAppGetMedia(
   context.signal?.throwIfAborted()
   const authorization = `Bearer ${input.accessToken.trim()}`
   try {
-    const metadataResponse = await fetch(buildMediaUrl(input.mediaId, input.phoneNumberId), {
-      headers: { Authorization: authorization },
-      signal: context.signal,
-    })
+    const metadataResponse = await providerFetch(
+      buildMediaUrl(input.mediaId, input.phoneNumberId),
+      {
+        headers: { Authorization: authorization },
+        signal: context.signal,
+      }
+    )
     const metadataBody = await readWhatsAppGraphResponse(
       metadataResponse,
       `WhatsApp media ${input.mediaId} metadata`,

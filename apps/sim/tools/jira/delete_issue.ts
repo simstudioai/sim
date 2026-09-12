@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraDeleteIssueParams, JiraDeleteIssueResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIssueResponse> = {
   id: 'jira_delete_issue',
@@ -71,7 +76,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       const deleteSubtasksParam = params!.deleteSubtasks ? '?deleteSubtasks=true' : ''
       const deleteUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}${deleteSubtasksParam}`
-      const deleteResponse = await fetch(deleteUrl, {
+      const deleteResponse = await providerFetch(deleteUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',

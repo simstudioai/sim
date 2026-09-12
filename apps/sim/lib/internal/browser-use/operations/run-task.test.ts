@@ -2,6 +2,14 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 import { executeRunTaskOperation } from '@/lib/internal/browser-use/operations/run-task'
 
 const mockFetch = vi.fn<typeof fetch>()

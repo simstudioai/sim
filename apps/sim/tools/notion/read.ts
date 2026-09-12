@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   id: 'notion_read',
@@ -72,7 +77,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     }
 
     // Fetch page content using blocks endpoint
-    const blocksResponse = await fetch(
+    const blocksResponse = await providerFetch(
       `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
       {
         method: 'GET',
@@ -206,7 +211,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const blocksResponse = await fetch(
+    const blocksResponse = await providerFetch(
       `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
       {
         method: 'GET',

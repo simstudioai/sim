@@ -12,6 +12,7 @@ import {
   UntagResourceCommand,
   UpdateSecretCommand,
 } from '@aws-sdk/client-secrets-manager'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 
 interface SecretsManagerConnectionConfig {
   region: string
@@ -32,6 +33,7 @@ export function createSecretsManagerClient(
   config: SecretsManagerConnectionConfig
 ): SecretsManagerClient {
   return new SecretsManagerClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

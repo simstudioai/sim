@@ -1,5 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Discrete validation failure codes returned to the client for token
@@ -98,7 +103,10 @@ export async function fetchProvider(
   options?: FetchProviderOptions
 ): Promise<Response> {
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS) })
+    return await providerFetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
+    })
   } catch (error) {
     const causeCode = (error as { cause?: { code?: unknown } })?.cause?.code
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient

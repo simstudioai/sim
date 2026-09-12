@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
 import {
@@ -14,6 +15,11 @@ import { getToolIds } from '@/tools/tool-ids'
 
 vi.unmock('@/tools/metadata')
 vi.unmock('@/tools/tool-ids')
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const CLOUD_ID = '12345678-1234-1234-1234-123456789012'
 const OTHER_CLOUD_ID = '12345678-1234-1234-1234-123456789013'

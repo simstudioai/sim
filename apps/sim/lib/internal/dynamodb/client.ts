@@ -8,10 +8,12 @@ import {
   ScanCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import type { DynamoDBConnectionConfig, DynamoDBTableSchema } from '@/tools/dynamodb/types'
 
 export function createDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDBDocumentClient {
   const client = new DynamoDBClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -222,6 +224,7 @@ export async function deleteItem(
  */
 export function createRawDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDBClient {
   return new DynamoDBClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

@@ -1,0 +1,24 @@
+---
+title: Security
+description: Manage organization session policies and view configured outbound IP addresses
+---
+
+Organization owners and admins open **Settings → Security** to manage session policies and view outbound IP addresses. [Single sign-on](/platform/enterprise/sso) remains a separate settings page for identity providers, verified domains, and provisioning.
+
+## Session policies
+
+Set **Max session lifetime** and **Idle timeout** in hours, then select **Save**. Leave either field empty to use its default behavior. **Discard** restores your saved values.
+
+**Sign out all members** opens a confirmation before revoking the organization's browser sessions, except your current session. It does not revoke API keys.
+
+See [Session policies](/platform/enterprise/session-policies) for limits, defaults, and how changes affect existing sessions.
+
+## Outbound IP addresses
+
+Copy your organization's configured addresses in `/32` format and allowlist **every listed address** on the destination firewall. These addresses apply to supported HTTPS connections from Sim and its background workers.
+
+Contact Sim support or your deployment administrator to configure dedicated IPs and confirm connection coverage.
+
+## Availability
+
+On Sim Cloud, Security settings require an Enterprise organization and an owner or admin role. On self-hosted deployments, the outbound IP section is available to organization administrators; session controls appear only when session policies are enabled. See [self-hosted enterprise configuration](/platform/enterprise/self-hosted).

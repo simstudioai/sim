@@ -5,10 +5,12 @@ import {
   RDSDataClient,
   type SqlParameter,
 } from '@aws-sdk/client-rds-data'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import type { RdsConnectionConfig } from '@/tools/rds/types'
 
 export function createRdsClient(config: RdsConnectionConfig): RDSDataClient {
   return new RDSDataClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

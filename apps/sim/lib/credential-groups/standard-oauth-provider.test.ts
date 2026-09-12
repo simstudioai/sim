@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
+
 import { createHash } from 'node:crypto'
+import { inputValidationMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
@@ -80,6 +82,8 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
 }))
 
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const adapter = createStandardOAuthCredentialGroupProviderAdapter('google-calendar')
 const jiraAdapter = createStandardOAuthCredentialGroupProviderAdapter('jira')

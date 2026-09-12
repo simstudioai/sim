@@ -1,6 +1,9 @@
 /** @vitest-environment node */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateAtlassianServiceAccount } from '@/lib/credentials/atlassian-service-account'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const fetchMock = vi.fn<typeof fetch>()
 

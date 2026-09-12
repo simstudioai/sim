@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -19,7 +22,10 @@ export async function requestQuiverSvg(
   signal?: AbortSignal
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const response = await fetch(`${QUIVER_API_BASE_URL}/${path}`, {
+  const response = await secureFetchWithValidation(`${QUIVER_API_BASE_URL}/${path}`, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   assertKnownSizeWithinLimit,
   readResponseJsonWithLimit,
@@ -20,6 +21,10 @@ import type {
   OpenAiTtsParams,
   PlayHtTtsParams,
 } from '@/tools/tts/types'
+
+const fetchProviderRequest = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+}).fetch
 
 const logger = createLogger('TtsClient')
 export const MAX_TTS_AUDIO_BYTES = 25 * 1024 * 1024
@@ -51,14 +56,14 @@ async function providerFetch(
   timeoutMs?: number
 ): Promise<Response> {
   signal?.throwIfAborted()
-  if (!timeoutMs) return fetch(input, { ...init, signal })
+  if (!timeoutMs) return fetchProviderRequest(input, { ...init, signal })
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error('TTS request timed out')), timeoutMs)
   const abort = () => controller.abort(signal?.reason ?? new Error('Request aborted'))
   signal?.addEventListener('abort', abort, { once: true })
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await fetchProviderRequest(input, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
     signal?.removeEventListener('abort', abort)

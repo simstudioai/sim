@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import {
   getFileExtension,
@@ -16,6 +17,8 @@ import {
   readGraphError,
   readGraphJson,
 } from '@/tools/instagram/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 /** Covers Meta's poll-once-per-minute for ≤5 minutes while the container processes. */
 export const INSTAGRAM_MEDIA_URL_TTL_SECONDS = 600
@@ -290,7 +293,7 @@ export async function resolveIgUserId(
 ): Promise<string> {
   if (igUserId?.trim()) return igUserId.trim()
 
-  const response = await fetch(graphUrl('/me', { fields: 'user_id' }), {
+  const response = await providerFetch(graphUrl('/me', { fields: 'user_id' }), {
     headers: bearerHeaders(accessToken),
     signal,
   })
@@ -315,10 +318,13 @@ async function getContainerStatus(
   containerId: string,
   signal?: AbortSignal
 ): Promise<{ statusCode: ContainerStatusCode | null; status: string | null }> {
-  const response = await fetch(graphUrl(`/${containerId}`, { fields: 'status_code,status' }), {
-    headers: bearerHeaders(accessToken),
-    signal,
-  })
+  const response = await providerFetch(
+    graphUrl(`/${containerId}`, { fields: 'status_code,status' }),
+    {
+      headers: bearerHeaders(accessToken),
+      signal,
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to get container status: ${await readGraphError(response)}`)
   }
@@ -392,7 +398,7 @@ async function postGraphForm(
     if (value !== undefined && value !== null) form.set(key, String(value))
   }
 
-  return fetch(graphUrl(path), {
+  return providerFetch(graphUrl(path), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

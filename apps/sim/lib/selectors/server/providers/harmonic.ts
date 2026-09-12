@@ -1,5 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
@@ -11,6 +12,10 @@ import {
   listSelectorResult,
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 type HarmonicSelectorKey = Extract<ServerSelectorKey, 'harmonic.savedSearches'>
 
@@ -105,7 +110,7 @@ async function listSavedSearches(
 
   let response: Response
   try {
-    response = await fetch(HARMONIC_URL, {
+    response = await providerFetch(HARMONIC_URL, {
       headers: { Accept: 'application/json', apikey: accessToken },
       redirect: 'error',
       signal,

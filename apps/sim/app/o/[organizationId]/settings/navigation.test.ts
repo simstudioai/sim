@@ -73,6 +73,8 @@ describe('organization settings navigation', () => {
     )
     expect(resolveOrganizationSettingsSection('subscription')).toBe('billing')
     expect(resolveOrganizationSettingsSection('domains')).toBe('sso')
+    expect(resolveOrganizationSettingsSection('sessions')).toBe('security')
+    expect(resolveOrganizationSettingsSection('/o/one/settings/network')).toBeNull()
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
     expect(buildOrganizationNavItems('org', true).map(({ id }) => id)).toEqual([
       'home',
@@ -92,7 +94,7 @@ describe('organization settings navigation', () => {
       'governance:audit-logs',
       'governance:access-control',
       'governance:sso',
-      'governance:sessions',
+      'governance:security',
       'governance:data-retention',
       'governance:data-drains',
       'sim-search:integrations',

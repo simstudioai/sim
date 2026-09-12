@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type {
   GraphApiResponse,
   SharepointPageContent,
@@ -15,6 +16,10 @@ import {
   optionalTrim,
 } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('SharePointReadPage')
 
@@ -215,7 +220,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         siteId,
       })
 
-      const contentResponse = await fetch(contentUrl, {
+      const contentResponse = await providerFetch(contentUrl, {
         headers: {
           Authorization: `Bearer ${params?.accessToken}`,
           Accept: 'application/json',
@@ -268,7 +273,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${encodeURIComponent(pageInfo.id)}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       try {
-        const contentResponse = await fetch(contentUrl, {
+        const contentResponse = await providerFetch(contentUrl, {
           headers: {
             Authorization: `Bearer ${params?.accessToken}`,
             Accept: 'application/json',

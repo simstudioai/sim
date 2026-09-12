@@ -5,6 +5,15 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
 
+const outbound = vi.hoisted(() => ({ enabled: false, workspace: vi.fn() }))
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => outbound.enabled,
+  resolveOutboundRoute: async (organizationId: string | null | undefined) => ({ organizationId }),
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: outbound.workspace,
+}))
+
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   get: vi.fn(),
@@ -101,6 +110,10 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import {
   CredentialGroupCredentialCursorNotFoundError,
   loadScopedAccountsCredentialListContext,
@@ -304,14 +317,26 @@ describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    outbound.enabled = false
+    outbound.workspace.mockReset()
     dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
   })
 
   it.each([undefined, 'organization'])(
     'loads the account container within the canonical owner %s',
     async (organizationId) => {
-      const result = await arrange({ organizationId, contentFresh: true, noDueMembers: true })()
+      outbound.enabled = true
+      outbound.workspace.mockResolvedValue({ workspaceOrganizationId: 'current-org' })
+      const run = arrange({ organizationId })
+      let tokenRoute: unknown
+      mocks.token.mockImplementationOnce(async () => {
+        tokenRoute = await resolveCurrentOutboundRoute()
+        return { accessToken: 'service-token', cloudId: 'site' }
+      })
+      const result = await runWithOutboundOrganization('queued-org', run)
       expect(result.error).toBeUndefined()
+      expect(tokenRoute).toEqual({ organizationId: organizationId ?? 'current-org' })
+      expect(outbound.workspace).toHaveBeenCalledTimes(organizationId ? 0 : 1)
       expect(loadScopedAccountsCredentialListContext).toHaveBeenCalledWith(
         organizationId
           ? { kind: 'organization', organizationId }
@@ -320,6 +345,16 @@ describe('member engine with a dedicated content credential', () => {
       )
     }
   )
+
+  it('refuses an archived workspace before claiming a member sync or contacting its provider', async () => {
+    outbound.enabled = true
+    outbound.workspace.mockResolvedValue(null)
+    const run = arrange()
+    await expect(run()).rejects.toMatchObject({ code: 'MISSING_SCOPE' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mocks.token).not.toHaveBeenCalled()
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
 
   it('invalidates authorization freshness and cursors before reusing a changed provider identity', async () => {
     const run = arrange({ changedIdentity: true, contentFresh: true, noDueMembers: true })

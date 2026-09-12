@@ -1,8 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { AgentParams, AgentResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('FirecrawlAgentTool')
 
@@ -119,7 +124,7 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
+        const statusResponse = await providerFetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${params.apiKey}`,

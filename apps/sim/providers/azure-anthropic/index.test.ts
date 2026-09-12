@@ -10,6 +10,8 @@ const {
   anthropicArgs,
   mockValidate,
   mockCreatePinnedFetch,
+  guardedFetchFn,
+  mockCreateGuardedFetch,
   mockExecuteAnthropic,
   sentinelFetch,
 } = vi.hoisted(() => {
@@ -20,7 +22,10 @@ const {
       anthropicArgs.push(opts)
     }
   }
+  const guardedFetchFn = vi.fn()
   return {
+    guardedFetchFn,
+    mockCreateGuardedFetch: vi.fn(() => ({ fetch: guardedFetchFn })),
     mockAnthropic: MockAnthropic,
     anthropicArgs,
     mockValidate: vi.fn(),
@@ -32,6 +37,7 @@ const {
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mockAnthropic }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
+  createSsrfGuardedFetchWithDispatcher: mockCreateGuardedFetch,
   validateUrlWithDNS: mockValidate,
   createPinnedFetch: mockCreatePinnedFetch,
 }))
@@ -95,7 +101,8 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
 
     expect(mockValidate).not.toHaveBeenCalled()
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-    expect(buildClientOptions()).not.toHaveProperty('fetch')
+    expect(buildClientOptions().fetch).toBe(guardedFetchFn)
+    expect(mockCreateGuardedFetch).toHaveBeenCalledWith({ profile: 'configuredEndpoint' })
   })
 
   it('keeps the registry model in core and resolves a separate Azure wire model', async () => {

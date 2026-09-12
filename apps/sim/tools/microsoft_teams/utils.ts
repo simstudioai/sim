@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -6,6 +7,10 @@ import {
 } from '@/lib/uploads/utils/attachment-download-budget'
 import type { MicrosoftTeamsAttachment } from '@/tools/microsoft_teams/types'
 import type { ToolFileData } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('MicrosoftTeamsUtils')
 
@@ -78,7 +83,7 @@ async function fetchHostedContents(
   const results: ToolFileData[] = []
   try {
     budget.signal?.throwIfAborted()
-    const response = await fetch(path, {
+    const response = await providerFetch(path, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -95,7 +100,7 @@ async function fetchHostedContents(
     for (const item of data.value ?? []) {
       if (!item.id) continue
       budget.signal?.throwIfAborted()
-      const content = await fetch(`${path}/${encodeURIComponent(item.id)}/$value`, {
+      const content = await providerFetch(`${path}/${encodeURIComponent(item.id)}/$value`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         signal: budget.signal,
       })
@@ -156,7 +161,7 @@ async function downloadReferenceAttachment(
     budget.signal?.throwIfAborted()
     const shareId = `u!${Buffer.from(attachment.contentUrl).toString('base64url')}`
     const path = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`
-    const metadataResponse = await fetch(`${path}?$select=name,size,file`, {
+    const metadataResponse = await providerFetch(`${path}?$select=name,size,file`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -171,7 +176,7 @@ async function downloadReferenceAttachment(
       file?: { mimeType?: string }
     }>(metadataResponse, 'Teams attachment metadata', budget.signal)
     if (item.size !== undefined) budget.assertSize(item.size, 'Teams attachments')
-    const content = await fetch(`${path}/content`, {
+    const content = await providerFetch(`${path}/content`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -229,7 +234,7 @@ function parseMentions(content: string): ParsedMention[] {
 }
 
 async function fetchChatMembers(chatId: string, accessToken: string): Promise<TeamMember[]> {
-  const response = await fetch(
+  const response = await providerFetch(
     `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/members`,
     {
       headers: {
@@ -256,7 +261,7 @@ async function fetchChannelMembers(
   channelId: string,
   accessToken: string
 ): Promise<TeamMember[]> {
-  const response = await fetch(
+  const response = await providerFetch(
     `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/members`,
     {
       headers: {

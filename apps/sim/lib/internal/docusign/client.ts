@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -6,6 +7,8 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { DocuSignOperationError } from '@/lib/internal/docusign/errors'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+
+const contentFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'contentFetch' }).fetch
 
 const MAX_DOCUSIGN_JSON_BYTES = 2 * 1024 * 1024
 export const MAX_DOCUSIGN_DOCUMENT_BYTES = 25 * 1024 * 1024
@@ -35,7 +38,7 @@ async function fetchDocusign(
   const abort = () => controller.abort(parentSignal?.reason ?? new Error('Request aborted'))
   parentSignal?.addEventListener('abort', abort, { once: true })
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await contentFetch(input, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
     parentSignal?.removeEventListener('abort', abort)

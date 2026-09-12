@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
@@ -15,6 +16,11 @@ import {
 } from '@/providers/file-attachments.server'
 import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest } from '@/providers/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const {
   mockDownloadServableFileFromStorage,

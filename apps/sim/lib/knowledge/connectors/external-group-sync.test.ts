@@ -5,6 +5,19 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorDirectory } from '@/connectors/types'
 
+const outbound = vi.hoisted(() => ({ enabled: false, workspace: vi.fn() }))
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => outbound.enabled,
+  resolveOutboundRoute: async (organizationId: string | null | undefined) => ({ organizationId }),
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: outbound.workspace,
+}))
+beforeEach(() => {
+  outbound.enabled = false
+  outbound.workspace.mockReset()
+})
+
 const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
   vi.hoisted(() => ({
     mockResolveTokenUserId: vi.fn(),
@@ -33,6 +46,10 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import {
   refreshConnectorDirectory,
   refreshMirroredDirectory,
@@ -193,10 +210,23 @@ describe('refreshConnectorDirectory', () => {
    * knowledge base owner, who is routinely a different member.
    */
   it('resolves the token as the credential owner for an OAuth credential', async () => {
+    outbound.enabled = true
+    outbound.workspace.mockResolvedValue({ workspaceOrganizationId: 'current-org' })
     queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
     mockResolveTokenUserId.mockResolvedValue('credential-owner')
+    let tokenRoute: unknown
+    mockResolveToken.mockImplementationOnce(async () => {
+      tokenRoute = await resolveCurrentOutboundRoute()
+      return { accessToken: 'token', cloudId: 'cloud-1' }
+    })
 
-    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
+    await expect(
+      runWithOutboundOrganization('queued-org', () =>
+        refreshConnectorDirectory('connector-1', 'req-1')
+      )
+    ).resolves.toBe('skipped')
+    expect(tokenRoute).toEqual({ organizationId: 'current-org' })
+    expect(outbound.workspace).toHaveBeenCalledExactlyOnceWith('ws-1')
     expect(mockResolveToken).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'credential-owner', accessMode: 'admin' })
     )
@@ -220,6 +250,17 @@ describe('refreshConnectorDirectory', () => {
       { adminEmail: 'admin@corp.com' },
       { cloudId: 'cloud-1' }
     )
+    expect(outbound.workspace).not.toHaveBeenCalled()
+  })
+
+  it('skips a missing connector before resolving credentials or using inherited scope', async () => {
+    outbound.enabled = true
+    await expect(
+      runWithOutboundOrganization('queued-org', () => refreshConnectorDirectory('missing', 'req-1'))
+    ).resolves.toBe('skipped')
+    expect(outbound.workspace).not.toHaveBeenCalled()
+    expect(mockResolveToken).not.toHaveBeenCalled()
+    expect(mockOpenDirectory).not.toHaveBeenCalled()
   })
 
   it('reports a connector whose credential no longer resolves rather than failing', async () => {

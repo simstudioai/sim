@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -20,6 +21,8 @@ import type {
 } from '@/tools/enrow/types'
 import { enrowVerifyEmailTool } from '@/tools/enrow/verify_email'
 import type { ToolResponse } from '@/tools/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const JOB_ID = 'job-123'
 

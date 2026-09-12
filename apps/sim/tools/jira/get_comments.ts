@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraGetCommentsParams, JiraGetCommentsResponse } from '@/tools/jira/types'
 import { COMMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Transforms a raw Jira comment object into typed output.
@@ -104,7 +109,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
       const maxResults = params?.maxResults ?? 50
       const orderBy = params?.orderBy ?? '-created'
       const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
-      const commentsResponse = await fetch(commentsUrl, {
+      const commentsResponse = await providerFetch(commentsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

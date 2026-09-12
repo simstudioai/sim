@@ -1,11 +1,14 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import { gmailReadTool, gmailReadV2Tool } from '@/tools/gmail/read'
 import { downloadAttachments } from '@/tools/gmail/utils'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const fetchMock = vi.fn<typeof fetch>()
 const attachment = {

@@ -1,7 +1,10 @@
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import { resolveAssetsContext } from '@/tools/jsm/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export interface JsmConnectionConfig {
   domain: string
@@ -74,7 +77,7 @@ export class JsmClient {
 
   async fetch(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(path, {
+    return providerFetch(path, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

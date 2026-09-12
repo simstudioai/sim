@@ -1,9 +1,15 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { PDFDocument } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const {
   mockDownloadFileFromUrl,

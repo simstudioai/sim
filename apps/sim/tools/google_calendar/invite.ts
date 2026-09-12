@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   CALENDAR_API_BASE,
   type CalendarAttendee,
@@ -7,6 +8,10 @@ import {
 } from '@/tools/google_calendar/types'
 import { normalizeAttendees } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 interface InviteResult {
   data: GoogleCalendarApiEventResponse
@@ -74,7 +79,7 @@ async function inviteAttendees(
   queryParams.append('sendUpdates', params?.sendUpdates ?? 'all')
   const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId?.trim() ?? '')}?${queryParams.toString()}`
 
-  const putResponse = await fetch(putUrl, {
+  const putResponse = await providerFetch(putUrl, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${params?.accessToken}`,

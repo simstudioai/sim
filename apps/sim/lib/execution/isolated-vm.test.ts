@@ -143,6 +143,7 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
       setImmediate(() => {
         proc.emit('message', {
           type: 'fetch',
+          executionId: currentExecutionId,
           fetchId: 1,
           requestId: msg.request?.requestId ?? 'fetch-test',
           url: fetchMessage.url,

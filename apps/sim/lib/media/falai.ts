@@ -4,6 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
@@ -85,7 +86,10 @@ export async function runFalQueue(
   input: Record<string, unknown>,
   apiKey: string
 ): Promise<FalQueueResult> {
-  const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
+  const createResponse = await secureFetchWithValidation(`https://queue.fal.run/${endpoint}`, {
+    profile: 'configuredEndpoint',
+    maxRedirects: 20,
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
     method: 'POST',
     headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -116,7 +120,12 @@ export async function runFalQueue(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(POLL_INTERVAL_MS)
 
-    const statusResponse = await fetch(statusUrl, { headers: { Authorization: `Key ${apiKey}` } })
+    const statusResponse = await secureFetchWithValidation(statusUrl, {
+      profile: 'contentFetch',
+      maxRedirects: 20,
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      headers: { Authorization: `Key ${apiKey}` },
+    })
     if (!statusResponse.ok) {
       const body = await readResponseTextWithLimit(statusResponse, {
         maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -138,9 +147,15 @@ export async function runFalQueue(
       if (statusData.error) {
         throw new Error(`Fal.ai generation failed: ${falErrorMessage(statusData.error)}`)
       }
-      const resultResponse = await fetch(getStringProp(statusData, 'response_url') || responseUrl, {
-        headers: { Authorization: `Key ${apiKey}` },
-      })
+      const resultResponse = await secureFetchWithValidation(
+        getStringProp(statusData, 'response_url') || responseUrl,
+        {
+          profile: 'contentFetch',
+          maxRedirects: 20,
+          redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+          headers: { Authorization: `Key ${apiKey}` },
+        }
+      )
       if (!resultResponse.ok) {
         const body = await readResponseTextWithLimit(resultResponse, {
           maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,

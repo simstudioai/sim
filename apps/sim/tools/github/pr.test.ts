@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { listPRsV2Tool } from '@/tools/github/list_prs'
 import { prTool, prV2Tool } from '@/tools/github/pr'
@@ -9,6 +10,8 @@ import type {
   PROperationParams,
   PRV2OperationParams,
 } from '@/tools/github/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 type HasIncludeFiles<T> = 'includeFiles' extends keyof T ? true : false
 

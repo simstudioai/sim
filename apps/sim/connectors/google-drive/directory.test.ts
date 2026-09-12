@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listDomainGroups, openGoogleDirectory } from '@/connectors/google-drive/directory'
 

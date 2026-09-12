@@ -63,6 +63,7 @@ import type { AwsSsmPutParameterBody } from '@/lib/api/contracts/tools/aws/ssm-p
 import type { AwsSsmSendCommandBody } from '@/lib/api/contracts/tools/aws/ssm-send-command'
 import type { AwsSsmStartAutomationExecutionBody } from '@/lib/api/contracts/tools/aws/ssm-start-automation-execution'
 import type { AwsSsmStopAutomationExecutionBody } from '@/lib/api/contracts/tools/aws/ssm-stop-automation-execution'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 
 interface SsmConnectionConfig {
   region: string
@@ -72,6 +73,7 @@ interface SsmConnectionConfig {
 
 export function createSsmClient(config: SsmConnectionConfig): SSMClient {
   return new SSMClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

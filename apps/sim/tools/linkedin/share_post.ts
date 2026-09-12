@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type {
   LinkedInProfileOutput,
   ProfileIdExtractor,
@@ -7,6 +8,10 @@ import type {
   SharePostResponse,
 } from '@/tools/linkedin/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('LinkedInSharePost')
 
@@ -104,7 +109,7 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
         },
       }
 
-      const response = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+      const response = await providerFetch('https://api.linkedin.com/v2/ugcPosts', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${params.accessToken}`,

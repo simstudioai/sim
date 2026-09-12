@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { deepResearchTool } from '@/tools/parallel/deep_research'

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
@@ -15,6 +16,8 @@ vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function detailArgs(id: string): ExecuteServerSelectorArgs {
   return {

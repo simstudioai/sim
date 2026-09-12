@@ -14,6 +14,10 @@ import {
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import {
@@ -34,6 +38,18 @@ function resetDbChainMock() {
 }
 
 vi.mock('drizzle-orm', () => drizzleOrmMock)
+const outbound = vi.hoisted(() => ({ enabled: false, workspace: vi.fn() }))
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => outbound.enabled,
+  resolveOutboundRoute: async (organizationId: string | null | undefined) => ({ organizationId }),
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: outbound.workspace,
+}))
+beforeEach(() => {
+  outbound.enabled = false
+  outbound.workspace.mockReset()
+})
 const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
   mockProcessDocumentsWithQueue: vi.fn(),
   mockUploadFile: vi.fn(),
@@ -2700,6 +2716,55 @@ describe('executeSync heartbeats during the listing phase', () => {
     // which is what makes the heartbeat below report a lost lock.
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1', accessMode: 'workspace' }])
   }
+
+  it.each([false, true])(
+    'resolves provider credentials with routing enabled=%s',
+    async (enabled) => {
+      outbound.enabled = enabled
+      outbound.workspace.mockResolvedValue({ workspaceOrganizationId: 'current-org' })
+      primeSyncUpToListing()
+      dbChainMockFns.returning.mockReset().mockResolvedValueOnce([CONNECTOR])
+      let tokenRoute: unknown
+      const resolveToken = vi
+        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
+        .mockImplementationOnce(async () => {
+          tokenRoute = await resolveCurrentOutboundRoute()
+          throw new Error('Stop after scoped token resolution')
+        })
+      try {
+        await runWithOutboundOrganization('queued-org', () =>
+          executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
+        )
+        expect(tokenRoute).toEqual({ organizationId: enabled ? 'current-org' : 'queued-org' })
+        expect(outbound.workspace).toHaveBeenCalledTimes(enabled ? 1 : 0)
+        if (enabled) expect(outbound.workspace).toHaveBeenCalledWith('ws-1')
+      } finally {
+        resolveToken.mockRestore()
+      }
+    }
+  )
+
+  it('refuses an archived workspace before claiming the connector or resolving tokens', async () => {
+    outbound.enabled = true
+    outbound.workspace.mockResolvedValue(null)
+    primeSyncUpToListing()
+    await expect(
+      executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
+    ).rejects.toMatchObject({ code: 'MISSING_SCOPE' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockListDocuments).not.toHaveBeenCalled()
+  })
+
+  it('skips a missing connector without consuming inherited outbound scope or taking a lock', async () => {
+    outbound.enabled = true
+    const result = await runWithOutboundOrganization('queued-org', () =>
+      executeSync('missing', { billingAttribution: { workspaceId: 'ws-1' } as never })
+    )
+    expect(result.skipReason).toBe('connector_unavailable')
+    expect(outbound.workspace).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockListDocuments).not.toHaveBeenCalled()
+  })
 
   it.each(['workspace', 'admin'] as const)(
     'uses the locked source mode %s when resolving its token',

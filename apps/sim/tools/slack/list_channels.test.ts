@@ -1,6 +1,13 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertAssistantIntegrationCall,

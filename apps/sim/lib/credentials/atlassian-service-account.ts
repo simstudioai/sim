@@ -1,5 +1,10 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Discrete validation failure codes returned to the client. The UI maps each
@@ -94,7 +99,7 @@ export async function validateAtlassianServiceAccount(
 }> {
   assertAtlassianCloudHost(domain)
 
-  const tenantInfoRes = await fetch(`https://${domain}/_edge/tenant_info`, {
+  const tenantInfoRes = await providerFetch(`https://${domain}/_edge/tenant_info`, {
     headers: { Accept: 'application/json' },
   })
   if (tenantInfoRes.status === 404) {
@@ -112,7 +117,7 @@ export async function validateAtlassianServiceAccount(
   const cloudId = tenantInfo.cloudId
 
   const identityPath = product === 'confluence' ? 'wiki/rest/api/user/current' : 'rest/api/3/myself'
-  const myselfRes = await fetch(
+  const myselfRes = await providerFetch(
     `https://api.atlassian.com/ex/${product}/${cloudId}/${identityPath}`,
     {
       headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },

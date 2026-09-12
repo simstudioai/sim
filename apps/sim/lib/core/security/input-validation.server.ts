@@ -17,6 +17,7 @@ import {
   errors,
   type RequestInit as UndiciRequestInit,
 } from 'undici/index.js'
+import { requireDirectOutboundTransport } from '@/lib/core/network/context.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   createOutboundTransport,
@@ -158,6 +159,7 @@ export async function validateDatabaseHost(
   paramName = 'host',
   options: { logDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
+  await requireDirectOutboundTransport()
   if (!host) {
     return { isValid: false, error: `${paramName} is required` }
   }

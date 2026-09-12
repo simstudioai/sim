@@ -10,6 +10,13 @@
  * These tests assert the seeded default reaching each tool for operations whose
  * control is deliberately not last, so re-introducing a collision goes red.
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeGetZoneSettingsOperation } from '@/lib/internal/cloudflare/operations/get-zone-settings'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'

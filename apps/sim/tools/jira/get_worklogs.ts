@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraGetWorklogsParams, JiraGetWorklogsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT, WORKLOG_ITEM_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Transforms a raw Jira worklog object into typed output.
@@ -95,7 +100,7 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
       const startAt = params?.startAt ?? 0
       const maxResults = params?.maxResults ?? 50
       const worklogsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/worklog?startAt=${startAt}&maxResults=${maxResults}`
-      const worklogsResponse = await fetch(worklogsUrl, {
+      const worklogsResponse = await providerFetch(worklogsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

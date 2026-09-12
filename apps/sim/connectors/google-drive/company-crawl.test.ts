@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateGoogleCompanyConfig } from '@/connectors/google-drive/company-crawl'
 import { googleDriveConnector as drive } from '@/connectors/google-drive/google-drive'

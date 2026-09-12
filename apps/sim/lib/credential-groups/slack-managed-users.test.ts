@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  inputValidationMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { attempts, redis } = vi.hoisted(() => {
@@ -69,6 +75,8 @@ import {
   verifySlackCustomBotAppIdentity,
   verifySlackUserIdentity,
 } from '@/lib/credential-groups/slack-managed-users'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function slackResponse(value: Record<string, unknown>): Response {
   return new Response(JSON.stringify(value), {

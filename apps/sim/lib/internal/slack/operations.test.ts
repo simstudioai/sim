@@ -19,9 +19,16 @@ vi.mock('@/lib/internal/slack/file-input', () => ({
   forEachSlackAttachmentFile: mocks.resolveFiles,
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
   secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  secureFetchWithValidation: mocks.secureFetchWithValidation,
+  secureFetchWithValidation: (url: string, options: RequestInit, paramName?: string) =>
+    url.startsWith('https://slack.com/api/')
+      ? fetch(url, options)
+      : mocks.secureFetchWithValidation(url, options, paramName),
   validateUrlWithDNS: mocks.validateUrlWithDNS,
 }))
 

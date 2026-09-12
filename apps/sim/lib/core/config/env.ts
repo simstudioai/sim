@@ -107,6 +107,10 @@ export const env = createEnv({
   skipValidation: true,
 
   server: {
+    OUTBOUND_ROUTING_SOURCE: z.enum(['env', 'appconfig']).optional(),
+    OUTBOUND_ROUTING_CONFIG: z.string().optional(),
+    OUTBOUND_GATEWAYS: z.string().optional(),
+    OUTBOUND_GATEWAY_CREDENTIALS: z.string().optional(),
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
     DATABASE_REPLICA_URL:                  z.string().url().optional(),            // Read-replica connection string; opt-in reads fall back to the primary when unset

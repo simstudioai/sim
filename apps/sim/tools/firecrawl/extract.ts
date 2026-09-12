@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlScrapeOptionsModelInput,
@@ -8,6 +9,10 @@ import {
 } from '@/tools/firecrawl/model-input'
 import type { ExtractParams, ExtractResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('FirecrawlExtractTool')
 
@@ -168,13 +173,16 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/extract/${jobId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        })
+        const statusResponse = await providerFetch(
+          `https://api.firecrawl.dev/v2/extract/${jobId}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
 
         if (!statusResponse.ok) {
           throw new Error(`Failed to get extract status: ${statusResponse.statusText}`)

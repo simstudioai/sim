@@ -23,6 +23,7 @@ import {
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -621,9 +622,12 @@ async function makeOCRRequest(
   const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await secureFetchWithValidation(endpoint, {
+      profile: 'configuredEndpoint',
+      maxRedirects: 20,
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
       method: 'POST',
-      headers,
+      headers: Object.fromEntries(new Headers(headers)),
       body: typeof body === 'string' ? body : JSON.stringify(body),
       signal: requestSignal,
     })
@@ -679,7 +683,7 @@ async function makeOCRRequest(
 
     return new Response(responseText, {
       status: response.status,
-      headers: response.headers,
+      headers: [...response.headers],
     })
   } catch (error) {
     signal?.throwIfAborted()

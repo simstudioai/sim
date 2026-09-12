@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraGetTransitionsParams, JiraGetTransitionsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 function buildTransitionsUrl(cloudId: string, issueKey: string): string {
   return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`
@@ -66,13 +71,16 @@ export const jiraGetTransitionsTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: JiraGetTransitionsParams) => {
     const fetchTransitions = async (cloudId: string) => {
-      const transitionsResponse = await fetch(buildTransitionsUrl(cloudId, params!.issueKey), {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
-        },
-      })
+      const transitionsResponse = await providerFetch(
+        buildTransitionsUrl(cloudId, params!.issueKey),
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${params!.accessToken}`,
+          },
+        }
+      )
 
       if (!transitionsResponse.ok) {
         const errorText = await transitionsResponse.text()

@@ -8,6 +8,7 @@ import {
   type LayersListItem,
   type LayerVersionsListItem,
 } from '@aws-sdk/client-lambda'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 
 export interface LambdaConnectionConfig {
   region: string
@@ -17,6 +18,7 @@ export interface LambdaConnectionConfig {
 
 export function createLambdaClient(config: LambdaConnectionConfig): LambdaClient {
   return new LambdaClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

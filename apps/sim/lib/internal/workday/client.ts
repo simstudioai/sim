@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { validateWorkdayTenantUrl } from '@/lib/core/security/input-validation'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('WorkdaySoapClient')
@@ -561,7 +562,10 @@ async function callOperation(
   signal?.throwIfAborted()
   const envelope = buildEnvelope(operation, args, username, password)
 
-  const response = await fetch(endpoint, {
+  const response = await secureFetchWithValidation(endpoint, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: WORKDAY_SOAP_RESPONSE_MAX_BYTES,
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset=utf-8',

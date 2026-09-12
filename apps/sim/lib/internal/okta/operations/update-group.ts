@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { OktaGroup, OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
 import { mergeOktaGroupProfile, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('OktaUpdateGroup')
 
@@ -34,13 +37,13 @@ export const executeOktaUpdateGroupOperation: InternalToolOperationImplementatio
   const url = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
   const headers = oktaHeaders(params.apiKey)
 
-  const readResponse = await fetch(url, { headers, signal })
+  const readResponse = await providerFetch(url, { headers, signal })
   if (!readResponse.ok) {
     await throwOktaError(readResponse, logger, 'Failed to load group for update in Okta')
   }
   const existing: OktaGroup = await readResponse.json()
 
-  const writeResponse = await fetch(url, {
+  const writeResponse = await providerFetch(url, {
     method: 'PUT',
     headers,
     body: JSON.stringify({ profile: mergeOktaGroupProfile(existing.profile, params) }),

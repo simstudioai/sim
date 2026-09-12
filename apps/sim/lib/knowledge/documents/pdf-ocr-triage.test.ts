@@ -6,7 +6,13 @@
  * the routing: the text layer is tried first, and OCR is reached only when it is
  * missing or unreadable.
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl, mockExecuteMistralParse } =
   vi.hoisted(() => ({

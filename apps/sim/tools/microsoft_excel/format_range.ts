@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftExcelFormatRangeParams,
@@ -10,6 +11,10 @@ import {
   parseGraphErrorMessage,
 } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Builds the font PATCH body from the provided font params, omitting any unset fields.
@@ -175,7 +180,7 @@ export const formatRangeTool: ToolConfig<
       if (hasFill) {
         const basePath = getItemBasePath(spreadsheetId, driveId)
         const fillUrl = `${buildWorksheetRangeUrl(basePath, params.range, params.sheetName)}/format/fill`
-        const fillResp = await fetch(fillUrl, {
+        const fillResp = await providerFetch(fillUrl, {
           method: 'PATCH',
           headers: {
             Authorization: `Bearer ${accessToken}`,

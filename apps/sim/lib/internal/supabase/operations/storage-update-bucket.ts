@@ -1,11 +1,14 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   SupabaseStorageUpdateBucketParams,
   SupabaseStorageUpdateBucketResponse,
 } from '@/tools/supabase/types'
 import { encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export const executeStorageUpdateBucketOperation: InternalToolOperationImplementation<
   SupabaseStorageUpdateBucketParams
@@ -43,7 +46,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
     })
 
     if (Object.keys(payload).length === 0) {
-      const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+      const currentResponse = await providerFetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
         method: 'GET',
         headers,
         redirect: 'error',
@@ -65,7 +68,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
       }
     }
 
-    const updateResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+    const updateResponse = await providerFetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(payload),

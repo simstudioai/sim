@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
@@ -38,7 +39,10 @@ export async function registerLinqAttachment(
   signal?: AbortSignal
 ): Promise<RegisteredLinqAttachment> {
   signal?.throwIfAborted()
-  const response = await fetch(`${LINQ_API_BASE}/attachments`, {
+  const response = await secureFetchWithValidation(`${LINQ_API_BASE}/attachments`, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     method: 'POST',
     headers: linqHeaders(input.apiKey),
     body: JSON.stringify({

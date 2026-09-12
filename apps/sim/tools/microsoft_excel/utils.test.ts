@@ -1,8 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { parseGraphErrorMessage } from '@/tools/microsoft_excel/utils'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('parseGraphErrorMessage', () => {
   it('extracts top-level error.message', () => {

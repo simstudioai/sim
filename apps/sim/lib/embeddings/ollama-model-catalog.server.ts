@@ -5,6 +5,10 @@ import {
   ollamaUpstreamResponseSchema,
 } from '@/lib/api/contracts/providers'
 import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  type SecureFetchOptions,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getOllamaUrl, isOllamaUrlConfigured } from '@/lib/core/utils/urls'
@@ -69,8 +73,16 @@ export class OllamaEmbeddingWidthUnknownError extends Error {
   }
 }
 
-async function fetchOllamaJson(path: string, init: RequestInit, signal?: AbortSignal) {
-  const response = await fetch(`${getOllamaUrl().replace(/\/+$/, '')}${path}`, {
+async function fetchOllamaJson(
+  path: string,
+  init: Pick<SecureFetchOptions, 'method' | 'body'>,
+  signal?: AbortSignal
+) {
+  const response = await secureFetchWithValidation(`${getOllamaUrl().replace(/\/+$/, '')}${path}`, {
+    profile: 'selfHostedService',
+    maxResponseBytes: MAX_OLLAMA_CATALOG_BYTES,
+    maxRedirects: 20,
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
     headers: { 'Content-Type': 'application/json' },
     signal,
     ...init,

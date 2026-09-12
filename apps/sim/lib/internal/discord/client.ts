@@ -1,7 +1,12 @@
 import { isRecordLike } from '@sim/utils/object'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { DiscordOperationError } from '@/lib/internal/discord/errors'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export async function sendDiscordMessage(
   botToken: string,
@@ -11,15 +16,18 @@ export async function sendDiscordMessage(
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   signal?.throwIfAborted()
-  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bot ${botToken}`,
-      ...(contentType === 'json' ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body,
-    signal,
-  })
+  const response = await providerFetch(
+    `https://discord.com/api/v10/channels/${channelId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        ...(contentType === 'json' ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body,
+      signal,
+    }
+  )
   let data: unknown
   try {
     data = await readResponseJsonWithLimit<unknown>(response, {

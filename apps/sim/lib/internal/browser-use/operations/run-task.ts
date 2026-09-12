@@ -3,12 +3,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { z } from 'zod'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   BrowserUseRunTaskParams,
   BrowserUseRunTaskResponse,
   BrowserUseTaskStep,
 } from '@/tools/browser_use/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('BrowserUseTool')
 
@@ -86,7 +89,7 @@ async function fetchBrowserUse(
 ): Promise<Response> {
   options.signal?.throwIfAborted()
   const hasBody = options.body !== undefined
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await providerFetch(`${API_BASE}${path}`, {
     method: options.method ?? 'GET',
     headers: {
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),

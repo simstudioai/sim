@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeNetsuiteBatchCreateRecordsOperation } from '@/lib/internal/netsuite/operations/batch-create-records'
 import { executeNetsuiteCreateRecordOperation } from '@/lib/internal/netsuite/operations/create-record'
@@ -14,6 +15,8 @@ import {
   normalizePagination,
   normalizeSuiteTalkUrl,
 } from '@/tools/netsuite/utils'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const AUTH: NetSuiteAuthParams = {
   oauthCredential: 'credential-id',

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
@@ -57,9 +58,12 @@ export async function downloadCursorArtifact(
 ): Promise<LegacyCursorArtifactResult | InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const authHeader = `Basic ${Buffer.from(`${input.apiKey}:`).toString('base64')}`
-  const artifactResponse = await fetch(
+  const artifactResponse = await secureFetchWithValidation(
     `https://api.cursor.com/v0/agents/${encodeURIComponent(input.agentId)}/artifacts/download?path=${encodeURIComponent(input.path)}`,
     {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_CURSOR_METADATA_BYTES,
       method: 'GET',
       headers: { Authorization: authHeader },
       signal: context.signal,

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
@@ -19,6 +20,8 @@ import {
   revokeQuickBooksToken,
 } from '@/lib/oauth/quickbooks'
 import { deriveQuickBooksWebhookAppKey } from '@/lib/oauth/quickbooks-client-config'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('QuickBooks account identity', () => {
   it('round-trips an opaque OpenID subject without narrowing its valid punctuation', () => {

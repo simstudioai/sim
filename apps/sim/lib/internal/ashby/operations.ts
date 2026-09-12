@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
@@ -40,7 +41,10 @@ async function ashbyPost(
   onBehalfOfUserId: string | null | undefined,
   signal?: AbortSignal
 ): Promise<unknown> {
-  const response = await fetch(`https://api.ashbyhq.com/${path}`, {
+  const response = await secureFetchWithValidation(`https://api.ashbyhq.com/${path}`, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_ASHBY_JSON_BYTES,
     method: 'POST',
     headers: ashbyAuthHeaders(apiKey, onBehalfOfUserId ?? undefined),
     body: JSON.stringify(body),

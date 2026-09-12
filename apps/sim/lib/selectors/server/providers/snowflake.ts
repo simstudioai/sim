@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -20,6 +21,10 @@ import {
   normalizeSnowflakeHost,
   readSnowflakeResult,
 } from '@/tools/snowflake/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 type SnowflakeSelectorKey = Extract<ServerSelectorKey, `snowflake.${string}`>
 type SnowflakeScopeLevel = 'account' | 'database' | 'schema'
@@ -89,7 +94,7 @@ function requireStatementHandle(value: string): string {
 }
 
 async function fetchSnowflakeResponse(url: string, init: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...init, redirect: 'error' })
+  const response = await providerFetch(url, { ...init, redirect: 'error' })
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined)
     throw selectorProviderStatusError(response.status)

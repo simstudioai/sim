@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { GmailSearchParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
@@ -6,6 +7,10 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GmailSearchTool')
 
@@ -75,12 +80,15 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
     try {
       // Fetch full message details for each result
       const messagePromises = data.messages.map(async (msg: any) => {
-        const messageResponse = await fetch(`${GMAIL_API_BASE}/messages/${msg.id}?format=full`, {
-          headers: {
-            Authorization: `Bearer ${params?.accessToken || ''}`,
-            'Content-Type': 'application/json',
-          },
-        })
+        const messageResponse = await providerFetch(
+          `${GMAIL_API_BASE}/messages/${msg.id}?format=full`,
+          {
+            headers: {
+              Authorization: `Bearer ${params?.accessToken || ''}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
 
         if (!messageResponse.ok) {
           throw new Error(`Failed to fetch details for message ${msg.id}`)

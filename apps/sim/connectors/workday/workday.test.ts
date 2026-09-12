@@ -7,6 +7,10 @@
  * with the `listingCapped` flag the sync engine reads before hard-deleting the
  * documents a partial listing left out.
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { workdayConnector } from '@/connectors/workday/workday'
 

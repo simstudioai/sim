@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
@@ -15,6 +16,8 @@ vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { snowflakeSelectorAttachments } from '@/lib/selectors/server/providers/snowflake'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const STATEMENT_HANDLE = '019c06a4-0000-df4f-0000-00100006589e'
 

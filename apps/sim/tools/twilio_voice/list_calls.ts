@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('TwilioVoiceListCallsTool')
 
@@ -123,7 +128,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
         if (call.subresource_uris?.recordings) {
           try {
             const recordingsUrl = `https://api.twilio.com${call.subresource_uris.recordings}`
-            const recordingsResponse = await fetch(recordingsUrl, {
+            const recordingsResponse = await providerFetch(recordingsUrl, {
               method: 'GET',
               headers: { Authorization: `Basic ${authToken}` },
             })

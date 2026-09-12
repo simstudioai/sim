@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -14,6 +15,10 @@ import {
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const MAX_FILES_PER_POLL = 50
 const MAX_KNOWN_FILE_IDS = 1000
@@ -218,7 +223,7 @@ async function getStartPageToken(
   }
 
   const url = `${DRIVE_API_BASE}/changes/startPageToken?${params.toString()}`
-  const response = await fetch(url, {
+  const response = await providerFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -267,7 +272,7 @@ async function fetchChanges(
     }
 
     const url = `${DRIVE_API_BASE}/changes?${params.toString()}`
-    const response = await fetch(url, {
+    const response = await providerFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 

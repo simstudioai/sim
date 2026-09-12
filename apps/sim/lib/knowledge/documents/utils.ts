@@ -4,6 +4,7 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -604,6 +605,9 @@ export const VALIDATE_RETRY_OPTIONS: RetryOptions = {
   maxDelayMs: 10000,
 }
 
+/** Untrusted retry URLs stay public; configured services supply their profile-aware fetcher. */
+let retryTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
 /**
  * Bounds requests and response bodies within one retry budget.
  */
@@ -612,6 +616,9 @@ export async function fetchWithRetry(
   options: RequestInit = {},
   retryOptions: RetryOptions = {}
 ): Promise<Response> {
+  const fetcher =
+    retryOptions.fetcher ??
+    (retryTransport ??= createSsrfGuardedFetchWithDispatcher({ profile: 'contentFetch' })).fetch
   const callerSignal = options.signal
     ? retryOptions.signal
       ? AbortSignal.any([options.signal, retryOptions.signal])
@@ -625,7 +632,7 @@ export async function fetchWithRetry(
         signal,
         AbortSignal.timeout(Math.max(0, Math.ceil(deadlineAt - Date.now()))),
       ])
-      const response = await (retryOptions.fetcher ?? fetch)(url, {
+      const response = await fetcher(url, {
         ...options,
         signal: requestSignal,
       })

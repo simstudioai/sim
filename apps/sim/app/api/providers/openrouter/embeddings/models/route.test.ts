@@ -1,13 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, inputValidationMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockFilterBlacklistedModels, mockIsProviderBlacklisted } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockFilterBlacklistedModels: vi.fn(),
   mockIsProviderBlacklisted: vi.fn(),
+}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: mockFetch,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -18,17 +23,19 @@ vi.mock('@/providers/utils', () => ({
 import { GET } from '@/app/api/providers/openrouter/embeddings/models/route'
 
 const request = () => createMockRequest('GET')
+let clock = 0
 
 describe('GET /api/providers/openrouter/embeddings/models', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubGlobal('fetch', mockFetch)
+    clock += 300_001
+    vi.spyOn(performance, 'now').mockImplementation(() => clock)
     mockIsProviderBlacklisted.mockReturnValue(false)
     mockFilterBlacklistedModels.mockImplementation((models: string[]) => models)
   })
 
   afterAll(() => {
-    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('returns every unique embedding model with the OpenRouter prefix', async () => {
@@ -50,7 +57,7 @@ describe('GET /api/providers/openrouter/embeddings/models', () => {
     })
     expect(mockFetch).toHaveBeenCalledWith(
       'https://openrouter.ai/api/v1/embeddings/models',
-      expect.objectContaining({ next: { revalidate: 300 } })
+      expect.objectContaining({ profile: 'configuredEndpoint', maxResponseBytes: 4 * 1024 * 1024 })
     )
   })
 

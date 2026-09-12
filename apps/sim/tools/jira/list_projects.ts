@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraListProjectsParams, JiraListProjectsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Transforms a raw Jira project object into typed output.
@@ -100,7 +105,7 @@ export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListPr
 
   transformResponse: async (response: Response, params?: JiraListProjectsParams) => {
     const fetchProjects = async (cloudId: string) => {
-      const projectsResponse = await fetch(buildSearchUrl(cloudId, params!), {
+      const projectsResponse = await providerFetch(buildSearchUrl(cloudId, params!), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

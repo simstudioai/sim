@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { validatePathSegment } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('MicrosoftExcelUtils')
 
@@ -246,7 +251,7 @@ export async function getSpreadsheetWebUrl(
 ): Promise<string> {
   const basePath = getItemBasePath(spreadsheetId, driveId)
   try {
-    const response = await fetch(`${basePath}?$select=id,webUrl`, {
+    const response = await providerFetch(`${basePath}?$select=id,webUrl`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

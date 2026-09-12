@@ -18,7 +18,8 @@
  * containing a quote hid a real one — which is what a scanner that does not
  * understand the grammar will keep doing.
  *
- * Not checked: bare `fetch()`. It is used constantly for same-origin and
+ * Bare `fetch()` is additionally forbidden in the managed provider modules.
+ * Elsewhere bare `fetch()` is not checked. It is used constantly for same-origin and
  * server-action calls where the guard does not apply, so flagging it would be
  * noise. The transports it can reach are covered by the rules below.
  *
@@ -71,11 +72,13 @@ const TRANSPORTS = new Set([
  * guard or predates it for a documented reason.
  */
 const ALLOWED = new Set([
+  /** Subprocess-only runtime fixture; never imported by production modules. */
+  'apps/sim/lib/core/network/fixtures/gateway-runtime.fixture.ts',
   // The guard itself: resolves, classifies, pins, and follows redirects.
   'apps/sim/lib/core/security/input-validation.server.ts',
-  /** TLS wrapping preserves the validated destination and upstream certificate identity. */
+  /** TLS CONNECT implementation; accepts only classified IPs from the shared guard. */
   'apps/sim/lib/core/network/gateway.server.ts',
-  /** Owns validated direct and environment-proxy pools for the shared HTTP adapters. */
+  /** Owns route-specific pools and emits requests for the HTTP and SDK adapters. */
   'apps/sim/lib/core/network/transport.server.ts',
   // Streaming MCP transport, built on the guard's pinned dispatcher.
   'apps/sim/lib/mcp/pinned-fetch.ts',
@@ -203,6 +206,98 @@ export function mayLoadTransport(source: string): boolean {
   return false
 }
 
+/** Provider modules must keep native fetch behind the organization-aware transport. */
+const MANAGED_FETCH_ROOTS = [
+  'apps/sim/connectors/',
+  'apps/sim/providers/',
+  'apps/sim/tools/',
+  'apps/sim/lib/internal/',
+  'apps/sim/lib/atlassian/',
+  'apps/sim/lib/oauth/',
+  'apps/sim/lib/embeddings/',
+  'apps/sim/lib/knowledge/',
+  'apps/sim/lib/credentials/',
+  'apps/sim/lib/credential-groups/',
+  'apps/sim/lib/selectors/server/providers/',
+  'apps/sim/lib/webhooks/providers/',
+  'apps/sim/lib/webhooks/polling/',
+  'apps/sim/lib/media/',
+  'apps/sim/lib/messaging/email/providers/',
+]
+
+/**
+ * Account connection and revocation retain deployment networking: an account can
+ * span organizations, and initial callbacks have no authorized resource scope.
+ * Exempt only these entry points; runtime provider calls and refresh remain checked.
+ */
+const ACCOUNT_LIFECYCLE_FETCHES = new Map<string, ReadonlySet<string>>([
+  [
+    'apps/sim/lib/oauth/github-repositories.ts',
+    new Set(['verifyGitHubRepositoriesIdentity', 'createGitHubRepositoriesProvider']),
+  ],
+  ['apps/sim/lib/oauth/monday.ts', new Set(['exchangeMondayAuthorizationCode'])],
+  ['apps/sim/lib/oauth/shopify.ts', new Set(['completeShopifyOAuthConnection'])],
+  ['apps/sim/lib/oauth/quickbooks.ts', new Set(['revokeQuickBooksToken'])],
+])
+
+/** Includes native fetch handed to SDKs or aliases; object methods and types are not transports. */
+export function findNativeProviderFetches(source: string, file?: string): number[] {
+  const ast = ts.createSourceFile('provider.ts', source, ts.ScriptTarget.Latest, true)
+  const accountLifecycleFunctions = file ? ACCOUNT_LIFECYCLE_FETCHES.get(file) : undefined
+  const lines: number[] = []
+  const visit = (node: ts.Node): void => {
+    if (ts.isTypeNode(node)) return
+    const parent = node.parent
+    const globalFetch =
+      (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
+      ts.isIdentifier(node.expression) &&
+      ['globalThis', 'global'].includes(node.expression.text) &&
+      (ts.isPropertyAccessExpression(node)
+        ? node.name.text === 'fetch'
+        : ts.isStringLiteralLike(node.argumentExpression) &&
+          node.argumentExpression.text === 'fetch')
+    const bareFetch =
+      ts.isIdentifier(node) &&
+      node.text === 'fetch' &&
+      !ts.isImportSpecifier(parent) &&
+      !ts.isExportSpecifier(parent) &&
+      !ts.isBindingElement(parent) &&
+      !(ts.isPropertyAccessExpression(parent) && parent.name === node) &&
+      !(
+        (ts.isPropertyAssignment(parent) ||
+          ts.isMethodDeclaration(parent) ||
+          ts.isVariableDeclaration(parent) ||
+          ts.isParameter(parent) ||
+          ts.isFunctionDeclaration(parent) ||
+          ts.isPropertySignature(parent) ||
+          ts.isMethodSignature(parent)) &&
+        parent.name === node
+      )
+    const globalBinding =
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name) &&
+      node.initializer &&
+      ts.isIdentifier(node.initializer) &&
+      ['globalThis', 'global'].includes(node.initializer.text) &&
+      node.name.elements.some((element) => {
+        const key = element.propertyName ?? element.name
+        return (ts.isIdentifier(key) || ts.isStringLiteralLike(key)) && key.text === 'fetch'
+      })
+    if (globalFetch || bareFetch || globalBinding) {
+      let boundary: ts.Node = node
+      while (boundary.parent && !ts.isSourceFile(boundary.parent)) boundary = boundary.parent
+      const functionName = ts.isFunctionDeclaration(boundary) ? boundary.name?.text : undefined
+      if (!functionName || !accountLifecycleFunctions?.has(functionName)) {
+        lines.push(ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1)
+      }
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  return lines
+}
+
 function main() {
   const violations: Violation[] = []
   let scanned = 0
@@ -213,6 +308,15 @@ function main() {
       if (ALLOWED.has(rel)) continue
       scanned++
       const source = readFileSync(file, 'utf8')
+      if (MANAGED_FETCH_ROOTS.some((root) => rel.startsWith(root))) {
+        for (const line of findNativeProviderFetches(source, rel))
+          violations.push({
+            file: rel,
+            line,
+            kind: 'native fetch',
+            specifier: 'Use secureFetchWithValidation or a profile-aware guarded fetch factory',
+          })
+      }
       if (!mayLoadTransport(source)) continue
       for (const load of findTransportLoads(rel, source)) {
         violations.push({ file: rel, ...load })

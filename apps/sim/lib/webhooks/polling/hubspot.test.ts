@@ -1,8 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { buildUserFilters } from '@/lib/webhooks/polling/hubspot'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('buildUserFilters', () => {
   it('translates pipeline/stage/owner shortcuts into EQ filters', () => {

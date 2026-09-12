@@ -108,6 +108,7 @@ describe('bedrockProvider credential handling', () => {
     })
 
     expect(BedrockRuntimeClient).toHaveBeenCalledWith({
+      requestHandler: expect.objectContaining({ handle: expect.any(Function) }),
       region: 'us-east-1',
       credentials: {
         accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
@@ -120,6 +121,7 @@ describe('bedrockProvider credential handling', () => {
     await bedrockProvider.executeRequest(baseRequest)
 
     expect(BedrockRuntimeClient).toHaveBeenCalledWith({
+      requestHandler: expect.objectContaining({ handle: expect.any(Function) }),
       region: 'us-east-1',
     })
   })
@@ -131,6 +133,7 @@ describe('bedrockProvider credential handling', () => {
     })
 
     expect(BedrockRuntimeClient).toHaveBeenCalledWith({
+      requestHandler: expect.objectContaining({ handle: expect.any(Function) }),
       region: 'eu-west-1',
     })
   })

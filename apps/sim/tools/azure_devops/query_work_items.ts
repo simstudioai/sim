@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type {
   AzureDevOpsWorkItem,
   QueryWorkItemsParams,
@@ -6,6 +7,10 @@ import type {
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
 import { formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItemsResponse> = {
   id: 'azure_devops_query_work_items',
@@ -83,7 +88,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
       detailsUrl.searchParams.set('$expand', 'all')
       detailsUrl.searchParams.set('api-version', '7.2-preview.3')
 
-      const detailsResponse = await fetch(detailsUrl.toString(), {
+      const detailsResponse = await providerFetch(detailsUrl.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

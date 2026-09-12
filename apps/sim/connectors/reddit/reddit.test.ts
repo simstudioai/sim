@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { redditConnector } from '@/connectors/reddit/reddit'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'

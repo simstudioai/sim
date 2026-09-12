@@ -6,6 +6,7 @@ import type {
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessage,
 } from 'openai/resources/chat/completions'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -44,6 +45,8 @@ import {
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('OpenRouterProvider')
 
@@ -102,6 +105,9 @@ export const openRouterProvider: ProviderConfig = {
     }
 
     const client = new OpenAI({
+      fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+        profile: 'configuredEndpoint',
+      })).fetch,
       ...openAICompatTransport(),
       apiKey: request.apiKey,
       baseURL: 'https://openrouter.ai/api/v1',

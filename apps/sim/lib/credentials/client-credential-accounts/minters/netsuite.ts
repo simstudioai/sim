@@ -2,6 +2,7 @@ import { createPrivateKey, type KeyObject } from 'node:crypto'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { SignJWT } from 'jose'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -18,6 +19,10 @@ import {
   isTransientProviderStatus,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const TOKEN_PATH = '/services/rest/auth/oauth2/v1/token'
 const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
@@ -108,7 +113,7 @@ async function exchangeNetSuiteToken(
   const signal = AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
   let response: Response
   try {
-    response = await fetch(tokenUrl, {
+    response = await providerFetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({

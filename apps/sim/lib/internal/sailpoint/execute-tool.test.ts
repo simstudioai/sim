@@ -2,6 +2,14 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const fileMocks = vi.hoisted(() => ({

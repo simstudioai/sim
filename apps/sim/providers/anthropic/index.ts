@@ -1,10 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('AnthropicProvider')
 
@@ -24,7 +27,16 @@ export const anthropicProvider: ProviderConfig = {
       providerLabel: 'Anthropic',
       createClient: (apiKey) => {
         const cacheKey = `anthropic::${apiKey}`
-        return getCachedProviderClient(cacheKey, () => new Anthropic({ apiKey }))
+        return getCachedProviderClient(
+          cacheKey,
+          () =>
+            new Anthropic({
+              fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+                profile: 'configuredEndpoint',
+              })).fetch,
+              apiKey,
+            })
+        )
       },
       logger,
     })

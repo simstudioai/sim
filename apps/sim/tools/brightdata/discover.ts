@@ -2,8 +2,13 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { BrightDataDiscoverParams, BrightDataDiscoverResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('tools:brightdata:discover')
 
@@ -145,7 +150,7 @@ export const brightDataDiscoverTool: ToolConfig<
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const pollResponse = await fetch(
+        const pollResponse = await providerFetch(
           `https://api.brightdata.com/discover?task_id=${encodeURIComponent(taskId)}`,
           {
             method: 'GET',

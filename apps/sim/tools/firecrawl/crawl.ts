@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlFormatModelInput,
@@ -11,6 +12,10 @@ import {
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('FirecrawlCrawlTool')
 
@@ -186,7 +191,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/crawl/${jobId}`, {
+        const statusResponse = await providerFetch(`https://api.firecrawl.dev/v2/crawl/${jobId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${params.apiKey}`,

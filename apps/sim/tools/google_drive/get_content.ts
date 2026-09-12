@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type {
   GoogleDriveFile,
   GoogleDriveGetContentResponse,
@@ -12,6 +13,10 @@ import {
   GOOGLE_WORKSPACE_MIME_TYPES,
 } from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GoogleDriveGetContentTool')
 
@@ -90,7 +95,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
           exportFormat,
         })
 
-        const exportResponse = await fetch(
+        const exportResponse = await providerFetch(
           `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`,
           {
             headers: {
@@ -116,7 +121,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
           mimeType,
         })
 
-        const downloadResponse = await fetch(
+        const downloadResponse = await providerFetch(
           `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
           {
             headers: {
@@ -142,7 +147,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       const canReadRevisions = metadata.capabilities?.canReadRevisions === true
       if (includeRevisions && canReadRevisions) {
         try {
-          const revisionsResponse = await fetch(
+          const revisionsResponse = await providerFetch(
             `https://www.googleapis.com/drive/v3/files/${fileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
             {
               headers: {

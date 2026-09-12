@@ -3,6 +3,18 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { requestProfile } = vi.hoisted(() => ({ requestProfile: vi.fn() }))
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: ({ profile }: { profile: string }) => ({
+    fetch: (...args: Parameters<typeof fetch>) => {
+      requestProfile(profile, String(args[0]))
+      return fetch(...args)
+    },
+  }),
+}))
+
 vi.mock('@/lib/core/execution-limits', () => ({ getMaxExecutionTimeout: () => 5000 }))
 
 import { generateVideo } from '@/lib/internal/video/client'
@@ -15,7 +27,10 @@ function jsonResponse(value: unknown, status = 200): Response {
 }
 
 describe('Video provider client', () => {
-  beforeEach(() => vi.useFakeTimers())
+  beforeEach(() => {
+    vi.useFakeTimers()
+    requestProfile.mockClear()
+  })
 
   afterEach(() => {
     vi.useRealTimers()
@@ -46,6 +61,11 @@ describe('Video provider client', () => {
     await vi.advanceTimersByTimeAsync(5000)
     const result = await resultPromise
 
+    expect(requestProfile.mock.calls).toEqual([
+      ['configuredEndpoint', 'https://api.dev.runwayml.com/v1/image_to_video'],
+      ['configuredEndpoint', 'https://api.dev.runwayml.com/v1/tasks/task-1'],
+      ['contentFetch', 'https://cdn.example/video.mp4'],
+    ])
     expect(result).toMatchObject({
       buffer: Buffer.from('video'),
       width: 1280,

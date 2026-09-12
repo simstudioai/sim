@@ -1,4 +1,7 @@
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import {
   isPayloadSizeLimitError,
   readResponseJsonWithLimit,
@@ -47,6 +50,8 @@ import {
   splitVantaCommaList,
 } from '@/lib/internal/vanta/normalizers'
 import type { VantaQueryBody } from '@/lib/internal/vanta/schema'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 interface VantaFileOperationContext {
   requestId: string
@@ -427,7 +432,7 @@ export async function executeVantaQuery(
       scope,
     },
     (accessToken) =>
-      fetch(apiRequest.url, {
+      providerFetch(apiRequest.url, {
         method: apiRequest.method,
         headers: {
           Accept: 'application/json',
@@ -487,7 +492,7 @@ export async function executeVantaUploadDocumentFile(
       )
       if (input.description) formData.append('description', input.description)
       if (input.effectiveAtDate) formData.append('effectiveAtDate', input.effectiveAtDate)
-      return fetch(uploadUrl, {
+      return providerFetch(uploadUrl, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
         body: formData,
@@ -529,7 +534,7 @@ export async function executeVantaDownloadDocumentFile(
       scope: VANTA_READ_SCOPE,
     },
     (accessToken) =>
-      fetch(mediaUrl, {
+      providerFetch(mediaUrl, {
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',

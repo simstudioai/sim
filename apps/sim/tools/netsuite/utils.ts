@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -14,6 +15,10 @@ import type {
   NetSuiteResponse,
 } from '@/tools/netsuite/types'
 import type { HttpMethod, ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const SUITETALK_REQUEST_TIMEOUT_MS = 30_000
 const DEFAULT_PAGE_LIMIT = 100
@@ -439,7 +444,7 @@ async function sendSuiteTalkRequest(
       headers['X-NetSuite-PropertyNameValidation'] = 'error'
     }
   }
-  return fetch(url, {
+  return providerFetch(url, {
     method: request.method,
     headers,
     ...(serializedBody !== undefined ? { body: serializedBody } : {}),

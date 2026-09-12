@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -14,6 +15,10 @@ import {
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const MAX_ROWS_PER_POLL = 100
 
@@ -269,7 +274,7 @@ async function getDriveFileModifiedTime(
   logger: Logger
 ): Promise<string | undefined> {
   try {
-    const response = await fetch(
+    const response = await providerFetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -308,7 +313,7 @@ async function fetchSheetState(
   })
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!A:Z?${params.toString()}`
 
-  const response = await fetch(url, {
+  const response = await providerFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -362,7 +367,7 @@ async function fetchRowRange(
   })
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!${startRow}:${endRow}?${params.toString()}`
 
-  const response = await fetch(url, {
+  const response = await providerFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 

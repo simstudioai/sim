@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { icypeasHosting } from '@/tools/icypeas/hosting'
 import type {
   IcypeasFindEmailOutput,
@@ -12,6 +13,10 @@ import {
   ICYPEAS_STATUS_OUTPUT,
 } from '@/tools/icypeas/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /** Icypeas statuses that indicate the search has finished (success or failure). */
 const TERMINAL_STATUSES = new Set([
@@ -142,14 +147,17 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
       await sleep(POLL_INTERVAL_MS)
       elapsed += POLL_INTERVAL_MS
 
-      const pollResponse = await fetch('https://app.icypeas.com/api/bulk-single-searchs/read', {
-        method: 'POST',
-        headers: {
-          Authorization: params.apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: searchId }),
-      })
+      const pollResponse = await providerFetch(
+        'https://app.icypeas.com/api/bulk-single-searchs/read',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: params.apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id: searchId }),
+        }
+      )
 
       if (!pollResponse.ok) {
         const errorText = await pollResponse.text()

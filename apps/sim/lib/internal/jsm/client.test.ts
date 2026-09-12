@@ -2,6 +2,14 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 import { JsmClient } from '@/lib/internal/jsm/client'
 import type { JsmOperationError } from '@/lib/internal/jsm/errors'
 

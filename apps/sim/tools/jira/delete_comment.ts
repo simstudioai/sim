@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraDeleteCommentParams, JiraDeleteCommentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDeleteCommentResponse> =
   {
@@ -70,7 +75,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
         // Make the actual request with the resolved cloudId
         const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey?.trim() ?? ''}/comment/${params?.commentId?.trim() ?? ''}`
-        const commentResponse = await fetch(commentUrl, {
+        const commentResponse = await providerFetch(commentUrl, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',

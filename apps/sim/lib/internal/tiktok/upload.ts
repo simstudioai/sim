@@ -3,12 +3,15 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   assertKnownSizeWithinLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
+
+const contentFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'contentFetch' }).fetch
 
 const logger = createLogger('TikTokVideoUpload')
 
@@ -235,7 +238,7 @@ async function uploadChunk(options: {
 
   for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
     throwIfAborted(options.signal)
-    const response = await fetch(options.uploadUrl, {
+    const response = await contentFetch(options.uploadUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': options.mimeType,

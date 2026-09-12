@@ -1,10 +1,14 @@
 /**
  * @vitest-environment node
  */
+
 import { generateKeyPairSync } from 'node:crypto'
+import { inputValidationMock } from '@sim/testing'
 import { jwtVerify } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const ORIGIN = 'https://1234567-sb1.suitetalk.api.netsuite.com'
 const TOKEN_URL = `${ORIGIN}/services/rest/auth/oauth2/v1/token`

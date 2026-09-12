@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   createMediaContainer,
@@ -35,6 +36,8 @@ import { MAX_FILE_SIZE, sniffImageContentType } from '@/lib/uploads/utils/valida
 import { sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('InstagramOperations')
 const MAX_GRAPH_METADATA_BYTES = 256 * 1024
@@ -123,7 +126,7 @@ async function fetchMediaMetadata({
   fields: string
   signal?: AbortSignal
 }): Promise<InstagramMediaMetadataResult> {
-  const response = await fetch(graphUrl(`/${encodeURIComponent(mediaId)}`, { fields }), {
+  const response = await providerFetch(graphUrl(`/${encodeURIComponent(mediaId)}`, { fields }), {
     headers: bearerHeaders(accessToken),
     signal,
   })

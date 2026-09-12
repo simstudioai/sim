@@ -12,7 +12,12 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { resolveHostAddresses } from '@sim/security/dns'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ResolvedOutboundRoute } from '@/lib/core/network/config.server'
 
+const { resolveRoute } = vi.hoisted(() => ({
+  resolveRoute: vi.fn<() => Promise<ResolvedOutboundRoute>>(),
+}))
+vi.mock('@/lib/core/network/context.server', () => ({ resolveCurrentOutboundRoute: resolveRoute }))
 vi.mock('@sim/security/dns', { spy: true })
 
 import {
@@ -138,6 +143,7 @@ beforeEach(() => {
   ]) {
     vi.stubEnv(name, '')
   }
+  resolveRoute.mockResolvedValue({ kind: 'direct' })
   rejectConnections = false
   connections.length = 0
   requests.length = 0

@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.stubGlobal('fetch', mocks.fetch)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
   validateUrlWithDNS: mocks.validateUrlWithDNS,
   secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
 }))
@@ -94,6 +96,34 @@ describe('image operations', () => {
       'https://queue.fal.run/status/job-1',
       'https://queue.fal.run/result/job-1',
     ])
+  })
+
+  it('keeps the Gemini image key confined to its provider origin', async () => {
+    mocks.fetch.mockResolvedValueOnce(
+      Response.json({
+        candidates: [
+          { content: { parts: [{ inlineData: { data: 'cG5n', mimeType: 'image/png' } }] } },
+        ],
+      })
+    )
+
+    const response = await executeImageGeneration(
+      { provider: 'gemini', apiKey: 'gemini-key', prompt: 'Draw an image' },
+      { userId: 'user-1', requestId: 'request-1' }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('https://generativelanguage.googleapis.com/'),
+      expect.objectContaining({
+        headers: { 'x-goog-api-key': 'gemini-key', 'Content-Type': 'application/json' },
+        redirectPolicy: {
+          mode: 'standard',
+          sendCredentialsOnCrossOriginRedirect: false,
+          sensitiveHeaders: ['x-goog-api-key'],
+        },
+      })
+    )
   })
 
   it('cancels polling without resubmitting or storing an image', async () => {

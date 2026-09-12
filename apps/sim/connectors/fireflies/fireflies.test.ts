@@ -1,11 +1,14 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/icons', () => ({ FirefliesIcon: () => null }))
 
 import { firefliesConnector } from '@/connectors/fireflies/fireflies'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 beforeEach(() => {
   vi.useRealTimers()
