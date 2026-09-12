@@ -5,9 +5,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import { openUrlInNewBrowserTab, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
 import {
-  type DesktopTabResourceCallbacks,
+  type DesktopTabStripOptions,
   useDesktopTabResources,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -15,13 +14,6 @@ import { useBrowserSessionStore } from '@/stores/browser-session/store'
 const logger = createLogger('BrowserTabResources')
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
-
-interface UseBrowserTabResourcesOptions extends DesktopTabResourceCallbacks {
-  /** Desktop browser scope whose pages back this chat's browser tabs. */
-  scopeId: string
-  resources: readonly MothershipResource[]
-  activeResourceId: string | null
-}
 
 function switchBrowserTab(tabId: string, scopeId: string): void {
   sendBrowserPanelAction('switch-tab', { tabId, claim: false }, scopeId)
@@ -31,15 +23,8 @@ function switchBrowserTab(tabId: string, scopeId: string): void {
  * Projects the desktop app's live browser pages into `browser` resource tabs,
  * one per page. See {@link useDesktopTabResources} for the shared model.
  */
-export function useBrowserTabResources({
-  scopeId,
-  resources,
-  activeResourceId,
-  addResource,
-  removeResource,
-  selectResource,
-  onResourceEvent,
-}: UseBrowserTabResourcesOptions): void {
+export function useBrowserTabResources(options: DesktopTabStripOptions): void {
+  const { scopeId, selectResource } = options
   const hasSession = useBrowserSessionStore((state) => state.sessions[scopeId] !== undefined)
   const browserTabs = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.tabs ?? EMPTY_BROWSER_TABS
@@ -64,19 +49,13 @@ export function useBrowserTabResources({
   selectResourceRef.current = selectResource
 
   useDesktopTabResources({
+    ...options,
     type: 'browser',
-    scopeId,
     tabs,
     hasSession,
     activeTabId,
     agentTabId,
     switchTab: switchBrowserTab,
-    resources,
-    activeResourceId,
-    addResource,
-    removeResource,
-    selectResource,
-    onResourceEvent,
   })
 
   // Chat links clicked in the desktop app open in a new browser tab. The user

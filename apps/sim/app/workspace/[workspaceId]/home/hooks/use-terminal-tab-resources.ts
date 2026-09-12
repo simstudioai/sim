@@ -1,22 +1,14 @@
 import { useMemo } from 'react'
 import type { TerminalTabState } from '@sim/terminal-protocol'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { terminalIdFromResourceId, terminalResourceId } from '@/lib/terminal/resource-id'
 import { switchTerminal } from '@/lib/terminal/transport'
 import {
-  type DesktopTabResourceCallbacks,
+  type DesktopTabStripOptions,
   useDesktopTabResources,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 const EMPTY_TERMINAL_TABS: TerminalTabState[] = []
-
-interface UseTerminalTabResourcesOptions extends DesktopTabResourceCallbacks {
-  /** Desktop terminal scope whose shells back this chat's terminal tabs. */
-  scopeId: string
-  resources: readonly MothershipResource[]
-  activeResourceId: string | null
-}
 
 function showTerminal(resourceId: string, scopeId: string): void {
   void switchTerminal(terminalIdFromResourceId(resourceId), scopeId, { claim: false }).catch(
@@ -28,15 +20,8 @@ function showTerminal(resourceId: string, scopeId: string): void {
  * Projects the desktop app's live shells into `terminal` resource tabs, one
  * per shell. See {@link useDesktopTabResources} for the shared model.
  */
-export function useTerminalTabResources({
-  scopeId,
-  resources,
-  activeResourceId,
-  addResource,
-  removeResource,
-  selectResource,
-  onResourceEvent,
-}: UseTerminalTabResourcesOptions): void {
+export function useTerminalTabResources(options: DesktopTabStripOptions): void {
+  const { scopeId } = options
   const hasSession = useCopilotTerminalStore((state) => state.sessions[scopeId] !== undefined)
   const terminalTabs = useCopilotTerminalStore(
     (state) => state.sessions[scopeId]?.tabs.tabs ?? EMPTY_TERMINAL_TABS
@@ -60,18 +45,12 @@ export function useTerminalTabResources({
   )
 
   useDesktopTabResources({
+    ...options,
     type: 'terminal',
-    scopeId,
     tabs,
     hasSession,
     activeTabId: activeTerminalId && terminalResourceId(activeTerminalId),
     agentTabId: agentTerminalId && terminalResourceId(agentTerminalId),
     switchTab: showTerminal,
-    resources,
-    activeResourceId,
-    addResource,
-    removeResource,
-    selectResource,
-    onResourceEvent,
   })
 }

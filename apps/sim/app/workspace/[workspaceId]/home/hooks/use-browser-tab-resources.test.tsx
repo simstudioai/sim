@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
+import type { DesktopTabStripOptions } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const { sendBrowserPanelAction, openUrlInNewBrowserTab, openInPanelListeners } = vi.hoisted(() => ({
@@ -37,17 +38,7 @@ function pushTabs(scopeId: string, tabs: ReturnType<typeof tab>[], activeTabId: 
   })
 }
 
-interface HostProps {
-  scopeId: string
-  resources: MothershipResource[]
-  activeResourceId: string | null
-  addResource: (resource: MothershipResource) => void
-  removeResource: (type: MothershipResource['type'], id: string) => void
-  selectResource: (id: string) => void
-  onResourceEvent: (id: string, options?: { activate?: boolean }) => void
-}
-
-function Host(props: HostProps) {
+function Host(props: DesktopTabStripOptions) {
   useBrowserTabResources(props)
   return null
 }
@@ -58,21 +49,26 @@ describe('useBrowserTabResources', () => {
   const addResource = vi.fn()
   const removeResource = vi.fn()
   const selectResource = vi.fn()
+  const restoreResource = vi.fn()
   const onResourceEvent = vi.fn()
 
-  function render(overrides: Partial<HostProps> = {}) {
-    const props: HostProps = {
+  function render(overrides: Partial<DesktopTabStripOptions> = {}) {
+    const props: DesktopTabStripOptions = {
       scopeId: SCOPE,
       resources: [],
       activeResourceId: null,
+      selectedResourceId: null,
+      hydrated: true,
       addResource,
       removeResource,
       selectResource,
+      restoreResource,
       onResourceEvent,
       ...overrides,
     }
     act(() => root.render(<Host {...props} />))
-    return (next: Partial<HostProps>) => act(() => root.render(<Host {...props} {...next} />))
+    return (next: Partial<DesktopTabStripOptions>) =>
+      act(() => root.render(<Host {...props} {...next} />))
   }
 
   beforeEach(() => {
@@ -153,11 +149,11 @@ describe('useBrowserTabResources', () => {
       { type: 'browser', id: '1', title: 'Page 1' },
       { type: 'browser', id: '2', title: 'Page 2' },
     ]
-    const rerender = render({ resources, activeResourceId: '1' })
+    const rerender = render({ resources, activeResourceId: '1', selectedResourceId: '1' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
 
-    rerender({ activeResourceId: '2' })
+    rerender({ activeResourceId: '2', selectedResourceId: '2' })
     expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
       'switch-tab',
       { tabId: '2', claim: false },
@@ -169,13 +165,198 @@ describe('useBrowserTabResources', () => {
     expect(selectResource).not.toHaveBeenCalled()
   })
 
+  it('shows a page selected before the pages landed, once it arrives', () => {
+    render({ selectedResourceId: '2', activeResourceId: '2' })
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
+      'switch-tab',
+      { tabId: '2', claim: false },
+      SCOPE
+    )
+
+    // The requested switch landing is not a native change to follow.
+    pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
+    expect(selectResource).not.toHaveBeenCalled()
+  })
+
+  it('adopts the native active page on reopen instead of pushing the fallback tab', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+      { type: 'browser', id: '3', title: 'Page 3' },
+    ]
+    // The user left this chat on page 2. On reopen the strip starts empty, the
+    // pages land, and it falls back to its last tab until it learns better.
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1'), tab('2', true), tab('3')], '2')
+    rerender({ resources, activeResourceId: '3', selectedResourceId: null })
+
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('2')
+    expect(selectResource).not.toHaveBeenCalled()
+
+    // The adopted tab is now both the selection and the native page: settled.
+    restoreResource.mockClear()
+    rerender({ activeResourceId: '2', selectedResourceId: '2' })
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('adopts the native active page when the selection is stale', () => {
+    const rerender = render({ selectedResourceId: 'deleted-file' })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '2', title: 'Page 2' },
+      ],
+      activeResourceId: '2',
+    })
+
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('leaves a fallback that is not a browser tab alone', () => {
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'file', id: 'f', title: 'notes.md' },
+      ],
+      activeResourceId: 'f',
+      selectedResourceId: null,
+    })
+
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('adopts the native active page only once the chat history has been applied', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render({ hydrated: false })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null, hydrated: false })
+    expect(restoreResource).not.toHaveBeenCalled()
+
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null, hydrated: true })
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
+  })
+
+  it('leaves an explicitly selected page alone when the history is applied', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    // The user is on page 2 by choice while the desktop app shows page 1.
+    const rerender = render({
+      resources,
+      activeResourceId: '2',
+      selectedResourceId: '2',
+      hydrated: false,
+    })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+
+    rerender({ resources, activeResourceId: '2', selectedResourceId: '2', hydrated: true })
+    expect(restoreResource).not.toHaveBeenCalled()
+  })
+
+  it('does not adopt a page the user just closed in the strip', () => {
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1'), tab('2', true), tab('3')], '2')
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '2', title: 'Page 2' },
+        { type: 'browser', id: '3', title: 'Page 3' },
+      ],
+      activeResourceId: '2',
+      selectedResourceId: '2',
+    })
+    expect(restoreResource).not.toHaveBeenCalled()
+
+    // The strip dropped page 2 before the native close landed.
+    rerender({
+      resources: [
+        { type: 'browser', id: '1', title: 'Page 1' },
+        { type: 'browser', id: '3', title: 'Page 3' },
+      ],
+      activeResourceId: '3',
+      selectedResourceId: null,
+    })
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('adopts the first reported active page without claiming it', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render()
+    // The pages land before the desktop app reports which one it shows.
+    pushTabs(SCOPE, [tab('1'), tab('2')], null)
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null })
+    expect(restoreResource).not.toHaveBeenCalled()
+
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
+    expect(selectResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('does not let a first report override a selection made before the pages landed', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    // The pages land first, with the desktop app not yet reporting which it shows.
+    const rerender = render({ selectedResourceId: '2', activeResourceId: '2' })
+    pushTabs(SCOPE, [tab('1'), tab('2')], null)
+    rerender({ resources, selectedResourceId: '2', activeResourceId: '2' })
+    // The selection is honoured by switching the native page to it.
+    expect(sendBrowserPanelAction).toHaveBeenCalledWith(
+      'switch-tab',
+      { tabId: '2', claim: false },
+      SCOPE
+    )
+
+    // The desktop app then reports the page it was already on. The strip must
+    // not move onto it, or the selection the user made would be lost.
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(selectResource).not.toHaveBeenCalled()
+  })
+
+  it('claims a native switch away from a page it was already showing', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({ resources, activeResourceId: '1', selectedResourceId: null })
+    expect(selectResource).not.toHaveBeenCalled()
+
+    // A keyboard shortcut in the page moved the desktop app off page 1.
+    pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
+    expect(selectResource).toHaveBeenCalledExactlyOnceWith('2')
+    expect(restoreResource).not.toHaveBeenCalled()
+  })
+
   it('follows a native switch into the strip only while the user is on the browser', () => {
     const resources: MothershipResource[] = [
       { type: 'browser', id: '1', title: 'Page 1' },
       { type: 'browser', id: '2', title: 'Page 2' },
       { type: 'file', id: 'f', title: 'notes.md' },
     ]
-    const rerender = render({ resources, activeResourceId: '1' })
+    const rerender = render({ resources, activeResourceId: '1', selectedResourceId: '1' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
 
     pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
@@ -183,7 +364,7 @@ describe('useBrowserTabResources', () => {
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
 
     selectResource.mockClear()
-    rerender({ activeResourceId: 'f' })
+    rerender({ activeResourceId: 'f', selectedResourceId: 'f' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(selectResource).not.toHaveBeenCalled()
   })
@@ -192,6 +373,7 @@ describe('useBrowserTabResources', () => {
     render({
       resources: [{ type: 'browser', id: '1', title: 'Page 1' }],
       activeResourceId: '1',
+      selectedResourceId: '1',
     })
     pushTabs(SCOPE, [tab('1', true)], '1')
     act(() => {
