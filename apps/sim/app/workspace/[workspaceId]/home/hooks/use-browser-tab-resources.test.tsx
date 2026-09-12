@@ -249,19 +249,21 @@ describe('useBrowserTabResources', () => {
     expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
   })
 
-  it('leaves a stored resource the history pinned alone once hydrated', () => {
-    const rerender = render({ hydrated: false })
-    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
-    rerender({
-      resources: [
-        { type: 'browser', id: '1', title: 'Page 1' },
-        { type: 'browser', id: '2', title: 'Page 2' },
-        { type: 'file', id: 'f', title: 'notes.md' },
-      ],
-      activeResourceId: 'f',
-      selectedResourceId: 'f',
-      hydrated: true,
+  it('leaves an explicitly selected page alone when the history is applied', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    // The user is on page 2 by choice while the desktop app shows page 1.
+    const rerender = render({
+      resources,
+      activeResourceId: '2',
+      selectedResourceId: '2',
+      hydrated: false,
     })
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+
+    rerender({ resources, activeResourceId: '2', selectedResourceId: '2', hydrated: true })
     expect(restoreResource).not.toHaveBeenCalled()
   })
 
@@ -307,6 +309,29 @@ describe('useBrowserTabResources', () => {
     expect(restoreResource).toHaveBeenCalledExactlyOnceWith('1')
     expect(selectResource).not.toHaveBeenCalled()
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('does not let a first report override a selection made before the pages landed', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    // The pages land first, with the desktop app not yet reporting which it shows.
+    const rerender = render({ selectedResourceId: '2', activeResourceId: '2' })
+    pushTabs(SCOPE, [tab('1'), tab('2')], null)
+    rerender({ resources, selectedResourceId: '2', activeResourceId: '2' })
+    // The selection is honoured by switching the native page to it.
+    expect(sendBrowserPanelAction).toHaveBeenCalledWith(
+      'switch-tab',
+      { tabId: '2', claim: false },
+      SCOPE
+    )
+
+    // The desktop app then reports the page it was already on. The strip must
+    // not move onto it, or the selection the user made would be lost.
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(restoreResource).not.toHaveBeenCalled()
+    expect(selectResource).not.toHaveBeenCalled()
   })
 
   it('claims a native switch away from a page it was already showing', () => {

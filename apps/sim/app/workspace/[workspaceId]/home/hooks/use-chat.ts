@@ -2490,6 +2490,9 @@ export function useChat(
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
+        // The ref keeps an eager fallback so a request sent in this commit
+        // still attaches a resource; the selection itself stays empty so the
+        // desktop app's remembered tab can win.
         activeResourceIdRef.current =
           hydratedActiveResourceId ?? mergedResources[mergedResources.length - 1].id
         setResources(mergedResources)

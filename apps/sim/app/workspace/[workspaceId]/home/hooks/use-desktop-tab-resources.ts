@@ -8,7 +8,22 @@ export interface DesktopTab {
   title: string
 }
 
-export interface DesktopTabResourceCallbacks {
+/** What the strip shares with every kind of desktop-backed resource tab. */
+export interface DesktopTabStripOptions {
+  /** Desktop scope whose live tabs back this chat's resource tabs. */
+  scopeId: string
+  resources: readonly MothershipResource[]
+  /** The resource the strip shows: the explicit selection or its fallback. */
+  activeResourceId: string | null
+  /** The explicit selection alone, without the strip's fallback. */
+  selectedResourceId: string | null
+  /**
+   * Whether the chat's stored resources have been applied to the strip.
+   * Adopting a tab writes it to `activeResourceId`, so adopting on top of a
+   * provisional fallback would let the arrival order of the tab list and the
+   * chat history decide what the chat opens on.
+   */
+  hydrated: boolean
   /** Adds a tab without activating it; activation goes through {@link onResourceEvent}. */
   addResource: (resource: MothershipResource) => void
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
@@ -22,28 +37,6 @@ export interface DesktopTabResourceCallbacks {
   restoreResource: (resourceId: string) => void
   /** Agent activity on a tab, subject to the panel's user-ownership policy. */
   onResourceEvent: ResourceEventHandler
-}
-
-/** What the strip shares with every kind of desktop-backed resource tab. */
-export interface DesktopTabStripOptions extends DesktopTabResourceCallbacks {
-  /** Desktop scope whose live tabs back this chat's resource tabs. */
-  scopeId: string
-  resources: readonly MothershipResource[]
-  /** The resource the strip shows: the explicit selection or its fallback. */
-  activeResourceId: string | null
-  /** The explicit selection alone, without the strip's fallback. */
-  selectedResourceId: string | null
-  /**
-   * Whether the chat's stored resources have been applied to the strip.
-   *
-   * Adopting a tab writes it to `activeResourceId`, which is the one place the
-   * rest of the surface reads as the shown resource, so adopting on top of a
-   * provisional fallback would let the arrival order of the tab list and the
-   * chat history decide what the chat opens on. Waiting makes the outcome the
-   * same either way: the history pins a stored resource, or it pins nothing
-   * and the desktop app's remembered tab stands.
-   */
-  hydrated: boolean
 }
 
 interface UseDesktopTabResourcesOptions extends DesktopTabStripOptions {
@@ -65,10 +58,28 @@ interface UseDesktopTabResourcesOptions extends DesktopTabStripOptions {
 }
 
 /**
- * The desktop app's active tab to adopt in place of the strip's fallback: one
- * the strip does not show yet, of the same kind as the fallback, and still in
- * the strip — a tab just closed there stays the desktop app's active tab until
- * the close lands.
+ * The desktop app's active tab when it is not the tab the strip shows, and the
+ * strip is on one of this kind. Null when the two already agree or the strip
+ * is showing something else entirely.
+ */
+function nativeTabOffStrip(
+  resources: readonly MothershipResource[],
+  activeResourceId: string | null,
+  activeTabId: string | null,
+  type: MothershipResourceType
+): string | null {
+  if (!activeTabId || activeTabId === activeResourceId) return null
+  return resources.find((resource) => resource.id === activeResourceId)?.type === type
+    ? activeTabId
+    : null
+}
+
+/**
+ * The same tab, narrowed to one the strip still holds as a resource: a tab
+ * just closed there stays the desktop app's active tab until the close lands,
+ * and adopting it would show a tab that is gone. Following a switch the user
+ * made needs no such check — a brand-new tab is followed before the strip has
+ * projected it.
  */
 function nativeTabToAdopt(
   resources: readonly MothershipResource[],
@@ -76,10 +87,11 @@ function nativeTabToAdopt(
   activeTabId: string | null,
   type: MothershipResourceType
 ): string | null {
-  if (!activeTabId || activeTabId === activeResourceId) return null
-  if (resources.find((resource) => resource.id === activeResourceId)?.type !== type) return null
-  const live = resources.some((resource) => resource.type === type && resource.id === activeTabId)
-  return live ? activeTabId : null
+  const tabId = nativeTabOffStrip(resources, activeResourceId, activeTabId, type)
+  if (!tabId) return null
+  return resources.some((resource) => resource.type === type && resource.id === tabId)
+    ? tabId
+    : null
 }
 
 /**
@@ -131,8 +143,6 @@ export function useDesktopTabResources({
   const requestedTabIdRef = useRef<string | null>(null)
   const scopeIdRef = useRef(scopeId)
   scopeIdRef.current = scopeId
-  const tabsRef = useRef(tabs)
-  tabsRef.current = tabs
   const activeTabIdRef = useRef(activeTabId)
   activeTabIdRef.current = activeTabId
   const resourcesRef = useRef(resources)
@@ -141,6 +151,8 @@ export function useDesktopTabResources({
   activeResourceIdRef.current = activeResourceId
   /** Whether the strip shows an explicit selection rather than its fallback. */
   const explicitSelection = selectedResourceId !== null && selectedResourceId === activeResourceId
+  const explicitSelectionRef = useRef(explicitSelection)
+  explicitSelectionRef.current = explicitSelection
   const hydratedRef = useRef(hydrated)
   hydratedRef.current = hydrated
   /**
@@ -187,7 +199,6 @@ export function useDesktopTabResources({
     }
   }, [addResource, hasSession, removeResource, resources, scopeId, tabs, type])
 
-  /** Whether the selected resource is one of this kind's live tabs. */
   const selectedTabIsLive =
     selectedResourceId !== null && tabs.some((tab) => tab.id === selectedResourceId)
 
@@ -232,15 +243,13 @@ export function useDesktopTabResources({
     }
     const activeResourceId = activeResourceIdRef.current
     if (previousActiveTabId !== null) {
-      const activeResource = resourcesRef.current.find(
-        (resource) => resource.id === activeResourceId
-      )
-      if (activeTabId && activeResource?.type === type && activeResource.id !== activeTabId) {
-        selectResourceRef.current(activeTabId)
-      }
+      const tabId = nativeTabOffStrip(resourcesRef.current, activeResourceId, activeTabId, type)
+      if (tabId) selectResourceRef.current(tabId)
       return
     }
-    if (!hydratedRef.current) return
+    // Same guards as the adopt effect above: a first report must not override
+    // a selection the user made before the tab list arrived.
+    if (!hydratedRef.current || explicitSelectionRef.current) return
     const tabId = nativeTabToAdopt(resourcesRef.current, activeResourceId, activeTabId, type)
     if (tabId) restoreResourceRef.current(tabId)
   }, [activeTabId, type])
