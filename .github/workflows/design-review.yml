@@ -64,6 +64,19 @@ jobs:
       - name: Install trusted dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
+      - name: Identify compatible index
+        if: vars.DESIGN_DIFF_INDEX_ENABLED == 'true'
+        id: index
+        run: echo "identity=$(bun --no-env-file scripts/design-diff/index-cli.ts --identity)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore shared facts into isolated job storage
+        if: vars.DESIGN_DIFF_INDEX_ENABLED == 'true'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ runner.temp }}/design-index
+          key: design-index-v1-${{ steps.index.outputs.identity }}-pr-${{ steps.revisions.outputs.head }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: design-index-v1-${{ steps.index.outputs.identity }}-
+
       - name: Fetch PR source as Git objects
         env:
           BASE_SHA: ${{ steps.revisions.outputs.base }}
@@ -82,13 +95,20 @@ jobs:
           DESIGN_DIFF_PR: ${{ steps.revisions.outputs.pr }}
           DESIGN_DIFF_ENGINE_SHA: ${{ steps.revisions.outputs.engine }}
           REPORT_PATH: ${{ runner.temp }}/design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}.json
-        run: bun run design:diff --base "$BASE_SHA" --head "$HEAD_SHA" --output "$REPORT_PATH" > /dev/null 2>&1
+          INDEX_ENABLED: ${{ vars.DESIGN_DIFF_INDEX_ENABLED }}
+          CACHE_DIRECTORY: ${{ runner.temp }}/design-index
+        run: |
+          CACHE_ARGS=(--no-cache)
+          if [ "$INDEX_ENABLED" = true ]; then CACHE_ARGS=(--cache-dir "$CACHE_DIRECTORY"); fi
+          bun run design:diff --base "$BASE_SHA" --head "$HEAD_SHA" "${CACHE_ARGS[@]}" --output "$REPORT_PATH" --metrics "${REPORT_PATH%.json}.metrics.json" > /dev/null 2>&1
 
       - name: Retain JSON report
         if: ${{ always() && steps.revisions.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}
-          path: ${{ runner.temp }}/design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}.json
+          path: |
+            ${{ runner.temp }}/design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}.json
+            ${{ runner.temp }}/design-diff-${{ steps.revisions.outputs.pr }}-${{ steps.revisions.outputs.head }}.metrics.json
           retention-days: 7
           if-no-files-found: error

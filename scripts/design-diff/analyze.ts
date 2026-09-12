@@ -9,6 +9,7 @@ import { groupFindings } from '#design-diff/group'
 import { renderingLock } from '#design-diff/infrastructure'
 import { fileLoadedInputDiagnostics } from '#design-diff/inputs'
 import { reclaimMemory } from '#design-diff/memory'
+import { counted, measured } from '#design-diff/metrics'
 import { limitations } from '#design-diff/policy'
 import { Resolver } from '#design-diff/resolve'
 import {
@@ -18,13 +19,14 @@ import {
   scoped,
   scriptPattern,
 } from '#design-diff/source'
+import { IndexStore } from '#design-diff/store'
 import { TailwindNormalizer } from '#design-diff/tailwind'
 import type { Change, Config, Definition, Report } from '#design-diff/types'
 
 export function emptyReport(): Report {
   return {
     schemaVersion: '3.0.0',
-    engineVersion: '0.5.2',
+    engineVersion: '0.6.0',
     policyVersion: '5.0.0',
     commits: null,
     status: 'failed',
@@ -64,14 +66,15 @@ export async function analyze(
   cwd: string,
   base: string,
   head: string,
-  config: Config
+  config: Config,
+  index: IndexStore = IndexStore.transient(config)
 ): Promise<Report> {
   const report = emptyReport()
   const reader = new GitReader(cwd)
   report.commits = reader.compare(base, head)
   const changes = reader.changes(report.commits.mergeBase, report.commits.head)
-  const before = new SourceTree(reader, report.commits.mergeBase, config)
-  const after = new SourceTree(reader, report.commits.head, config)
+  const before = new SourceTree(reader, report.commits.mergeBase, config, index)
+  const after = new SourceTree(reader, report.commits.head, config, index)
   reclaimMemory()
   const changed = new Set<string>()
   for (const change of changes) {
@@ -112,9 +115,9 @@ export async function analyze(
       .map((change) => [change.after as string, change.before as string])
   )
   if (changed.size) {
-    before.buildGraph()
-    after.buildGraph()
-    causes = before.graph.causes(changed, after.graph)
+    measured('graph', () => before.buildGraph())
+    measured('graph', () => after.buildGraph())
+    causes = measured('propagation', () => before.graph.causes(changed, after.graph))
     const affected = new Set(causes.keys())
     for (const theme of config.themes) {
       if (!affected.has(theme.path)) continue
@@ -156,7 +159,8 @@ export async function analyze(
       }
       try {
         if (scriptPattern.test(file)) {
-          const defs = extractTsx(resolver, file)
+          counted('extractedFiles')
+          const defs = measured('extract', () => extractTsx(resolver, file))
           if (config.nativeRendering.includes(file))
             defs.push(
               review(
@@ -232,8 +236,18 @@ export async function analyze(
         continue
       }
       const oldFile = renames.get(file) ?? file
-      const a = await extract(before, previousTailwind, oldFile)
-      const b = await extract(after, nextTailwind, file)
+      const a = await before.query(
+        oldFile,
+        'appearance',
+        () => extract(before, previousTailwind, oldFile),
+        affected
+      )
+      const b = await after.query(
+        file,
+        'appearance',
+        () => extract(after, nextTailwind, file),
+        affected
+      )
       report.limitations = [
         ...new Set([
           ...report.limitations,
@@ -241,7 +255,7 @@ export async function analyze(
           ...b.flatMap((definition) => definition.unresolved),
         ]),
       ].sort()
-      findings.push(...compareDefinitions(a, b))
+      findings.push(...measured('compare', () => compareDefinitions(a, b)))
       if (!changed.has(file) && (a.length || b.length)) indirectExamples++
       if (
         changed.has(file) &&
@@ -342,11 +356,13 @@ export async function analyze(
   }
   findings.push(...fileLoadedInputDiagnostics(after, config))
   if (findings.length && !before.graph) {
-    before.buildGraph()
-    after.buildGraph()
+    measured('graph', () => before.buildGraph())
+    measured('graph', () => after.buildGraph())
   }
   report.status = 'completed'
-  report.findings = groupFindings(findings, causes, before, after, renames)
+  report.findings = measured('group', () => groupFindings(findings, causes, before, after, renames))
   report.flagged = report.findings.some((item) => item.decision === 'flag')
+  before.complete()
+  after.complete()
   return report
 }

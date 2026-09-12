@@ -13,6 +13,32 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
   const definitions: Definition[] = []
   const counts = new Map<string, number>()
   const elements = new WeakMap<t.Node, string>()
+  const mediaContainers = new WeakMap<t.Node, boolean>()
+  /** Exempt a passive container only when every nonempty child is established media. */
+  const mediaContainer = (node: t.JSXElement): boolean => {
+    const cached = mediaContainers.get(node)
+    if (cached !== undefined) return cached
+    const name = propertyName(node.openingElement.name)
+    if (/^(?:img|svg|video|audio|picture|source)$/.test(name)) return true
+    const passive =
+      /^(?:div|span|figure)$/.test(name) &&
+      node.openingElement.attributes.every(
+        (attribute) =>
+          t.isJSXAttribute(attribute) &&
+          !/^(?:on[A-Z].*|role|tabIndex|contentEditable)$/.test(propertyName(attribute.name))
+      )
+    const children = node.children.filter(
+      (child) =>
+        !(t.isJSXText(child) && !child.value.trim()) &&
+        !(t.isJSXExpressionContainer(child) && t.isJSXEmptyExpression(child.expression))
+    )
+    const result =
+      passive &&
+      children.length > 0 &&
+      children.every((child) => t.isJSXElement(child) && mediaContainer(child))
+    mediaContainers.set(node, result)
+    return result
+  }
   const domReceiver = (path: NodePath, seen = new Set<t.Node>()): boolean => {
     if (!path.node || seen.has(path.node) || seen.size > 16) return false
     seen.add(path.node)
@@ -34,6 +60,7 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       return true
     for (let node: NodePath | null = path; node; node = node.parentPath) {
       if (!node.isJSXElement()) continue
+      if (mediaContainer(node.node)) return true
       const name = propertyName(node.node.openingElement.name)
       if (mediaElement.test(name)) return true
       const binding = node.scope.getBinding(name.split('.')[0])

@@ -4,6 +4,7 @@ import { fingerprint, location, parseSyntax, propertyName, traverse } from '#des
 import { environmentFields } from '#design-diff/environment'
 import { finiteKeys } from '#design-diff/finite'
 import { reclaimMemory } from '#design-diff/memory'
+import { objectFields, propertyPathsOverlap } from '#design-diff/properties'
 import { Resolver } from '#design-diff/resolve'
 import type { SourceTree } from '#design-diff/source'
 import type { Location } from '#design-diff/types'
@@ -19,8 +20,6 @@ interface Module {
   barrel: boolean
   effects?: string
 }
-/** Parsed import/export facts contain no AST or revision-specific resolved paths. */
-const moduleSnapshots = new Map<string, { module: Module; specifiers: string[] }>()
 
 interface BindingFacts {
   values: Map<string, string>
@@ -69,145 +68,150 @@ export class DependencyGraph {
     private readonly asset: RegExp
   ) {
     let parsed = 0
-    for (const [file, source] of tree.texts) {
+    for (const file of tree.texts.keys()) {
       if (++parsed % 128 === 0) reclaimMemory()
       const raw = new Set<string>()
       this.raw.set(file, raw)
       this.dependencies.set(file, new Set())
       if (!this.script.test(file)) {
-        for (const match of source.matchAll(
-          /(?:from\s*|import\s*|@import\s*|url\(\s*)["']([^"']+)["']/g
-        )) {
-          const target = tree.resolve(file, match[1])
-          if (target) raw.add(target)
-        }
-        continue
-      }
-      const cacheKey = `${tree.entries.get(file)?.oid}:${this.asset.source}`
-      const cached = moduleSnapshots.get(cacheKey)
-      if (cached) {
-        this.modules.set(file, cached.module)
-        for (const specifier of cached.specifiers) {
+        const specifiers = tree.fact(file, 'non-script', () =>
+          [
+            ...tree.texts
+              .get(file)!
+              .matchAll(/(?:from\s*|import\s*|@import\s*|url\(\s*)["']([^"']+)["']/g),
+          ].map((match) => match[1])
+        )
+        for (const specifier of specifiers) {
           const target = tree.resolve(file, specifier)
           if (target) raw.add(target)
         }
         continue
       }
-      const specifiers = new Set<string>()
-      const addSpecifier = (specifier: string) => {
-        specifiers.add(specifier)
-        const target = tree.resolve(file, specifier)
-        if (target) raw.add(target)
-      }
-      try {
-        const ast = parseSyntax(source, file)
-        const exports = new Map<string, ExportTarget>()
-        const imports = new Map<string, ExportTarget>()
-        const stars: string[] = []
-        let barrel = ast.program.body.length > 0
-        for (const node of ast.program.body) {
-          if (t.isImportDeclaration(node)) {
-            if (node.importKind === 'type') continue
-            addSpecifier(node.source.value)
-            if (!node.specifiers.length) barrel = false
-            for (const specifier of node.specifiers) {
-              if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
-              imports.set(specifier.local.name, {
-                source: node.source.value,
-                name: t.isImportSpecifier(specifier)
-                  ? propertyName(specifier.imported)
-                  : t.isImportDefaultSpecifier(specifier)
-                    ? 'default'
-                    : '*',
-              })
-            }
-          } else if (t.isExportAllDeclaration(node)) {
-            if (node.exportKind === 'type') continue
-            stars.push(node.source.value)
-            addSpecifier(node.source.value)
-          } else if (t.isExportNamedDeclaration(node)) {
-            if (node.exportKind === 'type') continue
-            if (node.declaration) {
-              if (
-                t.isTSInterfaceDeclaration(node.declaration) ||
-                t.isTSTypeAliasDeclaration(node.declaration)
-              )
-                continue
-              barrel = false
-              if (t.isVariableDeclaration(node.declaration)) {
-                for (const declaration of node.declaration.declarations)
-                  for (const name of Object.keys(t.getBindingIdentifiers(declaration.id)))
-                    exports.set(name, { name })
-              } else if ('id' in node.declaration && t.isIdentifier(node.declaration.id))
-                exports.set(node.declaration.id.name, { name: node.declaration.id.name })
-            }
-            if (node.source) {
+      const snapshot = tree.fact(file, 'module', () => {
+        const source = tree.texts.get(file)!
+        const specifiers = new Set<string>()
+        const addSpecifier = (specifier: string) => {
+          specifiers.add(specifier)
+          const target = tree.resolve(file, specifier)
+          if (target) raw.add(target)
+        }
+        try {
+          const ast = parseSyntax(source, file)
+          const exports = new Map<string, ExportTarget>()
+          const imports = new Map<string, ExportTarget>()
+          const stars: string[] = []
+          let barrel = ast.program.body.length > 0
+          for (const node of ast.program.body) {
+            if (t.isImportDeclaration(node)) {
+              if (node.importKind === 'type') continue
               addSpecifier(node.source.value)
-            }
-            for (const specifier of node.specifiers) {
-              if (t.isExportSpecifier(specifier) && specifier.exportKind !== 'type') {
-                exports.set(propertyName(specifier.exported), {
-                  source: node.source?.value,
-                  name: propertyName(specifier.local),
-                })
-              } else if (t.isExportNamespaceSpecifier(specifier)) {
-                exports.set(propertyName(specifier.exported), {
-                  source: node.source?.value,
-                  name: '*',
+              if (!node.specifiers.length) barrel = false
+              for (const specifier of node.specifiers) {
+                if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
+                imports.set(specifier.local.name, {
+                  source: node.source.value,
+                  name: t.isImportSpecifier(specifier)
+                    ? propertyName(specifier.imported)
+                    : t.isImportDefaultSpecifier(specifier)
+                      ? 'default'
+                      : '*',
                 })
               }
-            }
-          } else if (t.isExportDefaultDeclaration(node)) {
-            barrel = false
-            exports.set('default', {
-              name: t.isIdentifier(node.declaration)
-                ? node.declaration.name
-                : 'id' in node.declaration && node.declaration.id
-                  ? node.declaration.id.name
-                  : 'default',
-            })
-          } else if (
-            !t.isTSInterfaceDeclaration(node) &&
-            !t.isTSTypeAliasDeclaration(node) &&
-            !t.isEmptyStatement(node)
-          )
-            barrel = false
+            } else if (t.isExportAllDeclaration(node)) {
+              if (node.exportKind === 'type') continue
+              stars.push(node.source.value)
+              addSpecifier(node.source.value)
+            } else if (t.isExportNamedDeclaration(node)) {
+              if (node.exportKind === 'type') continue
+              if (node.declaration) {
+                if (
+                  t.isTSInterfaceDeclaration(node.declaration) ||
+                  t.isTSTypeAliasDeclaration(node.declaration)
+                )
+                  continue
+                barrel = false
+                if (t.isVariableDeclaration(node.declaration)) {
+                  for (const declaration of node.declaration.declarations)
+                    for (const name of Object.keys(t.getBindingIdentifiers(declaration.id)))
+                      exports.set(name, { name })
+                } else if ('id' in node.declaration && t.isIdentifier(node.declaration.id))
+                  exports.set(node.declaration.id.name, { name: node.declaration.id.name })
+              }
+              if (node.source) {
+                addSpecifier(node.source.value)
+              }
+              for (const specifier of node.specifiers) {
+                if (t.isExportSpecifier(specifier) && specifier.exportKind !== 'type') {
+                  exports.set(propertyName(specifier.exported), {
+                    source: node.source?.value,
+                    name: propertyName(specifier.local),
+                  })
+                } else if (t.isExportNamespaceSpecifier(specifier)) {
+                  exports.set(propertyName(specifier.exported), {
+                    source: node.source?.value,
+                    name: '*',
+                  })
+                }
+              }
+            } else if (t.isExportDefaultDeclaration(node)) {
+              barrel = false
+              exports.set('default', {
+                name: t.isIdentifier(node.declaration)
+                  ? node.declaration.name
+                  : 'id' in node.declaration && node.declaration.id
+                    ? node.declaration.id.name
+                    : 'default',
+              })
+            } else if (
+              !t.isTSInterfaceDeclaration(node) &&
+              !t.isTSTypeAliasDeclaration(node) &&
+              !t.isEmptyStatement(node)
+            )
+              barrel = false
+          }
+          t.traverseFast(ast, (node) => {
+            const specifier =
+              t.isCallExpression(node) &&
+              (t.isImport(node.callee) || t.isIdentifier(node.callee, { name: 'require' })) &&
+              t.isStringLiteral(node.arguments[0])
+                ? node.arguments[0].value
+                : t.isStringLiteral(node) && this.asset.test(node.value)
+                  ? node.value
+                  : undefined
+            if (specifier) addSpecifier(specifier)
+          })
+          const effects = [
+            ...ast.program.directives,
+            ...ast.program.body.filter(
+              (node) =>
+                t.isExpressionStatement(node) ||
+                (t.isImportDeclaration(node) &&
+                  node.importKind !== 'type' &&
+                  !node.specifiers.length)
+            ),
+          ]
+          const module = {
+            exports,
+            stars,
+            imports,
+            barrel,
+            effects: effects.length ? fingerprint(effects) : undefined,
+          }
+          return { module, specifiers: [...specifiers] }
+        } catch {
+          tree.failures.add(file)
+          return undefined
         }
-        t.traverseFast(ast, (node) => {
-          const specifier =
-            t.isCallExpression(node) &&
-            (t.isImport(node.callee) || t.isIdentifier(node.callee, { name: 'require' })) &&
-            t.isStringLiteral(node.arguments[0])
-              ? node.arguments[0].value
-              : t.isStringLiteral(node) && this.asset.test(node.value)
-                ? node.value
-                : undefined
-          if (specifier) addSpecifier(specifier)
-        })
-        const effects = [
-          ...ast.program.directives,
-          ...ast.program.body.filter(
-            (node) =>
-              t.isExpressionStatement(node) ||
-              (t.isImportDeclaration(node) && node.importKind !== 'type' && !node.specifiers.length)
-          ),
-        ]
-        const module = {
-          exports,
-          stars,
-          imports,
-          barrel,
-          effects: effects.length ? fingerprint(effects) : undefined,
+      })
+      if (snapshot) {
+        this.modules.set(file, snapshot.module)
+        for (const specifier of snapshot.specifiers) {
+          const target = tree.resolve(file, specifier)
+          if (target) raw.add(target)
         }
-        this.modules.set(file, module)
-        if (moduleSnapshots.size >= 32768)
-          moduleSnapshots.delete(moduleSnapshots.keys().next().value!)
-        moduleSnapshots.set(cacheKey, { module, specifiers: [...specifiers] })
-      } catch {
-        tree.failures.add(file)
       }
     }
-    for (const [file] of tree.texts) {
+    for (const file of tree.texts.keys()) {
       this.connect(file)
       if (++parsed % 128 === 0) reclaimMemory()
     }
@@ -226,9 +230,14 @@ export class DependencyGraph {
     active = new Set<string>(),
     budget = { remaining: this.tree.config.limits.resolutionSteps }
   ): Trace {
+    this.tree.observe(file)
     const key = `${file}\0${name}`
     const cached = this.traces.get(key)
-    if (cached) return cached
+    if (cached) {
+      for (const route of cached.routes) this.tree.observe(route)
+      for (const origin of cached.origins) this.tree.observe(origin.file)
+      return cached
+    }
     if (
       --budget.remaining < 0 ||
       active.has(key) ||
@@ -349,55 +358,66 @@ export class DependencyGraph {
       for (const target of this.raw.get(file) ?? []) this.dependencies.get(file)!.add(target)
       return
     }
-    const ast = parseSyntax(this.tree.texts.get(file) as string, file)
-    const namespaces = new Map([...module.imports].filter(([, target]) => target.name === '*'))
-    const referenced = new Set<string>()
-    traverse(ast, {
-      noScope: true,
-      ImportDeclaration: (p) => {
-        if (p.node.importKind === 'type') return
-        if (!p.node.specifiers.length) this.add(file, p.node.source.value, '*')
-        for (const specifier of p.node.specifiers) {
-          if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
-          if (!t.isImportNamespaceSpecifier(specifier))
-            this.add(
-              file,
-              p.node.source.value,
-              t.isImportDefaultSpecifier(specifier) ? 'default' : propertyName(specifier.imported)
-            )
-        }
-      },
-      ReferencedIdentifier: (p) => {
-        const name = propertyName(p.node)
-        const namespace = namespaces.get(name)
-        if (!namespace?.source || p.findParent((parent) => parent.isTSType())) return
-        referenced.add(name)
-        this.add(file, namespace.source, this.namespaceMember(p))
-      },
-      ExportNamedDeclaration: (p) => {
-        if (p.node.exportKind === 'type' || !p.node.source) return
-        for (const specifier of p.node.specifiers)
-          if (t.isExportSpecifier(specifier) && specifier.exportKind !== 'type')
-            this.add(file, p.node.source.value, propertyName(specifier.local))
-      },
-      ExportAllDeclaration: (p) => {
-        if (p.node.exportKind !== 'type') this.add(file, p.node.source.value, '*')
-      },
-      CallExpression: (p) => {
-        if (
-          (t.isImport(p.node.callee) || t.isIdentifier(p.node.callee, { name: 'require' })) &&
-          t.isStringLiteral(p.node.arguments[0])
-        )
-          this.add(file, p.node.arguments[0].value, '*')
-      },
-      StringLiteral: (p) => {
-        if (!this.asset.test(p.node.value)) return
-        const target = this.tree.resolve(file, p.node.value)
-        if (target) (this.dependencies.get(file) as Set<string>).add(target)
-      },
+    const connections = this.tree.fact(file, 'connections', () => {
+      const imports: [string, string][] = []
+      const assets: string[] = []
+      const add = (specifier: string, name: string) => {
+        imports.push([specifier, name])
+      }
+      const ast = parseSyntax(this.tree.texts.get(file) as string, file)
+      const namespaces = new Map([...module.imports].filter(([, target]) => target.name === '*'))
+      const referenced = new Set<string>()
+      traverse(ast, {
+        noScope: true,
+        ImportDeclaration: (p) => {
+          if (p.node.importKind === 'type') return
+          if (!p.node.specifiers.length) add(p.node.source.value, '*')
+          for (const specifier of p.node.specifiers) {
+            if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
+            if (!t.isImportNamespaceSpecifier(specifier))
+              add(
+                p.node.source.value,
+                t.isImportDefaultSpecifier(specifier) ? 'default' : propertyName(specifier.imported)
+              )
+          }
+        },
+        ReferencedIdentifier: (p) => {
+          const name = propertyName(p.node)
+          const namespace = namespaces.get(name)
+          if (!namespace?.source || p.findParent((parent) => parent.isTSType())) return
+          referenced.add(name)
+          add(namespace.source, this.namespaceMember(p))
+        },
+        ExportNamedDeclaration: (p) => {
+          if (p.node.exportKind === 'type' || !p.node.source) return
+          for (const specifier of p.node.specifiers)
+            if (t.isExportSpecifier(specifier) && specifier.exportKind !== 'type')
+              add(p.node.source.value, propertyName(specifier.local))
+        },
+        ExportAllDeclaration: (p) => {
+          if (p.node.exportKind !== 'type') add(p.node.source.value, '*')
+        },
+        CallExpression: (p) => {
+          if (
+            (t.isImport(p.node.callee) || t.isIdentifier(p.node.callee, { name: 'require' })) &&
+            t.isStringLiteral(p.node.arguments[0])
+          )
+            add(p.node.arguments[0].value, '*')
+        },
+        StringLiteral: (p) => {
+          if (!this.asset.test(p.node.value)) return
+          assets.push(p.node.value)
+        },
+      })
+      for (const [name, target] of namespaces)
+        if (!referenced.has(name) && target.source) add(target.source, '*')
+      return { imports, assets }
     })
-    for (const [name, target] of namespaces)
-      if (!referenced.has(name) && target.source) this.add(file, target.source, '*')
+    for (const [specifier, name] of connections.imports) this.add(file, specifier, name)
+    for (const specifier of connections.assets) {
+      const target = this.tree.resolve(file, specifier)
+      if (target) this.dependencies.get(file)!.add(target)
+    }
   }
 
   private namespaceMember(reference: NodePath): string {
@@ -415,52 +435,65 @@ export class DependencyGraph {
   private count(file: string) {
     if (this.counted.has(file) || this.modules.get(file)?.barrel) return
     this.counted.add(file)
-    const ast = parseSyntax(this.tree.texts.get(file) as string, file)
-    const record = (specifier: string, name: string, references: NodePath[]) => {
-      const target = this.tree.resolve(file, specifier)
-      if (!target) return
-      const trace = this.trace(target, name)
-      if (trace.uncertain || trace.origins.length !== 1) return
-      for (const reference of references) {
-        if (
-          reference.findParent(
-            (parent) =>
-              parent.isTSType() || parent.isExportSpecifier() || parent.isJSXClosingElement()
-          )
-        )
-          continue
-        this.references.push({
-          origin: trace.origins[0],
-          usage: {
-            location: location(file, reference.node),
-            symbol: trace.origins[0].symbol,
-            kind: reference.findParent((parent) => parent.isJSXOpeningElement())
-              ? 'jsx'
-              : reference.parentPath?.isCallExpression() && reference.key === 'callee'
-                ? 'call'
-                : 'reference',
-          },
-        })
-      }
-    }
-    traverse(ast, {
-      ImportDeclaration: (p) => {
-        if (p.node.importKind === 'type') return
-        for (const specifier of p.node.specifiers) {
-          if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
-          const references = p.scope.getBinding(specifier.local.name)?.referencePaths ?? []
-          if (t.isImportNamespaceSpecifier(specifier))
-            for (const ref of references)
-              record(p.node.source.value, this.namespaceMember(ref), [ref.parentPath ?? ref])
-          else
-            record(
-              p.node.source.value,
-              t.isImportDefaultSpecifier(specifier) ? 'default' : propertyName(specifier.imported),
-              references
+    const references = this.tree.fact(file, 'usages', () => {
+      const ast = parseSyntax(this.tree.texts.get(file) as string, file)
+      const result: { specifier: string; name: string; usage: Usage }[] = []
+      const record = (specifier: string, name: string, references: NodePath[]) => {
+        for (const reference of references) {
+          if (
+            reference.findParent(
+              (parent) =>
+                parent.isTSType() || parent.isExportSpecifier() || parent.isJSXClosingElement()
             )
+          )
+            continue
+          result.push({
+            specifier,
+            name,
+            usage: {
+              location: location(file, reference.node),
+              symbol: name,
+              kind: reference.findParent((parent) => parent.isJSXOpeningElement())
+                ? 'jsx'
+                : reference.parentPath?.isCallExpression() && reference.key === 'callee'
+                  ? 'call'
+                  : 'reference',
+            },
+          })
         }
-      },
+      }
+      traverse(ast, {
+        ImportDeclaration: (p) => {
+          if (p.node.importKind === 'type') return
+          for (const specifier of p.node.specifiers) {
+            if (t.isImportSpecifier(specifier) && specifier.importKind === 'type') continue
+            const references = p.scope.getBinding(specifier.local.name)?.referencePaths ?? []
+            if (t.isImportNamespaceSpecifier(specifier))
+              for (const ref of references)
+                record(p.node.source.value, this.namespaceMember(ref), [ref.parentPath ?? ref])
+            else
+              record(
+                p.node.source.value,
+                t.isImportDefaultSpecifier(specifier)
+                  ? 'default'
+                  : propertyName(specifier.imported),
+                references
+              )
+          }
+        },
+      })
+      return result
     })
+    for (const reference of references) {
+      const target = this.tree.resolve(file, reference.specifier)
+      if (!target) continue
+      const trace = this.trace(target, reference.name)
+      if (trace.uncertain || trace.origins.length !== 1) continue
+      this.references.push({
+        origin: trace.origins[0],
+        usage: { ...reference.usage, symbol: trace.origins[0].symbol },
+      })
+    }
     if (this.counted.size % 64 === 0) reclaimMemory()
   }
 
@@ -588,79 +621,89 @@ export class DependencyGraph {
 
   private bindingFacts(file: string): BindingFacts | undefined {
     if (this.bindingSnapshots.has(file)) return this.bindingSnapshots.get(file)
-    const source = this.tree.texts.get(file)
-    if (!source || !this.script.test(file)) return undefined
-    const values = new Map<string, string>()
-    const reverse = new Map<string, Set<string>>()
-    const unowned = new Set<string>()
-    const members = new Map<string, { keys?: string[]; owners?: string[] }[]>()
-    const resolver = new Resolver(this.tree)
-    const ast = parseSyntax(source, file)
-    traverse(ast, {
-      Program(p) {
-        const entries = Object.entries(p.scope.bindings)
-        const owners = new Map<t.Node, Set<string>>()
-        for (const [name, binding] of entries) {
-          const names = owners.get(binding.path.node) ?? new Set<string>()
-          names.add(name)
-          owners.set(binding.path.node, names)
-        }
-        for (const [name, binding] of entries) {
-          const declaration = binding.path.parentPath
-          values.set(
-            name,
-            fingerprint([
-              binding.path.node,
-              binding.constantViolations.map((path) => path.node),
-              declaration?.isImportDeclaration() ? declaration.node.source.value : null,
-            ])
-          )
-          const dependents = new Set<string>()
-          for (const reference of binding.referencePaths) {
-            if (reference.isExportDeclaration()) continue
-            if (reference.findParent((parent) => parent.isTSType() || parent.isExportSpecifier()))
-              continue
-            const owner = reference.findParent((parent) => owners.has(parent.node))
-            if (owner) for (const name of owners.get(owner.node)!) dependents.add(name)
-            else unowned.add(name)
-            if (binding.path.isImportSpecifier() || binding.path.isImportDefaultSpecifier()) {
-              const member = reference.parentPath
-              const keys =
-                member?.isMemberExpression() && member.node.object === reference.node
-                  ? member.node.computed
-                    ? finiteKeys(member.get('property') as NodePath, file, resolver)?.keys?.map(
+    const result = this.tree.querySync(file, 'bindings', () => {
+      const source = this.tree.texts.get(file)
+      if (!source || !this.script.test(file)) return undefined
+      const values = new Map<string, string>()
+      const reverse = new Map<string, Set<string>>()
+      const unowned = new Set<string>()
+      const members = new Map<string, { keys?: string[]; owners?: string[] }[]>()
+      const resolver = new Resolver(this.tree)
+      const ast = parseSyntax(source, file)
+      traverse(ast, {
+        Program(p) {
+          const entries = Object.entries(p.scope.bindings)
+          const owners = new Map<t.Node, Set<string>>()
+          for (const [name, binding] of entries) {
+            const names = owners.get(binding.path.node) ?? new Set<string>()
+            names.add(name)
+            owners.set(binding.path.node, names)
+          }
+          for (const [name, binding] of entries) {
+            const declaration = binding.path.parentPath
+            values.set(
+              name,
+              fingerprint([
+                binding.path.node,
+                binding.constantViolations.map((path) => path.node),
+                declaration?.isImportDeclaration() ? declaration.node.source.value : null,
+              ])
+            )
+            const dependents = new Set<string>()
+            for (const reference of binding.referencePaths) {
+              if (reference.isExportDeclaration()) continue
+              if (reference.findParent((parent) => parent.isTSType() || parent.isExportSpecifier()))
+                continue
+              const owner = reference.findParent((parent) => owners.has(parent.node))
+              if (owner) for (const name of owners.get(owner.node)!) dependents.add(name)
+              else unowned.add(name)
+              if (binding.path.isImportSpecifier() || binding.path.isImportDefaultSpecifier()) {
+                let member = reference
+                let paths: string[][] = [[]]
+                while (member.parentPath?.isMemberExpression() && member.key === 'object') {
+                  const parent = member.parentPath
+                  const keys = parent.node.computed
+                    ? finiteKeys(parent.get('property') as NodePath, file, resolver)?.keys?.map(
                         String
                       )
-                    : [propertyName(member.node.property)]
+                    : [propertyName(parent.node.property)]
+                  if (!keys || paths.length * keys.length > 64) break
+                  paths = paths.flatMap((path) => keys.map((key) => [...path, key]))
+                  member = parent
+                }
+                const keys = paths[0]?.length
+                  ? paths.map((path) => JSON.stringify(path))
                   : undefined
-              const references = members.get(name) ?? []
-              references.push({ keys, owners: owner ? [...owners.get(owner.node)!] : undefined })
-              members.set(name, references)
+                const references = members.get(name) ?? []
+                references.push({ keys, owners: owner ? [...owners.get(owner.node)!] : undefined })
+                members.set(name, references)
+              }
             }
+            reverse.set(name, dependents)
           }
-          reverse.set(name, dependents)
-        }
-        p.stop()
-      },
+          p.stop()
+        },
+      })
+      const effects = ast.program.body.filter(
+        (node) =>
+          !t.isImportDeclaration(node) &&
+          !t.isExportDeclaration(node) &&
+          !t.isVariableDeclaration(node) &&
+          !t.isFunctionDeclaration(node) &&
+          !t.isClassDeclaration(node) &&
+          !t.isTSInterfaceDeclaration(node) &&
+          !t.isTSTypeAliasDeclaration(node) &&
+          !t.isEmptyStatement(node)
+      )
+      const result = {
+        values,
+        reverse,
+        unowned,
+        members,
+        effects: fingerprint([ast.program.directives, effects]),
+      }
+      return result
     })
-    const effects = ast.program.body.filter(
-      (node) =>
-        !t.isImportDeclaration(node) &&
-        !t.isExportDeclaration(node) &&
-        !t.isVariableDeclaration(node) &&
-        !t.isFunctionDeclaration(node) &&
-        !t.isClassDeclaration(node) &&
-        !t.isTSInterfaceDeclaration(node) &&
-        !t.isTSTypeAliasDeclaration(node) &&
-        !t.isEmptyStatement(node)
-    )
-    const result = {
-      values,
-      reverse,
-      unowned,
-      members,
-      effects: fingerprint([ast.program.directives, effects]),
-    }
     this.bindingSnapshots.set(file, result)
     if (this.bindingSnapshots.size % 64 === 0) reclaimMemory()
     return result
@@ -698,7 +741,12 @@ export class DependencyGraph {
               seeds.add(local)
               break
             }
-            if (!reference.keys.some((key) => keys.has(key))) continue
+            if (
+              !reference.keys.some((key) =>
+                [...keys].some((changed) => propertyPathsOverlap(key, changed))
+              )
+            )
+              continue
             if (!reference.owners) return undefined
             for (const owner of reference.owners) seeds.add(owner)
           }
@@ -729,8 +777,21 @@ export class DependencyGraph {
       const before = this.bindingFacts(file)
       const after = other.bindingFacts(file)
       if (!before || !after) return undefined
-      const a = environmentFields(this.tree.texts.get(file)!, file)
-      const b = environmentFields(other.tree.texts.get(file)!, file)
+      const fields = (tree: SourceTree) =>
+        tree.fact(file, 'property-projections', () => {
+          const source = tree.texts.get(file)!
+          const result = objectFields(source, file)
+          for (const [name, value] of environmentFields(source, file))
+            result.set(name, {
+              ...value,
+              fields: new Map(
+                [...value.fields].map(([key, hash]) => [JSON.stringify([key]), hash])
+              ),
+            })
+          return result
+        })
+      const a = fields(this.tree)
+      const b = fields(other.tree)
       const result = new Map<string, Set<string>>()
       for (const [name, value] of a) {
         const next = b.get(name)

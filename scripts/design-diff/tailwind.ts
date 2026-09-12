@@ -27,13 +27,18 @@ export class TailwindNormalizer {
       limitations: string[]
     }>
   >()
+  private readonly themeReads = new Map<string, Set<string>>()
   constructor(readonly tree: SourceTree) {}
 
   private theme(file: string) {
     const cached = this.systems.get(file)
-    if (cached) return cached
+    if (cached) {
+      for (const current of this.themeReads.get(file) ?? []) this.tree.observe(current)
+      return cached
+    }
     const promise = (async () => {
       const visited = new Set<string>()
+      this.themeReads.set(file, visited)
       const variables: Definition[] = extractCss(defaultTheme, 'trusted:tailwind/theme.css')
       const limitations: string[] = []
       const chunks = [defaultTheme]
@@ -113,7 +118,10 @@ export class TailwindNormalizer {
         } = await this.theme(theme.path)
         if (themeLimitations.includes('Theme source unavailable'))
           unresolved.push('Theme source unavailable')
-        for (const file of files) dependencies.add(file)
+        for (const file of files) {
+          dependencies.add(file)
+          this.tree.observe(file)
+        }
         const normalize = (data: Data): Data => {
           if (typeof data === 'string') {
             const order = data.split(/\s+/).filter(Boolean)

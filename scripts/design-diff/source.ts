@@ -3,7 +3,10 @@ import { parse as parseJson } from 'jsonc-parser'
 import { canonicalJson } from '#design-diff/ast'
 import { DependencyGraph } from '#design-diff/dependencies'
 import type { Entry, GitReader } from '#design-diff/git'
+import { LazySources } from '#design-diff/lazy-source'
+import { counted, measured } from '#design-diff/metrics'
 import { SemanticValues } from '#design-diff/semantic'
+import { contentHash, type IndexStore } from '#design-diff/store'
 import type { Config, Data } from '#design-diff/types'
 
 export const scriptPattern = /\.[cm]?[jt]sx?$/
@@ -27,7 +30,10 @@ export function scoped(file: string, config: Config): boolean {
 
 export class SourceTree {
   readonly entries: Map<string, Entry>
-  readonly texts: Map<string, string>
+  readonly texts: LazySources
+  private readonly observed: Set<string>[] = []
+  private readonly probes: Map<string, boolean>[] = []
+  private routing: string | undefined
   readonly dependencies = new Map<string, Set<string>>()
   readonly failures = new Set<string>()
   readonly semantics = new SemanticValues()
@@ -38,7 +44,8 @@ export class SourceTree {
   constructor(
     reader: GitReader,
     readonly commit: string,
-    readonly config: Config
+    readonly config: Config,
+    readonly index?: IndexStore
   ) {
     this.entries = reader.tree(commit)
     const entries = [...this.entries.values()].filter(
@@ -59,9 +66,15 @@ export class SourceTree {
     if (readable.reduce((size, entry) => size + entry.size, 0) > config.limits.totalBytes) {
       throw new Error('Source snapshot exceeds the configured total byte limit')
     }
-    this.texts = reader.blobs(readable)
-    for (const [file, source] of this.texts) {
+    this.texts = new LazySources(reader, readable, (file) => this.observe(file))
+    this.texts.prefetch(
+      readable
+        .filter((entry) => /(?:^|\/)(?:package|tsconfig[^/]*)\.json$/.test(entry.path))
+        .map((entry) => entry.path)
+    )
+    for (const file of this.texts.keys()) {
       if (!/^(?:apps|packages)\/[^/]+\/package\.json$/.test(file)) continue
+      const source = this.texts.get(file)!
       try {
         const manifest = JSON.parse(source)
         if (typeof manifest.name === 'string')
@@ -72,8 +85,144 @@ export class SourceTree {
     }
   }
 
+  observe(file: string): void {
+    for (const reads of this.observed) reads.add(file)
+  }
+
+  /** File facts contain unresolved specifiers; resolution is always revision-specific. */
+  fact<T>(file: string, kind: string, compute: () => T): T {
+    this.observe(file)
+    const key = `fact:${kind}:${file}:${this.entries.get(file)?.oid}`
+    const cached = this.index?.get<{ value: T; failed: boolean }>(key)
+    if (cached) {
+      if (cached.failed) this.failures.add(file)
+      return cached.value
+    }
+    counted('facts.computed')
+    const value = compute()
+    this.index?.put(key, { value, failed: this.failures.has(file) })
+    return value
+  }
+
+  private queryKey(file: string, kind: string): string {
+    this.routing ??= contentHash(
+      JSON.stringify([
+        [...this.entries].map(([name, entry]) => [
+          name,
+          entry.mode,
+          /(?:^|\/)(?:package|tsconfig[^/]*)\.json$/.test(name) ? entry.oid : null,
+        ]),
+        this.config,
+      ])
+    )
+    return `query:${kind}:${file}:${this.entries.get(file)?.oid}:${this.routing}`
+  }
+
+  querySync<T>(file: string, kind: string, compute: () => T): T {
+    const key = this.queryKey(file, kind)
+    const cached = this.index?.get<{
+      value: T
+      reads: [string, string | null][]
+      failures: string[]
+    }>(key)
+    if (cached?.reads.every(([name, oid]) => (this.entries.get(name)?.oid ?? null) === oid)) {
+      for (const [name] of cached.reads) this.observe(name)
+      for (const name of cached.failures) this.failures.add(name)
+      counted('queries.reused')
+      return cached.value
+    }
+    const reads = new Set([file])
+    this.observed.push(reads)
+    try {
+      counted('queries.computed')
+      const value = compute()
+      this.index?.put(key, {
+        value,
+        reads: [...reads].sort().map((name) => [name, this.entries.get(name)?.oid ?? null]),
+        failures: [...reads].filter((name) => this.failures.has(name)),
+      })
+      return value
+    } finally {
+      this.observed.pop()
+    }
+  }
+
+  complete(): void {
+    if (!this.graph) return
+    this.index?.complete(this.commit, {
+      files: [...this.entries].map(([file, entry]) => ({
+        ...entry,
+        coverage: this.failures.has(file)
+          ? 'unreadable'
+          : !scoped(file, this.config) &&
+              !infrastructure(file, this.config) &&
+              file !== 'package.json' &&
+              file !== 'bun.lock'
+            ? 'excluded'
+            : !/\.(?:[cm]?[jt]sx?|css|html?|mdx?|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|apng|woff2?|ttf|otf|eot|mp4|webm|mov|pdf|tiff?|heic|lottie|glsl|wgsl|vert|frag)$/.test(
+                  file
+                ) && file !== 'bun.lock'
+              ? 'unsupported'
+              : 'indexed',
+      })),
+      dependencies: this.graph?.dependencies ?? new Map(),
+      limitations: this.graph?.limitations ?? new Map(),
+    })
+  }
+
+  /** Record comparison-context reads independently from immutable source dependencies. */
+  isAffected(file: string, affected: ReadonlySet<string>): boolean {
+    const value = affected.has(file)
+    for (const probes of this.probes) probes.set(file, value)
+    return value
+  }
+
+  /** Reuse a result only while all observed sources and comparison-context probes agree. */
+  async query<T>(
+    file: string,
+    kind: string,
+    compute: () => Promise<T>,
+    affected: ReadonlySet<string>
+  ): Promise<T> {
+    const key = this.queryKey(file, kind)
+    const cached = this.index?.get<{
+      value: T
+      reads: [string, string | null][]
+      failures: string[]
+      probes: [string, boolean][]
+    }>(key)
+    if (
+      cached?.reads.every(([name, oid]) => (this.entries.get(name)?.oid ?? null) === oid) &&
+      cached.probes.every(([name, value]) => this.isAffected(name, affected) === value)
+    ) {
+      for (const [name] of cached.reads) this.observe(name)
+      for (const name of cached.failures) this.failures.add(name)
+      counted('queries.reused')
+      return cached.value
+    }
+    const reads = new Set([file])
+    const probes = new Map<string, boolean>()
+    this.observed.push(reads)
+    this.probes.push(probes)
+    try {
+      counted('queries.computed')
+      const value = await compute()
+      this.index?.put(key, {
+        value,
+        reads: [...reads].sort().map((name) => [name, this.entries.get(name)?.oid ?? null]),
+        failures: [...reads].filter((name) => this.failures.has(name)),
+        probes: [...probes].sort(([a], [b]) => a.localeCompare(b, 'en')),
+      })
+      return value
+    } finally {
+      this.observed.pop()
+      this.probes.pop()
+    }
+  }
+
   /** Immutable JSON data is parsed once per revision and never passed to a module loader. */
   json(file: string): Data {
+    this.observe(file)
     if (this.jsonValues.has(file)) return this.jsonValues.get(file)!
     const source = this.texts.get(file)
     if (source === undefined) throw new Error('JSON source unavailable')
@@ -106,9 +255,10 @@ export class SourceTree {
   }
 
   resolve(from: string, specifier: string): string | undefined {
+    this.observe(from)
     const key = `${from}\0${specifier}`
     if (this.resolutions.has(key)) return this.resolutions.get(key)
-    const resolved = this.resolveUncached(from, specifier)
+    const resolved = measured('dependencyResolution', () => this.resolveUncached(from, specifier))
     this.resolutions.set(key, resolved)
     return resolved
   }

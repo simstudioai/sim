@@ -55,7 +55,7 @@ only the runtime predicate, handler or label does not qualify.
 Media exclusion applies to recognized JSX/HTML/MDX media elements and asset files. Repository
 conventions also identify social-card image generators, landing artwork and the named illustration
 functions inside empty-state components. Their surrounding product controls remain in scope.
-The policy does not treat an arbitrary wrapper around an image as media. A wrapper's custom padding or layout still qualifies.
+A passive `div`, `span` or `figure` containing only native media is also exempt. Mixed control/media layouts, event handlers, roles, spreads and unknown children prevent this exemption.
 CSS asset URL substitutions and generated copy are exempt. Source-only analysis cannot
 reliably identify every project-specific media wrapper.
 
@@ -103,10 +103,9 @@ an Icon does not break resolution of Button through the same barrel.
 
 ## Report contract
 
-Schema **3.0.0**, engine **0.5.2**, policy **5.0.0**. The schema remains compatible; the policy
-meaning changes. Readers must inspect versions when comparing historical qualification rates.
+Schema **3.0.0**, engine **0.6.0**, policy **5.0.0**. The schema and notification policy remain compatible. Readers must inspect versions when comparing historical qualification rates.
 All decisions and identifiers are deterministic for the same engine/configuration and commits.
-Execution timing and peak memory are recorded separately by the benchmark, never in engine JSON.
+Execution timing and peak memory are recorded separately with `--metrics`, never in engine JSON.
 
 Each top-level finding groups evidence by **changed source file**. A shared Button edit produces
 one group, rather than one notification per use. Fields include:
@@ -142,7 +141,10 @@ inputs retain diagnostic evidence. Lockfile rendering-dependency changes retain 
 design-diff.config.json                Repository scope, themes and conventions
 .github/workflows/design-review.yml    Trusted cloud execution; artifact only
 scripts/design-diff/
-  cli.ts, index.ts                     Entry points and operational status
+  cli.ts, index-cli.ts, index.ts        Entry points and operational status
+  store.ts, lazy-source.ts             SQLite facts and lazy bounded source reads
+  metrics.ts                          Separate stage timings and cache counters
+  properties.ts                       Literal nested-property projections
   analyze.ts, git.ts, source.ts        Git snapshots and affected-source analysis
   dependencies.ts                     Binding graph and partial usage counts
   extract/{tsx,css,documents,assets}.ts Syntax extraction
@@ -209,3 +211,87 @@ The runner verifies exact commits and GitHub file sets. Its cache identity inclu
 engine SHA, configuration, lockfile, runtime and comparison commits. It records elapsed time,
 peak RSS, report size and failures separately. `/usr/bin/time` and Bun 1.4.1 are required. The default
 per-comparison deadline is 900 seconds; failed cases remain explicit failures in rate reporting.
+
+
+## Incremental index (schema 1)
+
+```sh
+bun run design:index --ref origin/staging --cache-dir /tmp/sim-design-index
+bun run design:diff --base origin/staging --head HEAD \
+  --cache-dir /tmp/sim-design-index --output /tmp/report.json --metrics /tmp/metrics.json
+bun run design:diff --base origin/staging --head HEAD --no-cache --output /tmp/fresh.json
+```
+
+`--no-cache` bypasses disk storage. Both modes use the same analyzer and bounded in-process facts;
+there is no completed-report cache in either CLI. Cache files are disposable and should stay outside
+source control. `design:index --identity` emits the compatible trusted-tooling identity for CI.
+
+SQLite stores three kinds of derived data:
+
+| Layer | Contents | Validity |
+| --- | --- | --- |
+| File facts | Module definitions, import/export specifiers, raw references, property projections and parse failures | Git blob, source path/language and trusted tooling identity |
+| Revision model | Immutable commit inventory, resolved edges and resolution limitations; on-demand binding summaries | Routing configuration and observed source identities |
+| Appearance queries | Normalized ordered styles/variants, ownership, locations and evidence | Observed source blobs plus the affected-context probes actually consulted |
+
+Parser trees remain temporary. Source text has a bounded 96 MiB LRU per revision and serialized
+facts have a 64 MiB LRU. Blob reads are lazy and batched. The persistent identity includes index
+schema, implementation hashes, trusted dependency lockfile, config, Bun version, OS and architecture.
+File paths are part of fact keys because locations are path-dependent; a rename safely recomputes
+those facts. Import routing includes the file inventory and project package/alias configuration,
+so added files and formerly missing imports invalidate derived queries. CSS theme dependencies and
+comparison-specific resolver context are tracked even when an in-process helper was already cached.
+
+Literal exported object properties are projected independently, including nested selectors. Changes
+to an unrelated sibling do not propagate into a control that reads another property. Spreads, dynamic
+keys, aliases that escape, mutation and changed local helpers retain conservative candidate traversal.
+Supported equivalent values still compare cleanly. Cache invalidation is deliberately coarser than
+notification decisions: an observed module edit may recompute a query even when its selected appearance
+value ultimately stays unchanged. This is not a complete JavaScript type checker or runtime UI model.
+
+Complete snapshots retain the most recent ten commits. Inventory distinguishes indexed source,
+intentional exclusions, unsupported formats and unreadable inputs; “indexed” records supported source
+coverage, not proof that every runtime expression was resolved. Appearance and usage facts are computed
+on demand. The default storage budget is 1 GiB; eviction discards reusable work, not source analysis.
+Writes use transactions and checksums. Closing checkpoints WAL; oversized stores are reclaimed.
+Corrupt/incompatible databases rebuild, and lock/unavailable-storage failures fall back to transient
+analysis. Source/history failures still fail analysis explicitly. The warming command fails if it
+cannot persist a baseline. Independent PR jobs never share writable database files.
+
+This follows the disposable persisted-analysis pattern used by
+[TypeScript](https://www.typescriptlang.org/tsconfig/incremental.html), dependency-aware lazy queries in
+[rust-analyzer](https://rust-analyzer.github.io/book/contributing/architecture.html), and dependency
+selection in [Chromatic TurboSnap](https://www.chromatic.com/docs/turbosnap/). It uses
+[Bun SQLite](https://bun.com/docs/runtime/sqlite); it does not use those products to render Sim.
+
+## Index maintenance and performance acceptance
+
+`design-index.yml` runs on default-branch manual dispatch, main pushes and a 30-minute schedule.
+It refreshes staging using the trusted default-branch engine. Its checkpointed cache key includes
+compatible tooling identity, staging SHA, run ID and attempt. PR jobs use only `actions/cache/restore`
+and update a disposable local copy. They never save to the shared baseline. GitHub's
+[cache restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
+remain in force. Unavailable or stale caches must not change reports. Both production workflows
+require activation on main. Set `DESIGN_DIFF_INDEX_ENABLED=true` to opt into warming/restoring;
+keep it unset if correctness or measured performance acceptance fails.
+
+Reproduce paired measurements, always starting a PR with a baseline-only cache:
+
+```sh
+bun --no-env-file scripts/design-diff/benchmark.ts \
+  --engine /path/to/clean/checkout --sha <immutable-commit> \
+  --manifest /path/to/frozen-manifest.json --output /tmp/design-index-evaluation \
+  --workers 2 --profile-index --no-results-cache
+```
+
+Each case runs uncached analysis, separately indexes its merge-base in a new cache, then analyzes
+its previously unprocessed head. It requires byte-identical reports and deletes that case's disposable
+index afterward. Cold/warm/setup metrics, Git read counters, parsing, resolution, comparison, peak
+memory and cache hits remain separate files. Stage times are inclusive and must not be summed.
+The runtime target is at least 3x median improvement on the same hardware and concurrency; setup
+cost and tail latency must be reported separately. The worker cap reserves roughly 3 GiB per worker
+and respects available CPU capacity. `--cache-dir` supports ordinary shared local benchmark reuse;
+`--profile-index` deliberately uses isolated baseline-only caches instead.
+
+The frozen 180 cases remain development data. Preserve their incomplete/provisional policy-5 labels;
+review every changed decision with source evidence and make no claim of unseen accuracy.

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { availableParallelism, totalmem } from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { runProcess } from '#design-diff/process'
@@ -33,6 +34,14 @@ interface Result {
   categories: string[]
   findings: number
   error?: string
+  indexProfile?: {
+    setupSeconds: number
+    coldSeconds: number
+    warmSeconds: number
+    coldPeakMemoryBytes: number
+    warmPeakMemoryBytes: number
+    parity: boolean
+  }
 }
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
 
@@ -45,7 +54,10 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       sha: { type: 'string' },
       manifest: { type: 'string' },
       output: { type: 'string' },
-      workers: { type: 'string', default: '3' },
+      workers: { type: 'string' },
+      'profile-index': { type: 'boolean', default: false },
+      'cache-dir': { type: 'string' },
+      'no-results-cache': { type: 'boolean', default: false },
       'timeout-seconds': { type: 'string', default: '900' },
     },
     strict: true,
@@ -101,11 +113,17 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       lock: git('rev-parse', 'HEAD:bun.lock'),
       runtime: bunVersion,
       timeoutSeconds,
+      profileIndex: values['profile-index'],
+      cacheDirectory: values['cache-dir'] ?? null,
     })
   )
-  const workers = Number(values.workers)
-  if (!Number.isInteger(workers) || workers < 1 || workers > 3)
-    throw new Error('Workers must be 1..3')
+  const capacity = Math.max(
+    1,
+    Math.min(availableParallelism(), Math.floor(totalmem() / (3 * 1024 ** 3)))
+  )
+  const workers = values.workers ? Number(values.workers) : Math.min(3, capacity)
+  if (!Number.isInteger(workers) || workers < 1 || workers > capacity)
+    throw new Error(`Workers must be 1..${capacity}, reserving 3 GiB per process`)
   mkdirSync(output, { recursive: true })
   writeFileSync(path.join(output, 'manifest.json'), manifestBytes)
   const results: Result[] = []
@@ -146,7 +164,7 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
         .sort()
       if (JSON.stringify(files) !== JSON.stringify([...item.files].sort()))
         throw new Error('Frozen GitHub/Git file set mismatch')
-      if (existsSync(resultFile) && existsSync(reportFile)) {
+      if (!values['no-results-cache'] && existsSync(resultFile) && existsSync(reportFile)) {
         const cached = JSON.parse(readFileSync(resultFile, 'utf8')) as Result
         if (
           cached.cacheKey === cacheKey &&
@@ -158,26 +176,111 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       const started = performance.now()
       const env = { ...process.env }
       for (const key of ['DESIGN_DIFF_PR', 'DESIGN_DIFF_ENGINE_SHA', 'HEAD_SHA']) delete env[key]
+      if (values['profile-index']) {
+        const cache = `${stem}.index`
+        rmSync(cache, { recursive: true, force: true })
+        const run = async (script: string, args: string[], label: string) => {
+          const execution = await runProcess(
+            [
+              process.execPath,
+              '--no-env-file',
+              path.join(engine, `scripts/design-diff/${script}.ts`),
+              ...args,
+            ],
+            engine,
+            env,
+            timeoutSeconds * 1000
+          )
+          if (execution.exitCode !== 0 || execution.timedOut)
+            throw new Error(`${label} failed or exceeded its deadline`)
+        }
+        try {
+          await run(
+            'cli',
+            [
+              '--base',
+              item.base,
+              '--head',
+              item.head,
+              '--no-cache',
+              '--output',
+              `${stem}.uncached.json`,
+              '--metrics',
+              `${stem}.cold.metrics.json`,
+            ],
+            'Uncached analysis'
+          )
+          await run(
+            'index-cli',
+            [
+              '--ref',
+              item.mergeBase,
+              '--cache-dir',
+              cache,
+              '--metrics',
+              `${stem}.setup.metrics.json`,
+            ],
+            'Baseline indexing'
+          )
+          await run(
+            'cli',
+            [
+              '--base',
+              item.base,
+              '--head',
+              item.head,
+              '--cache-dir',
+              cache,
+              '--output',
+              reportFile,
+              '--metrics',
+              `${stem}.warm.metrics.json`,
+            ],
+            'Warm baseline analysis'
+          )
+          const cold = JSON.parse(readFileSync(`${stem}.cold.metrics.json`, 'utf8'))
+          const warm = JSON.parse(readFileSync(`${stem}.warm.metrics.json`, 'utf8'))
+          const setup = JSON.parse(readFileSync(`${stem}.setup.metrics.json`, 'utf8'))
+          result.indexProfile = {
+            setupSeconds: setup.elapsedMilliseconds / 1000,
+            coldSeconds: cold.elapsedMilliseconds / 1000,
+            warmSeconds: warm.elapsedMilliseconds / 1000,
+            coldPeakMemoryBytes: cold.peakMemoryBytes,
+            warmPeakMemoryBytes: warm.peakMemoryBytes,
+            parity: readFileSync(reportFile).equals(readFileSync(`${stem}.uncached.json`)),
+          }
+          if (!result.indexProfile.parity) throw new Error('Indexed and uncached reports differ')
+        } finally {
+          rmSync(cache, { recursive: true, force: true })
+        }
+      }
       const metricsFile = `${stem}.time.txt`
       const timeArgs = process.platform === 'darwin' ? ['-l'] : ['-v', '-o', metricsFile]
-      const execution = await runProcess(
-        [
-          '/usr/bin/time',
-          ...timeArgs,
-          process.execPath,
-          '--no-env-file',
-          path.join(engine, 'scripts/design-diff/cli.ts'),
-          '--base',
-          item.base,
-          '--head',
-          item.head,
-          '--output',
-          reportFile,
-        ],
-        engine,
-        env,
-        timeoutSeconds * 1000
-      )
+      const execution = values['profile-index']
+        ? { exitCode: 0, stderr: '', timedOut: false, truncated: false }
+        : await runProcess(
+            [
+              '/usr/bin/time',
+              ...timeArgs,
+              process.execPath,
+              '--no-env-file',
+              path.join(engine, 'scripts/design-diff/cli.ts'),
+              '--base',
+              item.base,
+              '--head',
+              item.head,
+              '--output',
+              reportFile,
+              '--metrics',
+              `${stem}.metrics.json`,
+              ...(values['cache-dir']
+                ? ['--cache-dir', path.resolve(values['cache-dir'])]
+                : ['--no-cache']),
+            ],
+            engine,
+            env,
+            timeoutSeconds * 1000
+          )
       result.exitCode = execution.exitCode
       const metrics =
         process.platform === 'linux' && existsSync(metricsFile)
@@ -189,14 +292,15 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
           execution.stderr + (execution.truncated ? '\n[stderr truncated at 65536 bytes]\n' : ''),
           { mode: 0o600 }
         )
-      result.seconds = Math.round((performance.now() - started) / 10) / 100
+      result.seconds =
+        result.indexProfile?.warmSeconds ?? Math.round((performance.now() - started) / 10) / 100
       const rss =
         process.platform === 'darwin'
           ? metrics.match(/(\d+)\s+maximum resident set size/)
           : metrics.match(/Maximum resident set size \(kbytes\):\s*(\d+)/)
-      result.peakMemoryBytes = rss
-        ? Number(rss[1]) * (process.platform === 'darwin' ? 1 : 1024)
-        : null
+      result.peakMemoryBytes =
+        result.indexProfile?.warmPeakMemoryBytes ??
+        (rss ? Number(rss[1]) * (process.platform === 'darwin' ? 1 : 1024) : null)
       if (execution.timedOut) throw new Error('Analysis deadline exceeded')
       if (!existsSync(reportFile)) throw new Error('Engine did not produce a report')
       const bytes = readFileSync(reportFile)
@@ -205,7 +309,7 @@ export async function benchmark(args = process.argv.slice(2)): Promise<void> {
       result.reportSha256 = hash(bytes)
       if (
         report.schemaVersion !== '3.0.0' ||
-        report.engineVersion !== '0.5.2' ||
+        report.engineVersion !== '0.6.0' ||
         report.policyVersion !== '5.0.0'
       )
         throw new Error('Report version mismatch')

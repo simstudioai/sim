@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { parse } from '@babel/parser'
 import traverseModule, { type NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
+import { measured } from '#design-diff/metrics'
 import { normalizeLiteralAliases, normalizeRefactors } from '#design-diff/refactors'
 import type { Data, Location } from '#design-diff/types'
 
@@ -13,13 +14,15 @@ export const traverse: typeof traverseModule =
 
 /** Parse import/reference syntax without doing the resolver's literal/refactor work. */
 export function parseSyntax(source: string, file: string) {
-  return parse(source, {
-    sourceType: 'unambiguous',
-    sourceFilename: file,
-    plugins: ['jsx', 'typescript', 'decorators-legacy'],
-    errorRecovery: false,
-    attachComment: false,
-  })
+  return measured('parse', () =>
+    parse(source, {
+      sourceType: 'unambiguous',
+      sourceFilename: file,
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: false,
+      attachComment: false,
+    })
+  )
 }
 
 export function parseSource(source: string, file: string) {

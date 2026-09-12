@@ -10,6 +10,7 @@ import {
 } from '#design-diff/ast'
 import { finiteKeys } from '#design-diff/finite'
 import { reclaimMemory } from '#design-diff/memory'
+import { measured } from '#design-diff/metrics'
 import { mutations } from '#design-diff/mutations'
 import { previewValue } from '#design-diff/report'
 import type { SemanticValues } from '#design-diff/semantic'
@@ -103,6 +104,10 @@ export class Resolver {
   }
 
   evaluate(path: NodePath, file: string): Evidence {
+    return measured('valueResolution', () => this.evaluateUncached(path, file))
+  }
+
+  private evaluateUncached(path: NodePath, file: string): Evidence {
     const cached = this.evaluations.get(path.node)
     if (cached)
       return {
@@ -448,7 +453,7 @@ export class Resolver {
       const target = this.callable(child(path, 'callee'), file)
       if (
         target &&
-        (!this.affected || this.affected.has(target.file)) &&
+        (!this.affected || this.tree.isAffected(target.file, this.affected)) &&
         !this.tree.config.environmentAdapters?.some((adapter) => adapter.module === target.file)
       )
         return {
@@ -678,7 +683,7 @@ export class Resolver {
   /** Opaque export summaries are independent of expression budgets and parser cache eviction. */
   private opaqueExports(file: string, name: string): Data {
     const key = `${file}:${name}`
-    if (this.affected && !this.affected.has(file)) {
+    if (this.affected && !this.tree.isAffected(file, this.affected)) {
       this.dependencies.add(file)
       return { $unchangedInput: { file, export: name } }
     }
@@ -829,7 +834,7 @@ export class Resolver {
             : '*'
         this.dependencies.add(target)
         const origin = this.tree.graph?.resolvedExport(target, name)?.origin
-        if (this.affected && origin && !this.affected.has(origin.file)) {
+        if (this.affected && origin && !this.tree.isAffected(origin.file, this.affected)) {
           inputs.set(`${target}:${name}`, this.opaqueExports(origin.file, origin.exported))
           return
         }
@@ -903,7 +908,7 @@ export class Resolver {
       const exported = module.exports.get(name)
       if (exported) {
         /** Its indexed dependency region is unchanged in this comparison; preserve callable identity and analyze changed arguments at the caller. */
-        if (this.affected && !this.affected.has(file) && exported.isFunction()) {
+        if (this.affected && !this.tree.isAffected(file, this.affected) && exported.isFunction()) {
           const body = child(exported, 'body')
           const returned =
             body.isBlockStatement() &&

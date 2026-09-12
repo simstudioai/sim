@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { counted, measured } from '#design-diff/metrics'
 
 export interface Entry {
   path: string
@@ -18,13 +19,16 @@ export class GitReader {
 
   run(args: string[], input?: string): Buffer {
     try {
-      return execFileSync('git', ['--no-pager', ...args], {
-        cwd: this.cwd,
-        input,
-        maxBuffer: 300 * 1024 * 1024,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_NO_REPLACE_OBJECTS: '1' },
-      })
+      counted(`git.${args[0]}`)
+      return measured('git', () =>
+        execFileSync('git', ['--no-pager', ...args], {
+          cwd: this.cwd,
+          input,
+          maxBuffer: 300 * 1024 * 1024,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_NO_REPLACE_OBJECTS: '1' },
+        })
+      )
     } catch {
       throw new Error(`Git operation failed: ${args[0]}`)
     }

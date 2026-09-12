@@ -122,7 +122,7 @@ export interface Config {
 }
 export interface Report {
   schemaVersion: '3.0.0'
-  engineVersion: '0.5.2'
+  engineVersion: '0.6.0'
   policyVersion: '5.0.0'
   commits: { base: string; head: string; mergeBase: string } | null
   status: 'completed' | 'failed'
