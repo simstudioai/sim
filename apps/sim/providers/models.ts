@@ -26,6 +26,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  PrismIcon,
   SakanaIcon,
   TogetherIcon,
   VertexIcon,
@@ -256,6 +257,64 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     contextInformationAvailable: false,
     models: [],
+  },
+  prism: {
+    id: 'prism',
+    name: 'Prism',
+    description: 'Prism provides open-source model inference',
+    defaultModel: 'prism/deepseek-v4.1-flash',
+    modelPatterns: [/^prism\//],
+    icon: PrismIcon,
+    color: '#1F1D1A',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+      nativeStructuredOutputs: true,
+    },
+    contextInformationAvailable: false,
+    models: [
+      {
+        id: 'prism/deepseek-v4.1-flash',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.07,
+          output: 1.2,
+          updatedAt: '2026-09-12',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 384000,
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high'],
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-10',
+      },
+      {
+        id: 'prism/deepseek-v4-flash',
+        pricing: {
+          input: 0.14,
+          cachedInput: 0.07,
+          output: 0.28,
+          updatedAt: '2026-09-12',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 384000,
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high'],
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-09',
+      },
+    ],
   },
   openrouter: {
     id: 'openrouter',

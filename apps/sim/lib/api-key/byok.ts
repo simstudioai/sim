@@ -211,6 +211,20 @@ export async function getApiKeyWithBYOK(
     return { apiKey: userProvidedKey || env.LITELLM_API_KEY || 'empty', isBYOK: false }
   }
 
+  if (provider === 'prism') {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'prism')
+      if (byokResult) {
+        logger.info('Using BYOK key for Prism', { model, workspaceId, scope: byokResult.scope })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    throw new Error(`API key is required for Prism ${model}`)
+  }
+
   const isFireworksModel =
     provider === 'fireworks' ||
     useProvidersStore.getState().providers.fireworks.models.includes(model)

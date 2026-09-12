@@ -13,6 +13,7 @@ export const byokProviderIdSchema = z.enum([
   'fireworks',
   'together',
   'baseten',
+  'prism',
   'ollama-cloud',
   'falai',
   'firecrawl',
