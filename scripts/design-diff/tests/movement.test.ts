@@ -5,7 +5,7 @@ const file = 'apps/sim/geometry.tsx'
 const svg = (x: number, fill = 'red', extra = '') =>
   `export const A=()=> <svg width="100" height="100" viewBox="0 0 100 100"><rect x={${x}} y={20} width={10} height={10} fill="${fill}" ${extra}/></svg>`
 
-it('exempts a supported bounded movement', async () => {
+it('exempts movement within SVG media', async () => {
   const report = await compareFiles({ [file]: svg(20) }, { [file]: svg(30) })
   expect(report.flagged).toBe(false)
   expect(allChanges(report)).toEqual([])

@@ -96,11 +96,7 @@ export function groupFindings(
           dependencies: [file, reference.location.file],
           unresolved: ['Resolved component reference; its runtime appearance is not established'],
         })
-        example = finding(
-          definition(previous?.oid),
-          definition(next?.oid),
-          'Resolved reference to a changed component'
-        )
+        example = finding(definition(previous?.oid), definition(next?.oid))
       }
     }
     const limitations = new Set([

@@ -111,8 +111,7 @@
       "list": "apps/docs/lib/openapi-specs.ts",
       "export": "OPENAPI_SPEC_FILES",
       "root": "apps/docs",
-      "renderer": "apps/docs/lib/openapi.ts",
-      "contentOnly": true
+      "renderer": "apps/docs/lib/openapi.ts"
     }
   ],
   "environmentAdapters": [

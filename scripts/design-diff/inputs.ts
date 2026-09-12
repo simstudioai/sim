@@ -1,30 +1,31 @@
 import path from 'node:path'
-import { canonicalJson } from '#design-diff/ast'
-import { compareDefinitions, finding } from '#design-diff/compare'
+import { finding } from '#design-diff/compare'
 import { Resolver } from '#design-diff/resolve'
 import type { SourceTree } from '#design-diff/source'
-import type { Change, Config, Data, Definition } from '#design-diff/types'
+import type { Change, Config } from '#design-diff/types'
 
-/** Explicit file-loading conventions are data edges, never runtime filesystem reads. */
-export function fileLoadedInputs(before: SourceTree, after: SourceTree, config: Config): Change[] {
-  const read = (
-    tree: SourceTree,
-    input: NonNullable<Config['fileInputs']>[number]
-  ): Definition[] => {
-    if (!tree.entries.has(input.list) && !tree.entries.has(input.renderer)) return []
-    const definitions: Definition[] = []
-    const emit = (file: string, value: Data, unresolved: string[] = []) =>
-      definitions.push({
-        key: file,
-        kind: unresolved.length ? 'review' : 'content',
-        property: 'file-loaded-documentation',
-        value,
-        location: { file, line: 1, column: 1 },
-        symbol: input.export,
-        conditions: [{ renderer: input.renderer, list: input.list }],
-        dependencies: [file, input.list, input.renderer],
-        unresolved,
-      })
+/** Content never qualifies; validate current file-loaded documentation only for coverage notes. */
+export function fileLoadedInputDiagnostics(tree: SourceTree, config: Config): Change[] {
+  const diagnostics = new Map<string, Change>()
+  for (const input of config.fileInputs ?? []) {
+    if (!tree.entries.has(input.list) && !tree.entries.has(input.renderer)) continue
+    const emit = (file: string, reason: string) => {
+      if (diagnostics.has(file)) return
+      diagnostics.set(
+        file,
+        finding(undefined, {
+          key: file,
+          kind: 'review',
+          property: 'file-loaded-documentation',
+          value: tree.entries.get(file)?.oid ?? 'missing',
+          location: { file, line: 1, column: 1 },
+          symbol: input.export,
+          conditions: [{ renderer: input.renderer, list: input.list }],
+          dependencies: [file, input.list, input.renderer],
+          unresolved: [reason],
+        })
+      )
+    }
     try {
       const resolver = new Resolver(tree)
       const exported = resolver.module(input.list).exports.get(input.export)
@@ -37,36 +38,22 @@ export function fileLoadedInputs(before: SourceTree, after: SourceTree, config: 
         !evidence.value.every((file) => typeof file === 'string')
       )
         throw new Error('Configured input list is not a static string array')
-      if (!input.contentOnly) emit(input.list, evidence.value)
       for (const name of evidence.value as string[]) {
         const file = path.posix.normalize(path.posix.join(input.root, name))
         if (!file.startsWith(`${input.root}/`) || !file.endsWith('.json'))
           throw new Error('Unsupported configured input path')
         try {
-          const value = JSON.parse(tree.texts.get(file) ?? '')
-          if (!input.contentOnly) emit(file, canonicalJson(value))
+          JSON.parse(tree.texts.get(file) ?? '')
         } catch {
-          emit(file, tree.entries.get(file)?.oid ?? 'missing', [
-            'Configured documentation JSON is missing, malformed or exceeds the source budget',
-          ])
+          emit(
+            file,
+            'Configured documentation JSON is missing, malformed or exceeds the source budget'
+          )
         }
       }
     } catch {
-      emit(input.list, tree.entries.get(input.list)?.oid ?? 'missing', [
-        'Configured documentation list or renderer could not be resolved',
-      ])
+      emit(input.list, 'Configured documentation list or renderer could not be resolved')
     }
-    return definitions
   }
-  const findings: Change[] = []
-  for (const input of config.fileInputs ?? []) {
-    const a = read(before, input)
-    const b = read(after, input)
-    findings.push(...compareDefinitions(a, b))
-    /** Invalid documentation remains an explicit coverage note without notifying the designer. */
-    for (const definition of b.filter((definition) => definition.unresolved.length))
-      if (!findings.some((finding) => finding.after?.location.file === definition.location.file))
-        findings.push(finding(undefined, definition))
-  }
-  return findings
+  return [...diagnostics.values()]
 }

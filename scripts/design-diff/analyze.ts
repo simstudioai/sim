@@ -7,7 +7,7 @@ import { extractTsx } from '#design-diff/extract/tsx'
 import { GitReader } from '#design-diff/git'
 import { groupFindings } from '#design-diff/group'
 import { renderingLock } from '#design-diff/infrastructure'
-import { fileLoadedInputs } from '#design-diff/inputs'
+import { fileLoadedInputDiagnostics } from '#design-diff/inputs'
 import { reclaimMemory } from '#design-diff/memory'
 import { limitations } from '#design-diff/policy'
 import { Resolver } from '#design-diff/resolve'
@@ -165,15 +165,6 @@ export async function analyze(
                 'Native menus, palettes and embedded rendering need review'
               )
             )
-          for (const definition of defs) {
-            if (
-              definition.movement &&
-              [...tree.texts].some(
-                ([name, text]) => name.endsWith('.css') && /\b(?:svg|rect|circle)\b|\*/.test(text)
-              )
-            )
-              definition.movement = undefined
-          }
           const normalized: Definition[] = []
           for (const definition of defs) normalized.push(await tailwind.normalize(definition))
           return normalized
@@ -250,7 +241,7 @@ export async function analyze(
           ...b.flatMap((definition) => definition.unresolved),
         ]),
       ].sort()
-      findings.push(...compareDefinitions(a, b, affected))
+      findings.push(...compareDefinitions(a, b))
       if (!changed.has(file) && (a.length || b.length)) indirectExamples++
       if (
         changed.has(file) &&
@@ -271,8 +262,7 @@ export async function analyze(
                   after.entries.get(file)?.oid ?? '',
                   'Rendering infrastructure is not executed'
                 )
-              : undefined,
-            'Rendering infrastructure changed'
+              : undefined
           )
         )
       }
@@ -350,7 +340,7 @@ export async function analyze(
         )
     }
   }
-  findings.push(...fileLoadedInputs(before, after, config))
+  findings.push(...fileLoadedInputDiagnostics(after, config))
   if (findings.length && !before.graph) {
     before.buildGraph()
     after.buildGraph()

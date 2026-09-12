@@ -2,7 +2,6 @@ import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { appearanceAttributes, mediaElement } from '#design-diff/appearance'
 import { location, propertyName, symbolName, traverse } from '#design-diff/ast'
-import { svgMovement } from '#design-diff/movement'
 import { child, children, object, type Resolver } from '#design-diff/resolve'
 import type { Data, Definition, Evidence } from '#design-diff/types'
 
@@ -79,7 +78,6 @@ export function extractTsx(resolver: Resolver, file: string): Definition[] {
       symbol,
       location: location(file, path.node),
       conditions,
-      movement: svgMovement(path),
     })
   }
   const literal = (value: Data): Evidence => ({ value, dependencies: [file], unresolved: [] })

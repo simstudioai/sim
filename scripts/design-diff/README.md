@@ -133,8 +133,8 @@ Large opaque resolver trees can themselves exceed the supported analysis budget;
 uncertainty, not evidence of an appearance edit.
 
 Operational failures remain distinct from completed policy exemptions. Configured file-loaded
-OpenAPI inputs are validated as Git data; content is exempt and malformed inputs retain diagnostic
-evidence. Lockfile rendering-dependency changes retain diagnostics but do not qualify by themselves.
+OpenAPI inputs in the head revision are validated as Git data; content is exempt and malformed
+inputs retain diagnostic evidence. Lockfile rendering-dependency changes retain diagnostics but do not qualify by themselves.
 
 ## Files
 
@@ -151,7 +151,7 @@ scripts/design-diff/
   finite.ts, environment.ts            Finite key and environment projections
   appearance.ts                       Supported appearance evidence projection
   tailwind.ts                         Pinned compiler and trusted class helpers
-  compare.ts, policy.ts, movement.ts   Matching, decisions and categories
+  compare.ts, policy.ts                Matching, decisions and categories
   group.ts, report.ts, semantic.ts     Grouping, full hashes and bounded JSON
   inputs.ts                           Configured file inputs
   infrastructure.ts                   Rendering dependency diagnostics
@@ -200,8 +200,10 @@ Fixtures stay inside test strings/JSON so application builds and styling scans d
 
 The frozen manifest contains the original 120 comparisons plus 60 later sampled holdouts. Its
 original labels use a broader visual/content policy and must not be treated as policy-5 ground
-truth. Preserve original labels and document policy-specific review separately. The prior policy-4
-run completed 178/180 comparisons, flagging 112; two timed out. That is historical context only.
+truth. Both cohorts have now informed development and are no longer unseen validation. Keep the
+engine and configuration fixed while evaluating the next sample, label it independently, and
+report disagreements before changing rules. The production CLI never reads benchmark labels or PR
+numbers to make decisions; repository conventions belong in configuration, not per-PR exceptions.
 
 The runner verifies exact commits and GitHub file sets. Its cache identity includes immutable
 engine SHA, configuration, lockfile, runtime and comparison commits. It records elapsed time,

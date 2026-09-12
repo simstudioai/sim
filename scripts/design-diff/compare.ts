@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { appearanceValue } from '#design-diff/appearance'
-import { pureMovement } from '#design-diff/movement'
 import { changedCategory } from '#design-diff/policy'
 import { previewChange } from '#design-diff/report'
 import type { Change, Definition } from '#design-diff/types'
@@ -9,22 +8,13 @@ function signature(definition: Definition) {
   return JSON.stringify([definition.value, definition.conditions])
 }
 
-export function finding(
-  before: Definition | undefined,
-  after: Definition | undefined,
-  reason?: string
-): Change {
+export function finding(before: Definition | undefined, after: Definition | undefined): Change {
   const definition = after ?? before
   if (!definition) throw new Error('Finding needs evidence')
   const unresolved = [
     ...new Set([...(before?.unresolved ?? []), ...(after?.unresolved ?? [])]),
   ].sort()
-  const movement = before && after && pureMovement(before, after)
   const category = changedCategory(before, after)
-  const uncertain =
-    unresolved.length ||
-    definition.kind === 'review' ||
-    ['movement', 'unresolved'].includes(category)
   const a = before && appearanceValue(before)
   const b = after && appearanceValue(after)
   const supported =
@@ -32,21 +22,13 @@ export function finding(
     (!after || b !== undefined) &&
     (a !== undefined || b !== undefined)
   const changed = JSON.stringify(a) !== JSON.stringify(b)
-  const flag = supported && changed && !movement && category !== 'movement'
+  const flag = supported && changed && category !== 'movement'
   const result: Omit<Change, 'id'> = {
     decision: flag ? 'flag' : 'exempt',
-    category: movement ? 'movement' : category,
-    reason:
-      (flag
-        ? 'Supported authored appearance values changed'
-        : !movement
-          ? 'No established change to authored appearance under the designer policy'
-          : reason) ??
-      (movement
-        ? 'Static geometry establishes movement within unchanged bounds'
-        : uncertain
-          ? 'Potential visual effect; static evidence is incomplete'
-          : 'Visual definition changed'),
+    category,
+    reason: flag
+      ? 'Supported authored appearance values changed'
+      : 'No established change to authored appearance under the designer policy',
     before: before
       ? {
           value: before.value,
@@ -84,11 +66,7 @@ export function finding(
   })
 }
 
-export function compareDefinitions(
-  before: Definition[],
-  after: Definition[],
-  _changed?: Set<string>
-): Change[] {
+export function compareDefinitions(before: Definition[], after: Definition[]): Change[] {
   const signatures = new Map<Definition, string | undefined>()
   const appearance = (definition: Definition) => {
     if (!signatures.has(definition))

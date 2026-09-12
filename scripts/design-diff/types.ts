@@ -41,7 +41,6 @@ export interface Definition extends Evidence {
   location: Location
   symbol: string
   conditions: Data[]
-  movement?: { bounds: number[]; viewport: number[]; appearance: Data }
 }
 export interface Change {
   id: string
@@ -104,7 +103,6 @@ export interface Config {
     export: string
     root: string
     renderer: string
-    contentOnly?: boolean
   }[]
   environmentAdapters?: {
     module: string

@@ -37,11 +37,8 @@ it.each<Files>([
   expect(allChanges(report).some((change) => change.limitations.length)).toBe(true)
 })
 
-it('exempts file-loaded copy even without the documentation content setting', async () => {
-  const report = await compareFiles(
-    { ...files, [spec]: '{"properties":{"start":{"description":"First"},"end":{}}}' },
-    { [spec]: '{"properties":{"start":{"description":"Second"},"end":{}}}' },
-    { ...config, fileInputs: config.fileInputs?.map((input) => ({ ...input, contentOnly: false })) }
-  )
+it('clears diagnostics when file-loaded documentation is repaired', async () => {
+  const report = await compareFiles({ ...files, [spec]: 'broken' }, { [spec]: files[spec] })
   expect(report.flagged).toBe(false)
+  expect(report.findings).toEqual([])
 })

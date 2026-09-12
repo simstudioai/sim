@@ -6,6 +6,42 @@ const shared = 'apps/sim/components/button.tsx'
 const imports = 'import {Button} from "./button";'
 const button = 'export const Button=(props)=> <button {...props}/>'
 
+it.each([
+  ['apps/sim/components/widget', 'Widget'],
+  ['apps/sim/app/settings/panel', 'SettingsPanel'],
+  ['apps/docs/components/card', 'DocumentationCard'],
+])('keeps appearance decisions independent of file and symbol names: %s', async (stem, symbol) => {
+  const file = `${stem}.tsx`
+  const token = `${stem}-tokens.ts`
+  const source = `import {palette as options} from './${stem.split('/').pop()}-tokens';
+    export const ${symbol}=()=> <div style={{color:options.paint}}/>`
+  const before = {
+    [file]: source,
+    [token]: 'export const palette={paint:"red",description:"Before"}',
+  }
+  expect(
+    (
+      await compareFiles(before, {
+        [token]: 'export const palette={paint:"blue",description:"Before"}',
+      })
+    ).flagged
+  ).toBe(true)
+  expect(
+    (
+      await compareFiles(before, {
+        [token]: 'export const palette={paint:"red",description:"After"}',
+      })
+    ).flagged
+  ).toBe(false)
+  expect(
+    (
+      await compareFiles(before, {
+        [file]: source.replaceAll(symbol, 'RenamedControl').replaceAll('options', 'renamedOptions'),
+      })
+    ).flagged
+  ).toBe(false)
+})
+
 describe('designer notification policy', () => {
   it.each([
     ['copy', '<p>Loading</p>', '<p>Searching</p>'],

@@ -1,4 +1,3 @@
-import { movementProperty } from '#design-diff/movement'
 import type { Category, Data, Definition } from '#design-diff/types'
 
 export function category(definition: Definition): Category {
@@ -30,7 +29,12 @@ export function category(definition: Definition): Category {
     if (!/^(?:translate[XYZ3d]*\([^)]*\)\s*)+$/.test(value)) return 'shape-effects'
   }
   if (/^--tw-translate-/.test(property)) return 'movement'
-  if (movementProperty(definition.property)) return 'movement'
+  if (
+    /^(?:x|y|cx|cy|top|right|bottom|left|inset.*|translate.*|transform|margin.*|gap|rowGap|columnGap|align.*|justify.*|position|trafficLightPosition)$/i.test(
+      definition.property
+    )
+  )
+    return 'movement'
   if (/color|background|fill|gradient|surface/.test(property)) return 'colour'
   if (/font|text|line-height|letter|word-spacing/.test(property)) return 'typography'
   if (/width|height|padding|size|aspect/.test(property)) return 'dimensions'
