@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
+import type { DesktopTabStripOptions } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const { sendBrowserPanelAction, openUrlInNewBrowserTab, openInPanelListeners } = vi.hoisted(() => ({
@@ -37,9 +38,7 @@ function pushTabs(scopeId: string, tabs: ReturnType<typeof tab>[], activeTabId: 
   })
 }
 
-type HostProps = Parameters<typeof useBrowserTabResources>[0]
-
-function Host(props: HostProps) {
+function Host(props: DesktopTabStripOptions) {
   useBrowserTabResources(props)
   return null
 }
@@ -53,8 +52,8 @@ describe('useBrowserTabResources', () => {
   const restoreResource = vi.fn()
   const onResourceEvent = vi.fn()
 
-  function render(overrides: Partial<HostProps> = {}) {
-    const props: HostProps = {
+  function render(overrides: Partial<DesktopTabStripOptions> = {}) {
+    const props: DesktopTabStripOptions = {
       scopeId: SCOPE,
       resources: [],
       activeResourceId: null,
@@ -68,7 +67,8 @@ describe('useBrowserTabResources', () => {
       ...overrides,
     }
     act(() => root.render(<Host {...props} />))
-    return (next: Partial<HostProps>) => act(() => root.render(<Host {...props} {...next} />))
+    return (next: Partial<DesktopTabStripOptions>) =>
+      act(() => root.render(<Host {...props} {...next} />))
   }
 
   beforeEach(() => {

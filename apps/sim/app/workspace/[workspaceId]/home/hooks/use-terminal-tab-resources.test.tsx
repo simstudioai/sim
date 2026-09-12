@@ -6,6 +6,7 @@ import type { TerminalTabState } from '@sim/terminal-protocol'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { DesktopTabStripOptions } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useTerminalTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-terminal-tab-resources'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
@@ -38,9 +39,7 @@ function pushTabs(scopeId: string, tabs: TerminalTabState[], activeTerminalId: s
   })
 }
 
-type HostProps = Parameters<typeof useTerminalTabResources>[0]
-
-function Host(props: HostProps) {
+function Host(props: DesktopTabStripOptions) {
   useTerminalTabResources(props)
   return null
 }
@@ -54,8 +53,8 @@ describe('useTerminalTabResources', () => {
   const restoreResource = vi.fn()
   const onResourceEvent = vi.fn()
 
-  function render(overrides: Partial<HostProps> = {}) {
-    const props: HostProps = {
+  function render(overrides: Partial<DesktopTabStripOptions> = {}) {
+    const props: DesktopTabStripOptions = {
       scopeId: SCOPE,
       resources: [],
       activeResourceId: null,
@@ -69,7 +68,8 @@ describe('useTerminalTabResources', () => {
       ...overrides,
     }
     act(() => root.render(<Host {...props} />))
-    return (next: Partial<HostProps>) => act(() => root.render(<Host {...props} {...next} />))
+    return (next: Partial<DesktopTabStripOptions>) =>
+      act(() => root.render(<Host {...props} {...next} />))
   }
 
   beforeEach(() => {
