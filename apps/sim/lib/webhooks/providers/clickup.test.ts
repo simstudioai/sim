@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
+
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { inputValidationMock } from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +24,8 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 }))
 
 import { clickupHandler } from '@/lib/webhooks/providers/clickup'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const fetchMock = vi.fn()
 

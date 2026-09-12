@@ -54,6 +54,21 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     vi.clearAllMocks()
   })
 
+  it.each(['manual', 'error'] as const)(
+    'checks the initial literal address with redirect mode %s',
+    async (redirect) => {
+      const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'contentFetch' })
+      try {
+        await expect(transport.fetch('https://127.0.0.1/', { redirect })).rejects.toThrow(
+          'SSRF policy'
+        )
+        expect(mockUndiciRequest).not.toHaveBeenCalled()
+      } finally {
+        await transport.dispatcher.destroy()
+      }
+    }
+  )
+
   it('constructs a Response with the reply status, headers, url, and a streaming body', async () => {
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(
@@ -81,9 +96,26 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
     const [, options] = mockUndiciRequest.mock.calls[0]
     expect(options.method).toBe('POST')
-    expect(options.headers).toEqual({ 'content-type': 'application/json' })
+    expect(options.headers).toEqual({ 'content-type': 'application/json', 'user-agent': 'undici' })
     expect(options.body).toBe('{"jsonrpc":"2.0"}')
     expect(options.maxRedirections).toBeUndefined()
+  })
+
+  it('preserves an explicitly supplied User-Agent regardless of casing', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('ok')))
+    const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
+    try {
+      const response = await transport.fetch('https://api.example.com/data', {
+        headers: { 'uSeR-aGeNt': 'custom-client/1.0' },
+      })
+      await response.text()
+
+      expect(mockUndiciRequest.mock.calls[0][1].headers).toEqual({
+        'uSeR-aGeNt': 'custom-client/1.0',
+      })
+    } finally {
+      await transport.dispatcher.destroy()
+    }
   })
 
   it('follows a redirect through followRedirectsGuarded and reports the final url', async () => {
@@ -128,7 +160,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     })
 
     const [, options] = mockUndiciRequest.mock.calls[0]
-    expect(options.headers).toEqual({ authorization: 'Bearer t' })
+    expect(options.headers).toEqual({ authorization: 'Bearer t', 'user-agent': 'undici' })
     expect(Buffer.isBuffer(options.body)).toBe(true)
     expect(Buffer.from(options.body).toString()).toBe('payload')
   })
@@ -217,16 +249,21 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     await expect(response.text()).rejects.toThrow()
   })
 
-  it('rejects the reader when the source is destroyed without an error (abort/reset)', async () => {
-    const source = new Readable({ read() {} }) // stays open, never pushes
-    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, source))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
+  it.each([undefined, 'gzip'])(
+    'rejects the reader when the source is destroyed without an error (encoding: %s)',
+    async (encoding) => {
+      const source = new Readable({ read() {} }) // stays open, never pushes
+      mockUndiciRequest.mockResolvedValueOnce(
+        undiciReply(200, encoding ? { 'content-encoding': encoding } : {}, source)
+      )
+      const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
-    const response = await fetch('https://mcp.example.com/hang', { method: 'GET' })
-    const reader = response.body!.getReader()
-    const read = reader.read()
-    source.destroy() // no error argument — mirrors an aborted/reset socket
+      const response = await fetch('https://mcp.example.com/hang', { method: 'GET' })
+      const reader = response.body!.getReader()
+      const read = reader.read()
+      source.destroy() // no error argument — mirrors an aborted/reset socket
 
-    await expect(read).rejects.toThrow(/closed before completing/)
-  })
+      await expect(read).rejects.toThrow(/closed before completing/)
+    }
+  )
 })

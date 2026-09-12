@@ -1,10 +1,10 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
-import type { Agent } from 'undici'
 import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
+  type OutboundFetchDispatcher,
 } from '@/lib/core/security/input-validation.server'
 import {
   MCP_EGRESS_PROFILE,
@@ -277,7 +277,7 @@ async function bufferUnderDeadline(response: Response, signal: AbortSignal): Pro
  */
 function releaseStreamOnSettle(
   response: Response,
-  dispatcher: Agent | undefined,
+  dispatcher: OutboundFetchDispatcher | undefined,
   signal: AbortSignal
 ): Response {
   if (!dispatcher || !response.body) {
@@ -349,7 +349,7 @@ export function createSsrfGuardedMcpFetch(
     // Bound every phase — validation, request, body read — by the deadline + caller signal.
     const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
     // Per-request Agent must be torn down (finally): a one-shot leg never reuses its socket.
-    let dispatcher: Agent | undefined
+    let dispatcher: OutboundFetchDispatcher | undefined
     try {
       logger.info('OAuth guarded fetch: validating', { host })
       const resolvedIP = await withDeadline(validateMcpServerSsrf(target, profile), signal)

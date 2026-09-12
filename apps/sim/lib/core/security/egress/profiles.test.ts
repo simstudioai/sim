@@ -7,7 +7,7 @@
  */
 
 import { evaluateAddress, evaluateUrl } from '@sim/security/egress'
-import { envFlagsMock, resetEnvFlagsMock } from '@sim/testing'
+import { envFlagsMock, resetEnvFlagsMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   describeEgressDenial,
@@ -15,7 +15,10 @@ import {
   resolveEgressPolicy,
 } from '@/lib/core/security/egress/profiles'
 
-afterEach(resetEnvFlagsMock)
+afterEach(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 const ALLOWLIST_PROFILES: EgressProfile[] = [
   'configuredEndpoint',
@@ -30,6 +33,107 @@ function decide(profile: EgressProfile, href: string, address?: string) {
   const policy = resolveEgressPolicy(profile)
   return address === undefined ? evaluateUrl(url, policy) : evaluateAddress(url, address, policy)
 }
+
+const OPERATOR_MODEL_ENDPOINTS = [
+  ['OLLAMA_URL', 'selfHostedService'],
+  ['VLLM_BASE_URL', 'selfHostedService'],
+  ['LITELLM_BASE_URL', 'selfHostedService'],
+  ['AZURE_OPENAI_ENDPOINT', 'configuredEndpoint'],
+  ['AZURE_ANTHROPIC_ENDPOINT', 'configuredEndpoint'],
+  ['OCR_AZURE_ENDPOINT', 'configuredEndpoint'],
+] as const
+
+describe('operator-configured model endpoints', () => {
+  it.each(OPERATOR_MODEL_ENDPOINTS)('%s trusts its exact host only in %s', (setting, profile) => {
+    setEnv({ [setting]: 'http://model-service:11434/v1' })
+    expect(decide(profile, 'http://model-service:11434/v1/models', '10.4.2.9').allowed).toBe(true)
+    expect(decide(profile, 'http://model-service:5432/', '10.4.2.9').allowed).toBe(true)
+    expect(decide(profile, 'https://other.model-service/', '10.4.2.9').allowed).toBe(false)
+    for (const other of [...ALLOWLIST_PROFILES, ...LOCKED_PROFILES]) {
+      if (other !== profile) {
+        expect(decide(other, 'https://model-service/', '10.4.2.9').allowed).toBe(false)
+      }
+    }
+  })
+
+  it.each([
+    ['http://10.4.2.9:11434', '10.4.2.9', '10.4.2.10'],
+    ['http://[fd12:3456::9]:11434', 'fd12:3456::9', 'fd12:3456::10'],
+  ])(
+    'trusts a configured literal address without widening its range: %s',
+    (url, address, neighbor) => {
+      setEnv({ OLLAMA_URL: url })
+      expect(decide('selfHostedService', url, address).allowed).toBe(true)
+      expect(decide('selfHostedService', 'https://other-service/', neighbor).allowed).toBe(false)
+      expect(decide('requestTarget', url, address).allowed).toBe(false)
+      expect(decide('contentFetch', url, address).allowed).toBe(false)
+    }
+  )
+
+  it('preserves explicit allowlists while adding model hosts', () => {
+    envFlagsMock.egressAllowedHosts = 'other-service'
+    envFlagsMock.egressAllowedIpRanges = '10.9.0.0/24'
+    setEnv({ OLLAMA_URL: 'http://ollama:11434', AZURE_OPENAI_ENDPOINT: 'https://azure.corp' })
+    for (const profile of ALLOWLIST_PROFILES) {
+      expect(decide(profile, 'https://other-service/', '10.4.2.9').allowed).toBe(true)
+      expect(decide(profile, 'https://subnet-service/', '10.9.0.5').allowed).toBe(true)
+    }
+    expect(decide('selfHostedService', 'http://ollama:11434/', '10.4.2.10').allowed).toBe(true)
+    expect(decide('configuredEndpoint', 'https://azure.corp/', '10.4.2.11').allowed).toBe(true)
+    expect(envFlagsMock.egressAllowedHosts).toBe('other-service')
+    expect(envFlagsMock.egressAllowedIpRanges).toBe('10.9.0.0/24')
+  })
+
+  it.each(OPERATOR_MODEL_ENDPOINTS)('%s updates and revokes cached trust', (setting, profile) => {
+    setEnv({ [setting]: 'https://first-service/' })
+    expect(decide(profile, 'https://first-service/', '10.4.2.9').allowed).toBe(true)
+    setEnv({ [setting]: 'https://second-service/' })
+    expect(decide(profile, 'https://first-service/', '10.4.2.9').allowed).toBe(false)
+    expect(decide(profile, 'https://second-service/', '10.4.2.10').allowed).toBe(true)
+    setEnv({ [setting]: undefined })
+    expect(decide(profile, 'https://second-service/', '10.4.2.10').allowed).toBe(false)
+  })
+
+  it.each(OPERATOR_MODEL_ENDPOINTS)(
+    '%s never grants private access on hosted Sim',
+    (setting, profile) => {
+      setEnv({ [setting]: 'https://model-service/' })
+      expect(decide(profile, 'https://model-service/', '10.4.2.9').allowed).toBe(true)
+      envFlagsMock.isHosted = true
+      expect(decide(profile, 'https://model-service/', '10.4.2.9').allowed).toBe(false)
+    }
+  )
+
+  it.each([
+    'not-a-url',
+    'file://model-service/path',
+    'ftp://model-service/path',
+    'http://user:password@model-service/',
+    'http://*.model-service/',
+    'http://model-service,other-service/',
+    'http://model..service/',
+  ])('ignores an invalid or unsupported model endpoint: %s', (endpoint) => {
+    setEnv({ OLLAMA_URL: endpoint })
+    expect(decide('selfHostedService', 'https://model-service/', '10.4.2.9').allowed).toBe(false)
+    expect(decide('selfHostedService', 'https://child.model-service/', '10.4.2.9').allowed).toBe(
+      false
+    )
+  })
+
+  it.each([
+    ['http://169.254.169.254/', '169.254.169.254'],
+    ['http://[fd00:ec2::254]/', 'fd00:ec2::254'],
+    ['https://model-service/', '169.254.169.254'],
+  ])('still blocks metadata through a configured model URL: %s', (url, address) => {
+    setEnv({ OLLAMA_URL: url, AZURE_OPENAI_ENDPOINT: url })
+    for (const profile of ['selfHostedService', 'configuredEndpoint'] as const) {
+      expect(decide(profile, url, address)).toMatchObject({
+        allowed: false,
+        reason: 'address-metadata',
+      })
+    }
+  })
+})
 
 describe('the operator allowlist reaches exactly the provenances that honor it', () => {
   it.each(ALLOWLIST_PROFILES)('%s honors an allowlisted range', (profile) => {

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -17,6 +18,10 @@ import {
   RESEND_ALL_WEBHOOK_EVENT_TYPES,
   RESEND_TRIGGER_TO_EVENT_TYPE,
 } from '@/triggers/resend/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Resend')
 
@@ -185,7 +190,7 @@ export const resendHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
 
-      const resendResponse = await fetch('https://api.resend.com/webhooks', {
+      const resendResponse = await providerFetch('https://api.resend.com/webhooks', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -274,7 +279,7 @@ export const resendHandler: WebhookProviderHandler = {
         return
       }
 
-      const resendResponse = await fetch(`https://api.resend.com/webhooks/${externalId}`, {
+      const resendResponse = await providerFetch(`https://api.resend.com/webhooks/${externalId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

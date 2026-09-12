@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
 import {
+  createSsrfGuardedFetchWithDispatcher,
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -30,6 +31,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:MicrosoftTeams')
 
@@ -239,7 +244,9 @@ async function formatTeamsGraphNotification(
 
       if (accessToken) {
         const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
-        const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        const res = await providerFetch(msgUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
         if (res.ok) {
           message = (await res.json()) as Record<string, unknown>
 
@@ -297,7 +304,7 @@ async function formatTeamsGraphNotification(
                         .replace(/=+$/, '')
 
                       const graphUrl = `https://graph.microsoft.com/v1.0/shares/u!${encodedUrl}/driveItem/content`
-                      const graphRes = await fetch(graphUrl, {
+                      const graphRes = await providerFetch(graphUrl, {
                         headers: { Authorization: `Bearer ${accessToken}` },
                         redirect: 'follow',
                       })
@@ -344,7 +351,7 @@ async function formatTeamsGraphNotification(
                     }
 
                     const metadataUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem`
-                    const metadataRes = await fetch(metadataUrl, {
+                    const metadataRes = await providerFetch(metadataUrl, {
                       headers: {
                         Authorization: `Bearer ${accessToken}`,
                         Accept: 'application/json',
@@ -353,7 +360,7 @@ async function formatTeamsGraphNotification(
 
                     if (!metadataRes.ok) {
                       const directUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem/content`
-                      const directRes = await fetch(directUrl, {
+                      const directRes = await providerFetch(directUrl, {
                         headers: { Authorization: `Bearer ${accessToken}` },
                         redirect: 'follow',
                       })
@@ -639,7 +646,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const existingSubscriptionId = config.externalSubscriptionId as string | undefined
     if (existingSubscriptionId) {
       try {
-        const checkRes = await fetch(
+        const checkRes = await providerFetch(
           `https://graph.microsoft.com/v1.0/subscriptions/${existingSubscriptionId}`,
           { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } }
         )
@@ -677,7 +684,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     }
 
     try {
-      const res = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+      const res = await providerFetch('https://graph.microsoft.com/v1.0/subscriptions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -779,7 +786,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         return
       }
 
-      const res = await fetch(
+      const res = await providerFetch(
         `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
         {
           method: 'DELETE',

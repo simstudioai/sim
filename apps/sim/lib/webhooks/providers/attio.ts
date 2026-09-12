@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -16,6 +17,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Attio')
 
@@ -169,7 +174,7 @@ export const attioHandler: WebhookProviderHandler = {
         },
       }
 
-      const attioResponse = await fetch('https://api.attio.com/v2/webhooks', {
+      const attioResponse = await providerFetch('https://api.attio.com/v2/webhooks', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -280,7 +285,7 @@ export const attioHandler: WebhookProviderHandler = {
         return
       }
 
-      const attioResponse = await fetch(`https://api.attio.com/v2/webhooks/${externalId}`, {
+      const attioResponse = await providerFetch(`https://api.attio.com/v2/webhooks/${externalId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -7,6 +8,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Lemlist')
 
@@ -65,7 +70,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         requestBody.campaignId = campaignId
       }
 
-      const lemlistResponse = await fetch(lemlistApiUrl, {
+      const lemlistResponse = await providerFetch(lemlistApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,
@@ -148,7 +153,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         }
 
         const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${id}`
-        const lemlistResponse = await fetch(lemlistApiUrl, {
+        const lemlistResponse = await providerFetch(lemlistApiUrl, {
           method: 'DELETE',
           headers: {
             Authorization: `Basic ${authString}`,
@@ -183,7 +188,7 @@ export const lemlistHandler: WebhookProviderHandler = {
       }
 
       const notificationUrl = getNotificationUrl(webhook)
-      const listResponse = await fetch('https://api.lemlist.com/api/hooks', {
+      const listResponse = await providerFetch('https://api.lemlist.com/api/hooks', {
         method: 'GET',
         headers: {
           Authorization: `Basic ${authString}`,

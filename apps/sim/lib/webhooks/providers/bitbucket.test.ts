@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,6 +29,8 @@ import {
   type BitbucketTriggerId,
   buildBitbucketOutputs,
 } from '@/triggers/bitbucket/utils'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const fetchMock = vi.fn()
 const CALLBACK_URL = 'https://app.example.com/api/webhooks/trigger/bitbucket-path'

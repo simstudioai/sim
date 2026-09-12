@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { inputValidationMock } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import {
   handleSlackChallenge,
@@ -6,6 +7,8 @@ import {
   shouldSkipSlackTriggerEvent,
   slackHandler,
 } from '@/lib/webhooks/providers/slack'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const ctx = (body: unknown) => ({
   webhook: {},

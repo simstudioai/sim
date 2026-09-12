@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -21,6 +22,10 @@ import {
   toFormBody,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Jotform')
 
@@ -67,7 +72,7 @@ async function listWebhookIdForUrl(
   credentials: JotformSubscriptionCredentials,
   notificationUrl: string
 ): Promise<string | null> {
-  const response = await fetch(
+  const response = await providerFetch(
     buildJotformUrl(
       credentials,
       `form/${encodeURIComponent(credentials.formId)}/webhooks`
@@ -184,7 +189,7 @@ export const jotformHandler: WebhookProviderHandler = {
         return {}
       }
 
-      const response = await fetch(
+      const response = await providerFetch(
         buildJotformUrl(
           credentials,
           `form/${encodeURIComponent(credentials.formId)}/webhooks`
@@ -256,7 +261,7 @@ export const jotformHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await providerFetch(
         buildJotformUrl(
           credentials,
           `form/${encodeURIComponent(credentials.formId)}/webhooks/${encodeURIComponent(webhookId)}`

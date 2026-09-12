@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
@@ -20,6 +21,10 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 import { CLICKUP_API_BASE_URL, clickupAuthorizationHeader } from '@/tools/clickup/shared'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:ClickUp')
 
@@ -87,7 +92,7 @@ function parseOptionalStringId(value: unknown): string | undefined {
 }
 
 async function deleteClickUpWebhook(accessToken: string, externalId: string): Promise<Response> {
-  return fetch(`${CLICKUP_API_BASE_URL}/webhook/${externalId}`, {
+  return providerFetch(`${CLICKUP_API_BASE_URL}/webhook/${externalId}`, {
     method: 'DELETE',
     headers: { Authorization: clickupAuthorizationHeader(accessToken) },
   })
@@ -188,7 +193,7 @@ export const clickupHandler: WebhookProviderHandler = {
       if (listId !== undefined) requestBody.list_id = listId
       if (taskId !== undefined) requestBody.task_id = taskId
 
-      const clickupResponse = await fetch(
+      const clickupResponse = await providerFetch(
         `${CLICKUP_API_BASE_URL}/team/${encodeURIComponent(workspaceId)}/webhook`,
         {
           method: 'POST',

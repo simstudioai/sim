@@ -1,4 +1,4 @@
-import { Agent, type Dispatcher } from 'undici'
+import { Agent, type Dispatcher } from 'undici/index.js'
 
 /**
  * Keeps the transport deadline from undercutting the application deadline.

@@ -1,8 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const WEBHOOK_ID = 'webhook-uuid-1234'
 

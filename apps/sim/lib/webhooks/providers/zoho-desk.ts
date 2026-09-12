@@ -6,6 +6,7 @@ import { truncate } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import * as jose from 'jose'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -19,6 +20,10 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import { withDerivedContentText } from '@/tools/zoho_desk/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:ZohoDesk')
 
@@ -310,7 +315,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       if (direction === 'in' || direction === 'out') filter.direction = direction
     }
 
-    const response = await fetch(`${apiDomain}/api/v1/webhooks`, {
+    const response = await providerFetch(`${apiDomain}/api/v1/webhooks`, {
       method: 'POST',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,
@@ -399,7 +404,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
         ? safeZohoDeskBase(config.apiDomain)
         : await resolveZohoDeskApiDomain(owner.accountId)
 
-    const response = await fetch(`${apiDomain}/api/v1/webhooks/${externalId}`, {
+    const response = await providerFetch(`${apiDomain}/api/v1/webhooks/${externalId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,

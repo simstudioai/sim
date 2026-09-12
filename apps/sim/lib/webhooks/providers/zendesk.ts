@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -14,6 +15,10 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Zendesk')
 
@@ -45,7 +50,7 @@ async function deleteZendeskWebhookQuietly(
   authHeader: string,
   webhookId: string
 ): Promise<void> {
-  await fetch(`${apiBase}/webhooks/${webhookId}`, {
+  await providerFetch(`${apiBase}/webhooks/${webhookId}`, {
     method: 'DELETE',
     headers: { Authorization: authHeader },
   }).catch(() => {})
@@ -187,7 +192,7 @@ export const zendeskHandler: WebhookProviderHandler = {
     const apiBase = zendeskApiBase(subdomain)
     const authHeader = zendeskAuthHeader(email, apiToken)
 
-    const createRes = await fetch(`${apiBase}/webhooks`, {
+    const createRes = await providerFetch(`${apiBase}/webhooks`, {
       method: 'POST',
       headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -219,7 +224,7 @@ export const zendeskHandler: WebhookProviderHandler = {
     const externalId = toRecord(created.webhook).id as string | undefined
     if (!externalId) throw new Error('Zendesk webhook created but no webhook ID was returned.')
 
-    const secretRes = await fetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
+    const secretRes = await providerFetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
       headers: { Authorization: authHeader },
     })
     if (!secretRes.ok) {
@@ -264,7 +269,7 @@ export const zendeskHandler: WebhookProviderHandler = {
       return
     }
 
-    const res = await fetch(`${zendeskApiBase(subdomain)}/webhooks/${externalId}`, {
+    const res = await providerFetch(`${zendeskApiBase(subdomain)}/webhooks/${externalId}`, {
       method: 'DELETE',
       headers: { Authorization: zendeskAuthHeader(email, apiToken) },
     })

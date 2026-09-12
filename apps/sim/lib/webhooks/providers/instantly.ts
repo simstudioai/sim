@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -16,6 +17,10 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 import { instantlyUrl } from '@/tools/instantly/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Instantly')
 const SIM_WEBHOOK_TOKEN_HEADER = 'x-sim-webhook-token'
@@ -166,7 +171,7 @@ export const instantlyHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(instantlyUrl('/api/v2/webhooks'), {
+    const response = await providerFetch(instantlyUrl('/api/v2/webhooks'), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey.trim()}`,
@@ -228,7 +233,7 @@ export const instantlyHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await providerFetch(
         instantlyUrl(`/api/v2/webhooks/${encodeURIComponent(externalId.trim())}`),
         {
           method: 'DELETE',

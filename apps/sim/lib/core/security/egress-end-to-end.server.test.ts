@@ -11,9 +11,12 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { networkInterfaces } from 'node:os'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 
 /** A non-loopback RFC1918 address on this machine, or null when there is none. */
 function privateInterfaceAddress(): string | null {
@@ -49,7 +52,10 @@ afterAll(async () => {
   resetEnvFlagsMock()
 })
 
-afterEach(resetEnvFlagsMock)
+afterEach(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 // Skipped on a host with no private interface (some CI sandboxes); the policy
 // itself is covered without a socket in packages/security.
@@ -81,6 +87,31 @@ describe.skipIf(!host)('reaching a service on a private network', () => {
       secureFetchWithValidation(`https://${host}:${port}/`, { profile: 'contentFetch' })
     ).rejects.toThrow(/private or reserved address/)
   })
+
+  it.each([
+    ['OLLAMA_URL', 'selfHostedService'],
+    ['AZURE_OPENAI_ENDPOINT', 'configuredEndpoint'],
+  ] as const)(
+    'reaches the configured %s over both guarded transports',
+    async (setting, profile) => {
+      const url = `http://${host}:${port}/`
+      setEnv({ [setting]: url })
+      const bounded = await secureFetchWithValidation(url, { profile })
+      expect(await bounded.text()).toBe('reached')
+
+      const transport = createSsrfGuardedFetchWithDispatcher({ profile })
+      try {
+        const streaming = await transport.fetch(url)
+        expect(await streaming.text()).toBe('reached')
+      } finally {
+        await transport.dispatcher.destroy()
+      }
+
+      await expect(
+        secureFetchWithValidation(`https://${host}:${port}/`, { profile: 'contentFetch' })
+      ).rejects.toThrow(/private or reserved address/)
+    }
+  )
 })
 
 // Needs no private interface, so it runs everywhere the suite above may not.

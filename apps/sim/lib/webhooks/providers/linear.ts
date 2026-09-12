@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -17,6 +18,10 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WebhookProvider:Linear')
 
@@ -213,7 +218,7 @@ export const linearHandler: WebhookProviderHandler = {
     }
 
     try {
-      const response = await fetch('https://api.linear.app/graphql', {
+      const response = await providerFetch('https://api.linear.app/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -292,7 +297,7 @@ export const linearHandler: WebhookProviderHandler = {
     }
 
     try {
-      const response = await fetch('https://api.linear.app/graphql', {
+      const response = await providerFetch('https://api.linear.app/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

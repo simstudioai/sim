@@ -1,11 +1,15 @@
 /**
  * @vitest-environment node
  */
+
 import crypto from 'crypto'
+import { inputValidationMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { zendeskHandler } from '@/lib/webhooks/providers/zendesk'
 import { isZendeskEventMatch } from '@/triggers/zendesk/utils'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const SECRET = 'my-signing-secret'
 

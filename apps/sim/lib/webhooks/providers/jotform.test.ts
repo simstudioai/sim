@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMock,
+  inputValidationMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -17,6 +23,8 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
 }))
 
 import { jotformHandler } from '@/lib/webhooks/providers/jotform'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const fetchMock = vi.fn()
 
