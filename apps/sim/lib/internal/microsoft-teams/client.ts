@@ -1,7 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { MicrosoftTeamsOperationError } from '@/lib/internal/microsoft-teams/errors'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const MICROSOFT_GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 const MICROSOFT_GRAPH_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
@@ -27,7 +30,7 @@ export class MicrosoftTeamsClient {
     signal?: AbortSignal
   ): Promise<MicrosoftTeamsGraphObject> {
     signal?.throwIfAborted()
-    const response = await fetch(`${MICROSOFT_GRAPH_BASE_URL}${path}`, {
+    const response = await providerFetch(`${MICROSOFT_GRAPH_BASE_URL}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

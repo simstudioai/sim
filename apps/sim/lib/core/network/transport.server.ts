@@ -10,7 +10,8 @@ import {
   Pool,
   request,
 } from 'undici/index.js'
-import { secureOutboundTunnel } from '@/lib/core/network/gateway.server'
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
+import { createGatewayDispatcher, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import { checkResolvedEgress, validateEgressUrl } from '@/lib/core/security/egress/validate'
@@ -203,30 +204,66 @@ interface OutboundTransportOwner {
 }
 
 /**
- * Owns direct and environment-proxy connection lifetimes for every HTTP adapter.
- * Destination provenance and optional pinning are immutable for this owner.
+ * Owns routing and connection lifetimes for every HTTP adapter. Destination provenance
+ * and optional pinning are immutable for this owner; policy is resolved per operation.
  */
 export function createOutboundTransport(options: OutboundTransportOptions): OutboundTransportOwner {
+  const pools = new Map<string, Agent>()
+  const retired = new Set<Agent>()
   let closed = false
   let environment: Dispatcher | null | undefined
   const allPools = () => [
     ...(options.direct ? [options.direct] : []),
     ...(environment ? [environment] : []),
+    ...pools.values(),
+    ...retired,
   ]
   return {
     async selectDispatcher() {
+      const route = await resolveCurrentOutboundRoute()
       if (closed) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
-      if (options.proxyUrl) return options.direct ?? null
-      if (environment === undefined) environment = createEnvironmentProxyDispatcher(options)
-      return environment ?? options.direct ?? null
+      if (route.kind === 'direct') {
+        if (options.proxyUrl) return options.direct ?? null
+        if (environment === undefined) environment = createEnvironmentProxyDispatcher(options)
+        return environment ?? options.direct ?? null
+      }
+      if (options.proxyUrl) throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
+      const key = JSON.stringify([
+        route.scopeKey,
+        route.gateway.id,
+        route.gateway.generation,
+        route.revision,
+      ])
+      let pool = pools.get(key)
+      if (!pool) {
+        if (retired.size >= 16) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+        if (pools.size >= 16) {
+          const oldest = pools.entries().next().value
+          if (oldest) {
+            pools.delete(oldest[0])
+            retired.add(oldest[1])
+            void oldest[1]
+              .close()
+              .catch(() => {})
+              .finally(() => retired.delete(oldest[1]))
+          }
+        }
+        pool = createGatewayDispatcher(route.gateway, options)
+        pools.set(key, pool)
+      }
+      return pool
     },
     async close() {
       closed = true
       await Promise.all(allPools().map((pool) => pool.close()))
+      pools.clear()
+      retired.clear()
     },
     async destroy() {
       closed = true
       await Promise.all(allPools().map((pool) => pool.destroy()))
+      pools.clear()
+      retired.clear()
     },
   }
 }

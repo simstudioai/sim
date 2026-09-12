@@ -2,6 +2,15 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 import { executeStorageUpdateBucketOperation } from '@/lib/internal/supabase/operations/storage-update-bucket'
 
 const INPUT = {

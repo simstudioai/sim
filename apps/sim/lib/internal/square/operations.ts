@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -11,6 +12,8 @@ import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { SQUARE_API_VERSION, SQUARE_BASE_URL } from '@/tools/square/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('SquareCatalogImage')
 const MAX_SQUARE_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -71,7 +74,7 @@ export async function executeSquareCreateCatalogImage(
       input.fileName || userFile.name
     )
 
-    const response = await fetch(`${SQUARE_BASE_URL}/v2/catalog/images`, {
+    const response = await providerFetch(`${SQUARE_BASE_URL}/v2/catalog/images`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.accessToken}`,

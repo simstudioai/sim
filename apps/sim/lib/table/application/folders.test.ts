@@ -64,6 +64,8 @@ describe('listTableFoldersUseCase', () => {
     vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
       billedAccountUserId: 'owner-1',
     })
     mocks.resolvePermission.mockResolvedValue('admin')

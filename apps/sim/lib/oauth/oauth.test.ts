@@ -1,4 +1,4 @@
-import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
+import { createMockFetch, inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { getOAuth2Tokens } from 'better-auth/oauth2'
 import { genericOAuth } from 'better-auth/plugins'
 import { getTestInstance } from 'better-auth/test'
@@ -76,9 +76,11 @@ import {
   getPerRequestOAuthLinkScopes,
   getSlackApprovalGatedScopes,
   OAUTH_PROVIDERS,
-  refreshOAuthToken,
 } from '@/lib/oauth'
+import { refreshOAuthToken } from '@/lib/oauth/refresh-token.server'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 /** Compares real icon components by identity; the global `@/components/icons` stub in vitest.setup.ts would make that vacuous. */
 vi.unmock('@/components/icons')

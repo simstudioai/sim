@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  secureFetchWithValidation,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { isSensitiveKey, REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
@@ -98,11 +101,21 @@ async function getLiveViewUrl(sessionId: string, signal?: AbortSignal): Promise<
   const browserbaseApiKey = getBrowserbaseApiKey()
   if (!browserbaseApiKey) return null
   try {
-    const response = await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}/debug`, {
-      method: 'GET',
-      headers: { 'X-BB-API-Key': browserbaseApiKey },
-      signal,
-    })
+    const response = await secureFetchWithValidation(
+      `https://api.browserbase.com/v1/sessions/${sessionId}/debug`,
+      {
+        profile: 'configuredEndpoint',
+        redirectPolicy: {
+          mode: 'standard',
+          sendCredentialsOnCrossOriginRedirect: false,
+          sensitiveHeaders: ['x-bb-api-key'],
+        },
+        maxResponseBytes: MAX_BROWSERBASE_DEBUG_RESPONSE_BYTES,
+        method: 'GET',
+        headers: { 'X-BB-API-Key': browserbaseApiKey },
+        signal,
+      }
+    )
     if (!response.ok) return null
     const data = await readResponseJsonWithLimit<unknown>(response, {
       maxBytes: MAX_BROWSERBASE_DEBUG_RESPONSE_BYTES,

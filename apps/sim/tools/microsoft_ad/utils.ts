@@ -1,4 +1,9 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { assertGraphNextPageUrl } from '@/tools/sharepoint/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Splits a comma or newline separated list of identifiers into a trimmed, de-duplicated array.
@@ -189,7 +194,7 @@ export async function resolveGraphUserObjectId(
   const identifier = userId.trim()
   if (isGraphObjectId(identifier)) return identifier
 
-  const response = await fetch(
+  const response = await providerFetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(identifier)}?$select=id`,
     { headers: { Authorization: `Bearer ${accessToken}` }, signal }
   )

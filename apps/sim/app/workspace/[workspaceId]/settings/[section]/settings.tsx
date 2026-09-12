@@ -93,11 +93,6 @@ const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO))
-const SessionPolicySettings = dynamic(() =>
-  import('@/ee/session-policy/components/session-policy-settings').then(
-    (m) => m.SessionPolicySettings
-  )
-)
 const DataRetentionSettings = dynamic(() =>
   import('@/ee/data-retention/components/data-retention-settings').then(
     (m) => m.DataRetentionSettings
@@ -105,6 +100,9 @@ const DataRetentionSettings = dynamic(() =>
 )
 const DataDrainsSettings = dynamic(() =>
   import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
+)
+const OrganizationSecuritySettings = dynamic(() =>
+  import('@/components/settings/organization-security').then((m) => m.OrganizationSecuritySettings)
 )
 const UsageMonitoring = dynamic(() =>
   import('@/ee/organization-usage/components/usage-monitoring').then((m) => m.UsageMonitoring)
@@ -201,14 +199,14 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
-      {effectiveSection === 'sessions' && organizationId && (
-        <SessionPolicySettings key={organizationId} organizationId={organizationId} />
-      )}
       {effectiveSection === 'data-retention' && organizationId && (
         <DataRetentionSettings organizationId={organizationId} />
       )}
       {effectiveSection === 'data-drains' && organizationId && (
         <DataDrainsSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'security' && organizationId && (
+        <OrganizationSecuritySettings organizationId={organizationId} />
       )}
       {effectiveSection === 'whitelabeling' && organizationId && (
         <WhitelabelingSettings organizationId={organizationId} />

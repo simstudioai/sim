@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraAddWatcherParams, JiraAddWatcherResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcherResponse> = {
   id: 'jira_add_watcher',
@@ -79,7 +84,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/watchers`
-      const watcherResponse = await fetch(watcherUrl, {
+      const watcherResponse = await providerFetch(watcherUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

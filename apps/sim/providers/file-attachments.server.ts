@@ -2,6 +2,8 @@ import { FileState, GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { requireDirectOutboundTransport } from '@/lib/core/network/context.server'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { StorageService } from '@/lib/uploads'
 import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -17,6 +19,8 @@ import {
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('ProviderFileAttachments')
 
@@ -138,6 +142,7 @@ export async function uploadLargeFilesToProvider(
   if (groups.length === 0) return
 
   const maxBytes = getProviderAttachmentMaxBytes(providerId)
+  if (providerId === 'google') await requireDirectOutboundTransport()
   const ai = providerId === 'google' ? new GoogleGenAI({ apiKey: request.apiKey }) : null
 
   for (const group of groups) {
@@ -232,7 +237,9 @@ async function uploadOpenAIFile(
   form.append('expires_after[seconds]', String(OPENAI_FILE_EXPIRY_SECONDS))
   form.append('file', blob, file.name)
 
-  const response = await fetch(OPENAI_FILES_ENDPOINT, {
+  const response = await (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+    profile: 'configuredEndpoint',
+  })).fetch(OPENAI_FILES_ENDPOINT, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,

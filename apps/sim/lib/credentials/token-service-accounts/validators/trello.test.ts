@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvMock, setEnv } from '@sim/testing'
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SelectorConnectionUnavailableError,
@@ -11,6 +12,8 @@ import {
   fetchProviderJsonWithStatus,
   RetryableProviderNetworkError,
 } from '@/lib/selectors/server/providers/provider-http'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const mockFetch = vi.fn()
 

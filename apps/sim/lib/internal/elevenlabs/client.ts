@@ -2,6 +2,7 @@ import {
   createTimeoutAbortController,
   DEFAULT_EXECUTION_TIMEOUT_MS,
 } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { consumeOrCancelBody, readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import { ElevenLabsOperationError } from '@/lib/internal/elevenlabs/errors'
 import type {
@@ -9,6 +10,8 @@ import type {
   ElevenLabsSoundEffectsInput,
   ElevenLabsSpeechToSpeechInput,
 } from '@/lib/internal/elevenlabs/schema'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const BASE_URL = 'https://api.elevenlabs.io/v1'
 export const MAX_ELEVENLABS_AUDIO_BYTES = 25 * 1024 * 1024
@@ -90,7 +93,7 @@ export async function generateElevenLabsAudio(
   const timeout = createTimeoutAbortController(DEFAULT_EXECUTION_TIMEOUT_MS, signal)
   try {
     const { url, init } = buildRequest(args)
-    const response = await fetch(url, { ...init, signal: timeout.signal })
+    const response = await providerFetch(url, { ...init, signal: timeout.signal })
     timeout.signal.throwIfAborted()
     if (!response.ok) {
       await consumeOrCancelBody(response)

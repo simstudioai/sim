@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { validatePathSegment, validateWorkdayTenantUrl } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -12,6 +13,10 @@ import {
   parseTagDate,
 } from '@/connectors/utils'
 import { workdayConnectorMeta } from '@/connectors/workday/meta'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('WorkdayConnector')
 
@@ -216,7 +221,7 @@ async function getBearerToken(
         refresh_token: refreshToken,
       }).toString(),
     },
-    retryOptions
+    { ...retryOptions, fetcher: providerFetch }
   )
 
   if (!response.ok) {
@@ -289,7 +294,7 @@ async function workdayGet(
     fetchWithRetry(
       url,
       { method: 'GET', headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' } },
-      retryOptions
+      { ...retryOptions, fetcher: providerFetch }
     )
 
   const response = await send(await getBearerToken(accessToken, wd, syncContext, retryOptions))

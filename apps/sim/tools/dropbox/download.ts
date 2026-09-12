@@ -1,4 +1,5 @@
 import { omit } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { httpHeaderSafeJson } from '@/lib/core/utils/validation'
 import type {
   DropboxDownloadParams,
@@ -6,6 +7,10 @@ import type {
   DropboxDownloadV2Response,
 } from '@/tools/dropbox/types'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 async function transformDownloadResponse(response: Response, params?: DropboxDownloadParams) {
   if (!response.ok) {
@@ -28,14 +33,17 @@ async function transformDownloadResponse(response: Response, params?: DropboxDow
   let temporaryLink: string | undefined
   if (params?.accessToken) {
     try {
-      const linkResponse = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${params.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ path: params.path.trim() }),
-      })
+      const linkResponse = await providerFetch(
+        'https://api.dropboxapi.com/2/files/get_temporary_link',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${params.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ path: params.path.trim() }),
+        }
+      )
       if (linkResponse.ok) {
         const linkData = await linkResponse.json()
         temporaryLink = linkData.link

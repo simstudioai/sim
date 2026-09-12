@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -7,6 +8,10 @@ import type { JiraGetAttachmentsParams, JiraGetAttachmentsResponse } from '@/too
 import { ATTACHMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { downloadJiraAttachments, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Transforms a raw Jira attachment object into typed output.
@@ -99,7 +104,7 @@ export const jiraGetAttachmentsTool: ToolConfig<
     context?.signal?.throwIfAborted()
     const fetchAttachments = async (cloudId: string) => {
       const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}?fields=attachment`
-      const attachmentsResponse = await fetch(attachmentsUrl, {
+      const attachmentsResponse = await providerFetch(attachmentsUrl, {
         method: 'GET',
         signal: context?.signal,
         headers: {

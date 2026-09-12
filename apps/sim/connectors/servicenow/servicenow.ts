@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { validateServiceNowInstanceUrl } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_ITEMS, servicenowConnectorMeta } from '@/connectors/servicenow/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('ServiceNowConnector')
 
@@ -255,7 +260,7 @@ async function serviceNowApiGet(
         'Content-Type': 'application/json',
       },
     },
-    retryOptions
+    { ...retryOptions, fetcher: providerFetch }
   )
 
   if (!response.ok) {
@@ -309,7 +314,7 @@ async function serviceNowApiGetById(
         'Content-Type': 'application/json',
       },
     },
-    retryOptions
+    { ...retryOptions, fetcher: providerFetch }
   )
 
   if (response.status === 404) {

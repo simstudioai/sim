@@ -12,6 +12,7 @@ import type {
   PrincipalForOperation,
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import type { ResourcePolicyBinding } from '@/lib/resource-policies/registry'
 
@@ -205,23 +206,25 @@ export function defineAuthorizedWorkspaceUseCase<
     async execute(args) {
       const executionContext = await authorizePhase(args)
       const { principal, context, request } = executionContext
-      const result = await definition.execute(executionContext)
-      const resultContext = { ...executionContext, result }
-      const projectedAudit = definition.projectAudit?.(resultContext)
-      if (projectedAudit !== undefined) {
-        const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-        if (auditEntries.length > 0) {
-          recordProjectedUseCaseAuditEntries(
-            definition.operation,
-            context.workspaceId,
-            principal,
-            request,
-            auditEntries
-          )
+      return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
+        const result = await definition.execute(executionContext)
+        const resultContext = { ...executionContext, result }
+        const projectedAudit = definition.projectAudit?.(resultContext)
+        if (projectedAudit !== undefined) {
+          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+          if (auditEntries.length > 0) {
+            recordProjectedUseCaseAuditEntries(
+              definition.operation,
+              context.workspaceId,
+              principal,
+              request,
+              auditEntries
+            )
+          }
         }
-      }
-      await definition.afterSuccess?.(resultContext)
-      return result
+        await definition.afterSuccess?.(resultContext)
+        return result
+      })
     },
   }
 }

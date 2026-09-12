@@ -7,6 +7,10 @@
  * Every path that shortens the listing has to leave `syncContext.listingCapped` set,
  * because the sync engine hard-deletes whatever a full listing omits.
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { bitbucketConnector } from '@/connectors/bitbucket/bitbucket'
 

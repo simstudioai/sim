@@ -4,6 +4,7 @@ import {
   type Parameter,
   type Tag,
 } from '@aws-sdk/client-cloudformation'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 
 export interface CloudFormationConnectionConfig {
   region: string
@@ -15,6 +16,7 @@ export function createCloudFormationClient(
   config: CloudFormationConnectionConfig
 ): CloudFormationClient {
   return new CloudFormationClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

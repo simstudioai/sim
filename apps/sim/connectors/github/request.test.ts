@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { acquire, settle } = vi.hoisted(() => ({ acquire: vi.fn(), settle: vi.fn() }))
@@ -9,6 +10,8 @@ vi.mock('@/lib/core/rate-limiter/provider-capacity', () => ({ acquireProviderCap
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { fetchGitHubWithRetry } from '@/connectors/github/request'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const URL = 'https://api.github.com/repos/example/repository/git/blobs/blob-id'
 const OPTIONS = { headers: { Authorization: 'Bearer private-token' } }

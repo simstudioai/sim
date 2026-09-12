@@ -20,6 +20,17 @@ const mocks = vi.hoisted(() => ({
   completeMcpOAuth: vi.fn(),
   startMcpOAuth: vi.fn(),
   startOAuth: vi.fn(),
+  routingEnabled: vi.fn(() => false),
+  workspace: vi.fn(),
+  route: vi.fn(async (organizationId: string | null | undefined) => ({ organizationId })),
+}))
+
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: mocks.routingEnabled,
+  resolveOutboundRoute: mocks.route,
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: mocks.workspace,
 }))
 
 vi.mock('@/lib/organizations/settings-access', () => ({
@@ -53,6 +64,10 @@ vi.mock('@/lib/credential-groups/trigger', () => ({
   fireCredentialGroupTrigger: mocks.fireTrigger,
 }))
 
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import {
   completePublicCredentialGroupEnrollment,
   completePublicCredentialGroupMcpOAuth,
@@ -101,6 +116,7 @@ const oauthAttempt = {
 describe('public Credential Group enrollment application operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.routingEnabled.mockReturnValue(false)
     mocks.bind.mockResolvedValue(undefined)
     mocks.memberAccess.mockResolvedValue({ isMember: false })
     mocks.searchAvailable.mockResolvedValue(true)
@@ -333,6 +349,33 @@ describe('public Credential Group enrollment application operations', () => {
       expect.objectContaining({ event: 'credential_reconnected', enrollmentStatus: 'completed' })
     )
   })
+  it.each(['organization', 'workspace'] as const)(
+    'scopes OAuth callbacks to the authorized %s and restores the caller',
+    async (kind) => {
+      mocks.routingEnabled.mockReturnValue(true)
+      mocks.workspace.mockResolvedValue({ workspaceOrganizationId: 'workspace-org' })
+      const owner =
+        kind === 'organization'
+          ? { organizationId: 'org-1', workspaceId: undefined }
+          : { workspaceId: 'workspace-1', organizationId: undefined }
+      const completion = await mocks.completeOAuth()
+      mocks.completeOAuth.mockImplementationOnce(async () => {
+        await resolveCurrentOutboundRoute()
+        return completion
+      })
+      await runWithOutboundOrganization('caller-org', async () => {
+        await completePublicCredentialGroupOAuth.execute({
+          principal: { ...principal, ...owner },
+          input: { attempt: { ...oauthAttempt, ...owner }, code: 'code' },
+        })
+        expect(mocks.route).toHaveBeenLastCalledWith(
+          kind === 'organization' ? 'org-1' : 'workspace-org'
+        )
+        await resolveCurrentOutboundRoute()
+        expect(mocks.route).toHaveBeenLastCalledWith('caller-org')
+      })
+    }
+  )
   it('rejects a consumed attempt after invitation rotation before exchanging its code', async () => {
     mocks.bind.mockRejectedValue(new Error('Invitation is invalid or expired'))
     await expect(

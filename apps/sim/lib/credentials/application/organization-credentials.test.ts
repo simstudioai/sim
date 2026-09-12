@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   resolveToken: vi.fn(),
   ownedManaged: vi.fn(),
   resolveManaged: vi.fn(),
+  route: vi.fn(async (organizationId: string | null | undefined) => ({ organizationId })),
+}))
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => true,
+  resolveOutboundRoute: mocks.route,
 }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/application/organization-authorization', () => ({
@@ -59,6 +64,10 @@ vi.mock('@/lib/oauth/utils', () => ({
   getServiceConfigByProviderId: () => ({ serviceAccountProviderId: 'google-service-account' }),
 }))
 
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import {
   createOrganizationCredential,
   launchOrganizationCredentialConnection,
@@ -228,6 +237,40 @@ describe('organization connection application boundary', () => {
       })
     )
   })
+  it.each(['create', 'update'] as const)(
+    'routes provider verification for %s through the credential organization',
+    async (operation) => {
+      const verify = operation === 'create' ? mocks.create : mocks.update
+      verify.mockImplementationOnce(async () => {
+        expect(await resolveCurrentOutboundRoute()).toEqual({ organizationId: 'org-1' })
+        return { success: true, created: true, credential: row, updatedFields: ['description'] }
+      })
+
+      await runWithOutboundOrganization('caller-org', async () => {
+        if (operation === 'create') {
+          await createOrganizationCredential.execute({
+            principal,
+            input: {
+              organizationId: 'org-1',
+              type: 'service_account',
+              providerId: 'google-service-account',
+            },
+          })
+        } else {
+          await updateOrganizationCredential.execute({
+            principal,
+            input: {
+              organizationId: 'org-1',
+              credentialId: row.id,
+              description: 'Updated',
+            },
+          })
+        }
+        expect(await resolveCurrentOutboundRoute()).toEqual({ organizationId: 'caller-org' })
+      })
+      expect(verify).toHaveBeenCalledOnce()
+    }
+  )
   it.each([
     {
       providerId: undefined,

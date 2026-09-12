@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraAddCommentParams, JiraAddCommentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, toAdf, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Transforms an add comment API response into typed output.
@@ -100,7 +105,7 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
 
     const makeRequest = async (cloudId: string) => {
       const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment`
-      const commentResponse = await fetch(commentUrl, {
+      const commentResponse = await providerFetch(commentUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

@@ -7,6 +7,7 @@ import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import { confluenceSubjectToken } from '@/lib/knowledge/access/confluence-permissions'
@@ -95,12 +96,13 @@ async function verifySite(
   signal: AbortSignal
 ): Promise<boolean> {
   signal.throwIfAborted()
-  const response = await fetch(
+  const response = await secureFetchWithValidation(
     `https://api.atlassian.com/ex/confluence/${binding.cloudId}/wiki/rest/api/user/current`,
     {
+      profile: 'configuredEndpoint',
+      maxRedirects: 0,
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-      redirect: 'error',
-      cache: 'no-store',
       signal,
     }
   )

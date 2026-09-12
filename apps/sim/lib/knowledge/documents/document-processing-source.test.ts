@@ -13,6 +13,17 @@ import {
 } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const outbound = vi.hoisted(() => ({ enabled: false, workspace: vi.fn() }))
+
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => outbound.enabled,
+  resolveOutboundRoute: async (organizationId: string | null | undefined) => ({ organizationId }),
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: outbound.workspace,
+}))
+
 const {
   mockCheckAttributedUsageLimits,
   mockBatchTrigger,
@@ -72,6 +83,10 @@ import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import {
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
@@ -93,6 +108,8 @@ import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
+  outbound.enabled = false
+  outbound.workspace.mockReset()
   resetIngestionUsageGateCache()
   vi.spyOn(billingAttribution, 'checkAttributedUsageLimits').mockImplementation(
     mockCheckAttributedUsageLimits
@@ -258,19 +275,34 @@ describe('knowledge document processing source', () => {
   })
 
   it('uses the persisted document source instead of stale queued source fields', async () => {
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      {
-        filename: 'stale.pdf',
-        fileUrl: 'https://example.com/stale.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      },
-      {},
-      BILLING_ATTRIBUTION
+    outbound.enabled = true
+    outbound.workspace.mockResolvedValue({ workspaceOrganizationId: 'current-org' })
+    let providerRoute: unknown
+    mockProcessDocument.mockImplementationOnce(async () => {
+      providerRoute = await resolveCurrentOutboundRoute()
+      return {
+        chunks: [],
+        metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0 },
+      }
+    })
+
+    await runWithOutboundOrganization('queued-org', () =>
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'stale.pdf',
+          fileUrl: 'https://example.com/stale.pdf',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
     )
 
+    expect(providerRoute).toEqual({ organizationId: 'current-org' })
+    expect(outbound.workspace).toHaveBeenCalledExactlyOnceWith('workspace-1')
     expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
       [PERSISTED_KEY],
       'workspace',

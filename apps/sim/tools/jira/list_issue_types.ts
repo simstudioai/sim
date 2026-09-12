@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraListIssueTypesParams, JiraListIssueTypesResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 function buildIssueTypesUrl(cloudId: string): string {
   return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issuetype`
@@ -60,7 +65,7 @@ export const jiraListIssueTypesTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: JiraListIssueTypesParams) => {
     const fetchIssueTypes = async (cloudId: string) => {
-      const issueTypesResponse = await fetch(buildIssueTypesUrl(cloudId), {
+      const issueTypesResponse = await providerFetch(buildIssueTypesUrl(cloudId), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

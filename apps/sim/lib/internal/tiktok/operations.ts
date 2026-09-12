@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { TikTokUploadVideoDraftInput } from '@/lib/internal/tiktok/schema'
 import {
@@ -17,6 +18,8 @@ import {
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import { readTikTokApiResponse } from '@/tools/tiktok/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('TikTokUploadVideoDraft')
 const TIKTOK_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm'])
@@ -77,7 +80,7 @@ export async function executeTikTokUploadVideoDraft(
     if (videoSize === 0) return failureResponse('The video file is empty.', 400)
 
     const { chunkSize, totalChunkCount } = computeTikTokChunkPlan(videoSize)
-    const initResponse = await fetch(
+    const initResponse = await providerFetch(
       'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
       {
         method: 'POST',

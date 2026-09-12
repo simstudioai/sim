@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { TelegramOperationError } from '@/lib/internal/telegram/errors'
 import {
@@ -12,6 +13,8 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TelegramSendDocumentResponse } from '@/tools/telegram/types'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('TelegramSendDocumentOperation')
 const MAX_TELEGRAM_DOCUMENT_BYTES = 50 * 1024 * 1024
@@ -100,7 +103,7 @@ export async function sendTelegramDocument(
     form.append('parse_mode', 'HTML')
   }
 
-  const response = await fetch(
+  const response = await providerFetch(
     `https://api.telegram.org/bot${encodeURIComponent(input.botToken)}/sendDocument`,
     { method: 'POST', body: form, signal: context.signal }
   )

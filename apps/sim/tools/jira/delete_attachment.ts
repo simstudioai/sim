@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraDeleteAttachmentParams, JiraDeleteAttachmentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraDeleteAttachmentTool: ToolConfig<
   JiraDeleteAttachmentParams,
@@ -66,7 +71,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       // Make the actual request with the resolved cloudId
       const attachmentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/attachment/${params?.attachmentId?.trim() ?? ''}`
-      const attachmentResponse = await fetch(attachmentUrl, {
+      const attachmentResponse = await providerFetch(attachmentUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',

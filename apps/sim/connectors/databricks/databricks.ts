@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
@@ -20,6 +21,10 @@ import {
   sizeLimitSkipReason,
   takeIndexableWithinCap,
 } from '@/connectors/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('DatabricksConnector')
 
@@ -231,7 +236,7 @@ async function databricksGet(
         Accept: 'application/json',
       },
     },
-    retryOptions
+    { ...retryOptions, fetcher: providerFetch }
   )
 }
 

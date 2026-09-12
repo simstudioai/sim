@@ -1,11 +1,16 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type {
   SlackAgentSessionStatus,
   SlackCanvasFile,
   SlackSuggestedPrompt,
 } from '@/tools/slack/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const SLACK_AGENT_SESSION_STATUSES = new Set<SlackAgentSessionStatus>([
   'active',
@@ -258,7 +263,7 @@ export async function fetchSlackMessagesPaginated(
     let response: Response
     let attempt = 0
     while (true) {
-      response = await fetch(url.toString(), {
+      response = await providerFetch(url.toString(), {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
         signal: opts.signal,

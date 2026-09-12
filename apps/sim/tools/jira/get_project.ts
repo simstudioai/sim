@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraGetProjectParams, JiraGetProjectResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 function buildProjectUrl(cloudId: string, projectIdOrKey: string): string {
   return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${encodeURIComponent(projectIdOrKey)}`
@@ -63,7 +68,7 @@ export const jiraGetProjectTool: ToolConfig<JiraGetProjectParams, JiraGetProject
 
   transformResponse: async (response: Response, params?: JiraGetProjectParams) => {
     const fetchProject = async (cloudId: string) => {
-      const projectResponse = await fetch(buildProjectUrl(cloudId, params!.projectId), {
+      const projectResponse = await providerFetch(buildProjectUrl(cloudId, params!.projectId), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

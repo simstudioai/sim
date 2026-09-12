@@ -2,6 +2,14 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 import { DEFAULT_MAX_ERROR_BODY_BYTES, PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { OutlookClient } from '@/lib/internal/outlook/client'
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'

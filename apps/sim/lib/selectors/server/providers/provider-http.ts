@@ -1,8 +1,13 @@
 import { parseRetryAfter } from '@sim/utils/retry'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const PROVIDER_TIMEOUT_MS = 30_000
 const MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -83,7 +88,7 @@ export async function fetchProviderJsonWithStatus<T>(
   const timeoutSignal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
   const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
   try {
-    response = await fetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
+    response = await providerFetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
   } catch (error) {
     if (init?.signal?.aborted) throw error
     if (options.passthroughNetworkErrors) throw new RetryableProviderNetworkError()

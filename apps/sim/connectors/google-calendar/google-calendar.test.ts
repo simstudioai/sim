@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { googleCalendarConnector } from '@/connectors/google-calendar/google-calendar'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'

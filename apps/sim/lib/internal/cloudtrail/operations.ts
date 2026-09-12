@@ -230,7 +230,7 @@ export async function executeCloudtrailListTrails(
 ) {
   return withCloudTrailClient(input, async (client) => {
     const response = await client.send(
-      new ListTrailsCommand({ ...(input.nextToken ? { NextToken: input.nextToken } : {}) }),
+      new ListTrailsCommand(input.nextToken ? { NextToken: input.nextToken } : {}),
       { abortSignal: signal }
     )
     return {

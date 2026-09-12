@@ -17,6 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -164,7 +165,11 @@ export const bedrockProvider: ProviderConfig = {
         : 'default-chain'
     const client = getCachedProviderClient(
       `bedrock::${region}::${credentialKey}`,
-      () => new BedrockRuntimeClient(clientConfig)
+      () =>
+        new BedrockRuntimeClient({
+          ...clientConfig,
+          requestHandler: createOutboundAwsHttpHandler(),
+        })
     )
 
     const messages: BedrockMessage[] = []

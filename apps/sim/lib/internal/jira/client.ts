@@ -1,8 +1,13 @@
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { JiraOperationError } from '@/lib/internal/jira/errors'
 import { getJiraCloudId } from '@/tools/jira/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 interface JiraConnectionConfig {
   domain: string
@@ -56,7 +61,7 @@ export class JiraClient {
     signal?: AbortSignal
   ): Promise<JiraProviderResponse> {
     signal?.throwIfAborted()
-    const response = await fetch(url, {
+    const response = await providerFetch(url, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

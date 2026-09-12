@@ -4,6 +4,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createOpenAIResponsesStreamingToolLoopStream } from '@/providers/openai/streaming-tool-loop'
@@ -41,6 +42,8 @@ import {
   responseContainsFunctionCall,
   toResponsesToolChoice,
 } from './utils'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 /**
  * Rejects a `/v1/responses` body reporting a generation that did not succeed — the
@@ -122,7 +125,7 @@ export interface ResponsesProviderConfig {
   /**
    * Optional fetch implementation. Used to pin the connection to a pre-validated
    * IP (DNS-rebinding/SSRF protection) when the endpoint is user-supplied.
-   * Defaults to the global fetch.
+   * Defaults to the shared guarded transport for configured provider endpoints.
    */
   fetch?: typeof fetch
 }
@@ -135,7 +138,10 @@ export async function executeResponsesProviderRequest(
   config: ResponsesProviderConfig
 ): Promise<ProviderResponse | StreamingExecution> {
   const { logger } = config
-  const fetchImpl = config.fetch ?? fetch
+  const fetchImpl =
+    config.fetch ??
+    (providerTransport ??= createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }))
+      .fetch
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,

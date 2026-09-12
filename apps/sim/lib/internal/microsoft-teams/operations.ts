@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   MicrosoftTeamsClient,
@@ -21,6 +22,8 @@ import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const MAX_GRAPH_RESPONSE_BYTES = 2 * 1024 * 1024
 const MAX_TEAMS_FILE_SIZE = 4 * 1024 * 1024
@@ -460,7 +463,7 @@ export async function deleteMicrosoftTeamsChatMessage(
     throw new MicrosoftTeamsOperationError('Chat ID and Message ID are required', 400)
   }
 
-  const meResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+  const meResponse = await providerFetch('https://graph.microsoft.com/v1.0/me', {
     headers: { Authorization: `Bearer ${input.accessToken}` },
     signal: context.signal,
   })
@@ -472,7 +475,7 @@ export async function deleteMicrosoftTeamsChatMessage(
     )
   }
 
-  const response = await fetch(
+  const response = await providerFetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(me.id)}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/softDelete`,
     {
       method: 'POST',

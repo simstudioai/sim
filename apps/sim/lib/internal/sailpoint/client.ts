@@ -2,12 +2,17 @@ import { createHash } from 'node:crypto'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import {
   consumeOrCancelBody,
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export interface SailPointCredentials {
   clientId: string
@@ -156,7 +161,7 @@ async function exchangeAccessToken(
 
   while (true) {
     signal?.throwIfAborted()
-    const response = await fetch(tokenUrl, {
+    const response = await providerFetch(tokenUrl, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -258,7 +263,7 @@ export async function sailpointFetch(
     headers.set('Authorization', `Bearer ${token}`)
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
 
-    const response = await fetch(url, {
+    const response = await providerFetch(url, {
       ...init,
       cache: 'no-store',
       headers,

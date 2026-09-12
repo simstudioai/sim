@@ -21,6 +21,7 @@ import type {
   textractAnalyzeIdContract,
   textractParseContract,
 } from '@/lib/api/contracts/tools/media/document-parse'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { parseS3Uri, resolveDocumentInput } from '@/lib/internal/textract/document-input'
 import { mapTextractSdkError, textractErrorResponse } from '@/lib/internal/textract/errors'
@@ -83,6 +84,7 @@ function createTextractClient(input: {
   secretAccessKey: string
 }): TextractClient {
   return new TextractClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: input.region,
     credentials: {
       accessKeyId: input.accessKeyId,

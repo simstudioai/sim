@@ -1,7 +1,10 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
 } from '@/lib/core/utils/stream-limits'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 interface BoxUploadEntry {
   id?: string
@@ -46,7 +49,7 @@ export class BoxClient {
       new Blob([new Uint8Array(buffer)], { type: 'application/octet-stream' }),
       fileName
     )
-    const response = await fetch('https://upload.box.com/api/2.0/files/content', {
+    const response = await providerFetch('https://upload.box.com/api/2.0/files/content', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.accessToken}` },
       body: formData,

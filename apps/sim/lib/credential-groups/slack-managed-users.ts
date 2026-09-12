@@ -16,6 +16,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
@@ -32,6 +33,10 @@ import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/li
 import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
 import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('SlackManagedUsers')
 const SLACK_MANAGED_USERS_ATTEMPT_TTL_MS = 10 * 60 * 1000
@@ -293,7 +298,7 @@ function parseSlackOAuthResponse(value: unknown): SlackOAuthSuccess {
 }
 
 export async function revokeSlackToken(token: string): Promise<void> {
-  const response = await fetch('https://slack.com/api/auth.revoke', {
+  const response = await providerFetch('https://slack.com/api/auth.revoke', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -319,7 +324,7 @@ export async function revokeSlackToken(token: string): Promise<void> {
 async function callSlackApi(method: string, accessToken: string, body?: URLSearchParams) {
   let response: Response
   try {
-    response = await fetch(`https://slack.com/api/${method}`, {
+    response = await providerFetch(`https://slack.com/api/${method}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -435,7 +440,7 @@ export async function exchangeSlackUserAuthorization(params: {
   const body = new URLSearchParams({ code: params.code, redirect_uri: params.redirectUri })
   let response: Response
   try {
-    response = await fetch('https://slack.com/api/oauth.v2.access', {
+    response = await providerFetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basicAuth}`,

@@ -402,11 +402,11 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2341,
+      "modules": 2348,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 736,
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 738,
         "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/auth/index.ts": 378,
+        "apps/sim/lib/auth/index.ts": 379,
         "apps/sim/blocks/registry.ts": 354,
         "apps/sim/lib/webhooks/providers/index.ts": 117,
         "apps/sim/lib/webhooks/providers/registry.ts": 115,

@@ -1,12 +1,18 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { setupGlobalFetchMock } from '@sim/testing/mocks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AtomicAdmissionOptions,
   TokenBucketReservation,
 } from '@/lib/core/rate-limiter/storage/adapter'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const admission = vi.hoisted(() => ({
   consume: vi.fn(),

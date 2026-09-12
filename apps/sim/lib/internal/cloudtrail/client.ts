@@ -1,4 +1,5 @@
 import { CloudTrailClient } from '@aws-sdk/client-cloudtrail'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 
 export interface CloudTrailConnectionConfig {
   region: string
@@ -24,6 +25,7 @@ export function createCloudTrailClient(
   options: CreateCloudTrailClientOptions = {}
 ): CloudTrailClient {
   return new CloudTrailClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

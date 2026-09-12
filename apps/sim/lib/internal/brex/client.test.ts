@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
   validateUrlWithDNS: mocks.validateUrl,
   secureFetchWithPinnedIP: mocks.pinnedFetch,
 }))
@@ -38,6 +40,9 @@ describe('BrexReceiptClient', () => {
     expect(mocks.fetch).toHaveBeenCalledWith(
       'https://api.brex.com/v1/expenses/card/expense%2Fid/receipt_upload',
       {
+        profile: 'configuredEndpoint',
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+        maxResponseBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
         method: 'POST',
         headers: {
           Authorization: 'Bearer token',

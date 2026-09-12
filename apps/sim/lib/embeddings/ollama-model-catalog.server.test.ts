@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchOllamaEmbeddingModelCatalog,
@@ -10,6 +10,11 @@ import {
   OllamaEmbeddingWidthUnknownError,
   OllamaUnreachableError,
 } from '@/lib/embeddings/ollama-model-catalog.server'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const fetchMock = vi.fn()
 

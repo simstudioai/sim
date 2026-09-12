@@ -16,9 +16,13 @@ vi.mock('@/lib/uploads/contexts/copilot', () => ({
 vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: mocks.uploadExecutionFile,
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createSsrfGuardedFetchWithDispatcher: () => ({
-    fetch: mocks.guardedFetch,
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: ({ profile }: { profile: string }) => ({
+    fetch:
+      profile === 'contentFetch'
+        ? mocks.guardedFetch
+        : (...args: Parameters<typeof fetch>) => fetch(...args),
     dispatcher: { close: mocks.closeDispatcher },
   }),
 }))

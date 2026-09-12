@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProvider,
@@ -9,6 +10,8 @@ import {
   TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const mockFetch = vi.fn()
 

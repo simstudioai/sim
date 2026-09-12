@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -11,6 +12,10 @@ import type {
   CbInsightsRecord,
 } from '@/tools/cbinsights/types'
 import type { ToolResponse } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /** CB Insights API v2 origin, as declared by the published Swagger document. */
 export const CBINSIGHTS_API_BASE = 'https://api.cbinsights.com'
@@ -124,7 +129,7 @@ async function authorize(
   clientSecret: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const response = await fetch(`${CBINSIGHTS_API_BASE}/v2/authorize`, {
+  const response = await providerFetch(`${CBINSIGHTS_API_BASE}/v2/authorize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ clientId, clientSecret }),
@@ -202,7 +207,7 @@ export async function cbInsightsRequest<T>(
   const effectiveSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
 
   const send = async (token: string) =>
-    fetch(`${CBINSIGHTS_API_BASE}${spec.path}`, {
+    providerFetch(`${CBINSIGHTS_API_BASE}${spec.path}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

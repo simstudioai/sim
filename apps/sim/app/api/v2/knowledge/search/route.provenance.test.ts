@@ -2,6 +2,16 @@
  * @vitest-environment node
  */
 
+import {
+  inputValidationMock,
+  queueTableRows,
+  resetDbChainMock,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -96,15 +106,6 @@ const knowledgeBase = {
 
 import { document, embedding } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
-import {
-  queueTableRows,
-  resetDbChainMock,
-  V2_OPERATION_RATE_LIMIT_ALLOWED,
-  V2_PREAUTH_RATE_LIMIT_ALLOWED,
-  v2ApiKeyAuthModuleMock,
-  v2RateLimiterModuleMock,
-  v2RouteMocks,
-} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import {
@@ -116,6 +117,7 @@ import { POST } from '@/app/api/v2/knowledge/search/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const provider = vi.hoisted(() => ({ fetch: vi.fn(), decrypt: vi.fn() }))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({

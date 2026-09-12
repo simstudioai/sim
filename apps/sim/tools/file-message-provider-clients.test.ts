@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
   MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
   secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
   secureFetchWithValidation: mocks.secureFetchWithValidation,
@@ -29,6 +31,9 @@ describe('file and message provider clients', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', mocks.fetch)
+    mocks.secureFetchWithValidation.mockImplementation((...args: Parameters<typeof fetch>) =>
+      fetch(...args)
+    )
     mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
   })
 

@@ -1,5 +1,11 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
+
 import { getSlackSearchSender, verifySlackSearchBot } from '@/lib/internal/slack/search-client'
 import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
 

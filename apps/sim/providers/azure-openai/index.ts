@@ -14,7 +14,11 @@ import type {
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
-import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  createPinnedFetch,
+  createSsrfGuardedFetchWithDispatcher,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { prepareProviderAttachments } from '@/providers/attachments'
@@ -51,6 +55,8 @@ import {
   sumToolCosts,
 } from '@/providers/utils'
 
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
 /** `verbosity` narrowed from `string` to a literal union in openai v5. */
 type ChatCompletionVerbosity = NonNullable<ChatCompletionCreateParams['verbosity']>
 
@@ -81,10 +87,14 @@ async function executeChatCompletionsRequest(
   })
 
   const azureOpenAI = new AzureOpenAI({
+    fetch:
+      pinnedFetch ??
+      (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+        profile: 'configuredEndpoint',
+      })).fetch,
     apiKey: request.apiKey!,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
-    ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
   })
 
   const allMessages: ChatCompletionMessageParam[] = []
@@ -749,7 +759,11 @@ export const azureOpenAIProvider: ProviderConfig = {
             'api-key': apiKey,
           },
           logger,
-          fetch: pinnedFetch,
+          fetch:
+            pinnedFetch ??
+            (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+              profile: 'configuredEndpoint',
+            })).fetch,
         }
       )
     }
@@ -774,7 +788,11 @@ export const azureOpenAIProvider: ProviderConfig = {
           'api-key': apiKey,
         },
         logger,
-        fetch: pinnedFetch,
+        fetch:
+          pinnedFetch ??
+          (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+            profile: 'configuredEndpoint',
+          })).fetch,
       }
     )
   },

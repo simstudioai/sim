@@ -2,6 +2,12 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
+
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { requestQuiverSvg } from '@/lib/internal/quiver/client'
 
@@ -26,6 +32,9 @@ describe('Quiver client', () => {
       )
     ).resolves.toEqual({ data: [{ svg: '<svg />' }], id: 'generation-1' })
     expect(fetchMock).toHaveBeenCalledWith('https://api.quiver.ai/v1/svgs/generations', {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

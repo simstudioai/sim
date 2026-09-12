@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { JWT } from 'google-auth-library'
 import MailComposer from 'nodemailer/lib/mail-composer'
 import { env } from '@/lib/core/config/env'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import type { MailProvider, ProcessedEmailData, SendEmailResult } from '@/lib/messaging/email/types'
 
 const logger = createLogger('GmailMailProvider')
@@ -114,14 +115,15 @@ export function createGmailProvider(): MailProvider | null {
         )
       }
 
-      const response = await fetch(GMAIL_SEND_ENDPOINT, {
+      const response = await secureFetchWithValidation(GMAIL_SEND_ENDPOINT, {
+        profile: 'configuredEndpoint',
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'message/rfc822',
         },
-        // Buffer is a valid BodyInit at runtime; undici's types only admit ArrayBufferView
-        body: raw as BodyInit,
+        body: raw,
       })
 
       if (!response.ok) {

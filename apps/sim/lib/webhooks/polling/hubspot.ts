@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -13,6 +14,10 @@ import {
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 type HubSpotBuiltInObjectType = 'contact' | 'company' | 'deal' | 'ticket'
 type HubSpotEventType = 'created' | 'updated' | 'property_changed'
@@ -682,7 +687,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
   }
 
   do {
-    const response = await fetch(url, {
+    const response = await providerFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -928,7 +933,9 @@ async function fetchListMembershipPages(
     const params = new URLSearchParams({ limit: String(HUBSPOT_PAGE_LIMIT) })
     if (after) params.set('after', after)
     const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?${params.toString()}`
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+    const response = await providerFetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')

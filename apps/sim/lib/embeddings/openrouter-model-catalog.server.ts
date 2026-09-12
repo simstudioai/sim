@@ -1,4 +1,6 @@
+import { LRUCache } from 'lru-cache'
 import { openRouterEmbeddingModelsUpstreamResponseSchema } from '@/lib/api/contracts/providers'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   toOpenRouterEmbeddingModelId,
@@ -13,6 +15,13 @@ export interface OpenRouterEmbeddingModelMetadata {
   maxInputTokens: number
 }
 
+/** Runtime-local caching also works in workers, where Next's fetch cache is unavailable. */
+const modelCatalogCache = new LRUCache<string, OpenRouterEmbeddingModelMetadata[]>({
+  max: 1,
+  ttl: 300_000,
+  ttlResolution: 0,
+})
+
 export class OpenRouterEmbeddingModelNotFoundError extends Error {
   constructor(model: string) {
     super(`Unsupported OpenRouter embedding model: ${model}`)
@@ -24,12 +33,20 @@ export class OpenRouterEmbeddingModelNotFoundError extends Error {
 export async function fetchOpenRouterEmbeddingModelCatalog(
   signal?: AbortSignal
 ): Promise<OpenRouterEmbeddingModelMetadata[]> {
-  const response = await fetch(OPENROUTER_EMBEDDING_MODELS_URL, {
+  signal?.throwIfAborted()
+  const cached = modelCatalogCache.get(OPENROUTER_EMBEDDING_MODELS_URL)
+  if (cached) return structuredClone(cached)
+
+  const response = await secureFetchWithValidation(OPENROUTER_EMBEDDING_MODELS_URL, {
+    profile: 'configuredEndpoint',
+    maxResponseBytes: MAX_OPENROUTER_EMBEDDING_CATALOG_BYTES,
+    maxRedirects: 20,
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
     headers: { 'Content-Type': 'application/json' },
-    next: { revalidate: 300 },
     signal,
   })
   if (!response.ok) {
+    await response.body?.cancel().catch(() => {})
     throw new Error(
       `Failed to fetch OpenRouter embedding models: ${response.status} ${response.statusText}`
     )
@@ -47,7 +64,9 @@ export async function fetchOpenRouterEmbeddingModelCatalog(
     const id = toOpenRouterEmbeddingModelId(model.id)
     models.set(id, { id, maxInputTokens: model.context_length })
   }
-  return Array.from(models.values())
+  const catalog = Array.from(models.values())
+  modelCatalogCache.set(OPENROUTER_EMBEDDING_MODELS_URL, structuredClone(catalog))
+  return catalog
 }
 
 /** Resolves and validates one selected model against OpenRouter's live catalog. */

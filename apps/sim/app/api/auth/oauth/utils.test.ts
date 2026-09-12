@@ -7,9 +7,8 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/oauth/oauth', () => ({
+vi.mock('@/lib/oauth/refresh-token.server', () => ({
   refreshOAuthToken: vi.fn(),
-  OAUTH_PROVIDERS: {},
 }))
 
 const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
@@ -30,7 +29,6 @@ import {
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getCredential,
   refreshAccessTokenIfNeeded,
@@ -38,6 +36,7 @@ import {
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import { refreshOAuthToken } from '@/lib/oauth/refresh-token.server'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,

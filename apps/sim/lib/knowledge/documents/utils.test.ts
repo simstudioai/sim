@@ -10,8 +10,13 @@ const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
   mockSecureFetchWithValidation: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
   secureFetchWithValidation: mockSecureFetchWithValidation,
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+    dispatcher: { close: vi.fn(), destroy: vi.fn() },
+  }),
 }))
 
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'

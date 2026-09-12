@@ -1,4 +1,7 @@
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ClickUpOperationError } from '@/lib/internal/clickup/errors'
 import {
@@ -7,6 +10,8 @@ import {
   extractClickUpErrorMessage,
 } from '@/tools/clickup/shared'
 
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
+
 export async function uploadClickUpAttachment(
   accessToken: string,
   taskId: string,
@@ -14,7 +19,7 @@ export async function uploadClickUpAttachment(
   signal?: AbortSignal
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const response = await fetch(
+  const response = await providerFetch(
     `${CLICKUP_API_BASE_URL}/task/${encodeURIComponent(taskId)}/attachment`,
     {
       method: 'POST',

@@ -6,6 +6,7 @@ import {
   ProviderCapacityDeferredError,
 } from '@/lib/core/rate-limiter/provider-capacity-error'
 import type { ProviderCapacityQuota } from '@/lib/core/rate-limiter/provider-capacity-state'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchWithRetry,
@@ -13,6 +14,10 @@ import {
   type RetryOptions,
   resolveRetryDelayMs,
 } from '@/lib/knowledge/documents/utils'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GitHubConnectorRequest')
 const REQUEST_BUDGET_MS = 150_000
@@ -119,7 +124,7 @@ export async function fetchGitHubWithRetry(
       }
 
       try {
-        const response = await fetch(input, init)
+        const response = await providerFetch(input, init)
         quota = readRequestQuota(response.headers)
         let secondaryLimit = false
         let forbiddenBody: string | undefined

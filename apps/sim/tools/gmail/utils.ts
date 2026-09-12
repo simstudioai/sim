@@ -1,5 +1,6 @@
 import { generateRandomString } from '@sim/utils/random'
 import { convert } from 'html-to-text'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -11,6 +12,10 @@ import type {
   GmailReadParams,
   GmailToolResponse,
 } from '@/tools/gmail/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
@@ -29,7 +34,7 @@ export async function fetchThreadingHeaders(
   subject?: string
 }> {
   try {
-    const messageResponse = await fetch(
+    const messageResponse = await providerFetch(
       `${GMAIL_API_BASE}/messages/${messageId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
       {
         headers: {
@@ -242,7 +247,7 @@ export async function downloadAttachments(
   for (const attachment of attachmentInfo) {
     try {
       budget.assertSize(attachment.size, 'Gmail attachments')
-      const response = await fetch(
+      const response = await providerFetch(
         `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.attachmentId)}`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },

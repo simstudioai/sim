@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { requestSlackApi } from '@/lib/internal/slack/client'
 import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
@@ -25,13 +26,16 @@ export async function exchangeSlackBotAuthorization(input: {
   code: string
   redirectUri: string
 }) {
-  const response = await fetch('https://slack.com/api/oauth.v2.access', {
+  const response = await secureFetchWithValidation('https://slack.com/api/oauth.v2.access', {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: 64 * 1024,
     method: 'POST',
     headers: {
       Authorization: `Basic ${Buffer.from(`${input.clientId}:${input.clientSecret}`).toString('base64')}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({ code: input.code, redirect_uri: input.redirectUri }),
+    body: new URLSearchParams({ code: input.code, redirect_uri: input.redirectUri }).toString(),
     signal: AbortSignal.timeout(10_000),
   })
   const value = await readResponseJsonWithLimit<unknown>(response, {

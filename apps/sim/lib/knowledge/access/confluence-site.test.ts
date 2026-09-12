@@ -1,5 +1,11 @@
 /** @vitest-environment node */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  inputValidationMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CONFLUENCE_READ_ATTEMPT_TIMEOUT_MS,
@@ -10,6 +16,11 @@ import {
   resolveConfluenceSiteReadGrants,
 } from '@/lib/knowledge/access/confluence-site'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const mocks = vi.hoisted(() => ({ token: vi.fn(), decrypt: vi.fn(), fetch: vi.fn() }))
 vi.mock('@/lib/credentials/managed-oauth', () => ({ resolveManagedOAuthToken: mocks.token }))
@@ -82,8 +93,9 @@ describe('current Confluence site access', () => {
       'https://api.atlassian.com/ex/confluence/cloud-1/wiki/rest/api/user/current',
       expect.objectContaining({
         headers: { Authorization: 'Bearer alice-oauth-token', Accept: 'application/json' },
-        cache: 'no-store',
-        redirect: 'error',
+        profile: 'configuredEndpoint',
+        maxRedirects: 0,
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
         signal: expect.any(AbortSignal),
       })
     )

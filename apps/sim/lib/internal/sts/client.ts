@@ -9,10 +9,12 @@ import {
   STSClient,
   type Tag,
 } from '@aws-sdk/client-sts'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import type { STSConnectionConfig } from '@/tools/sts/types'
 
 export function createSTSClient(config: STSConnectionConfig): STSClient {
   return new STSClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -35,6 +37,7 @@ export function createSTSClient(config: STSConnectionConfig): STSClient {
  */
 export function createUnauthenticatedSTSClient(region: string): STSClient {
   return new STSClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region,
     credentials: { accessKeyId: 'anonymous', secretAccessKey: 'anonymous' },
   })

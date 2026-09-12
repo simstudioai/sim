@@ -11,6 +11,10 @@
  * bulk of what is asserted here, alongside the stub/`getDocument` hash equality
  * that keeps every sync from re-indexing every notebook.
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { databricksConnector } from '@/connectors/databricks/databricks'
 import { databricksConnectorMeta } from '@/connectors/databricks/meta'

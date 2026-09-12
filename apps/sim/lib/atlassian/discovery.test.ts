@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createMockResponse } from '@sim/testing'
+import { createMockResponse, inputValidationMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AtlassianSiteNotMatchedError,
@@ -9,6 +9,11 @@ import {
   normalizeAtlassianSiteUrl,
   resolveAtlassianCloudId,
 } from '@/lib/atlassian/discovery'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const SITE = 'https://acme.atlassian.net'
 const CLOUD_ID = 'cloud-abc'

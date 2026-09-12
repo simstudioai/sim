@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { findEmailFromNameTool } from '@/tools/findymail/find_email_from_name'

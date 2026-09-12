@@ -12,6 +12,8 @@ const {
   mockChatCreate,
   mockValidate,
   mockCreatePinnedFetch,
+  guardedFetchFn,
+  mockCreateGuardedFetch,
   mockExecuteResponses,
   sentinelFetch,
   mockIsChatCompletionsEndpoint,
@@ -28,7 +30,10 @@ const {
       azureOpenAIArgs.push(opts)
     }
   }
+  const guardedFetchFn = vi.fn()
   return {
+    guardedFetchFn,
+    mockCreateGuardedFetch: vi.fn(() => ({ fetch: guardedFetchFn })),
     mockAzureOpenAI: MockAzureOpenAI,
     azureOpenAIArgs,
     mockChatCreate,
@@ -46,6 +51,7 @@ const {
 vi.mock('openai', () => ({ AzureOpenAI: mockAzureOpenAI }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
+  createSsrfGuardedFetchWithDispatcher: mockCreateGuardedFetch,
   validateUrlWithDNS: mockValidate,
   createPinnedFetch: mockCreatePinnedFetch,
 }))
@@ -153,14 +159,15 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(responsesConfig().fetch).toBe(sentinelFetch)
     })
 
-    it('passes no custom fetch when the endpoint comes from trusted server env', async () => {
+    it('uses the configured-endpoint transport when the endpoint comes from server env', async () => {
       setEnv({ AZURE_OPENAI_ENDPOINT: 'https://trusted.openai.azure.com' })
 
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
       expect(mockValidate).not.toHaveBeenCalled()
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(responsesConfig().fetch).toBeUndefined()
+      expect(responsesConfig().fetch).toBe(guardedFetchFn)
+      expect(mockCreateGuardedFetch).toHaveBeenCalledWith({ profile: 'configuredEndpoint' })
     })
 
     it('throws and never reaches the Responses core when validation blocks the endpoint', async () => {
@@ -198,7 +205,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(azureOpenAIArgs[0]).toMatchObject({ fetch: sentinelFetch })
     })
 
-    it('constructs the AzureOpenAI client without a custom fetch for a trusted env endpoint', async () => {
+    it('uses the shared outbound transport for a trusted env endpoint', async () => {
       mockIsChatCompletionsEndpoint.mockReturnValue(true)
       setEnv({
         AZURE_OPENAI_ENDPOINT:
@@ -212,7 +219,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(azureOpenAIArgs[0]).not.toHaveProperty('fetch')
+      expect(azureOpenAIArgs[0].fetch).toBe(guardedFetchFn)
     })
 
     it('projects the settled tool-loop answer without a final streaming request', async () => {

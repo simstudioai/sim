@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { toList } from '@/tools/parallel/search'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('ParallelDeepResearchTool')
 
@@ -199,7 +204,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     logger.info(`Parallel AI deep research task ${runId} created, fetching results...`)
 
     try {
-      const resultResponse = await fetch(
+      const resultResponse = await providerFetch(
         `https://api.parallel.ai/v1/tasks/runs/${String(runId).trim()}/result?timeout=${RESULT_TIMEOUT_SECONDS}`,
         {
           method: 'GET',

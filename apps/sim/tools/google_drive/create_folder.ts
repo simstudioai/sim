@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
 import { ALL_FILE_FIELDS } from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GoogleDriveCreateFolderTool')
 
@@ -86,7 +91,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     const authHeader = `Bearer ${params?.accessToken || ''}`
 
     // Fetch complete folder metadata with all fields
-    const metadataResponse = await fetch(
+    const metadataResponse = await providerFetch(
       `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=${ALL_FILE_FIELDS}`,
       {
         headers: {

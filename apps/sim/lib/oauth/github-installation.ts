@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, createSign } from 'node:crypto'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   GitHubInstallationBinding,
@@ -8,6 +9,10 @@ import type {
   GitHubInstallationSummary,
 } from '@/lib/oauth/github-installation-types'
 import { parseGitHubRepository } from '@/lib/oauth/github-repository'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const API_URL = 'https://api.github.com'
 const PAGE_SIZE = 100
@@ -158,7 +163,7 @@ async function request(
   operation: GitHubInstallationOperation = 'installation'
 ): Promise<unknown> {
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await providerFetch(`${API_URL}${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
       Accept: 'application/vnd.github+json',

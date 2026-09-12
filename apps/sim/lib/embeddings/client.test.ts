@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
@@ -23,6 +23,11 @@ import {
   KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS,
   MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
 } from '@/lib/embeddings/client'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const { mockGetBYOKKey } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
@@ -295,6 +300,14 @@ describe('embed', () => {
     const sentCounts = fetchMock.mock.calls.map(
       ([, init]) => JSON.parse((init as RequestInit).body as string).requests.length
     )
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: { 'x-goog-api-key': 'g-test' },
+      redirectPolicy: {
+        mode: 'standard',
+        sendCredentialsOnCrossOriginRedirect: false,
+        sensitiveHeaders: ['api-key', 'x-goog-api-key'],
+      },
+    })
     expect(sentCounts).toEqual([100, 100, 50])
     expect(result.embeddings).toHaveLength(250)
     // Native dimensionality means no reduction, so values pass through unnormalized.
@@ -1110,6 +1123,14 @@ describe('knowledge embedding transport fallback', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       'https://example.openai.azure.com/openai/deployments/kb-embedding-deployment/embeddings?api-version=2024-10-21'
     )
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: { 'api-key': 'azure-test' },
+      redirectPolicy: {
+        mode: 'standard',
+        sendCredentialsOnCrossOriginRedirect: false,
+        sensitiveHeaders: ['api-key', 'x-goog-api-key'],
+      },
+    })
     expect(result.modelName).toBe('kb-embedding-deployment')
   })
 

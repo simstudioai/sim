@@ -4,6 +4,13 @@
 import type { Logger } from '@sim/logger'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 const { mockHasCloudStorage, mockResolveFileInputToUrl } = vi.hoisted(() => ({
   mockHasCloudStorage: vi.fn(),
   mockResolveFileInputToUrl: vi.fn(),

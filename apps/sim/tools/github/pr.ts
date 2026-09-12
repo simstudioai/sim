@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   nullableBoolean,
   nullableString,
@@ -20,6 +21,10 @@ import type {
 } from '@/tools/github/types'
 import { PR_BRANCH_REF_OUTPUT, PR_FILE_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 type GitHubPullRequest = Omit<GitHubPullRequestV2Output, 'files'>
 
@@ -149,7 +154,7 @@ async function fetchPullRequestFiles(
   const maxPages = MAX_PULL_REQUEST_FILES / PULL_REQUEST_FILES_PER_PAGE
 
   for (let page = 1; page <= maxPages; page += 1) {
-    const response = await fetch(
+    const response = await providerFetch(
       `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
       {
         headers: {

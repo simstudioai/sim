@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -36,6 +37,8 @@ import {
   createResponseFormatPayload,
 } from '@/providers/xai/utils'
 
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
 const logger = createLogger('XAIProvider')
 
 /**
@@ -68,6 +71,9 @@ export const xAIProvider: ProviderConfig = {
     }
 
     const xai = new OpenAI({
+      fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+        profile: 'configuredEndpoint',
+      })).fetch,
       ...openAICompatTransport(),
       apiKey: request.apiKey,
       baseURL: 'https://api.x.ai/v1',

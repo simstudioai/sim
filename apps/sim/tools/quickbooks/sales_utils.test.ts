@@ -1,3 +1,7 @@
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeQuickBooksUpdateCustomerPaymentOperation } from '@/lib/internal/quickbooks/provider-operations'
 

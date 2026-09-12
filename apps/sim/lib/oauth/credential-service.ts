@@ -8,6 +8,7 @@ import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
   getClientCredentialAccountMinter,
@@ -35,9 +36,9 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
-import { refreshOAuthToken } from '@/lib/oauth/oauth'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import { refreshOAuthToken } from '@/lib/oauth/refresh-token.server'
 import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
@@ -60,6 +61,10 @@ import {
   loadSlackAppConfiguration,
   slackBotCredentialVersion,
 } from '@/lib/slack-search/app-configuration'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('OAuthCredentialService')
 
@@ -279,7 +284,7 @@ export async function getServiceAccountToken(
 
   const jwt = `${signingInput}.${signature}`
 
-  const response = await fetch(tokenUri, {
+  const response = await providerFetch(tokenUri, {
     method: 'POST',
     redirect: 'error',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

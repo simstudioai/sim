@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { enrowFindEmailTool } from '@/tools/enrow/find_email'
 import { ENROW_CREDIT_USD } from '@/tools/enrow/hosting'

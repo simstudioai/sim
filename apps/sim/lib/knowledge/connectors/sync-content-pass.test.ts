@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import {
   dbChainMockFns,
+  inputValidationMock,
   queueTableRows,
   resetDbChainMock as resetDatabaseMock,
   schemaMock,
@@ -61,6 +62,7 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 interface StoredPage {
   id: string

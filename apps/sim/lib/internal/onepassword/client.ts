@@ -11,6 +11,7 @@ import type {
   Website,
 } from '@1password/sdk'
 import { generateId } from '@sim/utils/id'
+import { requireDirectOutboundTransport } from '@/lib/core/network/context.server'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   type SecureFetchResponse,
@@ -246,6 +247,7 @@ export function resolveCredentials(params: CredentialParams): ResolvedCredential
  */
 export async function createOnePasswordClient(serviceAccountToken: string, signal?: AbortSignal) {
   signal?.throwIfAborted()
+  await requireDirectOutboundTransport()
   const { createClient } = await import('@1password/sdk')
   signal?.throwIfAborted()
   const client = await createClient({

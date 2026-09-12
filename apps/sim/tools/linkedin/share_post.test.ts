@@ -1,10 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { type createMockLogger, loggerMock } from '@sim/testing'
+import { type createMockLogger, inputValidationMock, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { linkedInSharePostTool } from '@/tools/linkedin/share_post'
 import type { SharePostParams } from '@/tools/linkedin/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const toolLogger = loggerMock.createLogger.mock.results.at(-1)?.value as ReturnType<
   typeof createMockLogger

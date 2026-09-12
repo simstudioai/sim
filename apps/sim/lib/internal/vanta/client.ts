@@ -1,8 +1,13 @@
 import { LRUCache } from 'lru-cache'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { extractVantaError } from '@/lib/internal/vanta/normalizers'
 import type { VantaRegion } from '@/tools/vanta/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export const VANTA_API_BASE_URLS: Record<VantaRegion, string> = {
   us: 'https://api.vanta.com',
@@ -67,7 +72,7 @@ async function exchangeVantaToken(
     signal,
     AbortSignal.timeout(VANTA_TOKEN_EXCHANGE_TIMEOUT_MS),
   ])
-  const response = await fetch(`${getVantaBaseUrl(params.region)}/oauth/token`, {
+  const response = await providerFetch(`${getVantaBaseUrl(params.region)}/oauth/token`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',

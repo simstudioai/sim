@@ -1,4 +1,5 @@
 import { truncate } from '@sim/utils/string'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
   readResponseToBufferWithLimit,
@@ -8,6 +9,8 @@ import { LatexOperationError } from '@/lib/internal/latex/errors'
 import type { LatexCompileInput } from '@/lib/internal/latex/schema'
 import { StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const LATEX_COMPILE_URL = 'https://latex.ytotech.com/builds/sync'
 const MAX_PDF_BYTES = 25 * 1024 * 1024
@@ -80,7 +83,7 @@ export async function compileLatexDocument(
   const signal = context.signal ? AbortSignal.any([context.signal, timeoutSignal]) : timeoutSignal
   let response: Response
   try {
-    response = await fetch(LATEX_COMPILE_URL, {
+    response = await providerFetch(LATEX_COMPILE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

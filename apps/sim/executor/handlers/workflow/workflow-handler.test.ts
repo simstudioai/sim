@@ -7,6 +7,10 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
@@ -27,6 +31,21 @@ import type { SerializedBlock } from '@/serializer/types'
 const mockWorkflowLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkflowBlockHandler')
 ].value
+
+const outboundMocks = vi.hoisted(() => ({
+  enabled: vi.fn(() => false),
+  workspace: vi.fn(),
+  route: vi.fn(async (organizationId: string | null | undefined) => ({ organizationId })),
+}))
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: outboundMocks.enabled,
+  resolveOutboundRoute: outboundMocks.route,
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: outboundMocks.workspace,
+}))
+
+beforeEach(() => outboundMocks.enabled.mockReturnValue(false))
 
 const {
   mockExecutorExecute,
@@ -632,7 +651,9 @@ describe('WorkflowBlockHandler', () => {
       expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
     })
 
-    it('resolves a source-scoped billing attribution for custom block children', async () => {
+    it('resolves source billing and routing for custom block children', async () => {
+      outboundMocks.enabled.mockReturnValue(true)
+      outboundMocks.workspace.mockResolvedValue({ workspaceOrganizationId: 'source-org' })
       const consumerAttribution = { actorUserId: 'consumer-1', workspaceId: 'workspace-consumer' }
       const sourceAttribution = { actorUserId: 'owner-9', workspaceId: 'workspace-source' }
       const customBlock = {
@@ -688,9 +709,18 @@ describe('WorkflowBlockHandler', () => {
         }
       })
       mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
-      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+      mockExecutorExecute.mockImplementationOnce(async () => {
+        await resolveCurrentOutboundRoute()
+        expect(outboundMocks.route).toHaveBeenLastCalledWith('source-org')
+        return { success: true, output: { data: 'ok' } }
+      })
 
-      await handler.execute(ctx, customBlock, {})
+      await runWithOutboundOrganization('consumer-org', async () => {
+        await handler.execute(ctx, customBlock, {})
+        await resolveCurrentOutboundRoute()
+        expect(outboundMocks.route).toHaveBeenLastCalledWith('consumer-org')
+      })
+      expect(outboundMocks.workspace).toHaveBeenCalledExactlyOnceWith('workspace-source')
 
       expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith(
         expect.objectContaining({

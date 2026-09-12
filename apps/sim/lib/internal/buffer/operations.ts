@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
+  createSsrfGuardedFetchWithDispatcher,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -17,6 +18,8 @@ import {
   mapBufferPost,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('BufferOperations')
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi']
@@ -161,7 +164,7 @@ async function executePostMutation(args: {
   const { apiKey, mutation, input, context } = args
   let result: Record<string, unknown>
   try {
-    const response = await fetch(BUFFER_API_URL, {
+    const response = await providerFetch(BUFFER_API_URL, {
       method: 'POST',
       headers: bufferHeaders(apiKey),
       body: JSON.stringify({ query: mutation, variables: { input } }),

@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -30,6 +31,8 @@ import {
   sumToolCosts,
 } from '@/providers/utils'
 
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
 const logger = createLogger('MetaProvider')
 
 const META_BASE_URL = 'https://api.meta.ai/v1'
@@ -54,6 +57,9 @@ export const metaProvider: ProviderConfig = {
 
     try {
       const meta = new OpenAI({
+        fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+          profile: 'configuredEndpoint',
+        })).fetch,
         ...openAICompatTransport(),
         apiKey: request.apiKey,
         baseURL: META_BASE_URL,

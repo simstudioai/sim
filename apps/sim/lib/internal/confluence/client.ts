@@ -1,5 +1,8 @@
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  MAX_JSON_API_RESPONSE_BYTES,
+} from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -7,6 +10,8 @@ import {
 import { ConfluenceOperationError } from '@/lib/internal/confluence/errors'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 export interface ConfluenceConnectionConfig {
   domain: string
@@ -53,7 +58,7 @@ export class ConfluenceClient {
 
   async fetch(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(path, {
+    return providerFetch(path, {
       ...init,
       headers: {
         Accept: 'application/json',

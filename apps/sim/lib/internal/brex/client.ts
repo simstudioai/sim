@@ -1,5 +1,6 @@
 import {
   secureFetchWithPinnedIP,
+  secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
@@ -49,7 +50,10 @@ export class BrexReceiptClient {
     const endpoint = expenseId
       ? `${BREX_API_BASE}/v1/expenses/card/${encodeURIComponent(expenseId)}/receipt_upload`
       : `${BREX_API_BASE}/v1/expenses/card/receipt_match`
-    const response = await fetch(endpoint, {
+    const response = await secureFetchWithValidation(endpoint, {
+      profile: 'configuredEndpoint',
+      redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      maxResponseBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       method: 'POST',
       headers: buildBrexHeaders(this.apiKey),
       body: JSON.stringify({ receipt_name: receiptName }),

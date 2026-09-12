@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   ExcelCellValue,
@@ -14,6 +15,10 @@ import {
   trimTrailingEmptyRowsAndColumns,
 } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const EXCEL_RETRY_CONFIG = {
   enabled: true,
@@ -131,7 +136,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       const basePath = getItemBasePath(spreadsheetId, driveId)
       const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(firstSheetName))}')/usedRange(valuesOnly=true)`
 
-      const rangeResp = await fetch(rangeUrl, {
+      const rangeResp = await providerFetch(rangeUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
 

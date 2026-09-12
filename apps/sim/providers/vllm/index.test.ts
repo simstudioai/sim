@@ -14,6 +14,8 @@ const {
   mockCreateStream,
   mockValidateUrlWithDNS,
   mockCreatePinnedFetch,
+  guardedFetchFn,
+  mockCreateGuardedFetch,
   pinnedFetchFn,
 } = vi.hoisted(() => {
   const openAIArgs: Array<Record<string, unknown>> = []
@@ -25,7 +27,10 @@ const {
       openAIArgs.push(opts)
     }
   }
+  const guardedFetchFn = vi.fn()
   return {
+    guardedFetchFn,
+    mockCreateGuardedFetch: vi.fn(() => ({ fetch: guardedFetchFn })),
     mockCreate,
     openAIArgs,
     mockOpenAI: MockOpenAI,
@@ -41,6 +46,7 @@ const {
 
 vi.mock('openai', () => ({ default: mockOpenAI }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
+  createSsrfGuardedFetchWithDispatcher: mockCreateGuardedFetch,
   validateUrlWithDNS: mockValidateUrlWithDNS,
   createPinnedFetch: mockCreatePinnedFetch,
 }))
@@ -151,7 +157,7 @@ describe('vllmProvider', () => {
   })
 
   describe('endpoint SSRF protection', () => {
-    it('does not validate or pin when no endpoint is supplied (uses env base URL)', async () => {
+    it('uses the self-hosted transport when the endpoint comes from server env', async () => {
       mockCreate.mockResolvedValueOnce(chatResponse('hi'))
 
       await vllmProvider.executeRequest({
@@ -162,7 +168,8 @@ describe('vllmProvider', () => {
       expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
       expect(openAIArgs[0].baseURL).toBe('http://localhost:8000/v1')
-      expect(openAIArgs[0].fetch).toBeUndefined()
+      expect(openAIArgs[0].fetch).toBe(guardedFetchFn)
+      expect(mockCreateGuardedFetch).toHaveBeenCalledWith({ profile: 'selfHostedService' })
     })
 
     it('does not duplicate an existing /v1 API prefix', async () => {

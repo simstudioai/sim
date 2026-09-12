@@ -1,7 +1,12 @@
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { ApifyRun, RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
@@ -145,7 +150,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       await sleep(POLL_INTERVAL_MS)
       elapsedTime += POLL_INTERVAL_MS
 
-      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+      const statusResponse = await providerFetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
         headers: {
           Authorization: `Bearer ${params.apiKey}`,
         },
@@ -170,7 +175,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       ) {
         if (run.status === 'SUCCEEDED' && run.defaultDatasetId) {
           const limit = Math.max(1, Math.min(params.itemLimit || 100, 250000))
-          const itemsResponse = await fetch(
+          const itemsResponse = await providerFetch(
             `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?limit=${limit}`,
             {
               headers: {

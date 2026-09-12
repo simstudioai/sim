@@ -22,6 +22,13 @@ const mocks = vi.hoisted(() => ({
   sanitize: vi.fn(),
   authorizePersonalSearch: vi.fn(),
   requireOrganizationMembership: vi.fn(),
+  routingEnabled: vi.fn(() => false),
+  resolveRoute: vi.fn(async (organizationId: string | null | undefined) => ({ organizationId })),
+}))
+
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: mocks.routingEnabled,
+  resolveOutboundRoute: mocks.resolveRoute,
 }))
 
 vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
@@ -77,6 +84,10 @@ const mockResolvePermissionGroupConfig =
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 import { selectorScopeSchema } from '@/lib/api/contracts/selectors/execute'
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorManifestEntry } from '@/lib/selectors/manifest'
@@ -106,6 +117,7 @@ function execute(inputOverrides: Record<string, unknown> = {}) {
 describe('executeSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.routingEnabled.mockReturnValue(false)
     mocks.events.length = 0
     mocks.resolveScope.mockImplementation(async () => {
       mocks.events.push('canonical-scope')
@@ -199,6 +211,48 @@ describe('executeSelector', () => {
     expect(mocks.authorizeCredential).not.toHaveBeenCalled()
     expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'uses canonical organization routing for discovery with personal setup %s',
+    async (personalSetup) => {
+      mocks.routingEnabled.mockReturnValue(true)
+      const organizationScope = { kind: 'organization' as const, organizationId: 'org-1' }
+      const signal = new AbortController().signal
+      mocks.resolveScope.mockResolvedValueOnce({
+        organizationId: 'org-1',
+        workspaceId: undefined,
+        selectorKey: 'jira.projectKeys',
+        selectorManifest: getSelectorManifestEntry('jira.projectKeys'),
+        selectorScope: organizationScope,
+      })
+      mocks.resolveReferences.mockResolvedValueOnce({
+        context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
+        request: { kind: 'list' },
+        references: new Map(),
+      })
+      mocks.executeAttachment.mockImplementationOnce(async (args: ExecuteServerSelectorArgs) => {
+        expect(await resolveCurrentOutboundRoute()).toEqual({ organizationId: 'org-1' })
+        expect(args.signal).toBe(signal)
+        return { kind: 'list', items: [] }
+      })
+
+      await runWithOutboundOrganization('caller-org', async () => {
+        await expect(
+          execute({
+            selectorKey: 'jira.projectKeys',
+            scope: organizationScope,
+            context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
+            signal,
+            ...(personalSetup ? { personalSearchSetup: 'jira' } : {}),
+          })
+        ).resolves.toEqual({ kind: 'list', items: [] })
+        expect(await resolveCurrentOutboundRoute()).toEqual({ organizationId: 'caller-org' })
+      })
+      expect(mocks.executeAttachment).toHaveBeenCalledOnce()
+      expect(mocks.authorizePersonalSearch).toHaveBeenCalledTimes(personalSetup ? 1 : 0)
+      expect(mocks.requireOrganizationMembership).toHaveBeenCalledTimes(personalSetup ? 0 : 1)
+    }
+  )
 
   it('rejects a personal setup marker outside its approved provider selector and organization scope', async () => {
     await expect(execute({ personalSearchSetup: 'jira' })).rejects.toBeInstanceOf(

@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { credential } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { inputValidationMock, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -13,10 +13,13 @@ vi.mock('@/lib/oauth/github-installation', () => ({
   parseGitHubInstallationBinding: mocks.parseBinding,
   resolveGitHubInstallationAccessToken: mocks.resolveToken,
 }))
-vi.mock('@/lib/oauth/oauth', () => ({ OAUTH_PROVIDERS: {}, refreshOAuthToken: vi.fn() }))
+vi.mock('@/lib/oauth/oauth', () => ({ OAUTH_PROVIDERS: {} }))
+vi.mock('@/lib/oauth/refresh-token.server', () => ({ refreshOAuthToken: vi.fn() }))
 
 import { resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const row = {
   type: 'service_account',

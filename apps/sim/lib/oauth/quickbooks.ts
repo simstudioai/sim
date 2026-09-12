@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -18,6 +19,10 @@ import {
   QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS,
   type QuickBooksEnvironment,
 } from '@/tools/quickbooks/client'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const QUICKBOOKS_ACCOUNT_PREFIX = 'quickbooks:v2:'
 const QUICKBOOKS_REVOCATION_URL = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke'
@@ -183,7 +188,7 @@ export async function fetchQuickBooksConnectionProfile(
   clientConfig: Pick<QuickBooksOAuthClientConfig, 'clientId' | 'environment'>
 ): Promise<QuickBooksConnectionProfile> {
   const realmId = normalizeQuickBooksRealmId(callbackRealmId)
-  const response = await fetch(getQuickBooksUserInfoUrl(clientConfig.environment), {
+  const response = await providerFetch(getQuickBooksUserInfoUrl(clientConfig.environment), {
     headers: buildQuickBooksHeaders(accessToken),
     signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
   })
@@ -254,7 +259,7 @@ export async function exchangeQuickBooksAuthorizationCode(params: {
   signal?: AbortSignal
 }): Promise<QuickBooksTokenExchangeResult> {
   const clientConfig = normalizeQuickBooksOAuthClientConfig(params.clientConfig)
-  const response = await fetch(QUICKBOOKS_TOKEN_URL, {
+  const response = await providerFetch(QUICKBOOKS_TOKEN_URL, {
     method: 'POST',
     headers: {
       Accept: 'application/json',

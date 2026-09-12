@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { inputValidationMock } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import {
   buildMimeMessage,
@@ -11,6 +12,8 @@ import {
   plainTextToHtml,
   sanitizeHeaderValue,
 } from './utils'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 function decodeSimpleMessage(encoded: string): string {
   return Buffer.from(encoded, 'base64url').toString('utf-8')

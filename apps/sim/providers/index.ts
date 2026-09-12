@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { env, envNumber } from '@/lib/core/config/env'
+import { requireDirectOutboundTransport } from '@/lib/core/network/context.server'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
 import {
@@ -265,6 +266,7 @@ export async function executeProviderRequest(
   }
 
   const response = await runWithProviderRuntimeContext(requestRuntimeContext, async () => {
+    if (providerId === 'google' || providerId === 'vertex') await requireDirectOutboundTransport()
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
     await uploadLargeFilesToProvider(modelSafeRequest, providerId)
     return provider.executeRequest(modelSafeRequest)

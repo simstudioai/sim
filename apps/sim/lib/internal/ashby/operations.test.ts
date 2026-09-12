@@ -17,7 +17,9 @@ vi.mock('@/app/api/files/authorization', () => ({
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
   secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
   validateUrlWithDNS: mocks.validateUrlWithDNS,
 }))

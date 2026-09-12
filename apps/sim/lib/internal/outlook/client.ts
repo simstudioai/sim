@@ -1,10 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const MICROSOFT_GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 const MICROSOFT_GRAPH_RESPONSE_MAX_BYTES = 10 * 1024 * 1024
@@ -41,7 +44,7 @@ export class OutlookClient {
     signal?: AbortSignal
   ): Promise<OutlookJsonObject> {
     signal?.throwIfAborted()
-    const response = await fetch(this.url(path), {
+    const response = await providerFetch(this.url(path), {
       ...init,
       headers: {
         'Content-Type': 'application/json',
@@ -77,7 +80,7 @@ export class OutlookClient {
     signal?: AbortSignal
   ): Promise<void> {
     signal?.throwIfAborted()
-    const response = await fetch(this.url(path), {
+    const response = await providerFetch(this.url(path), {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -110,7 +113,7 @@ export class OutlookClient {
     signal?: AbortSignal
   ): Promise<{ buffer: Buffer; contentType: string | null }> {
     signal?.throwIfAborted()
-    const response = await fetch(this.url(path), {
+    const response = await providerFetch(this.url(path), {
       method: 'GET',
       headers: { Authorization: `Bearer ${this.accessToken}` },
       signal,

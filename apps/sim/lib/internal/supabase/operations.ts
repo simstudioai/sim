@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import {
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
@@ -136,7 +137,14 @@ export async function executeSupabaseStorageUpload(
     }
     if (input.upsert) headers['x-upsert'] = 'true'
 
-    const response = await fetch(`${baseUrl}/${encodedBucket}/${encodedPath}`, {
+    const response = await secureFetchWithValidation(`${baseUrl}/${encodedBucket}/${encodedPath}`, {
+      profile: 'configuredEndpoint',
+      redirectPolicy: {
+        mode: 'standard',
+        sendCredentialsOnCrossOriginRedirect: false,
+        sensitiveHeaders: ['apikey'],
+      },
+      maxResponseBytes: MAX_SUPABASE_RESPONSE_BYTES,
       method: 'POST',
       headers,
       body: new Uint8Array(upload.body),

@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvMock)
@@ -30,6 +30,11 @@ vi.mock('google-auth-library', () => ({
 
 import { createGmailProvider } from '@/lib/messaging/email/providers/gmail'
 import type { ProcessedEmailData } from '@/lib/messaging/email/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  ...inputValidationMock,
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
 
 const VALID_CREDENTIALS = JSON.stringify({
   client_email: 'mailer@my-project.iam.gserviceaccount.com',

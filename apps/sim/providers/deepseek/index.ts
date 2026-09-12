@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -29,6 +30,8 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
 const logger = createLogger('DeepseekProvider')
 
 export const deepseekProvider: ProviderConfig = {
@@ -51,6 +54,9 @@ export const deepseekProvider: ProviderConfig = {
 
     try {
       const deepseek = new OpenAI({
+        fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+          profile: 'configuredEndpoint',
+        })).fetch,
         ...openAICompatTransport(),
         apiKey: request.apiKey,
         baseURL: 'https://api.deepseek.com',

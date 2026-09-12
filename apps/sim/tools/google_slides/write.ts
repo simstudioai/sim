@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { GoogleSlidesToolParams, GoogleSlidesWriteResponse } from '@/tools/google_slides/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('GoogleSlidesWriteTool')
 
@@ -82,7 +87,7 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
 
     try {
       // Get the presentation data from the initial read
-      const presentationData = await fetch(
+      const presentationData = await providerFetch(
         `https://slides.googleapis.com/v1/presentations/${presentationId}`,
         {
           method: 'GET',
@@ -166,7 +171,7 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
       ]
 
       // Make the batchUpdate request
-      const updateResponse = await fetch(
+      const updateResponse = await providerFetch(
         `https://slides.googleapis.com/v1/presentations/${presentationId}:batchUpdate`,
         {
           method: 'POST',

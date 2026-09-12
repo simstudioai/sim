@@ -7,6 +7,7 @@ import {
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizePersonalSearchSetup } from '@/lib/knowledge/application/personal-search-account'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
@@ -371,6 +372,7 @@ export const executeSelector: OperationUseCase<
       scope: args.input.scope,
     })
     validateAuthorizedInput(args.input, context)
-    return executeAuthorizedSelector({ principal: args.principal, input: args.input, context })
+    const executionArgs = { principal: args.principal, input: args.input, context }
+    return withResourceOutboundScope(context, () => executeAuthorizedSelector(executionArgs))
   },
 }

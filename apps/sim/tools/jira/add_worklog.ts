@@ -1,3 +1,4 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraAddWorklogParams, JiraAddWorklogResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import {
@@ -7,6 +8,10 @@ import {
   transformUser,
 } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 /**
  * Builds the worklog request body per Jira API v3.
@@ -135,7 +140,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
 
     const makeRequest = async (cloudId: string) => {
       const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/worklog`
-      const worklogResponse = await fetch(worklogUrl, {
+      const worklogResponse = await providerFetch(worklogUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { dropcontactHosting } from '@/tools/dropcontact/hosting'
 import type {
   DropcontactEmailEntry,
@@ -7,6 +8,10 @@ import type {
   DropcontactEnrichedContact,
 } from '@/tools/dropcontact/types'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = 120000
@@ -254,7 +259,7 @@ export const dropcontactEnrichContactTool: ToolConfig<
 
       // Poll endpoint: GET https://api.dropcontact.com/v1/enrich/all/{request_id}
       // Source: https://developer.dropcontact.com (retrieved 2026-05)
-      const pollResponse = await fetch(
+      const pollResponse = await providerFetch(
         `https://api.dropcontact.com/v1/enrich/all/${encodeURIComponent(requestId)}`,
         {
           headers: {

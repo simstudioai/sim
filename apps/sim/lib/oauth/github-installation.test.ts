@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { generateKeyPairSync, verify } from 'node:crypto'
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertGitHubInstallationActive,
@@ -14,6 +14,8 @@ import {
   verifyGitHubInstallationBinding,
 } from '@/lib/oauth/github-installation'
 import type { GitHubInstallationBinding } from '@/lib/oauth/github-installation-types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
 const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()

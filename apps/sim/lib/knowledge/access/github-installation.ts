@@ -12,6 +12,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import {
@@ -67,14 +68,15 @@ function positiveId(value: unknown): string | null {
 
 async function readGitHubJson(path: string, accessToken: string, signal: AbortSignal) {
   signal.throwIfAborted()
-  const response = await fetch(`https://api.github.com${path}`, {
+  const response = await secureFetchWithValidation(`https://api.github.com${path}`, {
+    profile: 'configuredEndpoint',
+    maxRedirects: 0,
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     },
-    redirect: 'error',
-    cache: 'no-store',
     signal,
   })
   if (!response.ok) {

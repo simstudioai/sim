@@ -25,6 +25,8 @@ Use a self-managed GitLab instance reachable by Sim over HTTPS. The administrato
 
 The CSV path checks the token's identity and project access. It does not require administrator directory access or a custom admin role.
 
+If your GitLab instance restricts access by source IP, allowlist the configured addresses from [Settings → Security → Outbound IP addresses](/platform/enterprise/security#outbound-ip-addresses). Confirm connectivity from Sim and its background sync jobs before the initial sync.
+
 <Callout type="warn">
   CSV files define access in Sim. Each mapped user listed for the selected project can read all of that source's indexed, non-confidential content. Sim does not infer that user's GitLab role or feature restrictions in this path. Include only users who should have that access, and replace the files whenever memberships or email mappings change.
 </Callout>

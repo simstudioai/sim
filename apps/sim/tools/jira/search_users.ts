@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraSearchUsersParams, JiraSearchUsersResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraSearchUsersTool: ToolConfig<JiraSearchUsersParams, JiraSearchUsersResponse> = {
   id: 'jira_search_users',
@@ -85,7 +90,7 @@ export const jiraSearchUsersTool: ToolConfig<JiraSearchUsersParams, JiraSearchUs
 
       const usersUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user/search?${queryParams.toString()}`
 
-      const usersResponse = await fetch(usersUrl, {
+      const usersResponse = await providerFetch(usersUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

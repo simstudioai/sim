@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -15,6 +16,8 @@ import {
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { WordPressUploadMediaResponse } from '@/tools/wordpress/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('WordPressOperations')
 const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
@@ -96,7 +99,7 @@ export async function uploadWordPressMedia(
   if (input.altText) formData.append('alt_text', input.altText)
   if (input.description) formData.append('description', input.description)
 
-  const response = await fetch(`${WORDPRESS_COM_API_BASE}/${input.siteId}/media`, {
+  const response = await providerFetch(`${WORDPRESS_COM_API_BASE}/${input.siteId}/media`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     body: formData,

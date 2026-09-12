@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -18,6 +19,8 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { hasFirecrawlParseModelInput } from '@/tools/firecrawl/model-input'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const logger = createLogger('FirecrawlParse')
 
@@ -85,7 +88,7 @@ export async function executeFirecrawlParse(
       formData.append('options', JSON.stringify(input.options))
     }
 
-    const response = await fetch('https://api.firecrawl.dev/v2/parse', {
+    const response = await providerFetch('https://api.firecrawl.dev/v2/parse', {
       method: 'POST',
       headers: { Authorization: `Bearer ${input.apiKey}` },
       body: formData,

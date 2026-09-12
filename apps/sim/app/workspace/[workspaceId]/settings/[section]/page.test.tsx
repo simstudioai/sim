@@ -51,7 +51,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
       'access-control',
       'audit-logs',
       'sso',
-      'sessions',
+      'security',
       'data-retention',
       'data-drains',
       'whitelabeling',

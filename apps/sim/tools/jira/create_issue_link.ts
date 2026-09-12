@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraCreateIssueLinkParams, JiraCreateIssueLinkResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, toAdf } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraCreateIssueLinkTool: ToolConfig<
   JiraCreateIssueLinkParams,
@@ -81,7 +86,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   transformResponse: async (response: Response, params?: JiraCreateIssueLinkParams) => {
     const cloudId = params?.cloudId || (await getJiraCloudId(params!.domain, params!.accessToken))
 
-    const typesResp = await fetch(
+    const typesResp = await providerFetch(
       `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLinkType`,
       {
         method: 'GET',
@@ -115,7 +120,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
     }
 
     const linkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink`
-    const linkResponse = await fetch(linkUrl, {
+    const linkResponse = await providerFetch(linkUrl, {
       method: 'POST',
       headers: {
         Accept: 'application/json',

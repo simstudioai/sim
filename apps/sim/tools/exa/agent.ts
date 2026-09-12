@@ -2,9 +2,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { ExaAgentParams, ExaAgentResponse } from '@/tools/exa/types'
 import { parseJsonSchema, requireCostTotal } from '@/tools/exa/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('ExaAgentTool')
 
@@ -152,7 +157,7 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
       elapsedTime += POLL_INTERVAL_MS
 
       try {
-        const statusResponse = await fetch(`https://api.exa.ai/agent/runs/${runId}`, {
+        const statusResponse = await providerFetch(`https://api.exa.ai/agent/runs/${runId}`, {
           method: 'GET',
           headers: {
             'x-api-key': params.apiKey,

@@ -10,6 +10,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 
 interface AwsCredentials {
   region: string
@@ -22,6 +23,7 @@ export function createCloudWatchClient(
   options?: { maxAttempts?: number }
 ): CloudWatchClient {
   return new CloudWatchClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     ...(options?.maxAttempts !== undefined && { maxAttempts: options.maxAttempts }),
     credentials: {
@@ -33,6 +35,7 @@ export function createCloudWatchClient(
 
 export function createCloudWatchLogsClient(config: AwsCredentials): CloudWatchLogsClient {
   return new CloudWatchLogsClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,

@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { ToolConfig } from '@/tools/types'
 import { wizaHosting } from '@/tools/wiza/hosting'
 import type {
@@ -6,6 +7,10 @@ import type {
   WizaIndividualRevealParams,
   WizaIndividualRevealResponse,
 } from '@/tools/wiza/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const POLL_INTERVAL_MS = 2000
 const MAX_POLL_TIME_MS = 120000
@@ -222,7 +227,7 @@ export const wizaIndividualRevealTool: ToolConfig<
       await sleep(POLL_INTERVAL_MS)
       elapsedTime += POLL_INTERVAL_MS
 
-      const statusResponse = await fetch(
+      const statusResponse = await providerFetch(
         `https://wiza.co/api/individual_reveals/${encodeURIComponent(String(revealId))}`,
         {
           headers: {

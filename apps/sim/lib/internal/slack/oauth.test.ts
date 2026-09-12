@@ -1,5 +1,11 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+}))
+
 import {
   exchangeSlackBotAuthorization,
   revokeSlackBotAuthorization,
@@ -35,8 +41,9 @@ describe('Slack bot OAuth exchange', () => {
     expect(request.headers.Authorization).toBe(
       `Basic ${Buffer.from('client:secret').toString('base64')}`
     )
-    expect(request.body.get('redirect_uri')).toBe(input.redirectUri)
-    expect(request.body.get('code')).toBe('code')
+    const body = new URLSearchParams(request.body)
+    expect(body.get('redirect_uri')).toBe(input.redirectUri)
+    expect(body.get('code')).toBe('code')
   })
   it.each([{ token_type: 'user' }, { ok: false, error: 'invalid_client_id' }])(
     'rejects incompatible or unsuccessful grants: %j',

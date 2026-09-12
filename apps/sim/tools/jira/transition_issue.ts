@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraTransitionIssueParams, JiraTransitionIssueResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, toAdf } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const jiraTransitionIssueTool: ToolConfig<
   JiraTransitionIssueParams,
@@ -89,7 +94,7 @@ export const jiraTransitionIssueTool: ToolConfig<
     const performTransition = async (cloudId: string) => {
       // First, fetch available transitions to get the name and target status
       const transitionsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/transitions`
-      const transitionsResp = await fetch(transitionsUrl, {
+      const transitionsResp = await providerFetch(transitionsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
@@ -114,7 +119,7 @@ export const jiraTransitionIssueTool: ToolConfig<
       }
 
       // Perform the transition
-      const transitionResponse = await fetch(transitionsUrl, {
+      const transitionResponse = await providerFetch(transitionsUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -159,7 +164,7 @@ export const jiraTransitionIssueTool: ToolConfig<
       // Fetch transition metadata for the response
       try {
         const transitionsUrl = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/transitions`
-        const transitionsResp = await fetch(transitionsUrl, {
+        const transitionsResp = await providerFetch(transitionsUrl, {
           method: 'GET',
           headers: {
             Accept: 'application/json',

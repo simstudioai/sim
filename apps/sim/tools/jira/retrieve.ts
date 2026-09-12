@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -13,6 +14,10 @@ import {
   transformUser,
 } from '@/tools/jira/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('JiraRetrieveTool')
 
@@ -263,7 +268,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
 
     const fetchIssue = async (cloudId: string) => {
       const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
-      const issueResponse = await fetch(issueUrl, {
+      const issueResponse = await providerFetch(issueUrl, {
         method: 'GET',
         signal: context?.signal,
         headers: {
@@ -297,15 +302,15 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     const fetchSupplementary = async (cloudId: string, data: any) => {
       const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}`
       const [commentsResp, worklogResp, watchersResp] = await Promise.all([
-        fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
+        providerFetch(`${base}/comment?maxResults=100&orderBy=-created`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
           signal: context?.signal,
         }),
-        fetch(`${base}/worklog?maxResults=100`, {
+        providerFetch(`${base}/worklog?maxResults=100`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
           signal: context?.signal,
         }),
-        fetch(`${base}/watchers`, {
+        providerFetch(`${base}/watchers`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
           signal: context?.signal,
         }),

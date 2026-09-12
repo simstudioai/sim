@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import OpenAI from 'openai'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
 import type { StreamingExecution } from '@/executor/types'
 import { executeOllamaProviderRequest } from '@/providers/ollama/core'
@@ -9,6 +13,8 @@ import { createReadableStreamFromOllamaStream } from '@/providers/ollama/utils'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers'
+
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 const logger = createLogger('OllamaProvider')
 const OLLAMA_HOST = getOllamaUrl()
@@ -28,7 +34,11 @@ export const ollamaProvider: ProviderConfig = {
     }
 
     try {
-      const response = await fetch(`${OLLAMA_HOST}/api/tags`)
+      const response = await secureFetchWithValidation(`${OLLAMA_HOST}/api/tags`, {
+        profile: 'selfHostedService',
+        maxRedirects: 20,
+        redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+      })
       if (!response.ok) {
         await response.text().catch(() => {})
         useProvidersStore.getState().setProviderModels('ollama', [])
@@ -53,6 +63,9 @@ export const ollamaProvider: ProviderConfig = {
       providerLabel: 'Ollama',
       createClient: () =>
         new OpenAI({
+          fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+            profile: 'selfHostedService',
+          })).fetch,
           ...openAICompatTransport(),
           apiKey: 'empty',
           baseURL: `${OLLAMA_HOST}/v1`,

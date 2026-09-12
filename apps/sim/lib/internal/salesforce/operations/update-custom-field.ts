@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   SalesforceUpdateCustomFieldParams,
@@ -29,7 +33,13 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
     'Content-Type': 'application/json',
   }
 
-  const readResponse = await fetch(url, { headers, signal })
+  const readResponse = await secureFetchWithValidation(url, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+    headers,
+    signal,
+  })
   let existing: unknown
   try {
     existing = await readResponse.json()
@@ -56,7 +66,10 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
 
   const metadata = mergeCustomFieldMetadata(existing.Metadata, params)
 
-  const patchResponse = await fetch(url, {
+  const patchResponse = await secureFetchWithValidation(url, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     method: 'PATCH',
     headers,
     body: JSON.stringify({ Metadata: metadata }),

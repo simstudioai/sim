@@ -1,8 +1,13 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 export const QUICKBOOKS_MINOR_VERSION = '75'
 export const QUICKBOOKS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -125,7 +130,7 @@ export async function fetchValidatedQuickBooksCompanyInfo(
   environment: QuickBooksEnvironment
 ): Promise<QuickBooksCompanyInfoEnvelope> {
   const normalizedRealmId = normalizeQuickBooksRealmId(realmId)
-  const response = await fetch(
+  const response = await providerFetch(
     buildQuickBooksCompanyUrl(
       normalizedRealmId,
       `companyinfo/${encodeURIComponent(normalizedRealmId)}`,

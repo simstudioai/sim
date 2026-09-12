@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { ToolConfig } from '@/tools/types'
 import type { XReadParams, XReadResponse, XTweet } from '@/tools/x/types'
 import { transformTweet } from '@/tools/x/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 const logger = createLogger('XReadTool')
 
@@ -134,7 +139,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
           max_results: '100', // Max allowed
         })
 
-        const repliesResponse = await fetch(
+        const repliesResponse = await providerFetch(
           `https://api.twitter.com/2/tweets/search/recent?${searchParams.toString()}`,
           {
             method: 'GET',

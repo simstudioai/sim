@@ -16,6 +16,7 @@ import {
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -285,7 +286,10 @@ function isQuotaExhaustionBody(errorText: string): boolean {
 }
 
 /** Reads a bounded provider body only for internal quota classification. */
-async function readEmbeddingErrorBody(response: Response, signal?: AbortSignal): Promise<string> {
+async function readEmbeddingErrorBody(
+  response: Parameters<typeof readResponseTextWithLimit>[0],
+  signal?: AbortSignal
+): Promise<string> {
   try {
     return await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -587,7 +591,14 @@ async function callEmbeddingAPI(
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       try {
-        const response = await fetch(request.apiUrl, {
+        const response = await secureFetchWithValidation(request.apiUrl, {
+          profile: providerId === 'ollama' ? 'selfHostedService' : 'configuredEndpoint',
+          maxRedirects: 20,
+          redirectPolicy: {
+            mode: 'standard',
+            sendCredentialsOnCrossOriginRedirect: false,
+            sensitiveHeaders: ['api-key', 'x-goog-api-key'],
+          },
           method: 'POST',
           headers: request.headers,
           body: JSON.stringify(request.body),

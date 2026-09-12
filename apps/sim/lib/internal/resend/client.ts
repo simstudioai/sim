@@ -1,5 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
-import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ResendOperationError } from '@/lib/internal/resend/errors'
 
@@ -20,7 +23,10 @@ export async function sendResendEmail(
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   signal?.throwIfAborted()
-  const response = await fetch('https://api.resend.com/emails', {
+  const response = await secureFetchWithValidation('https://api.resend.com/emails', {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

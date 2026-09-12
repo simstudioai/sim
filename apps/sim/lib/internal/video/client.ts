@@ -2,6 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   assertKnownSizeWithinLimit,
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -13,6 +14,9 @@ import {
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
+const contentFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'contentFetch' }).fetch
 
 const logger = createLogger('VideoProviderClient')
 const MAX_VIDEO_OUTPUT_BYTES = 250 * 1024 * 1024
@@ -240,7 +244,7 @@ async function generateWithRunway(
     createPayload.promptImage = `data:${visualReference.type};base64,${refBase64}`
   }
 
-  const createResponse = await fetch('https://api.dev.runwayml.com/v1/image_to_video', {
+  const createResponse = await providerFetch('https://api.dev.runwayml.com/v1/image_to_video', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -267,7 +271,7 @@ async function generateWithRunway(
   while (attempts < maxAttempts) {
     await waitForProvider(context)
 
-    const statusResponse = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
+    const statusResponse = await providerFetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'X-Runway-Version': '2024-11-06',
@@ -294,7 +298,7 @@ async function generateWithRunway(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl, { signal })
+      const videoResponse = await contentFetch(videoUrl, { signal })
       if (!videoResponse.ok) {
         await readVideoErrorText(videoResponse, 'Runway video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)
@@ -355,7 +359,7 @@ async function generateWithVeo(
     },
   }
 
-  const createResponse = await fetch(
+  const createResponse = await providerFetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predictLongRunning`,
     {
       method: 'POST',
@@ -384,7 +388,7 @@ async function generateWithVeo(
   while (attempts < maxAttempts) {
     await waitForProvider(context)
 
-    const statusResponse = await fetch(
+    const statusResponse = await providerFetch(
       `https://generativelanguage.googleapis.com/v1beta/${operationName}`,
       {
         headers: {
@@ -419,7 +423,7 @@ async function generateWithVeo(
         throw new Error('No video URI in response')
       }
 
-      const videoResponse = await fetch(videoUri, {
+      const videoResponse = await contentFetch(videoUri, {
         headers: {
           'x-goog-api-key': apiKey,
         },
@@ -482,15 +486,18 @@ async function generateWithLuma(
     createPayload.concepts = Array.isArray(cameraControl) ? cameraControl : [{ key: cameraControl }]
   }
 
-  const createResponse = await fetch('https://api.lumalabs.ai/dream-machine/v1/generations', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(createPayload),
-    signal,
-  })
+  const createResponse = await providerFetch(
+    'https://api.lumalabs.ai/dream-machine/v1/generations',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(createPayload),
+      signal,
+    }
+  )
 
   if (!createResponse.ok) {
     const error = await readVideoErrorText(createResponse, 'Luma create error response')
@@ -508,7 +515,7 @@ async function generateWithLuma(
   while (attempts < maxAttempts) {
     await waitForProvider(context)
 
-    const statusResponse = await fetch(
+    const statusResponse = await providerFetch(
       `https://api.lumalabs.ai/dream-machine/v1/generations/${generationId}`,
       {
         headers: {
@@ -537,7 +544,7 @@ async function generateWithLuma(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl, { signal })
+      const videoResponse = await contentFetch(videoUrl, { signal })
       if (!videoResponse.ok) {
         await readVideoErrorText(videoResponse, 'Luma video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)
@@ -589,7 +596,7 @@ async function generateWithMiniMax(
 
   const minimaxModel = model === 'hailuo-02' ? 'MiniMax-Hailuo-02' : 'MiniMax-Hailuo-2.3'
 
-  const createResponse = await fetch('https://api.minimax.io/v1/video_generation', {
+  const createResponse = await providerFetch('https://api.minimax.io/v1/video_generation', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -637,7 +644,7 @@ async function generateWithMiniMax(
   while (attempts < maxAttempts) {
     await waitForProvider(context)
 
-    const statusResponse = await fetch(
+    const statusResponse = await providerFetch(
       `https://api.minimax.io/v1/query/video_generation?task_id=${taskId}`,
       {
         headers: {
@@ -676,7 +683,7 @@ async function generateWithMiniMax(
         throw new Error('No file_id in response')
       }
 
-      const fileResponse = await fetch(
+      const fileResponse = await providerFetch(
         `https://api.minimax.io/v1/files/retrieve?file_id=${fileId}`,
         {
           headers: {
@@ -701,7 +708,7 @@ async function generateWithMiniMax(
         throw new Error('No download URL in file response')
       }
 
-      const videoResponse = await fetch(videoUrl, { signal })
+      const videoResponse = await contentFetch(videoUrl, { signal })
       if (!videoResponse.ok) {
         await readVideoErrorText(videoResponse, 'MiniMax video error response')
         throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
@@ -1060,7 +1067,7 @@ async function generateWithFalAI(
     requestBody.generate_audio = generateAudio
   }
 
-  const createResponse = await fetch(`https://queue.fal.run/${modelConfig.endpoint}`, {
+  const createResponse = await providerFetch(`https://queue.fal.run/${modelConfig.endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Key ${apiKey}`,
@@ -1100,7 +1107,7 @@ async function generateWithFalAI(
   while (attempts < maxAttempts) {
     await waitForProvider(context)
 
-    const statusResponse = await fetch(statusUrl, {
+    const statusResponse = await contentFetch(statusUrl, {
       headers: {
         Authorization: `Key ${apiKey}`,
       },
@@ -1125,7 +1132,7 @@ async function generateWithFalAI(
 
       logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
 
-      const resultResponse = await fetch(
+      const resultResponse = await contentFetch(
         getStringProperty(statusData, 'response_url') || responseUrl,
         {
           headers: {
@@ -1153,7 +1160,7 @@ async function generateWithFalAI(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl, { signal })
+      const videoResponse = await contentFetch(videoUrl, { signal })
       if (!videoResponse.ok) {
         await readVideoErrorText(videoResponse, 'Fal.ai video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)

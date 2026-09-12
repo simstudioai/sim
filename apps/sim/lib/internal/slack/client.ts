@@ -1,3 +1,4 @@
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 const MAX_SLACK_JSON_BYTES = 2 * 1024 * 1024
@@ -75,7 +76,10 @@ export async function requestSlackApi({
   }
 
   const isForm = body instanceof URLSearchParams
-  const response = await fetch(url, {
+  const response = await secureFetchWithValidation(url.toString(), {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_SLACK_JSON_BYTES,
     method: httpMethod,
     headers: {
       Authorization: `Bearer ${accessToken}`,

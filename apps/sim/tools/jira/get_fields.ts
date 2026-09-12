@@ -1,7 +1,12 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { JiraGetFieldsParams, JiraGetFieldsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const { fetch: providerFetch } = createSsrfGuardedFetchWithDispatcher({
+  profile: 'configuredEndpoint',
+})
 
 function buildFieldsUrl(cloudId: string): string {
   return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/field`
@@ -57,7 +62,7 @@ export const jiraGetFieldsTool: ToolConfig<JiraGetFieldsParams, JiraGetFieldsRes
 
   transformResponse: async (response: Response, params?: JiraGetFieldsParams) => {
     const fetchFields = async (cloudId: string) => {
-      const fieldsResponse = await fetch(buildFieldsUrl(cloudId), {
+      const fieldsResponse = await providerFetch(buildFieldsUrl(cloudId), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

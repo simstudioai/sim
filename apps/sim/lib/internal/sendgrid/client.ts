@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { SendGridOperationError } from '@/lib/internal/sendgrid/errors'
 
@@ -23,7 +24,10 @@ export async function sendSendGridMail(
   signal?: AbortSignal
 ): Promise<string | undefined> {
   signal?.throwIfAborted()
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const response = await secureFetchWithValidation('https://api.sendgrid.com/v3/mail/send', {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_SENDGRID_ERROR_BYTES,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

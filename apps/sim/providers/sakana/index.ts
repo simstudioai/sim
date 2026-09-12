@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -31,6 +32,8 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 
+let providerTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
 const logger = createLogger('SakanaProvider')
 
 const SAKANA_BASE_URL = 'https://api.sakana.ai/v1'
@@ -55,6 +58,9 @@ export const sakanaProvider: ProviderConfig = {
 
     try {
       const sakana = new OpenAI({
+        fetch: (providerTransport ??= createSsrfGuardedFetchWithDispatcher({
+          profile: 'configuredEndpoint',
+        })).fetch,
         ...openAICompatTransport(),
         apiKey: request.apiKey,
         baseURL: SAKANA_BASE_URL,

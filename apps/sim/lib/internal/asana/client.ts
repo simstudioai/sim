@@ -1,5 +1,8 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const ASANA_API_BASE_URL = 'https://app.asana.com/api/1.0'
 const ASANA_RESPONSE_MAX_BYTES = 10 * 1024 * 1024
@@ -42,7 +45,7 @@ export class AsanaClient {
 
   private async fetch(path: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(this.url(path), {
+    return providerFetch(this.url(path), {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

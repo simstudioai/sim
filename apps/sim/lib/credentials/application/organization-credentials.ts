@@ -17,6 +17,7 @@ import {
 } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { throwCredentialMutationFailure } from '@/lib/credentials/application/credential-crud'
@@ -216,9 +217,8 @@ export const createOrganizationCredential: OperationUseCase<
       )
       requireAvailableOAuthCredentialProvider(catalog, input.providerId ?? '')
     }
-    const result = await createCredentialRecord(
-      { ...input, userId: context.userId },
-      { authorizeWorkspace: false }
+    const result = await withResourceOutboundScope(context, () =>
+      createCredentialRecord({ ...input, userId: context.userId }, { authorizeWorkspace: false })
     )
     if (!result.success) throwCredentialMutationFailure(result)
     if (!result.credential) throw new Error('Credential creation returned no credential')
@@ -409,7 +409,9 @@ export const updateOrganizationCredential: OperationUseCase<
       (row.type === 'oauth' && row.createdBy !== context.userId)
     )
       throw new OrchestrationError('not_found', 'Credential not found')
-    const result = await updateCredentialRecord({ ...input, credential: row })
+    const result = await withResourceOutboundScope(row, () =>
+      updateCredentialRecord({ ...input, credential: row })
+    )
     if (!result.success) throwCredentialMutationFailure(result)
     const updated = await getOrganizationCredential(input.organizationId, input.credentialId)
     if (!updated) throw new OrchestrationError('not_found', 'Credential not found')

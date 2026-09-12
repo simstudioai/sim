@@ -3,6 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }))
 
 import { BoxClient, BoxUploadError } from '@/lib/internal/box/client'

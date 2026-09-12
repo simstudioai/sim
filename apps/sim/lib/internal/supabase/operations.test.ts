@@ -3,6 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()),
+  secureFetchWithValidation: (...args: Parameters<typeof fetch>) => fetch(...args),
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+  }),
+}))
+
 const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
   downloadServableFileFromStorage: vi.fn(),
@@ -56,7 +64,15 @@ describe('executeSupabaseStorageUpload', () => {
     })
     expect(fetch).toHaveBeenCalledWith(
       'https://project1234.supabase.co/storage/v1/object/documents/folder/hello.txt',
-      expect.objectContaining({ method: 'POST' })
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ apikey: 'service-key' }),
+        redirectPolicy: {
+          mode: 'standard',
+          sendCredentialsOnCrossOriginRedirect: false,
+          sensitiveHeaders: ['apikey'],
+        },
+      })
     )
   })
 

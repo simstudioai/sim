@@ -1,8 +1,11 @@
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   type ReadResponseWithLimitOptions,
   readResponseJsonWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { GmailOperationError } from '@/lib/internal/gmail/errors'
+
+const providerFetch = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' }).fetch
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const GMAIL_METADATA_RESPONSE_MAX_BYTES = 1024 * 1024
@@ -36,7 +39,7 @@ export class GmailClient {
 
   async fetch(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(path, {
+    return providerFetch(path, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

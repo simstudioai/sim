@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { PersonaOperationError } from '@/lib/internal/persona/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -46,7 +47,10 @@ export async function importPersonaAccounts(
   })
   const buffer = resolved.buffer
   context.signal?.throwIfAborted()
-  const response = await fetch(`${PERSONA_API_BASE}/importer/accounts`, {
+  const response = await secureFetchWithValidation(`${PERSONA_API_BASE}/importer/accounts`, {
+    profile: 'configuredEndpoint',
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    maxResponseBytes: MAX_PERSONA_RESPONSE_BYTES,
     method: 'POST',
     headers: buildPersonaHeaders(input.apiKey),
     body: JSON.stringify({

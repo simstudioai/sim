@@ -1,4 +1,5 @@
 import { getSelectedSandboxProviderId } from '@/lib/core/config/env-capabilities.server'
+import { requireDirectOutboundTransport } from '@/lib/core/network/context.server'
 import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
 import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
 import type { SandboxProvider, SandboxProviderId } from '@/lib/execution/remote-sandbox/types'
@@ -25,5 +26,12 @@ const PROVIDERS: Record<SandboxProviderId, SandboxProvider> = {
  */
 export function resolveProvider(): SandboxProvider {
   const configured = getSelectedSandboxProviderId()
-  return PROVIDERS[configured]
+  const provider = PROVIDERS[configured]
+  return {
+    ...provider,
+    async create(kind, options) {
+      await requireDirectOutboundTransport()
+      return provider.create(kind, options)
+    },
+  }
 }

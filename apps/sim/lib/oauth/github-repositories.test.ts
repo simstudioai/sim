@@ -1,5 +1,7 @@
 /** @vitest-environment node */
-import { resetEnvMock, setEnv } from '@sim/testing'
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import { inputValidationMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
@@ -9,7 +11,7 @@ import {
   verifyGitHubRepositoriesIdentity,
 } from '@/lib/oauth/github-repositories'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
-import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import { refreshOAuthToken } from '@/lib/oauth/refresh-token.server'
 
 const tokenResponse = {
   access_token: 'ghu_access',

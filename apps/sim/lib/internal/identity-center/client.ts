@@ -27,6 +27,7 @@ import {
   SSOAdminClient,
   type TargetType,
 } from '@aws-sdk/client-sso-admin'
+import { createOutboundAwsHttpHandler } from '@/lib/core/network/aws-handler.server'
 import {
   AWS_FANOUT_CONCURRENCY,
   mapWithConcurrency,
@@ -42,6 +43,7 @@ interface IdentityCenterConnectionConfig {
 
 export function createSSOAdminClient(config: IdentityCenterConnectionConfig): SSOAdminClient {
   return new SSOAdminClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -54,6 +56,7 @@ export function createIdentityStoreClient(
   config: IdentityCenterConnectionConfig
 ): IdentitystoreClient {
   return new IdentitystoreClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -68,6 +71,7 @@ export function createIdentityStoreClient(
  */
 export function createOrganizationsClient(config: IdentityCenterConnectionConfig) {
   return new OrganizationsClient({
+    requestHandler: createOutboundAwsHttpHandler(),
     region: resolveOrganizationsRegion(config.region),
     credentials: {
       accessKeyId: config.accessKeyId,
