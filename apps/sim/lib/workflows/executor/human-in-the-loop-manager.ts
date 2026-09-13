@@ -973,6 +973,7 @@ export class PauseResumeManager {
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
           parentExecutionId: pausedExecution.executionId,
+          contextId,
         })
       }
 
@@ -1424,9 +1425,10 @@ export class PauseResumeManager {
       })
     }
 
+    /** Resume attempts have separate stream IDs; new pauses must retain the durable run ID. */
     const metadata = {
       ...baseSnapshot.metadata,
-      executionId: resumeExecutionId,
+      executionId: parentExecutionId,
       requestId: baseSnapshot.metadata.requestId,
       startTime: new Date().toISOString(),
       userId: effectiveUserId,
