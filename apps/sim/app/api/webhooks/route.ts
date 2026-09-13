@@ -418,18 +418,32 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       existingWebhook = existingRows[0] || null
     }
 
+    const shouldRecreateSubscription =
+      existingWebhook &&
+      shouldRecreateExternalWebhookSubscription({
+        previousProvider: existingWebhook.provider as string,
+        nextProvider: provider,
+        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
+          {}) as Record<string, unknown>,
+        nextConfig: resolvedProviderConfig,
+      })
+
     /**
      * Subscription handlers, pollers, and subscription cleanup look `credentialId`
-     * up by id alone and mint tokens as its owner. A save can act with both the
-     * requested credential and the stored one — the stored one is merged back when
-     * the request omits it, or used to clean up the previous subscription — so
-     * each must be usable by the actor in the workflow's workspace before anything
-     * is subscribed, cleaned up, or saved.
+     * up by id alone and mint tokens as its owner, so every credential this save
+     * acts with must be usable by the actor in the workflow's workspace before
+     * anything is subscribed, cleaned up, or saved. That is the requested
+     * credential, plus the stored one when the save uses it: merged back because
+     * the request omits `credentialId`, or used to clean up the previous
+     * subscription on recreation.
      */
+    const usesStoredCredential =
+      existingWebhook && (shouldRecreateSubscription || !('credentialId' in originalProviderConfig))
     const credentialIds = new Set(
-      [originalProviderConfig.credentialId, existingWebhook?.providerConfig?.credentialId].filter(
-        (id) => id != null && id !== ''
-      )
+      [
+        originalProviderConfig.credentialId,
+        usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
+      ].filter((id) => id != null && id !== '')
     )
     for (const credentialId of credentialIds) {
       if (typeof credentialId !== 'string') {
@@ -491,16 +505,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: capabilityRefusal('triggers.webhook') }, { status: 403 })
       }
     }
-
-    const shouldRecreateSubscription =
-      existingWebhook &&
-      shouldRecreateExternalWebhookSubscription({
-        previousProvider: existingWebhook.provider as string,
-        nextProvider: provider,
-        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
-          {}) as Record<string, unknown>,
-        nextConfig: resolvedProviderConfig,
-      })
 
     if (!existingWebhook || shouldRecreateSubscription) {
       try {

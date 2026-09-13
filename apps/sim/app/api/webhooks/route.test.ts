@@ -634,8 +634,30 @@ describe('POST /api/webhooks credential references', () => {
     }
   )
 
-  it('authorizes both credentials when a re-save replaces the stored one', async () => {
+  /** Rotation without recreation never touches the old credential, so it needs no access to it. */
+  it('rotates the credential without access to the stored one when nothing is recreated', async () => {
+    mocks.authorizeCredentialUseForAuth.mockImplementation(async (_auth, { credentialId }) =>
+      credentialId === 'new-credential'
+        ? { ok: true, workspaceId: 'workspace-1' }
+        : { ok: false, error: 'You do not have access to this credential.' }
+    )
+    queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+    const response = await POST(upsertRequest({ credentialId: 'new-credential' }))
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorizeCredentialUseForAuth.mock.calls.map(([, params]) => params)).toEqual([
+      { credentialId: 'new-credential', workflowId: 'workflow-1' },
+    ])
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ providerConfig: { credentialId: 'new-credential' } })
+    )
+  })
+
+  /** Recreation cleans up the previous subscription with the stored credential. */
+  it('authorizes both credentials when a rotation recreates the subscription', async () => {
     mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
     queueUpdatePathRows(true, { credentialId: 'stored-credential' })
 
     const response = await POST(upsertRequest({ credentialId: 'new-credential' }))
