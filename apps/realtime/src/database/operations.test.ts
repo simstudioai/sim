@@ -121,3 +121,51 @@ describe('search replacement persistence', () => {
     expect(mockSet).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('subblock update with canonical modes persistence', () => {
+  const tools = [{ type: 'jira', params: { manualProjectId: '{{PROJECT}}' } }]
+  const canonicalModes = { '0:projectId': 'advanced' as const, model: 'basic' as const }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation(
+      async (callback: (tx: typeof transaction) => Promise<void>) => callback(transaction)
+    )
+    mockSet.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+  })
+
+  function updateTools(block: Record<string, unknown>) {
+    mockSelectWhere.mockResolvedValue([
+      {
+        id: 'agent-1',
+        locked: false,
+        data: { width: 350, canonicalModes: { '1:projectId': 'advanced' } },
+        subBlocks: { tools: { id: 'tools', type: 'tool-input', value: [] } },
+        ...block,
+      },
+    ])
+    return persistWorkflowOperation('workflow-1', {
+      operation: SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES,
+      target: OPERATION_TARGETS.SUBBLOCK,
+      timestamp: Date.now(),
+      payload: { blockId: 'agent-1', subblockId: 'tools', value: tools, canonicalModes },
+    })
+  }
+
+  it('writes the subblock value and replaces canonical modes in one block update', async () => {
+    await expect(updateTools({})).resolves.toBeUndefined()
+
+    expect(mockSet).toHaveBeenCalledTimes(2)
+    expect(mockSet).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        subBlocks: { tools: { id: 'tools', type: 'tool-input', value: tools } },
+        data: { width: 350, canonicalModes },
+      })
+    )
+  })
+
+  it('rejects a locked block without writing either field', async () => {
+    await expect(updateTools({ locked: true })).rejects.toThrow('is locked')
+    expect(mockSet).toHaveBeenCalledTimes(1)
+  })
+})

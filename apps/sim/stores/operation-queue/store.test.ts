@@ -266,6 +266,51 @@ describe('operation queue room gating', () => {
     ])
   })
 
+  it('supersedes pending tool updates with the latest value and canonical modes together', () => {
+    const queue = useOperationQueueStore.getState()
+    const toolsUpdate = (id: string, operation: string, value: string[]) =>
+      queue.addToQueue({
+        id,
+        workflowId: 'workflow-a',
+        userId: 'user-1',
+        operation: {
+          operation,
+          target: 'subblock',
+          payload: {
+            blockId: 'agent-1',
+            subblockId: 'tools',
+            value,
+            ...(operation === 'subblock-update-with-canonical-modes' && {
+              canonicalModes: { [`${value.indexOf('a')}:projectId`]: 'advanced' },
+            }),
+          },
+        },
+      })
+
+    toolsUpdate('op-1', 'subblock-update', ['a', 'b'])
+    toolsUpdate('op-2', 'subblock-update-with-canonical-modes', ['b', 'a'])
+    toolsUpdate('op-3', 'subblock-update-with-canonical-modes', ['a', 'b'])
+
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({
+        id: 'op-3',
+        operation: expect.objectContaining({
+          payload: expect.objectContaining({
+            value: ['a', 'b'],
+            canonicalModes: { '0:projectId': 'advanced' },
+          }),
+        }),
+      }),
+    ])
+
+    toolsUpdate('op-4', 'subblock-update', ['a', 'b', 'c'])
+
+    expect(useOperationQueueStore.getState().operations.map((op) => op.id)).toEqual([
+      'op-3',
+      'op-4',
+    ])
+  })
+
   it('does not coalesce matching subblock updates across workflows', () => {
     useOperationQueueStore.getState().addToQueue({
       id: 'op-1',

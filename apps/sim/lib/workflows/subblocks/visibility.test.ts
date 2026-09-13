@@ -7,6 +7,7 @@ import {
   buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
+  reindexRewrittenToolCanonicalModes,
   reindexToolCanonicalModes,
   resolveActiveDependencyValue,
   resolveDependencyValue,
@@ -344,6 +345,100 @@ describe('reindexToolCanonicalModes', () => {
       '0:tableId': undefined as unknown as 'advanced',
     })
     expect(result).toBeUndefined()
+  })
+})
+
+describe('reindexRewrittenToolCanonicalModes', () => {
+  /** Serialized tools: each call builds fresh objects, so object identity never matches. */
+  const jira = (projectId: string, extra: Record<string, unknown> = {}) => ({
+    type: 'jira',
+    operation: 'jira_get_issue',
+    params: { projectId },
+    ...extra,
+  })
+  const gmail = () => ({ type: 'gmail', operation: 'gmail_send', params: {} })
+
+  it.concurrent('returns undefined when there are no overrides', () => {
+    expect(reindexRewrittenToolCanonicalModes([jira('A')], [jira('B')], undefined)).toBeUndefined()
+  })
+
+  it.concurrent('moves each tool overrides with it when serialized tools are reordered', () => {
+    const result = reindexRewrittenToolCanonicalModes(
+      [jira('A'), jira('B')],
+      [jira('B'), jira('A')],
+      { '0:projectId': 'basic', '1:projectId': 'advanced' }
+    )
+    expect(result).toEqual({ '0:projectId': 'advanced', '1:projectId': 'basic' })
+  })
+
+  it.concurrent('ignores isExpanded, which serialized input may omit or default', () => {
+    const result = reindexRewrittenToolCanonicalModes(
+      [jira('A', { isExpanded: false }), jira('B', { isExpanded: true })],
+      [jira('B'), jira('A', { isExpanded: true })],
+      { '1:projectId': 'advanced' }
+    )
+    expect(result).toEqual({ '0:projectId': 'advanced' })
+  })
+
+  it.concurrent('keeps overrides in place when a tool params are edited without moving', () => {
+    const result = reindexRewrittenToolCanonicalModes(
+      [jira('A'), jira('B')],
+      [jira('A-edited'), jira('B-edited')],
+      { '0:projectId': 'basic', '1:projectId': 'advanced' }
+    )
+    expect(result).toBeUndefined()
+  })
+
+  it.concurrent(
+    'lets an edited tool claim its old slot after an unchanged tool moves past it',
+    () => {
+      const result = reindexRewrittenToolCanonicalModes(
+        [jira('A'), gmail(), jira('B')],
+        [gmail(), jira('B'), jira('A-edited')],
+        { '0:projectId': 'advanced', '2:projectId': 'basic' }
+      )
+      expect(result).toEqual({ '1:projectId': 'basic', '2:projectId': 'advanced' })
+    }
+  )
+
+  it.concurrent('drops a removed tool overrides and shifts the survivors', () => {
+    const result = reindexRewrittenToolCanonicalModes(
+      [jira('A'), jira('B'), jira('C')],
+      [jira('B'), jira('C')],
+      { '0:projectId': 'advanced', '1:projectId': 'basic', '2:projectId': 'advanced' }
+    )
+    expect(result).toEqual({ '0:projectId': 'basic', '1:projectId': 'advanced' })
+  })
+
+  it.concurrent('gives a new tool no overrides even when it lands on a used position', () => {
+    const result = reindexRewrittenToolCanonicalModes([jira('A')], [gmail(), jira('A')], {
+      '0:projectId': 'advanced',
+    })
+    expect(result).toEqual({ '1:projectId': 'advanced' })
+  })
+
+  it.concurrent('does not hand a replaced tool overrides to a tool of another type', () => {
+    const result = reindexRewrittenToolCanonicalModes([jira('A')], [gmail()], {
+      '0:projectId': 'advanced',
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('keeps identical duplicates on their own positions', () => {
+    const result = reindexRewrittenToolCanonicalModes(
+      [jira('A'), jira('A')],
+      [jira('A'), jira('A'), gmail()],
+      { '0:projectId': 'basic', '1:projectId': 'advanced' }
+    )
+    expect(result).toBeUndefined()
+  })
+
+  it.concurrent('carries a legacy (non-index-scoped) key through unchanged', () => {
+    const result = reindexRewrittenToolCanonicalModes([jira('A'), jira('B')], [jira('B')], {
+      '0:projectId': 'advanced',
+      'jira:projectId': 'basic',
+    })
+    expect(result).toEqual({ 'jira:projectId': 'basic' })
   })
 })
 
