@@ -224,7 +224,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const resourceSelectionOwnedByUserRef = useRef(false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     const presentation = resolveResourceEventPresentation({
       activeResourceId,
       activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
@@ -317,7 +317,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const expandResource = () => {
     resourceCollapseOwnedByUserRef.current = false
     resourceSelectionOwnedByUserRef.current = true
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     if (activeResourceId) clearResourceActivity(activeResourceId)
     setResourceCollapsed(false)
   }
@@ -334,24 +334,18 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [setActiveResourceId, clearResourceActivity]
   )
 
-  const desktopTabResourceCallbacks = {
+  const desktopTabResourceOptions = {
+    scopeId: desktopScopeId,
+    resources,
+    activeResourceId,
+    selectedResourceId: activeResourceParam,
     addResource,
     removeResource,
     selectResource: selectResourceFromUser,
     onResourceEvent: handleResourceEvent,
   }
-  useBrowserTabResources({
-    scopeId: desktopScopeId,
-    resources,
-    activeResourceId,
-    ...desktopTabResourceCallbacks,
-  })
-  useTerminalTabResources({
-    scopeId: desktopScopeId,
-    resources,
-    activeResourceId,
-    ...desktopTabResourceCallbacks,
-  })
+  useBrowserTabResources(desktopTabResourceOptions)
+  useTerminalTabResources(desktopTabResourceOptions)
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {
