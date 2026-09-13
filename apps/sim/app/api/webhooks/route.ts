@@ -9,11 +9,14 @@ import {
 } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
+import { AuthType } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -374,12 +377,48 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let savedWebhook: any = null
     let existingWebhook: any = null
-    const originalProviderConfig = providerConfig || {}
+    /**
+     * `userId` is server-owned: the polling token resolver falls back to that
+     * user's own OAuth account when no credential is set.
+     */
+    const originalProviderConfig: Record<string, unknown> = omit(providerConfig || {}, ['userId'])
     let resolvedProviderConfig = await resolveEnvVarsInObject(
       originalProviderConfig,
       userId,
       workflowRecord.workspaceId || undefined
     )
+
+    /**
+     * Subscription handlers and pollers look `credentialId` up by id alone and
+     * mint tokens as its owner, so the actor must be able to use it in the
+     * workflow's workspace before anything is subscribed or saved.
+     */
+    const requestedCredentialId = originalProviderConfig.credentialId
+    if (requestedCredentialId != null && requestedCredentialId !== '') {
+      /** The row stores the unresolved text, so only a literal id is what gets authorized. */
+      if (
+        typeof requestedCredentialId !== 'string' ||
+        resolvedProviderConfig.credentialId !== requestedCredentialId
+      ) {
+        return NextResponse.json(
+          { error: 'providerConfig.credentialId must be a literal credential id' },
+          { status: 400 }
+        )
+      }
+      const credentialAccess = await authorizeCredentialUseForAuth(
+        { success: true, userId, authType: AuthType.SESSION },
+        { credentialId: requestedCredentialId, workflowId }
+      )
+      if (!credentialAccess.ok) {
+        logger.warn(`[${requestId}] Webhook credential reference denied`, {
+          userId,
+          workflowId,
+          credentialId: requestedCredentialId,
+          reason: credentialAccess.error,
+        })
+        return NextResponse.json({ error: credentialAccess.error }, { status: 403 })
+      }
+    }
 
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
@@ -389,7 +428,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       providerConfig: providerConfigOverride,
     })
 
-    const userProvided = originalProviderConfig as Record<string, unknown>
+    const userProvided = originalProviderConfig
     const configToSave: Record<string, unknown> = { ...userProvided }
 
     if (targetWebhookId) {
