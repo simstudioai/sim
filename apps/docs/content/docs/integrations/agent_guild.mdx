@@ -1,0 +1,44 @@
+---
+title: Agent Guild
+description: Observe a public agent endpoint and retain unknowns
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="agent_guild"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Deliberately shares the entire public HTTPS endpoint URL with Agent Guild, which may probe its protocol and discovery surfaces. Returns six bounded check statuses and unknowns. No account or API key is required. This is an optional observation, not an automatic guard, authorization, safety guarantee, or proof of successful task execution. Credentials, query parameters, fragments, private IP literals, and recognized local hostname forms are not accepted. Hostname checks are syntactic; this block does not verify public DNS resolution. Sim uses a fixed initial Guild URL, follows its native redirect policy (up to five redirects), and inherits parent cancellation when available. The socket timeout is not a total deadline. Sim first buffers a response under its native 10 MiB limit; this operation then accepts at most 64 KiB of observation JSON.
+
+
+
+## Actions
+
+### Agent Guild Observe Endpoint
+
+Send a public HTTPS endpoint URL to Agent Guild for a one-time observation of reachability, protocol and card signals. Shares the complete URL with Agent Guild, which may probe the endpoint. Returns check statuses and explicit unknowns, not authorization, a safety guarantee, or evidence of successful task execution. Hostname checks are syntactic; this block does not verify public DNS resolution. No account or API key required.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `targetUrl` | string | Yes | Exact public HTTPS endpoint URL to disclose to Agent Guild. No credentials, query parameters, fragments, or private endpoint URLs. |
+| `timeout` | number | No | Native request socket timeout in milliseconds, from 1 to 300000. If omitted, Sim uses its native 300000 ms default. This is not a total deadline. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `targetUrl` | string | Exact requested endpoint URL, matched against the service response |
+| `checks` | array | Six recognized checks; missing observations have status unknown |
+|   ↳ `check` | string | Recognized observation check name |
+|   ↳ `status` | string | Service-reported proven, failed, or unknown status |
+| `failed` | array | Recognized checks reported as failed |
+| `unknowns` | array | Recognized checks reported as unknown or absent |
+| `limitations` | array | Fixed interpretation and transport limitations |
+
+

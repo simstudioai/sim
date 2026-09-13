@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-11",
+  "updatedAt": "2026-09-12",
   "integrations": [
     {
       "type": "onepassword",
@@ -358,6 +358,29 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement", "enrichment"]
+    },
+    {
+      "type": "agent_guild",
+      "slug": "agent-guild",
+      "name": "Agent Guild",
+      "description": "Observe a public agent endpoint and retain unknowns",
+      "longDescription": "Deliberately shares the entire public HTTPS endpoint URL with Agent Guild, which may probe its protocol and discovery surfaces. Returns six bounded check statuses and unknowns. No account or API key is required. This is an optional observation, not an automatic guard, authorization, safety guarantee, or proof of successful task execution. Credentials, query parameters, fragments, private IP literals, and recognized local hostname forms are not accepted. Hostname checks are syntactic; this block does not verify public DNS resolution. Sim uses a fixed initial Guild URL, follows its native redirect policy (up to five redirects), and inherits parent cancellation when available. The socket timeout is not a total deadline. Sim first buffers a response under its native 10 MiB limit; this operation then accepts at most 64 KiB of observation JSON.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SearchIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/agent_guild",
+      "operations": [
+        {
+          "name": "Observe Endpoint",
+          "description": "Send a public HTTPS endpoint URL to Agent Guild for a one-time observation of reachability, protocol and card signals. Shares the complete URL with Agent Guild, which may probe the endpoint. Returns check statuses and explicit unknowns, not authorization, a safety guarantee, or evidence of successful task execution. Hostname checks are syntactic; this block does not verify public DNS resolution. No account or API key required."
+        }
+      ],
+      "operationCount": 1,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "none",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "agentic"]
     },
     {
       "type": "agentmail",

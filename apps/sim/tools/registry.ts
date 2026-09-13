@@ -76,6 +76,7 @@ import {
   affinityUpdateListFieldDropdownOptionTool,
   affinityUpdateNoteTool,
 } from '@/tools/affinity'
+import { agentGuildObserveEndpointTool } from '@/tools/agent_guild'
 import {
   agentmailCreateDraftTool,
   agentmailCreateInboxTool,
@@ -5939,6 +5940,7 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ExecutableToolConfig> = {
+  agent_guild_observe_endpoint: agentGuildObserveEndpointTool,
   a2a_cancel_task: a2aCancelTaskTool,
   a2a_get_agent_card: a2aGetAgentCardTool,
   a2a_get_task: a2aGetTaskTool,
