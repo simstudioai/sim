@@ -19,6 +19,7 @@ import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
   humanizeToolName,
+  normalizeToolActivityDescription,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
@@ -200,15 +201,22 @@ function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): str
 }
 
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
+  const activityDescription = normalizeToolActivityDescription(tc.activityDescription)
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status, tc.name)
+  const displayTitle = getToolStatusDisplayTitle(
+    resolvedTitle,
+    tc.status,
+    tc.name,
+    activityDescription
+  )
 
   return {
     id: tc.id,
     toolName: tc.name,
     displayTitle,
+    activityDescription,
     status: tc.status,
     params: tc.params,
     result: tc.result,

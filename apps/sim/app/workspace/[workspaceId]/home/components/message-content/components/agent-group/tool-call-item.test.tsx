@@ -48,6 +48,90 @@ describe('ToolCallItem', () => {
     expect(markup).not.toContain('Writing brief.md')
   })
 
+  it.each([
+    ['executing', 'Checking the invoice totals'],
+    ['success', 'Checked the invoice totals'],
+    ['error', 'Failed checking the invoice totals'],
+    ['cancelled', 'Stopped checking the invoice totals'],
+    ['rejected', 'Failed checking the invoice totals'],
+    ['skipped', 'Skipped checking the invoice totals'],
+  ] as const)(
+    'projects %s from the actual tool status onto the model description',
+    (status, title) => {
+      const markup = renderToStaticMarkup(
+        <ToolCallItem
+          toolName='prepare_file_edit'
+          displayTitle='Editing report.md'
+          activityDescription='Checking the invoice totals'
+          status={status}
+          streamingArgs='{"operation":"patch","title":"report.md"}'
+        />
+      )
+
+      expect(markup).toContain(title)
+      expect(markup).not.toContain('report.md')
+    }
+  )
+
+  it.each(['   ', 'a'.repeat(161)])(
+    'uses the existing title for an invalid description',
+    (activityDescription) => {
+      const markup = renderToStaticMarkup(
+        <ToolCallItem
+          toolName='grep'
+          displayTitle='Searching files'
+          activityDescription={activityDescription}
+          status='executing'
+        />
+      )
+
+      expect(markup).toContain('Searching files')
+    }
+  )
+
+  it('keeps an executing wait countdown in place of the model phrase', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='wait'
+        displayTitle='Waiting'
+        activityDescription='Waiting for the export'
+        status='executing'
+        params={{ seconds: 10 }}
+      />
+    )
+
+    expect(markup).toContain('10s')
+    expect(markup).not.toContain('Waiting for the export')
+  })
+
+  it('renders model descriptions as text, without interpreting markup', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='read'
+        displayTitle='Reading a page'
+        activityDescription='Reading <script>alert(1)</script>'
+        status='executing'
+      />
+    )
+
+    expect(markup).toContain('&lt;script&gt;')
+    expect(markup).not.toContain('<script>')
+  })
+
+  it('does not let model-authored outcome wording override a failure', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='read'
+        displayTitle='Reading a page'
+        activityDescription='Stopped checking invoices'
+        status='error'
+      />
+    )
+
+    expect(markup).toContain('Failed checking invoices')
+    expect(markup).not.toContain('Stopped checking invoices')
+  })
+
   it('defensively applies the completed verb for every successful tool row', () => {
     const markup = renderToStaticMarkup(
       <ToolCallItem toolName='diff_workflows' displayTitle='Comparing workflows' status='success' />

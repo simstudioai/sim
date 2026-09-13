@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { MOTHERSHIP_STREAM_V1_SCHEMA } from '@/lib/copilot/generated/mothership-stream-v1-schema'
 import {
   FfmpegOperationValues,
   ManageKnowledgeBaseOperationValues,
@@ -20,6 +21,7 @@ import {
   getWaitCountdownTitle,
   humanizeToolName,
   mvDisplayVerb,
+  normalizeToolActivityDescription,
 } from '@/lib/copilot/tools/tool-display'
 
 function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
@@ -814,5 +816,52 @@ describe('getToolStatusDisplayTitle for skipped and interrupted calls', () => {
       'Attempted to run checks'
     )
     expect(getToolStatusDisplayTitle('Checks', 'skipped')).toBe('Skipped: Checks')
+  })
+})
+
+describe('normalizeToolActivityDescription', () => {
+  it('matches the bound published by the producer contract', () => {
+    expect(MOTHERSHIP_STREAM_V1_SCHEMA).toHaveProperty(
+      '$defs.MothershipStreamV1ToolCallDescriptor.properties.activityDescription.maxLength',
+      160
+    )
+  })
+
+  it('normalizes a phrase without rewriting its meaning', () => {
+    expect(
+      normalizeToolActivityDescription('\uFEFF Checking\n\tthe\u00a0latest\u0085invoices  ')
+    ).toBe('Checking the latest invoices')
+  })
+
+  it.each([undefined, null, false, 42, {}, [], '', ' \n\t ', 'a'.repeat(161)])(
+    'ignores an invalid description: %j',
+    (value) => expect(normalizeToolActivityDescription(value)).toBeUndefined()
+  )
+
+  it('counts Unicode codepoints after whitespace normalization', () => {
+    expect(normalizeToolActivityDescription(`  ${'🧪'.repeat(160)}  `)).toBe('🧪'.repeat(160))
+    expect(normalizeToolActivityDescription('🧪'.repeat(161))).toBeUndefined()
+  })
+})
+
+describe('model-authored activity outcomes', () => {
+  it.each([
+    ['success', 'Checking invoices', 'Checked invoices'],
+    ['success', 'Check invoices', 'Completed: Check invoices'],
+    ['success', 'Reconciling invoices', 'Completed: Reconciling invoices'],
+    ['success', 'Revisando facturas', 'Completed: Revisando facturas'],
+    ['success', 'Stopped checking invoices', 'Completed checking invoices'],
+    ['success', 'Completed: Check invoices', 'Completed: Check invoices'],
+    ['error', 'Failed: Fetching invoices', 'Failed: Fetching invoices'],
+    ['error', 'Stopped checking invoices', 'Failed checking invoices'],
+    ['error', 'Completed checking invoices', 'Failed checking invoices'],
+    ['rejected', 'Failed checking invoices', 'Failed checking invoices'],
+    ['cancelled', 'Stopped reading notes', 'Stopped reading notes'],
+    ['interrupted', 'Completed: Check invoices', 'Stopped: Check invoices'],
+    ['skipped', 'Failed: Checking invoices', 'Skipped: Checking invoices'],
+  ])('projects %s once onto "%s"', (status, description, expected) => {
+    const title = getToolStatusDisplayTitle('Fallback', status, 'read', description)
+    expect(title).toBe(expected)
+    expect(getToolStatusDisplayTitle(title, status, 'read', description)).toBe(expected)
   })
 })

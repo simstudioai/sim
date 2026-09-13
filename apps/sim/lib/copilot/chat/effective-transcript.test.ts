@@ -39,6 +39,70 @@ function buildUserMessage(id: string, content: string) {
 }
 
 describe('buildEffectiveChatTranscript', () => {
+  it.each(['main', 'subagent'] as const)(
+    'retains each %s activity description when reconstructing live history',
+    (lane) => {
+      const scope =
+        lane === 'subagent'
+          ? {
+              lane,
+              spanId: 'browser-span',
+              parentSpanId: 'main',
+              parentToolCallId: 'browser-parent',
+              agentId: 'browser',
+            }
+          : undefined
+      const call = (seq: number, toolCallId: string, activityDescription?: string) =>
+        toBatchEvent(seq, {
+          v: 1,
+          seq,
+          ts: new Date(seq).toISOString(),
+          type: MothershipStreamV1EventType.tool,
+          stream: { streamId: 'stream-1' },
+          scope,
+          payload: {
+            phase: 'call',
+            executor: 'go',
+            mode: 'sync',
+            toolCallId,
+            toolName: 'browser_click',
+            arguments: { ref: toolCallId },
+            activityDescription,
+          },
+        })
+      const result = buildEffectiveChatTranscript({
+        messages: [buildUserMessage('stream-1', 'Open the project settings')],
+        activeStreamId: 'stream-1',
+        streamSnapshot: {
+          events: [
+            call(1, 'menu-call', 'Opening the project menu'),
+            call(2, 'settings-call', 'Opening the settings page'),
+            call(3, 'menu-call'),
+          ],
+          previewSessions: [],
+          status: 'active',
+        },
+      })
+      const tools = result[1].contentBlocks
+        ?.filter((block) => block.toolCall)
+        .map((block) => block.toolCall)
+      expect(tools).toEqual([
+        expect.objectContaining({
+          id: 'menu-call',
+          activityDescription: 'Opening the project menu',
+          display: { title: 'Opening the project menu' },
+          params: { ref: 'menu-call' },
+        }),
+        expect.objectContaining({
+          id: 'settings-call',
+          activityDescription: 'Opening the settings page',
+          display: { title: 'Opening the settings page' },
+          params: { ref: 'settings-call' },
+        }),
+      ])
+    }
+  )
+
   it('returns the existing transcript when the stream owner is no longer the trailing user', () => {
     const messages = [
       buildUserMessage('stream-1', 'Hello'),

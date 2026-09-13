@@ -11,6 +11,7 @@ export function HeroToolCallItem({
   renderStatus,
   toolName,
   displayTitle,
+  activityDescription,
   status,
 }: ToolCallItemProps) {
   const Icon =
@@ -21,7 +22,7 @@ export function HeroToolCallItem({
         : getToolIcon(toolName)
   const activity = (
     <ActivityStatus
-      label={getToolStatusDisplayTitle(displayTitle, status, toolName)}
+      label={getToolStatusDisplayTitle(displayTitle, status, toolName, activityDescription)}
       isActive={status === 'executing'}
       icon={<Icon className='size-full' />}
     />

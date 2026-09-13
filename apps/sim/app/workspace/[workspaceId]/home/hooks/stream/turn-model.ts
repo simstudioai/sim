@@ -11,7 +11,10 @@ import {
 import { CallIntegrationTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/copilot/tools/tool-display'
+import {
+  CONTEXT_COMPACTION_DISPLAY_TITLE,
+  normalizeToolActivityDescription,
+} from '@/lib/copilot/tools/tool-display'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
@@ -65,6 +68,8 @@ export interface ToolNode extends NodeBase {
   args?: Record<string, unknown>
   streamingArgs?: string
   uiTitle?: string
+  /** Model-authored activity text preserved across stream and snapshot replay. */
+  activityDescription?: string
   /**
    * Model-authored activity phrase for a gateway-resolved integration call
    * (e.g. "Reading recent emails"). Captured when the authoritative resolved
@@ -513,6 +518,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           tsMs
         )
         rebindResolvedIntegrationCall(node, toolName)
+        node.activityDescription ??= normalizeToolActivityDescription(payload.activityDescription)
         // Sim stamps this onto the call frame for a tool it is holding behind a
         // permission prompt. Only ever moves a live node INTO the waiting state;
         // a node that already has a result stays terminal, so a replayed call
@@ -531,8 +537,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         // description across a preserve-state rebuild.
         const restoredDescription = asString(payload.integrationDescription)
         if (restoredDescription) node.integrationDescription = restoredDescription
-        // Tool-call titles are derived from the tool name (+args) at serialize
-        // time; the stream only carries behavioral flags now.
         const ui = isRecordLike(payload.ui) ? payload.ui : undefined
         if (ui?.hidden === true) node.hidden = true
       } else if (phase === MothershipStreamV1ToolPhase.args_delta) {

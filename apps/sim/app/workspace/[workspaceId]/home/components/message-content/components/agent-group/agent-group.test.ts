@@ -120,6 +120,43 @@ describe('AgentGroup inline main activity', () => {
     container.remove()
   })
 
+  it.each(['mothership', 'workflow', 'browser'])(
+    'uses the same model description in the %s live header and expanded row',
+    (agentName) => {
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName,
+            agentLabel: agentName,
+            defaultExpanded: true,
+            isLaneOpen: true,
+            isStreaming: true,
+            items: [
+              {
+                type: 'tool',
+                data: {
+                  id: 'described-read',
+                  toolName: 'read',
+                  displayTitle: 'Reading files',
+                  activityDescription: 'Checking the project timeline',
+                  status: 'executing',
+                },
+              },
+            ],
+          })
+        )
+      )
+
+      const statuses = [...container.querySelectorAll('[role="status"]')]
+      expect(statuses).toHaveLength(agentName === 'mothership' ? 1 : 2)
+      for (const status of statuses) {
+        expect(status.textContent).toContain('Checking the project timeline')
+      }
+      expect(container.textContent).not.toContain('Reading files')
+      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+    }
+  )
+
   it.each([
     ['executing', 'Reading notes'],
     ['success', 'Read notes'],
@@ -733,6 +770,6 @@ describe('AgentGroup nested status line', () => {
       namedTool('Reading workflow', 'success' as ToolCallStatus, 1),
       group([namedTool('Deploying Invoice Sync as API', 'success' as ToolCallStatus, 2)]),
     ])
-    expect(header).toContain('Workflow Agent — Deploying Invoice Sync as API')
+    expect(header).toContain('Workflow Agent — Deployed Invoice Sync as API')
   })
 })
