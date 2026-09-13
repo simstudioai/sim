@@ -379,7 +379,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let existingWebhook: any = null
     /**
      * `userId` is server-owned: the polling token resolver falls back to that
-     * user's own OAuth account when no credential is set.
+     * user's own OAuth account when no credential is set. It is neither accepted
+     * from the client nor carried forward from a stored row; Gmail and Outlook
+     * polling setup derive it again from the credential after the save.
      */
     const originalProviderConfig: Record<string, unknown> = omit(providerConfig || {}, ['userId'])
     let resolvedProviderConfig = await resolveEnvVarsInObject(
@@ -388,36 +390,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowRecord.workspaceId || undefined
     )
 
-    /**
-     * Subscription handlers and pollers look `credentialId` up by id alone and
-     * mint tokens as its owner, so the actor must be able to use it in the
-     * workflow's workspace before anything is subscribed or saved.
-     */
-    const requestedCredentialId = originalProviderConfig.credentialId
-    if (requestedCredentialId != null && requestedCredentialId !== '') {
-      /** The row stores the unresolved text, so only a literal id is what gets authorized. */
-      if (
-        typeof requestedCredentialId !== 'string' ||
-        resolvedProviderConfig.credentialId !== requestedCredentialId
-      ) {
-        return NextResponse.json(
-          { error: 'providerConfig.credentialId must be a literal credential id' },
-          { status: 400 }
-        )
-      }
-      const credentialAccess = await authorizeCredentialUseForAuth(
-        { success: true, userId, authType: AuthType.SESSION },
-        { credentialId: requestedCredentialId, workflowId }
+    /** The row stores the unresolved text, so only a literal credential id can be authorized. */
+    if (resolvedProviderConfig.credentialId !== originalProviderConfig.credentialId) {
+      return NextResponse.json(
+        { error: 'providerConfig.credentialId must be a literal credential id' },
+        { status: 400 }
       )
-      if (!credentialAccess.ok) {
-        logger.warn(`[${requestId}] Webhook credential reference denied`, {
-          userId,
-          workflowId,
-          credentialId: requestedCredentialId,
-          reason: credentialAccess.error,
-        })
-        return NextResponse.json({ error: credentialAccess.error }, { status: 403 })
-      }
     }
 
     let externalSubscriptionCreated = false
@@ -438,6 +416,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .where(eq(webhook.id, targetWebhookId))
         .limit(1)
       existingWebhook = existingRows[0] || null
+    }
+
+    /**
+     * Subscription handlers, pollers, and subscription cleanup look `credentialId`
+     * up by id alone and mint tokens as its owner. A save acts with the requested
+     * credential or, when the request omits it, the stored one, so that credential
+     * must be usable by the actor in the workflow's workspace before anything is
+     * subscribed, cleaned up, or saved.
+     */
+    const effectiveCredentialId =
+      'credentialId' in originalProviderConfig
+        ? originalProviderConfig.credentialId
+        : existingWebhook?.providerConfig?.credentialId
+    if (effectiveCredentialId != null && effectiveCredentialId !== '') {
+      if (typeof effectiveCredentialId !== 'string') {
+        return NextResponse.json(
+          { error: 'providerConfig.credentialId must be a literal credential id' },
+          { status: 400 }
+        )
+      }
+      const credentialAccess = await authorizeCredentialUseForAuth(
+        { success: true, userId, authType: AuthType.SESSION },
+        { credentialId: effectiveCredentialId, workflowId }
+      )
+      if (!credentialAccess.ok) {
+        logger.warn(`[${requestId}] Webhook credential reference denied`, {
+          userId,
+          workflowId,
+          credentialId: effectiveCredentialId,
+          reason: credentialAccess.error,
+        })
+        return NextResponse.json({ error: credentialAccess.error }, { status: 403 })
+      }
     }
 
     /**
@@ -519,6 +530,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         userProvided
       )
     }
+    configToSave.userId = undefined
 
     try {
       if (targetWebhookId) {

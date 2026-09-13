@@ -573,26 +573,38 @@ describe('POST /api/webhooks credential references', () => {
   })
 
   /**
-   * A re-save that omits the identity fields keeps the ones the server stored,
-   * so an existing integration is not broken by the client never sending them.
+   * A re-save that omits `credentialId` still acts with the stored credential
+   * (polling setup and subscription cleanup read it), so that credential is
+   * authorized and kept, while a stored `userId` is never carried forward.
    */
-  it('keeps the stored credential and server-set userId on a re-save that omits them', async () => {
-    queueUpdatePathRows(true, { credentialId: 'stored-credential', userId: 'credential-owner' })
+  it('authorizes and keeps the stored credential on a re-save that omits it', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    queueUpdatePathRows(true, { credentialId: 'stored-credential', userId: 'stored-user' })
 
-    const response = await POST(
-      upsertRequest({ userId: 'victim-user', eventType: 'record.created' })
-    )
+    const response = await POST(upsertRequest({ eventType: 'record.created' }))
 
     expect(response.status).toBe(200)
-    expect(mocks.authorizeCredentialUseForAuth).not.toHaveBeenCalled()
+    expect(mocks.authorizeCredentialUseForAuth).toHaveBeenCalledWith(expect.anything(), {
+      credentialId: 'stored-credential',
+      workflowId: 'workflow-1',
+    })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerConfig: {
-          eventType: 'record.created',
-          credentialId: 'stored-credential',
-          userId: 'credential-owner',
-        },
+        providerConfig: { eventType: 'record.created', credentialId: 'stored-credential' },
       })
     )
+  })
+
+  it('refuses a re-save whose stored credential the actor cannot use', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue({
+      ok: false,
+      error: 'You do not have access to this credential.',
+    })
+    queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+    const response = await POST(upsertRequest({ eventType: 'record.created' }))
+
+    expect(response.status).toBe(403)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })
