@@ -197,11 +197,11 @@ export interface McpClientOptions {
   securityPolicy?: McpSecurityPolicy
   onToolsChanged?: McpToolsChangedCallback
   /**
-   * Pre-resolved IP address to pin all transport HTTP connections to. When
-   * set, the SDK transport uses a custom fetch backed by an undici Agent with
-   * a fixed DNS lookup, preventing DNS-rebinding (TOCTOU) attacks between
-   * URL validation and connection. Should be supplied by callers that have
-   * just validated the URL via `validateMcpServerSsrf`.
+   * Address returned by `validateMcpServerSsrf` for this URL. A private/loopback
+   * address (only permitted on a self-hosted deployment whose policy allows it)
+   * pins every transport connection to it, so the name cannot rebind elsewhere
+   * after validation. A public address or none leaves the transport on the SSRF
+   * guard, which validates every connect and redirect hop itself.
    */
   resolvedIP?: string
   /**

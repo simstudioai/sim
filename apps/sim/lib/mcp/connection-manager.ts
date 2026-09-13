@@ -14,6 +14,7 @@ import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { isTest } from '@/lib/core/config/env-flags'
 import { McpClient } from '@/lib/mcp/client'
+import { validateMcpDomain, validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import {
@@ -106,12 +107,19 @@ export class McpConnectionManager {
    *
    * If the server does NOT support `listChanged`, the client is disconnected
    * immediately — there's nothing to listen for.
+   *
+   * `config` must already have its env-var references resolved. The destination
+   * is validated here on every dial, including reconnects, so the address is
+   * never carried over from an earlier resolution.
+   *
+   * @throws McpDomainNotAllowedError when the domain is not allowlisted
+   * @throws McpSsrfError when the egress policy refuses the destination
+   * @throws McpDnsResolutionError when the hostname cannot be resolved
    */
   async connect(
     config: McpServerConfig,
     userId: string,
-    workspaceId: string,
-    resolvedIP?: string | null
+    workspaceId: string
   ): Promise<{ supportsListChanged: boolean }> {
     if (this.disposed) {
       logger.warn('Connection manager is disposed, ignoring connect request')
@@ -171,6 +179,9 @@ export class McpConnectionManager {
           },
         }
       }
+
+      validateMcpDomain(config.url)
+      const resolvedIP = await validateMcpServerSsrf(config.url)
 
       const client = new McpClient({
         config,

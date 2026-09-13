@@ -22,6 +22,7 @@ vi.mock('@sim/logger', () => ({
 
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createGuardedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
+  createPinnedPrivateMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
 
 /**
@@ -72,6 +73,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { McpClient } from '@/lib/mcp/client'
+import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpOauthAuthorizationRequiredError,
@@ -370,6 +372,38 @@ describe('McpClient notification handler', () => {
     await expect(client.connect()).rejects.toThrow('Upstream rejected')
 
     expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
+  })
+
+  it('keeps the transport on the SSRF guard when no validated address is supplied', () => {
+    new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    const guarded = vi.mocked(createGuardedMcpFetch).mock.results.at(-1)?.value
+    expect(createGuardedMcpFetch).toHaveBeenCalledWith('https://test.example.com/mcp')
+    expect(createPinnedPrivateMcpFetch).not.toHaveBeenCalled()
+    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch).toBe(
+      guarded.fetch
+    )
+  })
+
+  it('pins the transport to a validated private address', () => {
+    new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '10.0.0.5',
+    })
+
+    const pinned = vi.mocked(createPinnedPrivateMcpFetch).mock.results.at(-1)?.value
+    expect(createPinnedPrivateMcpFetch).toHaveBeenCalledWith(
+      '10.0.0.5',
+      'https://test.example.com/mcp'
+    )
+    expect(createGuardedMcpFetch).not.toHaveBeenCalled()
+    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch).toBe(
+      pinned.fetch
+    )
   })
 
   it('closes the pinned transport Agent when connect fails', async () => {
