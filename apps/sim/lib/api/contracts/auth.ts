@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -33,7 +34,7 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
-    orgId: z.string().optional(),
+    orgId: organizationIdSchema,
     jitProvisioningEnabled: z.boolean().default(true),
     mapping: ssoMappingSchema,
     clientId: z.string().min(1, 'Client ID is required for OIDC'),
@@ -61,7 +62,7 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
-    orgId: z.string().optional(),
+    orgId: organizationIdSchema,
     jitProvisioningEnabled: z.boolean().default(true),
     mapping: ssoMappingSchema,
     entryPoint: z.string().url('Entry point must be a valid URL for SAML'),

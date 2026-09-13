@@ -1350,9 +1350,10 @@ export const auth = betterAuth({
              * `email_verified` claim substitutes for the domain binding
              * entirely: an IdP could assert any address — including one from a
              * domain it does not own — and auto-link into that user's existing
-             * account. Since a provider row can be registered by any Enterprise
-             * org admin (and by any signed-in user when self-hosted), trusting
-             * the claim makes every account reachable from any tenant's IdP.
+             * account. Since a provider row can be registered by any
+             * organization owner or admin (or by an operator via the register
+             * script), trusting the claim makes every account reachable from
+             * any tenant's IdP.
              *
              * Turning it on only ever set `emailVerified` on the local row; it
              * was never what made linking work. Entra omits the claim, and SAML
