@@ -827,6 +827,9 @@ function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unk
           id: block.toolCall.id,
           name: block.toolCall.name,
           state: block.toolCall.status,
+          ...(block.toolCall.activityDescription
+            ? { activityDescription: block.toolCall.activityDescription }
+            : {}),
           ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
           ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
           ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -3601,6 +3604,9 @@ export function useChat(
               name: block.toolCall.name,
               state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
               params: block.toolCall.params,
+              ...(block.toolCall.activityDescription
+                ? { activityDescription: block.toolCall.activityDescription }
+                : {}),
               result: block.toolCall.result,
               ...(display ? { display } : {}),
               calledBy: block.toolCall.calledBy,

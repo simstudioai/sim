@@ -15,7 +15,12 @@ const MAX_SUMMARY_ACTIONS = 2
 export function getToolActivitySummary(tools: ToolCallData[]): string {
   if (tools.length === 1) {
     const tool = tools[0]
-    return getToolStatusDisplayTitle(tool.displayTitle, tool.status, tool.toolName)
+    return getToolStatusDisplayTitle(
+      tool.displayTitle,
+      tool.status,
+      tool.toolName,
+      tool.activityDescription
+    )
   }
   const labels = new Set<string>()
   let failed = 0

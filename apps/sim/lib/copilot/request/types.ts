@@ -29,6 +29,8 @@ export interface ToolCallState {
   /** Bounded registry ID of the agent that invoked this tool. */
   agentId?: string
   displayTitle?: string
+  /** Model-authored activity text, separate from executable tool arguments. */
+  activityDescription?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
   /** Accumulated partial JSON of the arguments while the model streams them. */

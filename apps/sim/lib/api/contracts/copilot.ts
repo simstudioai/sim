@@ -203,6 +203,7 @@ const storedToolCallSchema = z
     id: z.string().optional(),
     name: z.string().optional(),
     state: z.string().optional(),
+    activityDescription: z.string().optional(),
     params: z.record(z.string(), z.unknown()).optional(),
     result: z
       .object({

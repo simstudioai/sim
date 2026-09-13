@@ -144,6 +144,7 @@ export interface MothershipStreamV1ToolCallEventEnvelope {
   v: 1
 }
 export interface MothershipStreamV1ToolCallDescriptor {
+  activityDescription?: string
   arguments?: MothershipStreamV1AdditionalPropertiesMap
   executor: MothershipStreamV1ToolExecutor
   mode: MothershipStreamV1ToolMode

@@ -4,16 +4,22 @@ import { stripVersionSuffix, truncate } from '@sim/utils/string'
 /**
  * Single source of truth for copilot tool-call display titles.
  *
- * The mothership (Go) no longer emits any presentation metadata on the stream —
- * tool-call titles are derived entirely here, keyed by tool name (plus arguments
- * for the dynamic cases). The live client render layer (see
+ * Model-authored invocation descriptions take precedence when available. Fallback
+ * titles are derived here from the tool name and arguments. The live client render layer (see
  * `home/hooks/stream/stream-helpers.ts`) wraps this with workspace/block-name
  * enrichment for the run_* tools; every other surface (server persistence,
  * transcript replay, fallback rendering) calls `getToolDisplayTitle` directly.
  *
  * Icons are likewise client-owned — see `getAgentIcon` in the message-content
- * utils. Nothing about tool presentation lives on the Go side anymore.
+ * utils. Tool status, icons, and fallback wording remain deterministic.
  */
+
+/** Normalizes optional model-authored activity text using the producer's Unicode bound. */
+export function normalizeToolActivityDescription(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const description = value.replace(/[\p{White_Space}\uFEFF]+/gu, ' ').trim()
+  return description && Array.from(description).length <= 160 ? description : undefined
+}
 
 type ToolArgs = Record<string, unknown> | undefined
 
@@ -1439,8 +1445,12 @@ function statesTerminalOutcome(title: string): boolean {
 }
 
 /** Apply one terminal outcome prefix while preserving already-resolved titles. */
-function getToolOutcomeTitle(title: string, outcome: 'Failed' | 'Stopped' | 'Skipped'): string {
-  if (statesTerminalOutcome(title)) return title
+function getToolOutcomeTitle(
+  title: string,
+  outcome: 'Failed' | 'Stopped' | 'Skipped',
+  preserveExistingOutcome = true
+): string {
+  if (preserveExistingOutcome && statesTerminalOutcome(title)) return title
   const firstWord = firstWordOf(title)
   if (COMPLETED_VERB_REWRITES[firstWord]) {
     return `${outcome} ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
@@ -1472,16 +1482,21 @@ export function getToolStoppedTitle(title: string): string {
 export function getToolStatusDisplayTitle(
   title: string,
   status: string,
-  toolName?: string
+  toolName?: string,
+  activityDescription?: string
 ): string {
+  const description = normalizeToolActivityDescription(activityDescription)
+  title = description ?? title
   if (status === 'success' && toolName === 'browser_request_takeover') {
     return 'Resumed browser control'
   }
   if (status === 'success') return getToolCompletedTitle(title) ?? title
-  if (status === 'error' || status === 'rejected') return getToolFailedTitle(title)
-  if (status === 'cancelled' || status === 'aborted' || status === 'interrupted') {
-    return getToolStoppedTitle(title)
+  if (status === 'error' || status === 'rejected') {
+    return getToolOutcomeTitle(title, 'Failed', !description)
   }
-  if (status === 'skipped') return getToolOutcomeTitle(title, 'Skipped')
+  if (status === 'cancelled' || status === 'aborted' || status === 'interrupted') {
+    return getToolOutcomeTitle(title, 'Stopped', !description)
+  }
+  if (status === 'skipped') return getToolOutcomeTitle(title, 'Skipped', !description)
   return title
 }

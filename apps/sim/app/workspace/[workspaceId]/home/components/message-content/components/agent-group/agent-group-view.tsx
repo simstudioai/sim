@@ -4,6 +4,7 @@ import { type ComponentType, type ReactNode, useMemo, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
+import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
 import { BrowserAgentIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
@@ -52,7 +53,12 @@ export interface AgentGroupProps {
 }
 
 function toolStatusTitle(tool: ToolCallData): string {
-  return tool.displayTitle || String(tool.toolName ?? '')
+  return getToolStatusDisplayTitle(
+    tool.displayTitle || String(tool.toolName ?? ''),
+    tool.status,
+    tool.toolName,
+    tool.activityDescription
+  )
 }
 
 /**
@@ -213,6 +219,7 @@ export function AgentGroupView({
           toolCallId={item.data.id}
           toolName={item.data.toolName}
           displayTitle={item.data.displayTitle}
+          activityDescription={item.data.activityDescription}
           status={item.data.status}
           params={item.data.params}
           result={item.data.result}

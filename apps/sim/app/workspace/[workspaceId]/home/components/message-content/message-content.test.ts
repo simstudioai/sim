@@ -162,6 +162,33 @@ describe('getOrchestratorMessageText', () => {
 })
 
 describe('parseBlocks span-identity tree', () => {
+  it.each(['read', 'respond', 'prepare_file_edit'])(
+    'prefers invocation intent over %s fallback titles',
+    (name) => {
+      const segments = parseBlocks([
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'described-tool',
+            name,
+            status: 'success',
+            displayTitle: 'Fallback title',
+            activityDescription: '  Checking\nlaunch updates ',
+            params: { path: 'workspace/files/brief.md' },
+          },
+          timestamp: 1,
+        },
+      ])
+      const group = segments[0]
+      if (group.type !== 'agent_group') throw new Error('expected mothership group')
+      const tool = group.items[0]
+      if (tool?.type !== 'tool') throw new Error('expected tool activity')
+      expect(tool.data.displayTitle).toBe('Checked launch updates')
+      expect(tool.data.activityDescription).toBe('Checking launch updates')
+      expect(tool.data.params).toEqual({ path: 'workspace/files/brief.md' })
+    }
+  )
+
   it('refines a completed credential rename with its previous and new names', () => {
     const segments = parseBlocks([
       {

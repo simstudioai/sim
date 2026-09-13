@@ -45,6 +45,7 @@ export function CircleStop({ className }: { className?: string }) {
 export interface ToolCallItemProps {
   toolName: string
   displayTitle: string
+  activityDescription?: string
   status: ToolCallStatus
   params?: Record<string, unknown>
   result?: ToolCallData['result']
@@ -125,6 +126,7 @@ function useElapsedMs(
 export function ToolCallItem({
   toolName,
   displayTitle,
+  activityDescription,
   status,
   params,
   result,
@@ -188,7 +190,12 @@ export function ToolCallItem({
   const liveTitle = isCountingDown
     ? getWaitCountdownTitle(params, elapsedMs)
     : liveWorkspaceFileTitle || displayTitle
-  const title = getToolStatusDisplayTitle(liveTitle, status, toolName)
+  const title = getToolStatusDisplayTitle(
+    liveTitle,
+    status,
+    toolName,
+    isCountingDown ? undefined : activityDescription
+  )
 
   // A waiting terminal handoff swaps its row for the hand-back chip, the same
   // way a browser takeover does: the row would otherwise spin with nothing
@@ -209,7 +216,7 @@ export function ToolCallItem({
       <ToolPermissionCard
         toolCallId={toolCallId}
         toolName={toolName}
-        displayTitle={liveTitle}
+        displayTitle={title}
         params={params}
       />
     )
