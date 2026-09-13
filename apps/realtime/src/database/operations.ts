@@ -26,6 +26,7 @@ import {
 import { randomFloat } from '@sim/utils/random'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
+import type { DbOrTx } from '@sim/workflow-persistence/types'
 import {
   filterAcyclicEdges,
   filterUniqueWorkflowEdges,
@@ -1989,18 +1990,8 @@ async function handleSubflowOperationTx(
   }
 }
 
-interface SubblockUpdateBlockRecord {
-  id: string
-  subBlocks: unknown
-  locked: boolean
-  data: unknown
-}
-
 /** Every block in the workflow by id, for the locked-container check subblock writes need. */
-async function loadSubblockUpdateBlocks(
-  tx: Pick<typeof db, 'select'>,
-  workflowId: string
-): Promise<Record<string, SubblockUpdateBlockRecord>> {
+async function loadSubblockUpdateBlocks(tx: DbOrTx, workflowId: string) {
   const allBlocks = await tx
     .select({
       id: workflowBlocks.id,
@@ -2011,6 +2002,24 @@ async function loadSubblockUpdateBlocks(
     .from(workflowBlocks)
     .where(eq(workflowBlocks.workflowId, workflowId))
   return Object.fromEntries(allBlocks.map((block) => [block.id, block]))
+}
+
+/**
+ * The block a subblock write targets, rejecting one that is missing, locked, or in a locked
+ * container.
+ */
+function getWritableSubblockUpdateBlock(
+  blocksById: Awaited<ReturnType<typeof loadSubblockUpdateBlocks>>,
+  blockId: string
+) {
+  const block = blocksById[blockId]
+  if (!block) {
+    throw new Error(`Block ${blockId} not found`)
+  }
+  if (isWorkflowBlockProtected(blockId, blocksById)) {
+    throw new Error(`Block ${blockId} is locked or inside a locked container`)
+  }
+  return block
 }
 
 // Subblock operations - targeted value updates without replacing workflow state
@@ -2035,14 +2044,7 @@ async function handleSubblockOperationTx(
           throw new Error('Missing required fields for subblock batch update')
         }
 
-        const block = blocksById[blockId]
-        if (!block) {
-          throw new Error(`Block ${blockId} not found`)
-        }
-
-        if (isWorkflowBlockProtected(blockId, blocksById)) {
-          throw new Error(`Block ${blockId} is locked or inside a locked container`)
-        }
+        const block = getWritableSubblockUpdateBlock(blocksById, blockId)
 
         const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
         const currentSubBlock = subBlocks[subblockId]
@@ -2078,13 +2080,7 @@ async function handleSubblockOperationTx(
       }
 
       const blocksById = await loadSubblockUpdateBlocks(tx, workflowId)
-      const block = blocksById[blockId]
-      if (!block) {
-        throw new Error(`Block ${blockId} not found`)
-      }
-      if (isWorkflowBlockProtected(blockId, blocksById)) {
-        throw new Error(`Block ${blockId} is locked or inside a locked container`)
-      }
+      const block = getWritableSubblockUpdateBlock(blocksById, blockId)
 
       const subBlocks = {
         ...((block.subBlocks as Record<string, Record<string, unknown>> | null) || {}),
