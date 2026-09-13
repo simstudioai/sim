@@ -6,7 +6,7 @@ import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import { openUrlInNewBrowserTab, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import {
-  type DesktopTabStripOptions,
+  type DesktopTabResourceOptions,
   useDesktopTabResources,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -23,7 +23,7 @@ function switchBrowserTab(tabId: string, scopeId: string): void {
  * Projects the desktop app's live browser pages into `browser` resource tabs,
  * one per page. See {@link useDesktopTabResources} for the shared model.
  */
-export function useBrowserTabResources(options: DesktopTabStripOptions): void {
+export function useBrowserTabResources(options: DesktopTabResourceOptions): void {
   const { scopeId, selectResource } = options
   const hasSession = useBrowserSessionStore((state) => state.sessions[scopeId] !== undefined)
   const browserTabs = useBrowserSessionStore(

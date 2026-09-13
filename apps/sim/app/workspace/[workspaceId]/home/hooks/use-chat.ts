@@ -117,6 +117,8 @@ import {
   dispatchStreamEvent,
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
+import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
+import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import {
   fetchMothershipChatHistory,
   type MothershipChatHistory,
@@ -1306,6 +1308,12 @@ export interface UseChatOptions {
    * selection intentionally stays out of the URL.
    */
   activeResourceState?: [string | null, Dispatch<SetStateAction<string | null>>]
+  /**
+   * Whether this surface projects the desktop app's browser and terminal tabs
+   * into its resources. Only then does the shown resource depend on which tab
+   * the desktop app displays.
+   */
+  projectsDesktopTabs?: boolean
   /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
 }
@@ -1335,6 +1343,7 @@ export function getMothershipUseChatOptions(
   return {
     apiPath: MOTHERSHIP_CHAT_API_PATH,
     stopPath: '/api/mothership/chat/stop',
+    projectsDesktopTabs: true,
     ...options,
   }
 }
@@ -1446,14 +1455,33 @@ export function useChat(
   const pendingResourceReordersRef = useRef(new Map<string, MothershipResource[]>())
   const pendingResourceReorderFlushesRef = useRef(new Map<string, Promise<void>>())
 
-  // Derive the effective active resource ID for rendering without writing a
-  // passive fallback back into the user's URL selection.
-  const effectiveActiveResourceId = useMemo(() => {
-    if (resources.length === 0) return null
-    if (activeResourceId && resources.some((r) => r.id === activeResourceId))
-      return activeResourceId
-    return resources[resources.length - 1].id
-  }, [resources, activeResourceId])
+  // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
+  // migrates this bucket onto the real chatId on first send. Rotated on
+  // home reset so a new pending chat starts with an empty bucket.
+  const pendingChatKeyRef = useRef<string>(`${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`)
+  const pendingDesktopScopeIdRef = useRef(
+    desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
+  )
+  const initialDesktopScopeId = desktopChatScopeId(
+    scopeKey,
+    initialChatId,
+    pendingChatKeyRef.current
+  )
+  const desktopScopeIdRef = useRef(initialDesktopScopeId)
+  const [desktopScopeId, setDesktopScopeId] = useState(initialDesktopScopeId)
+  const nativeActiveTabIds = useNativeActiveTabIds(
+    options?.projectsDesktopTabs ? desktopScopeId : null
+  )
+
+  const nativeActiveTabIdsRef = useRef(nativeActiveTabIds)
+  nativeActiveTabIdsRef.current = nativeActiveTabIds
+
+  // Derived for rendering rather than written back, so nothing the user did not
+  // choose ever lands in their selection.
+  const effectiveActiveResourceId = useMemo(
+    () => resolveEffectiveResourceId(resources, activeResourceId, nativeActiveTabIds),
+    [resources, activeResourceId, nativeActiveTabIds]
+  )
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
@@ -1502,10 +1530,6 @@ export function useChat(
     [queryClient]
   )
 
-  // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
-  // migrates this bucket onto the real chatId on first send. Rotated on
-  // home reset so a new pending chat starts with an empty bucket.
-  const pendingChatKeyRef = useRef<string>(`${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`)
   const [chatKey, setChatKey] = useState<string>(initialChatId ?? pendingChatKeyRef.current)
   const chatKeyRef = useRef<string>(chatKey)
   chatKeyRef.current = chatKey
@@ -1567,16 +1591,6 @@ export function useChat(
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
-  const pendingDesktopScopeIdRef = useRef(
-    desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
-  )
-  const initialDesktopScopeId = desktopChatScopeId(
-    scopeKey,
-    initialChatId,
-    pendingChatKeyRef.current
-  )
-  const desktopScopeIdRef = useRef(initialDesktopScopeId)
-  const [desktopScopeId, setDesktopScopeId] = useState(initialDesktopScopeId)
   /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
@@ -2479,9 +2493,9 @@ export function useChat(
       // An explicit selection wins. Otherwise pin the last resource the server
       // holds, not the last on screen: local-only browser tabs can land before
       // the history does, and which side arrives first must not decide which
-      // tab the chat opens on. When the server holds nothing, hydration writes
-      // no fallback: the desktop app remembers which of its tabs the user was
-      // on, and the desktop tab hooks adopt that tab instead of the last one.
+      // tab the chat opens on. When the server holds nothing it writes no
+      // fallback at all: the selection stays empty so the shown resource can be
+      // resolved against the tab the desktop app remembers.
       const selectedResourceId = selectedResourceIdRef.current
       const hydratedActiveResourceId =
         selectedResourceId && mergedResources.some((resource) => resource.id === selectedResourceId)
@@ -2490,11 +2504,13 @@ export function useChat(
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
-        // The ref keeps an eager fallback so a request sent in this commit
-        // still attaches a resource; the selection itself stays empty so the
-        // desktop app's remembered tab can win.
-        activeResourceIdRef.current =
-          hydratedActiveResourceId ?? mergedResources[mergedResources.length - 1].id
+        // The ref is set eagerly so a request sent in this commit still
+        // attaches a resource, through the same rule the render path uses.
+        activeResourceIdRef.current = resolveEffectiveResourceId(
+          mergedResources,
+          hydratedActiveResourceId,
+          nativeActiveTabIdsRef.current
+        )
         setResources(mergedResources)
         setActiveResourceId(hydratedActiveResourceId)
       }

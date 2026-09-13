@@ -414,11 +414,13 @@ export function ResourceTabs({
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
       if (!confirmClosingRunningTerminals(targets, terminalTabs)) return
-      // Closing the shown tab moves to its neighbour, right then left, the way
-      // the desktop app picks the next native tab, so the strip does not fall
-      // back to its last tab and jump once the close lands.
+      // Closing the shown tab moves to its neighbour, right then left, so the
+      // strip does not fall back to its last tab and jump. For a desktop tab
+      // this is also the neighbour the desktop app itself picks.
       if (!isMulti && activeId === resource.id) {
-        const nextId = findNearestId(resources, index, null)
+        const sameKind = new Set(resources.filter((r) => r.type === resource.type).map((r) => r.id))
+        const nextId =
+          findNearestId(resources, index, sameKind) ?? findNearestId(resources, index, null)
         if (nextId) selectResource(nextId)
       }
       // A browser tab's page is closed natively and its resource dropped at

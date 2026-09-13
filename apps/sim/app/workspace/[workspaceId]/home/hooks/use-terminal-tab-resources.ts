@@ -3,7 +3,7 @@ import type { TerminalTabState } from '@sim/terminal-protocol'
 import { terminalIdFromResourceId, terminalResourceId } from '@/lib/terminal/resource-id'
 import { switchTerminal } from '@/lib/terminal/transport'
 import {
-  type DesktopTabStripOptions,
+  type DesktopTabResourceOptions,
   useDesktopTabResources,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -20,7 +20,7 @@ function showTerminal(resourceId: string, scopeId: string): void {
  * Projects the desktop app's live shells into `terminal` resource tabs, one
  * per shell. See {@link useDesktopTabResources} for the shared model.
  */
-export function useTerminalTabResources(options: DesktopTabStripOptions): void {
+export function useTerminalTabResources(options: DesktopTabResourceOptions): void {
   const { scopeId } = options
   const hasSession = useCopilotTerminalStore((state) => state.sessions[scopeId] !== undefined)
   const terminalTabs = useCopilotTerminalStore(
@@ -49,8 +49,8 @@ export function useTerminalTabResources(options: DesktopTabStripOptions): void {
     type: 'terminal',
     tabs,
     hasSession,
-    activeTabId: activeTerminalId && terminalResourceId(activeTerminalId),
-    agentTabId: agentTerminalId && terminalResourceId(agentTerminalId),
+    activeTabId: activeTerminalId ? terminalResourceId(activeTerminalId) : null,
+    agentTabId: agentTerminalId ? terminalResourceId(agentTerminalId) : null,
     switchTab: showTerminal,
   })
 }

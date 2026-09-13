@@ -224,7 +224,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const resourceSelectionOwnedByUserRef = useRef(false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     const presentation = resolveResourceEventPresentation({
       activeResourceId,
       activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
@@ -317,7 +317,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const expandResource = () => {
     resourceCollapseOwnedByUserRef.current = false
     resourceSelectionOwnedByUserRef.current = true
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     if (activeResourceId) clearResourceActivity(activeResourceId)
     setResourceCollapsed(false)
   }
@@ -339,12 +339,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     resources,
     activeResourceId,
     selectedResourceId: activeResourceParam,
-    // A chat without an id has nothing stored to wait for.
-    hydrated: resolvedChatId === undefined || !isChatHistoryPending,
     addResource,
     removeResource,
     selectResource: selectResourceFromUser,
-    restoreResource: setActiveResourceId,
     onResourceEvent: handleResourceEvent,
   }
   useBrowserTabResources(desktopTabResourceOptions)

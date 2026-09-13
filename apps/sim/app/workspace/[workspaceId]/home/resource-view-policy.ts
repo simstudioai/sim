@@ -1,4 +1,44 @@
 import type { SetStateAction } from 'react'
+import type { MothershipResource } from '@/lib/copilot/resources/types'
+
+/** The tab each desktop-backed kind currently shows, as resource ids. */
+export interface NativeActiveTabIds {
+  browser: string | null
+  terminal: string | null
+}
+
+/**
+ * Which resource the panel shows.
+ *
+ * An explicit selection wins whenever it is still on screen. Otherwise the
+ * strip falls back to its last resource — except for the desktop-backed kinds,
+ * where the desktop app is already showing the tab the user left the chat on.
+ * Preferring that tab is what makes reopening a chat land where the user left
+ * it, and deriving it here rather than writing it back means no arrival order
+ * of tabs, history or native state can leave a tab the user did not pick
+ * stored as their selection.
+ */
+export function resolveEffectiveResourceId(
+  resources: readonly MothershipResource[],
+  selectedResourceId: string | null,
+  nativeActiveTabIds?: NativeActiveTabIds
+): string | null {
+  if (resources.length === 0) return null
+  if (selectedResourceId && resources.some((resource) => resource.id === selectedResourceId)) {
+    return selectedResourceId
+  }
+  const fallback = resources[resources.length - 1]
+  if (fallback.type === 'browser' || fallback.type === 'terminal') {
+    const nativeId = nativeActiveTabIds?.[fallback.type] ?? null
+    if (
+      nativeId &&
+      resources.some((resource) => resource.type === fallback.type && resource.id === nativeId)
+    ) {
+      return nativeId
+    }
+  }
+  return fallback.id
+}
 
 export function resolveResourceSelectionUpdate(
   currentResourceId: string | null,

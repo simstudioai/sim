@@ -1,6 +1,29 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import { terminalResourceId } from '@/lib/terminal/resource-id'
 import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import type { NativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
+
+/**
+ * The tab the desktop app currently shows for a chat, per kind, as resource
+ * ids. The strip prefers these over its own last-resource fallback. Pass null
+ * from a surface that projects no desktop tabs, so it never re-renders for a
+ * native switch it cannot show.
+ */
+export function useNativeActiveTabIds(scopeId: string | null): NativeActiveTabIds {
+  const browser = useBrowserSessionStore((state) =>
+    scopeId === null ? null : (state.sessions[scopeId]?.activeTabId ?? null)
+  )
+  const terminal = useCopilotTerminalStore((state) =>
+    scopeId === null ? null : (state.sessions[scopeId]?.tabs.activeTerminalId ?? null)
+  )
+  return useMemo(
+    () => ({ browser, terminal: terminal ? terminalResourceId(terminal) : null }),
+    [browser, terminal]
+  )
+}
 
 /** One live desktop tab, as the strip needs to know it. */
 export interface DesktopTab {
@@ -9,7 +32,7 @@ export interface DesktopTab {
 }
 
 /** What the strip shares with every kind of desktop-backed resource tab. */
-export interface DesktopTabStripOptions {
+export interface DesktopTabResourceOptions {
   /** Desktop scope whose live tabs back this chat's resource tabs. */
   scopeId: string
   resources: readonly MothershipResource[]
@@ -17,29 +40,16 @@ export interface DesktopTabStripOptions {
   activeResourceId: string | null
   /** The explicit selection alone, without the strip's fallback. */
   selectedResourceId: string | null
-  /**
-   * Whether the chat's stored resources have been applied to the strip.
-   * Adopting a tab writes it to `activeResourceId`, so adopting on top of a
-   * provisional fallback would let the arrival order of the tab list and the
-   * chat history decide what the chat opens on.
-   */
-  hydrated: boolean
   /** Adds a tab without activating it; activation goes through {@link onResourceEvent}. */
   addResource: (resource: MothershipResource) => void
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   /** Explicit user selection, which claims the strip's selection for the user. */
   selectResource: (resourceId: string) => void
-  /**
-   * Adopts the desktop app's remembered tab as the shown resource without
-   * claiming the selection for the user, so agent activity can still take the
-   * view the way it does on any chat open.
-   */
-  restoreResource: (resourceId: string) => void
   /** Agent activity on a tab, subject to the panel's user-ownership policy. */
   onResourceEvent: ResourceEventHandler
 }
 
-interface UseDesktopTabResourcesOptions extends DesktopTabStripOptions {
+interface UseDesktopTabResourcesOptions extends DesktopTabResourceOptions {
   type: 'browser' | 'terminal'
   /** The desktop app's live tab list for the scope, in its order. */
   tabs: readonly DesktopTab[]
@@ -57,41 +67,13 @@ interface UseDesktopTabResourcesOptions extends DesktopTabStripOptions {
   switchTab: (tabId: string, scopeId: string) => void
 }
 
-/**
- * The desktop app's active tab when it is not the tab the strip shows, and the
- * strip is on one of this kind. Null when the two already agree or the strip
- * is showing something else entirely.
- */
-function nativeTabOffStrip(
+/** Whether the resource the strip shows is a tab of this kind. */
+function stripShowsKind(
   resources: readonly MothershipResource[],
   activeResourceId: string | null,
-  activeTabId: string | null,
   type: MothershipResourceType
-): string | null {
-  if (!activeTabId || activeTabId === activeResourceId) return null
+): boolean {
   return resources.find((resource) => resource.id === activeResourceId)?.type === type
-    ? activeTabId
-    : null
-}
-
-/**
- * The same tab, narrowed to one the strip still holds as a resource: a tab
- * just closed there stays the desktop app's active tab until the close lands,
- * and adopting it would show a tab that is gone. Following a switch the user
- * made needs no such check — a brand-new tab is followed before the strip has
- * projected it.
- */
-function nativeTabToAdopt(
-  resources: readonly MothershipResource[],
-  activeResourceId: string | null,
-  activeTabId: string | null,
-  type: MothershipResourceType
-): string | null {
-  const tabId = nativeTabOffStrip(resources, activeResourceId, activeTabId, type)
-  if (!tabId) return null
-  return resources.some((resource) => resource.type === type && resource.id === tabId)
-    ? tabId
-    : null
 }
 
 /**
@@ -103,10 +85,9 @@ function nativeTabToAdopt(
  * a resource tab closes its native tab at the strip, which then comes back
  * through the same list. Visible selection is routed the same way — choosing
  * a resource tab switches the native tab, and a native switch follows into the
- * strip while the user is on that kind of tab. Without an explicit selection
- * the desktop app's own active tab wins: it remembers the tab the user left a
- * chat on, so reopening the chat lands there instead of on the strip's
- * last-tab fallback.
+ * strip while the user is on that kind of tab. Which resource the strip shows
+ * when nothing is selected is resolved by `resolveEffectiveResourceId`, not
+ * here.
  *
  * The agent never moves the visible tab itself. Its tab is announced as
  * resource activity, so the existing view policy decides whether to show it or
@@ -123,11 +104,9 @@ export function useDesktopTabResources({
   resources,
   activeResourceId,
   selectedResourceId,
-  hydrated,
   addResource,
   removeResource,
   selectResource,
-  restoreResource,
   onResourceEvent,
 }: UseDesktopTabResourcesOptions): void {
   /**
@@ -149,23 +128,16 @@ export function useDesktopTabResources({
   resourcesRef.current = resources
   const activeResourceIdRef = useRef(activeResourceId)
   activeResourceIdRef.current = activeResourceId
-  /** Whether the strip shows an explicit selection rather than its fallback. */
-  const explicitSelection = selectedResourceId !== null && selectedResourceId === activeResourceId
-  const explicitSelectionRef = useRef(explicitSelection)
-  explicitSelectionRef.current = explicitSelection
-  const hydratedRef = useRef(hydrated)
-  hydratedRef.current = hydrated
   /**
-   * The tab the desktop app showed last, to tell a change of the shown tab
-   * from the scope's first report. Starts unset, like the scope itself.
+   * The last tab the desktop app reported showing. Unset until its first
+   * report, which carries the tab it remembers rather than a switch. Never
+   * unset again by an empty tab list, so reopening a tab still reads as a move.
    */
   const previousActiveTabIdRef = useRef<string | null>(null)
   const switchTabRef = useRef(switchTab)
   switchTabRef.current = switchTab
   const selectResourceRef = useRef(selectResource)
   selectResourceRef.current = selectResource
-  const restoreResourceRef = useRef(restoreResource)
-  restoreResourceRef.current = restoreResource
   const onResourceEventRef = useRef(onResourceEvent)
   onResourceEventRef.current = onResourceEvent
 
@@ -215,43 +187,24 @@ export function useDesktopTabResources({
     switchTabRef.current(selectedResourceId, scopeIdRef.current)
   }, [selectedResourceId, selectedTabIsLive])
 
-  // With no effective selection the strip falls back to a tab of its own
-  // choosing. The desktop app still shows the tab the user was last on, so the
-  // strip adopts that one rather than showing a page the user did not pick.
-  useEffect(() => {
-    if (!hydrated || explicitSelection) return
-    const tabId = nativeTabToAdopt(
-      resourcesRef.current,
-      activeResourceId,
-      activeTabIdRef.current,
-      type
-    )
-    if (tabId) restoreResourceRef.current(tabId)
-  }, [activeResourceId, explicitSelection, hydrated, type])
-
-  // A native switch while the user is on this kind of tab follows into the
-  // strip. The switch this hook requested itself is not a native change of
-  // mind, and neither is the scope's first report: that one carries the tab
-  // the desktop app remembers, so it is adopted rather than claimed. A move
-  // away from a tab it was already showing is the user's own.
+  // A native switch while the user is on this kind of tab claims the selection
+  // the way a click on the tab would, so later agent activity only badges
+  // rather than taking the view. Measured against the tab the desktop app was
+  // showing, not the one the strip shows: with no explicit selection those are
+  // the same tab, and comparing them would never see a switch. Two switches
+  // are not the user's — the one this hook requested itself, and the scope's
+  // first report, which carries the tab the desktop app remembers.
   useEffect(() => {
     const previousActiveTabId = previousActiveTabIdRef.current
-    previousActiveTabIdRef.current = activeTabId
+    if (activeTabId !== null) previousActiveTabIdRef.current = activeTabId
     if (requestedTabIdRef.current === activeTabId) {
       requestedTabIdRef.current = null
       return
     }
-    const activeResourceId = activeResourceIdRef.current
-    if (previousActiveTabId !== null) {
-      const tabId = nativeTabOffStrip(resourcesRef.current, activeResourceId, activeTabId, type)
-      if (tabId) selectResourceRef.current(tabId)
-      return
-    }
-    // Same guards as the adopt effect above: a first report must not override
-    // a selection the user made before the tab list arrived.
-    if (!hydratedRef.current || explicitSelectionRef.current) return
-    const tabId = nativeTabToAdopt(resourcesRef.current, activeResourceId, activeTabId, type)
-    if (tabId) restoreResourceRef.current(tabId)
+    if (!activeTabId || previousActiveTabId === null) return
+    if (activeTabId === previousActiveTabId) return
+    if (!stripShowsKind(resourcesRef.current, activeResourceIdRef.current, type)) return
+    selectResourceRef.current(activeTabId)
   }, [activeTabId, type])
 
   // The agent's tab surfaces like any other agent activity.
