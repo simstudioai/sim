@@ -1448,7 +1448,7 @@ function statesTerminalOutcome(title: string): boolean {
 function getToolOutcomeTitle(
   title: string,
   outcome: 'Failed' | 'Stopped' | 'Skipped',
-  preserveExistingOutcome = true
+  preserveExistingOutcome: boolean
 ): string {
   if (preserveExistingOutcome && statesTerminalOutcome(title)) return title
   const firstWord = firstWordOf(title)
@@ -1456,21 +1456,6 @@ function getToolOutcomeTitle(
     return `${outcome} ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
   }
   return `${outcome}: ${title}`
-}
-
-/**
- * Rewrite a resolved display title for a FAILED tool call. A gerund title
- * becomes "Failed <gerund>…" ("Searching for X" → "Failed searching for X");
- * anything else gets a "Failed: " prefix. Without this, an errored row kept
- * its present-tense activity title verbatim and read as still running.
- */
-export function getToolFailedTitle(title: string): string {
-  return getToolOutcomeTitle(title, 'Failed')
-}
-
-/** Rewrite a resolved display title for a CANCELLED tool call ("Stopped <gerund>…"). */
-export function getToolStoppedTitle(title: string): string {
-  return getToolOutcomeTitle(title, 'Stopped')
 }
 
 /**
