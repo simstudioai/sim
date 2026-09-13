@@ -1083,11 +1083,13 @@ interface SelectorFieldToValidate {
 }
 
 /**
- * A selector value is an id, or a short comma-separated list of them. Reference detection
- * tokenizes the whole string and `findWorkflowReferenceTokens` is superlinear in candidate count,
- * so an oversized value is both implausible and expensive on a write path that admits megabytes.
- * Past this the field is skipped rather than tokenized: the lint is advisory, so declining to
- * check is the safe direction.
+ * Longest selector string reference detection will tokenize.
+ *
+ * `findWorkflowReferenceTokens` parses the whole string and is superlinear in candidate count, so
+ * an oversized value is expensive on a write path that admits megabytes. Past this a value is
+ * split plainly instead: its entries are still short, so each one is classified and validated as
+ * usual, and only the comma-inside-a-reference protection is given up. An individual ENTRY past
+ * the cap is skipped, since there is no cheap way to tell a literal from a dynamic binding.
  */
 const MAX_SELECTOR_VALUE_LENGTH = 10_000
 
@@ -1144,14 +1146,19 @@ function collectSelectorFields(
 
       const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
       if (!subBlockValue) continue
-      if (typeof subBlockValue === 'string' && subBlockValue.length > MAX_SELECTOR_VALUE_LENGTH) {
-        continue
-      }
+
+      const isOversized = (entry: unknown) =>
+        typeof entry === 'string' && entry.length > MAX_SELECTOR_VALUE_LENGTH
 
       // Handle comma-separated values for multi-select
       let values: string | string[] = subBlockValue
       if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
-        values = splitOutsideReferences(subBlockValue)
+        values = isOversized(subBlockValue)
+          ? subBlockValue
+              .split(',')
+              .map((entry: string) => entry.trim())
+              .filter(Boolean)
+          : splitOutsideReferences(subBlockValue)
       }
 
       // A dynamically bound value only acquires its id at execution time, so a static
@@ -1159,10 +1166,12 @@ function collectSelectorFields(
       // string, because a multi-select can mix literal ids with dynamic ones: testing
       // `<a.b>,kb_real,<c.d>` as a whole would drop `kb_real` along with the references.
       if (Array.isArray(values)) {
-        const literalValues = values.filter((entry) => !containsReference(entry))
+        const literalValues = values.filter(
+          (entry) => !isOversized(entry) && !containsReference(entry)
+        )
         if (literalValues.length === 0) continue
         values = literalValues
-      } else if (containsReference(values)) {
+      } else if (isOversized(values) || containsReference(values)) {
         continue
       }
 

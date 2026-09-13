@@ -1304,9 +1304,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  it('skips an oversized selector value instead of tokenizing it', async () => {
-    // Reference detection tokenizes the whole string and the tokenizer is superlinear in
-    // candidate count, so an implausible value is skipped rather than parsed.
+  it('skips a single oversized entry, which cannot be classified cheaply', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['x'] })
     const state = {
       blocks: {
@@ -1322,6 +1320,28 @@ describe('collectUnresolvedReferences', () => {
     expect(performance.now() - startedAt).toBeLessThan(1000)
     expect(mockValidateSelectorIds).not.toHaveBeenCalled()
     expect(refs).toHaveLength(0)
+  })
+
+  it('still validates the literal entries of an oversized list', async () => {
+    // The cap gives up reference-aware splitting, not validation: the entries are still short,
+    // so each is classified and the literals are still checked.
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
+    const padding = Array.from({ length: 400 }, (_, index) => `kb_${'x'.repeat(30)}${index}`)
+    const value = [...padding, '<start.kbId>', 'kb_missing'].join(',')
+    expect(value.length).toBeGreaterThan(10_000)
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
+      },
+    }
+    const startedAt = performance.now()
+    const refs = await collectUnresolvedReferences(state, CTX)
+
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+    const [, ids] = mockValidateSelectorIds.mock.calls[0]
+    expect(ids).toContain('kb_missing')
+    expect(ids).not.toContain('<start.kbId>')
+    expect(refs).toHaveLength(1)
   })
 
   it('still validates a plain literal id (the guard must not over-skip)', async () => {
