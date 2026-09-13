@@ -1212,7 +1212,7 @@ describe('tool canonical-mode reindexing', () => {
     const { state } = applyOperationsToWorkflowState(workflow, [
       { operation_type: 'edit', block_id: 'agent', params: { inputs: { tools } } },
     ])
-    return (state as any).blocks.agent.data.canonicalModes
+    return state.blocks.agent.data.canonicalModes
   }
 
   it('moves each tool mode with it when the edit reorders the tools', () => {
