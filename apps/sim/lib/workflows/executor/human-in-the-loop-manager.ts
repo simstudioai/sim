@@ -969,11 +969,11 @@ export class PauseResumeManager {
       }
 
       if (result.status === 'paused') {
+        /** persistPauseResult already settles the answered context and recounts the merged pauses. */
         await PauseResumeManager.markResumeCompleted({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
           parentExecutionId: pausedExecution.executionId,
-          contextId,
         })
       }
 

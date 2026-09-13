@@ -2060,7 +2060,7 @@ describe('repeated human review pauses', () => {
     ).toBe(true)
   })
 
-  it('settles the answered context when the same run pauses at its next question', async () => {
+  it('settles the answered context exactly once when the same run pauses again', async () => {
     const runSpy = vi
       .spyOn(PauseResumeManager as unknown as PauseResumeManagerInternals, 'runResumeExecution')
       .mockResolvedValueOnce({
@@ -2068,11 +2068,20 @@ describe('repeated human review pauses', () => {
         success: true,
         metadata: { executionId: 'durable-run' },
         snapshotSeed: createSnapshotSeed(),
-        pausePoints: [{ contextId: 'hitl_loop1', blockId: 'hitl' }],
+        pausePoints: [{ contextId: 'hitl_loop1', blockId: 'hitl', resumeStatus: 'paused' }],
       })
-    const persistSpy = vi
-      .spyOn(PauseResumeManager, 'persistPauseResult')
-      .mockResolvedValueOnce(undefined)
+    const persistSpy = vi.spyOn(PauseResumeManager, 'persistPauseResult')
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'running' }]).mockResolvedValueOnce([
+      {
+        id: 'pause-1',
+        executionId: 'durable-run',
+        status: 'paused',
+        metadata: {},
+        pausePoints: {
+          hitl_loop0: { contextId: 'hitl_loop0', blockId: 'hitl', resumeStatus: 'resuming' },
+        },
+      },
+    ])
     const completeSpy = vi
       .spyOn(
         PauseResumeManager as unknown as {
@@ -2105,7 +2114,18 @@ describe('repeated human review pauses', () => {
       expect(completeSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           parentExecutionId: 'durable-run',
-          contextId: 'hitl_loop0',
+        })
+      )
+      expect(completeSpy.mock.calls[0][0]).not.toHaveProperty('contextId')
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resumedCount: 1,
+          totalPauseCount: 2,
+          status: 'partially_resumed',
+          pausePoints: expect.objectContaining({
+            hitl_loop0: expect.objectContaining({ resumeStatus: 'resumed' }),
+            hitl_loop1: expect.objectContaining({ resumeStatus: 'paused' }),
+          }),
         })
       )
     } finally {
