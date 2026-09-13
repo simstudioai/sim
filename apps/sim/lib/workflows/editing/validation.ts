@@ -1083,15 +1083,15 @@ interface SelectorFieldToValidate {
 }
 
 /**
- * Longest selector string reference detection will tokenize.
+ * Longest single selector entry `containsReference` will classify.
  *
- * `findWorkflowReferenceTokens` parses the whole string and is superlinear in candidate count, so
- * an oversized value is expensive on a write path that admits megabytes. Past this a value is
- * split plainly instead: its entries are still short, so each one is classified and validated as
- * usual, and only the comma-inside-a-reference protection is given up. An individual ENTRY past
- * the cap is skipped, since there is no cheap way to tell a literal from a dynamic binding.
+ * Classifying one entry tokenizes it, and `findWorkflowReferenceTokens` is superlinear in
+ * candidate count, so an entry of unbounded length is expensive on a write path that admits
+ * megabytes. Splitting is unaffected - it scans reference regions directly and stays linear - so
+ * only an individual oversized ENTRY is skipped, where there is no cheap way to tell a literal
+ * from a dynamic binding. A long LIST of ordinary ids still splits and validates normally.
  */
-const MAX_SELECTOR_VALUE_LENGTH = 10_000
+const MAX_SELECTOR_ENTRY_LENGTH = 10_000
 
 /**
  * Walk a workflow state and collect selector/credential fields to validate.
@@ -1148,17 +1148,12 @@ function collectSelectorFields(
       if (!subBlockValue) continue
 
       const isOversized = (entry: unknown) =>
-        typeof entry === 'string' && entry.length > MAX_SELECTOR_VALUE_LENGTH
+        typeof entry === 'string' && entry.length > MAX_SELECTOR_ENTRY_LENGTH
 
       // Handle comma-separated values for multi-select
       let values: string | string[] = subBlockValue
       if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
-        values = isOversized(subBlockValue)
-          ? subBlockValue
-              .split(',')
-              .map((entry: string) => entry.trim())
-              .filter(Boolean)
-          : splitOutsideReferences(subBlockValue)
+        values = splitOutsideReferences(subBlockValue)
       }
 
       // A dynamically bound value only acquires its id at execution time, so a static

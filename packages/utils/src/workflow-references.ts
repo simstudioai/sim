@@ -3,7 +3,11 @@ const REFERENCE_END = '>'
 const REFERENCE_PATH_DELIMITER = '.'
 const INVALID_REFERENCE_CHARS = /[+*/=<>!&|]/
 const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
-const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
+/**
+ * `{{ENV_VAR}}` placeholders. Exported so a consumer that needs the UNION of reference regions
+ * can find them without going through the non-overlapping token pass.
+ */
+export const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
 
 export type WorkflowReferenceTokenKind = 'environment' | 'workflow'
 

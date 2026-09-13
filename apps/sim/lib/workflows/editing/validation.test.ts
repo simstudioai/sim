@@ -1322,6 +1322,26 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
+  it('keeps a comma-bearing reference intact even in an oversized list', async () => {
+    // Splitting scans reference regions directly and stays linear, so size does not force a
+    // fallback that would tear `<start.pick(a,b)>` into fragments validated as ids.
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
+    const padding = Array.from({ length: 400 }, (_, index) => `kb_${'x'.repeat(30)}${index}`)
+    const value = [...padding, '<start.pick(a,b)>', 'kb_missing'].join(',')
+    expect(value.length).toBeGreaterThan(10_000)
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
+      },
+    }
+    await collectUnresolvedReferences(state, CTX)
+
+    const [, ids] = mockValidateSelectorIds.mock.calls[0]
+    expect(ids).toContain('kb_missing')
+    expect(ids).not.toContain('<start.pick(a')
+    expect(ids).not.toContain('b)>')
+  })
+
   it('still validates the literal entries of an oversized list', async () => {
     // The cap gives up reference-aware splitting, not validation: the entries are still short,
     // so each is classified and the literals are still checked.
