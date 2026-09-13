@@ -1095,12 +1095,12 @@ class McpService {
           // survives a transport loss and would block that fresh reconnect.
           void (async () => {
             try {
-              const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+              const { config: resolvedConfig } = await resolveMcpConfigEnvVars(
                 config,
                 userId,
                 workspaceId
               )
-              await manager.connect(resolvedConfig, userId, workspaceId, resolvedIP)
+              await manager.connect(resolvedConfig, userId, workspaceId)
             } catch (err) {
               logger.warn(`[${requestId}] Persistent connection failed for ${config.name}:`, err)
             }
