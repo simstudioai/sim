@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
+import type { BlockState } from '@sim/workflow-types/workflow'
+import { isEqual } from 'es-toolkit'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
+import { reindexRewrittenToolCanonicalModes } from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks/registry'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import {
@@ -256,6 +261,8 @@ export function applyOperationsToWorkflowState(
   // blocks that are both being moved into the same subflow in one batch.
   removeInvalidScopeEdges(modifiedState, skippedItems)
 
+  reindexToolCanonicalModesAfterEdits((workflowState as any).blocks, (modifiedState as any).blocks)
+
   // Regenerate loops and parallels after modifications
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)
   ;(modifiedState as any).parallels = generateParallelBlocks((modifiedState as any).blocks)
@@ -292,6 +299,37 @@ export function applyOperationsToWorkflowState(
     validationErrors,
     skippedItems,
     mintedBlockIds: Object.fromEntries(idMapping),
+  }
+}
+
+/**
+ * Nested tool canonical-mode overrides are keyed by the tool's position in its `tool-input`
+ * array, so when this batch rewrote a surviving block's tool list, carry each tool's overrides to
+ * wherever that tool now sits and drop those of removed tools, as the editor does on reorder and
+ * removal. Compares the original and final lists so any number of edits in the batch compose.
+ */
+function reindexToolCanonicalModesAfterEdits(
+  originalBlocks: Record<string, BlockState> | undefined,
+  blocks: Record<string, BlockState> | undefined
+): void {
+  for (const [blockId, block] of Object.entries(blocks ?? {})) {
+    const originalBlock = originalBlocks?.[blockId]
+    if (!originalBlock || originalBlock.type !== block.type || !block.data?.canonicalModes) continue
+
+    for (const subBlock of getBlock(block.type)?.subBlocks ?? []) {
+      if (subBlock.type !== 'tool-input') continue
+      const originalTools = coerceObjectArray(originalBlock.subBlocks?.[subBlock.id]?.value).array
+      if (!originalTools) continue
+      const tools = coerceObjectArray(block.subBlocks?.[subBlock.id]?.value).array ?? []
+      if (isEqual(originalTools, tools)) continue
+
+      const canonicalModes = reindexRewrittenToolCanonicalModes(
+        originalTools,
+        tools,
+        block.data.canonicalModes
+      )
+      if (canonicalModes) block.data = { ...block.data, canonicalModes }
+    }
   }
 }
 

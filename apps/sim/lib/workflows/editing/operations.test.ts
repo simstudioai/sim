@@ -1169,3 +1169,85 @@ describe('permission-group tool access', () => {
     )
   })
 })
+
+describe('tool canonical-mode reindexing', () => {
+  const selectorTool = {
+    type: 'jira',
+    operation: 'jira_get_issue',
+    title: 'Selector',
+    params: { projectId: 'PROJ' },
+    usageControl: 'auto',
+    isExpanded: false,
+  }
+  const variableTool = {
+    type: 'jira',
+    operation: 'jira_get_issue',
+    title: 'Variable',
+    params: { manualProjectId: '{{PROJECT}}' },
+    usageControl: 'auto',
+    isExpanded: false,
+  }
+
+  function agentWithTools(tools: unknown[], canonicalModes: Record<string, 'basic' | 'advanced'>) {
+    return {
+      blocks: {
+        agent: {
+          id: 'agent',
+          type: 'agent',
+          name: 'Agent',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          outputs: {},
+          subBlocks: { tools: { id: 'tools', type: 'tool-input', value: tools } },
+          data: { canonicalModes },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  function editTools(workflow: Record<string, unknown>, tools: unknown[]) {
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'agent', params: { inputs: { tools } } },
+    ])
+    return (state as any).blocks.agent.data.canonicalModes
+  }
+
+  it('moves each tool mode with it when the edit reorders the tools', () => {
+    const workflow = agentWithTools([selectorTool, variableTool], {
+      '0:projectId': 'basic',
+      '1:projectId': 'advanced',
+    })
+
+    expect(editTools(workflow, [variableTool, selectorTool])).toEqual({
+      '0:projectId': 'advanced',
+      '1:projectId': 'basic',
+    })
+  })
+
+  it('keeps modes in place when an edit changes tool params without moving them', () => {
+    const workflow = agentWithTools([selectorTool, variableTool], {
+      '0:projectId': 'basic',
+      '1:projectId': 'advanced',
+    })
+
+    expect(
+      editTools(workflow, [
+        { ...selectorTool, params: { projectId: 'OTHER' } },
+        { ...variableTool, params: { manualProjectId: '{{OTHER}}' } },
+      ])
+    ).toEqual({ '0:projectId': 'basic', '1:projectId': 'advanced' })
+  })
+
+  it('drops a removed tool mode so a later tool cannot inherit its position', () => {
+    const workflow = agentWithTools([selectorTool, variableTool], {
+      '0:projectId': 'basic',
+      '1:projectId': 'advanced',
+    })
+
+    expect(editTools(workflow, [selectorTool])).toEqual({ '0:projectId': 'basic' })
+    expect(editTools(workflow, [])).toEqual({})
+  })
+})

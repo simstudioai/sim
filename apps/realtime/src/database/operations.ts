@@ -1989,6 +1989,30 @@ async function handleSubflowOperationTx(
   }
 }
 
+interface SubblockUpdateBlockRecord {
+  id: string
+  subBlocks: unknown
+  locked: boolean
+  data: unknown
+}
+
+/** Every block in the workflow by id, for the locked-container check subblock writes need. */
+async function loadSubblockUpdateBlocks(
+  tx: any,
+  workflowId: string
+): Promise<Record<string, SubblockUpdateBlockRecord>> {
+  const allBlocks: SubblockUpdateBlockRecord[] = await tx
+    .select({
+      id: workflowBlocks.id,
+      subBlocks: workflowBlocks.subBlocks,
+      locked: workflowBlocks.locked,
+      data: workflowBlocks.data,
+    })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.workflowId, workflowId))
+  return Object.fromEntries(allBlocks.map((block) => [block.id, block]))
+}
+
 // Subblock operations - targeted value updates without replacing workflow state
 async function handleSubblockOperationTx(
   tx: any,
@@ -2003,20 +2027,7 @@ async function handleSubblockOperationTx(
         return
       }
 
-      const allBlocks = await tx
-        .select({
-          id: workflowBlocks.id,
-          subBlocks: workflowBlocks.subBlocks,
-          locked: workflowBlocks.locked,
-          data: workflowBlocks.data,
-        })
-        .from(workflowBlocks)
-        .where(eq(workflowBlocks.workflowId, workflowId))
-
-      type SubblockUpdateBlockRecord = (typeof allBlocks)[number]
-      const blocksById: Record<string, SubblockUpdateBlockRecord> = Object.fromEntries(
-        allBlocks.map((block: SubblockUpdateBlockRecord) => [block.id, block])
-      )
+      const blocksById = await loadSubblockUpdateBlocks(tx, workflowId)
 
       for (const update of updates) {
         const { blockId, subblockId, value, expectedValue } = update
@@ -2057,6 +2068,41 @@ async function handleSubblockOperationTx(
       }
 
       logger.debug(`Batch updated ${updates.length} subblocks for workflow ${workflowId}`)
+      break
+    }
+
+    case SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES: {
+      const { blockId, subblockId, value, canonicalModes } = payload
+      if (!blockId || !subblockId || !canonicalModes) {
+        throw new Error('Missing required fields for subblock update with canonical modes')
+      }
+
+      const blocksById = await loadSubblockUpdateBlocks(tx, workflowId)
+      const block = blocksById[blockId]
+      if (!block) {
+        throw new Error(`Block ${blockId} not found`)
+      }
+      if (isWorkflowBlockProtected(blockId, blocksById)) {
+        logger.info(`Skipping subblock update of locked block ${blockId}`)
+        break
+      }
+
+      const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
+      const currentSubBlock = subBlocks[subblockId]
+      subBlocks[subblockId] = currentSubBlock
+        ? { ...currentSubBlock, value }
+        : { id: subblockId, type: 'unknown', value }
+
+      await tx
+        .update(workflowBlocks)
+        .set({
+          subBlocks,
+          data: { ...((block.data as Record<string, unknown>) || {}), canonicalModes },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+
+      logger.debug(`Updated subblock ${blockId}.${subblockId} with canonical modes`)
       break
     }
 

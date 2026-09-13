@@ -114,6 +114,11 @@ describe('checkRolePermission', () => {
       const result = checkRolePermission('write', 'subblock-batch-update')
       expectPermissionAllowed(result)
     })
+
+    it('should allow subblock-update-with-canonical-modes operation', () => {
+      const result = checkRolePermission('write', 'subblock-update-with-canonical-modes')
+      expectPermissionAllowed(result)
+    })
   })
 
   describe('read role', () => {
@@ -152,6 +157,11 @@ describe('checkRolePermission', () => {
 
     it('should deny subblock-batch-update operation for read role', () => {
       const result = checkRolePermission('read', 'subblock-batch-update')
+      expectPermissionDenied(result, 'read')
+    })
+
+    it('should deny subblock-update-with-canonical-modes operation for read role', () => {
+      const result = checkRolePermission('read', 'subblock-update-with-canonical-modes')
       expectPermissionDenied(result, 'read')
     })
 
