@@ -1304,6 +1304,26 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
+  it('skips an oversized selector value instead of tokenizing it', async () => {
+    // Reference detection tokenizes the whole string and the tokenizer is superlinear in
+    // candidate count, so an implausible value is skipped rather than parsed.
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['x'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: `kb_${'a'.repeat(10_000)}` } },
+        },
+      },
+    }
+    const startedAt = performance.now()
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
   it('still validates a plain literal id (the guard must not over-skip)', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
     const state = {

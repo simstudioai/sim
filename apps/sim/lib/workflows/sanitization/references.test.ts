@@ -132,15 +132,22 @@ describe('splitOutsideReferences', () => {
     expect(elapsedMs).toBeLessThan(1000)
   })
 
-  it('does not yet protect a comma inside a reference that nests an env-var placeholder', () => {
-    // Known limitation, unchanged from the plain `.split(',')` this replaced: the tokenizer
-    // reports the inner `{{A}}` and suppresses the outer `<...>` span, so the comma reads as a
-    // separator. Characterized rather than fixed - the suppression lives in the shared
-    // `@sim/utils/workflow-references` tokenizer.
+  it('protects a comma inside a reference that nests an env-var placeholder', () => {
+    // `findWorkflowReferenceTokens` is non-overlapping, so it reports only the inner `{{A}}` and
+    // drops the outer candidate. The candidate pass is what keeps the outer region protected.
     expect(splitOutsideReferences('<start.body.pick({{A}},b)>,kb_literal')).toEqual([
-      '<start.body.pick({{A}}',
-      'b)>',
+      '<start.body.pick({{A}},b)>',
       'kb_literal',
     ])
+    expect(splitOutsideReferences('<a.{{B}}x,y>,kb_literal')).toEqual([
+      '<a.{{B}}x,y>',
+      'kb_literal',
+    ])
+  })
+
+  it('still splits a near-miss that does not read as a reference', () => {
+    // `<a.b+c,d>` fails `isLikelyReferenceSegment` (the `+`), so it is not a protected region.
+    // Loud rather than silent: the fragments are reported as ids that do not resolve.
+    expect(splitOutsideReferences('<a.b+c,d>')).toEqual(['<a.b+c', 'd>'])
   })
 })

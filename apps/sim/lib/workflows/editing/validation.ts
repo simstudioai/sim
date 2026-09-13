@@ -1083,6 +1083,15 @@ interface SelectorFieldToValidate {
 }
 
 /**
+ * A selector value is an id, or a short comma-separated list of them. Reference detection
+ * tokenizes the whole string and `findWorkflowReferenceTokens` is superlinear in candidate count,
+ * so an oversized value is both implausible and expensive on a write path that admits megabytes.
+ * Past this the field is skipped rather than tokenized: the lint is advisory, so declining to
+ * check is the safe direction.
+ */
+const MAX_SELECTOR_VALUE_LENGTH = 10_000
+
+/**
  * Walk a workflow state and collect selector/credential fields to validate.
  * For canonical pairs only the ACTIVE member is collected (an intentionally-empty
  * inactive member is never flagged). oauth-input credentials are included only
@@ -1135,6 +1144,9 @@ function collectSelectorFields(
 
       const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
       if (!subBlockValue) continue
+      if (typeof subBlockValue === 'string' && subBlockValue.length > MAX_SELECTOR_VALUE_LENGTH) {
+        continue
+      }
 
       // Handle comma-separated values for multi-select
       let values: string | string[] = subBlockValue

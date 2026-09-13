@@ -23,7 +23,7 @@ vi.mock('@/lib/workflows/editing/selector-validator', () => ({
 import { collectUnresolvedReferences } from '@/lib/workflows/editing/validation'
 import { getBlock } from '@/blocks/registry'
 
-const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+const CTX = { userId: 'user-1', workspaceId: 'workspace-1' } as const
 
 /** The real basic member of the knowledge block's `knowledgeBaseId` canonical pair. */
 const KB_SELECTOR_ID = 'knowledgeBaseSelector'
