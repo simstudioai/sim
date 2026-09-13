@@ -261,7 +261,10 @@ export function applyOperationsToWorkflowState(
   // blocks that are both being moved into the same subflow in one batch.
   removeInvalidScopeEdges(modifiedState, skippedItems)
 
-  reindexToolCanonicalModesAfterEdits((workflowState as any).blocks, (modifiedState as any).blocks)
+  reindexToolCanonicalModesAfterEdits(
+    workflowState.blocks as Record<string, BlockState> | undefined,
+    modifiedState.blocks as Record<string, BlockState> | undefined
+  )
 
   // Regenerate loops and parallels after modifications
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)

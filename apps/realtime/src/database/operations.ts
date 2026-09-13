@@ -1998,10 +1998,10 @@ interface SubblockUpdateBlockRecord {
 
 /** Every block in the workflow by id, for the locked-container check subblock writes need. */
 async function loadSubblockUpdateBlocks(
-  tx: any,
+  tx: Pick<typeof db, 'select'>,
   workflowId: string
 ): Promise<Record<string, SubblockUpdateBlockRecord>> {
-  const allBlocks: SubblockUpdateBlockRecord[] = await tx
+  const allBlocks = await tx
     .select({
       id: workflowBlocks.id,
       subBlocks: workflowBlocks.subBlocks,
@@ -2083,11 +2083,12 @@ async function handleSubblockOperationTx(
         throw new Error(`Block ${blockId} not found`)
       }
       if (isWorkflowBlockProtected(blockId, blocksById)) {
-        logger.info(`Skipping subblock update of locked block ${blockId}`)
-        break
+        throw new Error(`Block ${blockId} is locked or inside a locked container`)
       }
 
-      const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
+      const subBlocks = {
+        ...((block.subBlocks as Record<string, Record<string, unknown>> | null) || {}),
+      }
       const currentSubBlock = subBlocks[subblockId]
       subBlocks[subblockId] = currentSubBlock
         ? { ...currentSubBlock, value }

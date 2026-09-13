@@ -164,8 +164,8 @@ describe('subblock update with canonical modes persistence', () => {
     )
   })
 
-  it('skips a locked block without writing either field', async () => {
-    await expect(updateTools({ locked: true })).resolves.toBeUndefined()
+  it('rejects a locked block without writing either field', async () => {
+    await expect(updateTools({ locked: true })).rejects.toThrow('is locked')
     expect(mockSet).toHaveBeenCalledTimes(1)
   })
 })
