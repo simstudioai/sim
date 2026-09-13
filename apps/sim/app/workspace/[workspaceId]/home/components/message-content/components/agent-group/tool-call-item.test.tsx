@@ -128,7 +128,8 @@ describe('ToolCallItem', () => {
       />
     )
 
-    expect(markup).toContain('Failed: Stopped checking invoices')
+    expect(markup).toContain('Failed checking invoices')
+    expect(markup).not.toContain('Stopped checking invoices')
   })
 
   it('defensively applies the completed verb for every successful tool row', () => {

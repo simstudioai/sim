@@ -1408,11 +1408,8 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
 /**
  * Rewrite a resolved display title to its past-tense form for a successfully
  * completed tool call (e.g. "Querying logs for X" -> "Queried logs for X").
- * Operates on the already-resolved title so enriched and persisted titles both
- * work. Returns undefined when the title has no leading gerund rewrite — the
- * caller keeps the original. Integration gateway descriptions are base-form
- * verb phrases ("Read recent emails") whose first word never matches a gerund
- * key, so they intentionally pass through unchanged.
+ * Returns undefined when no leading gerund rewrite is known; status formatting
+ * handles the fallback for model-authored and legacy titles.
  */
 export function getToolCompletedTitle(title: string): string | undefined {
   const spaceIndex = title.indexOf(' ')
@@ -1447,11 +1444,18 @@ function statesTerminalOutcome(title: string): boolean {
 /** Apply one terminal outcome prefix while preserving already-resolved titles. */
 function getToolOutcomeTitle(
   title: string,
-  outcome: 'Failed' | 'Stopped' | 'Skipped',
+  outcome: 'Completed' | 'Failed' | 'Stopped' | 'Skipped',
   preserveExistingOutcome: boolean
 ): string {
   if (preserveExistingOutcome && statesTerminalOutcome(title)) return title
   const firstWord = firstWordOf(title)
+  const statedOutcome = firstWord.replace(/:$/, '')
+  if (
+    !preserveExistingOutcome &&
+    (TERMINAL_TITLE_PREFIXES.has(statedOutcome) || statedOutcome === 'Completed')
+  ) {
+    return outcome + title.slice(statedOutcome.length)
+  }
   if (COMPLETED_VERB_REWRITES[firstWord]) {
     return `${outcome} ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
   }
@@ -1475,7 +1479,12 @@ export function getToolStatusDisplayTitle(
   if (status === 'success' && toolName === 'browser_request_takeover') {
     return 'Resumed browser control'
   }
-  if (status === 'success') return getToolCompletedTitle(title) ?? title
+  if (status === 'success') {
+    return (
+      getToolCompletedTitle(title) ??
+      (description ? getToolOutcomeTitle(title, 'Completed', false) : title)
+    )
+  }
   if (status === 'error' || status === 'rejected') {
     return getToolOutcomeTitle(title, 'Failed', !description)
   }
