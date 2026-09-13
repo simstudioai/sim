@@ -10,7 +10,7 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
-import { containsReference } from '@/lib/workflows/sanitization/references'
+import { containsReference, splitOutsideReferences } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
@@ -1139,10 +1139,19 @@ function collectSelectorFields(
       // Handle comma-separated values for multi-select
       let values: string | string[] = subBlockValue
       if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
-        values = subBlockValue
-          .split(',')
-          .map((v: string) => v.trim())
-          .filter(Boolean)
+        values = splitOutsideReferences(subBlockValue)
+      }
+
+      // A dynamically bound value only acquires its id at execution time, so a static
+      // id-existence check cannot evaluate it. Filtered per entry rather than on the whole
+      // string, because a multi-select can mix literal ids with dynamic ones: testing
+      // `<a.b>,kb_real,<c.d>` as a whole would drop `kb_real` along with the references.
+      if (Array.isArray(values)) {
+        const literalValues = values.filter((entry) => !containsReference(entry))
+        if (literalValues.length === 0) continue
+        values = literalValues
+      } else if (containsReference(values)) {
+        continue
       }
 
       fields.push({

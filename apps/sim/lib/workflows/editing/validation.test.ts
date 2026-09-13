@@ -1197,6 +1197,365 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
   })
+
+  it('does not validate a selector holding a <block.output> reference', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['<start.kbId>'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '<start.kbId>' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('does not validate a selector holding a {{ENV_VAR}} reference', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['{{KB_ID}}'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '{{KB_ID}}' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('does not validate a partially templated selector value', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_<start.suffix>'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: 'kb_<start.suffix>' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('validates only the literal ids in a mixed comma-separated value', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: 'kb_missing,<start.kbId>' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      ['kb_missing'],
+      CTX
+    )
+    expect(refs).toHaveLength(1)
+  })
+
+  it('validates the literal entries when a multi-select opens AND closes with a template', async () => {
+    // `isReference` is unanchored (startsWith '<' && endsWith '>'), so this value reads as one
+    // whole reference. Filtering per entry is what keeps `kb_real` validated.
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_real'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '<start.a>,kb_real,<start.b>' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      ['kb_real'],
+      CTX
+    )
+    expect(refs).toHaveLength(1)
+  })
+
+  it('never hits the database when every entry of a mixed-delimiter list is templated', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['{{A}}'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '{{A}},<start.b>' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('still validates a plain literal id (the guard must not over-skip)', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: 'kb_missing' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      'kb_missing',
+      CTX
+    )
+    expect(refs).toHaveLength(1)
+  })
+
+  // `splitOutsideReferences` is what keeps a comma INSIDE a reference from becoming a separator.
+  // Every other reference test above would still pass with a naive `.split(',')` (no comma ->
+  // never split at all), so these two are the only ones that pin the reference-aware split from
+  // the consumer's side: a torn reference reads as plain literals and gets validated as ids.
+  it('does not split a <block.output> reference that contains a comma', async () => {
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '<start.pick(a,b)>' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('does not split a {{ENV_VAR}} reference that contains a comma', async () => {
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '{{KB_A,KB_B}}' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('skips a comma-separated value whose entries are ALL templates', async () => {
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: '<start.kbId>,{{KB_ID}}' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  // A multi-select that already stores a native array never reaches the comma split, so the
+  // array filter is entered by a second, independent route.
+  it('filters templates out of a value that is already an array', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: ['kb_missing', '<start.kbId>', '{{KB_ID}}'] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      ['kb_missing'],
+      CTX
+    )
+    expect(refs).toHaveLength(1)
+  })
+
+  it('skips an array value whose entries are ALL templates', async () => {
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: ['<start.kbId>', '{{KB_ID}}'] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  // A separator-only string is truthy, so it survives the `!subBlockValue` bail and reaches the
+  // split, which returns nothing. Reusing the all-references bail is what stops an empty list
+  // from being sent to the database as if it were a set of ids.
+  it('skips a value that is nothing but separators', async () => {
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value: ' , , ' } } },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  it('skips an empty array value rather than validating an empty list', async () => {
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value: [] } } },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+
+  // The per-entry filter calls `containsReference` on whatever the array holds, so its
+  // non-string bail is load-bearing here - without it a numeric entry throws. A non-string can
+  // never be a reference, so it must survive untouched, `null` included: the `filter(Boolean)`
+  // that would have dropped it lives inside the comma split, which a native array never reaches.
+  it('does not throw on a non-string entry inside an array value', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: [42, null, 'kb_ok', '<start.kbId>'] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      [42, null, 'kb_ok'],
+      CTX
+    )
+    expect(refs).toHaveLength(0)
+  })
+
+  // Both delimiters are required. A lone `<` (or a lone `{{`) is a malformed literal, not a
+  // template, and must keep being reported rather than silently waved through.
+  it.each([
+    ['an unclosed < delimiter', 'kb_<start'],
+    ['an unopened > delimiter', 'start.kbId>'],
+    ['an unclosed {{ delimiter', 'kb_{{KB_ID'],
+  ])('still validates a value with %s', async (_label, value) => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [value] })
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('knowledge-base-selector', value, CTX)
+    expect(refs).toHaveLength(1)
+  })
+
+  it('drops whitespace-only entries without validating an empty id', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: 'kb_missing, ,  <start.kbId>  ,' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      ['kb_missing'],
+      CTX
+    )
+    expect(refs).toHaveLength(1)
+  })
+
+  // The guard runs AFTER the canonical active-member check, so a template in the active member
+  // must be skipped by the guard - and must not push mode resolution onto the empty twin.
+  it('skips a template held by the ACTIVE canonical member', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['<start.cred>'] })
+    const state = {
+      blocks: {
+        c1: {
+          type: 'canonicalcred',
+          name: 'Cred',
+          subBlocks: { credential: { value: '<start.cred>' }, manualCredential: { value: '' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(refs).toHaveLength(0)
+  })
+})
+
+// The lint path (collectUnresolvedReferences) and the agent edit path share collectSelectorFields,
+// but only the edit path can REJECT an operation. A dynamically-bound selector must not block an
+// edit - that rejection is the user-visible failure this guard exists to prevent.
+describe('validateWorkflowSelectorIds (reference guard)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+  })
+
+  it.each([
+    ['a block-output reference', '<start.kbId>'],
+    ['an env-var reference', '{{KB_ID}}'],
+    ['a partially templated value', 'kb_<start.suffix>'],
+  ])('does not reject an edit whose selector holds %s', async (_label, value) => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [value] })
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
+      },
+    }
+    const errors = await validateWorkflowSelectorIds(state, CTX)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    expect(errors).toHaveLength(0)
+  })
+
+  it('still rejects an edit whose selector holds a literal id that does not resolve', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_gone'] })
+    const state = {
+      blocks: {
+        kb1: {
+          type: 'knowledge',
+          name: 'KB',
+          subBlocks: { knowledgeBaseId: { value: 'kb_gone' } },
+        },
+      },
+    }
+    const errors = await validateWorkflowSelectorIds(state, CTX)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.error).toContain('kb_gone')
+  })
 })
 
 describe('validateInputsForBlock - agent tools (tool-input)', () => {
