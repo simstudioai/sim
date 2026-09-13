@@ -420,17 +420,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     /**
      * Subscription handlers, pollers, and subscription cleanup look `credentialId`
-     * up by id alone and mint tokens as its owner. A save acts with the requested
-     * credential or, when the request omits it, the stored one, so that credential
-     * must be usable by the actor in the workflow's workspace before anything is
-     * subscribed, cleaned up, or saved.
+     * up by id alone and mint tokens as its owner. A save can act with both the
+     * requested credential and the stored one — the stored one is merged back when
+     * the request omits it, or used to clean up the previous subscription — so
+     * each must be usable by the actor in the workflow's workspace before anything
+     * is subscribed, cleaned up, or saved.
      */
-    const effectiveCredentialId =
-      'credentialId' in originalProviderConfig
-        ? originalProviderConfig.credentialId
-        : existingWebhook?.providerConfig?.credentialId
-    if (effectiveCredentialId != null && effectiveCredentialId !== '') {
-      if (typeof effectiveCredentialId !== 'string') {
+    const credentialIds = new Set(
+      [originalProviderConfig.credentialId, existingWebhook?.providerConfig?.credentialId].filter(
+        (id) => id != null && id !== ''
+      )
+    )
+    for (const credentialId of credentialIds) {
+      if (typeof credentialId !== 'string') {
         return NextResponse.json(
           { error: 'providerConfig.credentialId must be a literal credential id' },
           { status: 400 }
@@ -438,13 +440,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       const credentialAccess = await authorizeCredentialUseForAuth(
         { success: true, userId, authType: AuthType.SESSION },
-        { credentialId: effectiveCredentialId, workflowId }
+        { credentialId, workflowId }
       )
       if (!credentialAccess.ok) {
         logger.warn(`[${requestId}] Webhook credential reference denied`, {
           userId,
           workflowId,
-          credentialId: effectiveCredentialId,
+          credentialId,
           reason: credentialAccess.error,
         })
         return NextResponse.json({ error: credentialAccess.error }, { status: 403 })

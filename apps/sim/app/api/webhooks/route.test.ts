@@ -607,4 +607,43 @@ describe('POST /api/webhooks credential references', () => {
     expect(response.status).toBe(403)
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
+
+  /**
+   * Clearing `credentialId` does not stop the save from acting with the stored
+   * credential: a recreate still cleans up the previous subscription with it.
+   */
+  it.each([null, ''])(
+    'still authorizes the stored credential when a re-save sends credentialId %j',
+    async (credentialId) => {
+      mocks.authorizeCredentialUseForAuth.mockResolvedValue({
+        ok: false,
+        error: 'You do not have access to this credential.',
+      })
+      mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
+      queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+      const response = await POST(upsertRequest({ credentialId }))
+
+      expect(response.status).toBe(403)
+      expect(mocks.authorizeCredentialUseForAuth).toHaveBeenCalledWith(expect.anything(), {
+        credentialId: 'stored-credential',
+        workflowId: 'workflow-1',
+      })
+      expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    }
+  )
+
+  it('authorizes both credentials when a re-save replaces the stored one', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+    const response = await POST(upsertRequest({ credentialId: 'new-credential' }))
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorizeCredentialUseForAuth.mock.calls.map(([, params]) => params)).toEqual([
+      { credentialId: 'new-credential', workflowId: 'workflow-1' },
+      { credentialId: 'stored-credential', workflowId: 'workflow-1' },
+    ])
+  })
 })
