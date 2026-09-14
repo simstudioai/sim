@@ -7,6 +7,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getTableById: vi.fn(),
   getRowById: vi.fn(),
+  getRowSummaryById: vi.fn(),
+  createProvenanceReader: vi.fn(),
   pickNextEligibleGroupForRow: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
   markWorkflowGroupPickedUp: vi.fn(),
@@ -14,11 +16,15 @@ const mocks = vi.hoisted(() => ({
   getEnrichment: vi.fn(),
   readStampedCapabilitySubject: vi.fn(),
   checkAttributedUsageLimits: vi.fn(),
-  loadTableRowSecretProvenance: vi.fn(),
+  exportProvenance: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({ getRowById: mocks.getRowById, updateRow: vi.fn() }))
+vi.mock('@/lib/table/rows/service', () => ({
+  getRowById: mocks.getRowById,
+  getRowSummaryById: mocks.getRowSummaryById,
+  updateRow: vi.fn(),
+}))
 vi.mock('@/lib/table/rows/executions', () => ({
   readStampedCapabilitySubject: mocks.readStampedCapabilitySubject,
 }))
@@ -49,7 +55,12 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
   createTableRowSecretProvenanceFromRegistry: () => ({ complete: true, columns: {} }),
-  loadTableRowSecretProvenance: mocks.loadTableRowSecretProvenance,
+  TableRowProvenanceReader: class {
+    constructor(scope: unknown, selectedColumnIds: unknown) {
+      mocks.createProvenanceReader(scope, selectedColumnIds)
+    }
+    exportProvenance = mocks.exportProvenance
+  },
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
 
@@ -142,6 +153,9 @@ describe('draining another dispatch’s pre-stamped marker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
+      mocks.getRowById(tableId, rowId, workspaceId)
+    )
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.getEnrichment.mockReturnValue({
       id: 'enrich-1',
@@ -152,7 +166,7 @@ describe('draining another dispatch’s pre-stamped marker', () => {
     mocks.checkAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mocks.markWorkflowGroupPickedUp.mockResolvedValue('picked-up')
     mocks.writeWorkflowGroupState.mockResolvedValue('wrote')
-    mocks.loadTableRowSecretProvenance.mockResolvedValue({
+    mocks.exportProvenance.mockReturnValue({
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
       byRowId: {},
     })

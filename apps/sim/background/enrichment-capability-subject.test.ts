@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   })),
   getTableById: vi.fn(),
   getRowById: vi.fn(),
+  getRowSummaryById: vi.fn(),
+  createProvenanceReader: vi.fn(),
   updateRow: vi.fn(),
   pickNextEligibleGroupForRow: vi.fn(),
   stashCellContextForResume: vi.fn(),
@@ -23,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   runEnrichment: vi.fn(),
   skippedEnrichmentDetail: vi.fn(() => ({})),
   checkAttributedUsageLimits: vi.fn(async () => ({ isExceeded: false })),
-  loadTableRowSecretProvenance: vi.fn(async () => ({ scope: null, entries: [] })),
+  exportProvenance: vi.fn(() => ({ scope: null, entries: [] })),
 }))
 
 vi.mock('@/lib/core/network/config.server', () => ({
@@ -37,6 +39,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({
   getRowById: mocks.getRowById,
+  getRowSummaryById: mocks.getRowSummaryById,
   updateRow: mocks.updateRow,
 }))
 vi.mock('@/lib/table/cell-write', () => ({
@@ -61,7 +64,12 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   createExactEmptyTableRowSecretProvenance: vi.fn(() => undefined),
   createTableRowSecretProvenanceFromRegistry: vi.fn(() => undefined),
-  loadTableRowSecretProvenance: mocks.loadTableRowSecretProvenance,
+  TableRowProvenanceReader: class {
+    constructor(scope: unknown, selectedColumnIds: unknown) {
+      mocks.createProvenanceReader(scope, selectedColumnIds)
+    }
+    exportProvenance = mocks.exportProvenance
+  },
 }))
 vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   ResolvedSecretTraceRegistry: class {
@@ -156,6 +164,9 @@ describe('enrichment cell capability subject', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
+      mocks.getRowById(tableId, rowId, workspaceId)
+    )
     mocks.loadWorkspaceApplicationContext.mockResolvedValue({ workspaceOrganizationId: null })
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({
@@ -174,6 +185,49 @@ describe('enrichment cell capability subject', () => {
       providers: [],
     })
     mocks.runEnrichment.mockResolvedValue({ result: {}, cost: 0, detail: {} })
+  })
+
+  it('builds enrichment inputs from the captured row after pickup and excludes own outputs', async () => {
+    mocks.getTableById.mockResolvedValue({
+      ...TABLE,
+      schema: {
+        ...TABLE.schema,
+        workflowGroups: [
+          {
+            ...GROUP,
+            inputMappings: [
+              ...GROUP.inputMappings,
+              { columnName: 'col-out', inputName: 'excluded' },
+            ],
+          },
+        ],
+      },
+    })
+    mocks.getRowSummaryById.mockResolvedValue({
+      id: 'row-1',
+      data: { 'col-in': 'fresh.example.com', 'col-out': 'secret-output' },
+      updatedAt: new Date('2026-09-14T00:00:00Z'),
+    })
+
+    await runRowCascadeLoop(payload('acting-user', 'acting-user') as never)
+
+    expect(mocks.getRowSummaryById).toHaveBeenCalledWith(
+      'table-1',
+      'row-1',
+      'workspace-1',
+      expect.any(Object)
+    )
+    expect(mocks.createProvenanceReader).toHaveBeenCalledExactlyOnceWith(
+      { userId: 'acting-user', workspaceId: 'workspace-1' },
+      new Set(['col-in'])
+    )
+    expect(mocks.runEnrichment.mock.calls[0][1]).toEqual({ domain: 'fresh.example.com' })
+    expect(mocks.markWorkflowGroupPickedUp.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.getRowSummaryById.mock.invocationCallOrder[0]
+    )
+    expect(mocks.getRowSummaryById.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.runEnrichment.mock.invocationCallOrder[0]
+    )
   })
 
   it.each(['org_reserved', 'org_other', null])(

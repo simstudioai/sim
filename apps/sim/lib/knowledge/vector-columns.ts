@@ -5,7 +5,7 @@
  * can never drift apart.
  */
 
-import { embedding } from '@sim/db/schema'
+import { embedding, embeddingSearch } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 
@@ -24,6 +24,14 @@ const VECTOR_FIELD_BY_WIDTH = {
 } as const satisfies Record<KbEmbeddingDimensions, VectorField>
 
 const VECTOR_FIELDS = Object.values(VECTOR_FIELD_BY_WIDTH) as readonly VectorField[]
+
+const CANDIDATE_COLUMN_BY_WIDTH = {
+  384: embeddingSearch.binary384,
+  768: embeddingSearch.binary768,
+  1024: embeddingSearch.binary1024,
+  1536: embeddingSearch.binary,
+  3072: embeddingSearch.binary3072,
+} as const
 
 export function embeddingVectorColumn(dimensions: KbEmbeddingDimensions) {
   return embedding[VECTOR_FIELD_BY_WIDTH[dimensions]]
@@ -76,5 +84,5 @@ export function embeddingCandidateDistance(
   queryVector: string
 ): SQL<number> {
   const width = sql.raw(String(dimensions))
-  return sql<number>`binary_quantize(${embeddingVectorColumn(dimensions)})::bit(${width}) <~> binary_quantize(${queryVector}::vector)::bit(${width})`
+  return sql<number>`${CANDIDATE_COLUMN_BY_WIDTH[dimensions]} <~> binary_quantize(${queryVector}::vector)::bit(${width})`
 }

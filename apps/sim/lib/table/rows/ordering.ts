@@ -16,7 +16,10 @@ import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
-import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import {
+  mutateTableRowsWithSecretProvenance,
+  type TableRowProvenanceReader,
+} from '@/lib/table/rows/secret-provenance'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
@@ -291,6 +294,7 @@ export async function resolveBatchInsertOrderKeys(
  * by the `increment_user_table_row_count` trigger.
  */
 export async function insertOrderedRow(params: {
+  readProvenance?: TableRowProvenanceReader
   tableId: string
   workspaceId: string
   data: RowData
@@ -337,7 +341,7 @@ export async function insertOrderedRow(params: {
     // order_key is authoritative — keep a best-effort, no-shift position.
     const targetPosition = await nextRowPosition(trx, tableId)
 
-    return mutateTableRowsWithSecretProvenance(trx, {
+    const rows = await mutateTableRowsWithSecretProvenance(trx, {
       rows: [{ rowId, provenance: secretProvenance }],
       rowState: 'new',
       mode: 'replace',
@@ -362,6 +366,8 @@ export async function insertOrderedRow(params: {
         }
       },
     })
+    await params.readProvenance?.capture(trx, rows)
+    return rows
   })
   return {
     id: row.id,

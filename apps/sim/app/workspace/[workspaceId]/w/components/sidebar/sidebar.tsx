@@ -824,7 +824,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleOpenSettings = (section: SettingsSection) => {
     if (!isCollapsedRef.current) {
-      setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      setSidebarWidth(SIDEBAR_WIDTH.DEFAULT)
     }
     navigateToSettings({ section })
   }
@@ -898,7 +898,7 @@ export const Sidebar = memo(function Sidebar() {
   const navigateToPage = useCallback(
     (path: string) => {
       if (!isCollapsedRef.current) {
-        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+        setSidebarWidth(SIDEBAR_WIDTH.DEFAULT)
       }
       router.push(path)
     },

@@ -2347,3 +2347,117 @@ describe('unredacted catalog exemption', () => {
     expect(registry.getUnredactedSecretNames()).toEqual([])
   })
 })
+
+describe('current environment resolutions', () => {
+  const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+  const oldEntry = {
+    name: 'API_KEY',
+    plaintext: 'old-personal-secret',
+    encryptedValue: 'encrypted-old',
+    scope: 'personal' as const,
+    ownerUserId: scope.userId,
+  }
+  const environment = {
+    personalEncrypted: { API_KEY: oldEntry.encryptedValue },
+    personalDecrypted: { API_KEY: oldEntry.plaintext },
+    personalOwners: { API_KEY: scope.userId },
+    workspaceEncrypted: { API_KEY: 'encrypted-current', UNRELATED: 'encrypted-unrelated' },
+    workspaceDecrypted: { API_KEY: 'current-workspace-secret', UNRELATED: 'unrelated-secret' },
+    scope,
+  }
+
+  it('uses the current workspace value while preserving earlier active values and sibling snapshots', () => {
+    const parent = new ResolvedSecretTraceRegistry([oldEntry], scope)
+    parent.recordResolved(oldEntry.name, oldEntry.plaintext, { propagated: true })
+    const sibling = parent.forkForInputPaths([])
+    const current = parent.forkForToolCall()
+
+    expect(
+      current.recordResolvedFromEnvironment('API_KEY', 'current-workspace-secret', environment, {
+        path: ['apiKey'],
+        propagated: true,
+      })
+    ).toBe(true)
+    expect(current.isComplete()).toBe(true)
+    expect(current.getActiveMatches()).toEqual(
+      expect.arrayContaining([
+        { plaintext: oldEntry.plaintext, replacement: '{{API_KEY}}' },
+        { plaintext: 'current-workspace-secret', replacement: '{{API_KEY}}' },
+      ])
+    )
+    expect(current.getResolvedSecretUsage()).toEqual(
+      expect.arrayContaining([
+        { name: 'API_KEY', scope: 'personal', ownerUserId: scope.userId },
+        { name: 'API_KEY', scope: 'workspace', ownerUserId: null },
+      ])
+    )
+    expect(sibling.recordResolved('API_KEY', oldEntry.plaintext)).toBe(true)
+    expect(sibling.isComplete()).toBe(true)
+    expect(parent.getActiveMatches()).toEqual([
+      { plaintext: oldEntry.plaintext, replacement: '{{API_KEY}}' },
+    ])
+    parent.mergeToolCallRegistry(current)
+    expect(parent.getActiveMatches()).toEqual(current.getActiveMatches())
+    expect(current.recordResolved('UNRELATED', 'unrelated-secret')).toBe(false)
+  })
+
+  it('rejects a removed secret instead of vouching from the old catalog', () => {
+    const registry = new ResolvedSecretTraceRegistry([oldEntry], scope)
+    registry.recordResolved(oldEntry.name, oldEntry.plaintext, { propagated: true })
+
+    expect(
+      registry.recordResolvedFromEnvironment(oldEntry.name, oldEntry.plaintext, {
+        personalEncrypted: {},
+        personalDecrypted: {},
+        workspaceEncrypted: {},
+        workspaceDecrypted: {},
+        scope,
+      })
+    ).toBe(false)
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: oldEntry.plaintext, replacement: '{{API_KEY}}' },
+    ])
+  })
+
+  it.each([
+    { userId: 'another-user', workspaceId: scope.workspaceId },
+    { userId: scope.userId, workspaceId: 'another-workspace' },
+  ])('rejects a snapshot from a different scope: %j', (otherScope) => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    expect(
+      registry.recordResolvedFromEnvironment('API_KEY', 'current-workspace-secret', {
+        ...environment,
+        scope: otherScope,
+      })
+    ).toBe(false)
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('does not trust plaintext that differs from the current snapshot', () => {
+    const registry = new ResolvedSecretTraceRegistry([oldEntry], scope)
+
+    expect(registry.recordResolvedFromEnvironment('API_KEY', oldEntry.plaintext, environment)).toBe(
+      false
+    )
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('preserves the current workspace unredacted setting without changing a personal contribution', () => {
+    const registry = new ResolvedSecretTraceRegistry([oldEntry], scope)
+    registry.recordResolved(oldEntry.name, oldEntry.plaintext, { propagated: true })
+
+    expect(
+      registry.recordResolvedFromEnvironment('API_KEY', 'current-workspace-secret', {
+        ...environment,
+        workspaceUnredactedKeys: ['API_KEY'],
+      })
+    ).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: oldEntry.plaintext, replacement: '{{API_KEY}}' },
+    ])
+  })
+})

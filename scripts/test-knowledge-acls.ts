@@ -154,6 +154,10 @@ try {
     cwd: path.join(root, 'packages/db'),
     env: environment,
   })
+  run('bun', ['./script-migrations/0015_backfill_embedding_search.ts'], {
+    cwd: path.join(root, 'packages/db'),
+    env: environment,
+  })
   run(
     'bunx',
     [

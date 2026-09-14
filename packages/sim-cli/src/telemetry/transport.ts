@@ -1,19 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { childProcessEnv, proxyExecArgv } from '../environment'
 
-/**
- * Where events go. The key is a PostHog project token — a public, write-only
- * value — baked into the published build by `bun build --env='SIM_CLI_TELEMETRY_*'`
- * the way the Supabase CLI injects its own at link time. A checkout built
- * without one has no destination and reports nothing, and a self-hosted
- * deployment can point its own build at its own project.
- *
- * These two reads must stay literal `process.env.<NAME>` expressions: that is
- * the only form the bundler substitutes.
- */
-const BUILT_IN_KEY = process.env.SIM_CLI_TELEMETRY_KEY
-const BUILT_IN_HOST = process.env.SIM_CLI_TELEMETRY_HOST
-
 export const DEFAULT_INGEST_HOST = 'https://us.i.posthog.com'
 
 /** The single-event capture endpoint, relative to the ingest host. */
@@ -33,10 +20,22 @@ export interface IngestTarget {
   host: string
 }
 
-/** The destination this build was made with, if any. */
+/**
+ * The destination this build was made with, if any. The key is a PostHog
+ * project token — a public, write-only value — baked into the published build
+ * by `bun build --env='SIM_CLI_TELEMETRY_*'` the way the Supabase CLI injects
+ * its own at link time. A checkout built without one has no destination and
+ * reports nothing, and a self-hosted deployment can point its own build at its
+ * own project.
+ *
+ * Both reads must stay literal `process.env.<NAME>` expressions, the only form
+ * the bundler substitutes. They are made on each call rather than at module
+ * load so that, unbundled, the answer follows the environment a caller set.
+ */
 export function builtInIngestTarget(): IngestTarget | undefined {
-  if (!BUILT_IN_KEY) return undefined
-  return { key: BUILT_IN_KEY, host: BUILT_IN_HOST || DEFAULT_INGEST_HOST }
+  const key = process.env.SIM_CLI_TELEMETRY_KEY
+  if (!key) return undefined
+  return { key, host: process.env.SIM_CLI_TELEMETRY_HOST || DEFAULT_INGEST_HOST }
 }
 
 /** One event in the shape PostHog's capture endpoint accepts. */

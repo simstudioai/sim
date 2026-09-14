@@ -141,7 +141,14 @@ vi.mock('@/lib/table/rows/secret-provenance', () => ({
     ),
   }),
   createUnknownTableRowSecretProvenance: () => ({ complete: false, columns: {} }),
-  loadTableRowSecretProvenance: mockLoadSecretProvenance,
+  TableRowProvenanceReader: class {
+    constructor(scope: unknown) {
+      mockLoadSecretProvenance(scope)
+    }
+    exportProvenance() {
+      return { version: 1, complete: true, entries: [] }
+    }
+  },
 }))
 
 vi.mock('@/lib/table/validation', () => ({
@@ -676,7 +683,8 @@ describe('row query and upsert application semantics', () => {
         predicate: { field: 'column_name', op: 'eq', value: 'Ada' },
         sort: { column_name: 'asc' },
       }),
-      expect.any(String)
+      expect.any(String),
+      undefined
     )
   })
 
@@ -821,7 +829,8 @@ describe('row query and upsert application semantics', () => {
     expect(mockQueryRows).toHaveBeenCalledWith(
       TABLE,
       expect.objectContaining({ offset: 100 }),
-      expect.any(String)
+      expect.any(String),
+      undefined
     )
   })
 
@@ -833,14 +842,13 @@ describe('row query and upsert application semantics', () => {
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
     }
-    const provenance = { complete: true, columns: {} }
+    const provenance = { version: 1, complete: true, entries: [] }
     mockQueryRows.mockResolvedValueOnce({
       rows: [row],
       rowCount: 1,
       totalCount: null,
       nextCursor: null,
     })
-    mockLoadSecretProvenance.mockResolvedValueOnce(provenance)
 
     const result = await queryTableRows.execute({
       principal: PRINCIPAL,
@@ -851,14 +859,14 @@ describe('row query and upsert application semantics', () => {
       },
     })
 
-    // Narrowed to the columns the row still holds: without `selectedValues` a
-    // stale sidecar entry for a dropped column rides along in the envelope, and
-    // the unmigrated `rows`/`query` routes have always narrowed here.
-    expect(mockLoadSecretProvenance).toHaveBeenCalledWith(
-      [{ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data }],
-      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    expect(mockLoadSecretProvenance).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: TABLE.workspaceId,
+    })
+    expect(mockQueryRows.mock.calls[0][3]).toEqual(
+      expect.objectContaining({ exportProvenance: expect.any(Function) })
     )
-    expect(result.secretProvenance).toBe(provenance)
+    expect(result.secretProvenance).toEqual(provenance)
   })
 
   it('audits only the authoritative deleted count and suppresses no-op audit', async () => {
@@ -1488,7 +1496,8 @@ describe('opt-in per-cell run state', () => {
     expect(mockQueryRows).toHaveBeenCalledWith(
       TABLE,
       expect.objectContaining({ withExecutions: true }),
-      expect.any(String)
+      expect.any(String),
+      undefined
     )
   })
 

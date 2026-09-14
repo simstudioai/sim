@@ -93,6 +93,7 @@ jobs:
           lib/auth/oauth-provider-lifecycle.postgres.test.ts
           app/api/auth/oauth2/token/route.postgres.test.ts
           lib/auth/sim-auth-adapter.test.ts
+          lib/auth/sim-auth-adapter.postgres.test.ts
           ee/scim/lib/managed-membership.postgres.test.ts
           lib/auth/sso/application/admit-sso-user.postgres.test.ts
 

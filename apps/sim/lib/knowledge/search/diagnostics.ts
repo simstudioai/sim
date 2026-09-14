@@ -70,6 +70,7 @@ export interface SearchDiagnosticMetadata {
   boostRecency?: boolean
   embeddingDimensions?: number
   vectorRanking?: 'exact' | 'binary-rerank'
+  vectorCandidateStorage?: 'stored-binary'
   vectorBudgetMs?: number
   vectorCandidateLimit?: number
   vectorCandidateCount?: number

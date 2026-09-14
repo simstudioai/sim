@@ -58,6 +58,7 @@ import type { ColumnDefinition } from '@/lib/table/types'
 import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
 import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import { getBlockRegistry } from '@/blocks/registry'
 import { escapeRegExp } from '@/executor/constants'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -582,7 +583,6 @@ async function processBlockMetadata(
       return null
     }
 
-    const { getBlockRegistry } = await import('@/blocks/registry')
     const blockRegistry = getBlockRegistry()
     if (!blockRegistry[blockId]) {
       return null

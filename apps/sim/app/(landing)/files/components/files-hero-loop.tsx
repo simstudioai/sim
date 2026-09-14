@@ -5,10 +5,9 @@ import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
-import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
+import { CsvIcon, DocxIcon, PdfIcon, ZipIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
-import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the files hero - a file-heavy team's workspace. */
