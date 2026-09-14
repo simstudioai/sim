@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipLink, ChipModalError, ChipTag } from '@sim/emcn'
+import { useEffect, useRef, useState } from 'react'
+import { Chip, ChipConfirmModal, ChipLink, ChipModalError, ChipTag, useToast } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import { SlackIcon } from '@/components/icons'
 import { SlackSearchSetupWizard } from '@/components/integrations/slack-search-setup-wizard'
@@ -26,6 +26,8 @@ import {
 
 /** Organization-owned Search bots are installed through the dedicated OAuth wizard. */
 export function OrganizationSearchSlack() {
+  const setupToastShown = useRef<boolean>(false)
+  const { toast } = useToast()
   const { organization, viewer } = useOrganizationContext()
   const installations = useSlackSearchInstallations(viewer.isAdmin ? organization.id : undefined)
   const configure = useConfigureSlackSearch()
@@ -35,24 +37,33 @@ export function OrganizationSearchSlack() {
     slackSetupResultParam.parser
   )
   const [wizard, setWizard] = useState<{
+    mode?: 'custom' | 'shared'
     installationId?: string
     appId?: string
     initialName?: string
   } | null>(null)
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
+
+  useEffect(() => {
+    if (!viewer.isAdmin || setupResult !== 'complete' || setupToastShown.current) return
+    setupToastShown.current = true
+    toast.success('Slack connected')
+    void setSetupResult(null)
+  }, [viewer.isAdmin, setupResult, setSetupResult, toast])
+
   if (!viewer.isAdmin) return null
   const busy = configure.isPending || remove.isPending
   const bots = installations.data?.bots ?? []
+  const canInstallSharedApp = !installations.error && installations.data?.sharedAppAvailable
+  const sharedTeams = new Set(
+    installations.data?.installations
+      .filter((installation) => installation.appKind === 'shared')
+      .map((installation) => installation.teamId)
+  )
 
   return (
     <SettingsPanel>
       <div className='flex max-w-xl flex-col gap-4'>
-        {setupResult === 'complete' && (
-          <div role='status' className='flex items-center justify-between gap-2'>
-            <p className='text-[var(--text-body)] text-sm'>Slack is connected and ready to use.</p>
-            <Chip onClick={() => void setSetupResult(null)}>Dismiss</Chip>
-          </div>
-        )}
         <SettingsSection label='Connection'>
           {installations.error ? (
             <SettingsQueryErrorState
@@ -72,23 +83,29 @@ export function OrganizationSearchSlack() {
                   title='Slack'
                   description='Connect your workspace to ask questions in Slack.'
                   trailing={
-                    <Chip variant='primary' onClick={() => setWizard({})}>
+                    <Chip
+                      variant='primary'
+                      onClick={() => setWizard(canInstallSharedApp ? { mode: 'shared' } : {})}
+                    >
                       {installations.data.sharedAppAvailable ? 'Install Sim Search' : 'Set up'}
                     </Chip>
                   }
                 />
               ) : (
                 installations.data.installations.map((installation) => {
-                  const name =
-                    bots.find((bot) => bot.id === installation.credentialId)?.displayName ??
-                    installation.teamName
-                  const connectionError = installation.needsValidation
-                    ? 'Reconnect to verify the app’s credentials and permissions.'
-                    : ['delivery_failed', 'assistant_or_delivery_failed'].includes(
-                          installation.lastOutcome ?? ''
-                        )
-                      ? 'The last reply failed. Check the Slack connection.'
-                      : null
+                  const custom = installation.appKind === 'custom'
+                  const name = custom ? 'Sim Search (custom bot)' : 'Sim Search'
+                  const needsInstall =
+                    canInstallSharedApp && custom && !sharedTeams.has(installation.teamId)
+                  const connectionError = needsInstall
+                    ? null
+                    : installation.needsValidation
+                      ? 'Reconnect to verify the app’s credentials and permissions.'
+                      : ['delivery_failed', 'assistant_or_delivery_failed'].includes(
+                            installation.lastOutcome ?? ''
+                          )
+                        ? 'The last reply failed. Check the Slack connection.'
+                        : null
                   return (
                     <SettingsResourceRow
                       key={installation.id}
@@ -103,7 +120,7 @@ export function OrganizationSearchSlack() {
                       }
                       badge={
                         <ChipTag>
-                          {installation.needsValidation
+                          {needsInstall || installation.needsValidation
                             ? 'Reconnect required'
                             : installation.enabled
                               ? 'Enabled'
@@ -123,13 +140,18 @@ export function OrganizationSearchSlack() {
                             label={`${name} actions`}
                             actions={[
                               {
-                                label: 'Reconnect',
+                                label: needsInstall ? 'Install Sim Search' : 'Reconnect',
                                 disabled: busy,
                                 onSelect: () =>
                                   setWizard({
+                                    mode: needsInstall ? 'shared' : installation.appKind,
                                     installationId: installation.id,
                                     appId: installation.appId,
-                                    initialName: name,
+                                    initialName:
+                                      custom && !needsInstall
+                                        ? bots.find((bot) => bot.id === installation.credentialId)
+                                            ?.displayName
+                                        : undefined,
                                   }),
                               },
                               {

@@ -1,13 +1,14 @@
 import { db } from '@sim/db'
 import { slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 /** Called only inside authorized installation/member operations; never returns secrets to a surface. */
 export async function readSharedSlackSearchApp() {
-  if (!(await isFeatureEnabled('slack-search-shared-app'))) return null
+  if (!isHosted || !(await isFeatureEnabled('slack-search-shared-app'))) return null
   return getSharedSlackSearchAppConfiguration()
 }
 

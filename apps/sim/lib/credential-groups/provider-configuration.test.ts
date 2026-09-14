@@ -12,6 +12,7 @@ const shared = vi.hoisted(() => ({
   flag: vi.fn(),
 }))
 vi.mock('@/lib/core/config/env', () => ({ env: shared.env }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: shared.flag }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -39,7 +40,7 @@ const configuration = {
 beforeEach(() => {
   resetDbChainMock()
   shared.env.SLACK_SEARCH_APP_ID = ''
-  shared.flag.mockResolvedValue(true)
+  shared.flag.mockReset().mockResolvedValue(true)
 })
 
 describe('organization Slack app references', () => {
@@ -105,6 +106,39 @@ describe('organization Slack app references', () => {
       else await expect(result).rejects.toThrow('disabled or removed')
     }
   )
+  it('keeps using the custom app for personal sources after a different native app is installed', async () => {
+    shared.env.SLACK_SEARCH_APP_ID = 'ANATIVE'
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          encryptedProviderConfiguration:
+            await encryptCredentialGroupProviderConfiguration(configuration),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'A1',
+          kind: 'custom',
+          organizationId: 'org-1',
+          clientId: 'custom-client',
+          encryptedClientSecret: 'encrypted:custom-secret',
+          encryptedSigningSecret: 'encrypted:custom-signing',
+        },
+      ])
+    await expect(
+      getSlackCredentialGroupConfiguration({
+        organizationId: 'org-1',
+        credentialGroupId: 'group-1',
+      })
+    ).resolves.toMatchObject({
+      appId: 'A1',
+      teamId: 'T1',
+      clientId: 'custom-client',
+      clientSecret: 'custom-secret',
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+    expect(shared.flag).not.toHaveBeenCalled()
+  })
   it('fails when the referenced app is absent from the owning organization', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([

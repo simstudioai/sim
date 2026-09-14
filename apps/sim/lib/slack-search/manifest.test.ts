@@ -1,6 +1,5 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createSharedSlackSearchManifest,
   createSlackSearchManifest,
@@ -85,10 +84,11 @@ describe('Search app manifest', () => {
     expect(manifest.features.agent_view).toEqual({ agent_description: 'Search with sources' })
     expect(manifest.display_information.name).toBe('Sim Search')
   })
-  it('requires HTTPS before directing the admin to Slack', () => {
-    expect(() =>
-      createSlackSearchManifest('Sim Search', 'Search', 'http://localhost:3003')
-    ).toThrow(OrchestrationError)
+  it('uses the configured origin without blocking local setup', () => {
+    const manifest = createSlackSearchManifest('Sim Search', 'Search', 'http://localhost:3000')
+    expect(manifest.settings.event_subscriptions.request_url).toBe(
+      'http://localhost:3000/api/webhooks/slack'
+    )
   })
 })
 

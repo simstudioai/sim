@@ -6,6 +6,14 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const TTL_SECONDS = 600
+const installationSnapshotSchema = z.object({
+  id: z.string().min(1),
+  revision: z.string().min(1),
+  credentialId: z.string().min(1),
+  appId: z.string().min(1),
+  teamId: z.string().min(1),
+  appRevision: z.string().optional(),
+})
 const attemptSchema = z
   .object({
     userId: z.string().min(1),
@@ -17,16 +25,8 @@ const attemptSchema = z
     clientId: z.string().min(1),
     redirectUri: z.string().url(),
     createdAt: z.number(),
-    installation: z
-      .object({
-        id: z.string(),
-        revision: z.string(),
-        credentialId: z.string(),
-        appId: z.string(),
-        teamId: z.string(),
-        appRevision: z.string().optional(),
-      })
-      .optional(),
+    installation: installationSnapshotSchema.optional(),
+    customInstallation: installationSnapshotSchema.optional(),
   })
   .and(
     z.union([

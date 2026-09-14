@@ -5,6 +5,7 @@ import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
+  hosted: true,
   flag: vi.fn(),
   env: {
     SLACK_SEARCH_APP_ID: 'A1',
@@ -14,6 +15,11 @@ const m = vi.hoisted(() => ({
   },
 }))
 vi.mock('@/lib/core/config/env', () => ({ env: m.env }))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isHosted() {
+    return m.hosted
+  },
+}))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: m.flag }))
 
 import {
@@ -25,6 +31,7 @@ import {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  m.hosted = true
   Object.assign(m.env, {
     SLACK_SEARCH_APP_ID: 'A1',
     SLACK_SEARCH_CLIENT_ID: 'client',
@@ -34,6 +41,17 @@ beforeEach(() => {
   m.flag.mockResolvedValue(true)
 })
 describe('shared Slack rollout', () => {
+  it('requires a hosted deployment even when configured and enabled', async () => {
+    m.hosted = false
+    await expect(readSharedSlackSearchApp()).resolves.toBeNull()
+    await expect(requireSlackSearchAppAvailable('A1')).rejects.toThrow('unavailable')
+    expect(m.flag).not.toHaveBeenCalled()
+  })
+  it('preserves custom bot handling on self-hosted deployments', async () => {
+    m.hosted = false
+    queueTableRows(slackApp, [{ kind: 'custom' }])
+    await expect(requireSlackSearchAppAvailable('CUSTOM')).resolves.toBeUndefined()
+  })
   it.each([false, true])('requires both flag and configured app (flag=%s)', async (flag) => {
     m.flag.mockResolvedValue(flag)
     if (flag) m.env.SLACK_SEARCH_APP_ID = ''
