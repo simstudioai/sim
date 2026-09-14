@@ -32,7 +32,7 @@ const gatewaySchema = z.strictObject({
 })
 const gatewaysSchema = z
   .record(keySchema, gatewaySchema)
-  .refine((value) => Object.keys(value).length <= 100)
+  .refine((value) => Object.keys(value).length > 0 && Object.keys(value).length <= 100)
 const credentialSchema = z.strictObject({
   token: z
     .string()

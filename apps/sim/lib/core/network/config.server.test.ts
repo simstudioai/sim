@@ -34,6 +34,23 @@ describe('outbound configuration', () => {
     expect(readSnapshot).not.toHaveBeenCalled()
   })
 
+  it.each([undefined, '{}'])(
+    'rejects missing AppConfig gateway catalog %s before routing',
+    (gateways) => {
+      expect(() =>
+        createOutboundRoutingReader(
+          {
+            ...options,
+            source: 'appconfig',
+            configuration: undefined,
+            gateways,
+          },
+          dependencies
+        )
+      ).toThrow('INVALID_CONFIGURATION')
+    }
+  )
+
   it('does not treat missing context as a personal workspace', async () => {
     const reader = createOutboundRoutingReader(options, dependencies)
     await expect(reader.resolve(undefined)).rejects.toThrow('MISSING_SCOPE')
