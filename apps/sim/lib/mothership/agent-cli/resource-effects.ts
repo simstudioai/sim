@@ -5,6 +5,7 @@ import * as knowledge from '@/lib/api/contracts/v2/knowledge'
 import * as chunks from '@/lib/api/contracts/v2/knowledge-chunks'
 import * as tags from '@/lib/api/contracts/v2/knowledge-tags'
 import * as logs from '@/lib/api/contracts/v2/logs'
+import * as logStats from '@/lib/api/contracts/v2/logs-stats'
 import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -278,6 +279,7 @@ const EFFECT_ROUTES: EffectRoute[] = [
   ...parentAccess(tags, 'knowledgebase', 'knowledgeBaseId'),
   ...parentAccess(chunks, 'knowledgebase', 'knowledgeBaseId'),
   ...parentAccess(files, 'file', 'fileId'),
+  ...parentAccess(logStats, 'log', 'runId'),
 ].sort(
   // Literal endpoints such as /files/folders/restore take precedence over /files/[fileId]/restore.
   (left, right) => (left.path.match(/\[/g)?.length ?? 0) - (right.path.match(/\[/g)?.length ?? 0)

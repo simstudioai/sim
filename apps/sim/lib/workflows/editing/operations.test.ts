@@ -1,13 +1,35 @@
 /**
  * @vitest-environment node
  */
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { createBlockFromParams } from '@/lib/workflows/editing/builders'
+import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { applyOperationsToWorkflowState } from './engine'
 
 vi.mock('@/blocks/registry', () => {
   const blocks: Record<string, any> = {
+    conditional_format: {
+      type: 'conditional_format',
+      name: 'Conditional Format',
+      subBlocks: [
+        { id: 'mode', type: 'short-input', value: () => 'compact' },
+        {
+          id: 'format',
+          type: 'dropdown',
+          condition: () => ({ field: 'mode', value: ['compact'] }),
+          options: [{ id: 'json', label: 'JSON' }],
+        },
+        {
+          id: 'format',
+          type: 'dropdown',
+          condition: { field: 'mode', value: 'tabular' },
+          options: [{ id: 'csv', label: 'CSV' }],
+        },
+      ],
+    },
     condition: {
       type: 'condition',
       name: 'Condition',
@@ -1478,4 +1500,117 @@ describe('connection shape validation', () => {
       }),
     ])
   })
+})
+
+describe('conditional input validation through workflow operations', () => {
+  const blockId = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
+
+  function workflowWithStoredDefault() {
+    const workflow = makeLoopWorkflow()
+    const formatter: BlockState = createBlockFromParams(blockId, {
+      type: 'conditional_format',
+      name: 'Formatter',
+    })
+    expect(formatter.subBlocks.mode.value).toBe('compact')
+    return { ...workflow, blocks: { ...workflow.blocks, [blockId]: formatter } }
+  }
+
+  it('validates an add against explicit selectors regardless of input order', () => {
+    const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: blockId,
+        params: {
+          type: 'conditional_format',
+          name: 'Formatter',
+          inputs: { format: 'json', mode: 'compact' },
+        },
+      },
+    ])
+    expect(validationErrors).toEqual([])
+    expect(state.blocks[blockId].subBlocks.format.value).toBe('json')
+  })
+
+  it.each(['edit', 'nested', 'insert'] as const)(
+    'uses the stored default selector for a partial %s write',
+    (path) => {
+      const workflow = workflowWithStoredDefault()
+      const operations: EditWorkflowOperation[] = []
+      if (path === 'nested') {
+        workflow.blocks[blockId].data = { parentId: 'loop-1', extent: 'parent' }
+        operations.push({
+          operation_type: 'edit',
+          block_id: 'loop-1',
+          params: {
+            nestedNodes: {
+              incoming: {
+                type: 'conditional_format',
+                name: 'Formatter',
+                inputs: { format: 'json' },
+              },
+            },
+          },
+        })
+      } else {
+        operations.push({
+          operation_type: path === 'insert' ? 'insert_into_subflow' : 'edit',
+          block_id: blockId,
+          params: {
+            subflowId: 'loop-1',
+            type: 'conditional_format',
+            name: 'Formatter',
+            inputs: { format: 'json' },
+          },
+        })
+      }
+      const { state, validationErrors } = applyOperationsToWorkflowState(workflow, operations)
+      expect(validationErrors).toEqual([])
+      expect(state.blocks[blockId].subBlocks.format.value).toBe('json')
+      expect(state.blocks[blockId].subBlocks.mode.value).toBe('compact')
+      expect(workflow.blocks[blockId].subBlocks.format.value).toBeNull()
+    }
+  )
+
+  it('uses incoming selectors over stored values and reports invalid active choices', () => {
+    const workflow = workflowWithStoredDefault()
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: blockId,
+        params: { inputs: { format: 'csv', mode: 'tabular' } },
+      },
+    ])
+    expect(validationErrors).toEqual([])
+    expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
+
+    const rejected = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: blockId, params: { inputs: { format: 'csv' } } },
+    ])
+    expect(rejected.validationErrors.map((error) => error.field)).toEqual(['format'])
+    expect(rejected.state.blocks[blockId].subBlocks.format.value).toBeNull()
+    expect(workflow.blocks[blockId].subBlocks.format.value).toBeNull()
+  })
+
+  it.each([{}, { mode: 'dormant' }])(
+    'preserves the existing dormant fallback on add without a matching selector: %j',
+    (selectors) => {
+      /**
+       * Characterizes the compatibility boundary, not correct default inference:
+       * add validation still runs before default seeding and does not infer mode.
+       */
+      const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+        {
+          operation_type: 'add',
+          block_id: blockId,
+          params: {
+            type: 'conditional_format',
+            name: 'Formatter',
+            inputs: { ...selectors, format: 'csv' },
+          },
+        },
+      ])
+      expect(validationErrors).toEqual([])
+      expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
+    }
+  )
 })

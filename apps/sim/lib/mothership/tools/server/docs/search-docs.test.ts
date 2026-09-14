@@ -79,8 +79,12 @@ describe('searchDocsServerTool', () => {
 
     const output = await searchDocsServerTool.execute({ query: 'brand new feature' }, CONTEXT)
 
-    expect(output.note).toContain('search index may lag')
-    expect(output.note).toContain('blocks tips')
+    expect(output).toEqual({
+      results: [],
+      query: 'brand new feature',
+      totalResults: 0,
+      note: 'No indexed candidates were returned for this scope. This result does not establish topic coverage. Read block definitions and tips directly (blocks get / blocks tips), or use web_fetch on the block docsLink.',
+    })
   })
 
   it('explains an empty result set caused by filtering, so it does not read as missing docs', async () => {
