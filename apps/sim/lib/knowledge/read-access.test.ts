@@ -1,7 +1,7 @@
 /** @vitest-environment node */
-import { document } from '@sim/db/schema'
+import { document, knowledgeConnector } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { eq, gt } from 'drizzle-orm'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type KnowledgeAccessProvider,
@@ -11,6 +11,7 @@ import {
 import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 
 const identity: KnowledgeAccessScope = { kind: 'user', userId: 'reader', tokens: ['org'] }
+const liveSources = sql`live-sources`
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -22,13 +23,14 @@ describe('knowledgeReadAccessBatches', () => {
     const first = Array.from({ length: MAX_KNOWLEDGE_ACCESS_CANDIDATES }, (_, index) => ({
       connectorId: `source-${String(index).padStart(4, '0')}`,
     }))
-    queueTableRows(document, first)
-    queueTableRows(document, [{ connectorId: 'source-last' }])
+    queueTableRows(knowledgeConnector, first)
+    queueTableRows(knowledgeConnector, [{ connectorId: 'source-last' }])
     const resolve = vi.fn(async () => identity)
     const provider: KnowledgeAccessProvider = {
       get: async () => identity,
       getForConnectors: resolve,
       getForDocuments: async () => identity,
+      liveSourceConnectorCondition: async () => liveSources,
     }
     const filter = eq(document.knowledgeBaseId, 'one-index')
     const batches = []
@@ -42,11 +44,27 @@ describe('knowledgeReadAccessBatches', () => {
       undefined
     )
     expect(resolve).toHaveBeenNthCalledWith(2, ['source-last'], undefined)
-    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledWith({
-      connectorId: document.connectorId,
-    })
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({ connectorId: knowledgeConnector.id })
+    expect(dbChainMockFns.from).toHaveBeenCalledWith(knowledgeConnector)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
-    expect(gt).toHaveBeenCalledWith(document.connectorId, first.at(-1)!.connectorId)
+    expect(gt).toHaveBeenCalledWith(knowledgeConnector.id, first.at(-1)!.connectorId)
+  })
+
+  it('searches only the sources a live grant could authorize, one document per source', async () => {
+    const provider: KnowledgeAccessProvider = {
+      get: async () => identity,
+      getForConnectors: vi.fn(async () => identity),
+      getForDocuments: async () => identity,
+      liveSourceConnectorCondition: async () => liveSources,
+    }
+    const filter = eq(document.knowledgeBaseId, 'one-index')
+    const batches = []
+    for await (const predicate of knowledgeReadAccessBatches(provider, [filter]))
+      batches.push(predicate)
+    expect(batches).toHaveLength(1)
+    expect(eq).toHaveBeenCalledWith(document.connectorId, knowledgeConnector.id)
+    expect(vi.mocked(and).mock.calls.some((conditions) => conditions[0] === liveSources)).toBe(true)
+    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
   })
 
   it('yields only the ordinary predicate for a reader without live-source credentials', async () => {
@@ -55,27 +73,30 @@ describe('knowledgeReadAccessBatches', () => {
       get: async () => identity,
       getForConnectors: resolve,
       getForDocuments: async () => identity,
-      hasLiveSourceReaders: async () => false,
+      liveSourceConnectorCondition: async () => null,
     }
     const batches = []
     for await (const predicate of knowledgeReadAccessBatches(provider, [])) batches.push(predicate)
     expect(batches).toHaveLength(1)
     expect(resolve).not.toHaveBeenCalled()
-    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('does not enumerate sources after a satisfied ordinary existence probe', async () => {
     const resolve = vi.fn(async () => identity)
+    const liveSourceConnectorCondition = vi.fn(async () => liveSources)
     const provider: KnowledgeAccessProvider = {
       get: async () => identity,
       getForConnectors: resolve,
       getForDocuments: async () => identity,
+      liveSourceConnectorCondition,
     }
     for await (const predicate of knowledgeReadAccessBatches(provider, [])) {
       expect(predicate).toBeDefined()
       break
     }
-    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
+    expect(liveSourceConnectorCondition).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(resolve).not.toHaveBeenCalled()
   })
 
@@ -85,6 +106,6 @@ describe('knowledgeReadAccessBatches', () => {
     await expect(
       knowledgeReadAccessBatches(identity, [], controller.signal).next()
     ).rejects.toThrow('cancelled')
-    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

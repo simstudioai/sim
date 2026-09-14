@@ -3,7 +3,8 @@ import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, net } from 'electron'
+import { app, net } from 'electron'
+import { showShellDialog } from '@/main/dialogs'
 import { isSafeExternalUrl, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
 
@@ -434,9 +435,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
           'Sim will close all app windows while it updates. Running terminal commands, browser activity, downloads, uploads, and unsaved edits may be interrupted. Choose Later to install the update the next time you quit Sim.',
       }
       const win = deps.getWindow()
-      const confirmation = win
-        ? dialog.showMessageBox(win, options)
-        : dialog.showMessageBox(options)
+      const confirmation = win ? showShellDialog(win, options) : showShellDialog(options)
       void confirmation
         .then(({ response }) => {
           if (response === 1 && state.status === 'ready' && state.version === version) {
@@ -903,7 +902,7 @@ export function checkForUpdatesInteractive(
   deps: Pick<UpdaterDeps, 'getWindow' | 'events'> & { handle: UpdaterHandle | null }
 ): void {
   if (!app.isPackaged) {
-    void dialog.showMessageBox({
+    void showShellDialog({
       type: 'info',
       message: 'Updates are only available in packaged builds',
     })
@@ -917,7 +916,7 @@ export function checkForUpdatesInteractive(
 
   const showDialog = (options: Electron.MessageBoxOptions) => {
     const win = deps.getWindow()
-    return win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
+    return win ? showShellDialog(win, options) : showShellDialog(options)
   }
 
   const settle = (state: DesktopUpdateState) => {

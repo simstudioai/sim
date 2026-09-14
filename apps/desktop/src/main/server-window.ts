@@ -1,20 +1,20 @@
+import { dirname, join } from 'node:path'
 import type { DesktopServerChangeResult, DesktopServerConfiguration } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { app, BrowserWindow, dialog, nativeTheme, session } from 'electron'
+import { app, BrowserWindow, nativeTheme, session } from 'electron'
 import type { ConfigStore, DesktopSettings } from '@/main/config'
 import { canonicalOrigin, isSimCloudOrigin, validateOriginInput } from '@/main/config'
+import { showShellDialog } from '@/main/dialogs'
 import { attachLocalPageProtocol, localPageUrl } from '@/main/local-pages'
-import {
-  backgroundColorFor,
-  createSecureWebPreferences,
-  setupPermissionHandlers,
-} from '@/main/window'
+import { attachShellWindowSizing } from '@/main/shell-window'
+import { backgroundColorFor, setupPermissionHandlers } from '@/main/window'
+import { createSecureWebPreferences } from '@/main/window-preferences'
 
 const logger = createLogger('DesktopServerWindow')
 
-const WINDOW_WIDTH = 520
-const WINDOW_HEIGHT = 340
+const WINDOW_WIDTH = 500
+const WINDOW_HEIGHT = 300
 
 /**
  * The partition the server-selection window runs in.
@@ -141,12 +141,13 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     win = new BrowserWindow({
       width: WINDOW_WIDTH,
       height: WINDOW_HEIGHT,
+      useContentSize: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
       title: 'Sim Server',
-      titleBarStyle: 'hiddenInset',
+      frame: false,
       show: false,
       // System preference only, unlike the main window: that one pre-paints for
       // the web app it is about to load, whose theme the user picked in Sim.
@@ -160,22 +161,19 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
       ...(parent && !parent.isDestroyed() ? { parent, modal: true } : {}),
       webPreferences: createSecureWebPreferences(
         SERVER_WINDOW_PARTITION,
-        deps.preloadPath,
+        join(dirname(deps.preloadPath), 'shell-preload.cjs'),
         deps.isPackaged
       ),
-    })
-    win.once('ready-to-show', () => {
-      win?.show()
-    })
-    win.on('closed', () => {
-      win = null
     })
     // A sheet has no title bar, and the page owns the only Cancel button. Both
     // ways out must therefore work without the page: Escape is handled here,
     // and a page that fails to load closes the window instead of leaving a
     // blank sheet nothing can dismiss.
     const opened = win
+    let closed = false
     const closeOpened = () => {
+      closed = true
+      clearTimeout(loadTimeout)
       if (!opened.isDestroyed()) {
         opened.destroy()
       }
@@ -183,6 +181,30 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
         win = null
       }
     }
+    const failed = () => {
+      if (closed || opened.isDestroyed()) return
+      closeOpened()
+      const options = {
+        type: 'error' as const,
+        message: 'Couldn’t open the server settings',
+        detail: 'Sim could not load its server settings page. Restart Sim and try again.',
+      }
+      void (parent && !parent.isDestroyed()
+        ? showShellDialog(parent, options)
+        : showShellDialog(options))
+    }
+    const loadTimeout = setTimeout(failed, 10_000)
+    opened.on('closed', () => {
+      closed = true
+      clearTimeout(loadTimeout)
+      if (win === opened) win = null
+    })
+    attachShellWindowSizing(opened, localPageUrl('server.html'), WINDOW_WIDTH, () => {
+      if (closed) return
+      clearTimeout(loadTimeout)
+      opened.show()
+    })
+    opened.webContents.on('render-process-gone', failed)
     opened.webContents.on('before-input-event', (event, input) => {
       if (input.type === 'keyDown' && input.key === 'Escape') {
         event.preventDefault()
@@ -195,19 +217,12 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
         // -3 is ERR_ABORTED: a load this window cancelled, not a page that failed.
         if (!isMainFrame || errorCode === -3) return
         logger.error('Server window page failed to load', { errorCode, errorDescription })
-        closeOpened()
-        const options = {
-          type: 'error' as const,
-          message: 'Couldn’t open the server settings',
-          detail: 'Sim could not load its server settings page. Restart Sim and try again.',
-        }
-        void (parent && !parent.isDestroyed()
-          ? dialog.showMessageBox(parent, options)
-          : dialog.showMessageBox(options))
+        failed()
       }
     )
     void opened.loadURL(localPageUrl('server.html')).catch((error) => {
       logger.error('Could not open the server window', { error: getErrorMessage(error) })
+      failed()
     })
   }
 

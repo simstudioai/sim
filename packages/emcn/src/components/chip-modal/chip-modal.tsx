@@ -220,6 +220,35 @@ export interface ChipModalProps {
 }
 
 /**
+ * Shared modal chrome and Enter-key policy. Native windows can host this
+ * surface directly when the operating system owns the dialog lifecycle.
+ * Web dialogs use it through {@link ChipModal}.
+ */
+export const ChipModalSurface = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, children, onKeyDown, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
+      className
+    )}
+    onKeyDown={(event) => {
+      onKeyDown?.(event)
+      handleChipModalEnter(event)
+    }}
+    {...props}
+  >
+    <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
+      {children}
+    </div>
+  </div>
+))
+
+ChipModalSurface.displayName = 'ChipModalSurface'
+
+/**
  * Root component. Wraps the Radix dialog and renders the panel chrome.
  * Subcomponents (`ChipModalHeader`, `ChipModalBody`, `ChipModalField`,
  * `ChipModalFooter`) are composed as children. The `size` is forwarded to the
@@ -245,19 +274,9 @@ function ChipModal({
         size={size}
         dismissDisabled={dismissDisabled}
         onOpenAutoFocus={focusChipModalDefaultAction}
-        onKeyDown={handleChipModalEnter}
         aria-describedby={ariaDescribedBy}
       >
-        <div
-          className={cn(
-            'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
-            className
-          )}
-        >
-          <div className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-            {children}
-          </div>
-        </div>
+        <ChipModalSurface className={className}>{children}</ChipModalSurface>
       </ModalContent>
     </Modal>
   )
@@ -409,6 +428,7 @@ const ChipModalBody = React.forwardRef<HTMLDivElement, ChipModalBodyProps>(
   ({ className, fullBleed = false, ...props }, ref) => (
     <div
       ref={ref}
+      data-chip-modal-body=''
       className={cn(
         'flex min-h-0 flex-1 flex-col',
         fullBleed ? 'overflow-hidden' : 'gap-4 overflow-y-auto overflow-x-hidden px-2 pt-4 pb-4.5',
@@ -1212,6 +1232,8 @@ export type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterC
 export type ChipModalFooterDefaultAction = 'primary' | 'dismiss' | 'none'
 
 interface ChipModalFooterCommonProps {
+  /** Label for the dismiss action, such as Cancel, Later, or Stay. */
+  cancelLabel?: React.ReactNode
   /**
    * Disables the Cancel button. Set this while a primary/secondary action is
    * in flight (e.g. an async delete or save) so the user cannot dismiss the
@@ -1345,12 +1367,9 @@ function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactN
  * {@link ChipModalFooterAction} and rendered as {@link Chip}s, so no footer
  * can drift from the canonical layout; the secondary entries additionally
  * accept a chip-chrome control via {@link ChipModalFooterCustomAction}.
- *
- * For "are you sure?" confirmations, reach for {@link ChipConfirmModal} instead
- * — a confirmation's dismiss button is a named decision ("Keep editing"), not
- * the structural Cancel this footer guarantees.
  */
 function ChipModalFooter({
+  cancelLabel = 'Cancel',
   onCancel,
   cancelDisabled,
   hideCancel = false,
@@ -1400,7 +1419,7 @@ function ChipModalFooter({
           data-chip-modal-dismiss-action=''
           data-chip-modal-default-action={defaultAction === 'dismiss' ? '' : undefined}
         >
-          Cancel
+          {cancelLabel}
         </Chip>
       )}
       {primaryAdjacentAction ? renderFooterSlotAction(primaryAdjacentAction) : null}
@@ -1577,8 +1596,7 @@ export interface ChipConfirmModalProps {
   defaultAction?: ChipConfirmDefaultAction
   /**
    * Label for the dismiss button. In a confirmation the dismiss button is a
-   * named decision, so this is honest API (unlike a form footer's structural
-   * Cancel). Defaults to `'Cancel'`; pass `'Keep editing'` for unsaved-changes.
+   * named decision. Defaults to `'Cancel'`; pass `'Keep editing'` for unsaved-changes.
    * @default 'Cancel'
    */
   dismissLabel?: string

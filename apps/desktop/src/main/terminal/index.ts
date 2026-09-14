@@ -165,6 +165,7 @@ export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
   private readonly sessions = new Map<string, TerminalSession>()
   private activeId: string | null = null
+  private readonly pendingCloseConfirmations = new Set<string>()
   private agentActiveId: string | null = null
   private activeTerminalUserSelected = false
   /** True while tearing every shell down, so an exit does not respawn one. */
@@ -492,7 +493,7 @@ export class TerminalService {
     shortcut: FocusedResourceShortcut,
     ownerWindow: BrowserWindow | null,
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
-    confirmCloseRunning?: (running: string) => boolean
+    confirmCloseRunning?: (running: string) => boolean | Promise<boolean>
   ): boolean {
     // Hard reload has no terminal meaning — leave it to the Browser or shell.
     if (shortcut === 'focus-omnibox' || shortcut === 'hard-reload') return false
@@ -527,7 +528,10 @@ export class TerminalService {
         if (this.activeId) {
           const active = this.sessions.get(this.activeId)
           const running = active?.isBusy ? (active.foreground ?? 'A process') : null
-          if (running && confirmCloseRunning && !confirmCloseRunning(running)) return true
+          if (running && active && confirmCloseRunning) {
+            void this.confirmCloseRunningTerminal(active, running, confirmCloseRunning)
+            return true
+          }
           this.closeTerminal(this.activeId)
         }
         return true
@@ -541,6 +545,27 @@ export class TerminalService {
 
     if (this.activeId) emitRendererCommand(shortcut, this.activeId)
     return true
+  }
+
+  /** Revalidates the captured terminal after an asynchronous native-window confirmation. */
+  private async confirmCloseRunningTerminal(
+    terminal: TerminalSession,
+    running: string,
+    confirm: (running: string) => boolean | Promise<boolean>
+  ): Promise<void> {
+    const id = this.activeId
+    if (!id || this.pendingCloseConfirmations.has(id)) return
+    this.pendingCloseConfirmations.add(id)
+    try {
+      if (!(await confirm(running))) return
+      if (this.sessions.get(id) !== terminal) return
+      if (terminal.isBusy && (terminal.foreground ?? 'A process') !== running) return
+      this.closeTerminal(id)
+    } catch {
+      logger.warn('Could not confirm closing the running terminal')
+    } finally {
+      this.pendingCloseConfirmations.delete(id)
+    }
   }
 
   /**

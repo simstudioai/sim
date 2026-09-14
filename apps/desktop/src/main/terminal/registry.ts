@@ -8,8 +8,9 @@ import {
   type TerminalToolArgs,
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
-import { type BrowserWindow, dialog, type WebContents } from 'electron'
+import type { BrowserWindow, WebContents } from 'electron'
 import type { TerminalSessionSnapshot } from '@/main/desktop-chat-session-store'
+import { showShellDialog } from '@/main/dialogs'
 import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 import {
   MAX_TERMINALS_PER_SCOPE,
@@ -300,20 +301,19 @@ export class TerminalRegistry {
               terminalId
             )
           },
-          (running) => {
+          async (running) => {
             if (!ownerWindow || ownerWindow.isDestroyed()) return false
-            return (
-              dialog.showMessageBoxSync(ownerWindow, {
-                type: 'warning',
-                title: 'Close Running Terminal?',
-                message: `${describeRunningCommand(running)} is still running.`,
-                detail: 'Closing this terminal will stop the process.',
-                buttons: ['Close Terminal', 'Cancel'],
-                defaultId: 1,
-                cancelId: 1,
-                noLink: true,
-              }) === 0
-            )
+            const { response } = await showShellDialog(ownerWindow, {
+              type: 'warning',
+              title: 'Close running terminal?',
+              message: `${describeRunningCommand(running)} is still running.`,
+              detail: 'Closing this terminal will stop the process.',
+              buttons: ['Close Terminal', 'Cancel'],
+              primaryVariant: 'destructive',
+              defaultId: 1,
+              cancelId: 1,
+            })
+            return response === 0 && !ownerWindow.isDestroyed()
           }
         )
       ) {

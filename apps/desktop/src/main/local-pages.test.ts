@@ -49,6 +49,8 @@ describe('isLocalPageUrl', () => {
       'https://www.sim.ai/offline.html',
       'sim-shell://evil/offline.html',
       'sim-shell://pages/SeasonSansUprightsVF.woff2',
+      'sim-shell://pages/server.js',
+      'sim-shell://pages/server.css',
       'sim-shell://pages/static/offline.html',
       'sim-shell://pages/',
       'not a url',
@@ -66,6 +68,8 @@ describe('createLocalPageHandler', () => {
     root = mkdtempSync(join(tmpdir(), 'sim-local-pages-'))
     writeFileSync(join(root, 'offline.html'), '<h1>offline</h1>')
     writeFileSync(join(root, 'secret.txt'), 'nope')
+    writeFileSync(join(root, 'server.js'), 'window.renderServerModal()')
+    writeFileSync(join(root, 'server.css'), 'body { margin: 0 }')
   })
 
   afterAll(() => {
@@ -82,6 +86,21 @@ describe('createLocalPageHandler', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(await response.text()).toBe('<h1>offline</h1>')
   })
+
+  it.each([
+    ['server.js', 'text/javascript; charset=utf-8'],
+    ['server.css', 'text/css; charset=utf-8'],
+  ])(
+    'serves the bundled renderer asset %s with a strict content type',
+    async (name, contentType) => {
+      const response = await createLocalPageHandler([root])(
+        new Request(`${LOCAL_PAGE_ORIGIN}/${name}`)
+      )
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toBe(contentType)
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+    }
+  )
 
   it('refuses everything outside the allowlist, however the path is spelled', async () => {
     const handler = createLocalPageHandler([root])

@@ -14,6 +14,45 @@ import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
+function searchProviderTypes() {
+  const providerTypes = Object.keys(CONNECTOR_META_REGISTRY)
+  if (providerTypes.length > MAX_SEARCH_SOURCE_PROVIDER_TYPES) {
+    throw new Error('Search provider catalog exceeds the overview bound')
+  }
+  return providerTypes
+}
+
+/** Live search-index sources of a known provider, over `knowledge_connector` joined to its base. */
+function configuredSearchSourceCondition(owner: ResourceOwner, providerTypes: string[]) {
+  return and(
+    resourceScopeCondition(knowledgeBase, resourceScopeFromOwner(owner)),
+    eq(knowledgeBase.isSearchIndex, true),
+    isNull(knowledgeBase.deletedAt),
+    inArray(knowledgeConnector.connectorType, providerTypes),
+    inArray(knowledgeConnector.accessMode, ['admin', 'members']),
+    isNull(knowledgeConnector.archivedAt),
+    isNull(knowledgeConnector.deletedAt)
+  )
+}
+
+function configuredProvidersQuery() {
+  return db
+    .selectDistinct({ connectorType: knowledgeConnector.connectorType })
+    .from(knowledgeConnector)
+    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+}
+
+/**
+ * Provider types with at least one configured search source in an already authorized owner.
+ * Reads no documents, so callers needing only setup state avoid the overview's access probes.
+ */
+export async function listConfiguredSearchProviderTypes(owner: ResourceOwner): Promise<string[]> {
+  const rows = await configuredProvidersQuery()
+    .where(configuredSearchSourceCondition(owner, searchProviderTypes()))
+    .limit(MAX_SEARCH_SOURCE_PROVIDER_TYPES)
+  return rows.map(({ connectorType }) => connectorType)
+}
+
 /** Provider-level existence probes keep setup cards independent of the loaded source pages. */
 export const readSearchSourceOverview = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readSearchSourceOverview,
@@ -21,19 +60,8 @@ export const readSearchSourceOverview = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, context }): Promise<SearchSourceOverview> {
     const availability = await resolveKnowledgeAccessAvailability(context)
     const access = createKnowledgeAccessProvider(principal, context)
-    const providerTypes = Object.keys(CONNECTOR_META_REGISTRY)
-    if (providerTypes.length > MAX_SEARCH_SOURCE_PROVIDER_TYPES) {
-      throw new Error('Search provider catalog exceeds the overview bound')
-    }
-    const configured = and(
-      resourceScopeCondition(knowledgeBase, resourceScopeFromOwner(context)),
-      eq(knowledgeBase.isSearchIndex, true),
-      isNull(knowledgeBase.deletedAt),
-      inArray(knowledgeConnector.connectorType, providerTypes),
-      inArray(knowledgeConnector.accessMode, ['admin', 'members']),
-      isNull(knowledgeConnector.archivedAt),
-      isNull(knowledgeConnector.deletedAt)
-    )
+    const providerTypes = searchProviderTypes()
+    const configured = configuredSearchSourceCondition(context, providerTypes)
     const available = or(
       availability.memberScoped ? eq(knowledgeConnector.accessMode, 'members') : undefined,
       availability.sourceMirrored
@@ -66,12 +94,7 @@ export const readSearchSourceOverview = defineAuthorizedKnowledgeUseCase({
       isNull(document.archivedAt),
       isNull(document.deletedAt)
     )
-    const providersQuery = () =>
-      db
-        .selectDistinct({ connectorType: knowledgeConnector.connectorType })
-        .from(knowledgeConnector)
-        .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
-    const providers = await providersQuery()
+    const providers = await configuredProvidersQuery()
       .where(configured)
       .limit(MAX_SEARCH_SOURCE_PROVIDER_TYPES)
     const indexingTypes = new Set<string>()
@@ -84,7 +107,7 @@ export const readSearchSourceOverview = defineAuthorizedKnowledgeUseCase({
       const readableDocument = and(documentConditions, accessCondition)
       const [indexing, searchable] = await Promise.all([
         availability.memberScoped || availability.sourceMirrored
-          ? providersQuery()
+          ? configuredProvidersQuery()
               .where(
                 and(
                   configured,

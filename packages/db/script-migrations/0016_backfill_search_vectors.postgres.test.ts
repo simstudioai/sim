@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
 import { backfillSearchVectors } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import { generateId } from '@sim/utils/id'
@@ -35,6 +36,9 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     await sql.unsafe(
       'ALTER TABLE embedding_search ADD FOREIGN KEY (id) REFERENCES embedding(id) ON DELETE CASCADE'
     )
+    await sql.unsafe(
+      `ALTER TABLE embedding_search ${fields.map((field) => `DROP COLUMN ${field}`).join(', ')}`
+    )
     await sql`INSERT INTO knowledge_base (id, user_id, name, workspace_id, embedding_model) VALUES
       ('prefix', 'reader', 'Prefix fixture', 'workspace', 'text-embedding-3-small'),
       ('full', 'reader', 'Full fixture', 'workspace', 'gemini-embedding-001')`
@@ -54,6 +58,41 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       await admin.end()
     }
   })
+
+  it('replays the schema migration after committed columns and an invalid concurrent index', async () => {
+    const statements = readFileSync(
+      new URL('../migrations/0346_half_precision_search_candidates.sql', import.meta.url),
+      'utf8'
+    )
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter(Boolean)
+    const commitIndex = statements.indexOf('COMMIT;')
+    expect(commitIndex).toBeGreaterThan(0)
+    await sql.unsafe('BEGIN')
+    for (const statement of statements.slice(0, commitIndex + 1)) await sql.unsafe(statement)
+    await expect(
+      sql.unsafe(
+        'CREATE UNIQUE INDEX CONCURRENTLY embedding_search_cosine_hnsw_idx ON embedding_search (knowledge_base_id)'
+      )
+    ).rejects.toMatchObject({ code: '23505' })
+    expect(
+      (
+        await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'embedding_search_cosine_hnsw_idx'::regclass`
+      )[0].indisvalid
+    ).toBe(false)
+    for (let replay = 0; replay < 2; replay++) {
+      await sql.unsafe('BEGIN')
+      for (const statement of statements) await sql.unsafe(statement)
+    }
+    const indexes = await sql`SELECT indisvalid FROM pg_index
+      INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
+      WHERE indrelid = 'embedding_search'::regclass
+        AND relname LIKE 'embedding_search%cosine_hnsw_idx'`
+    expect(indexes).toHaveLength(6)
+    expect(indexes.every((index) => index.indisvalid)).toBe(true)
+    expect((await sql`SELECT count(*)::int AS count FROM embedding_search`)[0].count).toBe(501)
+  }, 60_000)
 
   it('serializes behind existing writers before upgrading the projection in batches', async () => {
     const writer = postgres(databaseUrl!, {

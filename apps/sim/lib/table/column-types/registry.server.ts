@@ -84,11 +84,9 @@ const COERCED_WRITE_BACK_BATCH_SIZE = 5000
  * Writes back the values a conversion's coercion produced.
  *
  * A retype is allowed exactly when the target type's `coerce` accepts the
- * value, and `coerce` frequently *transforms* it — an epoch number becomes an
- * ISO date, `$1,234.56` becomes `1234.56`. Without this, the cell keeps its old
- * bytes under the new type, and since filters and sorts apply the type's
- * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
- * `::timestamptz` fail on EVERY query against that column.
+ * value, and `coerce` frequently transforms it — `$1,234.56` becomes `1234.56`.
+ * Without this, the cell keeps its old bytes under the new type, and the
+ * type's `jsonbCast` can fail on every filter or sort against that column.
  *
  * The values arrive already computed (the compatibility scan derived them), so
  * this is purely the write. It cannot be expressed set-based — the coercions

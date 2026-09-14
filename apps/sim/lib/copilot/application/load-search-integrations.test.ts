@@ -84,7 +84,6 @@ describe('loadCopilotSearchIntegrations', () => {
       ],
       connectionStatus: 'reconnect_needed',
       indexingStatus: 'indexed',
-      searchableDocuments: 7,
       action: null,
     }
     listIntegrations

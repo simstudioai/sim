@@ -15,6 +15,10 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import {
+  githubInstallationSourceCondition,
+  liveSourceKnowledgeBaseCondition,
+} from '@/lib/knowledge/access/live-sources'
+import {
   type GitHubInstallationReadGrant,
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
 } from '@/lib/knowledge/access/types'
@@ -183,17 +187,11 @@ export async function resolveGitHubInstallationReadGrants(input: {
     )
     .where(
       and(
-        resourceScopeCondition(knowledgeBase, input.scope),
+        liveSourceKnowledgeBaseCondition(input.scope, input.knowledgeBaseIds),
         inArray(knowledgeConnector.id, [...new Set(input.connectorIds)]),
-        input.knowledgeBaseIds ? inArray(knowledgeBase.id, [...input.knowledgeBaseIds]) : undefined,
-        isNull(knowledgeBase.deletedAt),
-        eq(knowledgeConnector.connectorType, 'github'),
-        eq(knowledgeConnector.accessMode, 'members'),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt),
+        githubInstallationSourceCondition(),
         eq(knowledgeConnectorMember.status, 'active'),
-        inArray(knowledgeConnectorMember.credentialId, [...readers.keys()]),
-        sql`${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId'`
+        inArray(knowledgeConnectorMember.credentialId, [...readers.keys()])
       )
     )
     .orderBy(asc(knowledgeConnector.id), asc(knowledgeConnectorMember.id))

@@ -1,10 +1,11 @@
 {
   "extends": "@sim/tsconfig/base.json",
   "compilerOptions": {
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*", "scripts/**/*", "e2e/**/*", "playwright.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist", "release"]

@@ -20,7 +20,6 @@ export function getSearchSourceStatus({
   waiting,
 }: SearchSourceStatusInput): string {
   const membership = source.viewerMembership
-  const count = `${source.viewerDocumentCount} searchable document${source.viewerDocumentCount === 1 ? '' : 's'}`
   let status: string
   if (!supported) status = 'Available in its knowledge base'
   else if (source.approved === false) status = 'Deactivated by an organization admin'
@@ -39,7 +38,7 @@ export function getSearchSourceStatus({
   else if (source.hasSyncError || source.viewerFailedDocumentCount > 0)
     status = 'Sync needs attention'
   else if (source.isSyncing) status = 'Indexing'
-  else if (source.viewerDocumentCount > 0) status = count
+  else if (source.hasViewerDocuments) status = 'Ready to search'
   else status = source.lastSyncAt ? 'No searchable documents yet' : 'Waiting for the first sync'
   return status
 }

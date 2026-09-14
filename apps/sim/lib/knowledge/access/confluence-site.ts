@@ -11,6 +11,10 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import { confluenceSubjectToken } from '@/lib/knowledge/access/confluence-permissions'
 import {
+  confluenceSiteSourceCondition,
+  liveSourceKnowledgeBaseCondition,
+} from '@/lib/knowledge/access/live-sources'
+import {
   type ConfluenceSiteReadGrant,
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
 } from '@/lib/knowledge/access/types'
@@ -152,14 +156,9 @@ export async function resolveConfluenceSiteReadGrants(input: {
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
     .where(
       and(
-        resourceScopeCondition(knowledgeBase, input.scope),
+        liveSourceKnowledgeBaseCondition(input.scope, input.knowledgeBaseIds),
         inArray(knowledgeConnector.id, [...new Set(input.connectorIds)]),
-        input.knowledgeBaseIds ? inArray(knowledgeBase.id, [...input.knowledgeBaseIds]) : undefined,
-        isNull(knowledgeBase.deletedAt),
-        eq(knowledgeConnector.connectorType, 'confluence'),
-        eq(knowledgeConnector.accessMode, 'admin'),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
+        confluenceSiteSourceCondition()
       )
     )
     .orderBy(asc(knowledgeConnector.id))

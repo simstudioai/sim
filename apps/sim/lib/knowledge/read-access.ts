@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, isNotNull, not, type SQL } from 'drizzle-orm'
+import { and, asc, eq, exists, gt, inArray, not, type SQL } from 'drizzle-orm'
 import {
   knowledgeAccessCondition,
   knowledgeMetadataCandidateAccessCondition,
@@ -16,8 +16,10 @@ export type KnowledgeReadAccess = KnowledgeAccessScope | SystemAccessScope | Kno
 
 /**
  * Streams disjoint, fully authorized document predicates for an existing reader's filters.
- * Only connector IDs are selected before live proof; totals and metadata use the yielded
- * full predicate. Paging avoids making unrelated sources a prerequisite for any one batch.
+ * Only connector IDs are selected before live proof, and only from sources a live grant could
+ * authorize, stopping at each source's first candidate document; any other source keeps the
+ * ordinary predicate's decision. Totals and metadata use the yielded full predicate. Paging
+ * avoids making unrelated sources a prerequisite for any one batch.
  */
 export async function* knowledgeReadAccessBatches(
   access: KnowledgeReadAccess,
@@ -30,30 +32,39 @@ export async function* knowledgeReadAccessBatches(
   const ordinary = knowledgeAccessCondition(scope)
   yield ordinary
   if (!provider || scope.kind !== 'user') return
-  if (provider.hasLiveSourceReaders && !(await provider.hasLiveSourceReaders())) return
+  const liveSources = await provider.liveSourceConnectorCondition()
+  if (!liveSources) return
 
   let cursor: string | undefined
   while (true) {
     signal?.throwIfAborted()
     const rows = await db
-      .selectDistinct({ connectorId: document.connectorId })
-      .from(document)
-      .innerJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
-      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .select({ connectorId: knowledgeConnector.id })
+      .from(knowledgeConnector)
       .where(
         and(
-          ...conditions,
-          knowledgeMetadataCandidateAccessCondition(scope),
-          not(ordinary),
-          isNotNull(document.connectorId),
-          cursor ? gt(document.connectorId, cursor) : undefined
+          liveSources,
+          cursor ? gt(knowledgeConnector.id, cursor) : undefined,
+          exists(
+            db
+              .select({ id: document.id })
+              .from(document)
+              .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+              .where(
+                and(
+                  eq(document.connectorId, knowledgeConnector.id),
+                  ...conditions,
+                  knowledgeMetadataCandidateAccessCondition(scope),
+                  not(ordinary)
+                )
+              )
+          )
         )
       )
-      .orderBy(asc(document.connectorId))
+      .orderBy(asc(knowledgeConnector.id))
       .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
     if (rows.length === 0) return
-    const connectorIds = rows.flatMap(({ connectorId }) => (connectorId ? [connectorId] : []))
-    if (connectorIds.length === 0) return
+    const connectorIds = rows.map(({ connectorId }) => connectorId)
     const proof = await provider.getForConnectors(connectorIds, signal)
     yield and(
       not(ordinary),

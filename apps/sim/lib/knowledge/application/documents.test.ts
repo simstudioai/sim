@@ -403,10 +403,11 @@ describe('knowledge document application use cases', () => {
         get: async () => scope,
         getForConnectors,
         getForDocuments,
+        liveSourceConnectorCondition: async () => ({ type: 'live-sources' }) as never,
       },
     })
     queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
     queueTableRows(schemaMock.document, [{ id: 'existing-1' }])
     const result = await upsertKnowledgeDocument.execute({
       principal: { kind: 'session', userId: 'reader', sessionId: 'session-1' },

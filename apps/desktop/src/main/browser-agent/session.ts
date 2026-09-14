@@ -36,7 +36,6 @@ import type {
 } from 'electron'
 import {
   app,
-  dialog,
   session as electronSession,
   Menu,
   nativeTheme,
@@ -71,6 +70,7 @@ import {
 } from '@/main/browser-agent/url-guard'
 import { browserUserAgent } from '@/main/browser-agent/user-agent'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
+import { showShellDialog } from '@/main/dialogs'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
 import {
   type FocusedResourceShortcut,
@@ -1524,17 +1524,16 @@ async function requestSitePermission(details: {
     const pending = scoped.tab.pendingSitePermission
     if (!pending || pending.request.requestId !== request.requestId) return await allowed
     pending.nativePromptController = nativePromptController
-    void dialog
-      .showMessageBox(win, {
-        type: 'warning',
-        buttons: ['Block', 'Allow'],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-        signal: nativePromptController.signal,
-        message: `Allow this browser task to open ${request.origin}?`,
-        detail: 'Only allow this site if it is expected for the current task.',
-      })
+    void showShellDialog(win, {
+      type: 'warning',
+      buttons: ['Block', 'Allow'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      signal: nativePromptController.signal,
+      message: `Allow this browser task to open ${request.origin}?`,
+      detail: 'Only allow this site if it is expected for the current task.',
+    })
       .then(({ response }) => {
         withBrowserScope(scoped.scopeId, () => {
           respondToSitePermission(request.requestId, response === 1)

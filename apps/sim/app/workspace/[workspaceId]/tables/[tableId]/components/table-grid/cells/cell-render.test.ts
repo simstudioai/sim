@@ -23,43 +23,23 @@ function column(type: DisplayColumn['type']): DisplayColumn {
 }
 
 describe('resolveCellRender', () => {
-  it('renders TTL epoch seconds through the date presentation', () => {
-    expect(
-      resolveCellRender({
-        value: 1_700_000_000,
+  it.each(['ready', 'loading', 'invalid', 'error'] as const)(
+    'renders TTL as the exact UTC string when timezone status is %s',
+    (timezoneStatus) => {
+      const value = '2026-06-15T09:00:30Z'
+      const kind = resolveCellRender({
+        value,
         exec: undefined,
         column: column('ttl'),
         waitingOnLabels: undefined,
-        timeZone: 'America/New_York',
+        timezoneStatus,
       })
-    ).toEqual({ kind: 'date', text: '2023-11-14T17:13:20-05:00' })
-  })
-
-  it('renders raw epoch seconds when the saved timezone is invalid', () => {
-    expect(
-      resolveCellRender({
-        value: 1_700_000_000,
-        exec: undefined,
-        column: column('ttl'),
-        waitingOnLabels: undefined,
-        timeZone: 'America/Los_Angeles',
-        timezoneStatus: 'invalid',
-      })
-    ).toEqual({ kind: 'date', text: '1700000000', raw: true })
-  })
-
-  it('renders raw epoch seconds while timezone settings are loading', () => {
-    expect(
-      resolveCellRender({
-        value: 1_700_000_000,
-        exec: undefined,
-        column: column('ttl'),
-        waitingOnLabels: undefined,
-        timeZone: 'America/Los_Angeles',
-        timezoneStatus: 'loading',
-      })
-    ).toEqual({ kind: 'date', text: '1700000000', raw: true })
-  })
+      expect(kind).toEqual({ kind: 'text', text: value })
+      expect(renderToStaticMarkup(createElement(CellRender, { kind, isEditing: false }))).toContain(
+        value
+      )
+    }
+  )
 
   it('renders the exact stored Date value when timezone settings are unavailable', () => {
     const stored = '2026-01-15T09:00:00-05:00'
@@ -68,7 +48,6 @@ describe('resolveCellRender', () => {
       exec: undefined,
       column: column('date'),
       waitingOnLabels: undefined,
-      timeZone: 'America/Los_Angeles',
       timezoneStatus: 'error',
     })
     expect(kind).toEqual({ kind: 'date', text: stored, raw: true })

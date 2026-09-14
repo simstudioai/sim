@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 export const metadata: Metadata = {
   title: 'Sign-in couldn’t be completed',
@@ -55,15 +55,9 @@ export default async function OAuthErrorPage({ searchParams }: OAuthErrorPagePro
   const code = typeof params.error === 'string' ? params.error : undefined
 
   return (
-    <main className='desktop-title-bar-page flex items-center justify-center px-6'>
-      <DesktopTitleBarLane />
-      <div className='max-w-sm text-center'>
-        <h1 className='text-foreground text-lg'>Couldn’t complete that</h1>
-        <p className='mt-2 text-muted-foreground text-sm'>{messageForError(code)}</p>
-        <p className='mt-4 text-muted-foreground text-sm'>
-          You can close this tab and try again from Sim.
-        </p>
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Sign-in couldn’t be completed'
+      description={`${messageForError(code)} You can close this tab and return to Sim.`}
+    />
   )
 }

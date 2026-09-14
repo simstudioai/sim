@@ -1,5 +1,5 @@
 {
-  "id": "701730bd-6bea-491e-a8ad-d0d514f604e7",
+  "id": "3f607ef9-8cab-431c-b9be-e518b7fe0486",
   "prevId": "14877af2-9c71-4562-b75a-7ddfb5e23a24",
   "version": "7",
   "dialect": "postgresql",
@@ -5533,6 +5533,28 @@
           "method": "btree",
           "with": {}
         },
+        "doc_connector_processing_status_idx": {
+          "name": "doc_connector_processing_status_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "processing_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"document\".\"processing_status\" IN ('pending', 'processing', 'failed') AND \"document\".\"connector_id\" IS NOT NULL AND \"document\".\"user_excluded\" = false AND \"document\".\"archived_at\" IS NULL AND \"document\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "doc_connector_external_id_idx": {
           "name": "doc_connector_external_id_idx",
           "columns": [
@@ -7013,42 +7035,6 @@
           "type": "bit(3072)",
           "primaryKey": false,
           "notNull": false
-        },
-        "vector": {
-          "name": "vector",
-          "type": "halfvec(1536)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vector_384": {
-          "name": "vector_384",
-          "type": "halfvec(384)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vector_512": {
-          "name": "vector_512",
-          "type": "halfvec(512)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vector_768": {
-          "name": "vector_768",
-          "type": "halfvec(768)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vector_1024": {
-          "name": "vector_1024",
-          "type": "halfvec(1024)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vector_3072": {
-          "name": "vector_3072",
-          "type": "halfvec(3072)",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -7152,120 +7138,6 @@
               "asc": true,
               "nulls": "last",
               "opclass": "bit_hamming_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hnsw",
-          "with": {
-            "m": 16,
-            "ef_construction": 64
-          }
-        },
-        "embedding_search_cosine_hnsw_idx": {
-          "name": "embedding_search_cosine_hnsw_idx",
-          "columns": [
-            {
-              "expression": "vector",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "halfvec_cosine_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hnsw",
-          "with": {
-            "m": 16,
-            "ef_construction": 64
-          }
-        },
-        "embedding_search_512_cosine_hnsw_idx": {
-          "name": "embedding_search_512_cosine_hnsw_idx",
-          "columns": [
-            {
-              "expression": "vector_512",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "halfvec_cosine_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hnsw",
-          "with": {
-            "m": 16,
-            "ef_construction": 64
-          }
-        },
-        "embedding_search_384_cosine_hnsw_idx": {
-          "name": "embedding_search_384_cosine_hnsw_idx",
-          "columns": [
-            {
-              "expression": "vector_384",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "halfvec_cosine_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hnsw",
-          "with": {
-            "m": 16,
-            "ef_construction": 64
-          }
-        },
-        "embedding_search_768_cosine_hnsw_idx": {
-          "name": "embedding_search_768_cosine_hnsw_idx",
-          "columns": [
-            {
-              "expression": "vector_768",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "halfvec_cosine_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hnsw",
-          "with": {
-            "m": 16,
-            "ef_construction": 64
-          }
-        },
-        "embedding_search_1024_cosine_hnsw_idx": {
-          "name": "embedding_search_1024_cosine_hnsw_idx",
-          "columns": [
-            {
-              "expression": "vector_1024",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "halfvec_cosine_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hnsw",
-          "with": {
-            "m": 16,
-            "ef_construction": 64
-          }
-        },
-        "embedding_search_3072_cosine_hnsw_idx": {
-          "name": "embedding_search_3072_cosine_hnsw_idx",
-          "columns": [
-            {
-              "expression": "vector_3072",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "halfvec_cosine_ops"
             }
           ],
           "isUnique": false,
