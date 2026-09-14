@@ -7,6 +7,7 @@ describe('getDocumentIcon', () => {
     expect(getDocumentIcon('', 'Package.ZIP')).toBe(ZipIcon)
     expect(getDocumentIcon('application/zip', 'archive')).toBe(ZipIcon)
     expect(getDocumentIcon('application/x-zip-compressed', 'archive')).toBe(ZipIcon)
+    expect(getDocumentIcon('application/x-zip', 'archive')).toBe(ZipIcon)
   })
 
   it('ignores mime type casing and parameters', () => {

@@ -1,5 +1,7 @@
 import type { SVGProps } from 'react'
 import {
+  SUPPORTED_ARCHIVE_EXTENSIONS,
+  SUPPORTED_ARCHIVE_MIME_TYPES,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
@@ -321,9 +323,11 @@ export function getDocumentIcon(
   }
 
   if (
-    mimeType === 'application/zip' ||
-    mimeType === 'application/x-zip-compressed' ||
-    extension === 'zip'
+    SUPPORTED_ARCHIVE_MIME_TYPES.includes(mimeType) ||
+    (extension &&
+      SUPPORTED_ARCHIVE_EXTENSIONS.includes(
+        extension as (typeof SUPPORTED_ARCHIVE_EXTENSIONS)[number]
+      ))
   ) {
     return ZipIcon
   }
