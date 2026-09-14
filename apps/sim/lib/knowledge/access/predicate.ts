@@ -224,13 +224,11 @@ function storedKnowledgeAccessCondition(
             (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
             OR (${document.acl} <> ARRAY['ws']::text[] AND (
             (${knowledgeConnector.accessMode} = 'admin' AND ${document.aclVerifiedAt} > ${cutoff})
-            OR (${knowledgeConnector.accessMode} = 'members' AND EXISTS (
-              SELECT 1 FROM ${knowledgeDocumentObservation}
+            OR (${knowledgeConnector.accessMode} = 'members' AND (${document.id}, ${document.connectorId}) IN (
+              SELECT ${knowledgeDocumentObservation.documentId}, ${knowledgeConnectorMember.connectorId} FROM ${knowledgeDocumentObservation}
               JOIN ${knowledgeConnectorMember}
                 ON ${knowledgeConnectorMember.id} = ${knowledgeDocumentObservation.memberId}
-              WHERE ${knowledgeDocumentObservation.documentId} = ${document.id}
-                AND ${knowledgeConnectorMember.connectorId} = ${document.connectorId}
-                AND ${knowledgeConnectorMember.status} = 'active'
+              WHERE ${knowledgeConnectorMember.status} = 'active'
                 AND ${knowledgeConnectorMember.subjectToken} = ANY(${tokens})
                 AND GREATEST(${knowledgeDocumentObservation.lastSeenAt}, ${knowledgeConnectorMember.memberSyncedThrough}) > ${cutoff}
             ))

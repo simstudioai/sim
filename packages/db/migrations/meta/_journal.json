@@ -2409,6 +2409,13 @@
       "when": 1789423183443,
       "tag": "0344_audit_log_surface",
       "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1789423979620,
+      "tag": "0345_half_precision_search_candidates",
+      "breakpoints": true
     }
   ]
 }

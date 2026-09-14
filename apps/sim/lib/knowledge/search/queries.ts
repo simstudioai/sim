@@ -31,7 +31,11 @@ import {
   uncompilableTagFilterError,
 } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import { embeddingCandidateDistance, embeddingDistance } from '@/lib/knowledge/vector-columns'
+import {
+  embeddingCandidateDimensions,
+  embeddingCandidateDistance,
+  embeddingDistance,
+} from '@/lib/knowledge/vector-columns'
 
 const logger = createLogger('KnowledgeSearchQueries')
 
@@ -39,14 +43,13 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
 const HNSW_MAX_SCAN_TUPLES = '20000'
-/** Compact graphs can visit a wider frontier without retaining full vectors for each neighbor. */
-const BINARY_HNSW_MAX_SCAN_TUPLES = '100000'
-const BINARY_HNSW_EF_SEARCH = '200'
-const BINARY_HNSW_SCAN_MEM_MULTIPLIER = '4'
-/** Bounded cosine reranking pool, sized for recall under permission filtering and sign quantization. */
-const MIN_VECTOR_RERANK_CANDIDATES = 4000
-const MAX_VECTOR_RERANK_CANDIDATES = 8000
-const VECTOR_RERANK_OVERSAMPLING = 40
+/** Stop a permission-starved graph walk early enough to scan the filtered projection instead. */
+const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
+const CANDIDATE_HNSW_EF_SEARCH = '1000'
+const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
+const MIN_VECTOR_RERANK_CANDIDATES = 400
+const MAX_VECTOR_RERANK_CANDIDATES = 1600
+const VECTOR_RERANK_OVERSAMPLING = 8
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -62,9 +65,10 @@ let hnswSettingsUnsupportedUntil = 0
 async function withVectorScanSettings<T>(
   run: (executor: SearchExecutor) => Promise<T>,
   budget?: SearchBudget,
-  ranking: 'cosine' | 'binary' = 'cosine'
+  ranking: 'cosine' | 'candidate' = 'cosine'
 ): Promise<T> {
-  const untuned = () => runSearchQuery(budget, 'vector.ann', run)
+  const stage = ranking === 'candidate' ? 'vector.candidate_search' : 'vector.ann'
+  const untuned = () => runSearchQuery(budget, stage, run)
   if (Date.now() < hnswSettingsUnsupportedUntil) return untuned()
   const acquireStarted = performance.now()
   let applyingSettings = false
@@ -75,8 +79,8 @@ async function withVectorScanSettings<T>(
       applyingSettings = true
       await measureSearchStage('vector.settings', () =>
         tx.execute(
-          ranking === 'binary'
-            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${BINARY_HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${BINARY_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${BINARY_HNSW_SCAN_MEM_MULTIPLIER}, true)`
+          ranking === 'candidate'
+            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${CANDIDATE_HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
             : sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
         )
       )
@@ -87,7 +91,7 @@ async function withVectorScanSettings<T>(
         )
       return run(tx)
     }
-    return await (budget ? budget.query('vector.ann', tuned) : db.transaction(tuned))
+    return await (budget ? budget.query(stage, tuned) : db.transaction(tuned))
   } catch (error) {
     if (!applyingSettings || getPostgresErrorCode(error) !== UNDEFINED_OBJECT_SQLSTATE) throw error
     hnswSettingsUnsupportedUntil = Date.now() + HNSW_SETTINGS_UNSUPPORTED_RETRY_MS
@@ -206,6 +210,7 @@ export interface KnowledgeQueryVector {
   /** JSON array literal of the embedding, in pgvector's text input format. */
   vector: string
   dimensions: KbEmbeddingDimensions
+  model: string
 }
 
 export interface SearchParams {
@@ -453,6 +458,16 @@ function getVisibilityConditions(
 ) {
   return [
     eq(enabledColumn, true),
+    ...getDocumentVisibilityConditions(access, filters, accessCondition),
+  ]
+}
+
+function getDocumentVisibilityConditions(
+  access: KnowledgeAccessScope,
+  filters?: WorkspaceSearchFilters,
+  accessCondition: SQL = knowledgeAccessCondition(access)
+) {
+  return [
     eq(document.enabled, true),
     eq(document.processingStatus, 'completed'),
     eq(document.userExcluded, false),
@@ -463,13 +478,12 @@ function getVisibilityConditions(
   ]
 }
 
-/** Each ranking strategy owns its cursor; ANN offsets cannot paginate exact ordering. */
 interface SearchReadCandidatePage {
   candidates: SearchReadCandidate[]
   nextOffset: number
 }
 
-interface SearchReadCandidate {
+type SearchReadCandidate = {
   id: string
   documentId: string
   connectorId: string | null
@@ -794,14 +808,10 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 }
 
 /**
- * A lateral document lookup lets PostgreSQL memoize visibility per document while
- * walking the compact index, instead of repeating source ACL checks for every chunk.
- * OFFSET 0 preserves the parameterized lookup before LIMIT; flattening the join can
- * make the planner sort the whole corpus instead. Binary candidates are reranked
- * by cosine distance before relevance filtering or live source authorization;
- * full vectors and content are never loaded while traversing inaccessible neighbors.
- * Small scopes and underfilled approximate pages use exact ranking, so selective
- * permissions do not force a fruitless index walk or lose reachable matches.
+ * Bound ANN traversal and rerank a small candidate pool against the original vectors.
+ * Materialized document identities let PostgreSQL filter before computing distances.
+ * An underfilled index scan expands to a filtered scan within the same statement snapshot.
+ * Live source authorization and content hydration still run after candidate ranking.
  */
 async function selectLiveVectorResults(
   params: SearchParams,
@@ -811,12 +821,15 @@ async function selectLiveVectorResults(
 ): Promise<SearchResult[]> {
   const conditions = [inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...filters]
   const queryVector = params.queryVector!
-  const candidateDistance = embeddingCandidateDistance(queryVector.dimensions, queryVector.vector)
+  const candidateDistance = embeddingCandidateDistance(
+    queryVector.dimensions,
+    queryVector.vector,
+    queryVector.model
+  )
   const candidateLimit = Math.min(
     MAX_VECTOR_RERANK_CANDIDATES,
     Math.max(MIN_VECTOR_RERANK_CANDIDATES, params.topK * VECTOR_RERANK_OVERSAMPLING)
   )
-  let useExactRanking = false
   const rows = await selectAuthorizedSearchResults({
     leg: 'vector',
     accessProvider,
@@ -834,24 +847,26 @@ async function selectLiveVectorResults(
         ),
         excludeSearchSources(excludedSources),
       ]
-      const candidateVisibility = [
-        ...getVisibilityConditions(
+      const candidateDocumentVisibility = [
+        inArray(document.knowledgeBaseId, params.knowledgeBaseIds),
+        ...getDocumentVisibilityConditions(
           params.access,
           params.filters,
-          knowledgeMetadataCandidateAccessCondition(params.access),
-          embeddingSearch.enabled
+          knowledgeMetadataCandidateAccessCondition(params.access)
         ),
         excludeSearchSources(excludedSources),
+      ]
+      const candidateVisibility = [
+        eq(embeddingSearch.enabled, true),
+        ...candidateDocumentVisibility,
       ]
       const visibleDocument = sql`LATERAL (
         SELECT 1 FROM ${document}
         WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateVisibility)}
         OFFSET 0
       ) AS visible_document`
-      /** Adding zero prevents an underfilled HNSW scan from being chosen again for fallback. */
+      /** Explicitly filtered scopes use exact ordering instead of HNSW traversal. */
       const exactPage = async (candidateIds?: string[]) => {
-        const exactOffset = useExactRanking ? offset : 0
-        useExactRanking = true
         annotateSearchDiagnostics({ vectorRanking: 'exact' })
         const candidates = await runSearchQuery(params.budget, 'vector.exact', (executor) =>
           executor
@@ -867,9 +882,9 @@ async function selectLiveVectorResults(
             )
             .orderBy(sql`(${distance}) + 0`, embedding.id)
             .limit(limit)
-            .offset(exactOffset)
+            .offset(offset)
         )
-        return { candidates, nextOffset: exactOffset + candidates.length }
+        return { candidates, nextOffset: offset + candidates.length }
       }
       if (params.filters?.documentIds?.length || params.structuredFilters?.length) {
         return exactPage()
@@ -887,48 +902,75 @@ async function selectLiveVectorResults(
       if (probe.length < LIVE_SEARCH_PAGE_SIZE) {
         return exactPage(probe.map((candidate) => candidate.id))
       }
-      if (useExactRanking) return exactPage()
       annotateSearchDiagnostics({
-        vectorRanking: 'binary-rerank',
-        vectorCandidateStorage: 'stored-binary',
+        vectorRanking: 'candidate-rerank',
+        vectorCandidateStorage: 'stored-halfvec',
         vectorCandidateLimit: candidateLimit,
+        vectorCandidateScan: 'planned',
+        vectorCandidateDimensions: embeddingCandidateDimensions(
+          queryVector.dimensions,
+          queryVector.model
+        ),
       })
+      const candidateConditions = and(
+        inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+        eq(embeddingSearch.enabled, true),
+        sql`${embeddingSearch.documentId} IN (SELECT id FROM visible_search_documents)`,
+        sql`EXISTS (SELECT 1 FROM visible_search_documents)`
+      )
+      /** Materialize only document identities, so neither the hash table nor ACL checks carry vectors. */
       const identities = await withVectorScanSettings(
         (executor) =>
-          executor
-            .select({ id: embeddingSearch.id })
-            .from(embeddingSearch)
-            .innerJoin(visibleDocument, sql`true`)
-            .where(inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds))
-            .orderBy(candidateDistance)
-            .limit(candidateLimit),
+          executor.execute<{ id: string; initial_count: number }>(sql`
+          WITH visible_search_documents AS MATERIALIZED (
+            SELECT ${document.id} AS id FROM ${document}
+            WHERE ${and(...candidateDocumentVisibility)}
+          ), initial_candidates AS MATERIALIZED (
+            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+            WHERE ${candidateConditions}
+            ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
+          ), candidates AS (
+            SELECT id FROM initial_candidates
+            WHERE (SELECT count(*) FROM initial_candidates) >= ${candidateLimit}
+            UNION ALL (
+              SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+              WHERE ${candidateConditions}
+                AND (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
+              ORDER BY (${candidateDistance}) + 0, ${embeddingSearch.id}
+              LIMIT ${candidateLimit}
+            )
+          ) SELECT id, (SELECT count(*)::int FROM initial_candidates) AS initial_count FROM candidates
+        `),
         params.budget,
-        'binary'
+        'candidate'
       )
+      const initialCount = identities[0]?.initial_count ?? 0
       annotateSearchDiagnostics({
         vectorCandidateCount: identities.length,
+        vectorInitialCandidateCount: initialCount,
+        vectorCandidateScan: initialCount < candidateLimit ? 'filtered' : 'planned',
       })
-      if (!identities.length) return exactPage()
+      if (!identities.length) return { candidates: [], nextOffset: offset }
+      /** Score each bounded candidate once; sorting the materialized scalar cannot invoke HNSW again. */
       const page = await runSearchQuery(params.budget, 'vector.rerank', (executor) =>
-        executor
-          .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
-          .from(embedding)
-          .innerJoin(document, eq(document.id, embedding.documentId))
-          .where(
-            and(
+        executor.execute<SearchReadCandidate & { distance: number }>(sql`
+          WITH scored_search_candidates AS MATERIALIZED (
+            SELECT ${embedding.id} AS id, ${document.id} AS "documentId",
+              ${document.connectorId} AS "connectorId",
+              ${SEARCH_READ_CANDIDATE_FIELDS.liveAuthorizationSource} AS "liveAuthorizationSource",
+              ${distance} AS distance
+            FROM ${embedding} INNER JOIN ${document} ON ${document.id} = ${embedding.documentId}
+            WHERE ${and(
               inArray(
                 embedding.id,
                 identities.map(({ id }) => id)
               ),
               ...conditions,
               ...visibility
-            )
-          )
-          .orderBy(sql`(${distance}) + 0`, embedding.id)
-          .limit(limit)
-          .offset(offset)
+            )}
+          ) SELECT * FROM scored_search_candidates ORDER BY distance, id LIMIT ${limit} OFFSET ${offset}
+        `)
       )
-      if (page.length < limit) return exactPage()
       return {
         candidates: page,
         nextOffset: offset + page.length,

@@ -914,6 +914,12 @@ export const schemaMock = {
     binary768: 'embeddingSearch.binary768',
     binary1024: 'embeddingSearch.binary1024',
     binary3072: 'embeddingSearch.binary3072',
+    vector: 'embeddingSearch.vector',
+    vector384: 'embeddingSearch.vector384',
+    vector512: 'embeddingSearch.vector512',
+    vector768: 'embeddingSearch.vector768',
+    vector1024: 'embeddingSearch.vector1024',
+    vector3072: 'embeddingSearch.vector3072',
   },
   embedding: {
     id: 'embedding.id',

@@ -420,6 +420,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
           ? {
               vector: JSON.stringify(queryEmbedding?.embedding ?? null),
               dimensions: embeddingTarget!.dimensions,
+              model: embeddingTarget!.model,
             }
           : undefined,
         structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,

@@ -1,0 +1,96 @@
+import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
+import { backfillSearchVectors } from '@sim/db/script-migrations/0016_backfill_search_vectors'
+import { generateId } from '@sim/utils/id'
+import postgres, { type Sql } from 'postgres'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
+const schemaName = `search_projection_${generateId().replaceAll('-', '')}`
+const fields = ['vector', 'vector_384', 'vector_512', 'vector_768', 'vector_1024', 'vector_3072']
+
+describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', () => {
+  let admin: Sql
+  let sql: Sql
+
+  beforeAll(async () => {
+    const url = new URL(databaseUrl!)
+    if (
+      !['localhost', '127.0.0.1'].includes(url.hostname) ||
+      !url.pathname.startsWith('/sim_acl_test')
+    ) {
+      throw new Error('Projection tests require a disposable local sim_acl_test database')
+    }
+    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
+    for (const table of ['knowledge_base', 'embedding', 'embedding_search']) {
+      await admin.unsafe(
+        `CREATE TABLE "${schemaName}"."${table}" (LIKE public."${table}" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING GENERATED)`
+      )
+    }
+    sql = postgres(url.toString(), {
+      max: 1,
+      connection: { search_path: `${schemaName},public` },
+      onnotice: () => undefined,
+    })
+    await sql.unsafe(
+      'ALTER TABLE embedding_search ADD FOREIGN KEY (id) REFERENCES embedding(id) ON DELETE CASCADE'
+    )
+    await sql`INSERT INTO knowledge_base (id, user_id, name, workspace_id, embedding_model) VALUES
+      ('prefix', 'reader', 'Prefix fixture', 'workspace', 'text-embedding-3-small'),
+      ('full', 'reader', 'Full fixture', 'workspace', 'gemini-embedding-001')`
+    await backfillEmbeddingSearch(sql)
+    await sql.unsafe(`INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length, token_count, start_offset, end_offset, embedding)
+      SELECT 'chunk-' || n, CASE WHEN n % 2 = 0 THEN 'prefix' ELSE 'full' END, 'document-' || n,
+        0, 'hash-' || n, 'Synthetic fixture', 17, 4, 0, 17,
+        array_fill(0.01::real, ARRAY[1536])::vector(1536)
+      FROM generate_series(1, 501) n`)
+  }, 60_000)
+
+  afterAll(async () => {
+    await sql?.end()
+    if (admin) {
+      await admin.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+      await admin.end()
+    }
+  })
+
+  it('upgrades multiple pages while preserving the old projection and every unsupported-model dimension', async () => {
+    expect(await backfillSearchVectors(sql)).toBe(501)
+    const rows = await sql.unsafe(`SELECT knowledge_base_id,
+      vector_dims(coalesce(${fields.join(', ')})) AS dimensions,
+      num_nonnulls(${fields.join(', ')}) AS populated,
+      "binary" IS NOT NULL AS legacy FROM embedding_search`)
+    expect(rows).toHaveLength(501)
+    for (const row of rows) {
+      expect(row.dimensions).toBe(row.knowledge_base_id === 'prefix' ? 512 : 1536)
+      expect(row.populated).toBe(1)
+      expect(row.legacy).toBe(true)
+    }
+    expect(await backfillSearchVectors(sql)).toBe(0)
+  }, 60_000)
+
+  it('keeps inserts, state changes, width changes, and deletes synchronous after the upgrade', async () => {
+    await sql.unsafe(`INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length, token_count, start_offset, end_offset, embedding_384)
+      VALUES ('inserted', 'prefix', 'inserted-document', 0, 'inserted-hash', 'Synthetic fixture', 17, 4, 0, 17,
+        array_fill(0.01::real, ARRAY[384])::vector(384))`)
+    const [inserted] = await sql.unsafe(`SELECT vector_dims(vector_384) AS dimensions,
+      num_nonnulls(${fields.join(', ')}) AS populated, binary_384 IS NOT NULL AS legacy
+      FROM embedding_search WHERE id = 'inserted'`)
+    expect(inserted).toEqual({ dimensions: 384, populated: 1, legacy: true })
+    await sql`UPDATE embedding SET enabled = false WHERE id = 'chunk-1'`
+    expect((await sql`SELECT enabled FROM embedding_search WHERE id = 'chunk-1'`)[0].enabled).toBe(
+      false
+    )
+    await sql.unsafe(`UPDATE embedding SET embedding = NULL,
+      embedding_3072 = array_fill(0.02::real, ARRAY[3072])::vector(3072) WHERE id = 'chunk-1'`)
+    const [row] = await sql.unsafe(`SELECT vector_dims(vector_3072) AS dimensions,
+      num_nonnulls(${fields.join(', ')}) AS populated, binary_3072 IS NOT NULL AS legacy
+      FROM embedding_search WHERE id = 'chunk-1'`)
+    expect(row).toEqual({ dimensions: 3072, populated: 1, legacy: true })
+    expect(await backfillSearchVectors(sql)).toBe(0)
+    await sql`DELETE FROM embedding WHERE id = 'chunk-1'`
+    expect(await sql`SELECT id FROM embedding_search WHERE id = 'chunk-1'`).toHaveLength(0)
+  })
+})
