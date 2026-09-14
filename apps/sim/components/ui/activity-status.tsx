@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { OverflowText } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui/shimmer-text'
 
-interface ActivityStatusProps {
+export interface ActivityStatusProps {
   label: string
   isActive: boolean
   icon?: ReactNode

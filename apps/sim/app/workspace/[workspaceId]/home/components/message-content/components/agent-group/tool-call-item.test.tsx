@@ -5,9 +5,11 @@ import { act, type ReactNode, type SVGProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import { ToolCallItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
+import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 import { notifyBlockOverlayChanged } from '@/blocks/custom/client-overlay'
 import { getBlock, getBlockByToolName } from '@/blocks/registry'
-import { ToolCallItem } from './tool-call-item'
 
 vi.mock('@/components/ui', () => ({
   ShimmerText: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -185,7 +187,8 @@ describe('ToolCallItem', () => {
       />
     )
 
-    expect(markup).toContain('<svg')
+    expect(markup).toContain('data-testid="gmail-icon"')
+    expect(getBlockByToolName).toHaveBeenCalledWith('gmail_read_v2')
     expect(markup).toContain('Searching for invoice emails')
   })
 
@@ -203,8 +206,62 @@ describe('ToolCallItem', () => {
       />
     )
 
-    expect(markup).toContain('<svg')
+    expect(markup).toContain('data-testid="gmail-icon"')
+    expect(getBlockByToolName).toHaveBeenCalledWith('gmail_read_v2')
     expect(markup).toContain('Read recent emails')
+  })
+
+  it('keeps the integration icon with its paced action through completion', () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const gmail = (props: SVGProps<SVGSVGElement>) => <svg {...props} data-testid='gmail-icon' />
+    const slack = (props: SVGProps<SVGSVGElement>) => <svg {...props} data-testid='slack-icon' />
+    vi.mocked(getBlockByToolName).mockImplementation(
+      (name) =>
+        ({ name, icon: name === 'gmail_read_v2' ? gmail : slack }) as ReturnType<
+          typeof getBlockByToolName
+        >
+    )
+    const first: ToolCallData = {
+      id: 'mail',
+      toolName: 'gmail_read_v2',
+      displayTitle: 'Reading mail',
+      status: 'executing',
+    }
+    const next: ToolCallData = {
+      id: 'slack',
+      toolName: 'slack_message',
+      displayTitle: 'Reading messages',
+      status: 'executing',
+    }
+    const render = (tools: ToolCallData[], isActive = true) =>
+      act(() =>
+        root.render(
+          <ToolActivityGroup tools={tools} isActive={isActive} ToolCallComponent={ToolCallItem} />
+        )
+      )
+    const header = () => container.querySelector('[role="status"]')!
+    try {
+      render([first])
+      const icon = header().querySelector('[data-testid="gmail-icon"]')
+      expect(icon).not.toBeNull()
+      act(() => vi.advanceTimersByTime(100))
+      render([{ ...first, status: 'success' }, next])
+      expect(header().textContent).toBe('Reading mail')
+      expect(header().querySelector('[data-testid="gmail-icon"]')).toBe(icon)
+      expect(header().querySelector('[data-testid="slack-icon"]')).toBeNull()
+      act(() => vi.advanceTimersByTime(900))
+      expect(header().textContent).toBe('Reading messages')
+      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
+      render([{ ...next, status: 'success' }], false)
+      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
+      expect(container.querySelector('[role="button"]')).toBeNull()
+    } finally {
+      act(() => root.unmount())
+      vi.mocked(getBlockByToolName).mockReset()
+      vi.useRealTimers()
+    }
   })
 
   it('refreshes the read icon when custom blocks hydrate after mount', () => {

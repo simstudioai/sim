@@ -118,10 +118,11 @@ describe('AgentGroup inline main activity', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.useRealTimers()
   })
 
   it.each(['mothership', 'workflow', 'browser'])(
-    'uses the same model description in the %s live header and expanded row',
+    'shows one model-described action without a redundant %s disclosure',
     (agentName) => {
       act(() =>
         root.render(
@@ -148,7 +149,8 @@ describe('AgentGroup inline main activity', () => {
       )
 
       const statuses = [...container.querySelectorAll('[role="status"]')]
-      expect(statuses).toHaveLength(agentName === 'mothership' ? 1 : 2)
+      expect(statuses).toHaveLength(1)
+      expect(container.querySelector<HTMLElement>('[role="button"]')).toBeNull()
       for (const status of statuses) {
         expect(status.textContent).toContain('Checking the project timeline')
       }
@@ -188,12 +190,13 @@ describe('AgentGroup inline main activity', () => {
     )
     expect(container.textContent).toBe(expected)
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
-    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector<HTMLElement>('[role="button"]')).toBeNull()
     expect(container.querySelector('[data-state]')).toBeNull()
     expect(Boolean(container.querySelector('[class*="shimmer"]'))).toBe(status === 'executing')
   })
 
-  it('replaces the active status in place and expands the full completed history', () => {
+  it('paces the active status in place and expands the full completed history', () => {
+    vi.useFakeTimers()
     const first: AgentGroupItem = {
       type: 'tool',
       data: { id: 'first', toolName: 'grep', displayTitle: 'Searching files', status: 'executing' },
@@ -217,14 +220,18 @@ describe('AgentGroup inline main activity', () => {
 
     render([first])
     expect(container.textContent).toBe('Searching files')
-    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector<HTMLElement>('[role="button"]')).toBeNull()
     const activity = container.firstElementChild
 
     render([first, next])
     expect(container.firstElementChild).toBe(activity)
+    expect(container.textContent).toBe('Searching files')
+    act(() => vi.advanceTimersByTime(1000))
     expect(container.textContent).toBe('Reading notes')
     expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
-    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    expect(
+      container.querySelector<HTMLElement>('[role="button"]')?.getAttribute('aria-expanded')
+    ).toBe('false')
     expect(container.querySelector('svg')).not.toBeNull()
     expect(container.textContent).not.toContain('Sim')
 
@@ -237,7 +244,7 @@ describe('AgentGroup inline main activity', () => {
     )
     expect(container.textContent).toBe('Searched files, read files')
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()
-    const header = container.querySelector('button')
+    const header = container.querySelector<HTMLElement>('[role="button"]')
     act(() => header?.click())
     expect(header?.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
@@ -274,7 +281,7 @@ describe('AgentGroup inline main activity', () => {
         )
       )
     render([first, second])
-    act(() => container.querySelector('button')?.click())
+    act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
     render([
       first,
       second,
@@ -288,7 +295,9 @@ describe('AgentGroup inline main activity', () => {
         },
       },
     ])
-    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    expect(
+      container.querySelector<HTMLElement>('[role="button"]')?.getAttribute('aria-expanded')
+    ).toBe('true')
     expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
       'Read notesRead more notesRunning checks'
     )
@@ -327,15 +336,15 @@ describe('AgentGroup inline main activity', () => {
       render([wait])
       act(() => vi.advanceTimersByTime(2000))
       expect(container.textContent).toBe('Waiting 1s')
-      expect(container.querySelector('button')).toBeNull()
+      expect(container.querySelector<HTMLElement>('[role="button"]')).toBeNull()
       render([wait, read])
       expect(container.textContent).toBe('Waiting 1s')
       expect(setIntervalSpy).toHaveBeenCalledTimes(1)
-      const header = container.querySelector('button')
+      const header = container.querySelector<HTMLElement>('[role="button"]')
       act(() => header?.click())
       expect(header?.hasAttribute('aria-label')).toBe(false)
-      expect(header?.textContent).toBe('Waiting 1s')
-      expect(header).toHaveAccessibleName('Waiting 1s')
+      expect(header?.textContent).toBe('Tool activity')
+      expect(header).toHaveAccessibleName('Tool activity')
       expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
         'Waiting 1sRead notes'
       )
@@ -351,8 +360,8 @@ describe('AgentGroup inline main activity', () => {
         read,
         { ...wait, data: { ...wait.data, id: 'wait-second' } },
       ])
-      expect(header?.textContent).toBe('Waiting 3s')
-      expect(header).toHaveAccessibleName('Waiting 3s')
+      expect(header?.textContent).toBe('Tool activity')
+      expect(header).toHaveAccessibleName('Tool activity')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
       expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
         'WaitedRead notesWaiting 3s'
@@ -404,9 +413,9 @@ describe('AgentGroup inline main activity', () => {
           })
         )
       )
-      const header = container.querySelector('button')
-      expect(header?.textContent).toBe('Agent — Read files, ran commands')
-      expect(header).toHaveAccessibleName('Agent — Read files, ran commands')
+      const header = container.querySelector<HTMLElement>('[role="button"]')
+      expect(header?.textContent).toBe('Read files, ran commands')
+      expect(header).toHaveAccessibleName('Read files, ran commands')
       expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
       act(() => header?.click())
       expect(
@@ -443,12 +452,19 @@ describe('AgentGroup inline main activity', () => {
           ],
           ToolCallComponent: ({ toolCallId, displayTitle, renderStatus }: ToolCallItemProps) => {
             const status = createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle)
-            return renderStatus ? renderStatus(status) : status
+            return renderStatus
+              ? renderStatus({
+                  label: displayTitle,
+                  activeLabel: displayTitle,
+                  isActive: true,
+                  icon: createElement('svg', { 'data-tool-call-id': toolCallId }),
+                })
+              : status
           },
         })
       )
     )
-    const headers = Array.from(container.querySelectorAll('button'))
+    const headers = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]'))
     expect(headers).toHaveLength(2)
     expect(headers.every((header) => header.getAttribute('aria-expanded') === 'true')).toBe(true)
     act(() => headers[0].click())
@@ -549,7 +565,14 @@ describe('AgentGroup inline main activity', () => {
           isStreaming: true,
           ToolCallComponent: ({ toolCallId, displayTitle, renderStatus }: ToolCallItemProps) => {
             const status = createElement('div', { 'data-tool-call-id': toolCallId }, displayTitle)
-            return renderStatus ? renderStatus(status) : status
+            return renderStatus
+              ? renderStatus({
+                  label: displayTitle,
+                  activeLabel: displayTitle,
+                  isActive: true,
+                  icon: createElement('svg', { 'data-tool-call-id': toolCallId }),
+                })
+              : status
           },
         })
       )
@@ -596,8 +619,8 @@ describe('AgentGroup browser takeover', () => {
     expect(liftedQuestion).toBeDefined()
     expect(collapsedLog?.contains(liftedQuestion ?? null)).toBe(false)
 
-    const header = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Browser Agent')
+    const header = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]')).find(
+      (button) => button.hasAttribute('aria-expanded')
     )
     act(() => header?.click())
     expect(container.querySelector('[data-state="open"]')).not.toBeNull()
@@ -685,7 +708,7 @@ describe('AgentGroup browser takeover', () => {
     expect(container.querySelector('.animate-stream-fade-in')).toBeNull()
     // Groups never auto-expand: the answered question lives inside the
     // collapsed log until the user opens it manually.
-    const headerToggle = container.querySelector('button[class*="group/agent"]')
+    const headerToggle = container.querySelector('[role="button"][class*="group/agent"]')
     expect(headerToggle).not.toBeNull()
     act(() => {
       headerToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -750,10 +773,10 @@ describe('AgentGroup nested status line', () => {
       namedTool('Reading workflow', 'success' as ToolCallStatus, 1),
       group([namedTool('Deploying Invoice Sync as API', 'executing' as ToolCallStatus, 2)]),
     ])
-    expect(header).toContain('Workflow Agent — Deploying Invoice Sync as API')
+    expect(header).toContain('Deploying Invoice Sync as API')
   })
 
-  it('counts running tools across depths with the + n suffix', () => {
+  it('selects the latest running tool across depths', () => {
     const header = render([
       namedTool('Reading workflow', 'executing' as ToolCallStatus, 1),
       group([
@@ -761,8 +784,8 @@ describe('AgentGroup nested status line', () => {
         namedTool('Checking deployment status', 'executing' as ToolCallStatus, 2),
       ]),
     ])
-    // Latest start wins; the other two running become the overflow count.
-    expect(header).toContain('Deploying Invoice Sync as API + 2')
+    /** The latest start wins across the subtree. */
+    expect(header).toContain('Deploying Invoice Sync as API')
   })
 
   it('falls back to the last tool at any depth when nothing is running', () => {
@@ -770,6 +793,6 @@ describe('AgentGroup nested status line', () => {
       namedTool('Reading workflow', 'success' as ToolCallStatus, 1),
       group([namedTool('Deploying Invoice Sync as API', 'success' as ToolCallStatus, 2)]),
     ])
-    expect(header).toContain('Workflow Agent — Deployed Invoice Sync as API')
+    expect(header).toContain('Deploying Invoice Sync as API')
   })
 })
