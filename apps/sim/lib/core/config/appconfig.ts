@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-appconfigdata'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { getAwsCredentialsFromEnv } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
 
@@ -22,16 +23,43 @@ export interface AppConfigProfileIdentifiers {
 interface CacheEntry<T> {
   /** Last successfully parsed value, or `null` if the config is empty/unseeded. */
   value: T | null
-  /** True once any poll has completed (success, empty payload, or error). */
-  loaded: boolean
   /** Token for the next `GetLatestConfiguration` poll, rotated on each call. */
   nextToken: string | undefined
-  expiresAt: number
-  /** In-flight poll, shared so concurrent callers don't each hit AppConfig. */
-  inflight: Promise<T | null> | null
+  validatedAt: number | null
+  remoteMatchesValue: boolean
+  strict: boolean
 }
 
-const cache = new Map<string, CacheEntry<unknown>>()
+export interface AppConfigSnapshot<T> {
+  readonly value: T | null
+  readonly validatedAt: number | null
+}
+
+interface PollContext {
+  ids: AppConfigProfileIdentifiers
+  parse: (json: unknown) => unknown
+  strict: boolean
+}
+
+const cache = new LRUCache<string, CacheEntry<unknown>, PollContext>({
+  max: 64,
+  ttl: DEFAULT_TTL_MS,
+  ttlResolution: 0,
+  ignoreFetchAbort: true,
+  /** Poll intervals and snapshot freshness share the same clock. */
+  perf: { now: () => Date.now() },
+  fetchMethod: async (_key, stale, { context, options }) => {
+    const entry = stale ?? {
+      value: null,
+      nextToken: undefined,
+      validatedAt: null,
+      remoteMatchesValue: false,
+      strict: context.strict,
+    }
+    options.ttl = await poll(context.ids, context.parse, entry)
+    return entry
+  },
+})
 
 let client: AppConfigDataClient | null = null
 
@@ -58,68 +86,69 @@ function cacheKey(ids: AppConfigProfileIdentifiers): string {
  * Run one AppConfig poll for `entry`: starts a session if no token is held, then
  * calls `GetLatestConfiguration`. An empty payload means "unchanged" (or an
  * unseeded profile) and the previous value is kept. Any error is logged and the
- * last good value is retained. Marks the entry `loaded` on any outcome so callers
- * never re-block on the cold path, and honors AppConfig's `NextPollInterval` so we
+ * last good value is retained. Returns AppConfig's `NextPollInterval` so we
  * don't poll faster than the server allows (which would throttle).
  */
 async function poll<T>(
   ids: AppConfigProfileIdentifiers,
   parse: (json: unknown) => T,
   entry: CacheEntry<T>
-): Promise<T | null> {
+): Promise<number> {
   let response: GetLatestConfigurationCommandOutput
   try {
     const dataClient = getClient()
 
     if (!entry.nextToken) {
+      entry.remoteMatchesValue = false
       const session = await dataClient.send(
         new StartConfigurationSessionCommand({
           ApplicationIdentifier: ids.application,
           EnvironmentIdentifier: ids.environment,
           ConfigurationProfileIdentifier: ids.profile,
-        })
+        }),
+        { abortSignal: AbortSignal.timeout(5000) }
       )
       entry.nextToken = session.InitialConfigurationToken
     }
 
     response = await dataClient.send(
-      new GetLatestConfigurationCommand({ ConfigurationToken: entry.nextToken })
+      new GetLatestConfigurationCommand({ ConfigurationToken: entry.nextToken }),
+      { abortSignal: AbortSignal.timeout(5000) }
     )
     entry.nextToken = response.NextPollConfigurationToken ?? entry.nextToken
   } catch (error) {
-    // Network/session failure: drop the token so the next attempt starts a fresh
-    // session (handles expired or invalid tokens). Mark loaded + back off so we
-    // serve the fallback and retry in the background rather than blocking every
-    // request during an outage.
+    /** A failed or expired session retries after backoff without renewing snapshot freshness. */
     entry.nextToken = undefined
-    entry.expiresAt = Date.now() + DEFAULT_TTL_MS
-    entry.loaded = true
     logger.error('AppConfig fetch failed; serving last known value', {
       profile: cacheKey(ids),
       error: getErrorMessage(error),
     })
-    return entry.value
+    return DEFAULT_TTL_MS
   }
 
-  // Parse outside the network try: a decode/parse error must NOT discard the
-  // already-rotated session token — the round trip succeeded, so the next poll
-  // can reuse it instead of opening a new session. Keep the last good value.
+  /** Decode failures retain the rotated session token and last validated value. */
   try {
     if (response.Configuration && response.Configuration.length > 0) {
+      entry.remoteMatchesValue = false
+      if (entry.strict && response.Configuration.length > 1_048_576) {
+        throw new Error('Configuration exceeds the maximum size')
+      }
       const text = new TextDecoder().decode(response.Configuration)
       entry.value = parse(JSON.parse(text))
+      entry.remoteMatchesValue = true
+    }
+    if (entry.remoteMatchesValue && entry.value !== null) {
+      entry.validatedAt = Date.now()
     }
   } catch (error) {
     logger.error('AppConfig response parse failed; serving last known value', {
       profile: cacheKey(ids),
-      error: getErrorMessage(error),
+      error: entry.strict ? 'Configuration rejected' : getErrorMessage(error),
     })
   }
 
   const intervalMs = (response.NextPollIntervalInSeconds ?? 60) * 1000
-  entry.expiresAt = Date.now() + Math.max(DEFAULT_TTL_MS, intervalMs)
-  entry.loaded = true
-  return entry.value
+  return Math.max(DEFAULT_TTL_MS, intervalMs)
 }
 
 /**
@@ -137,31 +166,28 @@ export async function fetchAppConfigProfile<T>(
   ids: AppConfigProfileIdentifiers,
   parse: (json: unknown) => T
 ): Promise<T | null> {
-  const key = cacheKey(ids)
-  const entry = (cache.get(key) as CacheEntry<T> | undefined) ?? {
-    value: null,
-    loaded: false,
-    nextToken: undefined,
-    expiresAt: 0,
-    inflight: null,
-  }
-  cache.set(key, entry)
+  const entry = await cache.fetch(cacheKey(ids), {
+    context: { ids, parse, strict: false },
+    allowStale: true,
+  })
+  return (entry?.value ?? null) as T | null
+}
 
-  // Cold: never polled — await a single shared poll so concurrent callers don't
-  // each hit AppConfig (and don't race the rotating session token).
-  if (!entry.loaded) {
-    entry.inflight ??= poll(ids, parse, entry).finally(() => {
-      entry.inflight = null
-    })
-    return entry.inflight
-  }
-
-  // Warm but stale: serve cached value, refresh once in the background.
-  if (Date.now() >= entry.expiresAt && !entry.inflight) {
-    entry.inflight = poll(ids, parse, entry).finally(() => {
-      entry.inflight = null
-    })
-  }
-
-  return entry.value
+/**
+ * Security-sensitive callers receive freshness evidence instead of an implicit fallback.
+ * Due polls are awaited and deduplicated. Rejected remote revisions cannot renew an old
+ * snapshot through subsequent unchanged responses. The caller owns its maximum stale age.
+ */
+export async function fetchAppConfigSnapshot<T>(
+  ids: AppConfigProfileIdentifiers,
+  parse: (json: unknown) => T
+): Promise<AppConfigSnapshot<T>> {
+  const entry = await cache.fetch(`strict:${cacheKey(ids)}`, {
+    context: { ids, parse, strict: true },
+    allowStale: false,
+  })
+  return Object.freeze({
+    value: (entry?.value ?? null) as T | null,
+    validatedAt: entry?.validatedAt ?? null,
+  })
 }

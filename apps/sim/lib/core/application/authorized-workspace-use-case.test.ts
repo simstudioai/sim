@@ -10,9 +10,16 @@ import type {
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  routingEnabled: vi.fn(() => false),
+  resolveRoute: vi.fn(async () => ({ kind: 'direct' as const })),
   events: [] as string[],
   recordAudit: vi.fn(() => mocks.events.push('audit')),
   resolvePermission: vi.fn(),
+}))
+
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: mocks.routingEnabled,
+  resolveOutboundRoute: mocks.resolveRoute,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -33,6 +40,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
@@ -100,8 +108,35 @@ const sessionPrincipal: SessionPrincipal = {
 describe('defineAuthorizedWorkspaceUseCase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.routingEnabled.mockReturnValue(false)
     mocks.events.length = 0
     mocks.resolvePermission.mockResolvedValue('write')
+  })
+
+  it('establishes outbound ownership after authorization and retains it through effects', async () => {
+    mocks.routingEnabled.mockReturnValue(true)
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: async () => canonicalContext,
+      authorizationOptions: {},
+      async execute() {
+        expect(mocks.resolvePermission).toHaveBeenCalledOnce()
+        await resolveCurrentOutboundRoute()
+        return 'done'
+      },
+      async afterSuccess() {
+        await resolveCurrentOutboundRoute()
+      },
+    })
+    await expect(useCase.execute({ principal: sessionPrincipal, input: {} })).resolves.toBe('done')
+    expect(mocks.resolveRoute.mock.calls).toEqual([['organization-1'], ['organization-1']])
+    await resolveCurrentOutboundRoute()
+    expect(mocks.resolveRoute).toHaveBeenLastCalledWith(undefined)
+
+    mocks.resolveRoute.mockClear()
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(useCase.execute({ principal: sessionPrincipal, input: {} })).rejects.toThrow()
+    expect(mocks.resolveRoute).not.toHaveBeenCalled()
   })
 
   it('narrows definition callbacks while keeping public execution principal-safe', async () => {

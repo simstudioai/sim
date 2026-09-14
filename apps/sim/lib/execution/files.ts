@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -57,7 +58,9 @@ export async function processExecutionFile(
 
   if (file.type === 'url' && file.data) {
     const { downloadFileFromUrl } = await import('@/lib/uploads/utils/file-utils.server')
-    const buffer = await downloadFileFromUrl(file.data, { userId })
+    const buffer = await withResourceOutboundScope(executionContext, () =>
+      downloadFileFromUrl(file.data, { userId })
+    )
 
     if (buffer.length > MAX_FILE_SIZE) {
       const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(2)

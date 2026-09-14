@@ -1,3 +1,4 @@
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 /**
  * MCP Connection Manager
  *
@@ -142,98 +143,100 @@ export class McpConnectionManager {
     this.connectingServers.add(key)
 
     try {
-      const onToolsChanged: McpToolsChangedCallback = () => {
-        this.handleToolsChanged(key)
-      }
+      return await withResourceOutboundScope({ workspaceId }, async () => {
+        const onToolsChanged: McpToolsChangedCallback = () => {
+          this.handleToolsChanged(key)
+        }
 
-      let oauthCredentials: McpClientOptions['oauthCredentials']
-      if (config.authType === 'oauth') {
-        const row = await getOrCreateOauthRow({
-          mcpServerId: config.id,
-          userId,
-          workspaceId,
+        let oauthCredentials: McpClientOptions['oauthCredentials']
+        if (config.authType === 'oauth') {
+          const row = await getOrCreateOauthRow({
+            mcpServerId: config.id,
+            userId,
+            workspaceId,
+          })
+          if (!row.tokens) {
+            logger.info(
+              `[${config.name}] OAuth server has no workspace tokens — skipping persistent connection until authorized`
+            )
+            return { supportsListChanged: false }
+          }
+          oauthCredentials = {
+            credentialId: config.id,
+            initialProvider: new SimMcpOauthProvider({
+              row,
+              preregistered: await loadPreregisteredClient(config.id),
+            }),
+            loadProvider: async () => {
+              const current = await getOrCreateOauthRow({
+                mcpServerId: config.id,
+                userId,
+                workspaceId,
+              })
+              if (!current.tokens) {
+                throw new McpOauthAuthorizationRequiredError(config.id, config.name)
+              }
+              const preregistered = await loadPreregisteredClient(config.id)
+              return new SimMcpOauthProvider({ row: current, preregistered })
+            },
+          }
+        }
+
+        validateMcpDomain(config.url)
+        const resolvedIP = await validateMcpServerSsrf(config.url)
+
+        const client = new McpClient({
+          config,
+          securityPolicy: {
+            requireConsent: false,
+            auditLevel: 'basic',
+            maxToolExecutionsPerHour: 1000,
+          },
+          onToolsChanged,
+          resolvedIP: resolvedIP ?? undefined,
+          oauthCredentials,
         })
-        if (!row.tokens) {
-          logger.info(
-            `[${config.name}] OAuth server has no workspace tokens — skipping persistent connection until authorized`
-          )
+
+        try {
+          await withConnectTimeout(client, config.name)
+        } catch (error) {
+          logger.error(`[${config.name}] Failed to connect for persistent monitoring:`, error)
           return { supportsListChanged: false }
         }
-        oauthCredentials = {
-          credentialId: config.id,
-          initialProvider: new SimMcpOauthProvider({
-            row,
-            preregistered: await loadPreregisteredClient(config.id),
-          }),
-          loadProvider: async () => {
-            const current = await getOrCreateOauthRow({
-              mcpServerId: config.id,
-              userId,
-              workspaceId,
-            })
-            if (!current.tokens) {
-              throw new McpOauthAuthorizationRequiredError(config.id, config.name)
-            }
-            const preregistered = await loadPreregisteredClient(config.id)
-            return new SimMcpOauthProvider({ row: current, preregistered })
-          },
+
+        const supportsListChanged = client.hasListChangedCapability()
+
+        if (!supportsListChanged) {
+          logger.info(
+            `[${config.name}] Server does not support listChanged — disconnecting (fallback to cache)`
+          )
+          await client.disconnect()
+          return { supportsListChanged: false }
         }
-      }
 
-      validateMcpDomain(config.url)
-      const resolvedIP = await validateMcpServerSsrf(config.url)
+        this.clearReconnectTimer(key)
 
-      const client = new McpClient({
-        config,
-        securityPolicy: {
-          requireConsent: false,
-          auditLevel: 'basic',
-          maxToolExecutionsPerHour: 1000,
-        },
-        onToolsChanged,
-        resolvedIP: resolvedIP ?? undefined,
-        oauthCredentials,
+        this.connections.set(key, client)
+        this.states.set(key, {
+          serverId: config.id,
+          serverName: config.name,
+          workspaceId,
+          userId,
+          connected: true,
+          supportsListChanged: true,
+          reconnectAttempts: 0,
+          lastActivity: Date.now(),
+        })
+
+        client.onClose(() => {
+          this.handleDisconnect(config, userId, workspaceId)
+        })
+
+        this.ensureIdleCheck()
+
+        logger.info(`[${config.name}] Persistent connection established (listChanged supported)`)
+        return { supportsListChanged: true }
       })
-
-      try {
-        await withConnectTimeout(client, config.name)
-      } catch (error) {
-        logger.error(`[${config.name}] Failed to connect for persistent monitoring:`, error)
-        return { supportsListChanged: false }
-      }
-
-      const supportsListChanged = client.hasListChangedCapability()
-
-      if (!supportsListChanged) {
-        logger.info(
-          `[${config.name}] Server does not support listChanged — disconnecting (fallback to cache)`
-        )
-        await client.disconnect()
-        return { supportsListChanged: false }
-      }
-
-      this.clearReconnectTimer(key)
-
-      this.connections.set(key, client)
-      this.states.set(key, {
-        serverId: config.id,
-        serverName: config.name,
-        workspaceId,
-        userId,
-        connected: true,
-        supportsListChanged: true,
-        reconnectAttempts: 0,
-        lastActivity: Date.now(),
-      })
-
-      client.onClose(() => {
-        this.handleDisconnect(config, userId, workspaceId)
-      })
-
-      this.ensureIdleCheck()
-
-      logger.info(`[${config.name}] Persistent connection established (listChanged supported)`)
-      return { supportsListChanged: true }
     } finally {
       this.connectingServers.delete(key)
     }

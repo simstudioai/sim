@@ -9,10 +9,8 @@ const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
   getUser: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: fetchProvider,
-  VALIDATE_RETRY_OPTIONS: {},
-}))
+vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({ fetchWithRetry: fetchProvider }))
 vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
 vi.mock('@/connectors/google-workspace/users', () => ({
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,

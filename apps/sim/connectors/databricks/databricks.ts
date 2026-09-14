@@ -3,7 +3,8 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import { decodeTextBuffer } from '@/lib/file-parsers/utils'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
   DATABRICKS_CONTENT_TYPES,
   type DatabricksContentType,

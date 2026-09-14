@@ -83,6 +83,18 @@ async function sendToLengthRequiredEndpoint(
 }
 
 describe('secureFetchWithPinnedIP request framing', () => {
+  it.each([
+    { headers: undefined, expected: 'undici' },
+    { headers: { 'uSeR-aGeNt': 'custom-client/1.0' }, expected: 'custom-client/1.0' },
+  ])(
+    'sends a default User-Agent and preserves an explicit one ($expected)',
+    async ({ headers, expected }) => {
+      const received = await sendToLengthRequiredEndpoint({ method: 'POST', headers })
+
+      expect(received.headers['user-agent']).toBe(expected)
+    }
+  )
+
   it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
     'sends a UTF-8 %s body with its byte length',
     async (method) => {

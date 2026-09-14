@@ -383,6 +383,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/enterprise/scim.mdx',
   'platform/enterprise/scim/entra.mdx',
   'platform/enterprise/scim/okta.mdx',
+  'platform/enterprise/security.mdx',
   'platform/enterprise/self-hosted.mdx',
   'platform/enterprise/session-policies.mdx',
   'platform/enterprise/sso.mdx',

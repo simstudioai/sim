@@ -7,11 +7,8 @@ import {
   normalizeAtlassianSiteUrl,
   resolveAtlassianCloudId,
 } from '@/lib/atlassian/discovery'
-import {
-  fetchWithRetry,
-  type RetryOptions,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {

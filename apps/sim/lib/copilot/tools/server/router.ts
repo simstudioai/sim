@@ -65,6 +65,7 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
@@ -290,7 +291,9 @@ export async function routeExecution(
     const inner = run
     run = () => withCustomBlockOverlay(rows, inner)
   }
-  const result = await run()
+  const result = await (context?.workspaceId || context?.organizationId
+    ? withResourceOutboundScope(context, run)
+    : run())
 
   // Validate output if tool declares a schema; otherwise fall back to the
   // generated JSON schema contract emitted from Go.

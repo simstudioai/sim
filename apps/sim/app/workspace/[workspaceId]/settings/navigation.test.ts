@@ -44,7 +44,7 @@ describe('unified settings navigation', () => {
       { id: 'recently-deleted', label: 'Recently deleted', section: 'workspace' },
       { id: 'self-host', label: 'Self hosting', section: 'platform' },
       { id: 'sso', label: 'Single sign-on', section: 'organization' },
-      { id: 'sessions', label: 'Session policies', section: 'organization' },
+      { id: 'security', label: 'Security', section: 'organization' },
       { id: 'data-retention', label: 'Data retention', section: 'organization' },
       { id: 'data-drains', label: 'Data drains', section: 'organization' },
       { id: 'whitelabeling', label: 'White-labeling', section: 'organization' },
@@ -90,7 +90,7 @@ describe('unified settings navigation', () => {
       'audit-logs',
       'whitelabeling',
       'sso',
-      'sessions',
+      'security',
       'data-retention',
       'data-drains',
     ])
@@ -124,6 +124,7 @@ describe('resolveSettingsSection', () => {
     team: 'organization',
     'api-keys': 'apikeys',
     domains: 'sso',
+    sessions: 'security',
   } as const
 
   it('keeps legacy section links working', () => {

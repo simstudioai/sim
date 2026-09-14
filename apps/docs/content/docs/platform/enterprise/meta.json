@@ -5,6 +5,7 @@
     "sso",
     "scim",
     "verified-domains",
+    "security",
     "session-policies",
     "access-control",
     "custom-blocks",
