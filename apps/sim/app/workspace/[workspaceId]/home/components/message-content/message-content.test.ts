@@ -161,6 +161,43 @@ describe('top-level activity groups', () => {
     expect(groups[1].items).toMatchObject([{ type: 'tool', data: { id: 'b1' } }])
   })
 
+  it('keeps parallel activities open through thinking gaps until their batch closes', () => {
+    const completed = [
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1', 'Checking customer inputs'),
+      activityReference('a2', 'Checking invoice inputs'),
+    ].map(
+      (block): ContentBlock => ({
+        ...block,
+        toolCall: { ...block.toolCall!, status: 'success' },
+      })
+    )
+    const open = parseBlocks(completed, true)
+    expect(open).toHaveLength(2)
+    expect(open).toMatchObject([
+      { isOpen: true, items: [{ data: { id: 'a1' } }, { data: { id: 'a2' } }] },
+      { isOpen: true, items: [{ data: { id: 'b1' } }] },
+    ])
+    const settled = parseBlocks(completed, false)
+    expect(settled).toHaveLength(1)
+    expect(settled[0]).toMatchObject({ isOpen: false, completedGroupCount: 2 })
+    const proseClosed = parseBlocks([...completed, mainText('The inputs are ready.')], true)
+    expect(proseClosed[0]).toMatchObject({ isOpen: false, completedGroupCount: 2 })
+  })
+
+  it('closes at prose and reopens a reused activity below it during the same turn', () => {
+    const first = activityCall('a1', 'Checking invoice inputs')
+    first.toolCall!.status = 'success'
+    const reused = activityReference('a2', 'Checking invoice inputs')
+    reused.toolCall!.status = 'success'
+    const segments = parseBlocks([first, mainText('Checking the updated inputs.'), reused], true)
+    expect(segments).toMatchObject([
+      { type: 'agent_group', isOpen: false, activity: { id: 'Checking invoice inputs' } },
+      { type: 'text' },
+      { type: 'agent_group', isOpen: true, activity: { id: 'Checking invoice inputs' } },
+    ])
+  })
+
   it('does not merge activities across prose or absorb a subagent into the main activity', () => {
     const segments = parseBlocks([
       activityCall('a1', 'Checking invoice inputs'),

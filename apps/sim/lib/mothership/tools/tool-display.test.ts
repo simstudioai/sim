@@ -126,6 +126,30 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     ).toBe('Creating Invoice API')
   })
 
+  it('uses the worker invocation without interpreting pipeline stages for display', () => {
+    expect(
+      getToolDisplayTitle('cli_workflows_create', {
+        args: ['workflows', 'create', '|', 'jq', '--name', 'filter argument'],
+        request: {
+          invocation: { kind: 'cli', argv: ['workflows', 'create', '--name', 'Invoice API'] },
+        },
+      })
+    ).toBe('Creating Invoice API')
+    expect(
+      getToolDisplayTitle('cli_blocks_get', {
+        args: ['blocks', 'get', 'raw-block', '--operation', 'raw-operation'],
+        request: {
+          invocation: {
+            kind: 'augmentation',
+            name: 'block-get',
+            positionals: ['exa'],
+            flags: { operation: 'exa_search' },
+          },
+        },
+      })
+    ).toBe('Reading Exa Search configuration')
+  })
+
   it.each(['cli_workflows_operations_apply', 'cli_workflows_state_replace'])(
     'distinguishes validation from mutation for %s',
     (name) => {
@@ -272,6 +296,12 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Run Agent')).toBeUndefined()
     expect(getToolCompletedTitle('Folder action')).toBeUndefined()
     expect(getToolCompletedTitle('Custom title from the model')).toBeUndefined()
+  })
+
+  it('keeps approval labels stable across the parser and final render boundary', () => {
+    const title = getToolStatusDisplayTitle('Reading Exa configuration', 'awaiting_approval')
+    expect(title).toBe('Waiting for approval: Reading Exa configuration')
+    expect(getToolStatusDisplayTitle(title, 'awaiting_approval')).toBe(title)
   })
 
   it('projects a terminal tense for every settled row, present tense only while running', () => {

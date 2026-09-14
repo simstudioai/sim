@@ -100,8 +100,150 @@ describe('confirmed CLI resource effects', () => {
     ['knowledge/k/documents/d', 'PATCH', 'knowledgebase', 'k'],
     ['knowledge/k/connectors/c/sync', 'POST', 'knowledgebase', 'k'],
     ['workflows/w/versions/2/revert', 'POST', 'workflow', 'w'],
-  ])('refreshes the parent of %s', async (path, method, type, id) => {
-    expect(await effectsFor(path, method)).toEqual([{ op: 'refresh', resource: { type, id } }])
+  ])('opens and refreshes the parent of %s', async (path, method, type, id) => {
+    expect(await effectsFor(path, method)).toEqual([{ op: 'upsert', resource: { type, id } }])
+  })
+
+  it.each([
+    ['workflows/w/state', 'GET', 'workflow', 'w'],
+    ['workflows/w/versions', 'GET', 'workflow', 'w'],
+    ['tables/t/rows', 'GET', 'table', 't'],
+    ['tables/t/query', 'POST', 'table', 't'],
+    ['tables/t/query/count', 'POST', 'table', 't'],
+    ['knowledge/k/documents', 'GET', 'knowledgebase', 'k'],
+    ['knowledge/k/tags/usage', 'GET', 'knowledgebase', 'k'],
+    ['files/f', 'GET', 'file', 'f'],
+  ])(
+    'opens an authorized scoped read of %s without claiming an edit',
+    async (path, method, type, id) => {
+      expect(await effectsFor(path, method)).toEqual([
+        { op: 'upsert', readOnly: true, resource: { type, id } },
+      ])
+    }
+  )
+
+  it.each([
+    'workflows',
+    'workflows/folders',
+    'tables',
+    'tables/folders',
+    'files',
+    'files/folders',
+    'files/search',
+    'knowledge',
+    'knowledge/folders',
+  ])('never interprets discovery route %s as a resource ID', async (path) => {
+    expect(await effectsFor(path, 'GET')).toEqual([])
+  })
+
+  it('does not open internal singular reads made by collection discovery', async () => {
+    const effects: ResourceChange[] = []
+    const transport = createResourceEffectTransport(
+      endpoint,
+      async () => Response.json({ data: {} }),
+      effects,
+      false
+    )
+    await transport(`${endpoint}/api/v2/workflows/w/state`)
+    expect(effects).toEqual([])
+    await transport(`${endpoint}/api/v2/tables/t/rows`, { method: 'POST' })
+    expect(effects).toEqual([{ op: 'upsert', resource: { type: 'table', id: 't' } }])
+  })
+
+  it('uses the resolved file ID and path instead of persisting its requested path as an ID', async () => {
+    expect(
+      await effectsFor('files/files%2FReport.md/text', 'GET', {
+        fileId: 'canonical-file',
+        name: 'Report.md',
+        path: 'files/Report.md',
+        type: 'text/markdown',
+        text: 'hello',
+        truncated: false,
+        degraded: false,
+        degradedReason: null,
+        charCount: 5,
+        byteCount: 5,
+      })
+    ).toEqual([
+      {
+        op: 'upsert',
+        readOnly: true,
+        resource: {
+          type: 'file',
+          id: 'canonical-file',
+          title: 'Report.md',
+          path: 'files/Report.md',
+        },
+      },
+    ])
+  })
+
+  it('uses the confirmed table name on a singular read', async () => {
+    expect(await effectsFor(`tables/${table.id}`, 'GET', table)).toEqual([
+      {
+        op: 'upsert',
+        readOnly: true,
+        resource: { type: 'table', id: table.id, title: table.name },
+      },
+    ])
+  })
+
+  it('addresses a log by its canonical execution ID, which the panel can resolve', async () => {
+    expect(
+      await effectsFor('logs/requested-run', 'GET', {
+        runId: 'canonical-run',
+        workflowId: 'workflow',
+        deploymentVersionId: null,
+        status: 'completed',
+        level: 'info',
+        trigger: 'manual',
+        startedAt: table.createdAt,
+        endedAt: table.updatedAt,
+        totalDurationMs: 10,
+        files: null,
+        executedByEmail: null,
+        workflow: {
+          id: 'workflow',
+          name: 'Workflow name',
+          description: null,
+          folderPath: '/',
+          ownerEmail: null,
+          workspaceId: 'workspace',
+          createdAt: null,
+          updatedAt: null,
+          deleted: false,
+        },
+        workflowState: null,
+        traceSpans: [],
+        finalOutput: null,
+        cost: null,
+        workflowInput: null,
+        createdAt: table.createdAt,
+      })
+    ).toEqual([
+      {
+        op: 'upsert',
+        readOnly: true,
+        resource: {
+          type: 'log',
+          id: 'canonical-run',
+          executionId: 'canonical-run',
+          title: 'Workflow name',
+        },
+      },
+    ])
+  })
+
+  it.each([false, true])('opens a variable update while respecting changed=%s', async (changed) => {
+    expect(
+      await effectsFor('workflows/w/variables', 'PATCH', { id: 'w', variableCount: 0, changed })
+    ).toEqual([
+      {
+        op: 'upsert',
+        ...(changed ? {} : { readOnly: true }),
+        resource: { type: 'workflow', id: 'w' },
+      },
+    ])
   })
 
   it('preserves the saved view identity without renaming the table to the view', async () => {
@@ -117,6 +259,9 @@ describe('confirmed CLI resource effects', () => {
     }
     expect(await effectsFor(`tables/${table.id}/views`, 'POST', view)).toEqual([
       { op: 'upsert', resource: { type: 'table', id: table.id, viewId: 'view' } },
+    ])
+    expect(await effectsFor(`tables/${table.id}/views/view`, 'GET', view)).toEqual([
+      { op: 'upsert', readOnly: true, resource: { type: 'table', id: table.id, viewId: 'view' } },
     ])
   })
 
@@ -200,10 +345,10 @@ describe('confirmed CLI resource effects', () => {
     }
   )
 
-  it('ignores failures, read-only POST queries, and external provider calls', async () => {
+  it('ignores failures, collection searches, and external provider calls', async () => {
     expect(await effectsFor('tables/t/rows', 'POST', {}, 403)).toEqual([])
-    expect(await effectsFor('tables/t/query', 'POST')).toEqual([])
-    expect(await effectsFor('tables/t/query/count', 'POST')).toEqual([])
+    expect(await effectsFor('workflows/unauthorized/state', 'GET', {}, 403)).toEqual([])
+    expect(await effectsFor('tables/unresolved', 'GET', {}, 404)).toEqual([])
     expect(await effectsFor('knowledge/search', 'POST')).toEqual([])
     const effects: ResourceChange[] = []
     const transport = createResourceEffectTransport(
@@ -212,6 +357,7 @@ describe('confirmed CLI resource effects', () => {
       effects
     )
     await transport('https://provider.test/api/v2/tables', { method: 'POST' })
+    await transport('https://provider.test/api/v2/tables/private', { method: 'GET' })
     expect(effects).toEqual([])
   })
 

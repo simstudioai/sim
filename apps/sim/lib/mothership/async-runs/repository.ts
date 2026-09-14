@@ -819,6 +819,38 @@ export interface WorkbenchRecoveryState {
   processes: Array<SessionProcessIdentity & { toolCallId: string }>
 }
 
+/** Private sandbox callbacks must still belong to the admitted caller, chat and live tool lease. */
+export async function isActiveSandboxResourceOwner(
+  input: SimToolExecutionOwner & { chatId: string; workspaceId: string }
+): Promise<boolean> {
+  const [owner] = await db
+    .select({ id: copilotAsyncToolCalls.id })
+    .from(copilotAsyncToolCalls)
+    .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+    .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
+    .where(
+      and(
+        eq(copilotRuns.id, input.runId),
+        eq(copilotRuns.userId, input.userId),
+        eq(copilotRuns.chatId, input.chatId),
+        eq(copilotRuns.workspaceId, input.workspaceId),
+        eq(copilotChats.userId, input.userId),
+        eq(copilotChats.workspaceId, input.workspaceId),
+        isNull(copilotChats.deletedAt),
+        isNull(copilotRuns.toolAdmissionClosedAt),
+        notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+        eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+        eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+        isNotNull(copilotAsyncToolCalls.executionStartedAt),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+      )
+    )
+    .limit(1)
+  return Boolean(owner)
+}
+
 /** A successor fences prior admission before checking the handlers and commands that already started. */
 export async function prepareWorkbenchAccess(
   input: SimToolExecutionOwner & {

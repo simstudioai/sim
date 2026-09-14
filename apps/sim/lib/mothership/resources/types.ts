@@ -24,8 +24,9 @@ export interface MothershipResource {
   viewId?: string
   /**
    * The run this log row records (type "log" only). Distinct from `id`, which
-   * is the log row's own key: the tab loads by row id, while chat context and
-   * the logs deep-link address the run itself.
+   * is usually the log row's own key. A CLI read can use the run as its panel
+   * key before the row ID is known; the tab, chat context and logs deep-link
+   * use this execution ID when present.
    */
   executionId?: string
 }

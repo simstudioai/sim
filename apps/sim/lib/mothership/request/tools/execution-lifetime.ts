@@ -28,6 +28,7 @@ const logger = createLogger('MothershipToolExecutionLifetime')
 
 export interface ToolExecutionLifetime {
   readonly signal: AbortSignal
+  readonly owner?: SimToolExecutionOwner
   complete(input: CompleteAsyncToolCallInput): Promise<void>
   claim(runId: string, userId: string): Promise<SimToolExecutionClaim>
   hold<T>(work: Promise<T>): Promise<T>
@@ -66,6 +67,9 @@ export async function withToolExecutionLifetime<T>(
   }
   const lifetime: ToolExecutionLifetime = {
     signal: leaseAbort.signal,
+    get owner() {
+      return owner
+    },
     async complete(input) {
       await withCopilotSpan(
         TraceSpan.CopilotToolResultCommit,

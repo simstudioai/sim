@@ -52,8 +52,10 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   // lists, never from the stream; older servers announced them as resources.
   if (payload.resource.type === 'browser' || payload.resource.type === 'terminal') return
   const resourceType = payload.resource.type
-  invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
-  if (resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
+  const readOnly = payload.op === 'upsert' && payload.readOnly === true
+  if (!readOnly)
+    invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
+  if (!readOnly && resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
     notifyWorkflowExternalUpdate(payload.resource.id)
   }
   if (payload.op === 'refresh') return
@@ -216,7 +218,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     } else onResourceEvent?.(resource.id)
   }
 
-  if (resource.type === 'workflow') {
+  if (resource.type === 'workflow' && !readOnly) {
     ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
   }
 }

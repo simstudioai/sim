@@ -558,7 +558,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
 }
 
 /** Each explicit activity owns a top-level group, including interleaved parallel calls. */
-function groupByActivity(segments: MessageSegment[]): MessageSegment[] {
+function groupByActivity(segments: MessageSegment[], isStreaming: boolean): MessageSegment[] {
   const labels = new Map<string, ToolActivity>()
   for (const segment of segments) {
     if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') continue
@@ -569,8 +569,10 @@ function groupByActivity(segments: MessageSegment[]): MessageSegment[] {
         labels.set(activity.id, activity)
     }
   }
-  return segments.flatMap((segment): MessageSegment[] => {
+  return segments.flatMap((segment, index): MessageSegment[] => {
     if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') return [segment]
+    /** A quiet model round can append calls to any activity in this visible batch. */
+    const isOpen = isStreaming && index === segments.length - 1
     const groups: AgentGroupSegment[] = []
     const byActivity = new Map<string, AgentGroupSegment>()
     let current: AgentGroupSegment | undefined
@@ -584,6 +586,7 @@ function groupByActivity(segments: MessageSegment[]): MessageSegment[] {
       else if (!current || activity || currentActivityId) {
         current = {
           ...segment,
+          isOpen,
           activity: activity ? labels.get(activity.id) : undefined,
           id:
             groups.length === 0
@@ -601,6 +604,7 @@ function groupByActivity(segments: MessageSegment[]): MessageSegment[] {
     const summaryActivity = [...groups].reverse().find((group) => group.activity)?.activity
     if (
       groups.length > 1 &&
+      !isOpen &&
       summaryActivity &&
       segment.items.every((item) => item.type === 'tool') &&
       isAgentGroupResolved(segment.items)
@@ -611,11 +615,12 @@ function groupByActivity(segments: MessageSegment[]): MessageSegment[] {
   })
 }
 
-export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
+export function parseBlocks(blocks: ContentBlock[], isStreaming = false): MessageSegment[] {
   return groupByActivity(
     blocks.some((block) => Boolean(block.spanId))
       ? parseBlocksWithSpanTree(blocks)
-      : parseBlocksLegacy(blocks)
+      : parseBlocksLegacy(blocks),
+    isStreaming
   )
 }
 
@@ -1005,8 +1010,8 @@ function MessageContentInner({
   )
   const titledBlocks = useToolResourceTitles(cited.blocks)
   const parsed = useMemo(
-    () => (titledBlocks.length > 0 ? parseBlocks(titledBlocks) : []),
-    [titledBlocks, blockOverlayVersion]
+    () => (titledBlocks.length > 0 ? parseBlocks(titledBlocks, isStreaming) : []),
+    [titledBlocks, blockOverlayVersion, isStreaming]
   )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)

@@ -45,6 +45,13 @@ describe('registered files view boundary', () => {
       const output = await runEngine('files view', ['requested'], runtime, {})
       ArtifactObservations.parse(output.observations)
       expect(output.exitCode).toBe(0)
+      expect(output.resources).toEqual([
+        {
+          op: 'upsert',
+          readOnly: true,
+          resource: { type: 'file', id: 'canonical', title: 'report' },
+        },
+      ])
       expect(output.observations?.[0]).toEqual({
         name: 'report',
         resourceId: 'canonical',

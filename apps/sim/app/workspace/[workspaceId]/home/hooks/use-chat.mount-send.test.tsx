@@ -61,6 +61,7 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
   }
 })
 
+import { ApiClientError } from '@/lib/api/client/errors'
 import type { ApiClientRequest } from '@/lib/api/client/request'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
 import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contracts/copilot'
@@ -72,6 +73,7 @@ import {
   isRunToolActiveForId,
   stopRunToolExecutions,
 } from '@/lib/mothership/tools/client/run-tool-execution'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import {
   readQueuedSendHandoffState,
   writeQueuedSendHandoffState,
@@ -1428,6 +1430,44 @@ describe('useChat remount send recovery', () => {
 
     expect(restoredSurface.getResult().resources[0]?.viewId).toBe('view-edited')
   })
+
+  it.each(['foreign-workspace', 'unavailable', 'deleted'] as const)(
+    'verifies a workflow absent from the chat workspace before removing it: %s',
+    async (outcome) => {
+      getQueryClient().clear()
+      mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract) => {
+        if (contract.path === '/api/workflows') return { data: [] }
+        if (contract.path === '/api/workflows/[id]') {
+          if (outcome === 'foreign-workspace')
+            return { data: { id: 'foreign', workspaceId: 'another-workspace' } }
+          throw new ApiClientError({
+            status: outcome === 'deleted' ? 404 : 503,
+            message: 'Unavailable',
+            body: {},
+          })
+        }
+        return { chats: [] }
+      })
+      const surface = renderUseChatInChat('chat-with-foreign-workflow', {
+        id: 'chat-with-foreign-workflow',
+        title: 'Read another workflow',
+        messages: [],
+        activeStreamId: null,
+        resources: [{ type: 'workflow', id: 'foreign', title: 'Other workspace workflow' }],
+      })
+      await waitFor(() =>
+        mockRequestJson.mock.calls.some(([contract]) => contract.path === '/api/workflows/[id]')
+      )
+      if (outcome === 'deleted') await waitFor(() => surface.getResult().resources.length === 0)
+      else {
+        await act(async () => {
+          await sleep(20)
+        })
+        expect(surface.getResult().resources.map((resource) => resource.id)).toEqual(['foreign'])
+      }
+      getQueryClient().clear()
+    }
+  )
 
   it('hydrates a table view change when resource identity and title stay the same', async () => {
     const chatId = 'chat-with-refetched-view'

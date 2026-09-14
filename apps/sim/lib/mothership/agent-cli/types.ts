@@ -41,6 +41,8 @@ export type AgentCliFlags = Readonly<Record<string, string | true>>
 
 /** One augmentation's execution, keyed in engines/index.ts by the worker's canonical name. */
 export interface AgentCliEngine {
+  /** Singular-resource engines may open their authorized reads; collection discovery never does. */
+  openReadResources?: boolean
   execute(
     positionals: string[],
     runtime: AgentCliRuntime,

@@ -91,6 +91,9 @@ describe('Mothership workflow lint scope', () => {
   it('uses the authorized workflow workspace and authenticated subject for every diagnostic lookup', async () => {
     const result = await workflowLintCommand.execute(['wf-1'], runtime, {})
     expect(result.exitCode).toBe(0)
+    expect(result.resources).toEqual([
+      { op: 'upsert', readOnly: true, resource: { type: 'workflow', id: 'wf-1' } },
+    ])
     expect(mocks.report).toHaveBeenCalledWith(
       expect.objectContaining({ blocks: graph.blocks }),
       {

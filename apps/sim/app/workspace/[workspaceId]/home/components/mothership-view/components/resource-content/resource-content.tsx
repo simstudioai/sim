@@ -13,6 +13,7 @@ import {
   WorkflowX,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
@@ -53,14 +54,18 @@ import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
-import { useLogDetail } from '@/hooks/queries/logs'
+import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
 import { exportTable } from '@/hooks/queries/tables'
-import { useWorkflows } from '@/hooks/queries/workflows'
+import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
+import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
@@ -330,6 +335,7 @@ export const ResourceContent = memo(function ResourceContent({
           key={resource.id}
           workspaceId={workspaceId}
           logId={resource.id}
+          executionId={resource.executionId}
           onNotFound={onNotFound ? () => onNotFound(resource.id) : undefined}
         />
       )
@@ -392,7 +398,13 @@ export function ResourceActions({
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
-      return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
+      return (
+        <EmbeddedLogActions
+          workspaceId={workspaceId}
+          logId={resource.id}
+          executionId={resource.executionId}
+        />
+      )
     case 'folder':
     case 'generic':
     case 'browser':
@@ -682,15 +694,17 @@ interface EmbeddedWorkflowProps {
 }
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
-  const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
-  const workflowExists = (workflowList ?? []).some((w) => w.id === workflowId)
+  const { data: workflowList } = useWorkflows(workspaceId)
+  const workflowExists = (workflowList ?? []).some((workflow) => workflow.id === workflowId)
   const hasLoadError = useWorkflowRegistry(
     (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
   )
 
-  if (isWorkflowsPending) return LOADING_SKELETON
+  if (!workflowExists) {
+    return <ResolveEmbeddedWorkflow workspaceId={workspaceId} workflowId={workflowId} />
+  }
 
-  if (!workflowExists || hasLoadError) {
+  if (hasLoadError) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
@@ -708,6 +722,64 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
     <Suspense fallback={LOADING_SKELETON}>
       <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
     </Suspense>
+  )
+}
+
+/**
+ * Subscribe to canonical detail only while inventory is missing. A disabled observer on the
+ * canvas hydration query can cancel the registry's imperative fetch when StrictMode detaches it.
+ */
+function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+  const queryClient = useQueryClient()
+  const openInternalLink = useOpenInternalLink()
+  const { data: canonical, isPending: isCanonicalPending } = useQuery({
+    queryKey: workflowKeys.state(workflowId),
+    queryFn: ({ signal }) => fetchWorkflowEnvelope(workflowId, signal),
+    staleTime: WORKFLOW_STATE_STALE_TIME,
+  })
+  useEffect(() => {
+    if (!canonical || canonical.workspaceId !== workspaceId || canonical.archivedAt) return
+    /** Only the authorized detail can seed missing sidebar metadata, including its real folder. */
+    const metadata = mapWorkflow({
+      ...canonical,
+      createdAt: canonical.createdAt.toISOString(),
+      updatedAt: canonical.updatedAt.toISOString(),
+      archivedAt: null,
+    })
+    queryClient.setQueryData<WorkflowMetadata[]>(workflowKeys.list(workspaceId), (current = []) =>
+      current.some((workflow) => workflow.id === workflowId) ? current : [...current, metadata]
+    )
+  }, [canonical, queryClient, workflowId, workspaceId])
+
+  if (isCanonicalPending) return LOADING_SKELETON
+
+  if (canonical?.workspaceId && canonical.workspaceId !== workspaceId) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <WorkflowIcon className='size-[32px] text-[var(--text-icon)]' />
+        <p className='text-[var(--text-primary)]'>{canonical.name}</p>
+        <Button
+          variant='secondary'
+          onClick={() => openInternalLink(`/workspace/${canonical.workspaceId}/w/${workflowId}`)}
+        >
+          Open in its workspace
+        </Button>
+      </div>
+    )
+  }
+
+  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return LOADING_SKELETON
+
+  return (
+    <div className='flex h-full flex-col items-center justify-center gap-3'>
+      <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
+      <div className='flex flex-col items-center gap-1'>
+        <h2 className='text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+        <p className='text-[var(--text-body)] text-small'>
+          This workflow may have been deleted or moved
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -845,11 +917,19 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 interface EmbeddedLogProps {
   workspaceId: string
   logId: string
+  executionId?: string
   onNotFound?: () => void
 }
 
-function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
-  const { data: log, isLoading, error } = useLogDetail(logId, workspaceId)
+/** A log resource may be addressed by its execution before its storage-row ID is known. */
+function useEmbeddedLog(workspaceId: string, logId: string, executionId?: string) {
+  const detail = useLogDetail(logId, workspaceId, { enabled: !executionId })
+  const execution = useLogByExecutionId(workspaceId, executionId)
+  return executionId ? execution : detail
+}
+
+function EmbeddedLog({ workspaceId, logId, executionId, onNotFound }: EmbeddedLogProps) {
+  const { data: log, isLoading, error } = useEmbeddedLog(workspaceId, logId, executionId)
 
   const onNotFoundRef = useRef(onNotFound)
   onNotFoundRef.current = onNotFound
@@ -886,11 +966,12 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
 interface EmbeddedLogActionsProps {
   workspaceId: string
   logId: string
+  executionId?: string
 }
 
-export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
+export function EmbeddedLogActions({ workspaceId, logId, executionId }: EmbeddedLogActionsProps) {
   const router = useRouter()
-  const { data: log } = useLogDetail(logId, workspaceId)
+  const { data: log } = useEmbeddedLog(workspaceId, logId, executionId)
 
   const handleOpenInLogs = () => {
     const param = log?.executionId ? `?executionId=${log.executionId}` : ''
