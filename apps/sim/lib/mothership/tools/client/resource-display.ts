@@ -134,6 +134,7 @@ export function resolveNamedCliToolDisplayTitle(
 ): string | undefined {
   const target = cliFirstPositional(name, args)
   if (!target) return undefined
+  if (name === 'cli_files_read' && target.includes('/')) return getToolDisplayTitle(name, args)
   if (name === 'cli_blocks_get' || name === 'cli_blocks_tips') {
     const block = getBlock(target)
     if (!block) return undefined

@@ -48,12 +48,10 @@ describe('activity metadata replay', () => {
   it('carries hidden discovery labels onto later visible calls without crossing agent lanes', () => {
     const activity = {
       id: 'inputs',
-      title: 'Checking invoice requirements',
       completedTitle: 'Checked invoice requirements',
     }
     const childActivity = {
       id: 'inputs',
-      title: 'Checking customer requirements',
       completedTitle: 'Checked customer requirements',
     }
     const model = build([
@@ -94,7 +92,6 @@ describe('activity metadata replay', () => {
   it('keeps the gateway activity when its concrete tool arguments replace the outer call', () => {
     const activity = {
       id: 'search',
-      title: 'Checking search results',
       completedTitle: 'Checked search results',
     }
     const model = build([

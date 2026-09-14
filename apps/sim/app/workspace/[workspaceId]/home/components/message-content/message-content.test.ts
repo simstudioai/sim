@@ -68,7 +68,7 @@ describe('top-level activity groups', () => {
       status: 'executing',
       params: title
         ? {
-            activity: { id: title, title, completedTitle: title.replace('Checking', 'Checked') },
+            activity: { id: title, completedTitle: title.replace('Checking', 'Checked') },
           }
         : {},
     },
