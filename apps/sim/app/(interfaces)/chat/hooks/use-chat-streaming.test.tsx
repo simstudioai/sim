@@ -18,7 +18,7 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import { isChatChunkFrame } from '@/lib/workflows/streaming/agent-stream-protocol'
-import type { ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
+import type { ChatFile, ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
 import { useChatStreaming } from '@/app/(interfaces)/chat/hooks/use-chat-streaming'
 
 describe('isChatChunkFrame', () => {
@@ -77,6 +77,16 @@ function makeSseResponse(): Response {
   } as Response
 }
 
+const imageFile: ChatFile = {
+  id: 'file-image',
+  name: 'generated.png',
+  key: 'execution/generated.png',
+  url: '/api/files/serve/execution%2Fgenerated.png',
+  size: 3,
+  type: 'image/png',
+  base64: 'YWJj',
+}
+
 async function flushUiBatch() {
   await act(async () => {
     await new Promise<void>((resolve) => {
@@ -111,6 +121,102 @@ describe('useChatStreaming thinking + abort', () => {
   afterEach(() => {
     handle.unmount()
     vi.restoreAllMocks()
+  })
+
+  it('renders streamed files as attachments, preserving bytes and deduplicating selections', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({ blockId: 'agent-1', chunk: 'Here is your image.' })
+      await options.onEvent({ blockId: 'agent-1', event: 'output', data: [imageFile] })
+      await options.onEvent({ blockId: 'agent-1', event: 'output', data: imageFile })
+      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
+    })
+
+    await act(async () => {
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
+          outputConfigs: [{ blockId: 'agent-1', path: 'files' }],
+        })
+    })
+
+    expect(messages[0].content).toBe('Here is your image.')
+    expect(messages[0].files).toEqual([imageFile])
+    expect(messages[0].isStreaming).toBe(false)
+  })
+
+  it.each([{ data: [] }, { data: null }, { data: { files: [] } }])(
+    'keeps empty structured outputs invisible: $data',
+    async ({ data }) => {
+      mockReadSSEEvents.mockImplementation(async (_source, options) => {
+        await options.onEvent({ blockId: 'agent-1', event: 'output', data })
+        await options.onEvent({ event: 'final', data: { success: true, output: {} } })
+      })
+
+      await act(async () => {
+        await handle
+          .latest()
+          .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+      })
+
+      expect(messages[0].content).toBe('')
+      expect(messages[0].files).toBeUndefined()
+    }
+  )
+
+  it('does not fall back to unrelated output when the selected final files are empty', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({
+        event: 'final',
+        data: { success: true, output: { 'agent-1': { files: [], content: 'Not selected' } } },
+      })
+    })
+
+    await act(async () => {
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
+          outputConfigs: [{ blockId: 'agent-1', path: 'files' }],
+        })
+    })
+
+    expect(messages[0].content).toBe('')
+    expect(messages[0].files).toBeUndefined()
+  })
+
+  it('extracts nested final files without losing the other selected output fields', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({
+        event: 'final',
+        data: {
+          success: true,
+          output: { 'agent-1': { result: { caption: 'A landscape', files: [imageFile] } } },
+        },
+      })
+    })
+
+    await act(async () => {
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
+          outputConfigs: [{ blockId: 'agent-1', path: 'result' }],
+        })
+    })
+
+    expect(messages[0].files).toEqual([imageFile])
+    expect(messages[0].content).toBe('```json\n{\n  "caption": "A landscape"\n}\n```')
+  })
+
+  it('preserves literal array text from the assistant', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({ blockId: 'agent-1', chunk: 'An empty array is written as [].' })
+      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+
+    expect(messages[0].content).toBe('An empty array is written as [].')
   })
 
   it('routes thinking to message.thinking and answer chunks to content only', async () => {

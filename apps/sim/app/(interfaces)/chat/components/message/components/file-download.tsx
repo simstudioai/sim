@@ -51,6 +51,8 @@ function isImageFile(mimeType: string): boolean {
 }
 
 function getFileUrl(file: ChatFile): string {
+  if (file.base64) return `data:${file.type};base64,${file.base64}`
+  if (isSafeHttpUrl(file.url)) return file.url
   return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
 }
 
@@ -76,6 +78,8 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
 
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null)
+  const fileUrl = getFileUrl(file)
 
   const handleDownload = async () => {
     if (isDownloading) return
@@ -109,25 +113,36 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   }
 
   return (
-    <Button
-      variant='default'
-      onClick={handleDownload}
-      disabled={isDownloading}
-      className='group flex h-auto w-[200px] items-center gap-2 rounded-lg px-3 py-2'
-    >
-      <div className='flex size-8 shrink-0 items-center justify-center'>{renderIcon()}</div>
-      <div className='min-w-0 flex-1 text-left'>
-        <div className='w-[100px] truncate text-xs'>{file.name}</div>
-        <div className='text-[var(--text-muted)] text-micro'>{formatFileSize(file.size)}</div>
-      </div>
-      <div className='shrink-0'>
-        {isDownloading ? (
-          <Loader className='size-3.5' animate />
-        ) : (
-          <Download className='size-3.5 opacity-0 transition-opacity group-hover:opacity-100' />
-        )}
-      </div>
-    </Button>
+    <div className='flex max-w-full flex-col items-start gap-2'>
+      {isImageFile(file.type) && failedPreviewUrl !== fileUrl && (
+        <img
+          src={fileUrl}
+          alt={file.name}
+          loading='lazy'
+          className='-outline-offset-1 max-h-[480px] max-w-full rounded-lg object-contain outline outline-1 outline-black/10 dark:outline-white/10'
+          onError={() => setFailedPreviewUrl(fileUrl)}
+        />
+      )}
+      <Button
+        variant='default'
+        onClick={handleDownload}
+        disabled={isDownloading}
+        className='group flex h-auto w-[200px] items-center gap-2 rounded-lg px-3 py-2'
+      >
+        <div className='flex size-8 shrink-0 items-center justify-center'>{renderIcon()}</div>
+        <div className='min-w-0 flex-1 text-left'>
+          <div className='w-[100px] truncate text-xs'>{file.name}</div>
+          <div className='text-[var(--text-muted)] text-micro'>{formatFileSize(file.size)}</div>
+        </div>
+        <div className='shrink-0'>
+          {isDownloading ? (
+            <Loader className='size-3.5' animate />
+          ) : (
+            <Download className='size-3.5 opacity-0 transition-opacity group-hover:opacity-100' />
+          )}
+        </div>
+      </Button>
+    </div>
   )
 }
 

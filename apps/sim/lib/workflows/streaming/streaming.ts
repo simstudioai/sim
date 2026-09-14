@@ -33,10 +33,12 @@ import {
   type ChatStreamChunkResetFrame,
   type ChatStreamErrorFrame,
   type ChatStreamFinalFrame,
+  type ChatStreamOutputFrame,
   type ChatStreamStreamErrorFrame,
   type ChatStreamThinkingFrame,
   type ChatStreamToolFrame,
   clientAcceptsAgentStreamProtocol,
+  clientAcceptsChatOutputProtocol,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -513,6 +515,10 @@ export async function createStreamingResponse(
    */
   const emitThinking = clientAcceptsProtocol && streamConfig.includeThinking === true
   const emitToolCalls = clientAcceptsProtocol && streamConfig.includeToolCalls === true
+  const emitStructuredOutputs =
+    streamConfig.workflowTriggerType === 'chat' &&
+    Boolean(options.requestHeaders) &&
+    clientAcceptsChatOutputProtocol(options.requestHeaders!)
   const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
 
   let requestAborted = false
@@ -737,12 +743,15 @@ export async function createStreamingResponse(
           return
         }
 
-        if (state.streamedChunks.has(selectedOutputBlockId)) {
+        const hasStreamedText = state.streamedChunks.has(selectedOutputBlockId)
+        if (hasStreamedText && !emitStructuredOutputs) {
           return
         }
 
         const matchingOutputs = getSelectedOutputDescriptors(streamConfig.selectedOutputs).filter(
-          (descriptor) => descriptor.blockId === selectedOutputBlockId
+          (descriptor) =>
+            descriptor.blockId === selectedOutputBlockId &&
+            (!hasStreamedText || (descriptor.path !== '' && descriptor.path !== 'content'))
         )
 
         /**
@@ -807,6 +816,24 @@ export async function createStreamingResponse(
               await materializeInlineExecutionValue(hydratedOutput, materializationContext, {
                 maxBytes: getRemainingSelectedOutputBytes(state.selectedOutputBytes),
               })
+              if (emitStructuredOutputs && typeof hydratedOutput !== 'string') {
+                const nextSelectedOutputBytes =
+                  state.selectedOutputBytes + (getInlineJsonByteLength(hydratedOutput) ?? 0)
+                assertInlineMaterializationSize(
+                  nextSelectedOutputBytes,
+                  MAX_INLINE_MATERIALIZATION_BYTES
+                )
+                const frame: ChatStreamOutputFrame = {
+                  blockId: selectedOutputBlockId,
+                  event: 'output',
+                  data: hydratedOutput,
+                }
+                controller.enqueue(encodeSSE(frame))
+                state.selectedOutputBytes = nextSelectedOutputBytes
+                state.streamedSelectedOutputKeys.add(descriptor.key)
+                state.processedOutputs.add(selectedOutputBlockId)
+                continue
+              }
               const formattedOutput =
                 typeof hydratedOutput === 'string'
                   ? hydratedOutput
