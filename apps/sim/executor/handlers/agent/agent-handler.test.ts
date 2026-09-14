@@ -1,4 +1,5 @@
 import {
+  dbChainMockFns,
   loggerMock,
   queueTableRows,
   resetDbChainMock,
@@ -22,6 +23,7 @@ import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
+import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
@@ -319,6 +321,170 @@ describe('AgentBlockHandler', () => {
         metadata: undefined,
       }
       expect(handler.canHandle(noMetadataBlock)).toBe(false)
+    })
+  })
+
+  describe('conversation attachment replay', () => {
+    beforeEach(() => {
+      dbChainMockFns.returning.mockResolvedValue([{ id: 'memory-1' }])
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const file = {
+      id: 'file-1',
+      name: 'example.png',
+      key: 'execution/test-workspace/test-workflow/exec-1/example.png',
+      url: 'https://storage.example.com/expired',
+      size: 8,
+      type: 'image/png',
+      context: 'execution',
+      base64: 'iVBORw0KGgo=',
+    }
+
+    it.each(['files', 'messages', 'userPrompt'] as const)(
+      'replays a previous turn from %s with a fresh provider attachment',
+      async (source) => {
+        mockGetProviderFromModel.mockReturnValue('openai')
+        const hydrate = vi
+          .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+          .mockImplementation(async (value) => {
+            const files = value as (typeof file)[]
+            return files.map((attachment) => ({
+              ...attachment,
+              base64: file.base64,
+            })) as typeof value
+          })
+        const inputs: AgentInputs = {
+          model: 'gpt-4o',
+          memoryType: 'conversation',
+          conversationId: 'conversation-1',
+          ...(source === 'userPrompt'
+            ? { userPrompt: 'Analyze this file', files: [file] }
+            : {
+                messages: [
+                  {
+                    role: 'user',
+                    content: 'Analyze this file',
+                    ...(source === 'messages' ? { files: [file] } : {}),
+                  },
+                ],
+                ...(source === 'files' ? { files: [file] } : {}),
+              }),
+        }
+        const original = structuredClone(inputs)
+        await handler.execute({ ...mockContext, executionId: 'exec-1' }, mockBlock, inputs)
+        const stored = dbChainMockFns.values.mock.calls
+          .map(([row]) => row)
+          .find((row) => Array.isArray(row.data) && row.data[0]?.role === 'user')?.data as Message[]
+        expect(stored).toBeDefined()
+        expect(stored[0].files).toEqual([
+          {
+            id: file.id,
+            name: file.name,
+            key: file.key,
+            url: '',
+            size: file.size,
+            type: file.type,
+            context: file.context,
+          },
+        ])
+        expect(inputs).toEqual(original)
+
+        queueTableRows(schemaMock.memory, [
+          { data: [...stored, { role: 'assistant', content: 'First answer' }] },
+        ])
+        mockGetProviderFromModel.mockReturnValue('anthropic')
+        const nextContext = { ...mockContext, executionId: 'exec-2' }
+        await handler.execute(nextContext, mockBlock, {
+          model: 'claude-sonnet-4-5',
+          memoryType: 'conversation',
+          conversationId: 'conversation-1',
+          messages: [{ role: 'user', content: 'What is in that file?' }],
+        })
+        const request = mockExecuteProviderRequest.mock.calls.at(-1)?.[1]
+        expect(request.messages[0]).toMatchObject({
+          role: 'user',
+          content: 'Analyze this file',
+          files: [{ key: file.key, base64: file.base64 }],
+        })
+        expect(request.messages.at(-1)).toMatchObject({
+          role: 'user',
+          content: 'What is in that file?',
+        })
+        expect(request.messages.at(-1).files).toBeUndefined()
+        expect(hydrate.mock.calls.at(-1)?.[0]).toEqual(stored[0].files)
+        expect(hydrate.mock.calls.at(-1)?.[1]).toMatchObject({
+          executionId: 'exec-2',
+          fileKeys: [file.key],
+        })
+        hydrate.mockRestore()
+      }
+    )
+
+    it('does not duplicate an attachment when the same execution revisits the agent', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      queueTableRows(schemaMock.memory, [
+        {
+          data: [
+            { role: 'user', content: 'Analyze this file', executionId: 'exec-1', files: [file] },
+          ],
+        },
+      ])
+      await handler.execute({ ...mockContext, executionId: 'exec-1' }, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'Analyze this file' }],
+        files: [file],
+      })
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0].files).toHaveLength(1)
+      expect(dbChainMockFns.values.mock.calls.some(([row]) => row.data?.[0]?.role === 'user')).toBe(
+        false
+      )
+    })
+
+    it('saves a new attachment appended to an existing conversation', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      queueTableRows(schemaMock.memory, [{ data: [{ role: 'assistant', content: 'Hello' }] }])
+      await handler.execute({ ...mockContext, executionId: 'exec-2' }, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'Analyze this file' }],
+        files: [file],
+      })
+      const stored = dbChainMockFns.values.mock.calls
+        .map(([row]) => row)
+        .find((row) => row.data?.[0]?.role === 'user')?.data as Message[]
+      expect(stored[0].files?.[0]).toMatchObject({ key: file.key, url: '' })
+      expect(stored[0].files?.[0].base64).toBeUndefined()
+    })
+
+    it('does not hydrate attachments excluded by the conversation window', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const hydrate = vi.spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+      queueTableRows(schemaMock.memory, [
+        {
+          data: [
+            { role: 'user', content: 'Old file', files: [file] },
+            { role: 'assistant', content: 'Recent answer' },
+          ],
+        },
+      ])
+      const context = { ...mockContext, executionId: 'exec-2' }
+      await handler.execute(context, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'sliding_window',
+        slidingWindowSize: '1',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+      expect(hydrate).not.toHaveBeenCalled()
+      expect(context.fileKeys).toBeUndefined()
+      hydrate.mockRestore()
     })
   })
 

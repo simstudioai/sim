@@ -53,6 +53,7 @@ import {
 } from '@/executor/handlers/agent/skills-resolver'
 import type {
   AgentInputs,
+  FileNameProjection,
   Message,
   StreamingConfig,
   ToolInput,
@@ -374,14 +375,12 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
-      const messages = await this.buildMessages(ctx, filteredInputs, modelInputs, skillMetadata)
-      const messagesWithInputFiles = this.attachFilesToLastUserMessage(
+      const messagesWithInputFiles = await this.buildMessages(
         ctx,
-        messages,
-        filteredInputs.files,
-        fileProjection.projectedFiles,
-        fileProjection.projectedNameByFile,
-        fileProjection.directNameInputPaths
+        filteredInputs,
+        modelInputs,
+        skillMetadata,
+        fileProjection
       )
       const messagesWithFiles = await this.hydrateMessageFilesForProvider(
         ctx,
@@ -1212,10 +1211,13 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     inputs: AgentInputs,
     modelInputs: AgentInputs,
-    skillMetadata: Array<{ name: string; description: string }> = []
+    skillMetadata: Array<{ name: string; description: string }>,
+    fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
+    const pendingMemoryMessages: Array<{ raw: Message; model: Message }> = []
+    let seedMessageCount = 0
 
     // 1. Extract and validate messages from messages-input subblock
     const inputMessages = this.extractValidMessages(inputs.messages)
@@ -1226,7 +1228,11 @@ export class AgentBlockHandler implements BlockHandler {
 
     // 2. Handle native memory: seed on first run, then fetch and append new user input
     if (memoryEnabled && ctx.workspaceId) {
-      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
+      const memoryMessages = await memoryService.fetchMemoryMessages(
+        ctx,
+        inputs,
+        fileProjection.projectedNameByFile
+      )
       const hasExisting = memoryMessages.length > 0
 
       if (!hasExisting && conversationMessages.length > 0) {
@@ -1236,7 +1242,13 @@ export class AgentBlockHandler implements BlockHandler {
         const rawTaggedMessages = rawConversationMessages.map((m) =>
           m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
         )
-        await memoryService.seedMemory(ctx, inputs, rawTaggedMessages)
+        for (let index = 0; index < taggedMessages.length; index++) {
+          pendingMemoryMessages.push({
+            raw: rawTaggedMessages[index],
+            model: taggedMessages[index],
+          })
+        }
+        seedMessageCount = taggedMessages.length
         messages.push(...taggedMessages)
       } else {
         messages.push(...memoryMessages)
@@ -1261,9 +1273,9 @@ export class AgentBlockHandler implements BlockHandler {
             if (!userMessageInThisRun) {
               const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
               messages.push(taggedMessage)
-              await memoryService.appendToMemory(ctx, inputs, {
-                ...latestRawUserFromInput,
-                executionId: ctx.executionId,
+              pendingMemoryMessages.push({
+                raw: { ...latestRawUserFromInput, executionId: ctx.executionId },
+                model: taggedMessage,
               })
             }
           }
@@ -1300,9 +1312,9 @@ export class AgentBlockHandler implements BlockHandler {
         const userMessages = messages.filter((m) => m.role === 'user')
         const lastUserMessage = userMessages[userMessages.length - 1]
         if (lastUserMessage) {
-          await memoryService.appendToMemory(ctx, inputs, {
-            ...lastUserMessage,
-            content: this.formatUserPrompt(inputs.userPrompt),
+          pendingMemoryMessages.push({
+            raw: { ...lastUserMessage, content: this.formatUserPrompt(inputs.userPrompt) },
+            model: lastUserMessage,
           })
         }
       }
@@ -1328,7 +1340,33 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    return messages.length > 0 ? messages : undefined
+    const messagesWithFiles = this.attachFilesToLastUserMessage(
+      ctx,
+      messages.length > 0 ? messages : undefined,
+      inputs.files,
+      fileProjection.projectedFiles,
+      fileProjection.projectedNameByFile,
+      fileProjection.directNameInputPaths
+    )
+
+    /** Persist the complete turn before provider hydration adds bytes or transient handles. */
+    const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)
+    const attachedUserMessage = messagesWithFiles
+      ?.filter((message) => message.role === 'user')
+      .at(-1)
+    const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
+      model === lastUserMessage && attachedUserMessage?.files
+        ? { ...raw, files: attachedUserMessage.files }
+        : raw
+    )
+    if (seedMessageCount > 0) {
+      await memoryService.seedMemory(ctx, inputs, messagesToStore.slice(0, seedMessageCount))
+    }
+    for (const message of messagesToStore.slice(seedMessageCount)) {
+      await memoryService.appendToMemory(ctx, inputs, message)
+    }
+
+    return messagesWithFiles
   }
 
   private attachFilesToLastUserMessage(
@@ -1336,7 +1374,7 @@ export class AgentBlockHandler implements BlockHandler {
     messages: Message[] | undefined,
     filesInput: unknown,
     projectedFilesInput: unknown,
-    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>,
+    projectedNameByFile: WeakMap<object, FileNameProjection>,
     directNameInputPaths: readonly ResolvedSecretInputPath[]
   ): Message[] | undefined {
     const normalizedFiles = normalizeFileInput(filesInput)
@@ -1397,10 +1435,13 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const lastUserMessage = messages[lastUserMessageIndex]
+    const filesByKey = new Map(
+      [...(lastUserMessage.files ?? []), ...userFiles].map((file) => [file.key || file.id, file])
+    )
     const nextMessages = [...messages]
     nextMessages[lastUserMessageIndex] = {
       ...lastUserMessage,
-      files: [...(lastUserMessage.files ?? []), ...userFiles],
+      files: Array.from(filesByKey.values()),
     }
 
     return nextMessages
@@ -1410,7 +1451,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     messages: Message[] | undefined,
     providerId: string,
-    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>,
+    projectedNameByFile: WeakMap<object, FileNameProjection>,
     modelBoundInputPaths: ResolvedSecretInputPath[]
   ): Promise<Message[] | undefined> {
     if (!messages?.some((message) => message.files?.length)) {
@@ -1478,7 +1519,7 @@ export class AgentBlockHandler implements BlockHandler {
           return [file]
         }
 
-        modelBoundInputPaths.push(nameProjection.inputPath)
+        if (nameProjection.inputPath) modelBoundInputPaths.push(nameProjection.inputPath)
         const extension = getFileExtension(file.name)
         const suffix = extension ? `.${extension}` : ''
         const keepsSuffix =
@@ -2004,7 +2045,7 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: AgentInputs
   ): {
     projectedFiles: unknown
-    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>
+    projectedNameByFile: WeakMap<object, FileNameProjection>
     directNameInputPaths: ResolvedSecretInputPath[]
     modelBoundInputPaths: ResolvedSecretInputPath[]
   } {
@@ -2104,10 +2145,7 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    const projectedNameByFile = new WeakMap<
-      object,
-      { name: string; inputPath: ResolvedSecretInputPath }
-    >()
+    const projectedNameByFile = new WeakMap<object, FileNameProjection>()
     const projectedMessages = Array.isArray(projection.value.messages)
       ? projection.value.messages
       : []
