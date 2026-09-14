@@ -204,6 +204,10 @@ describe('createAuthRequest', () => {
 
     await pollForKey(prefixed, auth)
     expect(fetchSpy.mock.calls[0][0]).toBe('https://host.test/sim/api/cli/auth/poll')
+    expect(fetchSpy.mock.calls[0][1]?.headers).toMatchObject({
+      'user-agent': expect.stringMatching(/^sim-cli\//),
+      'x-sim-client-info': expect.stringMatching(/^cli\//),
+    })
   })
 
   it('omits an absent workspace rather than sending it blank', () => {

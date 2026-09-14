@@ -2402,6 +2402,13 @@
       "when": 1789410616549,
       "tag": "0343_stored_embedding_candidates",
       "breakpoints": true
+    },
+    {
+      "idx": 344,
+      "version": "7",
+      "when": 1789423183443,
+      "tag": "0344_audit_log_surface",
+      "breakpoints": true
     }
   ]
 }

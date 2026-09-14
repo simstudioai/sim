@@ -4570,6 +4570,12 @@ export const auditLog = pgTable(
     metadata: jsonb('metadata').default('{}'),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
+    /**
+     * The official client the request came from (`web`, `desktop`, `cli`,
+     * `sdk-js`, `sdk-python`), as resolved from `X-Sim-Client-Info`. Null for
+     * background work and callers that do not identify themselves.
+     */
+    surface: text('surface'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
