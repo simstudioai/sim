@@ -421,7 +421,7 @@ describe('content pass checkpoint intent', () => {
       const { pass, result, hydrate, listDocuments } = await runPass({
         existing: {
           ...EXISTING,
-          contentHash: 'confluence:view-callouts:page:3',
+          contentHash: 'confluence:view-text-v2:page:3',
           storageKey: 'kb/old.txt',
           sourceSeenAt: new Date(checkpoint.startedAt),
         },
@@ -473,7 +473,7 @@ describe('content pass checkpoint intent', () => {
       const { pass, hydrate, listDocuments } = await runPass({
         existing: {
           ...EXISTING,
-          contentHash: 'confluence:view-callouts:page:3',
+          contentHash: 'confluence:view-text-v2:page:3',
           storageKey: 'kb/old.txt',
           sourceSeenAt: new Date(checkpoint.startedAt),
         },
@@ -645,7 +645,7 @@ describe('Confluence empty content through the shared content pass', () => {
     expect(dbChainMockFns.values).toHaveBeenCalledWith([
       expect.objectContaining({
         externalId: 'page',
-        contentHash: 'confluence:view-callouts:page:3',
+        contentHash: 'confluence:view-text-v2:page:3',
         storageKey: null,
         processingError: 'Document contains no extractable text',
       }),
