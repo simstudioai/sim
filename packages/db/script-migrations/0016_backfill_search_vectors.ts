@@ -23,6 +23,8 @@ function projections(prefix: string, shortened: string): string {
 export async function backfillSearchVectors(sql: Sql): Promise<number> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
+    /** Acquire source and projection locks in the same order as embedding writers. */
+    await tx.unsafe('LOCK TABLE embedding IN SHARE ROW EXCLUSIVE MODE')
     await tx.unsafe(
       `ALTER TABLE embedding_search ${columns.map((column) => `ALTER COLUMN ${column} SET STORAGE PLAIN`).join(', ')}`
     )

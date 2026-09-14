@@ -2,7 +2,7 @@ import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill
 import { backfillSearchVectors } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
 const schemaName = `search_projection_${generateId().replaceAll('-', '')}`
@@ -55,8 +55,37 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     }
   })
 
-  it('upgrades multiple pages while preserving the old projection and every unsupported-model dimension', async () => {
-    expect(await backfillSearchVectors(sql)).toBe(501)
+  it('serializes behind existing writers before upgrading the projection in batches', async () => {
+    const writer = postgres(databaseUrl!, {
+      max: 1,
+      connection: { search_path: `${schemaName},public` },
+      onnotice: () => undefined,
+    })
+    const [{ pid }] = await sql`SELECT pg_backend_pid() AS pid`
+    await writer`BEGIN`
+    await writer`LOCK TABLE embedding IN ROW EXCLUSIVE MODE`
+    const upgrade = Promise.allSettled([backfillSearchVectors(sql)])
+    try {
+      await vi.waitFor(async () => {
+        const [{ waiting }] = await admin`SELECT EXISTS (
+          SELECT 1 FROM pg_locks WHERE pid = ${pid}
+            AND relation = ${`${schemaName}.embedding`}::regclass AND NOT granted
+        ) AS waiting`
+        expect(waiting).toBe(true)
+      })
+      await writer`UPDATE embedding SET enabled = false WHERE id = 'chunk-1'`
+      await writer`COMMIT`
+      const [result] = await upgrade
+      if (result.status === 'rejected') throw result.reason
+      expect(result.value).toBe(501)
+    } finally {
+      await writer`ROLLBACK`
+      await upgrade
+      await writer.end()
+    }
+    expect((await sql`SELECT enabled FROM embedding_search WHERE id = 'chunk-1'`)[0].enabled).toBe(
+      false
+    )
     const rows = await sql.unsafe(`SELECT knowledge_base_id,
       vector_dims(coalesce(${fields.join(', ')})) AS dimensions,
       num_nonnulls(${fields.join(', ')}) AS populated,

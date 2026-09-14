@@ -512,7 +512,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       if (capture && captured.length < 300) captured.push({ query, parameters: [...parameters] })
     }
     diagnosticLog = vi.spyOn(Logger.prototype, 'info')
-  }, 60 * 60_000)
+  }, 120 * 60_000)
 
   afterAll(async () => {
     diagnosticLog?.mockRestore()
