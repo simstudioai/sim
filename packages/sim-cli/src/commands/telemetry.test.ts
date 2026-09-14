@@ -12,6 +12,10 @@ let output: string[]
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-telemetry-'))
   vi.stubEnv('SIM_CONFIG_DIR', dir)
+  /** Pinned so the result never depends on the shell or CI job running the suite. */
+  vi.stubEnv('SIM_CLI_TELEMETRY_KEY', '')
+  vi.stubEnv('DO_NOT_TRACK', '')
+  vi.stubEnv('SIM_TELEMETRY_DISABLED', '')
   output = []
   vi.spyOn(console, 'log').mockImplementation((line: string) => {
     output.push(line)
@@ -53,5 +57,13 @@ describe('sim telemetry', () => {
 
     expect(output[0]).toMatch(/off: this build has no reporting destination/)
     expect(output[1]).toContain('https://docs.sim.ai/cli/usage-data')
+  })
+
+  it('reports on for a build with a destination', async () => {
+    vi.stubEnv('SIM_CLI_TELEMETRY_KEY', 'phc_test')
+
+    await run('status')
+
+    expect(output[0]).toBe('Usage reporting is on.')
   })
 })
