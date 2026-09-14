@@ -1,0 +1,91 @@
+import type { ScriptMigration } from '@sim/db/script-migrations/types'
+import { createLogger } from '@sim/logger'
+import postgres, { type Sql } from 'postgres'
+
+const logger = createLogger('EmbeddingSearchProjection')
+const BATCH_SIZE = 500
+
+/** Installs synchronous maintenance before backfilling independently committed identifier pages. */
+export async function backfillEmbeddingSearch(sql: Sql): Promise<number> {
+  await sql.begin(async (tx) => {
+    await tx.unsafe("SET LOCAL lock_timeout = '5s'")
+    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_search()
+      RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        INSERT INTO embedding_search
+          (id, knowledge_base_id, document_id, enabled, "binary", binary_384, binary_768, binary_1024, binary_3072)
+        VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
+          binary_quantize(NEW.embedding)::bit(1536), binary_quantize(NEW.embedding_384)::bit(384),
+          binary_quantize(NEW.embedding_768)::bit(768), binary_quantize(NEW.embedding_1024)::bit(1024),
+          binary_quantize(NEW.embedding_3072)::bit(3072))
+        ON CONFLICT (id) DO UPDATE SET
+          knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
+          enabled = EXCLUDED.enabled, "binary" = EXCLUDED."binary", binary_384 = EXCLUDED.binary_384,
+          binary_768 = EXCLUDED.binary_768, binary_1024 = EXCLUDED.binary_1024,
+          binary_3072 = EXCLUDED.binary_3072;
+        RETURN NEW;
+      END;
+      $$`)
+    await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_sync
+      AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled,
+        embedding, embedding_384, embedding_768, embedding_1024, embedding_3072 ON embedding
+      FOR EACH ROW EXECUTE FUNCTION sync_embedding_search()`)
+  })
+
+  let afterId = ''
+  let count = 0
+  for (;;) {
+    const rows = await sql.begin(async (tx) => {
+      await tx.unsafe("SET LOCAL lock_timeout = '5s'")
+      await tx.unsafe("SET LOCAL statement_timeout = '60s'")
+      /** Key-share locks keep selected parents alive; a concurrent trigger always wins a conflict. */
+      return tx<Array<{ id: string }>>`
+        WITH batch AS MATERIALIZED (
+          SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled,
+            e.embedding, e.embedding_384, e.embedding_768, e.embedding_1024, e.embedding_3072
+          FROM embedding e
+          WHERE e.id > ${afterId}
+            AND NOT EXISTS (SELECT 1 FROM embedding_search s WHERE s.id = e.id)
+          ORDER BY e.id LIMIT ${BATCH_SIZE}
+          FOR KEY SHARE OF e
+        ), inserted AS (
+          INSERT INTO embedding_search
+            (id, knowledge_base_id, document_id, enabled, "binary", binary_384, binary_768, binary_1024, binary_3072)
+          SELECT id, knowledge_base_id, document_id, enabled,
+            binary_quantize(embedding)::bit(1536), binary_quantize(embedding_384)::bit(384),
+            binary_quantize(embedding_768)::bit(768), binary_quantize(embedding_1024)::bit(1024),
+            binary_quantize(embedding_3072)::bit(3072)
+          FROM batch
+          ON CONFLICT (id) DO NOTHING
+        )
+        SELECT id FROM batch ORDER BY id
+      `
+    })
+    if (!rows.length) break
+    afterId = rows[rows.length - 1].id
+    count += rows.length
+  }
+  /** New projections need usable cardinality estimates before the first app image reads them. */
+  await sql.unsafe('ANALYZE embedding_search')
+  return count
+}
+
+export const backfillEmbeddingSearchMigration: ScriptMigration = {
+  name: '0015_backfill_embedding_search',
+  async up(sql) {
+    const rows = await backfillEmbeddingSearch(sql)
+    logger.info('Embedding candidate projection initialized', { rows })
+  },
+}
+
+/** db:push also installs database behavior that Drizzle's schema cannot express. */
+if (import.meta.main) {
+  const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+  if (!url) throw new Error('DATABASE_URL is required to initialize embedding search')
+  const sql = postgres(url, { max: 1, onnotice: () => undefined })
+  try {
+    await backfillEmbeddingSearchMigration.up(sql)
+  } finally {
+    await sql.end()
+  }
+}

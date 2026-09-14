@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { document, embedding, knowledgeConnector } from '@sim/db/schema'
+import { document, embedding, embeddingSearch, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
@@ -448,10 +448,11 @@ const FTS_CONFIG = 'english'
 function getVisibilityConditions(
   access: KnowledgeAccessScope,
   filters?: WorkspaceSearchFilters,
-  accessCondition: SQL = knowledgeAccessCondition(access)
+  accessCondition: SQL = knowledgeAccessCondition(access),
+  enabledColumn: typeof embedding.enabled | typeof embeddingSearch.enabled = embedding.enabled
 ) {
   return [
-    eq(embedding.enabled, true),
+    eq(enabledColumn, true),
     eq(document.enabled, true),
     eq(document.processingStatus, 'completed'),
     eq(document.userExcluded, false),
@@ -833,6 +834,20 @@ async function selectLiveVectorResults(
         ),
         excludeSearchSources(excludedSources),
       ]
+      const candidateVisibility = [
+        ...getVisibilityConditions(
+          params.access,
+          params.filters,
+          knowledgeMetadataCandidateAccessCondition(params.access),
+          embeddingSearch.enabled
+        ),
+        excludeSearchSources(excludedSources),
+      ]
+      const visibleDocument = sql`LATERAL (
+        SELECT 1 FROM ${document}
+        WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateVisibility)}
+        OFFSET 0
+      ) AS visible_document`
       /** Adding zero prevents an underfilled HNSW scan from being chosen again for fallback. */
       const exactPage = async (candidateIds?: string[]) => {
         const exactOffset = useExactRanking ? offset : 0
@@ -862,10 +877,10 @@ async function selectLiveVectorResults(
       /** Probe visibility without vector reads; revoked scopes must not detoast the corpus. */
       const probe = await runSearchQuery(params.budget, 'vector.probe', (executor) =>
         executor
-          .select({ id: embedding.id })
-          .from(embedding)
-          .innerJoin(document, eq(embedding.documentId, document.id))
-          .where(and(inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds), ...visibility))
+          .select({ id: embeddingSearch.id })
+          .from(embeddingSearch)
+          .innerJoin(visibleDocument, sql`true`)
+          .where(inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds))
           .limit(LIVE_SEARCH_PAGE_SIZE)
       )
       if (probe.length === 0) return { candidates: [], nextOffset: offset }
@@ -875,22 +890,16 @@ async function selectLiveVectorResults(
       if (useExactRanking) return exactPage()
       annotateSearchDiagnostics({
         vectorRanking: 'binary-rerank',
+        vectorCandidateStorage: 'stored-binary',
         vectorCandidateLimit: candidateLimit,
       })
       const identities = await withVectorScanSettings(
         (executor) =>
           executor
-            .select({ id: embedding.id })
-            .from(embedding)
-            .innerJoin(
-              sql`LATERAL (
-                SELECT 1 FROM ${document}
-                WHERE ${and(eq(document.id, embedding.documentId), ...visibility)}
-                OFFSET 0
-              ) AS visible_document`,
-              sql`true`
-            )
-            .where(inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds))
+            .select({ id: embeddingSearch.id })
+            .from(embeddingSearch)
+            .innerJoin(visibleDocument, sql`true`)
+            .where(inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds))
             .orderBy(candidateDistance)
             .limit(candidateLimit),
         params.budget,

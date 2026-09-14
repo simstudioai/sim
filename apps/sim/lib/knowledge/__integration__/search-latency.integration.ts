@@ -87,11 +87,14 @@ const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
 const organizationChatId = generateId()
-const queryVector = Array.from({ length: dimensions }, (_, index) =>
-  Math.sin((index + 1) * 12.9898)
-)
-const queryMagnitude = Math.hypot(...queryVector)
-for (let index = 0; index < queryVector.length; index++) queryVector[index] /= queryMagnitude
+function topicVector(topic = 0) {
+  const vector = Array.from({ length: dimensions }, (_, index) =>
+    Math.sin((index + 1) * (topic + 1) * 12.9898)
+  )
+  const magnitude = Math.hypot(...vector)
+  return vector.map((value) => value / magnitude)
+}
+const queryVector = topicVector()
 const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
@@ -124,6 +127,8 @@ interface ExplainNode {
   'Node Type': string
   'Actual Rows': number
   'Index Name'?: string
+  'Relation Name'?: string
+  Output?: string[]
   Plans?: ExplainNode[]
 }
 
@@ -133,6 +138,8 @@ const explainNodeSchema: z.ZodType<ExplainNode> = z.lazy(() =>
       'Node Type': z.string(),
       'Actual Rows': z.number(),
       'Index Name': z.string().optional(),
+      'Relation Name': z.string().optional(),
+      Output: z.array(z.string()).optional(),
       Plans: z.array(explainNodeSchema).optional(),
     })
     .passthrough()
@@ -141,10 +148,18 @@ const explainSchema = z.array(z.object({ Plan: explainNodeSchema }).passthrough(
 
 function usesVectorIndex(node: ExplainNode): boolean {
   return (
-    node['Index Name'] === 'embedding_binary_hnsw_idx' ||
+    node['Index Name'] === 'embedding_search_binary_hnsw_idx' ||
     node['Index Name'] === 'embedding_vector_hnsw_idx' ||
     (node.Plans?.some(usesVectorIndex) ?? false)
   )
+}
+
+/** The ANN stage must not fetch full vectors, even for planner-added sort projections. */
+function assertCompactCandidates(node: ExplainNode) {
+  expect(node['Relation Name']).not.toBe('embedding')
+  for (const expression of node.Output ?? [])
+    expect(expression).not.toMatch(/binary_quantize\([^)]*embedding\.embedding/)
+  for (const child of node.Plans ?? []) assertCompactCandidates(child)
 }
 
 function saveReport() {
@@ -238,7 +253,7 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
   expect(captured.length).toBeLessThan(300)
   const searches = captured.filter(
     (item) =>
-      item.query.includes('from "embedding"') &&
+      (item.query.includes('from "embedding"') || item.query.includes('from "embedding_search"')) &&
       (item.query.includes('order by') || item.query.includes('limit'))
   )
   const plans = []
@@ -251,7 +266,10 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
         await tx.unsafe('SET LOCAL hnsw.ef_search = 200')
         await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 4')
       }
-      return tx.unsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.query}`, query.parameters)
+      return tx.unsafe(
+        `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) ${query.query}`,
+        query.parameters
+      )
     })
     plans.push({
       kind: query.query.includes('keyword_rank')
@@ -311,7 +329,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         .parse(JSON.parse(String(init?.body)))
       embeddingCalls += body.input.length
       const bytes = Buffer.alloc(dimensions * 4)
-      queryVector.forEach((value, index) => bytes.writeFloatLE(value, index * 4))
+      const topic = Number(/^Topic (\d+) deployment$/.exec(body.input[0])?.[1] ?? 0)
+      topicVector(topic).forEach((value, index) => bytes.writeFloatLE(value, index * 4))
       return Response.json({
         data: [{ embedding: bytes.toString('base64') }],
         usage: { total_tokens: 4 },
@@ -369,7 +388,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         indexname: string
         indexdef: string
       }>(sql`SELECT indexname, indexdef FROM pg_indexes
-      WHERE tablename = 'embedding' AND indexdef LIKE '% USING hnsw %'`)
+      WHERE tablename IN ('embedding', 'embedding_search') AND indexdef LIKE '% USING hnsw %'`)
       for (const index of indexes)
         await db.execute(sql`DROP INDEX ${sql.identifier(index.indexname)}`)
       for (const fixture of [ids, unrelated]) {
@@ -406,6 +425,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     }
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
+    await db.execute(sql`ANALYZE embedding_search`)
     report.server = (
       await db.execute(sql`SELECT version(), current_setting('work_mem') AS work_mem,
       (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS pgvector`)
@@ -627,6 +647,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       const vectorPlans = plans.filter((plan) => plan.kind === 'vector')
       expect(vectorPlans).toHaveLength(1)
       expect(usesVectorIndex(vectorPlans[0].plan[0].Plan)).toBe(true)
+      assertCompactCandidates(vectorPlans[0].plan[0].Plan)
       expect(plans.some((plan) => plan.kind === 'rerank')).toBe(true)
       const rerank = plans.find((plan) => plan.kind === 'rerank')!
       const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
@@ -641,6 +662,27 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       saveReport()
     }
     expect(embeddingCalls - before).toBe(2)
+  }, 180_000)
+
+  it('preserves exact-neighbor recall across different query vectors', async () => {
+    for (const topic of [3, 11, 23]) {
+      const { plans } = await sample(`topic.${topic}`, () =>
+        search(ids.aliceId, `Topic ${topic} deployment`)
+      )
+      const candidates = plans.find((plan) => plan.kind === 'vector')!
+      assertCompactCandidates(candidates.plan[0].Plan)
+      const rerank = plans.find((plan) => plan.kind === 'rerank')!
+      const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
+      const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
+        ORDER BY (embedding <=> ${JSON.stringify(topicVector(topic))}::vector) + 0, id
+        LIMIT ${actual.length}`)
+      const expectedIds = new Set(expected.map(({ id }) => id))
+      const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
+      expect(recall).toBeGreaterThanOrEqual(0.95)
+      report[`recall.topic.${topic}`] = { neighbors: expected.length, recall }
+      saveReport()
+    }
   }, 180_000)
 
   it('compares the Search tab and Assistant with the same person, query and index', async () => {

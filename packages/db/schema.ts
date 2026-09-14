@@ -3,6 +3,7 @@ import { getTableColumns, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
+  bit,
   boolean,
   check,
   customType,
@@ -3269,7 +3270,7 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
-    /** Permission-filtered searches traverse compact candidates, then rerank the stored vectors. */
+    /** contract-pending(after stored candidate retrieval is fully deployed): remove these expression indexes; old app versions still query them during rollout. */
     embeddingBinaryHnswIdx: index('embedding_binary_hnsw_idx')
       .using('hnsw', sql`(binary_quantize(${table.embedding})::bit(1536)) bit_hamming_ops`)
       .with({ m: 16, ef_construction: 64 }),
@@ -3319,6 +3320,50 @@ export const embedding = pgTable(
     embeddingWidthCheck: check(
       'embedding_width_check',
       sql`num_nonnulls("embedding", "embedding_384", "embedding_768", "embedding_1024", "embedding_3072") = 1`
+    ),
+  })
+)
+
+/**
+ * Transactionally maintained candidate projection. Keeping identities and stored bits apart
+ * from content and full vectors prevents ANN traversal from fetching or requantizing TOAST values.
+ * The embedding write trigger owns this projection; application writers only change embedding.
+ */
+export const embeddingSearch = pgTable(
+  'embedding_search',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    binary: bit('binary', { dimensions: 1536 }),
+    binary384: bit('binary_384', { dimensions: 384 }),
+    binary768: bit('binary_768', { dimensions: 768 }),
+    binary1024: bit('binary_1024', { dimensions: 1024 }),
+    binary3072: bit('binary_3072', { dimensions: 3072 }),
+  },
+  (table) => ({
+    knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
+    binaryIdx: index('embedding_search_binary_hnsw_idx')
+      .using('hnsw', table.binary.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary384Idx: index('embedding_search_384_binary_hnsw_idx')
+      .using('hnsw', table.binary384.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary768Idx: index('embedding_search_768_binary_hnsw_idx')
+      .using('hnsw', table.binary768.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary1024Idx: index('embedding_search_1024_binary_hnsw_idx')
+      .using('hnsw', table.binary1024.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary3072Idx: index('embedding_search_3072_binary_hnsw_idx')
+      .using('hnsw', table.binary3072.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    widthCheck: check(
+      'embedding_search_width_check',
+      sql`num_nonnulls("binary", "binary_384", "binary_768", "binary_1024", "binary_3072") = 1`
     ),
   })
 )
