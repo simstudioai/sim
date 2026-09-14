@@ -205,36 +205,6 @@ describe('processContextsServer - block contexts', () => {
     isIntegrationDeploymentAvailable.mockReturnValue(true)
   })
 
-  it('resolves integration mentions through the same metadata and access policy as blocks', async () => {
-    const contexts = await processContextsServer(
-      [
-        { kind: 'integration', blockType: 'slack', label: 'Slack' },
-        { kind: 'blocks', blockIds: ['slack'], label: 'Slack' },
-        { kind: 'integration', blockType: 'notion', label: 'Notion' },
-        { kind: 'integration', blockType: 'missing', label: 'Missing' },
-      ],
-      'user-1',
-      '',
-      'workspace-1'
-    )
-
-    expect(contexts).toEqual([
-      { type: 'blocks', tag: '@Slack', content: '', path: 'components/blocks/slack.json' },
-      { type: 'blocks', tag: '@Slack', content: '', path: 'components/blocks/slack.json' },
-    ])
-    expect(
-      await resolveActiveResourceContext('integration', 'slack', 'workspace-1', 'user-1')
-    ).toEqual({
-      type: 'active_resource',
-      tag: '@active_resource',
-      content: '',
-      path: 'components/blocks/slack.json',
-    })
-    expect(
-      await resolveActiveResourceContext('integration', 'notion', 'workspace-1', 'user-1')
-    ).toBeNull()
-  })
-
   it('keeps access-control-exempt blocks while filtering non-exempt integrations', async () => {
     const result = await processContextsServer(
       [

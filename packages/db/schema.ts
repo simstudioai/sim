@@ -1718,10 +1718,12 @@ export const organization = pgTable('organization', {
     .notNull()
     .default({}),
   /**
-   * contract-pending(after #7134 and #7774 are fully deployed):
-   * DROP departed_member_usage. Reads and inserts use organizationColumns;
-   * #7134 removed the v1 admin exposure and cycle-close resets. The pending-drop
-   * audit enforces the same read and insert constraints as user_stats.
+   * contract-pending(after #7134, #7774, and the Better Auth schema projection are fully deployed):
+   * DROP departed_member_usage. Application reads and inserts use
+   * organizationColumns; createSimAuthAdapter also projects the table for Better
+   * Auth's implicit reads, INSERT defaults, and RETURNING. Its projection must
+   * already be deployed before the drop; the pending-drop audit cannot inspect
+   * queries generated inside the auth dependency.
    */
   /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
