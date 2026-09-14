@@ -5,7 +5,7 @@ import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
 import { authenticateV2ApiKey } from '@/lib/api/server/routes/v2-api-key-auth'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
-import { runEngine } from '@/lib/mothership/agent-cli/engines'
+import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
@@ -75,7 +75,10 @@ export async function executeAgentCliRequest(
             uploadProvenance: files.uploadProvenance,
           })
         : reads,
-      resources
+      resources,
+      request.invocation.kind === 'cli' ||
+        (request.invocation.kind === 'augmentation' &&
+          AUGMENTATION_ENGINES[request.invocation.name]?.openReadResources === true)
     ),
     ...(context.signal ? { signal: context.signal } : {}),
   }
@@ -113,7 +116,8 @@ export async function executeAgentCliRequest(
       )
     }
   }
-  if (resources.length) result = { ...result, resources }
+  if (resources.length)
+    result = { ...result, resources: [...resources, ...(result.resources ?? [])] }
   return sink
     ? withCopilotSpan(TraceSpan.CopilotCliSink, undefined, () =>
         applySink(sink, sessionKey, result, context.signal, files?.observeOutput)

@@ -18,6 +18,7 @@ function shellQuote(value: string): string {
 
 /** Reads authorized deployment snapshots, never the editable draft or credential values. */
 export const workflowApiCommand: AgentCliEngine = {
+  openReadResources: true,
   async execute(positionals, runtime) {
     const [workflowId] = positionals
     if (!workflowId) return agentCliFail('Usage: sim workflows api <workflowId>')

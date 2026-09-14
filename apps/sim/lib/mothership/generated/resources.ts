@@ -30,7 +30,7 @@ export type ResourceAddress = z.infer<typeof ResourceAddress>;
 
 /** Refreshing a collection never invents an entity or opens a panel. */
 export const ResourceChange = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("upsert"), resource: ResourceAddress }),
+  z.object({ op: z.literal("upsert"), resource: ResourceAddress, readOnly: z.literal(true).optional() }),
   z.object({ op: z.literal("remove"), resource: ResourceAddress }),
   z.object({
     op: z.literal("clear_view"),

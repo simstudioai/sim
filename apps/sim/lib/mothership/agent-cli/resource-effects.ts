@@ -4,6 +4,7 @@ import * as files from '@/lib/api/contracts/v2/files'
 import * as knowledge from '@/lib/api/contracts/v2/knowledge'
 import * as chunks from '@/lib/api/contracts/v2/knowledge-chunks'
 import * as tags from '@/lib/api/contracts/v2/knowledge-tags'
+import * as logs from '@/lib/api/contracts/v2/logs'
 import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -19,6 +20,7 @@ interface EffectRoute {
   method: string
   path: string
   readBody?: boolean
+  readOnly?: boolean
   project: (response: Response, context: EffectContext) => Promise<ResourceChange[]>
 }
 
@@ -30,11 +32,13 @@ function refresh(type: ResourceKind, id?: string): ResourceChange[] {
 
 function upsert(
   type: ResourceKind,
-  value: { id: string; name?: string; folderPath?: string }
+  value: { id: string; name?: string; folderPath?: string },
+  readOnly = false
 ): ResourceChange[] {
   return [
     {
       op: 'upsert',
+      ...(readOnly ? { readOnly: true as const } : {}),
       resource: {
         type,
         id: value.id,
@@ -63,8 +67,8 @@ function after<S extends z.ZodType>(
   }
 }
 
-/** Nested writes invalidate their canonical parent; IDs of rows/jobs never become panel IDs. */
-function parentWrites(
+/** Successful scoped operations address their parent; row/job IDs never become panel IDs. */
+function parentAccess(
   contracts: Record<string, unknown>,
   type: ResourceKind,
   parameter: string
@@ -76,18 +80,19 @@ function parentWrites(
       !('method' in value) ||
       !('path' in value) ||
       typeof value.method !== 'string' ||
-      typeof value.path !== 'string' ||
-      value.method === 'GET' ||
-      !value.path.includes(`[${parameter}]`) ||
-      /\/query(?:\/count)?$/.test(value.path)
+      typeof value.path !== 'string'
     )
       return []
+    const readOnly = value.method === 'GET' || /\/query(?:\/count)?$/.test(value.path)
     return [
       {
         method: value.method,
         path: value.path,
+        readOnly,
         async project(_response: Response, context: EffectContext) {
-          return refresh(type, context.params[parameter])
+          /** Literal collection routes also match, preventing /folders from becoming an ID. */
+          const id = context.params[parameter]
+          return id ? upsert(type, { id }, readOnly) : []
         },
       },
     ]
@@ -120,6 +125,56 @@ function folders(contracts: Record<string, unknown>, type: ResourceKind): Effect
 }
 
 const EFFECT_ROUTES: EffectRoute[] = [
+  {
+    ...after(workflows.v2GetWorkflowContract, ({ data }) => upsert('workflow', data, true)),
+    readOnly: true,
+  },
+  {
+    ...after(tables.v2GetTableContract, ({ data }) => upsert('table', data, true)),
+    readOnly: true,
+  },
+  {
+    ...after(tables.v2GetTableViewContract, ({ data }) => [
+      {
+        op: 'upsert',
+        readOnly: true,
+        resource: { type: 'table', id: data.tableId, viewId: data.id },
+      },
+    ]),
+    readOnly: true,
+  },
+  {
+    ...after(knowledge.v2GetKnowledgeBaseContract, ({ data }) =>
+      upsert('knowledgebase', data, true)
+    ),
+    readOnly: true,
+  },
+  { ...after(files.v2GetFileContract, ({ data }) => upsert('file', data, true)), readOnly: true },
+  {
+    ...after(files.v2ReadFileTextContract, ({ data }) => [
+      {
+        op: 'upsert',
+        readOnly: true,
+        resource: { type: 'file', id: data.fileId, title: data.name, path: data.path },
+      },
+    ]),
+    readOnly: true,
+  },
+  {
+    ...after(logs.v2GetLogContract, ({ data }) => [
+      {
+        op: 'upsert',
+        readOnly: true,
+        resource: {
+          type: 'log',
+          id: data.runId,
+          executionId: data.runId,
+          title: data.workflow.name,
+        },
+      },
+    ]),
+    readOnly: true,
+  },
   after(workflows.v2CreateWorkflowContract, ({ data }) => upsert('workflow', data)),
   after(workflows.v2ImportWorkflowContract, ({ data }) => upsert('workflow', data)),
   after(workflows.v2DuplicateWorkflowContract, ({ data }) => upsert('workflow', data)),
@@ -129,13 +184,13 @@ const EFFECT_ROUTES: EffectRoute[] = [
     { op: 'remove', resource: { type: 'workflow', id: data.id } },
   ]),
   after(workflows.v2ReplaceWorkflowStateContract, ({ data }) =>
-    data.dryRun ? [] : upsert('workflow', data)
+    upsert('workflow', data, data.dryRun)
   ),
   after(workflows.v2ApplyWorkflowOperationsContract, ({ data }) =>
-    data.dryRun ? [] : upsert('workflow', data)
+    upsert('workflow', data, data.dryRun)
   ),
   after(workflows.v2ApplyWorkflowVariablesContract, ({ data }) =>
-    data.changed ? upsert('workflow', data) : []
+    upsert('workflow', data, !data.changed)
   ),
   after(workflows.v2MoveWorkflowsContract, () => [...refresh('workflow'), ...refresh('folder')]),
   after(tables.v2CreateTableContract, ({ data }) => upsert('table', data)),
@@ -217,12 +272,12 @@ const EFFECT_ROUTES: EffectRoute[] = [
   ...folders(tables, 'table'),
   ...folders(knowledge, 'knowledgebase'),
   ...folders(files, 'file'),
-  ...parentWrites(workflows, 'workflow', 'workflowId'),
-  ...parentWrites(tables, 'table', 'tableId'),
-  ...parentWrites(knowledge, 'knowledgebase', 'knowledgeBaseId'),
-  ...parentWrites(tags, 'knowledgebase', 'knowledgeBaseId'),
-  ...parentWrites(chunks, 'knowledgebase', 'knowledgeBaseId'),
-  ...parentWrites(files, 'file', 'fileId'),
+  ...parentAccess(workflows, 'workflow', 'workflowId'),
+  ...parentAccess(tables, 'table', 'tableId'),
+  ...parentAccess(knowledge, 'knowledgebase', 'knowledgeBaseId'),
+  ...parentAccess(tags, 'knowledgebase', 'knowledgeBaseId'),
+  ...parentAccess(chunks, 'knowledgebase', 'knowledgeBaseId'),
+  ...parentAccess(files, 'file', 'fileId'),
 ].sort(
   // Literal endpoints such as /files/folders/restore take precedence over /files/[fileId]/restore.
   (left, right) => (left.path.match(/\[/g)?.length ?? 0) - (right.path.match(/\[/g)?.length ?? 0)
@@ -246,7 +301,8 @@ function matchParams(pattern: string, pathname: string): Record<string, string> 
 export function createResourceEffectTransport(
   endpoint: string,
   transport: typeof fetch,
-  effects: ResourceChange[]
+  effects: ResourceChange[],
+  observeReads = true
 ): typeof fetch {
   const origin = new URL(endpoint).origin
   return async (input, init) => {
@@ -266,7 +322,7 @@ export function createResourceEffectTransport(
           : undefined
       : undefined
     const response = await transport(input, init)
-    if (route && response.ok) {
+    if (route && response.ok && (!route.readOnly || observeReads)) {
       const params = matchParams(route.path, url.pathname)
       if (params) effects.push(...(await route.project(response, { params, body })))
     }

@@ -80,6 +80,7 @@ import {
   type ToolCallState,
 } from '@/lib/mothership/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/mothership/tool-executor'
+import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
 import { isMcpTool } from '@/executor/constants'
 
 const logger = createLogger('CopilotSseToolExecution')
@@ -307,7 +308,8 @@ export function buildToolExecutionContext(
 async function executeToolWithWatchdog(
   toolCall: ToolCallState,
   toolContext: ExecutionContext,
-  lifetime: ToolExecutionLifetime
+  lifetime: ToolExecutionLifetime,
+  onEvent: OrchestratorOptions['onEvent']
 ) {
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
@@ -320,13 +322,25 @@ async function executeToolWithWatchdog(
     lifetime.signal,
     ...(toolContext.abortSignal ? [toolContext.abortSignal] : []),
   ])
-  const execution = lifetime.hold(
+  const execute = () =>
     withCopilotSpan(TraceSpan.CopilotToolRuntime, { [TraceAttr.ToolCallId]: toolCall.id }, () =>
       executeTool(executableName, toolCall.params || {}, {
         ...toolContext,
         abortSignal: signal,
       })
     )
+  const execution = lifetime.hold(
+    (executableName === RunCode.id || executableName === RunFunction.id) &&
+      lifetime.owner &&
+      toolContext.chatId &&
+      toolContext.workspaceId
+      ? withSandboxResourceScope(
+          { ...lifetime.owner, chatId: toolContext.chatId, workspaceId: toolContext.workspaceId },
+          signal,
+          onEvent,
+          execute
+        )
+      : execute()
   )
   let timer: ReturnType<typeof setTimeout> | undefined
   let rejectOwnershipLoss: () => void = () => {}
@@ -758,7 +772,12 @@ async function executeToolAndReportInner(
   let committedCompletion: AsyncCompletionSignal
   let publishResult: () => Promise<void>
   try {
-    let result = await executeToolWithWatchdog(toolCall, toolExecutionContext, lifetime)
+    let result = await executeToolWithWatchdog(
+      toolCall,
+      toolExecutionContext,
+      lifetime,
+      options?.onEvent
+    )
     if (toolCallWasCancelled()) {
       return settleCancelled(toolCall.error || 'Stopped by user', {
         cancelReason: 'abort_during_execution',

@@ -1,5 +1,4 @@
-import { changeStoredChatResources } from '@/lib/mothership/resources/store'
-import { PERSISTED_RESOURCE_TYPES } from '@/lib/mothership/resources/types'
+import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
 import type { StreamHandler } from './types'
 
 /**
@@ -8,22 +7,5 @@ import type { StreamHandler } from './types'
  */
 export const handleResourceEvent: StreamHandler = async (event, _context, execContext) => {
   if (event.type !== 'resource' || !event.payload.effectId || !execContext.chatId) return
-  const { payload } = event
-  if (payload.op === 'refresh') return
-  if (payload.op === 'clear_view') {
-    await changeStoredChatResources(
-      execContext.chatId,
-      { kind: 'clear-view', tableId: payload.resource.id, viewId: payload.resource.viewId },
-      payload.effectId
-    )
-    return
-  }
-  const type = PERSISTED_RESOURCE_TYPES.find((type) => type === payload.resource.type)
-  if (!type) throw new Error('Worker resource effect has an unsupported resource type')
-  const resources = [{ ...payload.resource, type, title: payload.resource.title ?? '' }]
-  await changeStoredChatResources(
-    execContext.chatId,
-    payload.op === 'remove' ? { kind: 'remove', resources } : { kind: 'upsert', resources },
-    payload.effectId
-  )
+  await persistResourceEffect(execContext.chatId, event.payload)
 }

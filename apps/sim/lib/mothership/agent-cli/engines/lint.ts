@@ -31,7 +31,12 @@ export const workflowLintCommand: AgentCliEngine = {
         findings.length > 0
           ? findings.join(' ')
           : 'No issues found in supported static checks. Code, external resources and runtime behaviour are not verified.'
-      return agentCliOk(JSON.stringify({ summary, ...report }, null, 2))
+      return {
+        ...agentCliOk(JSON.stringify({ summary, ...report }, null, 2)),
+        resources: [
+          { op: 'upsert', readOnly: true, resource: { type: 'workflow', id: workflowId } },
+        ],
+      }
     } catch (error) {
       if (runtime.signal?.aborted) return agentCliFail('Workflow lint was cancelled.')
       if (
