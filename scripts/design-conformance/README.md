@@ -1,6 +1,6 @@
 # Design conformance check
 
-Tool **3.3.0**, policy **design-conformance/1.3.0**. This is the maintained implementation of Sim's design guardrails.
+Tool **3.3.1**, policy **design-conformance/1.3.0**. This is the maintained implementation of Sim's design guardrails.
 
 From the repository root, using Bun **1.4.1** and the normal root installation:
 
@@ -16,7 +16,7 @@ Use the actual PR target for `--base`; it is required. The repository defaults t
 
 - **Usage violations** identify newly introduced inputs that violate an explicit central design contract, the authoritative definition, and the permitted token/component mechanism. Fix confirmed violations through that mechanism.
 - **System changes** identify edits to central definitions or this registry. Review them as changes to the design system; central authoring may introduce new styling.
-- **Unchecked inputs** describe unresolved syntax or coverage limits. They do not create findings, and a clean result does not prove exhaustive conformance.
+- **Unchecked inputs** describe unresolved syntax or coverage limits. They do not create findings, and a clean result does not prove exhaustive conformance. Text output identifies incomplete coverage and lists every diagnostic with its file, line, comparison side, context and reason. The CI summary includes an expandable list of the first 100 diagnostics, with long entries shortened; complete details remain in the check log and JSON report.
 
 The ordinary command exits **0** for no findings, **1** for findings and **2** for operational failure. JSON retains `flagged: true` even during the warning-only rollout; failed reports have `flagged: null`.
 

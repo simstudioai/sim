@@ -105,6 +105,43 @@ test('CI tolerates genuine findings and preserves the report, but fails missing 
 })
 
 test.each([
+  { label: 'parser failure', source: 'const A=()=> <p className={', reason: 'Parser failure' },
+  {
+    label: 'source limit',
+    source: ' '.repeat(2 * 1024 * 1024 + 1),
+    reason: 'Source exceeds the 2 MiB parsing limit',
+  },
+])('skipped changed files remain actionable without findings: $label', ({ source, reason }) => {
+  const { repo, head: base } = fixture()
+  writeFileSync(path.join(repo, ui), source)
+  commit(repo)
+  const args = ['--repo', repo, '--base', base]
+  const output = path.join(repo, 'report.json')
+  const human = run([...args, '--output', output])
+  expect(human.status).toBe(0)
+  expect(human.stdout).toContain('coverage incomplete')
+  expect(human.stdout).toContain(`${ui}:1 (after`)
+  expect(human.stdout).toContain(reason)
+  const report: Report = JSON.parse(readFileSync(output, 'utf8'))
+  expect(report.status).toBe('completed')
+  expect(report.flagged).toBe(false)
+  expect(report.findings).toEqual([])
+  expect(report.unchecked).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ file: ui, side: 'after', reason: expect.stringContaining(reason) }),
+    ])
+  )
+  const summary = path.join(repo, 'summary.md')
+  const child = run(args, ci, { GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: summary })
+  expect(child.status).toBe(0)
+  expect(child.stdout).toContain(`${ui}:1 (after`)
+  expect(child.stderr).not.toContain('::warning')
+  const markdown = readFileSync(summary, 'utf8')
+  expect(markdown).toContain(`${ui}:1 (after`)
+  expect(markdown).toContain(reason)
+})
+
+test.each([
   [0, null, { status: 'completed', flagged: false, findings: [] }, 0],
   [1, null, { status: 'completed', flagged: true, findings: [{}] }, 0],
   [1, null, undefined, 2],
@@ -192,6 +229,49 @@ test('GitHub annotations escape source values and normal logs cannot inject work
   expect(annotation).not.toContain('\n')
   expect(textReport(report)).not.toContain('\n::error::injected')
   expect(githubSummary(report)).toContain('| Usage violations | 1 |')
+})
+
+test('unchecked diagnostics preserve both sides and safely render source-authored text', () => {
+  const report = new ConformanceLinter().report(null)
+  for (const side of ['before', 'after'])
+    report.unchecked.push({
+      file: 'path`|</pre>\n::error::injected.tsx',
+      line: 7,
+      side,
+      context: 'className',
+      reason: 'Unknown helper: <script>& value\r\n::warning::injected',
+    })
+  const original = JSON.stringify(report)
+  const text = textReport(report)
+  const markdown = githubSummary(report)
+  expect(text).toContain(':7 (before; className)')
+  expect(text).toContain(':7 (after; className)')
+  expect(text).not.toMatch(/[\r\n]::(?:error|warning)::/)
+  expect(markdown).toContain('&lt;/pre&gt;')
+  expect(markdown).toContain('&lt;script&gt;&amp; value')
+  expect(markdown).not.toContain('<script>')
+  expect(markdown).not.toMatch(/[\r\n]::(?:error|warning)::/)
+  expect(githubAnnotations(report)).toEqual([])
+  expect(JSON.stringify(report)).toBe(original)
+})
+
+test('large unchecked summaries show explicit limits while logs retain every complete diagnostic', () => {
+  const report = new ConformanceLinter().report(null)
+  report.unchecked = Array.from({ length: 101 }, (_, index) => ({
+    file: `component-${index}.tsx`,
+    line: 1,
+    side: 'after',
+    context: '',
+    reason: index === 0 ? `${'&'.repeat(2000)} complete-long-diagnostic` : `reason-${index}`,
+  }))
+  const markdown = githubSummary(report)
+  const text = textReport(report)
+  expect(markdown).toContain('Showing 100 of 101 diagnostics')
+  expect(markdown).toContain('[truncated; see check log]')
+  expect(markdown).not.toContain('complete-long-diagnostic')
+  expect(markdown).not.toContain('component-100.tsx')
+  expect(text).toContain('complete-long-diagnostic')
+  expect(text).toContain('component-100.tsx:1 (after) — reason-100')
 })
 
 test('system edits remain flagged but are reported as design review warnings', () => {

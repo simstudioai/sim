@@ -1,4 +1,4 @@
-/* biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain literal proposed JavaScript templates. */
+/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain literal proposed JavaScript templates. */
 import { existsSync } from 'node:fs'
 import { beforeAll, expect, test } from 'vitest'
 import { extract } from '#design-conformance/extract'

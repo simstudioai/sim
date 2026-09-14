@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import type { Route, SourceSummary } from '#design-conformance/source-summary'
 
-export const VERSION = '3.3.0'
+export const VERSION = '3.3.1'
 export const CATALOGUE_VERSION = '1.0.0'
 export type Policy = 'appearance' | 'tokens' | 'conformance'
 export const policyVersion = (policy: Policy) =>
