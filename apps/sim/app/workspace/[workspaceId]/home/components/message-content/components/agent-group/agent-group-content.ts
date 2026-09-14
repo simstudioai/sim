@@ -16,6 +16,7 @@ export function hasAgentGroupItemContent(item: AgentGroupItem): boolean {
   }
 }
 
+/** Finds empty live lanes at any depth whose wait belongs to the turn indicator. */
 export function hasPendingAgentGroup(
   group: Pick<NestedAgentGroup, 'items' | 'isOpen' | 'isDelegating'>
 ): boolean {
