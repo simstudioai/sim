@@ -68,13 +68,13 @@ describe('source indexing context in search results', () => {
     mocks.overview.mockReturnValue({ data: undefined })
     await render()
     expect(container.textContent).not.toContain('Still indexing')
-    expect(container.textContent).toContain('No documents you can read match')
+    expect(container.textContent).toContain('Search found no results.')
   })
 })
 
 describe('incomplete search coverage', () => {
   it.each([false, true])(
-    'keeps matches and offers a retry without claiming absence (hasResults=%s)',
+    'shows matches without timeout copy or retry controls (hasResults=%s)',
     async (hasResults) => {
       mocks.search.mockReturnValue({
         data: {
@@ -106,17 +106,17 @@ describe('incomplete search coverage', () => {
       await render()
       expect(container.textContent).not.toContain('Search couldn’t run')
       expect(container.textContent).not.toContain('No documents')
-      expect(container.textContent).not.toContain('0 documents')
+      expect(container.textContent).not.toContain('Some results may be missing.')
+      expect(container.textContent).not.toContain('Search is incomplete.')
       expect(container.textContent).toContain(
-        hasResults ? 'Some results may be missing.' : 'Search is incomplete.'
+        hasResults ? '1 document' : 'Search found no results.'
       )
       if (hasResults) expect(container.textContent).toContain('Release plan')
       const retry = [...container.querySelectorAll('button')].find(
         (button) => button.textContent === 'Try again'
       )
-      expect(retry).toBeDefined()
-      await act(async () => retry!.click())
-      expect(mocks.retry).toHaveBeenCalledOnce()
+      expect(retry).toBeUndefined()
+      expect(mocks.retry).not.toHaveBeenCalled()
     }
   )
 })

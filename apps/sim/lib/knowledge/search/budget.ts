@@ -19,7 +19,7 @@ export class SearchDeadlineError extends Error {
   }
 }
 
-/** One leg's state, using the hybrid request's shared deadline across every refill and fallback. */
+/** One leg's absolute deadline, reused across every refill and fallback. */
 export class SearchBudget {
   timedOut = false
 

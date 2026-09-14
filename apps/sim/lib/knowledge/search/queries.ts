@@ -1241,6 +1241,8 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
 export type KnowledgeSearchMode = 'hybrid' | 'vector'
 
 export interface ExecuteKnowledgeSearchParams {
+  /** Optional vector-leg budget; keyword and tag retrieval keep their default budgets. */
+  vectorBudgetMs?: number
   knowledgeBaseIds: string[]
   /** Candidate count each leg retrieves and the fused list is trimmed to. */
   topK: number
@@ -1292,9 +1294,12 @@ export async function retrieveKnowledgeSearch(
     boostRecency = false,
   } = params
   params.signal?.throwIfAborted()
-  const deadline = performance.now() + SEARCH_RETRIEVAL_BUDGET_MS
+  const started = performance.now()
+  const deadline = started + SEARCH_RETRIEVAL_BUDGET_MS
+  const vectorBudgetMs = params.vectorBudgetMs ?? SEARCH_RETRIEVAL_BUDGET_MS
+  annotateSearchDiagnostics({ vectorBudgetMs })
   const budgets = {
-    vector: new SearchBudget('vector', deadline, params.signal),
+    vector: new SearchBudget('vector', started + vectorBudgetMs, params.signal),
     keyword: new SearchBudget('keyword', deadline, params.signal),
     tags: new SearchBudget('tags', deadline, params.signal),
   }

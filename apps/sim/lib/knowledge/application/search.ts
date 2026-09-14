@@ -90,8 +90,10 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
 export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 
 export interface SearchKnowledgeInput {
-  /** Only surfaces displaying retrieval status may accept incomplete evidence. */
+  /** Allows returning available results when a retrieval leg times out. */
   allowPartialResults?: boolean
+  /** Trusted adapter's vector retrieval budget; omitted callers use the shared default. */
+  vectorBudgetMs?: number
   /** Optional assertion from a trusted adapter or public contract. */
   workspaceId?: string
   organizationId?: string
@@ -404,6 +406,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       : input.topK
     const retrieved = await measureSearchStage('retrieval', () =>
       retrieveKnowledgeSearch({
+        vectorBudgetMs: input.vectorBudgetMs,
         knowledgeBaseIds,
         topK: candidateTopK,
         filters: input.filters,

@@ -15,12 +15,14 @@ import {
   WORKSPACE_ACCESS_TOKENS,
 } from '@/lib/knowledge/access/types'
 import { buildTagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
+import { SearchBudget } from '@/lib/knowledge/search/budget'
 import {
   executeKeywordSearch,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
+  retrieveKnowledgeSearch,
   type SearchParams,
 } from '@/lib/knowledge/search/queries'
 import type { StructuredFilter } from '@/lib/knowledge/types'
@@ -35,6 +37,59 @@ const embeddingTable = {
   date1: 'date1',
   boolean1: 'boolean1',
 }
+
+describe('retrieval leg budgets', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([undefined, 3000])(
+    'applies vector budget %s without shortening keyword or tag retrieval',
+    async (vectorBudgetMs) => {
+      resetDbChainMock()
+      vi.spyOn(performance, 'now').mockReturnValue(1000)
+      const remaining = SearchBudget.prototype.remaining
+      const deadlines = new Map<string, number>()
+      vi.spyOn(SearchBudget.prototype, 'remaining').mockImplementation(function (
+        this: SearchBudget
+      ) {
+        deadlines.set(this.leg, this.deadline)
+        return remaining.call(this)
+      })
+      const access: UserAccessScope = {
+        kind: 'user',
+        userId: 'user-1',
+        tokens: WORKSPACE_ACCESS_TOKENS,
+      }
+      const params = {
+        knowledgeBaseIds: ['knowledge-1'],
+        topK: 10,
+        access,
+        accessProvider: {
+          get: async () => access,
+          getForConnectors: async () => access,
+          getForDocuments: async () => access,
+        },
+        searchMode: 'hybrid' as const,
+        vectorBudgetMs,
+      }
+      await retrieveKnowledgeSearch({
+        ...params,
+        query: 'release',
+        queryVector: { vector: '[1,0]', dimensions: 1536 },
+      })
+      await retrieveKnowledgeSearch({
+        ...params,
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'release' },
+        ],
+      })
+      expect(Object.fromEntries(deadlines)).toEqual({
+        vector: 1000 + (vectorBudgetMs ?? 8000),
+        keyword: 9000,
+        tags: 9000,
+      })
+    }
+  )
+})
 
 /**
  * The global `drizzle-orm` mock renders `sql` fragments to a `?`-placeholder
