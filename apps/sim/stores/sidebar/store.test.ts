@@ -54,6 +54,15 @@ describe('sidebar width CSS variables', () => {
     expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
   })
 
+  it('allows narrowing below the default down to the minimum', () => {
+    useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN)
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
+    expect(SIDEBAR_WIDTH.MIN).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+
+    useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN - 1)
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
+  })
+
   it('keeps the expanded variable at the restore width while collapsed', () => {
     useSidebarStore.getState().setSidebarWidth(300)
     useSidebarStore.getState().toggleCollapsed()
@@ -92,6 +101,21 @@ describe('sidebar width CSS variables', () => {
     useSidebarStore.getState().syncWidth()
 
     expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
+  })
+
+  it('clamps the default fallback to a viewport maximum below the default', () => {
+    const innerWidth = window.innerWidth
+    window.innerWidth = 800
+    try {
+      useSidebarStore.setState({ isCollapsed: false, sidebarWidth: Number.NaN })
+
+      useSidebarStore.getState().syncWidth()
+
+      expect(widthVars().expanded).toBe(`${getMaxSidebarWidth(800)}px`)
+      expect(getMaxSidebarWidth(800)).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+    } finally {
+      window.innerWidth = innerWidth
+    }
   })
 })
 
