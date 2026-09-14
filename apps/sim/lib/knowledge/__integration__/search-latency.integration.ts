@@ -859,18 +859,18 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     diagnosticLog?.mockClear()
     const start = performance.now()
     const results = await Promise.all([search(), search(ids.aliceId, 'Engineering operations')])
+    const completed = diagnosticLog!.mock.calls
+      .filter(([message]) => message === 'Knowledge search completed')
+      .map(([, metadata]) => diagnosticSchema.parse(metadata))
     report.concurrent = {
       milliseconds: performance.now() - start,
       resultCounts: results.map((result) => result.data.results.length),
+      diagnostics: completed,
     }
     saveReport()
     for (const result of results) expect(result.data.results).toHaveLength(15)
-    const completed = diagnosticLog!.mock.calls.filter(
-      ([message]) => message === 'Knowledge search completed'
-    )
     expect(completed).toHaveLength(2)
-    for (const [, metadata] of completed)
-      expectCompleteVectorSearch(diagnosticSchema.parse(metadata))
+    for (const diagnostics of completed) expectCompleteVectorSearch(diagnostics)
   }, 180_000)
 
   it('checks live reader access on every search, including after revocation', async () => {

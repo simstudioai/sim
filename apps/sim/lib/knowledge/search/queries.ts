@@ -860,11 +860,6 @@ async function selectLiveVectorResults(
         eq(embeddingSearch.enabled, true),
         ...candidateDocumentVisibility,
       ]
-      const visibleDocument = sql`LATERAL (
-        SELECT 1 FROM ${document}
-        WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateVisibility)}
-        OFFSET 0
-      ) AS visible_document`
       /** Explicitly filtered scopes use exact ordering instead of HNSW traversal. */
       const exactPage = async (candidateIds?: string[]) => {
         annotateSearchDiagnostics({ vectorRanking: 'exact' })
@@ -894,8 +889,13 @@ async function selectLiveVectorResults(
         executor
           .select({ id: embeddingSearch.id })
           .from(embeddingSearch)
-          .innerJoin(visibleDocument, sql`true`)
-          .where(inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds))
+          .innerJoin(document, eq(document.id, embeddingSearch.documentId))
+          .where(
+            and(
+              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+              ...candidateVisibility
+            )
+          )
           .limit(LIVE_SEARCH_PAGE_SIZE)
       )
       if (probe.length === 0) return { candidates: [], nextOffset: offset }

@@ -122,4 +122,28 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     await sql`DELETE FROM embedding WHERE id = 'chunk-1'`
     expect(await sql`SELECT id FROM embedding_search WHERE id = 'chunk-1'`).toHaveLength(0)
   })
+
+  it.each([1536, 3072])(
+    'keeps lookup identities inline beside %i-dimensional vectors',
+    async (width) => {
+      const knowledgeBaseId = generateId()
+      const documentId = generateId()
+      const chunkId = generateId()
+      await sql`INSERT INTO knowledge_base (id, user_id, name, workspace_id, embedding_model)
+      VALUES (${knowledgeBaseId}, 'reader', ${`Wide fixture ${width}`}, 'workspace', 'gemini-embedding-001')`
+      const vectorColumn = width === 1536 ? 'embedding' : 'embedding_3072'
+      await sql.unsafe(
+        `INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length, token_count, start_offset, end_offset, ${vectorColumn})
+      VALUES ($1, $2, $3, 0, 'wide-hash', 'Synthetic fixture', 17, 4, 0, 17,
+        array_fill(0.01::real, ARRAY[${width}])::vector(${width}))`,
+        [chunkId, knowledgeBaseId, documentId]
+      )
+      const [row] = await sql`SELECT pg_column_toast_chunk_id(id) AS chunk,
+      pg_column_toast_chunk_id(knowledge_base_id) AS knowledge_base,
+      pg_column_toast_chunk_id(document_id) AS document
+      FROM embedding_search WHERE id = ${chunkId}`
+      expect(row).toEqual({ chunk: null, knowledge_base: null, document: null })
+    }
+  )
 })

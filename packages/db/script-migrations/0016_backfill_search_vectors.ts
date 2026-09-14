@@ -25,8 +25,9 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
     /** Acquire source and projection locks in the same order as embedding writers. */
     await tx.unsafe('LOCK TABLE embedding IN SHARE ROW EXCLUSIVE MODE')
+    /** Wide inline vectors must not push lookup identities into overflow storage. */
     await tx.unsafe(
-      `ALTER TABLE embedding_search ${columns.map((column) => `ALTER COLUMN ${column} SET STORAGE PLAIN`).join(', ')}`
+      `ALTER TABLE embedding_search ${['id', 'knowledge_base_id', 'document_id', ...columns].map((column) => `ALTER COLUMN ${column} SET STORAGE PLAIN`).join(', ')}`
     )
     await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_search()
       RETURNS trigger LANGUAGE plpgsql AS $$
