@@ -357,6 +357,9 @@ describe('POST /api/webhooks polling configuration', () => {
   })
 })
 
+const CREDENTIAL_ALLOWED = { ok: true, workspaceId: 'workspace-1' }
+const CREDENTIAL_DENIED = { ok: false, error: 'You do not have access to this credential.' }
+
 /** Mocks an actor with write access to `workflow-1` and no provider side effects. */
 function setupUpsertMocks(): void {
   vi.clearAllMocks()
@@ -539,7 +542,7 @@ describe('POST /api/webhooks credential references', () => {
   })
 
   it('saves a credential the actor can use in the workflow workspace', async () => {
-    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_ALLOWED)
     queueCreatePathRows()
 
     const response = await POST(upsertRequest({ credentialId: 'own-credential' }))
@@ -578,7 +581,7 @@ describe('POST /api/webhooks credential references', () => {
    * authorized and kept, while a stored `userId` is never carried forward.
    */
   it('authorizes and keeps the stored credential on a re-save that omits it', async () => {
-    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_ALLOWED)
     queueUpdatePathRows(true, { credentialId: 'stored-credential', userId: 'stored-user' })
 
     const response = await POST(upsertRequest({ eventType: 'record.created' }))
@@ -596,10 +599,7 @@ describe('POST /api/webhooks credential references', () => {
   })
 
   it('refuses a re-save whose stored credential the actor cannot use', async () => {
-    mocks.authorizeCredentialUseForAuth.mockResolvedValue({
-      ok: false,
-      error: 'You do not have access to this credential.',
-    })
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_DENIED)
     queueUpdatePathRows(true, { credentialId: 'stored-credential' })
 
     const response = await POST(upsertRequest({ eventType: 'record.created' }))
@@ -616,10 +616,7 @@ describe('POST /api/webhooks credential references', () => {
   it.each([null, ''])(
     'still authorizes the stored credential when a re-save sends credentialId %j',
     async (credentialId) => {
-      mocks.authorizeCredentialUseForAuth.mockResolvedValue({
-        ok: false,
-        error: 'You do not have access to this credential.',
-      })
+      mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_DENIED)
       mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
       queueUpdatePathRows(true, { credentialId: 'stored-credential' })
 
@@ -638,9 +635,7 @@ describe('POST /api/webhooks credential references', () => {
   /** Rotation without recreation never touches the old credential, so it needs no access to it. */
   it('rotates the credential without access to the stored one when nothing is recreated', async () => {
     mocks.authorizeCredentialUseForAuth.mockImplementation(async (_auth, { credentialId }) =>
-      credentialId === 'new-credential'
-        ? { ok: true, workspaceId: 'workspace-1' }
-        : { ok: false, error: 'You do not have access to this credential.' }
+      credentialId === 'new-credential' ? CREDENTIAL_ALLOWED : CREDENTIAL_DENIED
     )
     queueUpdatePathRows(true, { credentialId: 'stored-credential' })
 
@@ -657,7 +652,7 @@ describe('POST /api/webhooks credential references', () => {
 
   /** Recreation cleans up the previous subscription with the stored credential. */
   it('authorizes both credentials when a rotation recreates the subscription', async () => {
-    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_ALLOWED)
     mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
     queueUpdatePathRows(true, { credentialId: 'stored-credential' })
 
@@ -675,7 +670,7 @@ describe('POST /api/webhooks credential references', () => {
    * when the request omits it, and a `userId` echoed back by the provider is not saved.
    */
   it('authorizes the stored credential and drops userId when an omitting re-save recreates', async () => {
-    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_ALLOWED)
     mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
     mocks.createExternalWebhookSubscription.mockResolvedValue({
       updatedProviderConfig: { externalId: 'subscription-2', userId: 'stored-user' },
@@ -691,7 +686,6 @@ describe('POST /api/webhooks credential references', () => {
       workflowId: 'workflow-1',
     })
     const savedConfig = dbChainMockFns.set.mock.calls.at(-1)?.[0].providerConfig
-    expect(savedConfig.userId).toBeUndefined()
     expect(savedConfig).toEqual({ eventType: 'record.created', externalId: 'subscription-2' })
   })
 

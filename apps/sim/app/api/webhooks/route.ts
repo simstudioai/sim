@@ -459,38 +459,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         nextConfig: resolvedProviderConfig,
       })
 
+    /**
+     * Subscription handlers, pollers, and subscription cleanup look `credentialId`
+     * up by id alone and mint tokens as its owner, so every credential this save
+     * acts with must be usable by the actor in the workflow's workspace before
+     * anything is subscribed, cleaned up, or saved: the requested one, and the
+     * stored one when it is merged back (the request omits `credentialId`) or
+     * cleans up the previous subscription (recreation).
+     */
+    const usesStoredCredential =
+      existingWebhook && (shouldRecreateSubscription || !('credentialId' in originalProviderConfig))
+    const credentialIds = [
+      originalProviderConfig.credentialId,
+      usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
+    ].filter((id) => id != null && id !== '')
+
     /** The row stores the unresolved text, so only a literal credential id can be authorized. */
-    if (resolvedProviderConfig.credentialId !== originalProviderConfig.credentialId) {
+    if (
+      resolvedProviderConfig.credentialId !== originalProviderConfig.credentialId ||
+      !credentialIds.every((id): id is string => typeof id === 'string')
+    ) {
       return NextResponse.json(
         { error: 'providerConfig.credentialId must be a literal credential id' },
         { status: 400 }
       )
     }
 
-    /**
-     * Subscription handlers, pollers, and subscription cleanup look `credentialId`
-     * up by id alone and mint tokens as its owner, so every credential this save
-     * acts with must be usable by the actor in the workflow's workspace before
-     * anything is subscribed, cleaned up, or saved. That is the requested
-     * credential, plus the stored one when the save uses it: merged back because
-     * the request omits `credentialId`, or used to clean up the previous
-     * subscription on recreation.
-     */
-    const usesStoredCredential =
-      existingWebhook && (shouldRecreateSubscription || !('credentialId' in originalProviderConfig))
-    const credentialIds = new Set(
-      [
-        originalProviderConfig.credentialId,
-        usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
-      ].filter((id) => id != null && id !== '')
-    )
-    for (const credentialId of credentialIds) {
-      if (typeof credentialId !== 'string') {
-        return NextResponse.json(
-          { error: 'providerConfig.credentialId must be a literal credential id' },
-          { status: 400 }
-        )
-      }
+    for (const credentialId of new Set(credentialIds)) {
       const credentialAccess = await authorizeCredentialUseForAuth(
         { success: true, userId, authType: AuthType.SESSION },
         { credentialId, workflowId }
