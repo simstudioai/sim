@@ -40,7 +40,7 @@ import { appendTableEvent } from '@/lib/table/events'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
-  loadTableRowSecretProvenance,
+  TableRowProvenanceReader,
 } from '@/lib/table/rows/secret-provenance'
 import type {
   RowData,
@@ -465,7 +465,7 @@ async function runWorkflowAndWriteTerminal(
 
   try {
     return await runWithRequestContext({ requestId }, async () => {
-      const { getRowById } = await import('@/lib/table/rows/service')
+      const { getRowById, getRowSummaryById } = await import('@/lib/table/rows/service')
       const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
       const { loadDeployedWorkflowState } = await import('@/lib/workflows/persistence/utils')
       const {
@@ -613,44 +613,57 @@ async function runWorkflowAndWriteTerminal(
         })
         if (pickedUp === 'skipped') return 'error'
 
-        // Map table columns → enrichment input ids (skip this group's own outputs).
-        // `columnName` holds a column id; the mapper resolves select ids to names.
-        const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
-        const enrichmentInputMappings = (group.inputMappings ?? []).filter(
-          (mapping) => !ownOutputColumns.has(mapping.columnName)
-        )
-        const enrichInputs = mapInputValues(row.data, table.schema.columns, enrichmentInputMappings)
-
-        // Skip (don't error) rows missing a required input — common when a table
-        // is partially filled. Clear any prior output values so a stale result
-        // doesn't linger (and doesn't mark the group `completed`-and-filled, which
-        // would block the auto cascade from re-enriching once inputs return).
-        const isEmpty = isEmptyCellValue
-        const missingRequired = enrichment.inputs.some(
-          (i) => i.required && isEmpty(enrichInputs[i.id])
-        )
-        if (missingRequired) {
-          const clearPatch: RowData = {}
-          for (const out of group.outputs) {
-            if (!isEmpty(row.data[out.columnName])) clearPatch[out.columnName] = ''
-          }
-          await writeState(
-            {
-              status: 'completed',
-              executionId,
-              jobId: null,
-              workflowId: statusId,
-              error: null,
-              enrichmentDetails: skippedEnrichmentDetail(enrichment),
-            },
-            clearPatch,
-            undefined,
-            createExactEmptyTableRowSecretProvenance(clearPatch)
-          )
-          return 'completed'
-        }
-
         try {
+          // Map table columns → enrichment input ids (skip this group's own outputs).
+          // `columnName` holds a column id; the mapper resolves select ids to names.
+          const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
+          const enrichmentInputMappings = (group.inputMappings ?? []).filter(
+            (mapping) => !ownOutputColumns.has(mapping.columnName)
+          )
+          const readProvenance = new TableRowProvenanceReader(
+            { userId: enrichmentBillingAttribution.actorUserId, workspaceId },
+            new Set(enrichmentInputMappings.map((mapping) => mapping.columnName))
+          )
+          const inputSource = await getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+          if (!inputSource) {
+            logger.warn(`Row ${rowId} vanished before enrichment input could be read`)
+            return 'error'
+          }
+          const enrichInputs = mapInputValues(
+            inputSource.data,
+            table.schema.columns,
+            enrichmentInputMappings
+          )
+
+          // Skip (don't error) rows missing a required input — common when a table
+          // is partially filled. Clear any prior output values so a stale result
+          // doesn't linger (and doesn't mark the group `completed`-and-filled, which
+          // would block the auto cascade from re-enriching once inputs return).
+          const isEmpty = isEmptyCellValue
+          const missingRequired = enrichment.inputs.some(
+            (i) => i.required && isEmpty(enrichInputs[i.id])
+          )
+          if (missingRequired) {
+            const clearPatch: RowData = {}
+            for (const out of group.outputs) {
+              if (!isEmpty(inputSource.data[out.columnName])) clearPatch[out.columnName] = ''
+            }
+            await writeState(
+              {
+                status: 'completed',
+                executionId,
+                jobId: null,
+                workflowId: statusId,
+                error: null,
+                enrichmentDetails: skippedEnrichmentDetail(enrichment),
+              },
+              clearPatch,
+              undefined,
+              createExactEmptyTableRowSecretProvenance(clearPatch)
+            )
+            return 'completed'
+          }
+
           if (attemptSignal.aborted) {
             await writeState({
               ...buildTableAbortState({
@@ -663,21 +676,7 @@ async function runWorkflowAndWriteTerminal(
             })
             return 'error'
           }
-          const inputProvenance = await loadTableRowSecretProvenance(
-            [
-              {
-                id: row.id,
-                updatedAt: row.updatedAt,
-                selectedValues: Object.fromEntries(
-                  enrichmentInputMappings.map((mapping) => [
-                    mapping.columnName,
-                    row.data[mapping.columnName],
-                  ])
-                ),
-              },
-            ],
-            { userId: enrichmentBillingAttribution.actorUserId, workspaceId }
-          )
+          const inputProvenance = readProvenance.exportProvenance()
           const enrichmentRegistry = new ResolvedSecretTraceRegistry([], inputProvenance.scope)
           await enrichmentRegistry.importCrossingProvenance(inputProvenance, enrichInputs, {
             trusted: true,
@@ -1015,10 +1014,26 @@ async function runWorkflowAndWriteTerminal(
         const inputColumns = table.schema.columns.filter(
           (c) => !ownOutputColumnIds.has(getColumnId(c))
         )
+        const inputMappings = group.inputMappings ?? []
+        const readProvenance = new TableRowProvenanceReader(
+          { userId: workflowRecord.userId, workspaceId },
+          new Set([
+            ...inputColumns.map(getColumnId),
+            ...inputMappings.map((mapping) => mapping.columnName),
+          ])
+        )
+        const inputSource = await getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+        if (!inputSource) {
+          logger.warn(`Row ${rowId} vanished before workflow input could be read`)
+          return 'error'
+        }
         // One column list drives both the row and its headers so they cannot drift.
         // The mapper also resolves select option ids to names — the workflow author
         // sees "Open", not `opt_a1b2`.
-        const inputRow = fillMissingColumns(namedRowMapper(inputColumns)(row.data), inputColumns)
+        const inputRow = fillMissingColumns(
+          namedRowMapper(inputColumns)(inputSource.data),
+          inputColumns
+        )
         const headers = inputColumns.map((c) => c.name)
 
         // When the group has explicit input mappings, feed the workflow's
@@ -1026,8 +1041,7 @@ async function runWorkflowAndWriteTerminal(
         // Otherwise fall back to spreading every non-output column by name, so a
         // Start field still resolves when it matches a column name. `row`/`rawRow`
         // always carry the full (name-keyed) row for downstream reference.
-        const inputMappings = group.inputMappings ?? []
-        const mappedInputs = mapInputValues(row.data, table.schema.columns, inputMappings)
+        const mappedInputs = mapInputValues(inputSource.data, table.schema.columns, inputMappings)
 
         const input = {
           ...(inputMappings.length > 0 ? mappedInputs : inputRow),
@@ -1041,21 +1055,7 @@ async function runWorkflowAndWriteTerminal(
           tableName,
           timestamp: new Date().toISOString(),
         }
-        const rowInputProvenance = await loadTableRowSecretProvenance(
-          [
-            {
-              id: row.id,
-              updatedAt: row.updatedAt,
-              selectedValues: Object.fromEntries(
-                inputColumns.map((column) => {
-                  const columnId = getColumnId(column)
-                  return [columnId, row.data[columnId]]
-                })
-              ),
-            },
-          ],
-          { userId: workflowRecord.userId, workspaceId }
-        )
+        const rowInputProvenance = readProvenance.exportProvenance()
         const inputRegistry = new ResolvedSecretTraceRegistry([], rowInputProvenance.scope)
         await inputRegistry.importCrossingProvenance(rowInputProvenance, input, { trusted: true })
 

@@ -53,12 +53,17 @@ async function setReadGuards(trx: DbTransaction, seqscanOff: boolean): Promise<v
  */
 export async function withReadGuards<T>(
   fn: (trx: DbTransaction) => Promise<T>,
-  opts?: { seqscanOff?: boolean }
+  opts?: { seqscanOff?: boolean; repeatableRead?: boolean }
 ): Promise<T> {
-  return db.transaction(async (trx) => {
-    await setReadGuards(trx, opts?.seqscanOff ?? false)
-    return fn(trx)
-  })
+  return db.transaction(
+    async (trx) => {
+      await setReadGuards(trx, opts?.seqscanOff ?? false)
+      return fn(trx)
+    },
+    opts?.repeatableRead
+      ? { isolationLevel: 'repeatable read', accessMode: 'read only' }
+      : undefined
+  )
 }
 
 /**

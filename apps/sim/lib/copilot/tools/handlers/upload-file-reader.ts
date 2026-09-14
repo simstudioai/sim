@@ -95,6 +95,7 @@ function toWorkspaceFileRecord(row: WorkspaceFileRow): WorkspaceFileRecord {
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
     updatedAt: row.updatedAt,
+    contentUpdatedAt: row.contentUpdatedAt,
     storageContext: 'mothership',
   }
 }
@@ -207,7 +208,12 @@ export async function readChatUploadWithProvenance(
     if (!result) return null
     return {
       value: result,
-      file: { fileId: record.id, key: record.key, context: 'mothership' },
+      file: {
+        fileId: record.id,
+        key: record.key,
+        context: 'mothership',
+        contentUpdatedAt: row.contentUpdatedAt,
+      },
       view: isReadableFileType(record.type) ? 'complete' : 'derived',
     }
   } catch (err) {
@@ -260,6 +266,11 @@ export async function grepChatUploadWithProvenance(
   const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
   return {
     value: grepReadResult(uploadsPath, result, pattern, uploadsPath, options),
-    file: { fileId: record.id, key: record.key, context: 'mothership' },
+    file: {
+      fileId: record.id,
+      key: record.key,
+      context: 'mothership',
+      contentUpdatedAt: row.contentUpdatedAt,
+    },
   }
 }

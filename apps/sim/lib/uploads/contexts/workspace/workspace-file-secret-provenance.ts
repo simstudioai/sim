@@ -739,6 +739,15 @@ export async function getBoundWorkspaceFileSecretProvenance(
   workspaceId: string,
   identity: WorkspaceFileSecretProvenanceIdentity
 ): Promise<WorkspaceFileSecretProvenance> {
+  /**
+   * Saving a chat upload changes its context but preserves its id, key, and bytes. Only a reader
+   * that captured the content revision may follow that promotion; the revision check below still
+   * refuses an intervening content write, including on a legacy untracked file.
+   */
+  const contextCondition =
+    identity.context === 'mothership' && identity.contentUpdatedAt
+      ? inArray(workspaceFiles.context, ['mothership', 'workspace'])
+      : eq(workspaceFiles.context, identity.context)
   const [row] = await db
     .select({
       fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
@@ -757,7 +766,7 @@ export async function getBoundWorkspaceFileSecretProvenance(
         eq(workspaceFiles.id, identity.fileId),
         eq(workspaceFiles.key, identity.key),
         eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, identity.context)
+        contextCondition
         // Deliberately no deletedAt filter: `id` alone pins the exact row, and
         // recently-deleted/ reads are a real surface — excluding soft-deleted
         // rows made every archived file read as provenance-unknown and refused.
