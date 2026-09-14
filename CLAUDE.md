@@ -11,6 +11,8 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
 - **Comments**: TSDoc for documentation. An inline `//` only for a terse, non-obvious why, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, …). No `====` separators.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
 - **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations:
+- **Design conformance**: Run `bun run check:design --base origin/staging --working-tree` while editing product UI. Reuse suitable EMCN components and global tokens; explain intentional Extras in the PR. Design findings are advisory, while an incomplete check is an error. See `scripts/design-conformance/README.md`.
+- **Styling**: Derive product styling from central tokens, component props and recipes where they fit. Keep product composition local. Explain intentional changes to shared standards. Landing and docs are outside the product design check.
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
   - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`; never `e instanceof Error ? e : new Error(String(e))`
   - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — never `e instanceof Error ? e.message : 'fallback'`

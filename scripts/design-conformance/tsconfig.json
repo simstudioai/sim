@@ -1,0 +1,8 @@
+{
+  "extends": "../../packages/tsconfig/base.json",
+  "compilerOptions": {
+    "types": ["bun", "node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["./*.ts", "../check-design-conformance*.ts"]
+}

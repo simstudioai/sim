@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Commit, push, and open a PR to staging in one shot — runs the cleanup pass and, when migrations changed, the db-migrate safety review first
+description: Commit, check design conformance, push, and open a PR to staging — runs cleanup and the applicable migration safety review first
 argument-hint: "[optional context or scope notes]"
 ---
 
@@ -82,7 +82,7 @@ When the user runs `/ship`:
   bun run docs-manifest:check || { echo "❌ docs manifest out of sync — do not ship"; exit 1; }
   ```
   If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` and `type-check` are covered by steps 5 and CI respectively and are not repeated here.
-7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6
+7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6. Then run the [committed design check](#committed-design-check) below and resolve or explain its findings before step 8.
 8. **Push to origin** using the current branch name — `--force-with-lease` if step 2's sync
    check did any history rewrite (a clean rebase or a cherry-pick rebuild) on a branch that had
    already been pushed once; a plain push would be rejected in exactly the polluted-remote case
@@ -98,7 +98,31 @@ When the user runs `/ship`:
    positional/line-by-line comparison against the PR's oldest-first list can spuriously fail on
    any multi-commit branch. These two lists must describe the same commits in the same order
    (same subjects, the last one being the commit from step 7). If they don't match, the branch
-   still has a problem — redo step 2's fix and `git push --force-with-lease`.
+   still has a problem — redo step 2's fix, repeat the committed design check for the resulting HEAD, and `git push --force-with-lease`.
+
+## Committed design check
+
+After committing and before **every push**, run this from the repository root with Bun 1.4.1:
+
+```bash
+bun run check:design --base origin/staging --head HEAD
+```
+
+Run it for every `/ship`; let the checker apply its own scope. A `.tsx`-only condition would miss CSS, Tailwind configuration, artwork and contract-registry changes. `check:audits` deliberately excludes this base-dependent command. It reads committed merge-base → HEAD blobs, so a run before committing cannot validate the pending changes.
+
+Interpret both the exit status and the report:
+
+- **0 with a completed report:** no findings; continue to push.
+- **1 with a completed report:** read the usage violations and central-system notifications. Triage them before pushing; findings are warnings, not an automatic shipping failure.
+- **2, unexpected termination, or no completed report:** the check did not complete. Fix the operational problem and rerun before pushing. A startup failure with exit 1 is not a findings report. Do not hide failures with `|| true` or treat missing output as a pass.
+
+Fix straightforward usage violations through the cited central component, prop, recipe or token. For a small local gray correction, choose the approved token appropriate to its role. Do not invent a new token or loosen a contract just to remove the warning. Keep fixes within the work being shipped; unchanged debt elsewhere can wait for its own cleanup.
+
+When a change has broad shared impact or ambiguous intent, explain the finding and ask the engineer how to proceed. Intentional central-system changes and justified exceptions can proceed with an explanation in the PR; involve the designer for new standards or ambiguous broad changes. Honor decisions already given in this session. Retain the warning rather than weakening the linter or requiring every intended system change to produce a clean report.
+
+If this review produces edits, rerun the affected generation/lint/audit checks from step 6, commit the fixes, then repeat the design check against the new HEAD. Also rerun after a rebase, conflict resolution or other change to the comparison. Push only the checked commit; uncommitted fixes are not covered by an earlier result.
+
+In the PR's **Testing** section, record the design-check outcome and explain any retained warnings. Leave **No new warnings introduced** unchecked when warnings remain. This review is about central design-system conformance; approved component variants, colours and fonts remain available for the engineer's product decisions. See `scripts/design-conformance/README.md` for scope and known unchecked inputs.
 
 ## Commit Message Format
 
@@ -154,7 +178,7 @@ Describe the checks, tests, and E2E artifacts run
 - [x] Code follows project style guidelines
 - [x] Self-reviewed my changes
 - [ ] Tests added/updated and passing (new tests pass the `test-audit` authoring gate)
-- [x] No new warnings introduced
+- [ ] No new warnings introduced
 - [x] I confirm that I have read and agree to the terms outlined in the [Contributor License Agreement (CLA)](./CONTRIBUTING.md#contributor-license-agreement-cla)
 ```
 
