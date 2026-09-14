@@ -36,13 +36,19 @@ const {
   mockGetOrCreateOauthRow,
   mockValidateMcpDomain,
   mockValidateMcpServerSsrf,
+  mockWithResourceOutboundScope,
 } = vi.hoisted(() => ({
+  mockWithResourceOutboundScope: vi.fn(),
   MockMcpClientConstructor: vi.fn(),
   mockValidateMcpDomain: vi.fn(),
   mockValidateMcpServerSsrf: vi.fn(),
   mockOnToolsChanged: vi.fn(() => vi.fn()),
   mockPublishToolsChanged: vi.fn(),
   mockGetOrCreateOauthRow: vi.fn(),
+}))
+
+vi.mock('@/lib/core/network/resource-scope.server', () => ({
+  withResourceOutboundScope: mockWithResourceOutboundScope,
 }))
 
 vi.mock('@/lib/mcp/pubsub', () => ({
@@ -84,6 +90,7 @@ describe('McpConnectionManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockWithResourceOutboundScope.mockImplementation((_owner, run) => run())
     mockValidateMcpServerSsrf.mockResolvedValue('93.184.216.34')
     mockGetOrCreateOauthRow.mockResolvedValue({
       id: 'oauth-row-1',
@@ -111,6 +118,28 @@ describe('McpConnectionManager', () => {
   }
 
   describe('concurrent connect() guard', () => {
+    it('allows retrying a connection after workspace ownership resolution fails', async () => {
+      const connect = vi.fn().mockResolvedValue(undefined)
+      MockMcpClientConstructor.mockImplementation(
+        class {
+          connect = connect
+          disconnect = vi.fn().mockResolvedValue(undefined)
+          hasListChangedCapability = () => true
+          onClose = vi.fn()
+        }
+      )
+      const mgr = createFreshManager()
+      const config = serverConfig('server-retry')
+      mockWithResourceOutboundScope.mockRejectedValueOnce(new Error('Workspace unavailable'))
+
+      await expect(mgr.connect(config, 'user-1', 'ws-1')).rejects.toThrow('Workspace unavailable')
+      expect(MockMcpClientConstructor).not.toHaveBeenCalled()
+      await expect(mgr.connect(config, 'user-1', 'ws-1')).resolves.toEqual({
+        supportsListChanged: true,
+      })
+      expect(connect).toHaveBeenCalledOnce()
+    })
+
     it('creates only one client when two connect() calls race for the same serverId', async () => {
       const deferred = createDeferred()
       const instances: MockMcpClient[] = []

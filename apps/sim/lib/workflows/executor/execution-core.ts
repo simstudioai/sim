@@ -19,6 +19,8 @@ import {
   getTimeoutErrorMessage,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
+import { isOutboundRoutingEnabled } from '@/lib/core/network/config.server'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
@@ -29,6 +31,7 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { waitForChildRuns } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { resolveStartBlockRunIdentity } from '@/lib/workflows/executor/start-run-identity'
@@ -397,7 +400,13 @@ export async function executeWorkflowCore(
         label: 'getCustomBlockRowsForWorkspace',
       })
     : []
-  return withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+  const execute = () => withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+  if (!isOutboundRoutingEnabled()) return execute()
+  const context = await resolveActiveWorkflowApplicationContext({
+    workflowId: options.snapshot.metadata.workflowId,
+    assertedWorkspaceId: workspaceId,
+  })
+  return runWithOutboundOrganization(context.workspaceOrganizationId, execute)
 }
 
 async function executeWorkflowCoreImpl(

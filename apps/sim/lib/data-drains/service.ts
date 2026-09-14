@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { getDestination } from '@/lib/data-drains/destinations/registry'
 import { decryptCredentials } from '@/lib/data-drains/encryption'
 import { getSource } from '@/lib/data-drains/sources/registry'
@@ -88,7 +89,8 @@ export async function runDrain(
     const credentials = destination.credentialsSchema.parse(
       await decryptCredentials(drain.destinationCredentials)
     )
-    session = destination.openSession({ config, credentials })
+    const activeSession = destination.openSession({ config, credentials })
+    session = activeSession
 
     for await (const chunk of source.pages({
       organizationId: drain.organizationId,
@@ -99,19 +101,21 @@ export async function runDrain(
       const ndjson = `${chunk.map((row) => JSON.stringify(source.serialize(row))).join('\n')}\n`
       const body = Buffer.from(ndjson, 'utf8')
 
-      const result = await session.deliver({
-        body,
-        contentType: 'application/x-ndjson',
-        metadata: {
-          drainId,
-          runId,
-          source: drain.source,
-          sequence,
-          rowCount: chunk.length,
-          runStartedAt: startedAt,
-        },
-        signal,
-      })
+      const result = await runWithOutboundOrganization(drain.organizationId, () =>
+        activeSession.deliver({
+          body,
+          contentType: 'application/x-ndjson',
+          metadata: {
+            drainId,
+            runId,
+            source: drain.source,
+            sequence,
+            rowCount: chunk.length,
+            runStartedAt: startedAt,
+          },
+          signal,
+        })
+      )
 
       locators.push(result.locator)
       rowsExported += chunk.length

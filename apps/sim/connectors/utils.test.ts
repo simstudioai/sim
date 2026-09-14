@@ -25,10 +25,8 @@ vi.mock('@/components/icons', () => ({
   RootlyIcon: () => null,
   AzureIcon: () => null,
 }))
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: vi.fn(),
-  VALIDATE_RETRY_OPTIONS: {},
-}))
+vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({ fetchWithRetry: vi.fn() }))
 vi.mock('@/tools/jira/utils', () => ({ extractAdfText: vi.fn(), getJiraCloudId: vi.fn() }))
 vi.mock('@/tools/confluence/utils', () => ({ getConfluenceCloudId: vi.fn() }))
 vi.mock('@/tools/jsm/utils', () => ({

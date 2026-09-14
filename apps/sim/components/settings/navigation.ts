@@ -2,7 +2,6 @@ import type { ComponentType } from 'react'
 import {
   ChartColumn,
   ClipboardList,
-  Clock,
   Credit,
   Database,
   Globe,
@@ -55,7 +54,7 @@ export type OrganizationSettingsSection =
   | 'access-control'
   | 'audit-logs'
   | 'sso'
-  | 'sessions'
+  | 'security'
   | 'data-retention'
   | 'data-drains'
   | 'whitelabeling'
@@ -115,7 +114,7 @@ export type UnifiedSettingsSection =
   | 'inbox'
   | 'sandboxes'
   | 'admin'
-  | 'sessions'
+  | 'security'
   | 'data-retention'
   | 'data-drains'
   | 'mothership'
@@ -701,18 +700,18 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Session policies',
-    icon: Clock,
-    docsLink: 'https://docs.sim.ai/platform/enterprise/session-policies',
+    label: 'Security',
+    icon: Lock,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/security',
     unified: {
-      id: 'sessions',
-      description: 'Limit session lifetimes and sign out members org-wide.',
+      id: 'security',
+      description: 'Manage session policies and view outbound IP addresses.',
       group: 'organization',
       order: 8,
       requiresHosted: true,
       requiresEnterprise: true,
-      selfHostedOverride: 'sessionPolicies',
-      organizationSection: 'sessions',
+      selfHostedOverride: 'always',
+      organizationSection: 'security',
     },
   },
   {
@@ -905,7 +904,7 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
     'audit-logs': 'governance',
     'access-control': 'governance',
     sso: 'governance',
-    sessions: 'governance',
+    security: 'governance',
     'data-retention': 'governance',
     'data-drains': 'governance',
     integrations: 'sim-search',
@@ -1048,7 +1047,7 @@ export function getOrganizationSettingsFeatures(
       'access-control': features.accessControl,
       'audit-logs': features.auditLogs,
       sso: features.sso,
-      sessions: features.sessionPolicies,
+      security: true,
       'data-retention': features.dataRetention,
       'data-drains': features.dataDrains,
       usage: features.usageMonitoring,

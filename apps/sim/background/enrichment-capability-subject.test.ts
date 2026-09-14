@@ -5,6 +5,10 @@ import { resetDbChainMock } from '@sim/testing'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  loadWorkspaceApplicationContext: vi.fn(),
+  resolveOutboundRoute: vi.fn(async (_organizationId: string | null | undefined) => ({
+    kind: 'direct',
+  })),
   getTableById: vi.fn(),
   getRowById: vi.fn(),
   updateRow: vi.fn(),
@@ -20,6 +24,14 @@ const mocks = vi.hoisted(() => ({
   skippedEnrichmentDetail: vi.fn(() => ({})),
   checkAttributedUsageLimits: vi.fn(async () => ({ isExceeded: false })),
   loadTableRowSecretProvenance: vi.fn(async () => ({ scope: null, entries: [] })),
+}))
+
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => true,
+  resolveOutboundRoute: mocks.resolveOutboundRoute,
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadWorkspaceApplicationContext: mocks.loadWorkspaceApplicationContext,
 }))
 
 vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
@@ -69,6 +81,7 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   },
 }))
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { runRowCascadeLoop } from '@/background/workflow-column-execution'
 
 const GROUP = {
@@ -143,6 +156,7 @@ describe('enrichment cell capability subject', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.loadWorkspaceApplicationContext.mockResolvedValue({ workspaceOrganizationId: null })
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({
       id: 'row-1',
@@ -161,6 +175,24 @@ describe('enrichment cell capability subject', () => {
     })
     mocks.runEnrichment.mockResolvedValue({ result: {}, cost: 0, detail: {} })
   })
+
+  it.each(['org_reserved', 'org_other', null])(
+    'restores the current workspace owner %s before running a queued enrichment',
+    async (organizationId) => {
+      mocks.loadWorkspaceApplicationContext.mockResolvedValue({
+        workspaceOrganizationId: organizationId,
+      })
+      mocks.runEnrichment.mockImplementationOnce(async () => {
+        await resolveCurrentOutboundRoute()
+        return { result: {}, cost: 0, detail: {} }
+      })
+
+      await runRowCascadeLoop(payload(null, 'billing-owner') as never)
+
+      expect(mocks.resolveOutboundRoute).toHaveBeenCalledExactlyOnceWith(organizationId)
+      expect(mocks.loadWorkspaceApplicationContext).toHaveBeenCalledWith('workspace-1', {})
+    }
+  )
 
   /**
    * A workspace-key write is actorless: nobody's permission group governs it,

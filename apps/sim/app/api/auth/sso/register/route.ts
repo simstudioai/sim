@@ -9,6 +9,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
 import { hasSSOAccess } from '@/lib/billing'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -369,7 +370,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 
       const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
-      const discoveryResult = await fetchOIDCDiscoveryDocument(discoveryUrl)
+      const discoveryResult = await runWithOutboundOrganization(membership.organizationId, () =>
+        fetchOIDCDiscoveryDocument(discoveryUrl)
+      )
 
       if (needsDiscovery) {
         logger.info('Fetching OIDC discovery document for missing endpoints', {

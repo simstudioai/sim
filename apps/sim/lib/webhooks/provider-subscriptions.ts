@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import {
   resolveBackgroundWebhookEnv,
   resolveWebhookProviderConfig,
@@ -151,14 +152,15 @@ export async function createExternalWebhookSubscription(
    * outbox handler must not mint a provider resource it can no longer
    * durably record.
    */
-  options.signal?.throwIfAborted()
-
-  const result = await handler.createSubscription({
-    webhook: { ...webhookData, providerConfig: resolvedProviderConfig },
-    workflow,
-    userId,
-    requestId,
-    request,
+  const result = await withResourceOutboundScope({ workspaceId }, () => {
+    options.signal?.throwIfAborted()
+    return handler.createSubscription!({
+      webhook: { ...webhookData, providerConfig: resolvedProviderConfig },
+      workflow,
+      userId,
+      requestId,
+      request,
+    })
   })
 
   if (!result) {
@@ -213,12 +215,18 @@ export async function cleanupExternalWebhook(
       { envVars }
     )
 
-    await handler.deleteSubscription({
-      webhook: resolvedWebhook,
-      workflow,
-      requestId,
-      strict: options.throwOnError,
-    })
+    /** Workspace archival precedes provider cleanup; routing still uses its canonical owner. */
+    await withResourceOutboundScope(
+      { workspaceId },
+      () =>
+        handler.deleteSubscription!({
+          webhook: resolvedWebhook,
+          workflow,
+          requestId,
+          strict: options.throwOnError,
+        }),
+      { includeArchived: true }
+    )
   } catch (error) {
     logger.warn(`[${requestId}] Error cleaning up external webhook (non-fatal)`, {
       provider,

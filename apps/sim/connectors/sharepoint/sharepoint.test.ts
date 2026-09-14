@@ -6,9 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: mockFetchWithRetry,
   readBoundedHttpErrorBody: async (response: Response) => response.text(),
   VALIDATE_RETRY_OPTIONS: {},
+}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
+  fetchWithRetry: mockFetchWithRetry,
 }))
 vi.mock('@/components/icons', () => ({ MicrosoftSharepointIcon: () => null }))
 
