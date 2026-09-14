@@ -4,22 +4,17 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ overview: vi.fn() }))
+const mocks = vi.hoisted(() => ({ overview: vi.fn(), search: vi.fn(), retry: vi.fn() }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: () => ({ data: { knowledgeBaseId: 'index' }, isPending: false }),
   useSearchSourceOverview: mocks.overview,
 }))
 vi.mock('@/hooks/queries/kb/knowledge', () => ({
-  useWorkspaceKnowledgeSearch: () => ({
-    data: [],
-    isPending: false,
-    isFetching: false,
-    isError: false,
-  }),
+  useWorkspaceKnowledgeSearch: mocks.search,
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
-  () => ({ SourceCard: () => null })
+  () => ({ SourceCard: ({ source }: { source: { title: string } }) => <span>{source.title}</span> })
 )
 
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
@@ -28,6 +23,13 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.search.mockReturnValue({
+    data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    refetch: mocks.retry,
+  })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   container = document.createElement('div')
   root = createRoot(container)
@@ -68,4 +70,53 @@ describe('source indexing context in search results', () => {
     expect(container.textContent).not.toContain('Still indexing')
     expect(container.textContent).toContain('No documents you can read match')
   })
+})
+
+describe('incomplete search coverage', () => {
+  it.each([false, true])(
+    'keeps matches and offers a retry without claiming absence (hasResults=%s)',
+    async (hasResults) => {
+      mocks.search.mockReturnValue({
+        data: {
+          query: 'launch',
+          results: hasResults
+            ? [
+                {
+                  documentId: 'document-1',
+                  knowledgeBaseId: 'index',
+                  knowledgeBaseName: 'Search index',
+                  documentName: 'Release plan',
+                  sourceUrl: 'https://fixture.test/release',
+                  connectorType: null,
+                  sourceModifiedAt: null,
+                  author: null,
+                  content: 'launch details',
+                  chunkIndex: 0,
+                  similarity: 0.9,
+                },
+              ]
+            : [],
+          retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+        },
+        isPending: false,
+        isFetching: false,
+        isError: false,
+        refetch: mocks.retry,
+      })
+      await render()
+      expect(container.textContent).not.toContain('Search couldn’t run')
+      expect(container.textContent).not.toContain('No documents')
+      expect(container.textContent).not.toContain('0 documents')
+      expect(container.textContent).toContain(
+        hasResults ? 'Some results may be missing.' : 'Search is incomplete.'
+      )
+      if (hasResults) expect(container.textContent).toContain('Release plan')
+      const retry = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Try again'
+      )
+      expect(retry).toBeDefined()
+      await act(async () => retry!.click())
+      expect(mocks.retry).toHaveBeenCalledOnce()
+    }
+  )
 })

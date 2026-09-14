@@ -52,7 +52,7 @@ import {
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
   type WorkspaceKnowledgeSearchBody,
-  type WorkspaceKnowledgeSearchResult,
+  type WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
@@ -1197,9 +1197,9 @@ export function useBulkDeleteKnowledgeBases(workspaceId: string) {
 async function searchWorkspaceKnowledge(
   body: WorkspaceKnowledgeSearchBody,
   signal?: AbortSignal
-): Promise<WorkspaceKnowledgeSearchResult[]> {
+): Promise<WorkspaceKnowledgeSearchData> {
   const data = await requestJson(searchWorkspaceKnowledgeContract, { body, signal })
-  return data.data.results
+  return data.data
 }
 
 /** Searches the canonical index under the signed-in person's ACLs. */

@@ -423,12 +423,12 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       })
     )
 
-    if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
-      throw new SearchDeadlineError()
     annotateSearchDiagnostics({
       retrievalStatus: retrieved.retrieval.status,
       timedOutLegs: retrieved.retrieval.timedOutLegs,
     })
+    if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
+      throw new SearchDeadlineError()
     let rows = retrieved.rows
     input.signal?.throwIfAborted()
     /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */

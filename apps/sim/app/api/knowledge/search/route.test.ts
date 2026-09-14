@@ -19,7 +19,11 @@ describe('workspace search route', () => {
       user: { id: 'user-1', email: 'reader@fixture.test', name: 'Reader' },
       session: { id: 'session-1' },
     })
-    mocks.search.mockResolvedValue({ results: [], knowledgeBases: [] })
+    mocks.search.mockResolvedValue({
+      results: [],
+      knowledgeBases: [],
+      retrieval: { status: 'complete', timedOutLegs: [] },
+    })
   })
 
   it('passes the authenticated request cancellation signal through the existing operation', async () => {
@@ -41,11 +45,48 @@ describe('workspace search route', () => {
     expect(call.input).not.toHaveProperty('knowledgeBaseIds')
     expect(call.input.filters).toEqual({ source: 'slack', documentIds: ['doc-1'] })
     expect(call.input.signal).toBe(request.signal)
+    expect(call.input.allowPartialResults).toBe(true)
     controller.abort()
     expect(call.input.signal.aborted).toBe(true)
     await expect(response.json()).resolves.toEqual({
       success: true,
-      data: { query: 'Orion', results: [] },
+      data: { query: 'Orion', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+    })
+  })
+
+  it('preserves usable matches and incomplete coverage when one retrieval leg times out', async () => {
+    mocks.search.mockResolvedValueOnce({
+      knowledgeBases: [{ id: 'knowledge-1', name: 'Search index' }],
+      retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+      results: [
+        {
+          documentId: 'document-1',
+          knowledgeBaseId: 'knowledge-1',
+          documentName: 'Release plan',
+          sourceUrl: null,
+          connectorType: null,
+          sourceModifiedAt: null,
+          metadata: {},
+          content: 'Orion release',
+          chunkIndex: 0,
+          similarity: 0.9,
+        },
+      ],
+    })
+    const response = await POST(
+      new NextRequest('http://localhost/api/knowledge/search', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ organizationId: 'organization-1', query: 'Orion' }),
+      })
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        results: [{ documentId: 'document-1', content: 'Orion release' }],
+        retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+      },
     })
   })
 
