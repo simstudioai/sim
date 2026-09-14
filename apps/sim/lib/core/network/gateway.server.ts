@@ -90,7 +90,7 @@ export async function openGatewayTunnel(
   }
 }
 
-/** A dispatcher belongs to one organization and gateway generation, never a process-wide default. */
+/** A dispatcher belongs to one organization and gateway, never a process-wide default. */
 export function createGatewayDispatcher(
   gateway: OutboundGateway,
   options: { profile: EgressProfile; resolvedIP?: string; maxResponseSize?: number }

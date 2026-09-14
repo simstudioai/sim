@@ -11,14 +11,16 @@ vi.mock('@/lib/core/network/gateway.server', () => ({ createGatewayDispatcher: c
 
 import { createOutboundTransport } from '@/lib/core/network/transport.server'
 
-const route = (organizationId = 'org_a', generation = 'v1'): ResolvedOutboundRoute => ({
+const route = (
+  organizationId = 'org_a',
+  gatewayId = `gateway-${organizationId}`
+): ResolvedOutboundRoute => ({
   kind: 'gateway',
   gateway: {
-    id: `gateway-${organizationId}`,
+    id: gatewayId,
     organizationId,
     url: 'https://gateway.invalid',
     servername: 'gateway.invalid',
-    generation,
     token: 'synthetic',
   },
 })
@@ -46,13 +48,13 @@ describe('shared outbound transport ownership', () => {
     }
   })
 
-  it('isolates organizations, reuses the gateway generation, and disposes pools', async () => {
+  it('isolates organizations, reuses gateway pools, and disposes pools', async () => {
     const owner = createOutboundTransport({ profile: 'configuredEndpoint' })
     const first = await owner.selectDispatcher()
     expect(await owner.selectDispatcher()).toBe(first)
     resolveRoute.mockResolvedValue(route('org_b'))
     expect(await owner.selectDispatcher()).not.toBe(first)
-    resolveRoute.mockResolvedValue(route('org_a', 'v1'))
+    resolveRoute.mockResolvedValue(route('org_a'))
     expect(await owner.selectDispatcher()).toBe(first)
     await owner.destroy()
     for (const result of createGateway.mock.results)
@@ -84,7 +86,7 @@ describe('shared outbound transport ownership', () => {
     expect(createGateway).not.toHaveBeenCalled()
   })
 
-  it('bounds credential rotation per organization without blocking other organizations', async () => {
+  it('bounds gateway changes per organization without blocking other organizations', async () => {
     const drain: Array<() => void> = []
     createGateway.mockImplementation(() => ({
       close: vi.fn(() => new Promise<void>((done) => drain.push(done))),

@@ -5,7 +5,6 @@ import { createOutboundRoutingReader } from '@/lib/core/network/config.server'
 const document = {
   schemaVersion: 1,
   revision: 'revision-1',
-  defaultRoute: { kind: 'direct' },
   organizations: { org_a: { kind: 'gateway', gatewayId: 'gateway_a' } },
 }
 const catalog = {
@@ -13,7 +12,6 @@ const catalog = {
     organizationId: 'org_a',
     url: 'https://proxy.example.invalid/',
     credentialId: 'credential_a',
-    generation: 'generation-1',
   },
 }
 const credentials = { credential_a: { token: 'synthetic-test-token-0000000000000000' } }
@@ -105,6 +103,27 @@ describe('outbound configuration', () => {
     )
     await expect(reader.resolve('org_a')).rejects.toThrow('ROUTE_BLOCKED')
     expect(await reader.resolve('org_other')).toEqual({ kind: 'direct' })
+  })
+
+  it('uses explicit direct and blocked assignments only for reserved organizations', async () => {
+    for (const kind of ['direct', 'blocked']) {
+      const reader = createOutboundRoutingReader(
+        {
+          ...options,
+          configuration: JSON.stringify({
+            ...document,
+            organizations: { org_a: { kind } },
+          }),
+        },
+        dependencies
+      )
+      if (kind === 'direct') {
+        expect(await reader.resolve('org_a')).toEqual({ kind: 'direct' })
+      } else {
+        await expect(reader.resolve('org_a')).rejects.toThrow('ROUTE_BLOCKED')
+      }
+      expect(await reader.resolve('constructor')).toEqual({ kind: 'direct' })
+    }
   })
 
   it('rejects an outbound IP published for two different owners', () => {

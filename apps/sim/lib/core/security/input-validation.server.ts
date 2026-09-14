@@ -1423,16 +1423,15 @@ export async function secureFetchWithPinnedIP(
           method: (options.method || 'GET') as Dispatcher.HttpMethod,
           headers: sanitizedHeaders,
           body: options.body,
-          signal: AbortSignal.any([
-            controller.signal,
-            AbortSignal.timeout(options.timeout || 300_000),
-          ]),
+          headersTimeout: requestOptions.timeout,
+          bodyTimeout: requestOptions.timeout,
+          signal: controller.signal,
         })
-          .then(({ statusCode, headers, body }) => {
+          .then(({ statusCode, statusText, headers, body }) => {
             body.once('close', () => {
               void transport.destroy()
             })
-            onResponse(Object.assign(body, { statusCode, headers }))
+            onResponse(Object.assign(body, { statusCode, statusMessage: statusText, headers }))
           })
           .catch((error) => {
             void transport.destroy()

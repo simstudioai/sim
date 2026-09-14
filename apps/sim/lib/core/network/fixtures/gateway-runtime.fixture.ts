@@ -13,7 +13,6 @@ const gateway = {
   organizationId: 'org_test',
   url: `https://127.0.0.1:${proxyPort}`,
   servername: 'gateway.invalid',
-  generation: 'test',
   token: 'a'.repeat(48),
   ca: readFileSync(certificatePath, 'utf8'),
 }

@@ -14,10 +14,6 @@ const routeSchema = z.discriminatedUnion('kind', [
 const configSchema = z.strictObject({
   schemaVersion: z.literal(1),
   revision: identifier,
-  defaultRoute: z.discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('direct') }),
-    z.strictObject({ kind: z.literal('blocked') }),
-  ]),
   organizations: z
     .record(identifier, routeSchema)
     .refine((value) => Object.keys(value).length <= 10_000),
@@ -27,7 +23,6 @@ export type OutboundRoute = Readonly<z.infer<typeof routeSchema>>
 export interface OutboundRoutingConfig {
   readonly schemaVersion: 1
   readonly revision: string
-  readonly defaultRoute: Exclude<OutboundRoute, { kind: 'gateway' }>
   readonly organizations: Readonly<Record<string, OutboundRoute>>
 }
 
@@ -64,23 +59,6 @@ export function parseOutboundRoutingConfig(value: unknown): OutboundRoutingConfi
   const parsed = configSchema.safeParse(value)
   if (!parsed.success) throw new OutboundRoutingError('INVALID_CONFIGURATION')
   for (const route of Object.values(parsed.data.organizations)) Object.freeze(route)
-  Object.freeze(parsed.data.defaultRoute)
   Object.freeze(parsed.data.organizations)
   return Object.freeze(parsed.data)
-}
-
-/** A null organization is a verified personal scope; undefined is never an implicit default. */
-export function selectOutboundRoute(
-  config: OutboundRoutingConfig,
-  organizationId: string | null
-): OutboundRoute {
-  if (organizationId !== null && !identifier.safeParse(organizationId).success) {
-    throw new OutboundRoutingError('MISSING_SCOPE')
-  }
-  const route =
-    organizationId !== null && Object.hasOwn(config.organizations, organizationId)
-      ? config.organizations[organizationId]
-      : config.defaultRoute
-  if (route.kind === 'blocked') throw new OutboundRoutingError('ROUTE_BLOCKED')
-  return route
 }

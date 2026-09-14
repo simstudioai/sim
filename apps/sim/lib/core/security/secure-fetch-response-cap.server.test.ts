@@ -47,6 +47,44 @@ async function startServer(handler: http.RequestListener): Promise<string> {
 }
 
 describe('secureFetchWithPinnedIP response cap', () => {
+  it.each(['direct', 'gateway'])(
+    'preserves the status phrase and active streaming past the %s inactivity timeout',
+    async (mode) => {
+      const dispatcher = new Agent()
+      if (mode === 'gateway') {
+        vi.spyOn(networkTransport, 'createOutboundTransport').mockReturnValue({
+          selectDispatcher: async () => dispatcher,
+          close: () => dispatcher.close(),
+          destroy: () => dispatcher.destroy(),
+        })
+      }
+      const origin = await startServer((_req, res) => {
+        res.writeHead(200, 'Synthetic status phrase')
+        res.write('start')
+        let chunks = 0
+        const timer = setInterval(() => {
+          res.write('.')
+          if (++chunks === 25) {
+            clearInterval(timer)
+            res.end()
+          }
+        }, 50)
+        res.once('close', () => clearInterval(timer))
+      })
+
+      try {
+        const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+          profile: 'configuredEndpoint',
+          timeout: 1000,
+        })
+        expect(response.statusText).toBe('Synthetic status phrase')
+        await expect(response.text()).resolves.toBe(`start${'.'.repeat(25)}`)
+      } finally {
+        await dispatcher.destroy()
+      }
+    }
+  )
+
   it.each([
     { encoding: 'gzip', compress: gzipSync },
     { encoding: 'deflate', compress: deflateSync },

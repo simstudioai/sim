@@ -24,7 +24,7 @@ interface OutboundTransportOwner {
  * and optional pinning are immutable for this owner; policy is resolved per operation.
  */
 export function createOutboundTransport(options: OutboundTransportOptions): OutboundTransportOwner {
-  const pools = new Map<string, { identity: string; agent: Agent }>()
+  const pools = new Map<string, { gatewayId: string; agent: Agent }>()
   const retired = new Map<string, Set<Agent>>()
   let closed = false
   const allPools = () => [
@@ -39,9 +39,8 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
       if (route.kind === 'direct') return options.direct ?? null
       if (options.proxyUrl) throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
       const owner = route.gateway.organizationId
-      const identity = JSON.stringify([route.gateway.id, route.gateway.generation])
       const current = pools.get(owner)
-      if (current?.identity === identity) return current.agent
+      if (current?.gatewayId === route.gateway.id) return current.agent
       const draining = retired.get(owner) ?? new Set<Agent>()
       if (draining.size >= 2) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
       const agent = createGatewayDispatcher(route.gateway, options)
@@ -56,7 +55,7 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
             if (draining.size === 0) retired.delete(owner)
           })
       }
-      pools.set(owner, { identity, agent })
+      pools.set(owner, { gatewayId: route.gateway.id, agent })
       return agent
     },
     async close() {

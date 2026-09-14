@@ -172,7 +172,10 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-const { mockSpawn, mockExecSync, mockEnv } = vi.hoisted(() => ({
+const { mockSpawn, mockExecSync, mockEnv, mockResolveOutboundRoute } = vi.hoisted(() => ({
+  mockResolveOutboundRoute: vi.fn(async (_organizationId: string | null | undefined) => ({
+    kind: 'direct',
+  })),
   mockSpawn: vi.fn(),
   mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
   mockEnv: {
@@ -200,6 +203,10 @@ const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/core/network/config.server', () => ({
+  isOutboundRoutingEnabled: () => true,
+  resolveOutboundRoute: mockResolveOutboundRoute,
+}))
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
@@ -830,6 +837,77 @@ describe('isolated-vm scheduler', () => {
     expect(completionOrder.slice(0, 3)).toEqual(['a-1', 'a-2', 'a-3'])
     expect(completionOrder).toEqual(['a-1', 'a-2', 'a-3', 'b-1', 'b-2'])
   })
+
+  it('restores each execution owner when a reused worker emits outside its scope', async () => {
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      spawns: [
+        () => {
+          const proc = createReadyFetchProxyProc({ url: 'https://example.com' })
+          const emit = proc.emit.bind(proc)
+          proc.emit = (event, ...args: unknown[]) => {
+            const message = args[0] as { type?: string } | undefined
+            return event === 'message' && message?.type === 'fetch'
+              ? context.runWithOutboundOrganization('wrong-ambient', () => emit(event, ...args))
+              : emit(event, ...args)
+          }
+          return proc
+        },
+      ],
+      secureFetchImpl: async () => {
+        await context.resolveCurrentOutboundRoute()
+        return new Response('ok')
+      },
+    })
+    const context = await import('@/lib/core/network/context.server')
+
+    for (const organizationId of ['org_a', 'org_b']) {
+      const result = await context.runWithOutboundOrganization(organizationId, () =>
+        executeInIsolatedVM({
+          code: 'return "fetch"',
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: 1000,
+          requestId: organizationId,
+        })
+      )
+      expect(result.error).toBeUndefined()
+    }
+    expect(spawnMock).toHaveBeenCalledOnce()
+    expect(mockResolveOutboundRoute.mock.calls).toEqual([['org_a'], ['org_b']])
+  })
+
+  it.each([undefined, -1])(
+    'rejects fetch IPC with missing or inactive execution ID %s',
+    async (executionId) => {
+      const { executeInIsolatedVM, secureFetchMock } = await loadExecutionModule({
+        spawns: [
+          () => {
+            const proc = createReadyFetchProxyProc({ url: 'https://example.com' })
+            const emit = proc.emit.bind(proc)
+            proc.emit = (event, ...args: unknown[]) => {
+              const message = args[0] as { type?: string } | undefined
+              if (event === 'message' && message?.type === 'fetch') {
+                return emit(event, { ...message, executionId })
+              }
+              return emit(event, ...args)
+            }
+            return proc
+          },
+        ],
+      })
+      const result = await executeInIsolatedVM({
+        code: 'return "fetch"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 1000,
+        requestId: 'inactive-fetch',
+      })
+      expect(JSON.parse(String(result.result))).toEqual({ error: 'Execution no longer active' })
+      expect(secureFetchMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects oversized fetch options payloads before outbound call', async () => {
     const { executeInIsolatedVM, secureFetchMock } = await loadExecutionModule({

@@ -25,6 +25,8 @@ Dedicated routing supports public IPv4 destinations over HTTPS on port 443. It a
 
 Native database connections, AWS SDK integrations, remote sandbox traffic, and browser requests keep their existing network paths. Other provider SDKs and OAuth authorization or token refresh calls require separate coverage confirmation. Dedicated IPs do not change access permissions in connected services.
 
+Google Drive, Fireflies, Google Workspace user and group discovery, and Atlassian OAuth site discovery currently use their existing network paths.
+
 If dedicated routing is unavailable, affected requests fail instead of using shared IPs. Organizations without dedicated routing keep their existing behavior.
 
 ## Availability

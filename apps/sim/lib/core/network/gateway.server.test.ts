@@ -134,7 +134,6 @@ beforeAll(async () => {
       token,
       url: `https://127.0.0.1:${proxyPort}`,
       servername: 'gateway.invalid',
-      generation: '1',
       ca: cert,
     })
 })
@@ -189,7 +188,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
     expect(receivedHeaders['proxy-authorization']).toBeUndefined()
     expect(receivedHeaders.host).toBe('origin.invalid')
   })
-  it('isolates concurrent requests to the same origin and rotates pools on credential generation change', async () => {
+  it('isolates concurrent requests to the same origin and rotates pools when its gateway assignment changes', async () => {
     const transport = createPinnedFetchWithDispatcher('1.1.1.1', options)
     const start = admissions.length
     try {
@@ -206,7 +205,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
           .map((item) => item.token)
           .sort()
       ).toEqual(['Bearer alpha', 'Bearer bravo'])
-      state.gateways.set('org_a', { ...state.gateways.get('org_a')!, generation: '2' })
+      state.gateways.set('org_a', { ...state.gateways.get('org_a')!, id: 'gateway-next' })
       await runWithOutboundOrganization('org_a', async () => (await transport.fetch(url())).text())
       expect(admissions.length).toBe(start + 3)
     } finally {
@@ -299,7 +298,6 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
           OUTBOUND_ROUTING_CONFIG: JSON.stringify({
             schemaVersion: 1,
             revision: 'test',
-            defaultRoute: { kind: 'blocked' },
             organizations: { org_test: { kind: 'gateway', gatewayId: 'synthetic' } },
           }),
           OUTBOUND_GATEWAYS: JSON.stringify({
@@ -308,7 +306,6 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
               url: `https://127.0.0.1:${(proxy.address() as AddressInfo).port}`,
               servername: 'gateway.invalid',
               credentialId: 'synthetic',
-              generation: 'test',
             },
           }),
           OUTBOUND_GATEWAY_CREDENTIALS: JSON.stringify({

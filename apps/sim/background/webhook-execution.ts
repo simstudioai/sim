@@ -818,21 +818,21 @@ async function executeWebhookJobInternal(
     throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
   }
 
-  return withResourceOutboundScope({ workspaceId }, async () => {
-    const workflowVariables = (workflowRecord.variables as Record<string, unknown>) || {}
+  const workflowVariables = (workflowRecord.variables as Record<string, unknown>) || {}
 
-    let deploymentVersionId: string | undefined
-    /**
-     * Flipped immediately before `executeWorkflowCore` is invoked. While false,
-     * no block has run and no execution effect exists, so a retryable
-     * infrastructure error may be surfaced as a `RetryableSetupError` and the
-     * whole delivery safely re-attempted. Once true, errors are never
-     * reclassified as retryable — retrying after the executor started could
-     * double-run the workflow.
-     */
-    let workflowCoreStarted = false
+  let deploymentVersionId: string | undefined
+  /**
+   * Flipped immediately before `executeWorkflowCore` is invoked. While false,
+   * no block has run and no execution effect exists, so a retryable
+   * infrastructure error may be surfaced as a `RetryableSetupError` and the
+   * whole delivery safely re-attempted. Once true, errors are never
+   * reclassified as retryable — retrying after the executor started could
+   * double-run the workflow.
+   */
+  let workflowCoreStarted = false
 
-    try {
+  try {
+    return await withResourceOutboundScope({ workspaceId }, async () => {
       const workflowStatePromise = payload.deploymentVersionId
         ? loadWorkflowDeploymentVersionState(
             payload.workflowId,
@@ -1175,105 +1175,105 @@ async function executeWebhookJobInternal(
         executedAt: new Date().toISOString(),
         provider: payload.provider,
       }
-    } catch (error: unknown) {
-      const errorMessage = toError(error).message
-      const errorStack = error instanceof Error ? error.stack : undefined
+    })
+  } catch (error: unknown) {
+    const errorMessage = toError(error).message
+    const errorStack = error instanceof Error ? error.stack : undefined
 
-      /**
-       * Mirrors the schedule executor's setup boundary: an infrastructure error
-       * raised before the workflow core started left no execution effect, so it
-       * is surfaced as a `RetryableSetupError` — releasing the idempotency claim
-       * and, while attempts remain, requeueing without recording a terminal
-       * failed row for an attempt that will be retried. Exhausted retries fall
-       * through to normal failure handling but still throw typed so a provider
-       * redelivery is not rejected for a run that never happened.
-       */
-      const retryableSetupCause =
-        !workflowCoreStarted && isRetryableInfrastructureError(error)
-          ? describeRetryableInfrastructureError(error)
-          : undefined
-      if (retryableSetupCause && hasRemainingWebhookInfraRetry(payload)) {
-        logger.warn(`[${requestId}] Retryable setup failure before webhook workflow started`, {
-          workflowId: payload.workflowId,
-          provider: payload.provider,
-          cause: retryableSetupCause,
-        })
-        throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
-      }
-
-      logger.error(
-        `[${requestId}] Webhook execution failed`,
-        loggingSession.projectDiagnosticError(error, {
-          workflowId: payload.workflowId,
-          provider: payload.provider,
-        })
-      )
-
-      // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
-      // signal is reliable and the failure is fully persisted before we decide fault vs error.
-      await loggingSession.waitForPostExecution()
-
-      // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
-      // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
-      // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
-      // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
-      if (wasExecutionFinalizedByCore(error, executionId)) {
-        return {
-          success: false,
-          workflowId: payload.workflowId,
-          executionId,
-          output: hasExecutionResult(error) ? error.executionResult.output : {},
-          executedAt: new Date().toISOString(),
-          provider: payload.provider,
-        }
-      }
-
-      try {
-        await loggingSession.safeStart({
-          userId: actorUserId,
-          actorUserId,
-          billingAttribution,
-          workspaceId,
-          variables: {},
-          triggerData: {
-            isTest: false,
-            correlation,
-          },
-          deploymentVersionId,
-        })
-
-        const executionResult = hasExecutionResult(error)
-          ? error.executionResult
-          : {
-              success: false,
-              output: {},
-              logs: [],
-            }
-        const { traceSpans } = buildTraceSpans(executionResult)
-
-        await loggingSession.safeCompleteWithError({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: 0,
-          error: {
-            message: errorMessage || 'Webhook execution failed',
-            stackTrace: errorStack,
-          },
-          traceSpans,
-          executionState: executionResult.executionState,
-        })
-      } catch (loggingError) {
-        logger.error(
-          `[${requestId}] Failed to complete logging session`,
-          loggingSession.projectDiagnosticError(loggingError)
-        )
-      }
-
-      if (retryableSetupCause) {
-        throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
-      }
-      throw error
+    /**
+     * Mirrors the schedule executor's setup boundary: an infrastructure error
+     * raised before the workflow core started left no execution effect, so it
+     * is surfaced as a `RetryableSetupError` — releasing the idempotency claim
+     * and, while attempts remain, requeueing without recording a terminal
+     * failed row for an attempt that will be retried. Exhausted retries fall
+     * through to normal failure handling but still throw typed so a provider
+     * redelivery is not rejected for a run that never happened.
+     */
+    const retryableSetupCause =
+      !workflowCoreStarted && isRetryableInfrastructureError(error)
+        ? describeRetryableInfrastructureError(error)
+        : undefined
+    if (retryableSetupCause && hasRemainingWebhookInfraRetry(payload)) {
+      logger.warn(`[${requestId}] Retryable setup failure before webhook workflow started`, {
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+        cause: retryableSetupCause,
+      })
+      throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
     }
-  })
+
+    logger.error(
+      `[${requestId}] Webhook execution failed`,
+      loggingSession.projectDiagnosticError(error, {
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+      })
+    )
+
+    // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
+    // signal is reliable and the failure is fully persisted before we decide fault vs error.
+    await loggingSession.waitForPostExecution()
+
+    // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
+    // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
+    // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
+    // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
+    if (wasExecutionFinalizedByCore(error, executionId)) {
+      return {
+        success: false,
+        workflowId: payload.workflowId,
+        executionId,
+        output: hasExecutionResult(error) ? error.executionResult.output : {},
+        executedAt: new Date().toISOString(),
+        provider: payload.provider,
+      }
+    }
+
+    try {
+      await loggingSession.safeStart({
+        userId: actorUserId,
+        actorUserId,
+        billingAttribution,
+        workspaceId,
+        variables: {},
+        triggerData: {
+          isTest: false,
+          correlation,
+        },
+        deploymentVersionId,
+      })
+
+      const executionResult = hasExecutionResult(error)
+        ? error.executionResult
+        : {
+            success: false,
+            output: {},
+            logs: [],
+          }
+      const { traceSpans } = buildTraceSpans(executionResult)
+
+      await loggingSession.safeCompleteWithError({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: 0,
+        error: {
+          message: errorMessage || 'Webhook execution failed',
+          stackTrace: errorStack,
+        },
+        traceSpans,
+        executionState: executionResult.executionState,
+      })
+    } catch (loggingError) {
+      logger.error(
+        `[${requestId}] Failed to complete logging session`,
+        loggingSession.projectDiagnosticError(loggingError)
+      )
+    }
+
+    if (retryableSetupCause) {
+      throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
+    }
+    throw error
+  }
 }
 
 export const webhookExecution = task({

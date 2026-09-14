@@ -8,7 +8,6 @@ import {
   OutboundRoutingError,
   parseOutboundJson,
   parseOutboundRoutingConfig,
-  selectOutboundRoute,
 } from '@/lib/core/network/routing'
 
 const MAX_STALE_MS = 300_000
@@ -27,7 +26,6 @@ const gatewaySchema = z.strictObject({
     .regex(/^[a-zA-Z0-9.-]+$/)
     .optional(),
   credentialId: keySchema,
-  generation: keySchema,
   ...gatewayPublicMetadataSchema.partial().shape,
 })
 const gatewaysSchema = z
@@ -50,7 +48,6 @@ export interface OutboundGateway {
   readonly organizationId: string
   readonly url: string
   readonly servername: string
-  readonly generation: string
   readonly token: string
   readonly ca?: string
   readonly publicIps?: readonly string[]
@@ -151,7 +148,6 @@ export function createOutboundRoutingReader(
         organizationId: entry.organizationId,
         url: url.href,
         servername,
-        generation: entry.generation,
         ...credential,
         ...(entry.publicIps ? { publicIps: Object.freeze([...new Set(entry.publicIps)]) } : {}),
       })
@@ -197,7 +193,7 @@ export function createOutboundRoutingReader(
       if (!Object.hasOwn(config.organizations, organizationId)) {
         throw new OutboundRoutingError('ROUTE_BLOCKED')
       }
-      const route = selectOutboundRoute(config, organizationId)
+      const route = config.organizations[organizationId]
       if (route.kind === 'direct') return { kind: 'direct' }
       if (route.kind === 'blocked') throw new OutboundRoutingError('ROUTE_BLOCKED')
       const gateway = gateways.get(route.gatewayId)
