@@ -5,9 +5,9 @@ import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { createGatewayDispatcher } from '@/lib/core/network/gateway.server'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 
-const [proxyPort, originPort, certificatePath] = process.argv.slice(2)
-if (!proxyPort || !originPort || !certificatePath)
-  throw new Error('Local fixture ports and certificate are required')
+const [proxyPort, certificatePath] = process.argv.slice(2)
+if (!proxyPort || !certificatePath)
+  throw new Error('Local fixture proxy port and certificate are required')
 const gateway = {
   id: 'synthetic',
   organizationId: 'org_test',

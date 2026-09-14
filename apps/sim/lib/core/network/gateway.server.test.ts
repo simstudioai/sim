@@ -283,7 +283,6 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
         'run',
         fileURLToPath(new URL('./fixtures/gateway-runtime.fixture.ts', import.meta.url)),
         String((proxy.address() as AddressInfo).port),
-        String(securePort),
         certificatePath,
       ],
       {
