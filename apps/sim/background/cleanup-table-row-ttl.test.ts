@@ -134,6 +134,17 @@ describe('table row TTL cleanup', () => {
           invalid_offset_day: '2026-02-30T12:00:00-07:00',
           invalid_offset: '2026-09-07T12:00:00+16:00',
           invalid_fraction: '2026-09-07T12:00:00.0000001Z',
+          rounding_future: '2026-09-07T12:00:00.5000001Z',
+          no_offset: '2020-01-01T00:00:00',
+          day_only: '2020-01-01',
+          relative_now: 'now',
+          relative_today: 'today',
+          relative_yesterday: 'yesterday',
+          epoch_alias: 'epoch',
+          past_infinity: '-infinity',
+          compact_offset: '2020-01-01T00:00:00+0000',
+          named_zone: '2020-01-01 00:00:00 America/Los_Angeles',
+          trailing_newline: '2020-01-01T00:00:00Z\n',
         }
         for (const [id, value] of Object.entries(values)) {
           await client`INSERT INTO user_table_rows (id, table_id, workspace_id, data) VALUES (${id}, ${table.id}, ${table.workspaceId}, ${client.json({ 'col-ttl': value })})`
@@ -241,7 +252,7 @@ describe('table row TTL cleanup', () => {
       .sql.replace(/\s+/g, ' ')
       .replace(/\$\d+/g, '?')
       .trim()
-    expect(query).toContain('THEN (table_row.data->>?)::timestamptz <= ?::timestamptz')
+    expect(query).toContain('THEN (table_row.data->>?)::timestamptz END <= ?::timestamptz')
     expect(query).toContain('ORDER BY table_row.created_at, table_row.id')
     expect(query).toContain('octet_length(table_row.data::text) AS snapshot_bytes')
     expect(query).toContain('cumulative_snapshot_bytes <= ?')

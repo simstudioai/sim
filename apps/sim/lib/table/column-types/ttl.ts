@@ -4,7 +4,7 @@ import {
   isTtlTimestamp,
   normalizeTtlTimestamp,
   TTL_FORMAT_ERROR,
-  TTL_TIMESTAMP_PATTERN,
+  TTL_TIMESTAMP_VALIDATION,
   ttlInstantForComparison,
 } from '@/lib/table/ttl-values'
 
@@ -14,7 +14,7 @@ export const ttlColumnType: ColumnTypeDefinition = {
   maxPerTable: 1,
   icon: TypeTtl,
   jsonbCast: 'timestamptz',
-  timestampPattern: TTL_TIMESTAMP_PATTERN,
+  timestampValidation: TTL_TIMESTAMP_VALIDATION,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: '2024-01-31T00:00:00-00:00',

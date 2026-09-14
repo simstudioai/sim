@@ -1,28 +1,34 @@
+import { z } from 'zod'
+
 export const TTL_FORMAT_ERROR =
   'Expiration must be an ISO timestamp with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00), with at most 6 fractional second digits'
 
-/** Shared JavaScript/PostgreSQL shape guard; numeric offsets fit PostgreSQL's supported range. */
-export const TTL_TIMESTAMP_PATTERN =
-  '^((?!0000)[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01]))[Tt]((?:0[0-9]|1[0-9]|2[0-3]):[0-5][0-9])(?::([0-5][0-9])(?:[.]([0-9]{1,6}))?)?([Zz]|[+-](?:0[0-9]|1[0-5]):[0-5][0-9])$'
+/** Zod owns the ISO format; SQL also checks native timestamptz validity before casting. */
+export const TTL_TIMESTAMP_VALIDATION = {
+  pattern: z.regexes.datetime({ offset: true }).source,
+  maxFractionDigits: 6,
+} as const
 
-const TTL_TIMESTAMP_REGEX = new RegExp(TTL_TIMESTAMP_PATTERN)
+const timestampSchema = z.iso.datetime({ offset: true })
 
 function parseTtlTimestamp(value: unknown) {
-  if (typeof value !== 'string') return null
-  const match = TTL_TIMESTAMP_REGEX.exec(value)
-  if (!match) return null
+  if (typeof value !== 'string' || value !== value.trim()) return null
+  const result = timestampSchema.safeParse(value.toUpperCase())
+  if (!result.success) return null
 
-  const [, day, time, second, fractionalSecond, offset] = match
-  const wallClock = `${day}T${time}:${second ?? '00'}`
-  const wallMilliseconds = Date.parse(`${wallClock}Z`)
+  const timestamp = result.data
+  const offset = timestamp.endsWith('Z') ? 'Z' : timestamp.slice(-6)
+  const [dateTime, fractionalSecond = ''] = timestamp.slice(0, -offset.length).split('.')
   if (
-    !Number.isFinite(wallMilliseconds) ||
-    new Date(wallMilliseconds).toISOString() !== `${wallClock}.000Z`
+    timestamp.startsWith('0000-') ||
+    (offset !== 'Z' && Number(offset.slice(1, 3)) > 15) ||
+    fractionalSecond.length > TTL_TIMESTAMP_VALIDATION.maxFractionDigits
   ) {
     return null
   }
 
-  const instant = new Date(`${wallClock}${offset.toUpperCase()}`)
+  const wallClock = dateTime.length === 16 ? `${dateTime}:00` : dateTime
+  const instant = new Date(`${wallClock}${offset}`)
   if (
     !Number.isFinite(instant.getTime()) ||
     instant.getUTCFullYear() < 1 ||
@@ -30,11 +36,11 @@ function parseTtlTimestamp(value: unknown) {
   ) {
     return null
   }
-  const fraction = (fractionalSecond ?? '').replace(/0+$/, '')
+  const fraction = fractionalSecond.replace(/0+$/, '')
   return {
     wallClock,
     fraction: fraction ? `.${fraction}` : '',
-    offset: offset.toUpperCase() === 'Z' ? '-00:00' : offset,
+    offset: offset === 'Z' ? '-00:00' : offset,
     instant,
   }
 }

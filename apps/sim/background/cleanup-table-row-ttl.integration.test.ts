@@ -28,12 +28,13 @@ vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: signalChanged }))
 vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: fireTrigger }))
 
 import { db } from '@sim/db'
+import { validatedTimestampSql } from '@/lib/table/column-types/timestamp-sql'
 import { updateColumnConstraints } from '@/lib/table/columns/service'
 import { getDeleteSnapshotBatchSize } from '@/lib/table/constants'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import { fieldPredicate } from '@/lib/table/sql'
-import { normalizeTtlTimestamp } from '@/lib/table/ttl-values'
+import { normalizeTtlTimestamp, TTL_TIMESTAMP_VALIDATION } from '@/lib/table/ttl-values'
 import type { TableSchema } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb, coerceRowToSchema } from '@/lib/table/validation'
 import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
@@ -582,6 +583,12 @@ describe.skipIf(!url)('Expiration with real PostgreSQL transactions', () => {
       unnest(${samples}::text[], ${normalized}::text[]) AS instants(input, normalized)
       WHERE input::timestamptz != normalized::timestamptz`
     expect(result.mismatch).toBe(0)
+    const guarded = await db.execute(sql`WITH samples AS MATERIALIZED (
+      SELECT jsonb_array_elements_text(${JSON.stringify(samples)}::jsonb) AS value
+    ) SELECT count(*)::int AS mismatch FROM samples
+      WHERE ${validatedTimestampSql(sql`samples.value`, TTL_TIMESTAMP_VALIDATION)}
+        IS DISTINCT FROM samples.value::timestamptz`)
+    expect(guarded[0].mismatch).toBe(0)
     measurements.postgresTimestampSamples = samples.length
   })
 
