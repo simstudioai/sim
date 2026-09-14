@@ -12,7 +12,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { truncate } from '@sim/utils/string'
-import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
@@ -1324,49 +1324,47 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
         : undefined,
     ] as const
-    const [[activeCount], excludedCountRows, [outcomeCounts]] = await Promise.all([
-      db
-        .select({ value: count() })
-        .from(document)
-        .where(and(...baseConditions, eq(document.userExcluded, false))),
-      input.filter || input.includeExcluded
-        ? db
-            .select({ value: count() })
-            .from(document)
-            .where(and(...baseConditions, eq(document.userExcluded, true)))
-        : Promise.resolve([{ value: 0 }]),
+    const active = sql`${document.userExcluded} = false`
+    /** One pass over the source's readable documents; excluded rows are scanned only when counted. */
+    const [[counts], rows] = await Promise.all([
       db
         .select({
-          failed: sql<number>`count(*) FILTER (WHERE ${failedDocumentCondition()})::int`,
-          skipped: sql<number>`count(*) FILTER (WHERE ${skippedDocumentCondition()})::int`,
+          active: sql<number>`count(*) FILTER (WHERE ${active})::int`,
+          excluded: sql<number>`count(*) FILTER (WHERE ${document.userExcluded} = true)::int`,
+          failed: sql<number>`count(*) FILTER (WHERE ${active} AND ${failedDocumentCondition()})::int`,
+          skipped: sql<number>`count(*) FILTER (WHERE ${active} AND ${skippedDocumentCondition()})::int`,
         })
         .from(document)
-        .where(and(...baseConditions, eq(document.userExcluded, false))),
-    ])
-    const excludedCount = excludedCountRows[0]
-    const rows = await db
-      .select(connectorDocumentSelection)
-      .from(document)
-      .where(
-        and(
-          ...baseConditions,
-          filter ? eq(document.userExcluded, filter === 'excluded') : undefined,
-          filter === 'failed' ? failedDocumentCondition() : undefined,
-          filter === 'skipped' ? skippedDocumentCondition() : undefined
+        .where(
+          and(
+            ...baseConditions,
+            input.filter || input.includeExcluded ? undefined : eq(document.userExcluded, false)
+          )
+        ),
+      db
+        .select(connectorDocumentSelection)
+        .from(document)
+        .where(
+          and(
+            ...baseConditions,
+            filter ? eq(document.userExcluded, filter === 'excluded') : undefined,
+            filter === 'failed' ? failedDocumentCondition() : undefined,
+            filter === 'skipped' ? skippedDocumentCondition() : undefined
+          )
         )
-      )
-      .orderBy(asc(document.userExcluded), asc(document.filename), asc(document.id))
-      .limit(limit + 1)
-      .offset(offset)
+        .orderBy(asc(document.userExcluded), asc(document.filename), asc(document.id))
+        .limit(limit + 1)
+        .offset(offset),
+    ])
     const hasMore = rows.length > limit
     const documents = rows.slice(0, limit)
     return {
       documents,
       counts: {
-        active: activeCount?.value ?? 0,
-        excluded: excludedCount?.value ?? 0,
-        failed: outcomeCounts?.failed ?? 0,
-        skipped: outcomeCounts?.skipped ?? 0,
+        active: counts?.active ?? 0,
+        excluded: counts?.excluded ?? 0,
+        failed: counts?.failed ?? 0,
+        skipped: counts?.skipped ?? 0,
       },
       hasMore,
       offset,

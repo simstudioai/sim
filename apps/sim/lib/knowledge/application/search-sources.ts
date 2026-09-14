@@ -1,7 +1,7 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
-import { and, desc, eq, exists, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 import {
   listSearchSourcesContract,
   searchSourceCursorSchema,
@@ -174,36 +174,63 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     const access = await createKnowledgeAccessProvider(principal, context).getForConnectors(
       rows.map((row) => row.id)
     )
+    /**
+     * Per-source probes rather than one aggregate: the existence checks stop at the first
+     * visible document, and the failed and in-progress rows are few and indexed, so the cost no
+     * longer grows with every document the viewer can read.
+     */
+    const readable = knowledgeAccessCondition(access)
+    const viewerDocument = (condition: SQL | undefined) =>
+      and(
+        eq(document.connectorId, knowledgeConnector.id),
+        eq(document.enabled, true),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt),
+        condition,
+        readable
+      )
     const documentStates = await db
       .select({
-        connectorId: document.connectorId,
-        count: sql<number>`count(*) FILTER (
-          WHERE ${document.processingStatus} = 'completed'
-          AND ${exists(
-            db
-              .select({ id: embedding.id })
-              .from(embedding)
-              .where(and(eq(embedding.documentId, document.id), eq(embedding.enabled, true)))
-          )}
-        )::int`,
-        failedCount: sql<number>`count(*) FILTER (WHERE ${failedDocumentCondition()})::int`,
-        isIndexing: sql<boolean>`bool_or(${document.processingStatus} IN ('pending', 'processing'))`,
+        connectorId: knowledgeConnector.id,
+        hasDocuments: sql<boolean>`${exists(
+          db
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              viewerDocument(
+                and(
+                  eq(document.processingStatus, 'completed'),
+                  exists(
+                    db
+                      .select({ id: embedding.id })
+                      .from(embedding)
+                      .where(
+                        and(eq(embedding.documentId, document.id), eq(embedding.enabled, true))
+                      )
+                  )
+                )
+              )
+            )
+        )}`,
+        failedCount: sql<number>`${db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(document)
+          .where(viewerDocument(failedDocumentCondition()))}`,
+        isIndexing: sql<boolean>`${exists(
+          db
+            .select({ id: document.id })
+            .from(document)
+            .where(viewerDocument(inArray(document.processingStatus, ['pending', 'processing'])))
+        )}`,
       })
-      .from(document)
+      .from(knowledgeConnector)
       .where(
-        and(
-          inArray(
-            document.connectorId,
-            rows.map((row) => row.id)
-          ),
-          eq(document.enabled, true),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(access)
+        inArray(
+          knowledgeConnector.id,
+          rows.map((row) => row.id)
         )
       )
-      .groupBy(document.connectorId)
     const states = new Map(documentStates.map((state) => [state.connectorId, state]))
 
     return {
@@ -248,7 +275,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
             row.status === 'error' ||
             row.hasRetainedSyncError === true ||
             (row.accessMode === 'members' && row.memberSyncStatus === 'error'),
-          viewerDocumentCount: available ? (state?.count ?? 0) : 0,
+          hasViewerDocuments: available && state?.hasDocuments === true,
           viewerFailedDocumentCount: available ? (state?.failedCount ?? 0) : 0,
           viewerEmailVerified: viewers[0]?.emailVerified === true,
           viewerAccounts: accounts.get(row.id) ?? [],

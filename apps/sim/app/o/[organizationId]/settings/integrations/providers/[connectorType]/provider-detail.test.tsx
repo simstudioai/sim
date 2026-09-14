@@ -136,7 +136,7 @@ const source = {
   lastSyncAt: '2026-09-08T12:00:00.000Z',
   connectionRequired: true,
   viewerMembership: 'needs_reauth',
-  viewerDocumentCount: 0,
+  hasViewerDocuments: false,
 }
 const credentialGroup = {
   id: 'accounts-one',
@@ -429,7 +429,6 @@ describe('organization provider management', () => {
     )
     expect(container.textContent).not.toContain('Connect account')
     expect(container.textContent).not.toContain('Reconnect')
-    expect(container.textContent).not.toContain('0 searchable documents')
   })
 
   it('loads sources for a nonpersonal provider even when an accounts view URL is supplied', async () => {

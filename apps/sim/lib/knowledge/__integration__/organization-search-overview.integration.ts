@@ -206,7 +206,7 @@ describe('organization operational overview with real SQL', () => {
       input: { ...input, connectorType: 'google_drive' },
     })
     expect(visible.sources).toHaveLength(2)
-    expect(visible.sources.every((source) => source.viewerDocumentCount === 0)).toBe(true)
+    expect(visible.sources.every((source) => !source.hasViewerDocuments)).toBe(true)
   })
   it('keeps explicit approvals and deactivations visible before source creation', async () => {
     await db.insert(organizationSearchIntegration).values([

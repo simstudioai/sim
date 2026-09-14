@@ -359,7 +359,11 @@ const searchSourceSummaryFields = {
   isSyncing: z.boolean(),
   lastSyncAt: z.string().datetime().nullable(),
   hasSyncError: z.boolean(),
-  viewerDocumentCount: z.number().int().nonnegative(),
+  /**
+   * Whether the viewer can search at least one indexed document from this source. An
+   * existence flag rather than a count: counting means access-checking every visible document.
+   */
+  hasViewerDocuments: z.boolean(),
   viewerFailedDocumentCount: z.number().int().nonnegative().default(0),
   viewerEmailVerified: z.boolean(),
   viewerAccounts: z
