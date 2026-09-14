@@ -19,14 +19,14 @@ const configSchema = z.strictObject({
     .refine((value) => Object.keys(value).length <= 10_000),
 })
 
-export type OutboundRoute = Readonly<z.infer<typeof routeSchema>>
+type OutboundRoute = Readonly<z.infer<typeof routeSchema>>
 export interface OutboundRoutingConfig {
   readonly schemaVersion: 1
   readonly revision: string
   readonly organizations: Readonly<Record<string, OutboundRoute>>
 }
 
-export type OutboundRoutingErrorCode =
+type OutboundRoutingErrorCode =
   | 'CONFIGURATION_UNAVAILABLE'
   | 'INVALID_CONFIGURATION'
   | 'MISSING_SCOPE'

@@ -6,7 +6,7 @@ import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 
-export type OrganizationNetwork =
+type OrganizationNetwork =
   | { mode: 'direct' | 'blocked' | 'unavailable' }
   | { mode: 'gateway'; publicIps: string[] }
 
