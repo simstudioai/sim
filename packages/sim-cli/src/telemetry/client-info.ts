@@ -1,5 +1,5 @@
-import { formatClientInfo } from '@sim/utils/client-info'
-import { CLI_VERSION } from '../version'
+import { CLIENT_INFO_HEADER, formatClientInfo } from '@sim/utils/client-info'
+import { CLI_VERSION, USER_AGENT } from '../version'
 import { detectCodingAgent } from './coding-agent'
 import { telemetryStatus } from './policy'
 import { loadTelemetryState } from './state'
@@ -23,6 +23,16 @@ export function clientInfoHeader(env: NodeJS.ProcessEnv = process.env): string {
   if (env !== process.env) return buildClientInfoHeader(env)
   cached ??= buildClientInfoHeader(env)
   return cached
+}
+
+/**
+ * The headers that identify the CLI on every request it makes to a Sim
+ * deployment: the user agent and `X-Sim-Client-Info`. One definition, so the
+ * API client and the login flows cannot drift into identifying themselves
+ * differently.
+ */
+export function identityHeaders(): Record<string, string> {
+  return { 'user-agent': USER_AGENT, [CLIENT_INFO_HEADER]: clientInfoHeader() }
 }
 
 function buildClientInfoHeader(env: NodeJS.ProcessEnv): string {
