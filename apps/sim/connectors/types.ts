@@ -329,7 +329,7 @@ export interface ConnectorConfigField {
 export interface ConnectorMeta {
   /** Restricts new setup and mode changes; existing sources keep their stored access policy. */
   supportedAccessModes?: readonly ConnectorAccessMode[]
-  /** Opts a source into workspace Search after its indexing and permission paths are verified. */
+  /** Opts a source into Sim Search after its indexing and permission paths are verified. */
   search?: true
   /** Source setup guide shown only in Search connection flows. */
   searchDocsUrl?: string

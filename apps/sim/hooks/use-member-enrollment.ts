@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
+import type { WorkspaceMemberConnector } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -17,11 +18,9 @@ import {
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 import {
-  memberConnectorKeys,
   useConnectSimSearchConnector,
   useStartConnectorMemberEnrollment,
   type ViewerConnectorMembership,
-  type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 
 const logger = createLogger('MemberEnrollment')
@@ -120,8 +119,7 @@ interface UseMemberEnrollmentProps {
  * Lets the viewer connect their own account to a per-member connector, by
  * connector or by Sim Search source. Enrollment opens in a new tab, and the
  * membership queries are polled meanwhile so the surface that started it
- * updates on its own once the account is connected; the workspace-wide
- * membership list is refreshed too, so the other surface catches up as well.
+ * updates on its own once the account is connected.
  *
  * The tab is opened in the click itself, before the enrollment link is
  * minted, because a tab opened after a network round trip is outside the
@@ -158,7 +156,6 @@ export function useMemberEnrollment({
     for (const queryKey of membershipQueryKeys) {
       void queryClient.invalidateQueries({ queryKey })
     }
-    void queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
   }, [membershipQueryKeys, queryClient])
 
   const clearOAuth = (completionId: string) => {

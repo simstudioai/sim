@@ -5,10 +5,10 @@ import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import { searchSetupParam } from '@/lib/sim-search/search-params'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { serializeOrganizationPeople } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { OrganizationProviderDetail } from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail'
-import { searchSetupParam } from '@/app/workspace/[workspaceId]/search/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 interface OrganizationProviderPageProps {

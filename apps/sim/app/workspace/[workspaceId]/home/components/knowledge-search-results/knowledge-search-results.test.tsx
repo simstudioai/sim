@@ -4,9 +4,14 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ overview: vi.fn(), search: vi.fn(), retry: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  index: vi.fn(),
+  overview: vi.fn(),
+  search: vi.fn(),
+  retry: vi.fn(),
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useSearchIndex: () => ({ data: { knowledgeBaseId: 'index' }, isPending: false }),
+  useSearchIndex: mocks.index,
   useSearchSourceOverview: mocks.overview,
 }))
 vi.mock('@/hooks/queries/kb/knowledge', () => ({
@@ -17,12 +22,14 @@ vi.mock(
   () => ({ SourceCard: ({ source }: { source: { title: string } }) => <span>{source.title}</span> })
 )
 
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
 
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index' }, isPending: false })
   mocks.search.mockReturnValue({
     data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
     isPending: false,
@@ -38,11 +45,11 @@ afterEach(() => {
   act(() => root.unmount())
   vi.unstubAllGlobals()
 })
-async function render() {
+async function render(scope: ResourceScope = { kind: 'workspace', workspaceId: 'workspace' }) {
   await act(async () =>
     root.render(
       <NuqsTestingAdapter>
-        <KnowledgeSearchResults workspaceId='workspace' query='launch' onSummarize={vi.fn()} />
+        <KnowledgeSearchResults scope={scope} query='launch' onSummarize={vi.fn()} />
       </NuqsTestingAdapter>
     )
   )
@@ -119,4 +126,17 @@ describe('incomplete search coverage', () => {
       expect(mocks.retry).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('source setup navigation', () => {
+  it.each([
+    [{ kind: 'workspace', workspaceId: 'workspace' }, '/workspace/workspace/knowledge'],
+    [{ kind: 'organization', organizationId: 'organization' }, '/o/organization/integrations'],
+  ] as const)('links empty results to the source page for %j', async (scope, href) => {
+    mocks.index.mockReturnValue({ data: { knowledgeBaseId: null }, isPending: false })
+    mocks.overview.mockReturnValue({ data: undefined })
+    await render(scope)
+    expect(container.textContent).toContain('No sources are set up yet.')
+    expect(container.querySelector('a')?.getAttribute('href')).toBe(href)
+  })
 })

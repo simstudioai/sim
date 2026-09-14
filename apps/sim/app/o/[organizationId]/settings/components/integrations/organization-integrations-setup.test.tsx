@@ -43,7 +43,7 @@ vi.mock('@/hooks/queries/search-integrations', () => ({
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: mocks.availability,
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
+vi.mock('@/app/o/[organizationId]/settings/components/integrations/search-source-setup', () => ({
   SearchSourceSetup: () => null,
 }))
 vi.mock('@/app/o/[organizationId]/settings/components/integrations/slack-account-setup', () => ({

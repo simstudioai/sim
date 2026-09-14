@@ -21,7 +21,6 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
-  memberConnectorKeys: { lists: () => ['member-connectors', 'list'] },
   useStartConnectorMemberEnrollment: () => ({
     mutate: mocks.enrollmentMutate,
     submittedAt: 0,
@@ -56,7 +55,7 @@ function Harness({
   onConnectionError?: (message: string) => void
 }) {
   latest = useMemberEnrollment({
-    membershipQueryKeys: [],
+    membershipQueryKeys: [['test-memberships']],
     connectedConnectorIds: connected,
     directOAuth,
     onConnectionError,
@@ -443,7 +442,7 @@ describe('useMemberEnrollment', () => {
     act(() => mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'connected' })))
     expect(enrollment().isAwaiting('connector-1')).toBe(false)
     expect(enrollment().error).toBeNull()
-    expect(mocks.invalidateQueries).toHaveBeenCalled()
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['test-memberships'] })
     expect(mocks.channels[0].close).toHaveBeenCalledOnce()
   })
 

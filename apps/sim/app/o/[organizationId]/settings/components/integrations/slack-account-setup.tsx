@@ -9,12 +9,9 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
+import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
-import {
-  searchSetupParam,
-  searchSetupReturnParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
 import {

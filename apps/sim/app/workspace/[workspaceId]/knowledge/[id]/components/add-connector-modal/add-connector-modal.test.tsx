@@ -41,7 +41,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
-  usePathname: () => '/workspace/workspace-1/search',
+  usePathname: () => '/o/org-1/settings/integrations',
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({

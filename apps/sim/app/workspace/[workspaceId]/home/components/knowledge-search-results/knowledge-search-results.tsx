@@ -179,7 +179,7 @@ export function KnowledgeSearchResults({
           href={
             scope.kind === 'organization'
               ? `/o/${scope.organizationId}/integrations`
-              : `/workspace/${scope.workspaceId}/search`
+              : `/workspace/${scope.workspaceId}/knowledge`
           }
         >
           View sources
