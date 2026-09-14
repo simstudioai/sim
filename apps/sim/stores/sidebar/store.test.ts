@@ -54,6 +54,15 @@ describe('sidebar width CSS variables', () => {
     expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
   })
 
+  it('allows narrowing below the default down to the minimum', () => {
+    useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN)
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
+    expect(SIDEBAR_WIDTH.MIN).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+
+    useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN - 1)
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
+  })
+
   it('keeps the expanded variable at the restore width while collapsed', () => {
     useSidebarStore.getState().setSidebarWidth(300)
     useSidebarStore.getState().toggleCollapsed()
