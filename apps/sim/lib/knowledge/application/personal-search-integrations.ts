@@ -12,7 +12,7 @@ import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/avail
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
+import { listConfiguredSearchProviderTypes } from '@/lib/knowledge/application/search-source-overview'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
@@ -40,12 +40,9 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
       .where(eq(user.id, userId))
       .limit(1)
     if (!viewer) throw new OrchestrationError('forbidden', 'The current person is unavailable')
-    const [page, overview, approvals, access, sharedSlack] = await Promise.all([
+    const [page, configuredTypes, approvals, access, sharedSlack] = await Promise.all([
       listSearchSources.execute({ principal, input }),
-      readSearchSourceOverview.execute({
-        principal,
-        input: { organizationId: context.organizationId },
-      }),
+      listConfiguredSearchProviderTypes({ organizationId: context.organizationId }),
       listOrganizationSearchApprovals(context.organizationId),
       resolveKnowledgeAccessAvailability(context),
       findSharedSlackSearchInstallation(context.organizationId),
@@ -59,7 +56,7 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
         isOAuthServiceDeploymentAvailable(entry.providerId),
       ])
     )
-    const configured = new Set(overview.providers.map((entry) => entry.connectorType))
+    const configured = new Set(configuredTypes)
     const eligible = (connectorType: string) => {
       const connector = SEARCH_CONNECTORS.find((entry) => entry.type === connectorType)
       return Boolean(
@@ -127,10 +124,9 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
                 ? ('indexing' as const)
                 : source.hasSyncError || source.viewerFailedDocumentCount > 0
                   ? ('sync_failed' as const)
-                  : source.viewerDocumentCount > 0
+                  : source.hasViewerDocuments
                     ? ('indexed' as const)
                     : ('not_indexed' as const),
-          searchableDocuments: source.viewerDocumentCount,
           action: canConnect && !accounts.length ? target : null,
         },
       ]

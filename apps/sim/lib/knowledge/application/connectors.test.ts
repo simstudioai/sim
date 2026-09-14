@@ -82,6 +82,7 @@ vi.mock('@/lib/knowledge/access/scope', () => ({
   createKnowledgeAccessProvider: () => ({
     get: mocks.getAccess,
     getForConnectors: mocks.getForConnectors,
+    liveSourceConnectorCondition: async () => ({ type: 'live-sources' }),
   }),
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
@@ -298,7 +299,7 @@ describe('knowledge connector application use cases', () => {
       },
     ])
     queueTableRows(document, [])
-    queueTableRows(document, [{ connectorId: 'cf-source' }])
+    queueTableRows(knowledgeConnector, [{ connectorId: 'cf-source' }])
     queueTableRows(document, [{ connectorId: 'cf-source', count: 2 }])
     const result = await listWorkspaceMemberConnectors.execute({
       principal: { kind: 'session', userId: 'reader', sessionId: 'test' },
@@ -927,9 +928,7 @@ describe('knowledge connector application use cases', () => {
       connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
     }
     mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
-    queueTableRows(document, [{ value: 5 }])
-    queueTableRows(document, [{ value: 2 }])
-    queueTableRows(document, [{ failed: 1, skipped: 3 }])
+    queueTableRows(document, [{ active: 5, excluded: 2, failed: 1, skipped: 3 }])
     queueTableRows(document, [
       { id: 'document-3', filename: 'c.txt', userExcluded: false },
       { id: 'document-4', filename: 'd.txt', userExcluded: true },
@@ -959,6 +958,7 @@ describe('knowledge connector application use cases', () => {
     })
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     expect(dbChainMockFns.offset).toHaveBeenCalledWith(2)
+    expect(dbChainMockFns.from.mock.calls.filter(([table]) => table === document)).toHaveLength(2)
   })
 
   it('caps connector document mutations before persistence', async () => {

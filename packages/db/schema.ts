@@ -3024,6 +3024,16 @@ export const document = pgTable(
       .where(
         sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
       ),
+    /**
+     * Per-source processing probes (any failed, pending or processing document) behind the
+     * source status, progress and overview reads. Partial on the rare non-terminal states so a
+     * healthy source proves absence without walking every completed document.
+     */
+    connectorProcessingStatusIdx: index('doc_connector_processing_status_idx')
+      .on(table.connectorId, table.processingStatus)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Connector document uniqueness (partial — only non-deleted rows)
     connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
       .on(table.connectorId, table.externalId)

@@ -123,6 +123,7 @@ beforeEach(() => {
     get: async () => access,
     getForConnectors: async () => access,
     getForDocuments: async () => access,
+    liveSourceConnectorCondition: async () => null,
   })
   mocks.predicate.mockReturnValue(ACL)
 })
@@ -133,7 +134,9 @@ describe('Search source summaries', () => {
     async (role) => {
       mocks.permission.mockResolvedValue(role)
       seed([source('drive')])
-      queueTableRows(document, [{ connectorId: 'drive', count: 4, isIndexing: false }])
+      queueTableRows(knowledgeConnector, [
+        { connectorId: 'drive', hasDocuments: true, failedCount: 0, isIndexing: false },
+      ])
       const result = await listSearchSources.execute({ principal, input })
       expect(result.sources).toEqual([
         {
@@ -147,7 +150,7 @@ describe('Search source summaries', () => {
           isSyncing: false,
           lastSyncAt: LAST_SYNC.toISOString(),
           hasSyncError: false,
-          viewerDocumentCount: 4,
+          hasViewerDocuments: true,
           viewerFailedDocumentCount: 0,
           viewerEmailVerified: true,
           viewerAccounts: [],
@@ -242,7 +245,7 @@ describe('Search source summaries', () => {
           enabled: true,
           isSyncing: false,
           viewerMembership: null,
-          viewerDocumentCount: 0,
+          hasViewerDocuments: false,
         })
       }
     }
@@ -258,7 +261,9 @@ describe('Search source summaries', () => {
       ],
       false
     )
-    queueTableRows(document, [{ connectorId: 'indexing', count: 2, isIndexing: true }])
+    queueTableRows(knowledgeConnector, [
+      { connectorId: 'indexing', hasDocuments: true, failedCount: 0, isIndexing: true },
+    ])
     const { sources } = await listSearchSources.execute({ principal, input })
     expect(sources[0]).toMatchObject({
       enabled: false,
@@ -267,7 +272,7 @@ describe('Search source summaries', () => {
     })
     expect(sources[1]).toMatchObject({ hasSyncError: true, isSyncing: false })
     expect(sources[2]).toMatchObject({ lastSyncAt: null, isSyncing: false })
-    expect(sources[3]).toMatchObject({ viewerDocumentCount: 2, isSyncing: true })
+    expect(sources[3]).toMatchObject({ hasViewerDocuments: true, isSyncing: true })
     expect(sources.every((row) => row.viewerEmailVerified === false)).toBe(true)
   })
 
@@ -312,26 +317,44 @@ describe('Search source summaries', () => {
     expect(mocks.memberships).not.toHaveBeenCalled()
   })
 
-  it('counts only accessible, enabled, completed documents with enabled chunks, without counting chunks twice', async () => {
+  it('probes each returned source for accessible, enabled, completed documents with enabled chunks', async () => {
     seed([source('drive')])
     await listSearchSources.execute({ principal, input })
     expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
-      type: 'and',
-      conditions: expect.arrayContaining([
-        { type: 'inArray', column: document.connectorId, values: ['drive'] },
-        { type: 'eq', left: document.enabled, right: true },
-        { type: 'eq', left: document.userExcluded, right: false },
-        { type: 'isNull', column: document.archivedAt },
-        { type: 'isNull', column: document.deletedAt },
-        ACL,
-      ]),
+      type: 'inArray',
+      column: knowledgeConnector.id,
+      values: ['drive'],
     })
-    const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
-    expect(projection.count.toSQL().sql).toMatch(/count\(\*\) FILTER[\s\S]*'completed'/)
-    expect(projection.count.values).toEqual([
-      document.processingStatus,
-      expect.objectContaining({ type: 'exists' }),
-    ])
+    const viewerDocument = (condition: unknown) => [
+      {
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: document.connectorId, right: knowledgeConnector.id },
+          { type: 'eq', left: document.enabled, right: true },
+          { type: 'eq', left: document.userExcluded, right: false },
+          { type: 'isNull', column: document.archivedAt },
+          { type: 'isNull', column: document.deletedAt },
+          condition,
+          ACL,
+        ],
+      },
+    ]
+    expect(dbChainMockFns.where.mock.calls).toContainEqual(
+      viewerDocument({
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: document.processingStatus, right: 'completed' },
+          expect.objectContaining({ type: 'exists' }),
+        ],
+      })
+    )
+    expect(dbChainMockFns.where.mock.calls).toContainEqual(
+      viewerDocument({
+        type: 'inArray',
+        column: document.processingStatus,
+        values: ['pending', 'processing'],
+      })
+    )
     expect(dbChainMockFns.where.mock.calls).toContainEqual([
       {
         type: 'and',
@@ -341,7 +364,15 @@ describe('Search source summaries', () => {
         ],
       },
     ])
-    expect(projection.isIndexing.toSQL().sql).toContain("IN ('pending', 'processing')")
+    const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
+    expect(Object.keys(projection)).toEqual([
+      'connectorId',
+      'hasDocuments',
+      'failedCount',
+      'isIndexing',
+    ])
+    expect(projection.connectorId).toBe(knowledgeConnector.id)
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
   })
 
   it('rejects a former workspace member before querying source data', async () => {
@@ -412,14 +443,17 @@ describe('organization Search source summaries', () => {
       mocks.context.mockResolvedValue({ organizationId: 'org-1' })
       queueTableRows(member, [{ role }])
       seed([source('drive')])
-      queueTableRows(document, [{ connectorId: 'drive', count: 2, isIndexing: false }])
+      queueTableRows(knowledgeConnector, [])
+      queueTableRows(knowledgeConnector, [
+        { connectorId: 'drive', hasDocuments: true, failedCount: 0, isIndexing: false },
+      ])
       const result = await listSearchSources.execute({
         principal,
         input: { organizationId: 'org-1' },
       })
       expect(result.sources[0]).toMatchObject({
         connectorId: 'drive',
-        viewerDocumentCount: 2,
+        hasViewerDocuments: true,
         viewerEmailVerified: true,
       })
       expect(mocks.access).toHaveBeenCalledWith(principal, { organizationId: 'org-1' })
@@ -559,14 +593,14 @@ describe('bounded Search progress', () => {
 
   it('counts visible indexing failures separately from provider sync errors', async () => {
     seed([source('drive')])
-    queueTableRows(document, [
-      { connectorId: 'drive', count: 3, failedCount: 2, isIndexing: false },
+    queueTableRows(knowledgeConnector, [
+      { connectorId: 'drive', hasDocuments: true, failedCount: 2, isIndexing: false },
     ])
     const { sources } = await listSearchSources.execute({ principal, input })
     expect(sources[0]).toMatchObject({
       hasSyncError: false,
       viewerFailedDocumentCount: 2,
-      viewerDocumentCount: 3,
+      hasViewerDocuments: true,
       isSyncing: false,
     })
   })
@@ -587,12 +621,7 @@ describe('bounded Search source pagination', () => {
     )
     expect(cursor).toMatchObject({ id: 'source-024', createdAt: '2026-09-05T12:00:00.123456Z' })
     expect(dbChainMockFns.where.mock.calls).toContainEqual([
-      expect.objectContaining({
-        type: 'and',
-        conditions: expect.arrayContaining([
-          { type: 'inArray', column: document.connectorId, values: rows(25).map((row) => row.id) },
-        ]),
-      }),
+      { type: 'inArray', column: knowledgeConnector.id, values: rows(25).map((row) => row.id) },
     ])
   })
 

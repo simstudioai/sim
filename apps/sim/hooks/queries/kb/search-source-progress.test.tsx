@@ -23,7 +23,7 @@ function Probe() {
   const sync = useTriggerSync()
   return (
     <div>
-      <span>{result.data?.[0]?.viewerDocumentCount ?? 0}</span>
+      <span>{String(result.data?.[0]?.hasViewerDocuments ?? false)}</span>
       <button
         disabled={sync.isPending}
         onClick={() => sync.mutate({ knowledgeBaseId: 'kb', connectorId: 'source' })}
@@ -83,7 +83,7 @@ beforeEach(() => {
             isSyncing: syncing,
             hasSyncError: false,
             viewerFailedDocumentCount: 0,
-            viewerDocumentCount: syncing ? 0 : 1,
+            hasViewerDocuments: !syncing,
           },
         ],
         nextCursor: null,
@@ -127,7 +127,7 @@ describe('source progress polling', () => {
     await advance(1)
     expect(
       client.getQueryData(searchSourceKeys.pages('workspace', { search: '', mine: false }))
-    ).toMatchObject({ pages: [{ sources: [{ isSyncing: false, viewerDocumentCount: 1 }] }] })
+    ).toMatchObject({ pages: [{ sources: [{ isSyncing: false, hasViewerDocuments: true }] }] })
     const total = mocks.requestJson.mock.calls.length
     await advance(60_000)
     expect(mocks.requestJson).toHaveBeenCalledTimes(total)
@@ -157,7 +157,9 @@ describe('source progress polling', () => {
     expect(
       client.getQueryData(searchSourceKeys.pages('workspace', { search: '', mine: false }))
     ).toMatchObject({
-      pages: [{ sources: [expect.objectContaining({ isSyncing: false, viewerDocumentCount: 1 })] }],
+      pages: [
+        { sources: [expect.objectContaining({ isSyncing: false, hasViewerDocuments: true })] },
+      ],
     })
     const total = mocks.requestJson.mock.calls.length
     await advance(60_000)
@@ -173,7 +175,9 @@ describe('source progress polling', () => {
     expect(
       client.getQueryData(searchSourceKeys.pages('workspace', { search: '', mine: false }))
     ).toMatchObject({
-      pages: [{ sources: [expect.objectContaining({ isSyncing: false, viewerDocumentCount: 1 })] }],
+      pages: [
+        { sources: [expect.objectContaining({ isSyncing: false, hasViewerDocuments: true })] },
+      ],
     })
   })
   it('lets a slow summary refresh finish while progress keeps polling', async () => {
@@ -201,7 +205,9 @@ describe('source progress polling', () => {
     expect(
       client.getQueryData(searchSourceKeys.pages('workspace', { search: '', mine: false }))
     ).toMatchObject({
-      pages: [{ sources: [expect.objectContaining({ isSyncing: false, viewerDocumentCount: 1 })] }],
+      pages: [
+        { sources: [expect.objectContaining({ isSyncing: false, hasViewerDocuments: true })] },
+      ],
     })
     const total = mocks.requestJson.mock.calls.length
     await advance(60_000)
