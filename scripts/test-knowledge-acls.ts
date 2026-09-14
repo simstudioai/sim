@@ -180,7 +180,7 @@ try {
       env: environment,
     }
   )
-  if (!scale && testFilters.length === 0)
+  if (!scale && testFilters.length === 0) {
     run(
       'bunx',
       [
@@ -195,6 +195,15 @@ try {
         env: environment,
       }
     )
+    run(
+      'bunx',
+      ['vitest', 'run', 'script-migrations/0016_backfill_search_vectors.postgres.test.ts'],
+      {
+        cwd: path.join(root, 'packages/db'),
+        env: environment,
+      }
+    )
+  }
   logger.info(
     scale
       ? 'Opt-in knowledge scale measurements passed'

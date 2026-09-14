@@ -16,9 +16,9 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     const url = new URL(databaseUrl!)
     if (
       !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !url.pathname.startsWith('/sim_acl_test')
+      (!url.pathname.startsWith('/sim_acl_test') && url.pathname !== '/sim_auth_scim')
     ) {
-      throw new Error('Projection tests require a disposable local sim_acl_test database')
+      throw new Error('Projection tests require a disposable local integration database')
     }
     admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)

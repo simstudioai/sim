@@ -36,7 +36,6 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import {
   SearchBudget,
   SearchDeadlineError,
@@ -166,6 +165,9 @@ const diagnosticSchema = z
     surface: z.enum(['dashboard', 'copilot']),
     outcome: z.literal('success'),
     elapsedMs: z.number(),
+    vectorBudgetMs: z.number().positive(),
+    retrievalStatus: z.enum(['complete', 'partial']),
+    timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])),
     toolResultBytes: z.number().int().nonnegative().optional(),
     passageBytes: z.number().int().nonnegative().optional(),
     maxPassageBytes: z.number().int().nonnegative().optional(),
@@ -215,6 +217,45 @@ async function search(
       }
     )
   )
+}
+
+async function searchDashboard() {
+  const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
+    kind: 'session',
+    userId: ids.aliceId,
+    sessionId: 'fixture-dashboard',
+  })
+  try {
+    const response = await searchRoute(
+      new NextRequest('http://localhost/api/knowledge/search', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: ids.workspaceId,
+          query: 'Orion deployment',
+          topK: 15,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    return {
+      success: true as const,
+      data: workspaceKnowledgeSearchDataSchema.parse((await response.json()).data),
+    }
+  } finally {
+    authenticate.mockRestore()
+  }
+}
+
+/** Allow either index or filtered plans, but require successful retrieval within the real surface budget. */
+function expectCompleteVectorSearch(diagnostics: z.infer<typeof diagnosticSchema>) {
+  const budget = diagnostics.surface === 'dashboard' ? 3000 : 8000
+  expect(diagnostics).toMatchObject({
+    vectorBudgetMs: budget,
+    retrievalStatus: 'complete',
+    timedOutLegs: [],
+  })
+  expect(diagnostics.stages.vector.totalMs).toBeLessThanOrEqual(budget)
 }
 
 async function sample(label: string, run: () => ReturnType<typeof search>) {
@@ -614,11 +655,6 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     'returns incomplete dashboard coverage when %s SQL branches exceed their deadline',
     async (delayedLegs) => {
       diagnosticLog?.mockClear()
-      const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
-        kind: 'session',
-        userId: ids.aliceId,
-        sessionId: 'fixture-dashboard',
-      })
       const query = SearchBudget.prototype.query
       const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
         this: SearchBudget,
@@ -632,18 +668,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         }) as Promise<T>
       })
       try {
-        const response = await searchRoute(
-          new NextRequest('http://localhost/api/knowledge/search', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              workspaceId: ids.workspaceId,
-              query: 'Orion deployment',
-              topK: 15,
-            }),
-          })
-        )
-        expect(response.status).toBe(200)
+        const { data } = await searchDashboard()
         const completed = diagnosticLog?.mock.calls.find(
           ([message]) => message === 'Knowledge search completed'
         )
@@ -651,7 +676,6 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         expect(diagnostics.vectorBudgetMs).toBe(3000)
         expect(diagnostics.stages.vector.totalMs).toBeGreaterThan(2500)
         expect(diagnostics.stages.vector.totalMs).toBeLessThan(4000)
-        const data = workspaceKnowledgeSearchDataSchema.parse((await response.json()).data)
         expect(data.retrieval).toEqual({
           status: 'partial',
           timedOutLegs: delayedLegs === 'both' ? ['vector', 'keyword'] : ['vector'],
@@ -666,7 +690,6 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         report[`dashboard.deadline.${delayedLegs}`] = { resultCount: data.results.length }
       } finally {
         delayed.mockRestore()
-        authenticate.mockRestore()
       }
     },
     30_000
@@ -675,7 +698,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   it('records first and repeated application searches with the actual SQL plans', async () => {
     const before = embeddingCalls
     for (let iteration = 0; iteration < 2; iteration++) {
-      const { result, plans } = await sample(`broad.${iteration}`, () => search())
+      const { result, plans, diagnostics } = await sample(`broad.${iteration}`, () => search())
+      expectCompleteVectorSearch(diagnostics)
       expect(result.data.results).toHaveLength(15)
       expect(result.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)).toBe(
         true
@@ -703,9 +727,10 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
 
   it('preserves exact-neighbor recall across different query vectors', async () => {
     for (const topic of [3, 11, 23]) {
-      const { plans } = await sample(`topic.${topic}`, () =>
+      const { plans, diagnostics } = await sample(`topic.${topic}`, () =>
         search(ids.aliceId, `Topic ${topic} deployment`)
       )
+      expectCompleteVectorSearch(diagnostics)
       const candidates = plans.find((plan) => plan.kind === 'vector')!
       assertCompactCandidates(candidates.plan[0].Plan)
       const rerank = plans.find((plan) => plan.kind === 'rerank')!
@@ -723,19 +748,10 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   }, 180_000)
 
   it('compares the Search tab and Assistant with the same person, query and index', async () => {
-    const dashboard = await sample('dashboard', async () => {
-      const result = await searchScopedKnowledge.execute({
-        principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-dashboard' },
-        input: {
-          workspaceId: ids.workspaceId,
-          query: 'Orion deployment',
-          topK: 15,
-          surface: 'dashboard',
-        },
-      })
-      return resultSchema.parse({ success: true, data: result })
-    })
+    const dashboard = await sample('dashboard', searchDashboard)
     const assistant = await sample('assistant.comparison', () => search())
+    expectCompleteVectorSearch(dashboard.diagnostics)
+    expectCompleteVectorSearch(assistant.diagnostics)
     expect(dashboard.diagnostics.surface).toBe('dashboard')
     expect(assistant.diagnostics.surface).toBe('copilot')
     expect(dashboard.diagnostics.stages.result_provenance).toBeUndefined()
@@ -767,21 +783,9 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       for (const surface of ['copilot', 'dashboard'] as const) {
         const { result, plans, diagnostics } = await sample(
           `filtered-neighborhood.${surface}`,
-          async () => {
-            if (surface === 'copilot') return search()
-            const data = await searchScopedKnowledge.execute({
-              principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-dashboard' },
-              input: {
-                workspaceId: ids.workspaceId,
-                query: 'Orion deployment',
-                topK: 15,
-                surface,
-              },
-            })
-            return resultSchema.parse({ success: true, data })
-          }
+          surface === 'copilot' ? () => search() : searchDashboard
         )
-        expect(diagnostics).toMatchObject({ retrievalStatus: 'complete', timedOutLegs: [] })
+        expectCompleteVectorSearch(diagnostics)
         expect(result.data.results).toHaveLength(15)
         const rerank = plans.find((plan) => plan.kind === 'rerank')!
         expect(rerank).toBeDefined()
@@ -852,6 +856,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   }, 180_000)
 
   it('runs two independent Assistant searches concurrently', async () => {
+    diagnosticLog?.mockClear()
     const start = performance.now()
     const results = await Promise.all([search(), search(ids.aliceId, 'Engineering operations')])
     report.concurrent = {
@@ -860,6 +865,12 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     }
     saveReport()
     for (const result of results) expect(result.data.results).toHaveLength(15)
+    const completed = diagnosticLog!.mock.calls.filter(
+      ([message]) => message === 'Knowledge search completed'
+    )
+    expect(completed).toHaveLength(2)
+    for (const [, metadata] of completed)
+      expectCompleteVectorSearch(diagnosticSchema.parse(metadata))
   }, 180_000)
 
   it('checks live reader access on every search, including after revocation', async () => {

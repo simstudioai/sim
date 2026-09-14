@@ -452,6 +452,7 @@ describe('script migration registry', () => {
       '0013_backfill_legacy_knowledge_base_workspaces',
       '0014_require_knowledge_base_owner',
       '0015_backfill_embedding_search',
+      '0016_backfill_search_vectors',
     ])
   })
 })
