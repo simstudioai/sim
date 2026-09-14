@@ -390,14 +390,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowRecord.workspaceId || undefined
     )
 
-    /** The row stores the unresolved text, so only a literal credential id can be authorized. */
-    if (resolvedProviderConfig.credentialId !== originalProviderConfig.credentialId) {
-      return NextResponse.json(
-        { error: 'providerConfig.credentialId must be a literal credential id' },
-        { status: 400 }
-      )
-    }
-
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
       id: targetWebhookId || generateShortId(),
@@ -416,55 +408,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .where(eq(webhook.id, targetWebhookId))
         .limit(1)
       existingWebhook = existingRows[0] || null
-    }
-
-    const shouldRecreateSubscription =
-      existingWebhook &&
-      shouldRecreateExternalWebhookSubscription({
-        previousProvider: existingWebhook.provider as string,
-        nextProvider: provider,
-        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
-          {}) as Record<string, unknown>,
-        nextConfig: resolvedProviderConfig,
-      })
-
-    /**
-     * Subscription handlers, pollers, and subscription cleanup look `credentialId`
-     * up by id alone and mint tokens as its owner, so every credential this save
-     * acts with must be usable by the actor in the workflow's workspace before
-     * anything is subscribed, cleaned up, or saved. That is the requested
-     * credential, plus the stored one when the save uses it: merged back because
-     * the request omits `credentialId`, or used to clean up the previous
-     * subscription on recreation.
-     */
-    const usesStoredCredential =
-      existingWebhook && (shouldRecreateSubscription || !('credentialId' in originalProviderConfig))
-    const credentialIds = new Set(
-      [
-        originalProviderConfig.credentialId,
-        usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
-      ].filter((id) => id != null && id !== '')
-    )
-    for (const credentialId of credentialIds) {
-      if (typeof credentialId !== 'string') {
-        return NextResponse.json(
-          { error: 'providerConfig.credentialId must be a literal credential id' },
-          { status: 400 }
-        )
-      }
-      const credentialAccess = await authorizeCredentialUseForAuth(
-        { success: true, userId, authType: AuthType.SESSION },
-        { credentialId, workflowId }
-      )
-      if (!credentialAccess.ok) {
-        logger.warn(`[${requestId}] Webhook credential reference denied`, {
-          userId,
-          workflowId,
-          credentialId,
-          reason: credentialAccess.error,
-        })
-        return NextResponse.json({ error: credentialAccess.error }, { status: 403 })
-      }
     }
 
     /**
@@ -503,6 +446,63 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         )
         return NextResponse.json({ error: capabilityRefusal('triggers.webhook') }, { status: 403 })
+      }
+    }
+
+    const shouldRecreateSubscription =
+      existingWebhook &&
+      shouldRecreateExternalWebhookSubscription({
+        previousProvider: existingWebhook.provider as string,
+        nextProvider: provider,
+        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
+          {}) as Record<string, unknown>,
+        nextConfig: resolvedProviderConfig,
+      })
+
+    /** The row stores the unresolved text, so only a literal credential id can be authorized. */
+    if (resolvedProviderConfig.credentialId !== originalProviderConfig.credentialId) {
+      return NextResponse.json(
+        { error: 'providerConfig.credentialId must be a literal credential id' },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * Subscription handlers, pollers, and subscription cleanup look `credentialId`
+     * up by id alone and mint tokens as its owner, so every credential this save
+     * acts with must be usable by the actor in the workflow's workspace before
+     * anything is subscribed, cleaned up, or saved. That is the requested
+     * credential, plus the stored one when the save uses it: merged back because
+     * the request omits `credentialId`, or used to clean up the previous
+     * subscription on recreation.
+     */
+    const usesStoredCredential =
+      existingWebhook && (shouldRecreateSubscription || !('credentialId' in originalProviderConfig))
+    const credentialIds = new Set(
+      [
+        originalProviderConfig.credentialId,
+        usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
+      ].filter((id) => id != null && id !== '')
+    )
+    for (const credentialId of credentialIds) {
+      if (typeof credentialId !== 'string') {
+        return NextResponse.json(
+          { error: 'providerConfig.credentialId must be a literal credential id' },
+          { status: 400 }
+        )
+      }
+      const credentialAccess = await authorizeCredentialUseForAuth(
+        { success: true, userId, authType: AuthType.SESSION },
+        { credentialId, workflowId }
+      )
+      if (!credentialAccess.ok) {
+        logger.warn(`[${requestId}] Webhook credential reference denied`, {
+          userId,
+          workflowId,
+          credentialId,
+          reason: credentialAccess.error,
+        })
+        return NextResponse.json({ error: credentialAccess.error }, { status: 403 })
       }
     }
 

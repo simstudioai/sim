@@ -605,6 +605,7 @@ describe('POST /api/webhooks credential references', () => {
     const response = await POST(upsertRequest({ eventType: 'record.created' }))
 
     expect(response.status).toBe(403)
+    expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
@@ -667,5 +668,44 @@ describe('POST /api/webhooks credential references', () => {
       { credentialId: 'new-credential', workflowId: 'workflow-1' },
       { credentialId: 'stored-credential', workflowId: 'workflow-1' },
     ])
+  })
+
+  /**
+   * Recreation cleans up the previous subscription with the stored credential even
+   * when the request omits it, and a `userId` echoed back by the provider is not saved.
+   */
+  it('authorizes the stored credential and drops userId when an omitting re-save recreates', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue({ ok: true, workspaceId: 'workspace-1' })
+    mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
+    mocks.createExternalWebhookSubscription.mockResolvedValue({
+      updatedProviderConfig: { externalId: 'subscription-2', userId: 'stored-user' },
+      externalSubscriptionCreated: true,
+    })
+    queueUpdatePathRows(true, { credentialId: 'stored-credential', userId: 'stored-user' })
+
+    const response = await POST(upsertRequest({ eventType: 'record.created' }))
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorizeCredentialUseForAuth).toHaveBeenCalledWith(expect.anything(), {
+      credentialId: 'stored-credential',
+      workflowId: 'workflow-1',
+    })
+    const savedConfig = dbChainMockFns.set.mock.calls.at(-1)?.[0].providerConfig
+    expect(savedConfig.userId).toBeUndefined()
+    expect(savedConfig).toEqual({ eventType: 'record.created', externalId: 'subscription-2' })
+  })
+
+  /** The permission-group refusal keeps answering first, before any credential lookup. */
+  it('refuses a withheld creation before authorizing its credential', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest({ credentialId: 'victim-credential' }))
+
+    expect(response.status).toBe(403)
+    expect(mocks.authorizeCredentialUseForAuth).not.toHaveBeenCalled()
   })
 })
