@@ -25,12 +25,18 @@ function description(finding: Finding): string {
   return parts.join('; ')
 }
 
+function uncheckedDescription(note: Report['unchecked'][number]): string {
+  return line(
+    `${note.file}:${note.line} (${note.side}${note.context ? `; ${note.context}` : ''}) — ${note.reason}`
+  )
+}
+
 export function textReport(report: Report): string {
   if (report.status === 'failed')
     return `Design check failed: ${line(report.error ?? 'Operational failure')}\n`
   const counts = findingCounts(report)
   const lines = [
-    `Design check: ${report.flagged ? 'findings reported' : 'no new findings'} (${report.policyVersion}).`,
+    `Design check: ${report.flagged ? 'findings reported' : 'no new findings'}${report.unchecked.length ? '; coverage incomplete' : ''} (${report.policyVersion}).`,
     `Usage violations: ${counts.usage}; system changes: ${counts.system}; unchecked diagnostics: ${report.unchecked.length}.`,
   ]
   for (const [kind, title] of [
@@ -47,10 +53,13 @@ export function textReport(report: Report): string {
       )
     }
   }
-  if (report.unchecked.length)
+  if (report.unchecked.length) {
+    lines.push('', 'Unchecked inputs — coverage incomplete')
+    for (const note of report.unchecked) lines.push(`  ${uncheckedDescription(note)}`)
     lines.push(
       'Unchecked inputs remain outside the result; no findings does not prove complete coverage.'
     )
+  }
   return `${lines.join('\n')}\n`
 }
 
@@ -73,7 +82,7 @@ export function githubAnnotations(report: Report): string[] {
 
 export function githubSummary(report: Report): string {
   const counts = findingCounts(report)
-  return [
+  const lines = [
     '### Design conformance',
     '',
     report.status === 'failed'
@@ -91,5 +100,28 @@ export function githubSummary(report: Report): string {
     '',
     'Full findings and authoritative sources are in the check log. Unchecked inputs do not establish conformance.',
     '',
-  ].join('\n')
+  ]
+  if (report.unchecked.length) {
+    /** Bound summary size; the check log retains every complete diagnostic. */
+    const notes = report.unchecked.slice(0, 100)
+    lines.push(
+      '<details>',
+      `<summary>Unchecked inputs (${report.unchecked.length}) — coverage incomplete</summary>`,
+      '',
+      `Showing ${notes.length} of ${report.unchecked.length} diagnostics. Long entries are truncated here. Full details are in the check log; these are not design violations.`,
+      '',
+      '<pre>',
+      ...notes.map((note) => {
+        const text = uncheckedDescription(note)
+        const excerpt =
+          text.length > 1000 ? `${text.slice(0, 1000)}… [truncated; see check log]` : text
+        /** Source text must not close the HTML block or introduce Markdown formatting. */
+        return excerpt.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+      }),
+      '</pre>',
+      '</details>',
+      ''
+    )
+  }
+  return lines.join('\n')
 }

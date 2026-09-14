@@ -1,4 +1,4 @@
-/* biome-ignore-all lint/suspicious/noTemplateCurlyInString: Proposed source fixtures. */
+/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Proposed source fixtures. */
 import { expect, test } from 'vitest'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { type Change, type Entry, hash, TOKEN_FILE } from '#design-conformance/model'

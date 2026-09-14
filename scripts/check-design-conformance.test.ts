@@ -1,4 +1,4 @@
-/* biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
+/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
 import { expect, test } from 'vitest'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { designSystem } from '#design-conformance/design-system'
