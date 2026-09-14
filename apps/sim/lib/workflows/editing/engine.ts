@@ -5,6 +5,7 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { reindexRewrittenToolCanonicalModes } from '@/lib/workflows/subblocks/visibility'
+import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { getBlock } from '@/blocks/registry'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -265,6 +266,10 @@ export function applyOperationsToWorkflowState(
     workflowState.blocks as Record<string, BlockState> | undefined,
     modifiedState.blocks as Record<string, BlockState> | undefined
   )
+  applyAgentToolUsageControlModesAfterEdits(
+    workflowState.blocks as Record<string, BlockState> | undefined,
+    modifiedState.blocks as Record<string, BlockState> | undefined
+  )
 
   // Regenerate loops and parallels after modifications
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)
@@ -332,6 +337,31 @@ function reindexToolCanonicalModesAfterEdits(
         block.data.canonicalModes
       )
       if (canonicalModes) block.data = { ...block.data, canonicalModes }
+    }
+  }
+}
+
+/**
+ * An agent tool's Permission Mode follows the fields its rewritten entry supplies. Runs after
+ * {@link reindexToolCanonicalModesAfterEdits} so each choice lands on its tool's final position
+ * rather than being moved again as if it were keyed by the original list.
+ */
+function applyAgentToolUsageControlModesAfterEdits(
+  originalBlocks: Record<string, BlockState> | undefined,
+  blocks: Record<string, BlockState> | undefined
+): void {
+  for (const [blockId, block] of Object.entries(blocks ?? {})) {
+    if (block.type !== 'agent') continue
+    const tools = coerceObjectArray(block.subBlocks?.tools?.value).array
+    if (!tools) continue
+    const originalTools = coerceObjectArray(
+      originalBlocks?.[blockId]?.subBlocks?.tools?.value
+    ).array
+    if (originalTools && isEqual(originalTools, tools)) continue
+
+    block.data = {
+      ...block.data,
+      canonicalModes: applyAgentToolUsageControlModes(tools, block.data?.canonicalModes),
     }
   }
 }

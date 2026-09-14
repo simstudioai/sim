@@ -11,10 +11,8 @@ import {
   normalizeSubblockValue,
   normalizeTools,
   resolveBlockRetryUpdate,
-  updateCanonicalModesForInputs,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
-import { getBlock } from '@/blocks/registry'
 
 const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
   mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
@@ -202,48 +200,6 @@ describe('createBlockFromParams', () => {
   })
 })
 
-describe('agent permission selections from API inputs', () => {
-  it('preserves distinct active modes when an unchanged round trip contains both values', () => {
-    const repeated = Array.from({ length: 2 }, () => ({
-      type: 'custom-tool',
-      customToolId: 'repeated',
-      usageControl: 'force',
-      usageControlExpression: 'none',
-    }))
-    const block = createBlockFromParams('agent', {
-      type: 'agent',
-      name: 'Agent',
-      inputs: { tools: repeated },
-    })
-    const modes = { '1:agentToolUsageControl': 'advanced' as const, model: 'advanced' as const }
-    block.data.canonicalModes = modes
-    block.subBlocks.tools.value = normalizeTools(structuredClone(repeated))
-
-    updateCanonicalModesForInputs(block, ['tools'], getBlock('agent')!)
-
-    expect(block.data.canonicalModes).toEqual(modes)
-  })
-
-  it('returns to the Auto default when an API tool omits both permission fields', () => {
-    const block = createBlockFromParams('agent', {
-      type: 'agent',
-      name: 'Agent',
-      inputs: {
-        tools: [{ type: 'custom-tool', customToolId: 'custom-1', usageControlExpression: 'none' }],
-      },
-    })
-    block.data.canonicalModes.model = 'advanced'
-    block.subBlocks.tools.value = normalizeTools([
-      { type: 'custom-tool', customToolId: 'custom-1' },
-    ])
-
-    updateCanonicalModesForInputs(block, ['tools'], getBlock('agent')!)
-
-    expect(block.data.canonicalModes).toEqual({ model: 'advanced' })
-    expect(block.subBlocks.tools.value[0].usageControl).toBe('auto')
-  })
-})
-
 describe('filterDisallowedTools', () => {
   it('assigns canonical tool modes after removing disallowed tools', () => {
     const block = createBlockFromParams(
@@ -313,6 +269,13 @@ describe('normalizeTools', () => {
         isExpanded: true,
       },
     ])
+  })
+
+  it('defaults a custom tool reference without either permission field to Auto', () => {
+    expect(normalizeTools([{ type: 'custom-tool', customToolId: 'custom-1' }])[0]).toMatchObject({
+      usageControl: 'auto',
+      usageControlExpression: undefined,
+    })
   })
 })
 

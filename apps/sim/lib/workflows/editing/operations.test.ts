@@ -1344,4 +1344,42 @@ describe('tool canonical-mode reindexing', () => {
     expect(editTools(workflow, [selectorTool])).toEqual({ '0:projectId': 'basic' })
     expect(editTools(workflow, [])).toEqual({})
   })
+
+  it('selects a Permission Mode at the final position of a tool the edit also moves', () => {
+    const fixedTool = { ...selectorTool, usageControl: 'force' }
+    const expressionTool = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Variable',
+      params: { manualProjectId: '{{PROJECT}}' },
+      usageControlExpression: '<start.toolMode>',
+      isExpanded: false,
+    }
+    const workflow = agentWithTools([expressionTool, fixedTool], {
+      '0:agentToolUsageControl': 'advanced',
+    })
+
+    expect(editTools(workflow, [fixedTool, expressionTool])).toEqual({
+      '1:agentToolUsageControl': 'advanced',
+    })
+  })
+
+  it('keeps a round-tripped Permission Mode with its tool when an explicit choice moves past it', () => {
+    const roundTripTool = { ...selectorTool, usageControlExpression: '<start.dormant>' }
+    const expressionTool = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Variable',
+      params: { manualProjectId: '{{PROJECT}}' },
+      usageControlExpression: '<start.toolMode>',
+      isExpanded: false,
+    }
+    const workflow = agentWithTools([roundTripTool, expressionTool], {
+      '1:agentToolUsageControl': 'advanced',
+    })
+
+    expect(editTools(workflow, [expressionTool, roundTripTool])).toEqual({
+      '0:agentToolUsageControl': 'advanced',
+    })
+  })
 })
