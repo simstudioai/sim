@@ -5,10 +5,13 @@ interface SharedObjectActivity {
 
 type ActivityPhrase = string | SharedObjectActivity
 
-const PAGE_NAVIGATION: SharedObjectActivity = { verb: 'navigated', object: 'pages' }
-const PAGE_READING: SharedObjectActivity = { verb: 'read', object: 'pages' }
-const PAGE_SEARCHING: SharedObjectActivity = { verb: 'searched', object: 'pages' }
-const PAGE_SCROLLING: SharedObjectActivity = { verb: 'scrolled', object: 'pages' }
+const PAGE_NAVIGATION = {
+  verb: 'navigated',
+  object: 'pages',
+} as const satisfies SharedObjectActivity
+const PAGE_READING = { verb: 'read', object: 'pages' } as const satisfies SharedObjectActivity
+const PAGE_SEARCHING = { verb: 'searched', object: 'pages' } as const satisfies SharedObjectActivity
+const PAGE_SCROLLING = { verb: 'scrolled', object: 'pages' } as const satisfies SharedObjectActivity
 
 interface OperationActivity {
   label: string

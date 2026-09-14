@@ -63,15 +63,8 @@ export function getActiveToolActivityTitle(
     : label
 }
 
-/** Surface the latest action needing attention, otherwise the newest running action. */
+/** Keep running work visible until every parallel call finishes. */
 export function getActivityStatusTool(tools: ToolCallData[]): ToolCallData | undefined {
-  const latest = tools.at(-1)
-  if (
-    latest &&
-    latest.status !== ToolCallStatus.success &&
-    latest.status !== ToolCallStatus.executing
-  )
-    return latest
   return (
     tools.reduce<ToolCallData | undefined>(
       (newest, tool) =>
@@ -80,7 +73,7 @@ export function getActivityStatusTool(tools: ToolCallData[]): ToolCallData | und
           ? tool
           : newest,
       undefined
-    ) ?? latest
+    ) ?? tools.at(-1)
   )
 }
 

@@ -121,6 +121,25 @@ describe.each(['mothership', 'workflow', 'browser'])('%s activity cadence', (age
     expect(header()?.textContent).toBe('Read files')
   })
 
+  it.each(['error', 'cancelled', 'interrupted', 'rejected', 'skipped'] as const)(
+    'keeps an earlier parallel call active when the latest one becomes %s',
+    (status) => {
+      render([tool('first'), tool('second')])
+      advance(100)
+      render([tool('first'), tool('second', status)])
+      const outcome =
+        status === 'error' || status === 'rejected'
+          ? 'failed'
+          : status === 'skipped'
+            ? 'skipped'
+            : 'stopped'
+      expect(header()?.textContent).toBe(`Reading first · 1 ${outcome}`)
+      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+      advance(1000)
+      expect(header()?.textContent).toBe(`Reading first · 1 ${outcome}`)
+    }
+  )
+
   it('surfaces an earlier parallel failure while the latest call keeps working', () => {
     render([tool('first'), tool('second')])
     advance(100)

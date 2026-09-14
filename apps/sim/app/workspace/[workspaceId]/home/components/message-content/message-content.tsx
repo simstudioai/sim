@@ -992,7 +992,7 @@ function MessageContentInner({
 
   return (
     <div>
-      <div className='space-y-[10px]'>
+      <div className='space-y-[10px] [&>[data-agent-group]:has(+[data-agent-group])]:mb-4'>
         {segments.map((segment, i) => {
           switch (segment.type) {
             case 'text':
@@ -1028,6 +1028,7 @@ function MessageContentInner({
               return (
                 <div
                   key={segment.id}
+                  data-agent-group
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <AgentGroup
