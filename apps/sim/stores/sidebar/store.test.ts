@@ -102,6 +102,21 @@ describe('sidebar width CSS variables', () => {
 
     expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
   })
+
+  it('clamps the default fallback to a viewport maximum below the default', () => {
+    const innerWidth = window.innerWidth
+    window.innerWidth = 800
+    try {
+      useSidebarStore.setState({ isCollapsed: false, sidebarWidth: Number.NaN })
+
+      useSidebarStore.getState().syncWidth()
+
+      expect(widthVars().expanded).toBe(`${getMaxSidebarWidth(800)}px`)
+      expect(getMaxSidebarWidth(800)).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+    } finally {
+      window.innerWidth = innerWidth
+    }
+  })
 })
 
 describe('getMaxSidebarWidth', () => {

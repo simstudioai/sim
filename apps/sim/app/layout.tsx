@@ -153,7 +153,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var expandedWidth =
                     typeof width === 'number' && isFinite(width)
                       ? Math.min(Math.max(width, 224), maxSidebarWidth)
-                      : defaultSidebarWidth;
+                      : Math.min(defaultSidebarWidth, maxSidebarWidth);
                   document.documentElement.style.setProperty(
                     '--sidebar-expanded-width',
                     expandedWidth + 'px'

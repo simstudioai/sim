@@ -21,10 +21,10 @@ export function getMaxSidebarWidth(viewportWidth: number): number {
 
 /** Clamps an expanded sidebar width into the valid range for the current viewport. */
 function clampSidebarWidth(width: number): number {
-  if (!Number.isFinite(width)) return SIDEBAR_WIDTH.DEFAULT
+  const target = Number.isFinite(width) ? width : SIDEBAR_WIDTH.DEFAULT
   const max =
     typeof window === 'undefined' ? Number.POSITIVE_INFINITY : getMaxSidebarWidth(window.innerWidth)
-  return Math.min(Math.max(width, SIDEBAR_WIDTH.MIN), max)
+  return Math.min(Math.max(target, SIDEBAR_WIDTH.MIN), max)
 }
 
 /**
