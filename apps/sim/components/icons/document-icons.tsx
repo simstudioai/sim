@@ -259,9 +259,10 @@ export function DefaultFileIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function getDocumentIcon(
-  mimeType: string,
+  rawMimeType: string,
   filename: string
 ): (props: SVGProps<SVGSVGElement>) => React.JSX.Element {
+  const mimeType = rawMimeType.split(';')[0].trim().toLowerCase()
   const extension = filename.split('.').pop()?.toLowerCase()
 
   if (
