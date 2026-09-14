@@ -13,8 +13,12 @@ interface TerminalCloseRequest {
 export function useTerminalCloseConfirmation(scopeId: string) {
   const pendingRef = useRef<TerminalCloseRequest | null>(null)
   const [request, setRequest] = useState<TerminalCloseRequest | null>(null)
+  const [previousScopeId, setPreviousScopeId] = useState(scopeId)
 
-  if (request && request.scopeId !== scopeId) setRequest(null)
+  if (previousScopeId !== scopeId) {
+    setPreviousScopeId(scopeId)
+    setRequest(null)
+  }
 
   useEffect(() => {
     return () => {
