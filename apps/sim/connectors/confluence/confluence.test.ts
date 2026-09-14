@@ -10,15 +10,14 @@ import {
   buildLastModifiedClause,
   confluenceConnector,
   confluenceStorageToPlainText,
+  confluenceViewToPlainText,
   DYNAMIC_CONTENT_SKIP_REASON,
   escapeCql,
   extractConfluenceStorageText,
   isCurrentContent,
-  preserveConfluenceCallouts,
   readIncludedLabels,
 } from '@/connectors/confluence/confluence'
 import { extractCursor } from '@/connectors/confluence/cursor'
-import { htmlToPlainText } from '@/connectors/utils'
 
 describe('Confluence service-account scopes', () => {
   it('requests metadata and role reads needed for complete mirrored ACLs', () => {
@@ -216,14 +215,14 @@ describe('readIncludedLabels', () => {
   })
 })
 
-describe('preserveConfluenceCallouts', () => {
+describe('confluenceViewToPlainText', () => {
   it.concurrent('handles empty content', () => {
-    expect(preserveConfluenceCallouts('')).toBe('')
+    expect(confluenceViewToPlainText('')).toBe('')
   })
 
   it.concurrent('leaves content with no macros unchanged', () => {
     const html = '<p>Just a normal paragraph.</p>'
-    expect(preserveConfluenceCallouts(html)).toContain('Just a normal paragraph.')
+    expect(confluenceViewToPlainText(html)).toContain('Just a normal paragraph.')
   })
 
   it.concurrent('labels a built-in warning macro and keeps its body', () => {
@@ -232,7 +231,7 @@ describe('preserveConfluenceCallouts', () => {
       '<span class="aui-icon aui-icon-small aui-iconfont-warning confluence-information-macro-icon"></span>' +
       '<div class="confluence-information-macro-body"><p>Do NOT use this form for GitLab access.</p></div>' +
       '</div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).toContain('[WARNING]')
     expect(result).toContain('Do NOT use this form for GitLab access.')
   })
@@ -242,7 +241,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="confluence-information-macro confluence-information-macro-information">' +
       '<div class="confluence-information-macro-body"><p>Heads up.</p></div>' +
       '</div>'
-    expect(preserveConfluenceCallouts(html)).toContain('[INFO] Heads up.')
+    expect(confluenceViewToPlainText(html)).toContain('[INFO] Heads up.')
   })
 
   it.concurrent('labels a built-in note macro', () => {
@@ -250,7 +249,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="confluence-information-macro confluence-information-macro-note">' +
       '<div class="confluence-information-macro-body"><p>See also.</p></div>' +
       '</div>'
-    expect(preserveConfluenceCallouts(html)).toContain('[NOTE] See also.')
+    expect(confluenceViewToPlainText(html)).toContain('[NOTE] See also.')
   })
 
   it.concurrent('labels a built-in tip macro', () => {
@@ -258,7 +257,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="confluence-information-macro confluence-information-macro-tip">' +
       '<div class="confluence-information-macro-body"><p>Pro tip.</p></div>' +
       '</div>'
-    expect(preserveConfluenceCallouts(html)).toContain('[TIP] Pro tip.')
+    expect(confluenceViewToPlainText(html)).toContain('[TIP] Pro tip.')
   })
 
   it.concurrent('labels a generic custom-colored Panel macro using its header title', () => {
@@ -267,7 +266,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="panelHeader" style="background-color: #ffebe6;"><b>Do NOT use this form for:</b></div>' +
       '<div class="panelContent"><p>GitLab access requests go to the private channel instead.</p></div>' +
       '</div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).toContain('[CALLOUT: Do NOT use this form for:]')
     expect(result).toContain('GitLab access requests go to the private channel instead.')
   })
@@ -276,7 +275,7 @@ describe('preserveConfluenceCallouts', () => {
     const html =
       '<div class="panel"><div class="panelHeader"><b>Warning:</b></div>' +
       '<div class="panelContent"><p>See replacement form.</p></div></div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).toContain('[CALLOUT: Warning:] See replacement form.')
   })
 
@@ -286,7 +285,7 @@ describe('preserveConfluenceCallouts', () => {
       const html =
         '<div class="panel"><div class="panelHeader"><b>Warning:</b> <span>Do not use</span></div>' +
         '<div class="panelContent"><p>See replacement form.</p></div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       expect(result).toContain('[CALLOUT: Warning: Do not use]')
     }
   )
@@ -294,13 +293,13 @@ describe('preserveConfluenceCallouts', () => {
   it.concurrent('falls back to a bare CALLOUT label when a Panel macro has no header text', () => {
     const html =
       '<div class="panel"><div class="panelContent"><p>Untitled panel body.</p></div></div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).toContain('[CALLOUT]')
     expect(result).toContain('Untitled panel body.')
   })
 
   it.concurrent(
-    'keeps the exclusion marker attached to its content through htmlToPlainText, even across surrounding whitespace collapse',
+    'keeps the exclusion marker attached to its content across surrounding whitespace collapse',
     () => {
       const html =
         '<p>Intro paragraph.</p>\n\n' +
@@ -309,7 +308,7 @@ describe('preserveConfluenceCallouts', () => {
         '<ul><li>GitLab</li></ul></div>' +
         '</div>\n\n' +
         '<p>Trailing paragraph.</p>'
-      const plainText = htmlToPlainText(preserveConfluenceCallouts(html))
+      const plainText = confluenceViewToPlainText(html)
       expect(plainText).toContain('[WARNING] Do NOT use this form for: GitLab')
       expect(plainText).toContain('Intro paragraph.')
       expect(plainText).toContain('Trailing paragraph.')
@@ -325,7 +324,7 @@ describe('preserveConfluenceCallouts', () => {
         '<p>Do NOT use this form for:</p>' +
         '<ul><li>GitLab</li><li>ServiceNow</li></ul>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       expect(result).not.toContain('for:GitLab')
       expect(result).not.toContain('GitLabServiceNow')
       expect(result).toContain('Do NOT use this form for: GitLab ServiceNow')
@@ -339,7 +338,7 @@ describe('preserveConfluenceCallouts', () => {
         '<div class="panel"><div class="panelContent">' +
         '<p>First sentence.</p><p>Second sentence.</p>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       expect(result).toContain('First sentence. Second sentence.')
       expect(result).not.toContain('sentence.Second')
     }
@@ -355,7 +354,7 @@ describe('preserveConfluenceCallouts', () => {
         '<ul><li>Nested item A</li><li>Nested item B</li></ul>' +
         '</li><li>Outer item two</li></ul>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       // Each nested <li>'s text must appear exactly once, not duplicated by the
       // outer <li> also being matched and its .text() recursing into it.
       const occurrences = (result.match(/Nested item A/g) ?? []).length
@@ -370,7 +369,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="panel"><div class="panelContent">' +
       '<table><tr><td>Cell text<blockquote><p>quoted text</p></blockquote>after quote</td></tr></table>' +
       '</div></div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).not.toContain('quotedtext')
     expect(result).not.toContain('textafter')
     expect(result).toContain('Cell text quoted text after quote')
@@ -383,7 +382,7 @@ describe('preserveConfluenceCallouts', () => {
         '<div class="panel"><div class="panelContent">' +
         '<p>This is un<b>believe</b>able.</p>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       expect(result).not.toContain('un believe able')
       expect(result).toContain('This is unbelieveable.')
     }
@@ -394,7 +393,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="confluence-information-macro confluence-information-macro-warning">' +
       '<div class="confluence-information-macro-body"><p>Do not proceed<b>!</b></p></div>' +
       '</div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).not.toContain('proceed !')
     expect(result).toContain('[WARNING] Do not proceed!')
   })
@@ -404,7 +403,7 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="panel"><div class="panelContent">' +
       '<p>Do <b>NOT</b> use this form.</p>' +
       '</div></div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).toContain('Do NOT use this form.')
   })
 
@@ -416,7 +415,7 @@ describe('preserveConfluenceCallouts', () => {
         '<div class="panel"><div class="panelHeader"><b>Inner</b></div>' +
         '<div class="panelContent"><p>inner body</p></div></div>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       expect(result).toContain('[CALLOUT: Outer]')
       expect(result).toContain('[CALLOUT: Inner] inner body')
     }
@@ -430,7 +429,7 @@ describe('preserveConfluenceCallouts', () => {
         '<div class="confluence-information-macro confluence-information-macro-warning">' +
         '<div class="confluence-information-macro-body"><p>Do not use this.</p></div></div>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       expect(result).toContain('[WARNING] Do not use this.')
     }
   )
@@ -443,7 +442,7 @@ describe('preserveConfluenceCallouts', () => {
         '<div class="panel"><div class="panelHeader"><b>Inner title</b></div>' +
         '<div class="panelContent"><p>inner body</p></div></div>' +
         '</div></div>'
-      const result = preserveConfluenceCallouts(html)
+      const result = confluenceViewToPlainText(html)
       // The outer panel has no header of its own — it must fall back to a
       // bare [CALLOUT], not steal "Inner title" from the nested panel.
       expect(result).toContain('[CALLOUT] [CALLOUT: Inner title] inner body')
@@ -455,9 +454,97 @@ describe('preserveConfluenceCallouts', () => {
       '<div class="confluence-information-macro confluence-information-macro-warning">' +
       '<div class="confluence-information-macro-body"><p>Do NOT use this form for:<br>GitLab</p></div>' +
       '</div>'
-    const result = preserveConfluenceCallouts(html)
+    const result = confluenceViewToPlainText(html)
     expect(result).not.toContain('for:GitLab')
     expect(result).toContain('[WARNING] Do NOT use this form for: GitLab')
+  })
+
+  it.concurrent('drops app macro bootstrap scripts, inline styles, and chart data', () => {
+    const html =
+      '<p><style>[data-colorid=yr9gnc4vid]{color:#333333}</style>' +
+      '<span data-colorid="yr9gnc4vid">Colored text</span></p>' +
+      '<style type="text/css">/*<![CDATA[*/ div.rbtoc1748352890217 {padding: 0px;} /*]]>*/</style>' +
+      '<div class="ap-container" id="ap-lucidchart"><div class="ap-content"></div>' +
+      '<script class="ap-iframe-body-script">//<![CDATA[\n(function(){ var data = {"addon_key":"lucidchart-app"}; AP._createContainer(data); }());\n//]]></script></div>' +
+      '<script class="chart-render-data" type="application/json">{"pluginKey": "confluence.extra.chart"}</script>' +
+      '<p>After</p>'
+    expect(confluenceViewToPlainText(html)).toBe('Colored text After')
+  })
+
+  it.concurrent('keeps the word break a dropped script or style occupied', () => {
+    expect(confluenceViewToPlainText('<p>Before<style>.a{}</style>After</p>')).toBe('Before After')
+  })
+
+  it.concurrent('treats a page holding only an app macro as having no text', () => {
+    const html =
+      '<div class="ap-container"><div class="ap-content"></div>' +
+      '<script class="ap-iframe-body-script">(function(){ var data = {"addon_key":"drawio"}; }());</script></div>'
+    expect(confluenceViewToPlainText(html)).toBe('')
+  })
+
+  it.concurrent('reduces an unresolved Jira issue macro to its issue key', () => {
+    const html =
+      '<p>Tracked in ' +
+      '<span class="confluence-jim-macro jira-issue" data-jira-key="ENG-101">' +
+      '<a href="https://example.atlassian.net/browse/ENG-101" class="jira-issue-key">' +
+      '<span class="aui-icon aui-icon-wait issue-placeholder"></span>ENG-101</a> - ' +
+      '<span class="summary">Getting issue details...</span> ' +
+      '<span class="aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder">STATUS</span>' +
+      '</span> and ' +
+      '<span class="confluence-jim-macro jira-issue conf-macro output-block">' +
+      '<a href="https://example.atlassian.net/browse/ENG-102" class="jira-issue-key">' +
+      '<span class="aui-icon aui-icon-wait issue-placeholder"> </span>ENG-102</a> - ' +
+      '<span class="summary">이슈 세부사항 가져오는 중...</span> ' +
+      '<span class="aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder">상태</span>' +
+      '</span>.</p>'
+    expect(confluenceViewToPlainText(html)).toBe('Tracked in ENG-101 and ENG-102 .')
+  })
+
+  it.concurrent('falls back to the data attribute when the issue key link has no text', () => {
+    const html =
+      '<span class="confluence-jim-macro jira-issue" data-jira-key="ENG-103">' +
+      '<span class="summary">Getting issue details...</span>' +
+      '<span class="aui-lozenge issue-placeholder">STATUS</span></span>'
+    expect(confluenceViewToPlainText(html)).toBe('ENG-103')
+  })
+
+  it.concurrent('keeps the summary and status of a Jira issue macro Confluence resolved', () => {
+    const html =
+      '<span class="confluence-jim-macro jira-issue resolved" data-jira-key="OPS-201">' +
+      '<a href="https://example.atlassian.net/browse/OPS-201" class="jira-issue-key">' +
+      '<img class="icon" src="https://example.atlassian.net/avatar.png" />OPS-201</a> - ' +
+      '<span class="summary">Rotate the signing key</span> ' +
+      '<span class="aui-lozenge aui-lozenge-success jira-macro-single-issue-export-pdf">Done</span>' +
+      '</span>'
+    expect(confluenceViewToPlainText(html)).toBe('OPS-201 - Rotate the signing key Done')
+  })
+
+  it.concurrent('keeps the block break of a Jira issue macro inside a callout', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-warning">' +
+      '<div class="confluence-information-macro-body">Blocked by' +
+      '<div class="confluence-jim-macro jira-issue" data-jira-key="ENG-104">' +
+      '<a class="jira-issue-key"><span class="aui-icon issue-placeholder"></span>ENG-104</a> - ' +
+      '<span class="summary">Getting issue details...</span>' +
+      '<span class="aui-lozenge issue-placeholder">STATUS</span></div>' +
+      'until release</div></div>'
+    expect(confluenceViewToPlainText(html)).toBe('[WARNING] Blocked by ENG-104 until release')
+  })
+
+  it.concurrent('drops only the placeholder shell of a Jira issues table', () => {
+    const html =
+      '<p>Release notes</p>' +
+      '<div class="confluence-jim-macro refresh-module-id jira-table placeholder conf-macro output-block">' +
+      '<div class="jira-issues"><table class="aui"><tbody><tr></tr>' +
+      '<tr><th>type</th><th>key</th><th>summary</th></tr></tbody></table></div>' +
+      '<div class="refresh-issues-bottom"><span class="aui-icon aui-icon-wait">Loading...</span></div></div>' +
+      '<div class="confluence-jim-macro jira-table"><table class="aui"><tbody>' +
+      '<tr><th>key</th><th>summary</th></tr><tr><td>ENG-104</td><td>Update the runbook</td></tr>' +
+      '</tbody></table></div>' +
+      '<div class="confluence-jim-macro jira-table"><div class="aui-message">No issues found</div></div>'
+    expect(confluenceViewToPlainText(html)).toBe(
+      'Release notes key summary ENG-104 Update the runbook No issues found'
+    )
   })
 })
 
@@ -1055,7 +1142,29 @@ describe('Confluence permission-scoped content', () => {
     )
 
     expect(document?.content).toContain('CONFIDENTIAL SALARY DATA')
-    expect(document?.contentHash).toBe('confluence:view-callouts:shared-page:1')
+    expect(document?.contentHash).toBe('confluence:view-text-v2:shared-page:1')
+  })
+
+  it('reports the content type of the endpoint that answered and omits unknown metadata', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('', { status: 404 }))
+
+    const document = await confluenceConnector.getDocument('token', config, 'shared-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(vi.mocked(fetch).mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual([
+      '/ex/confluence/cloud-1/wiki/api/v2/pages/shared-page',
+      '/ex/confluence/cloud-1/wiki/api/v2/blogposts/shared-page',
+    ])
+    expect(document?.metadata).toEqual({
+      spaceId: 'space-1',
+      contentType: 'blogpost',
+      status: 'current',
+      version: 1,
+      labels: [],
+      lastModified: '',
+    })
+    expect(document?.metadata).not.toHaveProperty('spaceKey')
   })
 
   it('rejects a missing storage body without falling back to rendered content', async () => {
@@ -1118,7 +1227,7 @@ describe('Confluence permission-scoped content', () => {
       const expectedHash =
         'mirrorsSourceAcls' in mode || 'perMemberListing' in mode
           ? 'confluence:storage-local-body-v2:shared-page:1'
-          : 'confluence:view-callouts:shared-page:1'
+          : 'confluence:view-text-v2:shared-page:1'
 
       expect(v2.documents[0].contentHash).toBe(expectedHash)
       expect(cql.documents[0].contentHash).toBe(expectedHash)
