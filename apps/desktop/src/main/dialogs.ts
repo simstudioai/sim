@@ -42,7 +42,6 @@ export function showShellDialog(
     title: options.title ?? 'Sim',
     message: options.message,
     detail: options.detail ?? '',
-    type: options.type ?? 'none',
     buttons,
     defaultId: options.defaultId ?? 0,
     cancelId,

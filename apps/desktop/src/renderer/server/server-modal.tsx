@@ -7,7 +7,6 @@ import {
   ChipModalHeader,
   ChipModalSurface,
 } from '@sim/emcn'
-import { Server } from '@sim/emcn/icons'
 import { observeShellSize } from '@/renderer/shell'
 import type { ShellWindowApi } from '@/shared/shell'
 
@@ -70,7 +69,6 @@ export function ServerModal({ server, configuration, initialError }: ServerModal
       className='max-h-screen [&_input]:select-text'
     >
       <ChipModalHeader
-        icon={Server}
         onClose={closeWindow}
         className='[-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]'
       >

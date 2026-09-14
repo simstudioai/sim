@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
 import { describeRunningCommand } from '@sim/terminal-protocol'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
@@ -67,7 +66,6 @@ export function useTerminalCloseConfirmation(scopeId: string) {
           if (!open) settle(false)
         }}
         title={request.targets.length === 1 ? 'Close terminal?' : 'Close terminals?'}
-        icon={TerminalWindow}
         text={
           running.length === 1
             ? `${describeRunningCommand(running[0])} is still running. Closing the terminal will stop it.`

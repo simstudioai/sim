@@ -4,7 +4,6 @@ export interface ShellDialogConfiguration {
   title: string
   message: string
   detail: string
-  type: 'none' | 'info' | 'error' | 'question' | 'warning'
   buttons: string[]
   defaultId: number
   cancelId: number

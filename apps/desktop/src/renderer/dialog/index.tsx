@@ -1,5 +1,4 @@
 import { ChipModalBody, ChipModalFooter, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
-import { CircleInfo, TriangleAlert } from '@sim/emcn/icons'
 import { createRoot } from 'react-dom/client'
 import { initializeShellPage, observeShellSize, shellWindow } from '@/renderer/shell'
 import type { ShellDialogConfiguration } from '@/shared/shell'
@@ -10,7 +9,7 @@ interface ShellDialogProps {
 }
 
 function ShellDialog({ configuration }: ShellDialogProps) {
-  const { message, detail, buttons, defaultId, cancelId, type } = configuration
+  const { message, detail, buttons, defaultId, cancelId } = configuration
   const primaryId = buttons.length === 1 ? 0 : buttons.findIndex((_, index) => index !== cancelId)
   const respond = (response: number) => shellWindow?.respond(response)
   const close = () => respond(cancelId)
@@ -28,7 +27,6 @@ function ShellDialog({ configuration }: ShellDialogProps) {
       className='max-h-screen'
     >
       <ChipModalHeader
-        icon={type === 'error' || type === 'warning' ? TriangleAlert : CircleInfo}
         onClose={close}
         className='[-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]'
       >
