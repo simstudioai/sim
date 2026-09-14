@@ -40,6 +40,7 @@ export const slackSearchJobSchema = z.object({
   credentialId: id,
   credentialVersion: id,
   receivedAt: z.number().int().positive(),
+  redirectAppId: id.optional(),
   message: slackSearchMessageSchema,
 })
 export type SlackSearchJob = z.infer<typeof slackSearchJobSchema>

@@ -26,7 +26,7 @@ import {
 
 /** Organization-owned Search bots are installed through the dedicated OAuth wizard. */
 export function OrganizationSearchSlack() {
-  const setupToastShown = useRef(false)
+  const setupToastShown = useRef<boolean>(false)
   const { toast } = useToast()
   const { organization, viewer } = useOrganizationContext()
   const installations = useSlackSearchInstallations(viewer.isAdmin ? organization.id : undefined)

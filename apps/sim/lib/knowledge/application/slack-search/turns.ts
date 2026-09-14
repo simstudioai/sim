@@ -40,7 +40,8 @@ export async function persistSlackSearchTurn(job: SlackSearchJob, expectedUserId
       .for('update')
       .limit(1)
     if (
-      !installation?.enabled ||
+      !installation ||
+      (job.redirectAppId ? installation.enabled : !installation.enabled) ||
       installation.revision !== job.revision ||
       installation.credentialVersion !== job.credentialVersion
     )
@@ -77,16 +78,18 @@ export async function persistSlackSearchTurn(job: SlackSearchJob, expectedUserId
     }
     if (duplicate && duplicate.conversationKey !== conversationKey)
       throw new OrchestrationError('forbidden', 'Slack event conversation changed')
-    if (conversation) await requireSlackSearchConversationSender(tx, conversation)
-    const chat = !conversation
-      ? null
-      : expectedUserId
-        ? await resolveSlackSearchChatRecord(tx, {
-            organizationId: installation.organizationId,
-            userId: expectedUserId,
-            conversation,
-          })
-        : await findSlackSearchChatRecord(tx, conversation)
+    if (conversation && !job.redirectAppId)
+      await requireSlackSearchConversationSender(tx, conversation)
+    const chat =
+      !conversation || job.redirectAppId
+        ? null
+        : expectedUserId
+          ? await resolveSlackSearchChatRecord(tx, {
+              organizationId: installation.organizationId,
+              userId: expectedUserId,
+              conversation,
+            })
+          : await findSlackSearchChatRecord(tx, conversation)
     if (
       chat &&
       (chat.organizationId !== installation.organizationId ||
