@@ -9,7 +9,6 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { CredentialGroupEnrollment } from '@/lib/api/contracts/credential-groups'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
 import {
   credentialGroupPeopleSearchParam,
   credentialGroupPeopleSearchUrlKeys,
@@ -237,7 +236,6 @@ export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupD
               : undefined
         }
       >
-        <SearchSetupReturn workspaceId={workspaceId} onNavigate={guard.guardBack} />
         {detail.error ? (
           <SettingsEmptyState tone='error'>
             {getErrorMessage(detail.error, "Couldn't load connected accounts")}

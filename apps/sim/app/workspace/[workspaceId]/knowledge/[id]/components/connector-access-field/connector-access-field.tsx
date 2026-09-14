@@ -237,8 +237,8 @@ export function SlackMemberSetup({
 }: SlackMemberSetupProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const href =
-    scope.kind === 'organization' || searchSetupSource
-      ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
+    scope.kind === 'organization'
+      ? slackSearchSetupHref(scope.organizationId, searchSetupSource ?? 'search')
       : `/workspace/${scope.workspaceId}/settings/credential-groups`
   return (
     <ChipLink href={href} onClick={onNavigate}>

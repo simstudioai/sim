@@ -184,8 +184,12 @@ export default async function CredentialGroupEnrollmentPage({
   const canReturnToSearch =
     returnToSearch &&
     ('canSearch' in enrollmentResult ? enrollmentResult.canSearch : !principal.organizationId)
-  const returnHref = canReturnToSearch ? searchReturnPath(principal) : APP_ENTRY_PATH
-  const returnLabel = canReturnToSearch ? 'Return to Search' : 'Open Sim'
+  const returnHref = canReturnToSearch ? sourceReturnPath(principal) : APP_ENTRY_PATH
+  const returnLabel = canReturnToSearch
+    ? principal.organizationId
+      ? 'Return to Search'
+      : 'Open knowledge bases'
+    : 'Open Sim'
   if (!enrollment)
     return <UnavailableSearchConnection returnHref={returnHref} returnLabel={returnLabel} />
 
@@ -328,9 +332,9 @@ export default async function CredentialGroupEnrollmentPage({
   )
 }
 
-function searchReturnPath(owner: ResourceOwner): string {
+function sourceReturnPath(owner: ResourceOwner): string {
   const scope = resourceScopeFromOwner(owner)
   return scope.kind === 'workspace'
-    ? `/workspace/${encodeURIComponent(scope.workspaceId)}/search`
+    ? `/workspace/${encodeURIComponent(scope.workspaceId)}/knowledge`
     : organizationRoutes(scope.organizationId).search
 }

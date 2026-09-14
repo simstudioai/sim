@@ -144,7 +144,7 @@ beforeEach(() => {
     NEW_CREDENTIAL,
   ])
   sessionStorage.clear()
-  window.history.replaceState(null, '', '/workspace/workspace-1/search?addConnector=google_drive')
+  window.history.replaceState(null, '', '/o/org-1/settings/integrations?addConnector=google_drive')
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)

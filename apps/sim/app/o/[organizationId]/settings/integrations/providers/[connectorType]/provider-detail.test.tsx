@@ -105,7 +105,7 @@ vi.mock('@/ee/credential-groups/components/organization-account-people', () => (
     return <p>Provider account connections</p>
   },
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
+vi.mock('@/app/o/[organizationId]/settings/components/integrations/search-source-setup', () => ({
   SearchSourceSetup: (props: unknown) => {
     mocks.setup(props)
     return null

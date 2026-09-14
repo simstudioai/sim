@@ -6,16 +6,13 @@ import { useQueryStates } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AddOrganizationSourceModal } from '@/app/o/[organizationId]/settings/components/integrations/add-organization-source-modal'
 import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
+import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/search-source-setup'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
-import {
-  searchSetupAccessParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,

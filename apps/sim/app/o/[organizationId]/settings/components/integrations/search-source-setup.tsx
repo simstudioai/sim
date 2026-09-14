@@ -18,18 +18,17 @@ import { useSession } from '@/lib/auth/auth-client'
 import {
   type ResourceScope,
   resourceScopeFields,
-  resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   managedSourceParam,
   searchSetupAccessParam,
   searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
+} from '@/lib/sim-search/search-params'
+import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -39,11 +38,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import {
-  useConnectorList,
-  usePrepareSearchSource,
-  useSearchIndex,
-} from '@/hooks/queries/kb/connectors'
+import { usePrepareSearchSource, useSearchIndex } from '@/hooks/queries/kb/connectors'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const AddConnectorModal = dynamic(
@@ -53,17 +48,8 @@ const AddConnectorModal = dynamic(
     ),
   { ssr: false }
 )
-const SearchSourceStatus = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/search/components/search-source-status').then(
-      (module) => module.SearchSourceStatus
-    ),
-  { ssr: false }
-)
-
 interface SearchSourceSetupProps {
-  workspaceId?: string
-  scope?: ResourceScope
+  scope: Extract<ResourceScope, { kind: 'organization' }>
   canAdmin: boolean
   memberAccessAvailable: boolean
   mirroredAccessAvailable: boolean
@@ -71,13 +57,11 @@ interface SearchSourceSetupProps {
 
 /** Owns admin setup and existing source management, including bookmarked OAuth return URLs. */
 export function SearchSourceSetup({
-  workspaceId,
-  scope: explicitScope,
+  scope,
   canAdmin,
   memberAccessAvailable,
   mirroredAccessAvailable,
 }: SearchSourceSetupProps) {
-  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const { data: session } = useSession()
   const {
     integrationAvailability,
@@ -109,16 +93,14 @@ export function SearchSourceSetup({
   const { mutate: prepareSource, isPending: preparing } = prepare
   const selectedMeta = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : undefined
   const redirectPersonalSetup = Boolean(
-    scope.kind === 'organization' &&
-      canAdmin &&
+    canAdmin &&
       selectedMeta &&
       setup['source-access'] !== 'members' &&
       !selectedMeta.mirrorsSourceAcls &&
       selectedType !== 'slack'
   )
-  const redirectManagement =
-    scope.kind === 'organization' && canAdmin && managedSource !== null && selectedType === null
-  const organizationId = scope.kind === 'organization' ? scope.organizationId : undefined
+  const redirectManagement = canAdmin && managedSource !== null && selectedType === null
+  const { organizationId } = scope
   useEffect(() => {
     if (redirectPersonalSetup && organizationId) {
       router.replace(organizationRoutes(organizationId).integrations)
@@ -138,46 +120,17 @@ export function SearchSourceSetup({
     enabled: canAdmin && open && !redirectManagement && !redirectPersonalSetup,
   })
   const knowledgeBaseId = index.data?.knowledgeBaseId ?? undefined
-  const connectors = useConnectorList(
-    canAdmin && managedSource && !redirectManagement ? knowledgeBaseId : undefined
-  )
 
   const close = () => {
     if (prepare.isPending) return
     if (selectedType !== null) void setSelectedType(null)
     if (managedSource !== null) void setManagedSource(null)
   }
-  const failedQuery = index.isError
-    ? index
-    : managedSource && connectors.isError
-      ? connectors
-      : null
-  const managedConnectors =
-    connectors.data?.filter(
-      (connector) => connector.id === managedSource || connector.connectorType === managedSource
-    ) ?? []
-  const managedType =
-    managedConnectors[0]?.connectorType ??
-    (managedSource && CONNECTOR_META_REGISTRY[managedSource] ? managedSource : undefined)
-  const initialMode = (type: string) => {
-    if (scope.kind === 'organization')
-      return setup['source-access'] === 'members' || type === 'slack'
-        ? ('members' as const)
-        : ('admin' as const)
-    const meta = CONNECTOR_META_REGISTRY[type]
-    if (
-      meta &&
-      getConnectorAccessAvailability(meta, integrationAvailability, {
-        memberAccessAvailable,
-        mirroredAccessAvailable,
-        oauthServiceAvailability,
-        isIntegrationAvailabilityReady:
-          isIntegrationAvailabilityReady || integrationAvailability.size > 0,
-      }).admin
-    )
-      return 'admin' as const
-    return 'members' as const
-  }
+  const failedQuery = index.isError ? index : null
+  const initialMode = (type: string) =>
+    setup['source-access'] === 'members' || type === 'slack'
+      ? ('members' as const)
+      : ('admin' as const)
 
   const selectedAccessMode = selectedType ? initialMode(selectedType) : undefined
   const selectedAvailability = selectedMeta
@@ -189,11 +142,9 @@ export function SearchSourceSetup({
       })
     : undefined
   const selectedAvailable = selectedAvailability
-    ? scope.kind === 'organization'
-      ? selectedAccessMode === 'admin'
-        ? selectedAvailability.admin
-        : selectedAvailability.members
-      : selectedAvailability.admin || selectedAvailability.members
+    ? selectedAccessMode === 'admin'
+      ? selectedAvailability.admin
+      : selectedAvailability.members
     : false
   const canPrepareSelected =
     canAdmin &&
@@ -241,11 +192,9 @@ export function SearchSourceSetup({
   ) {
     if (selectedType && session?.user?.id) {
       const accessMode = initialMode(selectedType)
-      const setupMode =
-        scope.kind === 'organization' &&
-        !(selectedMeta?.mirrorsSourceAcls && selectedMeta.auth.mode === 'oauth')
-          ? accessMode
-          : 'choose'
+      const setupMode = !(selectedMeta?.mirrorsSourceAcls && selectedMeta.auth.mode === 'oauth')
+        ? accessMode
+        : 'choose'
       return (
         <AddConnectorModal
           key={`${session.user.id}:${knowledgeBaseId}:${selectedType}:${setupMode}:${accessMode}`}
@@ -258,29 +207,16 @@ export function SearchSourceSetup({
           isSearchIndex
           initialConnectorType={selectedType}
           initialAccessMode={accessMode}
-          lockConnectorType={scope.kind === 'organization'}
+          lockConnectorType
           lockedAccessMode={setupMode === 'choose' ? undefined : setupMode}
           setupDraftKey={`${session.user.id}:${resourceScopeKey(scope)}:${knowledgeBaseId}:${selectedType}:${setupMode}`}
           onConnectorTypeChange={(type) =>
             void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
           }
           onCreated={async (_type, connector) => {
-            if (scope.kind !== 'organization') return
             await setSelectedType(null)
             router.push(organizationRoutes(scope.organizationId).searchSource(connector.id))
           }}
-        />
-      )
-    }
-    if (managedSource && (connectors.isPending || managedType)) {
-      return (
-        <SearchSourceStatus
-          scope={scope}
-          knowledgeBaseId={knowledgeBaseId}
-          connectorType={managedType ?? ''}
-          connectors={managedConnectors}
-          isLoading={connectors.isPending}
-          onClose={() => void setManagedSource(null)}
         />
       )
     }
@@ -299,10 +235,7 @@ export function SearchSourceSetup({
   const normalizedSearch = search.trim().toLowerCase()
   const visibleTypes = SEARCH_SOURCE_TYPES.filter(
     ([type, meta]) =>
-      (scope.kind !== 'organization' ||
-        setup['source-access'] === 'members' ||
-        meta.mirrorsSourceAcls ||
-        type === 'slack') &&
+      (setup['source-access'] === 'members' || meta.mirrorsSourceAcls || type === 'slack') &&
       `${meta.name} ${meta.description}`.toLowerCase().includes(normalizedSearch)
   )
 
@@ -400,11 +333,7 @@ export function SearchSourceSetup({
                     }
                   )
                   const available =
-                    scope.kind === 'organization'
-                      ? setup['source-access'] === 'members' || type === 'slack'
-                        ? members
-                        : central
-                      : central || members
+                    setup['source-access'] === 'members' || type === 'slack' ? members : central
                   return (
                     <SettingsResourceRow
                       key={type}

@@ -225,9 +225,9 @@ describe('focused Search enrollment', () => {
     expect(document.querySelector('form')).toBeNull()
     expect(
       Array.from(document.querySelectorAll('a'))
-        .find((link) => link.textContent === 'Return to Search')
+        .find((link) => link.textContent === 'Open knowledge bases')
         ?.getAttribute('href')
-    ).toBe('/workspace/canonical-workspace/search')
+    ).toBe('/workspace/canonical-workspace/knowledge')
     expect(document.body.textContent).not.toContain('Setup guide')
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: { optionId: 'site-two' } })
   })
@@ -243,7 +243,7 @@ describe('focused Search enrollment', () => {
       expect(document.body.textContent).toContain('Ask an admin')
       expect(oauthLinks()).toHaveLength(0)
       expect(document.querySelector('form')).toBeNull()
-      expect(document.body.textContent).toContain('Return to Search')
+      expect(document.body.textContent).toContain('Open knowledge bases')
     }
   )
 
@@ -255,7 +255,7 @@ describe('focused Search enrollment', () => {
     expect(document.body.textContent).toContain('Connection unavailable')
     expect(document.body.textContent).toContain('Ask an admin')
     expect(document.querySelector('a')?.getAttribute('href')).toBe(
-      '/workspace/canonical-workspace/search'
+      '/workspace/canonical-workspace/knowledge'
     )
   })
 
@@ -274,7 +274,7 @@ describe('focused Search enrollment', () => {
     expect(document.querySelector('h1')?.textContent).toBe('Confluence connected')
     expect(oauthLinks()).toHaveLength(0)
     expect(document.querySelector('form')).toBeNull()
-    expect(document.body.textContent).toContain('Return to Search')
+    expect(document.body.textContent).toContain('Open knowledge bases')
   })
 
   it('does not treat a success query marker as a connected account', async () => {

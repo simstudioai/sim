@@ -11,30 +11,9 @@ vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-show
   IntegrationTile: () => null,
 }))
 
-import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
 import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
-import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 
 const accounts = [{ credentialId: 'my-gmail', displayName: 'me@example.test' }]
-const source: SearchSourceSummary = {
-  knowledgeBaseId: 'kb',
-  connectorId: 'gmail',
-  connectorType: 'gmail',
-  sourceDescription: '',
-  accessMode: 'members',
-  availability: 'available',
-  enabled: true,
-  isSyncing: true,
-  lastSyncAt: null,
-  hasSyncError: false,
-  viewerDocumentCount: 0,
-  viewerFailedDocumentCount: 0,
-  viewerEmailVerified: true,
-  connectionRequired: true,
-  viewerMembership: 'connected',
-  viewerAccounts: accounts,
-}
-
 describe('personal integration disconnect', () => {
   let root: Root
   let container: HTMLDivElement
@@ -56,25 +35,10 @@ describe('personal integration disconnect', () => {
     container.remove()
     vi.unstubAllGlobals()
   })
-  async function render(overrides: Partial<SearchSourceSummary> = {}) {
+  async function render() {
     await act(async () =>
       root.render(
-        <SearchSourceRow
-          source={{ ...source, ...overrides } as SearchSourceSummary}
-          scope={{ kind: 'organization', organizationId: 'org' }}
-          canAdmin={false}
-          available={false}
-          waiting
-          isPending
-          onConnect={vi.fn()}
-          accountActions={
-            <DisconnectAccountMenu
-              organizationId='org'
-              integrationName='Gmail'
-              accounts={accounts}
-            />
-          }
-        />
+        <DisconnectAccountMenu organizationId='org' integrationName='Gmail' accounts={accounts} />
       )
     )
   }
@@ -96,15 +60,8 @@ describe('personal integration disconnect', () => {
     )!
   }
 
-  it.each([
-    ['indexing', {}],
-    ['failed', { hasSyncError: true }],
-    ['paused', { enabled: false }],
-    ['deactivated', { approved: false }],
-    ['reconnect', { viewerMembership: 'needs_reauth' }],
-    ['unavailable', { availability: 'unavailable', viewerMembership: null }],
-  ] as const)('allows disconnect while %s without requiring admin access', async (_, overrides) => {
-    await render(overrides)
+  it('requires confirmation before disconnecting an account', async () => {
+    await render()
     await openDisconnect()
     expect(document.body.textContent).toContain(
       'Disconnect me@example.test from all Gmail connections in this organization.'

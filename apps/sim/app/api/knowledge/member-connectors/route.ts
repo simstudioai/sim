@@ -12,7 +12,9 @@ export const GET = defineInternalJsonRoute({
   contract: listWorkspaceMemberConnectorsContract,
   auth: internalSessionAuth,
   operation: knowledgeOperations.listWorkspaceMemberConnectors,
-  rateLimit: internalRateLimits.none({ reason: 'One small read per visit to the Search tab' }),
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal connector listing behavior',
+  }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
   mapInput: ({ query }) => ({ workspaceId: query.workspaceId }),
   useCase: listWorkspaceMemberConnectors,

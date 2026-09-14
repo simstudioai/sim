@@ -52,7 +52,6 @@ import {
   CONNECTOR_SYNC_POLL_INTERVAL_MS,
   connectorKeys,
   isConnectorSyncingOrPending,
-  memberConnectorKeys,
   useConnectorDetail,
   useConnectorDocuments,
   useConnectorList,
@@ -60,25 +59,9 @@ import {
   useSearchSources,
   useTriggerSync,
   useUpdateConnector,
-  type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 
 const KB_ID = 'kb-1'
-
-function makeMemberConnector(
-  overrides: Partial<WorkspaceMemberConnector> = {}
-): WorkspaceMemberConnector {
-  return {
-    knowledgeBaseId: KB_ID,
-    knowledgeBaseName: 'Sim Search',
-    connectorId: 'connector-1',
-    connectorType: 'hubspot',
-    memberSyncStatus: 'idle',
-    viewerMembership: 'connected',
-    viewerDocumentCount: 0,
-    ...overrides,
-  }
-}
 
 function makeConnector(overrides: Partial<ConnectorData> = {}): ConnectorData {
   return {
@@ -331,61 +314,6 @@ describe('useTriggerSync optimistic state', () => {
     })
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: searchSourceKeys.lists() })
   })
-
-  it('queues a members connector in the workspace member-connector list as well', async () => {
-    const existing = [
-      makeConnector({ id: 'connector-1', accessMode: 'members', memberSyncStatus: 'idle' }),
-    ]
-    mocks.getQueryData.mockReturnValue(existing)
-
-    useTriggerSync()
-    const options = capturedMutationOptions()
-    const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
-
-    expect(mocks.setQueriesData).toHaveBeenCalledWith(
-      { queryKey: memberConnectorKeys.lists() },
-      expect.any(Function)
-    )
-    const patchMemberList = mocks.setQueriesData.mock.calls.at(-1)?.[1] as (
-      connectors: WorkspaceMemberConnector[] | undefined
-    ) => WorkspaceMemberConnector[] | undefined
-    const memberList = [
-      makeMemberConnector({ connectorId: 'connector-1', memberSyncStatus: 'idle' }),
-      makeMemberConnector({ connectorId: 'connector-2', memberSyncStatus: 'idle' }),
-    ]
-    expect(patchMemberList(memberList)?.map((c) => c.memberSyncStatus)).toEqual(['pending', 'idle'])
-    expect(patchMemberList(undefined)).toBeUndefined()
-
-    options.onError(
-      new Error('boom'),
-      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
-      context
-    )
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: memberConnectorKeys.lists(),
-    })
-  })
-
-  it('leaves the workspace member-connector list alone for a workspace connector', async () => {
-    mocks.getQueryData.mockReturnValue([makeConnector({ status: 'active' })])
-
-    useTriggerSync()
-    const options = capturedMutationOptions()
-    const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
-    options.onError(
-      new Error('boom'),
-      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
-      context
-    )
-
-    expect(mocks.setQueriesData).not.toHaveBeenCalledWith(
-      { queryKey: memberConnectorKeys.lists() },
-      expect.any(Function)
-    )
-    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({
-      queryKey: memberConnectorKeys.lists(),
-    })
-  })
 })
 
 describe('direct source detail mutation state', () => {
@@ -457,11 +385,6 @@ describe('direct source detail mutation state', () => {
       mocks.setQueryData.mockClear()
       mutation.onError(new Error('Sync refused'), variables, previous)
       expect(detailUpdater()(queued)).toEqual(detail)
-      if (accessMode === 'members') {
-        expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-          queryKey: memberConnectorKeys.lists(),
-        })
-      }
     }
   )
 
@@ -493,10 +416,6 @@ describe('direct source detail mutation state', () => {
       useTriggerSync()
       expect(await capturedMutation().onMutate(variables)).toBeUndefined()
       expect(mocks.setQueryData).not.toHaveBeenCalled()
-      expect(mocks.setQueriesData).not.toHaveBeenCalledWith(
-        { queryKey: memberConnectorKeys.lists() },
-        expect.any(Function)
-      )
     }
   )
 
