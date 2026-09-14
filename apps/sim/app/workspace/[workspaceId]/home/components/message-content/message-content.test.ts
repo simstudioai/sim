@@ -823,9 +823,9 @@ describe('assistantMessageHasVisibleActivity', () => {
     ).toBe(false)
   })
 
-  it('lets an open subagent own its indicator before and between calls', () => {
+  it('leaves an empty open subagent to the turn indicator', () => {
     const segments = parseBlocks([subagentStart('workflow', 'S1', 'main')])
-    expect(assistantMessageHasVisibleActivity(segments, true)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(segments, true)).toBe(false)
     expect(assistantMessageHasVisibleActivity(segments, false)).toBe(false)
   })
 
@@ -981,6 +981,6 @@ describe('deriveThinkingLabel', () => {
     expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
-    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBeNull()
+    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking…')
   })
 })

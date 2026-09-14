@@ -847,10 +847,12 @@ describe('normalizeToolActivityDescription', () => {
 describe('model-authored activity outcomes', () => {
   it.each([
     ['success', 'Checking invoices', 'Checked invoices'],
-    ['success', 'Check invoices', 'Completed: Check invoices'],
-    ['success', 'Reconciling invoices', 'Completed: Reconciling invoices'],
-    ['success', 'Revisando facturas', 'Completed: Revisando facturas'],
-    ['success', 'Stopped checking invoices', 'Completed checking invoices'],
+    ['success', 'Read the latest inbox emails', 'Read the latest inbox emails'],
+    ['success', 'Checked invoices', 'Checked invoices'],
+    ['success', 'Check invoices', 'Check invoices'],
+    ['success', 'Reconciling invoices', 'Reconciling invoices'],
+    ['success', 'Revisando facturas', 'Revisando facturas'],
+    ['success', 'Stopped checking invoices', 'Stopped checking invoices'],
     ['success', 'Completed: Check invoices', 'Completed: Check invoices'],
     ['error', 'Failed: Fetching invoices', 'Failed: Fetching invoices'],
     ['error', 'Stopped checking invoices', 'Failed checking invoices'],

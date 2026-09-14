@@ -16,11 +16,12 @@ function items(tools: ToolCallData[]): AgentGroupItem[] {
   return tools.map((data) => ({ type: 'tool', data }))
 }
 
-describe.each(['mothership', 'workflow', 'browser'])('%s activity cadence', (agentName) => {
+describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (agentName) => {
   let root: Root
   let container: HTMLDivElement
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -30,6 +31,7 @@ describe.each(['mothership', 'workflow', 'browser'])('%s activity cadence', (age
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
   const render = (tools: ToolCallData[], active = true) =>
     act(() =>
@@ -45,6 +47,34 @@ describe.each(['mothership', 'workflow', 'browser'])('%s activity cadence', (age
     )
   const header = () => container.querySelector('[role="status"]')
   const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
+
+  it('leaves empty lanes to the turn indicator and shows the first action immediately', () => {
+    render([])
+    expect(container.childElementCount).toBe(0)
+    advance(100)
+    render([tool('first')])
+    expect(header()?.textContent).toBe('Reading first')
+    const row = header()
+    render([tool('first', 'success')], false)
+    expect(header()?.textContent).toBe('Read first')
+    expect(header()).toBe(row)
+  })
+
+  it('preserves a successful model description in the header and expanded history', () => {
+    const completed = {
+      ...tool('first', 'success'),
+      activityDescription: 'Read the latest inbox emails',
+    }
+    render([completed], false)
+    expect(header()?.textContent).toBe(completed.activityDescription)
+    render([completed, tool('second', 'success')], false)
+    const trigger = container.querySelector<HTMLElement>('[role="button"]')!
+    act(() => trigger.click())
+    expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
+      completed.activityDescription
+    )
+    expect(container.textContent).not.toContain('Completed:')
+  })
 
   it('shows the first action immediately and coalesces bursts without replaying a backlog', () => {
     render([])
