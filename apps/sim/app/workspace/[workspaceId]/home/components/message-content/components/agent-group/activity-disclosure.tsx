@@ -28,7 +28,7 @@ export function ActivityDisclosure({
   const headerId = useId()
 
   return (
-    <div className='flex min-w-0 flex-col gap-1.5'>
+    <div className='flex min-w-0 flex-col'>
       <div
         role={collapsible ? 'button' : undefined}
         tabIndex={collapsible ? 0 : undefined}
@@ -59,9 +59,11 @@ export function ActivityDisclosure({
       {collapsible && (
         <Expandable expanded={expanded}>
           <ExpandableContent id={contentId}>
-            <ActivityViewport isStreaming={isStreaming} unbounded={unbounded}>
-              {children}
-            </ActivityViewport>
+            <div className='pt-1.5'>
+              <ActivityViewport isStreaming={isStreaming} unbounded={unbounded}>
+                {children}
+              </ActivityViewport>
+            </div>
           </ExpandableContent>
         </Expandable>
       )}
