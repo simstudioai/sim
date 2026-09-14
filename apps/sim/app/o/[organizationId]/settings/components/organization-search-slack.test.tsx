@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   copy: vi.fn(),
   removeError: null as Error | null,
+  installError: null as Error | null,
 }))
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }))
 vi.mock('@/components/settings/settings-panel', () => ({
@@ -32,7 +33,12 @@ vi.mock('@/hooks/queries/slack-search', () => ({
     error: mocks.removeError,
     reset: vi.fn(),
   }),
-  useStartSlackSearchOAuth: () => ({ mutate: mocks.install, isPending: false, reset: vi.fn() }),
+  useStartSlackSearchOAuth: () => ({
+    mutate: mocks.install,
+    isPending: false,
+    error: mocks.installError,
+    reset: vi.fn(),
+  }),
 }))
 
 import { OrganizationSearchSlack } from '@/app/o/[organizationId]/settings/components/organization-search-slack'
@@ -41,6 +47,7 @@ const installation: SlackSearchInstallationView = {
   id: 'installation-1',
   credentialId: 'credential-1',
   appId: 'A1',
+  appKind: 'custom',
   teamId: 'T1',
   teamName: 'Test workspace',
   enabled: true,
@@ -57,13 +64,16 @@ beforeEach(() => {
   vi.stubGlobal('navigator', { clipboard: { writeText: mocks.copy } })
   mocks.copy.mockReset().mockResolvedValue(undefined)
   mocks.context.mockReturnValue({ organization: { id: 'org-1' }, viewer: { isAdmin: true } })
-  mocks.list.mockReturnValue({ data: { installations: [], bots: [] } })
+  mocks.list.mockReturnValue({
+    data: { sharedAppAvailable: false, installations: [], bots: [] },
+  })
   mocks.manifest.mockReturnValue({
     data: { manifest: '{}', existingApp: null, createAppUrl: 'https://api.slack.com/apps' },
     isPending: false,
     refetch: mocks.refetch,
   })
   mocks.removeError = null
+  mocks.installError = null
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -77,6 +87,7 @@ async function render(installed = false) {
   if (installed) {
     mocks.list.mockReturnValue({
       data: {
+        sharedAppAvailable: false,
         installations: [installation],
         bots: [{ id: 'credential-1', displayName: 'Sim Search' }],
       },
@@ -85,7 +96,8 @@ async function render(installed = false) {
   await act(async () => root.render(<OrganizationSearchSlack />))
 }
 function button(label: string) {
-  const element = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+  const scope = document.querySelector('[role="dialog"]') ?? document
+  const element = Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find(
     (element) => element.textContent?.trim() === label
   )
   expect(element, label).toBeDefined()
@@ -107,6 +119,116 @@ async function action(label: string) {
 }
 
 describe('Slack Search settings and shared wizard', () => {
+  it.each([
+    { state: 'no bots', installations: [] },
+    { state: 'custom bots', installations: [installation] },
+  ])(
+    'installs the official app explicitly with $state and a custom source app',
+    async ({ installations }) => {
+      mocks.list.mockReturnValue({
+        data: { sharedAppAvailable: true, installations, bots: [] },
+      })
+      mocks.manifest.mockReturnValue({
+        data: {
+          manifest: '{}',
+          existingApp: { appId: 'A1', teamId: 'T1' },
+          sharedAppId: 'A_SHARED',
+          createAppUrl: 'https://api.slack.com/apps',
+        },
+      })
+      await render()
+      await click('Install Sim Search')
+      expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Install Sim Search')
+      expect(document.querySelectorAll('input')).toHaveLength(0)
+      expect(mocks.install).not.toHaveBeenCalled()
+      await click('Install Sim Search')
+      expect(mocks.install).toHaveBeenCalledExactlyOnceWith(
+        {
+          organizationId: 'org-1',
+          installationId: undefined,
+          name: 'Sim Search',
+          description: expect.any(String),
+          mode: 'shared',
+        },
+        expect.any(Object)
+      )
+      mocks.installError = new Error(
+        'Remove the previous Slack source configuration before switching apps; members must reconnect'
+      )
+      await render()
+      expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
+        'Remove the previous Slack source configuration'
+      )
+      expect(mocks.configure).not.toHaveBeenCalled()
+      expect(mocks.remove).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reconnects an installed official app without offering a duplicate installation', async () => {
+    mocks.list.mockReturnValue({
+      data: {
+        sharedAppAvailable: true,
+        installations: [{ ...installation, appId: 'A_SHARED', appKind: 'shared' }],
+        bots: [{ id: 'credential-1', displayName: 'Sim Search' }],
+      },
+    })
+    mocks.manifest.mockReturnValue({ data: { sharedAppId: 'A_SHARED', existingApp: null } })
+    await render()
+    expect(container).not.toHaveTextContent('Install Sim Search')
+    await action('Reconnect')
+    await click('Install Sim Search')
+    expect(mocks.install).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'shared', installationId: installation.id }),
+      expect.any(Object)
+    )
+  })
+
+  it('does not switch to custom setup when shared installation becomes unavailable', async () => {
+    mocks.list.mockReturnValue({
+      data: { sharedAppAvailable: true, installations: [installation], bots: [] },
+    })
+    mocks.manifest.mockReturnValue({
+      data: { sharedAppId: null, existingApp: null },
+      refetch: mocks.refetch,
+    })
+    await render()
+    await click('Install Sim Search')
+    expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
+      'Sim Search installation is unavailable'
+    )
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Create Slack app')
+    expect(button('Install Sim Search')).toBeDisabled()
+    expect(mocks.install).not.toHaveBeenCalled()
+    await click('Retry')
+    expect(mocks.refetch).toHaveBeenCalledOnce()
+  })
+
+  it('allows retrying shared setup after a preparation error with cached data', async () => {
+    mocks.list.mockReturnValue({
+      data: { sharedAppAvailable: true, installations: [installation], bots: [] },
+    })
+    mocks.manifest.mockReturnValue({
+      data: { sharedAppId: 'A_SHARED', existingApp: null },
+      error: new Error('Could not load Slack setup'),
+      refetch: mocks.refetch,
+    })
+    await render()
+    await click('Install Sim Search')
+    expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
+      'Could not load Slack setup'
+    )
+    expect(button('Install Sim Search')).toBeDisabled()
+    await click('Retry')
+    expect(mocks.refetch).toHaveBeenCalledOnce()
+    expect(mocks.install).not.toHaveBeenCalled()
+  })
+
+  it('does not show official installation when it is unavailable', async () => {
+    await render(true)
+    expect(container).not.toHaveTextContent('Install Sim Search')
+    expect(container).toHaveTextContent('Open in Slack')
+  })
+
   it('starts with one setup action and a Slack app link, with no manifest preview or form', async () => {
     await render()
     expect(container.querySelectorAll('button')).toHaveLength(1)

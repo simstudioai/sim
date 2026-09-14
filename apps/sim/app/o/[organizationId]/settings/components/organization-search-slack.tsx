@@ -35,6 +35,7 @@ export function OrganizationSearchSlack() {
     slackSetupResultParam.parser
   )
   const [wizard, setWizard] = useState<{
+    mode?: 'custom' | 'shared'
     installationId?: string
     appId?: string
     initialName?: string
@@ -43,6 +44,10 @@ export function OrganizationSearchSlack() {
   if (!viewer.isAdmin) return null
   const busy = configure.isPending || remove.isPending
   const bots = installations.data?.bots ?? []
+  const canInstallSharedApp =
+    !installations.error &&
+    installations.data?.sharedAppAvailable &&
+    !installations.data.installations.some((installation) => installation.appKind === 'shared')
 
   return (
     <SettingsPanel>
@@ -53,7 +58,16 @@ export function OrganizationSearchSlack() {
             <Chip onClick={() => void setSetupResult(null)}>Dismiss</Chip>
           </div>
         )}
-        <SettingsSection label='Connection'>
+        <SettingsSection
+          label='Connection'
+          action={
+            canInstallSharedApp && Boolean(installations.data?.installations.length) ? (
+              <Chip variant='primary' disabled={busy} onClick={() => setWizard({ mode: 'shared' })}>
+                Install Sim Search
+              </Chip>
+            ) : undefined
+          }
+        >
           {installations.error ? (
             <SettingsQueryErrorState
               error={installations.error}
@@ -72,7 +86,10 @@ export function OrganizationSearchSlack() {
                   title='Slack'
                   description='Connect your workspace to ask questions in Slack.'
                   trailing={
-                    <Chip variant='primary' onClick={() => setWizard({})}>
+                    <Chip
+                      variant='primary'
+                      onClick={() => setWizard(canInstallSharedApp ? { mode: 'shared' } : {})}
+                    >
                       {installations.data.sharedAppAvailable ? 'Install Sim Search' : 'Set up'}
                     </Chip>
                   }
@@ -127,6 +144,7 @@ export function OrganizationSearchSlack() {
                                 disabled: busy,
                                 onSelect: () =>
                                   setWizard({
+                                    mode: installation.appKind,
                                     installationId: installation.id,
                                     appId: installation.appId,
                                     initialName: name,
