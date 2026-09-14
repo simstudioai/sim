@@ -20,16 +20,11 @@ import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 1;
 
-/** Model-authored labels for one top-level tool activity, carried in tool arguments. */
-export const ToolActivity = z
-  .object({
-    id: z.string().trim().min(1).max(64),
-    title: z.string().trim().min(1).max(120).optional(),
-    completedTitle: z.string().trim().min(1).max(120).optional(),
-  })
-  .refine((value) => (value.title === undefined) === (value.completedTitle === undefined), {
-    message: "Supply both activity labels when introducing an id, or just the id to reuse it.",
-  });
+/** Model-authored completion label for one top-level tool activity, carried in tool arguments. */
+export const ToolActivity = z.object({
+  id: z.string().trim().min(1).max(64),
+  completedTitle: z.string().trim().min(1).max(120).optional(),
+});
 export type ToolActivity = z.infer<typeof ToolActivity>;
 
 /** Existing Sim secret names; plaintext credentials never enter this tool's arguments. */

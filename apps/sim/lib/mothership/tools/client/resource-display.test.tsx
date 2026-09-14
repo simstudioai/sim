@@ -110,6 +110,17 @@ describe('named CLI resource rows', () => {
     )
   })
 
+  it('names path-addressed file reads during replay without fetching an inventory', () => {
+    expect(
+      resolveNamedCliToolDisplayTitle(
+        'cli_files_read',
+        { args: ['--output', 'json', 'files', 'read', 'files/panel-notes.md'] },
+        context
+      )
+    ).toBe('Reading panel-notes.md')
+    expect(client.isFetching()).toBe(0)
+  })
+
   it('uses confirmed resources before inventory hydration and retains literal replacement characters', () => {
     const title = 'Invoices $& forecast'
     expect(
