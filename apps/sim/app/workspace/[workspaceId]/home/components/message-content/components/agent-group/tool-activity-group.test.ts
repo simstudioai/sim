@@ -24,7 +24,18 @@ describe('getToolActivitySummary', () => {
         tool('browser_type'),
         tool('browser_navigate'),
       ])
-    ).toBe('Navigated pages, read pages +1 more')
+    ).toBe('Navigated, read pages +1 more')
+  })
+
+  it.each([
+    [['browser_navigate', 'browser_read_text'], 'Navigated, read pages'],
+    [['browser_read_text', 'browser_navigate'], 'Read, navigated pages'],
+    [['browser_navigate', 'browser_read_text', 'browser_scroll'], 'Navigated, read pages +1 more'],
+    [['browser_navigate', 'browser_type'], 'Navigated pages, entered text'],
+    [['browser_navigate', 'browser_navigate'], 'Navigated pages'],
+    [['read', 'browser_read_text'], 'Read files, read pages'],
+  ])('compacts only explicit shared objects: %j', (names, expected) => {
+    expect(getToolActivitySummary((names as string[]).map((name) => tool(name)))).toBe(expected)
   })
 
   it('does not describe unsuccessful work as completed actions', () => {

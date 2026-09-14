@@ -15,6 +15,7 @@ import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
@@ -766,8 +767,11 @@ export function assistantMessageHasRenderableContent(
   return segments.length > 0
 }
 
-/** True when the transcript is already rendering an executing tool row. */
-export function assistantMessageHasVisibleExecutingTool(segments: MessageSegment[]): boolean {
+/** The transcript already owns an activity indicator, including gaps between calls. */
+export function assistantMessageHasVisibleActivity(
+  segments: MessageSegment[],
+  isStreaming = false
+): boolean {
   const hasExecutingTool = (items: AgentGroupItem[]): boolean =>
     items.some((item) =>
       item.type === 'tool'
@@ -775,9 +779,19 @@ export function assistantMessageHasVisibleExecutingTool(segments: MessageSegment
         : item.type === 'agent_group' && hasExecutingTool(item.group.items)
     )
 
-  return segments.some(
-    (segment) => segment.type === 'agent_group' && hasExecutingTool(segment.items)
-  )
+  return segments.some((segment, index) => {
+    if (segment.type !== 'agent_group') return false
+    if (hasExecutingTool(segment.items)) return true
+    if (!isStreaming) return false
+    if (segment.agentName !== 'mothership') return segment.isOpen || segment.isDelegating
+    const lastItem = segment.items.at(-1)
+    return (
+      index === segments.length - 1 &&
+      lastItem?.type === 'tool' &&
+      lastItem.data.status === 'success' &&
+      lastItem.data.toolName !== RETIRED_BROWSER_REQUEST_TAKEOVER_ID
+    )
+  })
 }
 
 export function shouldSmoothTextSegment({
@@ -957,18 +971,17 @@ function MessageContentInner({
 
   if (segments.length === 0 && !isLast) return null
 
-  // A visible executing tool row already spins — the turn-level shimmer would
-  // double it. (A null label means a just-opened lane's shimmer owns the state.)
+  /** Open activity groups own the shimmer through gaps between tool calls. */
   // A mid-stream special tag renders nothing until complete, so its bytes are a
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
-  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(segments)
+  const hasActivityIndicator = assistantMessageHasVisibleActivity(segments, isStreaming)
   const showShimmer =
     thinkingExpanded &&
     thinkingLabel !== null &&
     (segments.length === 0 ||
       trailingPendingTag ||
-      (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
+      (isStreamIdle && !trailingStreamActivity && !hasActivityIndicator))
 
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
@@ -979,7 +992,7 @@ function MessageContentInner({
 
   return (
     <div>
-      <div className='space-y-[10px]'>
+      <div className='space-y-[10px] [&>[data-agent-group]:has(+[data-agent-group])]:mb-4'>
         {segments.map((segment, i) => {
           switch (segment.type) {
             case 'text':
@@ -1015,6 +1028,7 @@ function MessageContentInner({
               return (
                 <div
                   key={segment.id}
+                  data-agent-group
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <AgentGroup
@@ -1024,7 +1038,11 @@ function MessageContentInner({
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}
-                    isLaneOpen={segment.isOpen}
+                    isLaneOpen={
+                      segment.agentName === 'mothership'
+                        ? i === segments.length - 1
+                        : segment.isOpen
+                    }
                   />
                 </div>
               )

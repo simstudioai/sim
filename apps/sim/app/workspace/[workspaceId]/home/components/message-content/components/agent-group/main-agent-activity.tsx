@@ -11,6 +11,7 @@ interface MainAgentActivityProps {
   ToolCallComponent: ComponentType<ToolCallItemProps>
   renderItem: (item: AgentGroupItem, index: number) => ReactNode
   autoScrollActivity: boolean
+  isActive: boolean
 }
 
 /** Keep answers and interactions in the transcript, outside collapsible tool history. */
@@ -27,15 +28,17 @@ export function MainAgentActivity({
   ToolCallComponent,
   renderItem,
   autoScrollActivity,
+  isActive,
 }: MainAgentActivityProps) {
   const activity: ReactNode[] = []
   let tools: ToolCallData[] = []
-  const flushTools = () => {
+  const flushTools = (active = false) => {
     if (tools.length === 0) return
     activity.push(
       <ToolActivityGroup
         key={tools[0].id}
         tools={tools}
+        isActive={active}
         ToolCallComponent={ToolCallComponent}
         autoScrollActivity={autoScrollActivity}
       />
@@ -63,7 +66,7 @@ export function MainAgentActivity({
       </Fragment>
     )
   }
-  flushTools()
+  flushTools(isActive)
 
   return <div className='flex min-w-0 flex-col gap-1.5'>{activity}</div>
 }

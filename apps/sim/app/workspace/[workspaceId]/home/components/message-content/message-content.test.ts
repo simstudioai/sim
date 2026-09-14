@@ -25,7 +25,7 @@ import {
 import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
 import {
-  assistantMessageHasVisibleExecutingTool,
+  assistantMessageHasVisibleActivity,
   deriveThinkingLabel,
   getOrchestratorMessageText,
   parseBlocks,
@@ -813,7 +813,22 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
   })
 })
 
-describe('assistantMessageHasVisibleExecutingTool', () => {
+describe('assistantMessageHasVisibleActivity', () => {
+  it('keeps the main tail active between calls but closes it when narration follows', () => {
+    const blocks = [mainToolCall('finished', 'read')]
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), true)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), false)).toBe(false)
+    expect(
+      assistantMessageHasVisibleActivity(parseBlocks([...blocks, mainText('Done.')]), true)
+    ).toBe(false)
+  })
+
+  it('lets an open subagent own its indicator before and between calls', () => {
+    const segments = parseBlocks([subagentStart('workflow', 'S1', 'main')])
+    expect(assistantMessageHasVisibleActivity(segments, true)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(segments, false)).toBe(false)
+  })
+
   it.each([undefined, 'main'])('retains an earlier running tool with spanId=%s', (spanId) => {
     const blocks: ContentBlock[] = [
       {
@@ -827,14 +842,12 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
     ]
     const segments = parseBlocks(blocks)
     expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
-    expect(assistantMessageHasVisibleExecutingTool(segments)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(segments)).toBe(true)
   })
 
   it('does not treat an open subagent lane as an executing tool row', () => {
     expect(
-      assistantMessageHasVisibleExecutingTool(
-        parseBlocks([subagentStart('workflow', 'S1', 'main')])
-      )
+      assistantMessageHasVisibleActivity(parseBlocks([subagentStart('workflow', 'S1', 'main')]))
     ).toBe(false)
   })
 
@@ -848,7 +861,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
         timestamp: 3,
       },
     ]
-    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(true)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(true)
   })
 
   it('does not let open parallel lanes suppress the single turn-level indicator', () => {
@@ -856,7 +869,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
       subagentStart('workflow', 'S1', 'main'),
       subagentStart('search', 'S2', 'main'),
     ]
-    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(false)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(false)
   })
 
   it('ignores the executing dispatch tool represented by its subagent lane', () => {
@@ -871,7 +884,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
         parentToolCallId: 'dispatch-1',
       },
     ]
-    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(false)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(false)
   })
 })
 
