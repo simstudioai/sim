@@ -35,6 +35,11 @@ const MODE_OPTIONS = [
   },
 ] as const
 
+/**
+ * Permission Mode control for one agent tool. Selector mode picks a fixed `usageControl`, and
+ * Variable mode edits a `usageControlExpression` that must resolve to auto, force, or none.
+ * Both values are kept so toggling modes does not discard the inactive one.
+ */
 export function ToolUsageControl({
   blockId,
   aggregateSubBlockId,
