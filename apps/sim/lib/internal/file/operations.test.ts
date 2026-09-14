@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -224,7 +225,9 @@ vi.mock('@/app/api/files/authorization', () => ({
 }))
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'
+import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import { executeFileManageOperation } from '@/lib/internal/file/operations'
+import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { FileConflictError } from '@/lib/uploads/contexts/workspace'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
@@ -387,6 +390,110 @@ describe('file manage folder wiring', () => {
     })
   })
 
+  describe('direct callers through the File handler and existing application policies', () => {
+    const caller: PersonalApiKeyPrincipal = {
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+    }
+
+    function directCall(
+      toolId: string,
+      input: unknown,
+      callerPrincipal: PersonalApiKeyPrincipal | SessionPrincipal = caller
+    ): InternalToolOperationCall {
+      return {
+        toolId,
+        input,
+        headers: new Headers(),
+        requestId: 'direct-file-policy',
+        context: { workflowId: '', workspaceId: 'workspace-1', callerPrincipal },
+      }
+    }
+
+    it.each<PersonalApiKeyPrincipal | SessionPrincipal>([
+      caller,
+      { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    ])('allows a $kind caller under current file-read policy', async (callerPrincipal) => {
+      const response = await executeFileTool(
+        directCall(
+          'file_read',
+          { operation: 'read', fileId: ['file-1', 'file-2'] },
+          callerPrincipal
+        )
+      )
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        success: true,
+        data: {
+          files: [
+            expect.objectContaining({ id: 'file-1' }),
+            expect.objectContaining({ id: 'file-2' }),
+          ],
+        },
+      })
+      expect(mockResolveEffectiveWorkspacePermission.mock.calls[0]?.slice(0, 2)).toEqual([
+        'user-1',
+        'workspace-1',
+      ])
+      expect(mockGetWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', expect.any(Object))
+    })
+
+    it('conceals a canonical file in another workspace before loading its content', async () => {
+      mockLoadActiveWorkspaceFileContext.mockResolvedValue({
+        fileId: 'other-file',
+        workspaceId: 'workspace-2',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'other-owner',
+      })
+      const response = await executeFileTool(
+        directCall('file_read', { operation: 'read', fileId: 'other-file' })
+      )
+      expect(response.status).toBe(404)
+      expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+      expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+    })
+
+    it('preserves the existing write-role requirement for a read-only direct caller', async () => {
+      mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+      const response = await executeFileTool(
+        directCall('file_write', {
+          operation: 'write',
+          fileName: 'new.txt',
+          content: 'new content',
+        })
+      )
+      expect(response.status).toBe(403)
+      expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+      expect(mockUpdateWorkspaceFileContent).not.toHaveBeenCalled()
+    })
+
+    it('preserves the workspace personal-key policy', async () => {
+      mockLoadActiveWorkspaceFileContext.mockResolvedValue({
+        fileId: 'file-1',
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: false,
+        billedAccountUserId: 'user-1',
+      })
+      const response = await executeFileTool(
+        directCall('file_read', { operation: 'read', fileId: 'file-1' })
+      )
+      expect(response.status).toBe(403)
+      expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    })
+
+    it('preserves current membership checks', async () => {
+      mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
+      const response = await executeFileTool(
+        directCall('file_read', { operation: 'read', fileId: 'file-1' })
+      )
+      expect(response.status).toBe(403)
+      expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    })
+  })
+
   /*
    * A per-user memory tree is exactly where a name collides: `self.md` exists
    * under every user's folder. These pin that the folder is what disambiguates
@@ -442,7 +549,11 @@ describe('file manage folder wiring', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self')
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+        'workspace-1',
+        'a-self',
+        undefined
+      )
     })
 
     /*
@@ -471,7 +582,11 @@ describe('file manage folder wiring', () => {
         })
       )
 
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-people-self')
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+        'workspace-1',
+        'a-people-self',
+        undefined
+      )
     })
 
     /*
@@ -537,7 +652,11 @@ describe('file manage folder wiring', () => {
         })
       )
 
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self')
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+        'workspace-1',
+        'a-self',
+        undefined
+      )
     })
 
     it('passes the replacement through as a string edit', async () => {
@@ -722,7 +841,8 @@ describe('file manage folder wiring', () => {
 
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
-      'notes-in-reports'
+      'notes-in-reports',
+      undefined
     )
   })
 
@@ -751,7 +871,8 @@ describe('file manage folder wiring', () => {
     )
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
-      'notes-in-archive'
+      'notes-in-archive',
+      undefined
     )
   })
 
@@ -819,7 +940,11 @@ describe('file manage folder wiring', () => {
       })
     )
 
-    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'real-id')
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'real-id',
+      undefined
+    )
   })
 
   it('accepts a canonical id inside a scope as well as a name', async () => {
@@ -842,7 +967,8 @@ describe('file manage folder wiring', () => {
 
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
-      'notes-in-reports'
+      'notes-in-reports',
+      undefined
     )
   })
 

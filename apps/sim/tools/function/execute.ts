@@ -187,7 +187,8 @@ To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In 
       description: 'Whether this code can read all workspace secrets or only selected ones',
     },
     mountedSecrets: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-only',
       description: 'Secret names this code can read when secretScope is "selected"',

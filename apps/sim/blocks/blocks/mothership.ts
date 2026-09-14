@@ -19,9 +19,9 @@ interface MothershipResponse extends ToolResponse {
 export const MothershipBlock: BlockConfig<MothershipResponse> = {
   type: 'mothership',
   name: 'Sim Chat',
-  description: 'Talk to Sim',
+  description: 'Run a prompt with integration and MCP tools',
   longDescription:
-    'The Sim Chat block sends a prompt with selected integration tools, files, and skill context for a one-shot response within a workflow.',
+    'Run a one-shot prompt with available workspace integration operations, selected MCP tools, and skill context. Tool access is limited to those operations.',
   bestPractices: `
   - Use for tasks that require multi-step reasoning, tool use, or cross-service coordination.
   - Choose Astra or Opus and a reasoning effort. Astra supports Fast mode.

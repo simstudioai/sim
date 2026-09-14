@@ -31,7 +31,7 @@ interface SearchDocsOutput {
 function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string | undefined {
   const { results, candidatesConsidered, droppedBelowThreshold, droppedStale } = outcome
   if (results.length === 0 && candidatesConsidered === 0) {
-    return 'No indexed candidates were returned. The search index may lag the live docs. Rephrase the query, or read the block definition and tips directly (blocks get / blocks tips).'
+    return 'No indexed candidates were returned for this scope. This result does not establish topic coverage. Read block definitions and tips directly (blocks get / blocks tips), or use web_fetch on the block docsLink.'
   }
   if (droppedBelowThreshold === 0 && droppedStale === 0) return undefined
 

@@ -336,6 +336,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
          * and a direct API call is one of the few that does not.
          */
         workflowId: '',
+        callerPrincipal: principal,
         userId,
         workspaceId: context.workspaceId,
         billingAttribution,

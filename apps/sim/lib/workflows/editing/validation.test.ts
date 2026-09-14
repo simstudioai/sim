@@ -4,6 +4,7 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { normalizeConditionRouterIds } from './builders'
 
 const {
@@ -1876,5 +1877,41 @@ describe('validateInputsForBlock - code fields', () => {
     expect(result.validInputs.script).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('expected a string, got object')
+  })
+})
+
+describe('validateInputsForBlock conditional declarations', () => {
+  it('validates the real video catalog against explicit provider and model selectors', () => {
+    const original = blockConfigsByType.video_generator_v3
+    blockConfigsByType.video_generator_v3 = VideoGeneratorV3Block
+    try {
+      const selectors = { provider: 'falai', model: 'veo-3.1-fast' }
+      const valid = validateInputsForBlock(
+        'video_generator_v3',
+        { duration: '4', resolution: '720p', ...selectors },
+        'video-1'
+      )
+      expect(valid.errors).toEqual([])
+      expect(valid.validInputs).toEqual({ duration: '4', resolution: '720p', ...selectors })
+
+      const invalid = validateInputsForBlock(
+        'video_generator_v3',
+        { ...selectors, duration: '20', resolution: '2160p' },
+        'video-1'
+      )
+      expect(invalid.errors.map((error) => error.field)).toEqual(['duration', 'resolution'])
+      expect(invalid.validInputs).toEqual(selectors)
+
+      const edited = validateInputsForBlock(
+        'video_generator_v3',
+        { duration: '4', resolution: '720p' },
+        'video-1',
+        { provider: 'falai', model: 'veo-3.1', duration: '8', resolution: '1080p' }
+      )
+      expect(edited.errors).toEqual([])
+      expect(edited.validInputs).toEqual({ duration: '4', resolution: '720p' })
+    } finally {
+      blockConfigsByType.video_generator_v3 = original
+    }
   })
 })

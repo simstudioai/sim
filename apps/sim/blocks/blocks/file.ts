@@ -1971,7 +1971,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
             folderPath: optionalText(params.writeFolderRef),
             content: omitContent ? undefined : params.content,
             ...(fileInput ? { fileInput } : {}),
-            contentType: params.contentType,
+            contentType: params.contentType ?? undefined,
             overwrite: params.overwrite === true || params.overwrite === 'true',
             workspaceId: params._context?.workspaceId,
           }

@@ -1,8 +1,10 @@
 /**
  * @vitest-environment node
  */
+import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
@@ -422,6 +424,69 @@ describe('executeFileTool', () => {
         workspaceId: 'workspace-1',
       })
     )
+  })
+
+  it.each([undefined, 'user-1'])(
+    'does not derive authority from body fields or userId (%s)',
+    async (userId) => {
+      const response = await executeFileTool(
+        request(
+          'file_read',
+          {
+            operation: 'read',
+            fileId: 'file-1',
+            callerPrincipal: { kind: 'session', userId: 'user-1', sessionId: 'forged' },
+          },
+          {
+            context: { workflowId: '', workspaceId: 'workspace-1', userId },
+          }
+        )
+      )
+      expect(response.status).toBe(401)
+      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mocks.executeManage).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps executor delegation authoritative when a direct caller is also present', async () => {
+    const callerPrincipal: PersonalApiKeyPrincipal = {
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+    }
+    const call = request('file_read', MANAGE_INPUTS.file_read)
+    call.context.callerPrincipal = callerPrincipal
+    const response = await executeFileTool(call)
+    expect(response.status).toBe(200)
+    expect(mocks.createPrincipal).toHaveBeenCalled()
+    expect(mocks.executeManage.mock.calls[0]?.[1].principal).toMatchObject({
+      kind: 'delegated',
+      serviceId: 'executor',
+    })
+    expect(mocks.executeManage.mock.calls[0]?.[1].principal).not.toBe(callerPrincipal)
+  })
+
+  it('never falls back to a direct caller after invalid executor delegation', async () => {
+    const call = request('file_read', MANAGE_INPUTS.file_read)
+    call.context.callerPrincipal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
+    mocks.createPrincipal.mockRejectedValueOnce(new InvalidInternalDelegationBindingError())
+    const response = await executeFileTool(call)
+    expect(response.status).toBe(401)
+    expect(mocks.createPrincipal).toHaveBeenCalled()
+    expect(mocks.executeManage).not.toHaveBeenCalled()
+  })
+
+  it('rejects a direct caller without trusted workspace scope', async () => {
+    const response = await executeFileTool(
+      request('file_read', MANAGE_INPUTS.file_read, {
+        context: {
+          workflowId: '',
+          callerPrincipal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        },
+      })
+    )
+    expect(response.status).toBe(401)
+    expect(mocks.executeManage).not.toHaveBeenCalled()
   })
 
   it('rejects missing trusted identity during principal construction', async () => {
