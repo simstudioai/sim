@@ -301,9 +301,14 @@ describe('copilot go stream helpers', () => {
       expect(context.awaitingAsyncContinuation?.pendingToolCallIds).toEqual([canonicalId])
     }
   })
-  it.each([false, true])(
-    'commits worker resource effects before forwarding (persistence failure: %s)',
-    async (fail) => {
+  it.each([
+    { fail: false, readOnly: false },
+    { fail: true, readOnly: false },
+    { fail: false, readOnly: true },
+    { fail: true, readOnly: true },
+  ])(
+    'commits worker resource effects before forwarding (failure: $fail, read only: $readOnly)',
+    async ({ fail, readOnly }) => {
       const resource = { type: 'workflow', id: 'wf', title: 'A workflow' }
       const order: string[] = []
       changeStoredChatResourcesMock.mockImplementation(async () => {
@@ -319,7 +324,12 @@ describe('copilot go stream helpers', () => {
             seq: 1,
             ts: '',
             stream: { streamId: 's' },
-            payload: { op: 'upsert', effectId: 's:tool:0', resource },
+            payload: {
+              op: 'upsert',
+              effectId: 's:tool:0',
+              resource,
+              ...(readOnly ? { readOnly: true } : {}),
+            },
           },
           {
             v: 1,
@@ -339,7 +349,10 @@ describe('copilot go stream helpers', () => {
         {
           flushAfterEvent: false,
           onEvent: (event) => {
-            if (event.type === 'resource') order.push('publish')
+            if (event.type === 'resource') {
+              order.push('publish')
+              expect(event.payload).toMatchObject(readOnly ? { readOnly: true } : { op: 'upsert' })
+            }
           },
         }
       )

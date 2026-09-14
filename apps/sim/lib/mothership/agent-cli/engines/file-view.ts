@@ -68,6 +68,13 @@ export const fileViewCommand: AgentCliEngine = {
       return {
         exitCode: 0,
         stderr: '',
+        resources: [
+          {
+            op: 'upsert',
+            readOnly: true,
+            resource: { type: 'file', id: file.id, title: file.name },
+          },
+        ],
         stdout: JSON.stringify({
           id: file.id,
           name: file.name,

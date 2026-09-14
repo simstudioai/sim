@@ -109,6 +109,7 @@ import {
   mothershipChatKeys,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
+import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
@@ -1280,11 +1281,11 @@ export function useChat(
 
   /**
    * Drops hydrated workflow tabs whose workflow no longer exists, so an old
-   * chat cannot resurrect a deleted workflow. The check is against a fetched
-   * workflow list rather than the cache: seeding the registry from the chat's
-   * persisted resources (what hydration previously did unconditionally) put
-   * phantom entries in the sidebar that 404 on click. Removal also deletes the
-   * resource from the chat's persisted set, so the tab stays gone next open.
+   * chat cannot resurrect a deleted workflow. The workspace list is the fast
+   * existence check; missing entries need an authorized detail read because a
+   * personal delegation can also address another workspace. Persisted chat
+   * resources alone never seed the sidebar. Confirmed 404s also remove the
+   * resource from the stored chat so the tab stays gone next open.
    */
   const reconcileHydratedWorkflowResources = useCallback(
     async (chatId: string, workflowResources: MothershipResource[]) => {
@@ -1297,14 +1298,28 @@ export function useChat(
         // resources on a network failure. The next hydration retries.
         return
       }
-      const deleted = selectDeletedWorkflowResources(
+      const missing = selectDeletedWorkflowResources(
         workflowResources,
         new Set(existing.map((workflow) => workflow.id)),
         getWorkflows(workspaceId)
       )
-      for (const resource of deleted) {
+      for (const resource of missing) {
         if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
-        removeResource('workflow', resource.id)
+        /** Personal delegation can read another workspace; absence from this list is not deletion. */
+        try {
+          await getQueryClient().fetchQuery({
+            queryKey: workflowKeys.state(resource.id),
+            queryFn: ({ signal }) => fetchWorkflowEnvelope(resource.id, signal),
+            staleTime: 0,
+          })
+        } catch (error) {
+          if (
+            isApiClientError(error) &&
+            error.status === 404 &&
+            (chatIdRef.current ?? selectedChatIdRef.current) === chatId
+          )
+            removeResource('workflow', resource.id)
+        }
       }
     },
     [workspaceId, organizationId, scopeKey, removeResource]

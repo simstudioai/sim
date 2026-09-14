@@ -151,6 +151,7 @@ function collectPredecessors(
 }
 
 export const workflowDepsCommand: AgentCliEngine = {
+  openReadResources: true,
   async execute(rest, runtime) {
     const [workflowId, blockId] = rest
     if (!workflowId || !blockId)

@@ -11,6 +11,7 @@ import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+import { sandboxResourceEndpoint } from '@/lib/mothership/tools/sandbox-resources'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
 
 const logger = createLogger('MothershipSandboxSession')
@@ -87,7 +88,7 @@ export async function buildMothershipSandboxSession(args: {
       cliEnvs = {
         SIM_API_KEY: apiKey,
         SIM_WORKSPACE: args.workspaceId,
-        SIM_ENDPOINT: endpoint,
+        SIM_ENDPOINT: await sandboxResourceEndpoint(endpoint, args, apiKey),
       }
     }
   } catch (error) {

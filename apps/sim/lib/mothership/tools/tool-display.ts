@@ -1371,7 +1371,10 @@ export function cliFirstPositional(
   name: string,
   args?: Record<string, unknown>
 ): string | undefined {
-  const argv = stringArrayArg(args, 'args')
+  const invocation = recordArg(recordArg(args, 'request'), 'invocation')
+  if (invocation?.kind === 'augmentation') return stringArrayArg(invocation, 'positionals')[0]
+  const argv =
+    invocation?.kind === 'cli' ? stringArrayArg(invocation, 'argv') : stringArrayArg(args, 'args')
   const tokens: string[] = []
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i]
@@ -1391,12 +1394,17 @@ export function cliFirstPositional(
   return undefined
 }
 
-/** Display-safe selectors only; command execution remains owned by the CLI parser. */
+/** Prefer the worker's parsed invocation; raw args remain a streaming/legacy display fallback. */
 function cliFlag(args: ToolArgs, flag: string): string | undefined {
-  const argv = stringArrayArg(args, 'args')
+  const invocation = recordArg(recordArg(args, 'request'), 'invocation')
+  if (invocation?.kind === 'augmentation') {
+    return stringArg(recordArg(invocation, 'flags'), flag.slice(2)) || undefined
+  }
+  const argv =
+    invocation?.kind === 'cli' ? stringArrayArg(invocation, 'argv') : stringArrayArg(args, 'args')
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i]
-    if (token === '--' || token === '|') break
+    if (token === '--') break
     const value =
       token === flag
         ? argv[i + 1]
@@ -1619,6 +1627,8 @@ export function getToolStatusDisplayTitle(
     return getToolOutcomeTitle(title, 'Stopped', !description)
   }
   if (status === 'skipped') return getToolOutcomeTitle(title, 'Skipped', !description)
+  if (status === 'awaiting_approval' && !title.startsWith('Waiting for approval: '))
+    return `Waiting for approval: ${title}`
   return title
 }
 

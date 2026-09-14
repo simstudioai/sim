@@ -103,6 +103,72 @@ describe('handleResourceEvent removal', () => {
     expect(onResourceEvent).toHaveBeenCalledWith('table', { tableViewId: 'active' })
   })
 
+  it.each(['workflow', 'table', 'file', 'knowledgebase', 'log'] as const)(
+    'opens an authorized %s read without invalidating or reconciling editable content',
+    (type) => {
+      const onResourceEvent = vi.fn()
+      const deps = makeStreamLoopDeps({ onResourceEventRef: { current: onResourceEvent } })
+      handleResourceEvent({ deps } as StreamLoopContext, {
+        ...removeEvent('file', 'unused'),
+        scope: { parentToolCallId: 'child', agentId: 'agent' },
+        payload: {
+          op: 'upsert',
+          readOnly: true,
+          effectId: 'read:0',
+          resource: { type, id: 'addressed', title: 'Addressed resource' },
+        },
+      })
+      expect(onResourceEvent).toHaveBeenCalledWith('addressed')
+      expect(deps.setResources).toHaveBeenCalled()
+      expect(deps.addResource).not.toHaveBeenCalled()
+      expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
+      expect(mocks.notifyWorkflowExternalUpdate).not.toHaveBeenCalled()
+      expect(deps.ensureWorkflowInRegistry).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps replayed reads focus-free without disturbing a dirty workflow', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({
+      chatIdRef: { current: 'chat' },
+      onResourceEventRef: { current: onResourceEvent },
+    })
+    handleResourceEvent({ deps } as StreamLoopContext, {
+      ...removeEvent('workflow', 'wf'),
+      payload: {
+        op: 'upsert',
+        readOnly: true,
+        replay: true,
+        resource: { type: 'workflow', id: 'wf' },
+      },
+    })
+    expect(onResourceEvent).not.toHaveBeenCalled()
+    expect(deps.setResources).not.toHaveBeenCalled()
+    expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
+    expect(mocks.notifyWorkflowExternalUpdate).not.toHaveBeenCalled()
+    expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['mothership-chats', 'detail', 'chat'],
+    })
+  })
+
+  it('still reconciles a committed workflow edit after opening it for a read', () => {
+    const deps = makeStreamLoopDeps()
+    const event = removeEvent('workflow', 'wf')
+    handleResourceEvent(
+      { deps } as StreamLoopContext,
+      {
+        ...event,
+        payload: { op: 'upsert', readOnly: true, resource: event.payload.resource },
+      } as ResourceEvent
+    )
+    handleResourceEvent(
+      { deps } as StreamLoopContext,
+      { ...event, payload: { op: 'upsert', resource: event.payload.resource } } as ResourceEvent
+    )
+    expect(mocks.invalidateResourceQueries).toHaveBeenCalledTimes(1)
+    expect(mocks.notifyWorkflowExternalUpdate).toHaveBeenCalledExactlyOnceWith('wf')
+  })
+
   it.each([
     { op: 'upsert', effectId: 's:tool:0' },
     { op: 'remove', effectId: 's:tool:0' },
